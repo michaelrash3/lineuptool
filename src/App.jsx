@@ -746,6 +746,46 @@ const formatGameDateDisplay = (dateString) => {
 // they actually attended). The delta = actual - expected tells you whether
 // they've been over- or under-played relative to what was fair across the
 // games they were present for. Absences are correctly excluded.
+// Slim helpers: strip embedded player objects in saved lineups down to the
+// minimum needed for display (id + name + number). Full player data lives
+// on team.players and is rehydrated by lookup. Keeps the Firestore document
+// well under the 1MB hard limit. Module-level so they're stable references
+// (don't trigger useCallback dependency warnings).
+const slimPlayer = (p) =>
+  p ? { id: p.id, name: p.name, number: p.number } : null;
+const slimInning = (inning) => {
+  if (!inning || typeof inning !== "object") return inning;
+  const out = {};
+  for (const pos in inning) {
+    if (pos === "BENCH") {
+      out.BENCH = (inning.BENCH || []).map(slimPlayer).filter(Boolean);
+    } else {
+      out[pos] = slimPlayer(inning[pos]);
+    }
+  }
+  return out;
+};
+const slimGame = (g) => {
+  if (!g) return g;
+  let next = g;
+  if (Array.isArray(g.lineup)) {
+    next = { ...next, lineup: g.lineup.map(slimInning) };
+  }
+  if (Array.isArray(g.battingLineup)) {
+    next = {
+      ...next,
+      battingLineup: g.battingLineup.map(slimPlayer).filter(Boolean),
+    };
+  }
+  if (Array.isArray(g.originalLineup)) {
+    next = {
+      ...next,
+      originalLineup: g.originalLineup.map(slimInning),
+    };
+  }
+  return next;
+};
+
 const buildSeasonBenchImbalance = (games, currentGameId) => {
   const out = new Map();
   for (const g of games || []) {
@@ -4949,6 +4989,58 @@ const SettingsTab = memo(() => {
                 </div>
               </div>
             </div>
+            {/* Storage usage indicator — shows how close the team document is
+                to Firestore's 1MB hard limit. Mostly useful as an early warning
+                if the document starts approaching the cap. Slim lineup data
+                keeps this well under control during normal use. */}
+            {(() => {
+              const FIRESTORE_LIMIT = 1048576; // 1 MB in bytes
+              let docSize = 0;
+              try {
+                docSize = new TextEncoder().encode(
+                  JSON.stringify(team || {})
+                ).length;
+              } catch {
+                docSize = 0;
+              }
+              const pct = Math.min(100, (docSize / FIRESTORE_LIMIT) * 100);
+              const sizeKb = Math.round(docSize / 1024);
+              const limitKb = Math.round(FIRESTORE_LIMIT / 1024);
+              const color =
+                pct >= 90
+                  ? "bg-red-500"
+                  : pct >= 70
+                  ? "bg-amber-500"
+                  : "bg-emerald-500";
+              const label =
+                pct >= 90
+                  ? "Critical — saves may fail soon"
+                  : pct >= 70
+                  ? "Watch — getting close to the limit"
+                  : "Healthy";
+              return (
+                <div className="pt-6 border-t border-slate-200/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      Storage Usage
+                    </h4>
+                    <span className="text-xs font-black tabular-nums text-slate-700">
+                      {sizeKb} KB / {limitKb} KB
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${color} transition-all`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1.5 font-medium">
+                    {label} ({pct.toFixed(0)}%). Saves are limited to 1 MB per
+                    team. Data resets at season rollover.
+                  </p>
+                </div>
+              );
+            })()}
             <div className="pt-6 border-t border-slate-200/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">
@@ -7895,45 +7987,6 @@ const TeamProvider = ({ children }) => {
   }, [activeTeamId, toast]);
 
   // Helper: write a partial update to the active team document
-  // Helper: slim a player to just the essential fields needed inside a
-  // saved lineup. Full player data (stats/eval/restrictions/etc.) lives on
-  // team.players and is rehydrated by lookup when needed for display.
-  // This keeps the Firestore document under the 1MB hard limit.
-  const slimPlayer = (p) =>
-    p ? { id: p.id, name: p.name, number: p.number } : null;
-  const slimInning = (inning) => {
-    if (!inning || typeof inning !== "object") return inning;
-    const out = {};
-    for (const pos in inning) {
-      if (pos === "BENCH") {
-        out.BENCH = (inning.BENCH || []).map(slimPlayer).filter(Boolean);
-      } else {
-        out[pos] = slimPlayer(inning[pos]);
-      }
-    }
-    return out;
-  };
-  const slimGame = (g) => {
-    if (!g) return g;
-    let next = g;
-    if (Array.isArray(g.lineup)) {
-      next = { ...next, lineup: g.lineup.map(slimInning) };
-    }
-    if (Array.isArray(g.battingLineup)) {
-      next = {
-        ...next,
-        battingLineup: g.battingLineup.map(slimPlayer).filter(Boolean),
-      };
-    }
-    if (Array.isArray(g.originalLineup)) {
-      next = {
-        ...next,
-        originalLineup: g.originalLineup.map(slimInning),
-      };
-    }
-    return next;
-  };
-
   const persistTeam = useCallback(
     async (updates) => {
       if (!activeTeamId) return;
