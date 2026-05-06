@@ -18,12 +18,47 @@ import {
 } from "firebase/auth";
 import {
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   doc,
   setDoc,
   getDoc,
   onSnapshot,
   deleteDoc,
 } from "firebase/firestore";
+import {
+  Calendar as LucideCalendar,
+  Clipboard as LucideClipboard,
+  Settings as LucideSettings,
+  Users as LucideUsers,
+  UserPlus as LucideUserPlus,
+  User as LucideUser,
+  Upload as LucideUpload,
+  Download as LucideDownload,
+  Save as LucideSave,
+  Edit as LucideEdit,
+  Trash2 as LucideTrash,
+  Plus as LucidePlus,
+  Minus as LucideMinus,
+  Check as LucideCheck,
+  X as LucideX,
+  ChevronUp as LucideChevronUp,
+  ChevronDown as LucideChevronDown,
+  ChevronLeft as LucideChevronLeft,
+  ChevronRight as LucideChevronRight,
+  Clock as LucideClock,
+  MapPin as LucideMapPin,
+  Cloud as LucideCloud,
+  FileText as LucideFileText,
+  Lock as LucideLock,
+  Unlock as LucideUnlock,
+  RefreshCw as LucideRefresh,
+  Printer as LucidePrinter,
+  AlertTriangle as LucideAlert,
+  Forward as LucideForward,
+  Link as LucideLink,
+} from "lucide-react";
 
 // Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
 import {
@@ -34,134 +69,42 @@ import {
 } from "./lineupEngine.js";
 
 /* ============================================================================
-   SECTION 1 · Icons (SVG components)
+   SECTION 1 · Icons
+
+   Generic icons come from lucide-react. Baseball-specific glyphs
+   (HomePlate, Jersey, Bat, Glove, Pitch) stay as inline SVGs because
+   lucide does not ship equivalents.
 ============================================================================ */
+const baseballSvgProps = {
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+};
+
 const Icons = {
   HomePlate: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M5 3h14v9L12 21 5 12V3z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
+    <svg {...baseballSvgProps} {...p}>
+      <path d="M5 3h14v9L12 21 5 12V3z" fill="currentColor" fillOpacity="0.15" />
       <circle cx="12" cy="10" r="2.5" />
     </svg>
   ),
   Jersey: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M8 3h8l4 4-3 3v11H7V10L4 7l4-4z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
+    <svg {...baseballSvgProps} {...p}>
+      <path d="M8 3h8l4 4-3 3v11H7V10L4 7l4-4z" fill="currentColor" fillOpacity="0.15" />
       <path d="M12 3v6" />
     </svg>
   ),
-  Calendar: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <rect
-        x="3"
-        y="6"
-        width="18"
-        height="15"
-        rx="2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <path d="M8 3v6M16 3v6M3 11h18" />
-      <path d="M12 13l2.5 2.5-2.5 2.5-2.5-2.5 2.5-2.5z" />
-    </svg>
-  ),
-  Clipboard: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <rect
-        x="5"
-        y="4"
-        width="14"
-        height="18"
-        rx="2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <path d="M8 4h8v4H8z" />
-      <path d="M12 11l2 2-2 2-2-2 2-2z" />
-      <path d="M9 17h6" />
-    </svg>
-  ),
-  Settings: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <circle cx="12" cy="12" r="3" fill="currentColor" fillOpacity="0.15" />
-      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
-    </svg>
-  ),
   Bat: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M18 3l3 3-13 13H5v-3L18 3z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
+    <svg {...baseballSvgProps} {...p}>
+      <path d="M18 3l3 3-13 13H5v-3L18 3z" fill="currentColor" fillOpacity="0.15" />
       <path d="M15 6l3 3M7 14l3 3" />
     </svg>
   ),
   Glove: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
+    <svg {...baseballSvgProps} {...p}>
       <path
         d="M12 20a8 8 0 0 1-8-8c0-3.5 1.5-6.5 4-8l2 6 2-5 2 5 2-6c2.5 1.5 4 4.5 4 8a8 8 0 0 1-8 8z"
         fill="currentColor"
@@ -171,478 +114,42 @@ const Icons = {
     </svg>
   ),
   Pitch: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
+    <svg {...baseballSvgProps} {...p}>
       <circle cx="16" cy="12" r="5" fill="currentColor" fillOpacity="0.15" />
       <path d="M2 12h7M4 8h5M4 16h5M14 9a3 3 0 010 6M18 9a3 3 0 000 6" />
     </svg>
   ),
-  Users: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-    </svg>
-  ),
-  UserPlus: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <circle cx="8.5" cy="7" r="4" />
-      <path d="M20 8v6M23 11h-6" />
-    </svg>
-  ),
-  User: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  ),
-  Upload: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" fill="none" />
-      <path d="M17 8l-5-5-5 5M12 3v12" />
-    </svg>
-  ),
-  Download: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" fill="none" />
-      <path d="M7 10l5 5 5-5M12 15V3" />
-    </svg>
-  ),
-  Save: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <path d="M17 21v-8H7v8M7 3v5h8" />
-    </svg>
-  ),
-  Edit: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path
-        d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-    </svg>
-  ),
-  Trash: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <path d="M10 11v6M14 11v6" />
-    </svg>
-  ),
-  Plus: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  ),
-  Minus: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M5 12h14" />
-    </svg>
-  ),
-  Check: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M20 6L9 17l-5-5" />
-    </svg>
-  ),
-  X: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  ),
-  ChevronUp: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M18 15l-6-6-6 6" />
-    </svg>
-  ),
-  ChevronDown: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M6 9l6 6 6-6" />
-    </svg>
-  ),
-  ChevronLeft: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M15 18l-6-6 6-6" />
-    </svg>
-  ),
-  ChevronRight: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M9 18l6-6-6-6" />
-    </svg>
-  ),
-  Clock: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.15" />
-      <path d="M12 6v6l4 2" />
-    </svg>
-  ),
-  MapPin: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <circle cx="12" cy="10" r="3" />
-    </svg>
-  ),
-  Cloud: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-    </svg>
-  ),
-  FileText: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path
-        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="16" y1="13" x2="8" y2="13" />
-      <line x1="16" y1="17" x2="8" y2="17" />
-      <polyline points="10 9 9 9 8 9" />
-    </svg>
-  ),
-  Lock: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <rect
-        x="3"
-        y="11"
-        width="18"
-        height="11"
-        rx="2"
-        ry="2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </svg>
-  ),
-  Unlock: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <rect
-        x="3"
-        y="11"
-        width="18"
-        height="11"
-        rx="2"
-        ry="2"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-    </svg>
-  ),
-  Refresh: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-    </svg>
-  ),
-  Printer: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <polyline points="6 9 6 2 18 2 18 9" />
-      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-      <rect
-        x="6"
-        y="14"
-        width="12"
-        height="8"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-    </svg>
-  ),
-  Alert: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.15" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  ),
-  Forward: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <polygon
-        points="13 19 22 12 13 5 13 19"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-      <polygon
-        points="2 19 11 12 2 5 2 19"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-    </svg>
-  ),
-  Link: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-    </svg>
-  ),
-  Undo: (p) => (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...p}
-    >
-      <path d="M3 7v6h6" />
-      <path d="M21 17a9 9 0 0 0-15-6.7L3 13" />
-    </svg>
-  ),
+
+  Calendar: LucideCalendar,
+  Clipboard: LucideClipboard,
+  Settings: LucideSettings,
+  Users: LucideUsers,
+  UserPlus: LucideUserPlus,
+  User: LucideUser,
+  Upload: LucideUpload,
+  Download: LucideDownload,
+  Save: LucideSave,
+  Edit: LucideEdit,
+  Trash: LucideTrash,
+  Plus: LucidePlus,
+  Minus: LucideMinus,
+  Check: LucideCheck,
+  X: LucideX,
+  ChevronUp: LucideChevronUp,
+  ChevronDown: LucideChevronDown,
+  ChevronLeft: LucideChevronLeft,
+  ChevronRight: LucideChevronRight,
+  Clock: LucideClock,
+  MapPin: LucideMapPin,
+  Cloud: LucideCloud,
+  FileText: LucideFileText,
+  Lock: LucideLock,
+  Unlock: LucideUnlock,
+  Refresh: LucideRefresh,
+  Printer: LucidePrinter,
+  Alert: LucideAlert,
+  Forward: LucideForward,
+  Link: LucideLink,
 };
 
 /* ============================================================================
@@ -662,7 +169,22 @@ const _hostFirebaseConfig =
 const firebaseConfig = _hostFirebaseConfig ? JSON.parse(_hostFirebaseConfig) : fallbackConfig;
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Coaches use this app at fields with poor cell service. Initialize Firestore
+// with IndexedDB-backed persistence so cached data and pending writes survive
+// offline periods and reloads. Falls back to in-memory cache if the browser
+// blocks IndexedDB (e.g. private mode, multi-tab without shared workers).
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+  });
+} catch (err) {
+  console.warn("Firestore persistent cache unavailable, falling back:", err);
+  db = getFirestore(app);
+}
 const _hostAppId = (typeof window !== "undefined" && window.__app_id) || null;
 const appId = _hostAppId || "baseball_lineup_v1";
 
