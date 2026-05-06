@@ -2790,6 +2790,20 @@ const ScheduleTab = memo(() => {
                   </div>
                 
                 <button
+                  onClick={() =>
+                    downloadLineupPdf({
+                      game: { ...currentGame, lineup, battingLineup },
+                      team,
+                      formatDate: formatGameDateDisplay,
+                      toast,
+                    })
+                  }
+                  title="Download lineup as a PDF for emailing or texting"
+                  className="text-xs bg-white/80 border border-slate-200 text-slate-700 py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-white transition-colors rounded-xl shadow-sm"
+                >
+                  <Icons.FileText className="w-4 h-4" /> PDF
+                </button>
+                <button
                   onClick={() => window.print()}
                   className="text-xs bg-white/80 border border-slate-200 text-slate-700 py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-white transition-colors rounded-xl shadow-sm"
                 >
@@ -4780,14 +4794,13 @@ const ALL_POSITIONS = [
 ];
 
 /* ============================================================================
-   SECTION X · Lineup Card image generator. Renders a self-contained portrait-
-   oriented PNG showing defense + batting + game info, suitable for sharing
-   via text or saving locally. Uses a Canvas element directly (no third-party
-   libraries needed) so output is pixel-perfect and predictable.
-
-   Returns a Promise<Blob> of the PNG image.
+   SECTION X · Lineup Card generator. buildLineupCanvas renders a
+   self-contained portrait-oriented HTMLCanvasElement showing defense +
+   batting + game info. Two thin wrappers expose it as a PNG blob (for
+   image sharing) and as a PDF blob (for emailing/texting a fixed-format
+   document — browser print is inconsistent across devices).
 ============================================================================ */
-const renderLineupCard = ({ game, team, formatDate }) => {
+const buildLineupCanvas = ({ game, team, formatDate }) => {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
   const ratio = window.devicePixelRatio || 1;
@@ -4973,9 +4986,84 @@ const renderLineupCard = ({ game, team, formatDate }) => {
   const stamp = `Generated ${new Date().toLocaleString()}`;
   ctx.fillText(stamp, PAD, H - footerH / 2);
 
+  return canvas;
+};
+
+// PNG blob wrapper. Kept as the canonical "render" function for share flows.
+const renderLineupCard = ({ game, team, formatDate }) => {
+  const canvas = buildLineupCanvas({ game, team, formatDate });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
   });
+};
+
+// PDF blob wrapper. Embeds the canvas as a single-page PDF sized to the
+// canvas dimensions (in points), so the document renders identically across
+// devices and email clients without browser print quirks. Loaded lazily so
+// jspdf only enters the bundle when a coach actually downloads a PDF.
+const renderLineupPdf = async ({ game, team, formatDate }) => {
+  const { jsPDF } = await import("jspdf");
+  const canvas = buildLineupCanvas({ game, team, formatDate });
+  // canvas.width/height are devicePixelRatio-scaled; CSS dimensions live on
+  // canvas.style and represent the logical card size we want for the page.
+  const wPt = parseFloat(canvas.style.width) || canvas.width;
+  const hPt = parseFloat(canvas.style.height) || canvas.height;
+  const pdf = new jsPDF({
+    unit: "pt",
+    format: [wPt, hPt],
+    orientation: hPt >= wPt ? "portrait" : "landscape",
+    compress: true,
+  });
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, wPt, hPt, undefined, "FAST");
+  return pdf.output("blob");
+};
+
+const downloadLineupPdf = async ({ game, team, formatDate, toast }) => {
+  try {
+    const blob = await renderLineupPdf({ game, team, formatDate });
+    const filename = `lineup-${game.opponent || "game"}-${game.date || "card"}.pdf`
+      .replace(/\s+/g, "-")
+      .toLowerCase();
+    const file = new File([blob], filename, { type: "application/pdf" });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `Lineup vs ${game.opponent || "Game"}`,
+          text: `Lineup vs ${game.opponent || "Game"}`,
+        });
+        return;
+      } catch (e) {
+        if (e.name === "AbortError") return;
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (toast) {
+      toast.push({
+        kind: "success",
+        title: "Lineup PDF downloaded",
+        message: "Saved to your downloads — share from there.",
+      });
+    }
+  } catch (e) {
+    console.error("downloadLineupPdf failed", e);
+    if (toast) {
+      toast.push({
+        kind: "error",
+        title: "Couldn't generate PDF",
+        message: e.message || "Try again.",
+      });
+    }
+  }
 };
 
 // Wrapper that handles share/save logic. Tries Web Share API first (so the
