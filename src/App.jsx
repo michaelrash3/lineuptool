@@ -21,8 +21,8 @@ import {
   onSnapshot,
   deleteDoc,
 } from "firebase/firestore";
-import { Icons } from "./icons.jsx";
-import { auth, db, appId } from "./firebase.js";
+import { Icons } from "./icons";
+import { auth, db, appId } from "./firebase";
 import {
   formatStat,
   normalizeDateToIso,
@@ -37,7 +37,7 @@ import {
   suggestPlayerMatch,
   parsePercent,
   blankStats,
-} from "./utils/helpers.js";
+} from "./utils/helpers";
 import {
   EVAL_CATEGORIES,
   getLocalDateString,
@@ -45,11 +45,11 @@ import {
   bumpAgeTier,
   computeNextSeason,
   DEFAULT_TEAM_DATA,
-} from "./constants/ui.js";
+} from "./constants/ui";
 import {
   downloadLineupPdf,
   shareLineupCard,
-} from "./lineup/lineupCard.js";
+} from "./lineup/lineupCard";
 
 // Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
 import {

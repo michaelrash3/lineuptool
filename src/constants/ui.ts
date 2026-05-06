@@ -30,15 +30,19 @@ export const AGE_TIERS = [
   "15U to 18U",
 ];
 
-export const bumpAgeTier = (current) => {
+export const bumpAgeTier = (current: string): string => {
   const i = AGE_TIERS.indexOf(current);
   if (i === -1 || i === AGE_TIERS.length - 1) return current;
   return AGE_TIERS[i + 1];
 };
 
+export interface NextSeason {
+  nextSeason: string;
+  shouldBump: boolean;
+}
+
 // Compute the "next" season label and whether the age tier should bump.
-// Returns { nextSeason, shouldBump }.
-export const computeNextSeason = (currentSeasonStr) => {
+export const computeNextSeason = (currentSeasonStr: string): NextSeason | null => {
   const parts = (currentSeasonStr || "").split(" ");
   if (parts.length < 2) return null;
   const season = parts[0].toLowerCase();

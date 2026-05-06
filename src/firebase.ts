@@ -1,13 +1,21 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, FirebaseOptions } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
   persistentLocalCache,
   persistentMultipleTabManager,
+  Firestore,
 } from "firebase/firestore";
 
-const fallbackConfig = {
+declare global {
+  interface Window {
+    __firebase_config?: string;
+    __app_id?: string;
+  }
+}
+
+const fallbackConfig: FirebaseOptions = {
   apiKey: "AIzaSyCaPhBAIcJt0IudO0QfwOc8qoWh9kpD7F4",
   authDomain: "lineupgenerator-79159.firebaseapp.com",
   projectId: "lineupgenerator-79159",
@@ -18,8 +26,8 @@ const fallbackConfig = {
 
 const _hostFirebaseConfig =
   (typeof window !== "undefined" && window.__firebase_config) || null;
-const firebaseConfig = _hostFirebaseConfig
-  ? JSON.parse(_hostFirebaseConfig)
+const firebaseConfig: FirebaseOptions = _hostFirebaseConfig
+  ? (JSON.parse(_hostFirebaseConfig) as FirebaseOptions)
   : fallbackConfig;
 
 const app = initializeApp(firebaseConfig);
@@ -29,7 +37,7 @@ export const auth = getAuth(app);
 // with IndexedDB-backed persistence so cached data and pending writes survive
 // offline periods and reloads. Falls back to in-memory cache if the browser
 // blocks IndexedDB (e.g. private mode, multi-tab without shared workers).
-let _db;
+let _db: Firestore;
 try {
   _db = initializeFirestore(app, {
     localCache: persistentLocalCache({

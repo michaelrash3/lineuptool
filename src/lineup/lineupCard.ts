@@ -4,12 +4,26 @@
 // blob (for emailing/texting a fixed-format document — browser print is
 // inconsistent across devices).
 
-export const buildLineupCanvas = ({ game, team, formatDate }) => {
+import { Game, SlimPlayer, Team, Toast } from "../types";
+
+interface RenderArgs {
+  game: Game;
+  team?: Team | null;
+  formatDate: (s: string) => string;
+}
+
+interface DownloadArgs extends RenderArgs {
+  toast?: Toast;
+}
+
+export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext("2d")!;
   const ratio = window.devicePixelRatio || 1;
 
-  const lineup = game.lineup || [];
+  // This file only ever indexes lineups by position string (never by BENCH),
+  // so retype to a simple Record for cleaner narrowing through the function.
+  const lineup = (game.lineup || []) as Array<Record<string, SlimPlayer | undefined>>;
   const battingLineup = game.battingLineup || [];
   const totalInnings = lineup.length;
 
@@ -178,7 +192,7 @@ export const buildLineupCanvas = ({ game, team, formatDate }) => {
 };
 
 // PNG blob wrapper — canonical "render" for image-share flows.
-export const renderLineupCard = ({ game, team, formatDate }) => {
+export const renderLineupCard = ({ game, team, formatDate }: RenderArgs): Promise<Blob | null> => {
   const canvas = buildLineupCanvas({ game, team, formatDate });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
@@ -189,7 +203,7 @@ export const renderLineupCard = ({ game, team, formatDate }) => {
 // canvas dimensions (in points), so the document renders identically across
 // devices and email clients without browser print quirks. jspdf is loaded
 // lazily so it only enters the bundle when a coach actually downloads a PDF.
-export const renderLineupPdf = async ({ game, team, formatDate }) => {
+export const renderLineupPdf = async ({ game, team, formatDate }: RenderArgs): Promise<Blob> => {
   const { jsPDF } = await import("jspdf");
   const canvas = buildLineupCanvas({ game, team, formatDate });
   const wPt = parseFloat(canvas.style.width) || canvas.width;
@@ -204,7 +218,7 @@ export const renderLineupPdf = async ({ game, team, formatDate }) => {
   return pdf.output("blob");
 };
 
-export const downloadLineupPdf = async ({ game, team, formatDate, toast }) => {
+export const downloadLineupPdf = async ({ game, team, formatDate, toast }: DownloadArgs): Promise<void> => {
   try {
     const blob = await renderLineupPdf({ game, team, formatDate });
     const filename = `lineup-${game.opponent || "game"}-${game.date || "card"}.pdf`
@@ -212,16 +226,20 @@ export const downloadLineupPdf = async ({ game, team, formatDate, toast }) => {
       .toLowerCase();
     const file = new File([blob], filename, { type: "application/pdf" });
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    const nav = navigator as unknown as {
+      share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+      canShare?: (data: { files: File[] }) => boolean;
+    };
+    if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
       try {
-        await navigator.share({
+        await nav.share!({
           files: [file],
           title: `Lineup vs ${game.opponent || "Game"}`,
           text: `Lineup vs ${game.opponent || "Game"}`,
         });
         return;
       } catch (e) {
-        if (e.name === "AbortError") return;
+        if ((e as { name?: string })?.name === "AbortError") return;
       }
     }
 
@@ -246,7 +264,7 @@ export const downloadLineupPdf = async ({ game, team, formatDate, toast }) => {
       toast.push({
         kind: "error",
         title: "Couldn't generate PDF",
-        message: e.message || "Try again.",
+        message: (e instanceof Error ? e.message : null) || "Try again.",
       });
     }
   }
@@ -254,7 +272,7 @@ export const downloadLineupPdf = async ({ game, team, formatDate, toast }) => {
 
 // Tries Web Share API first (so the user's iOS/Android share sheet appears),
 // falls back to a download link.
-export const shareLineupCard = async ({ game, team, formatDate, toast }) => {
+export const shareLineupCard = async ({ game, team, formatDate, toast }: DownloadArgs): Promise<void> => {
   try {
     const blob = await renderLineupCard({ game, team, formatDate });
     if (!blob) throw new Error("Image generation failed");
@@ -263,16 +281,20 @@ export const shareLineupCard = async ({ game, team, formatDate, toast }) => {
       .toLowerCase();
     const file = new File([blob], filename, { type: "image/png" });
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+    const nav = navigator as unknown as {
+      share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+      canShare?: (data: { files: File[] }) => boolean;
+    };
+    if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
       try {
-        await navigator.share({
+        await nav.share!({
           files: [file],
           title: `Lineup vs ${game.opponent || "Game"}`,
           text: `Lineup vs ${game.opponent || "Game"}`,
         });
         return;
       } catch (e) {
-        if (e.name === "AbortError") return;
+        if ((e as { name?: string })?.name === "AbortError") return;
       }
     }
 
@@ -297,7 +319,7 @@ export const shareLineupCard = async ({ game, team, formatDate, toast }) => {
       toast.push({
         kind: "error",
         title: "Couldn't share lineup",
-        message: e.message || "Try again.",
+        message: (e instanceof Error ? e.message : null) || "Try again.",
       });
     }
   }

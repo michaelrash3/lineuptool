@@ -3,12 +3,22 @@
         "./src/**/*"
     ],
     "compilerOptions": {
+        "target": "es2020",
+        "module": "esnext",
+        "moduleResolution": "node",
+        "allowJs": true,
+        "checkJs": false,
         "strict": true,
         "esModuleInterop": true,
         "lib": [
             "dom",
-            "es2015"
+            "dom.iterable",
+            "es2020"
         ],
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        "skipLibCheck": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "resolveJsonModule": true
     }
 }

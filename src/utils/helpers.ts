@@ -1,6 +1,16 @@
 // Pure helpers (formatting, parsing) extracted from App.jsx Section 3.
 
-export const formatStat = (val) => {
+import {
+  CsvImportResult,
+  Game,
+  Inning,
+  Player,
+  PlayerId,
+  PlayerStats,
+  SlimPlayer,
+} from "../types";
+
+export const formatStat = (val: unknown): string => {
   if (val === undefined || val === null || val === "") return ".000";
   const str = (Number(val) || 0).toFixed(3);
   return str.startsWith("0.") ? str.substring(1) : str;
@@ -9,7 +19,7 @@ export const formatStat = (val) => {
 // Normalize a date string to YYYY-MM-DD (the format `<input type="date">`
 // requires). Handles common imports: ISO (2026-04-27), US slash (04/27/2026
 // or 4/27/26), ISO with time (2026-04-27T...). Returns "" if unparseable.
-export const normalizeDateToIso = (dateString) => {
+export const normalizeDateToIso = (dateString: unknown): string => {
   if (!dateString || typeof dateString !== "string") return "";
   const trimmed = dateString.trim();
   if (!trimmed) return "";
@@ -41,13 +51,13 @@ export const normalizeDateToIso = (dateString) => {
   return "";
 };
 
-export const formatGameDateDisplay = (dateString) => {
+export const formatGameDateDisplay = (dateString: string | null | undefined): string => {
   if (!dateString) return "";
   const iso = normalizeDateToIso(dateString);
   if (!iso) return dateString;
   try {
     const [y, m, d] = iso.split("-");
-    return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(undefined, {
       weekday: "short",
       year: "numeric",
       month: "short",
@@ -61,39 +71,39 @@ export const formatGameDateDisplay = (dateString) => {
 // Slim helpers: strip embedded player objects in saved lineups down to the
 // minimum needed for display (id + name + number). Full player data lives on
 // team.players and is rehydrated by lookup. Keeps Firestore docs under 1MB.
-export const slimPlayer = (p) =>
-  p ? { id: p.id, name: p.name, number: p.number } : null;
+export const slimPlayer = (p: Partial<Player> | null | undefined): SlimPlayer =>
+  p && p.id ? { id: p.id, name: p.name || "", number: p.number } : null;
 
-export const slimInning = (inning) => {
+export const slimInning = (inning: Inning | null | undefined): Inning | null | undefined => {
   if (!inning || typeof inning !== "object") return inning;
-  const out = {};
+  const out: Inning = {};
   for (const pos in inning) {
     if (pos === "BENCH") {
-      out.BENCH = (inning.BENCH || []).map(slimPlayer).filter(Boolean);
+      out.BENCH = (inning.BENCH || []).map((p) => slimPlayer(p as Partial<Player>)).filter(Boolean) as SlimPlayer[];
     } else {
-      out[pos] = slimPlayer(inning[pos]);
+      out[pos] = slimPlayer(inning[pos] as Partial<Player> | null | undefined);
     }
   }
   return out;
 };
 
-export const slimGame = (g) => {
+export const slimGame = <T extends Partial<Game>>(g: T | null | undefined): T | null | undefined => {
   if (!g) return g;
-  let next = g;
+  let next: T = g;
   if (Array.isArray(g.lineup)) {
-    next = { ...next, lineup: g.lineup.map(slimInning) };
+    next = { ...next, lineup: g.lineup.map(slimInning) } as T;
   }
   if (Array.isArray(g.battingLineup)) {
     next = {
       ...next,
-      battingLineup: g.battingLineup.map(slimPlayer).filter(Boolean),
-    };
+      battingLineup: g.battingLineup.map((p) => slimPlayer(p as Partial<Player>)).filter(Boolean),
+    } as T;
   }
   if (Array.isArray(g.originalLineup)) {
     next = {
       ...next,
       originalLineup: g.originalLineup.map(slimInning),
-    };
+    } as T;
   }
   return next;
 };
@@ -101,17 +111,18 @@ export const slimGame = (g) => {
 // Recursively remove undefined values from an object/array tree. Firestore
 // rejects documents containing undefined (only null and missing keys are
 // valid). Scrub the data right before save.
-export const scrubUndefined = (value) => {
+export const scrubUndefined = (value: unknown): unknown => {
   if (value === undefined) return undefined;
   if (value === null) return null;
   if (Array.isArray(value)) {
     return value.map(scrubUndefined).filter((v) => v !== undefined);
   }
   if (typeof value === "object") {
-    if (value.constructor && value.constructor !== Object) return value;
-    const out = {};
-    for (const k in value) {
-      const cleaned = scrubUndefined(value[k]);
+    const v = value as Record<string, unknown>;
+    if (v.constructor && v.constructor !== Object) return value;
+    const out: Record<string, unknown> = {};
+    for (const k in v) {
+      const cleaned = scrubUndefined(v[k]);
       if (cleaned !== undefined) out[k] = cleaned;
     }
     return out;
@@ -119,21 +130,33 @@ export const scrubUndefined = (value) => {
   return value;
 };
 
-export const buildSeasonBenchImbalance = (games, currentGameId) => {
-  const out = new Map();
+export interface BenchImbalanceEntry {
+  extraSits: number;
+  totalBench: number;
+  totalDefense: number;
+  expectedDefense: number;
+  gamesAttended: number;
+}
+
+export const buildSeasonBenchImbalance = (
+  games: Game[] | null | undefined,
+  currentGameId: string
+): Map<PlayerId, BenchImbalanceEntry> => {
+  const out = new Map<PlayerId, BenchImbalanceEntry>();
   for (const g of games || []) {
     if (g.id === currentGameId) continue;
     if (g.status && g.status !== "final") continue;
     if (!g.lineup?.length) continue;
 
-    const attending = new Set();
+    const attending = new Set<PlayerId>();
     for (const inning of g.lineup) {
       for (const pos in inning) {
         if (pos === "BENCH") continue;
-        const p = inning[pos];
+        const p = inning[pos] as SlimPlayer | undefined;
         if (p) attending.add(p.id);
       }
       for (const bp of inning.BENCH || []) {
+        if (!bp) continue;
         if (g.attendance?.[bp.id] === false) continue;
         attending.add(bp.id);
       }
@@ -151,13 +174,14 @@ export const buildSeasonBenchImbalance = (games, currentGameId) => {
     const totalDefenseSlots = fieldersPerInning * innings;
     const expectedDefensePerPlayer = totalDefenseSlots / playerCount;
 
-    const benchCount = new Map();
+    const benchCount = new Map<PlayerId, number>();
     for (const id of attending) benchCount.set(id, 0);
     for (const inning of g.lineup) {
       for (const bp of inning.BENCH || []) {
+        if (!bp) continue;
         if (g.attendance?.[bp.id] === false) continue;
         if (benchCount.has(bp.id)) {
-          benchCount.set(bp.id, benchCount.get(bp.id) + 1);
+          benchCount.set(bp.id, (benchCount.get(bp.id) || 0) + 1);
         }
       }
     }
@@ -182,7 +206,10 @@ export const buildSeasonBenchImbalance = (games, currentGameId) => {
   return out;
 };
 
-export const calculateBaseballAge = (dob, currentSeasonStr) => {
+export const calculateBaseballAge = (
+  dob: string | null | undefined,
+  currentSeasonStr: string | null | undefined
+): number | null => {
   if (!dob) return null;
   const parts = (currentSeasonStr || "").split(" ");
   let seasonYear = new Date().getFullYear();
@@ -196,8 +223,8 @@ export const calculateBaseballAge = (dob, currentSeasonStr) => {
   return age;
 };
 
-export const parseCsvLine = (text) => {
-  const result = [];
+export const parseCsvLine = (text: string): string[] => {
+  const result: string[] = [];
   let cell = "";
   let inQuotes = false;
   for (let i = 0; i < text.length; i++) {
@@ -215,15 +242,50 @@ export const parseCsvLine = (text) => {
   return result;
 };
 
-export const buildCsvHeaderIndex = (headers) => {
-  const find = (...keys) => {
+export interface CsvHeaderIndex {
+  fn: number;
+  ln: number;
+  ops: number;
+  obp: number;
+  avg: number;
+  contact: number;
+  tp: number;
+  ip: number;
+  era: number;
+  ab: number;
+  h: number;
+  doubles: number;
+  triples: number;
+  hr: number;
+  rbi: number;
+  fpct: number;
+  tc: number;
+  a: number;
+  po: number;
+  num: number;
+  dob: number;
+  phone: number;
+  email: number;
+  parent: number;
+  position: number;
+  ld: number;
+  fb: number;
+  gb: number;
+  hard: number;
+  qab: number;
+  babip: number;
+  isTeamSnap: boolean;
+}
+
+export const buildCsvHeaderIndex = (headers: string[]): CsvHeaderIndex => {
+  const find = (...keys: string[]): number => {
     for (const k of keys) {
       const i = headers.indexOf(k);
       if (i !== -1) return i;
     }
     return -1;
   };
-  const findContains = (substring) =>
+  const findContains = (substring: string): number =>
     headers.findIndex((h) => h.includes(substring));
 
   return {
@@ -263,7 +325,7 @@ export const buildCsvHeaderIndex = (headers) => {
   };
 };
 
-export const parsePercent = (val) => {
+export const parsePercent = (val: unknown): number => {
   if (!val) return 0;
   const raw = parseFloat(String(val).replace("%", ""));
   if (Number.isNaN(raw)) return 0;
@@ -271,9 +333,9 @@ export const parsePercent = (val) => {
 };
 
 // Parse a GameChanger past-season CSV. Returns { rows, error }.
-export const parseGameChangerPastSeasonCsv = (text) => {
-  text = (text || "").replace(/^﻿/, "");
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => {
+  const cleaned = (text || "").replace(/^﻿/, "");
+  const lines = cleaned.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length < 2) return { error: "File appears to be empty.", rows: [] };
 
   let headerRowIndex = 0;
@@ -307,7 +369,7 @@ export const parseGameChangerPastSeasonCsv = (text) => {
     };
   }
 
-  const rows = [];
+  const rows: CsvImportResult["rows"] = [];
   const dataStart = headerRowIndex + 1;
   for (let i = dataStart; i < lines.length; i++) {
     const cols = parseCsvLine(lines[i]);
@@ -326,22 +388,22 @@ export const parseGameChangerPastSeasonCsv = (text) => {
     )
       continue;
 
-    const stats = {};
-    const setNum = (key, colIdx) => {
+    const stats: PlayerStats = {};
+    const setNum = (key: keyof PlayerStats, colIdx: number): void => {
       if (colIdx === -1) return;
       const raw = cols[colIdx];
       if (raw === undefined || raw === "" || raw === "-") return;
       const n = parseFloat(raw);
       if (!Number.isNaN(n)) stats[key] = n;
     };
-    const setInt = (key, colIdx) => {
+    const setInt = (key: keyof PlayerStats, colIdx: number): void => {
       if (colIdx === -1) return;
       const raw = cols[colIdx];
       if (raw === undefined || raw === "" || raw === "-") return;
       const n = parseInt(raw, 10);
       if (!Number.isNaN(n)) stats[key] = n;
     };
-    const setPct = (key, colIdx) => {
+    const setPct = (key: keyof PlayerStats, colIdx: number): void => {
       if (colIdx === -1) return;
       const raw = cols[colIdx];
       if (raw === undefined || raw === "" || raw === "-") return;
@@ -383,8 +445,12 @@ export const parseGameChangerPastSeasonCsv = (text) => {
 };
 
 // Suggest a likely match between a CSV row name and existing players.
-export const suggestPlayerMatch = (csvName, players) => {
-  const norm = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
+export const suggestPlayerMatch = (
+  csvName: string,
+  players: Player[]
+): PlayerId | null => {
+  const norm = (s: string | null | undefined): string =>
+    (s || "").toLowerCase().replace(/[^a-z]/g, "");
   const csvNorm = norm(csvName);
   for (const p of players) {
     if (norm(p.name) === csvNorm) return p.id;
@@ -407,7 +473,7 @@ export const suggestPlayerMatch = (csvName, players) => {
   return null;
 };
 
-export const blankStats = () => ({
+export const blankStats = (): PlayerStats => ({
   ops: 0,
   obp: 0,
   avg: 0,
