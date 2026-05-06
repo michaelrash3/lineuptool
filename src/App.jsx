@@ -786,6 +786,30 @@ const slimGame = (g) => {
   return next;
 };
 
+// Recursively remove undefined values from an object/array tree.
+// Firestore rejects documents containing undefined (only null and missing keys
+// are valid). This scrubs the data right before save.
+const scrubUndefined = (value) => {
+  if (value === undefined) return undefined; // signal to drop the key
+  if (value === null) return null;
+  if (Array.isArray(value)) {
+    return value
+      .map(scrubUndefined)
+      .filter((v) => v !== undefined);
+  }
+  if (typeof value === "object") {
+    // Check for special objects (Date, etc.) — don't recurse into those
+    if (value.constructor && value.constructor !== Object) return value;
+    const out = {};
+    for (const k in value) {
+      const cleaned = scrubUndefined(value[k]);
+      if (cleaned !== undefined) out[k] = cleaned;
+    }
+    return out;
+  }
+  return value;
+};
+
 const buildSeasonBenchImbalance = (games, currentGameId) => {
   const out = new Map();
   for (const g of games || []) {
@@ -7996,6 +8020,8 @@ const TeamProvider = ({ children }) => {
       if (Array.isArray(updates.games)) {
         toPersist = { ...updates, games: updates.games.map(slimGame) };
       }
+      // Scrub any undefined values from the tree — Firestore rejects them.
+      toPersist = scrubUndefined(toPersist);
       setSyncStatus("Saving");
       try {
         const ref = doc(
