@@ -64,24 +64,32 @@ export const Icons: Record<string, IconComponent> = {
   ),
   Bat: (p: IconProps) => (
     <svg {...baseballSvgProps} {...p}>
-      <path d="M18 3l3 3-13 13H5v-3L18 3z" fill="currentColor" fillOpacity="0.15" />
-      <path d="M15 6l3 3M7 14l3 3" />
+      <g transform="rotate(-45 12 12)">
+        <rect x="3" y="9.5" width="18" height="5" rx="2.5" fill="currentColor" fillOpacity="0.15" />
+        <circle cx="4" cy="12" r="2" fill="currentColor" fillOpacity="0.25" />
+      </g>
     </svg>
   ),
   Glove: (p: IconProps) => (
     <svg {...baseballSvgProps} {...p}>
       <path
-        d="M12 20a8 8 0 0 1-8-8c0-3.5 1.5-6.5 4-8l2 6 2-5 2 5 2-6c2.5 1.5 4 4.5 4 8a8 8 0 0 1-8 8z"
+        d="M5 11c0-3 2-5 7-5s7 2 7 5v6c0 2-1 3-3 3H8c-2 0-3-1-3-3v-6z"
         fill="currentColor"
         fillOpacity="0.15"
       />
-      <path d="M8 12s2 2 4 2 4-2 4-2" />
+      <path d="M9 6.5v4M12 6v4M15 6.5v4" />
+      <path
+        d="M5 14c-2 0-3-1-3-2.5S3 10 5 11"
+        fill="currentColor"
+        fillOpacity="0.15"
+      />
     </svg>
   ),
   Pitch: (p: IconProps) => (
     <svg {...baseballSvgProps} {...p}>
-      <circle cx="16" cy="12" r="5" fill="currentColor" fillOpacity="0.15" />
-      <path d="M2 12h7M4 8h5M4 16h5M14 9a3 3 0 010 6M18 9a3 3 0 000 6" />
+      <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity="0.15" />
+      <path d="M5.5 7c1.2 1.5 1.8 3.2 1.8 5s-.6 3.5-1.8 5" />
+      <path d="M18.5 7c-1.2 1.5-1.8 3.2-1.8 5s.6 3.5 1.8 5" />
     </svg>
   ),
 
