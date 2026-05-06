@@ -7895,9 +7895,54 @@ const TeamProvider = ({ children }) => {
   }, [activeTeamId, toast]);
 
   // Helper: write a partial update to the active team document
+  // Helper: slim a player to just the essential fields needed inside a
+  // saved lineup. Full player data (stats/eval/restrictions/etc.) lives on
+  // team.players and is rehydrated by lookup when needed for display.
+  // This keeps the Firestore document under the 1MB hard limit.
+  const slimPlayer = (p) =>
+    p ? { id: p.id, name: p.name, number: p.number } : null;
+  const slimInning = (inning) => {
+    if (!inning || typeof inning !== "object") return inning;
+    const out = {};
+    for (const pos in inning) {
+      if (pos === "BENCH") {
+        out.BENCH = (inning.BENCH || []).map(slimPlayer).filter(Boolean);
+      } else {
+        out[pos] = slimPlayer(inning[pos]);
+      }
+    }
+    return out;
+  };
+  const slimGame = (g) => {
+    if (!g) return g;
+    let next = g;
+    if (Array.isArray(g.lineup)) {
+      next = { ...next, lineup: g.lineup.map(slimInning) };
+    }
+    if (Array.isArray(g.battingLineup)) {
+      next = {
+        ...next,
+        battingLineup: g.battingLineup.map(slimPlayer).filter(Boolean),
+      };
+    }
+    if (Array.isArray(g.originalLineup)) {
+      next = {
+        ...next,
+        originalLineup: g.originalLineup.map(slimInning),
+      };
+    }
+    return next;
+  };
+
   const persistTeam = useCallback(
     async (updates) => {
       if (!activeTeamId) return;
+      // Slim any games being persisted — strip embedded player objects down
+      // to {id, name, number} to stay under the Firestore 1MB document limit.
+      let toPersist = updates;
+      if (Array.isArray(updates.games)) {
+        toPersist = { ...updates, games: updates.games.map(slimGame) };
+      }
       setSyncStatus("Saving");
       try {
         const ref = doc(
@@ -7909,7 +7954,7 @@ const TeamProvider = ({ children }) => {
           "teams",
           activeTeamId
         );
-        await setDoc(ref, updates, { merge: true });
+        await setDoc(ref, toPersist, { merge: true });
         setSyncStatus("Synced");
         setTimeout(() => setSyncStatus(""), 1500);
       } catch (e) {
@@ -8440,6 +8485,9 @@ const TeamProvider = ({ children }) => {
       toast.push({ kind: "warn", title: "No lineup to save" });
       return;
     }
+    // persistTeam slims the lineup down to {id, name, number} per player to
+    // stay under Firestore's 1MB document limit. Full player data is in
+    // team.players and rehydrated on read.
     updateGame(currentGame.id, {
       lineup,
       battingLineup,
