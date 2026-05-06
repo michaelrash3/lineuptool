@@ -3491,32 +3491,6 @@ const ScheduleTab = memo(() => {
                         )}
                       </div>
                       </div>
-                      {p.battingReason && (
-                        <div className="mt-2 ml-12 px-3 py-2 bg-blue-50/50 border border-blue-100 rounded-lg text-[10px] text-slate-600 flex flex-col sm:flex-row sm:items-center sm:flex-wrap gap-x-4 gap-y-1">
-                          <span className="font-black uppercase tracking-widest text-blue-700">
-                            {p.battingReason.role}
-                          </span>
-                          <span className="text-slate-500">
-                            {p.battingReason.note}
-                          </span>
-                          <span className="text-slate-400 font-mono tabular-nums">
-                            Eff OPS {p.battingReason.effective.ops.toFixed(3)}
-                            {" • AVG "}
-                            {p.battingReason.effective.avg.toFixed(3)}
-                            {p.battingReason.effective.hard > 0 && (
-                              <>
-                                {" • Hard% "}
-                                {(p.battingReason.effective.hard * 100).toFixed(0)}%
-                              </>
-                            )}
-                          </span>
-                          {p.battingReason.blendNote && (
-                            <span className="text-amber-700 italic">
-                              {p.battingReason.blendNote}
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
