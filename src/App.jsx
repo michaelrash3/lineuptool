@@ -6731,9 +6731,59 @@ const TeamProvider = ({ children }) => {
   const removePlayer = useCallback(
     (id) => {
       if (!window.confirm("Remove this player from the roster?")) return;
-      updateTeam({ players: teamData.players.filter((p) => p.id !== id) });
+
+      // Strip the player out of every shape that holds player references —
+      // otherwise stat aggregation, the In-Game view, and PDF lineups will
+      // surface phantom names long after the player is "removed".
+      const stripFromInning = (inning) => {
+        if (!inning || typeof inning !== "object") return inning;
+        const out = {};
+        for (const pos in inning) {
+          if (pos === "BENCH") {
+            out.BENCH = (inning.BENCH || []).filter(
+              (p) => p && p.id !== id
+            );
+          } else {
+            const slot = inning[pos];
+            out[pos] = slot && slot.id === id ? null : slot;
+          }
+        }
+        return out;
+      };
+
+      const stripFromGame = (g) => {
+        const next = { ...g };
+        if (Array.isArray(g.lineup)) next.lineup = g.lineup.map(stripFromInning);
+        if (Array.isArray(g.originalLineup))
+          next.originalLineup = g.originalLineup.map(stripFromInning);
+        if (Array.isArray(g.battingLineup))
+          next.battingLineup = g.battingLineup.filter(
+            (p) => p && p.id !== id
+          );
+        if (g.attendance && id in g.attendance) {
+          const { [id]: _dropAtt, ...rest } = g.attendance;
+          next.attendance = rest;
+        }
+        if (g.pitchCounts && id in g.pitchCounts) {
+          const { [id]: _dropPc, ...rest } = g.pitchCounts;
+          next.pitchCounts = rest;
+        }
+        return next;
+      };
+
+      const stripFromEvent = (ev) => {
+        if (!ev?.grades || !(id in ev.grades)) return ev;
+        const { [id]: _dropG, ...rest } = ev.grades;
+        return { ...ev, grades: rest };
+      };
+
+      updateTeam({
+        players: teamData.players.filter((p) => p.id !== id),
+        games: (teamData.games || []).map(stripFromGame),
+        evaluationEvents: (teamData.evaluationEvents || []).map(stripFromEvent),
+      });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, teamData.games, teamData.evaluationEvents, updateTeam]
   );
 
   // Add a past-season entry to a single player.
@@ -6895,8 +6945,24 @@ const TeamProvider = ({ children }) => {
 
   const updateGame = useCallback(
     (gameId, updates) => {
+      // Defend against callers that pass empty/invalid dates from a cleared
+      // input field. An empty `date` would break every `games.sort((a,b) =>
+      // new Date(a.date) - new Date(b.date))` comparator and the upcoming-game
+      // logic. If the date is empty/unparseable, drop just that key from the
+      // update rather than persisting garbage.
+      let safeUpdates = updates;
+      if ("date" in safeUpdates) {
+        const iso = normalizeDateToIso(safeUpdates.date);
+        if (!iso) {
+          const { date: _drop, ...rest } = safeUpdates;
+          safeUpdates = rest;
+        } else if (iso !== safeUpdates.date) {
+          safeUpdates = { ...safeUpdates, date: iso };
+        }
+      }
+      if (Object.keys(safeUpdates).length === 0) return;
       const next = teamData.games.map((g) =>
-        g.id === gameId ? { ...g, ...updates } : g
+        g.id === gameId ? { ...g, ...safeUpdates } : g
       );
       updateTeam({ games: next });
     },
@@ -8187,6 +8253,16 @@ const UIProvider = ({ children }) => {
     setCurrentGameAttendance(game.attendance || {});
     setGameSaved(false);
   }, [selectedGameId]);
+
+  // Clear any selected/scoring/in-game id whose underlying game has been
+  // deleted (locally or via a remote snapshot). Without this, the UI would
+  // try to render against a non-existent game until the next interaction.
+  useEffect(() => {
+    const ids = new Set(team.team.games.map((g) => g.id));
+    if (selectedGameId && !ids.has(selectedGameId)) setSelectedGameId(null);
+    if (scoringGameId && !ids.has(scoringGameId)) setScoringGameId(null);
+    if (inGameId && !ids.has(inGameId)) setInGameId(null);
+  }, [team.team.games, selectedGameId, scoringGameId, inGameId]);
   // When players list changes, fill in attendance defaults
   useEffect(() => {
     setCurrentGameAttendance((prev) => {
@@ -8274,7 +8350,14 @@ const UIProvider = ({ children }) => {
 
   const addInning = useCallback(() => {
     if (!lineup) return;
-    setLineup([...lineup, { ...lineup[lineup.length - 1] }]);
+    const last = lineup[lineup.length - 1] || {};
+    // Deep-copy BENCH so the new inning doesn't share an array reference with
+    // the previous one — a subsequent BENCH edit would otherwise mutate both.
+    const cloned = {
+      ...last,
+      BENCH: Array.isArray(last.BENCH) ? [...last.BENCH] : [],
+    };
+    setLineup([...lineup, cloned]);
   }, [lineup]);
 
   const removeInning = useCallback(() => {
