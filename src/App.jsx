@@ -7205,7 +7205,18 @@ const TeamProvider = ({ children }) => {
           : undefined,
       });
     },
-    [teamData, toast]
+    [
+      teamData.players,
+      teamData.games,
+      teamData.evaluationEvents,
+      teamData.inningsCount,
+      teamData.leagueRuleSet,
+      teamData.teamAge,
+      teamData.defenseSize,
+      teamData.positionLock,
+      teamData.battingSize,
+      toast,
+    ]
   );
 
   const generateLineup = useCallback(
@@ -8378,34 +8389,43 @@ const UIProvider = ({ children }) => {
 
   const openPlayerProfile = useCallback((id) => setViewingPlayerId(id), []);
 
-  // Wire the bridge that TeamProvider uses
-  team.uiBridge.current = {
-    getInputs: () => {
-      const currentGame = team.team.games.find((g) => g.id === selectedGameId);
-      return {
-        currentGame,
-        currentGameAttendance,
-        firstInningLineup,
-        previousLineup: lineup,
-        previousBattingLineup: battingLineup,
-        lineup,
-        battingLineup,
-        teamEvalGrades,
-        selectedRoundId,
-        newRoundLabel,
-      };
-    },
-    applyResult: ({ lineup: newLineup, battingLineup: newBatting }) => {
-      setLineup(newLineup);
-      setBattingLineup(newBatting);
-      setSwapSelection(null);
-      setGameSaved(false);
-    },
-    markSaved: () => {
-      setGameSaved(true);
-      setTimeout(() => setGameSaved(false), 2000);
-    },
-  };
+  // Wire the bridge that TeamProvider uses. The ref is a foreign object
+  // owned by TeamProvider; mutating it during render would be a
+  // setState-like side effect. Defer to an effect that runs after commit
+  // so React's rules-of-hooks invariants hold and concurrent rendering
+  // can't observe a half-written bridge.
+  const uiBridgeRef = team.uiBridge;
+  useEffect(() => {
+    uiBridgeRef.current = {
+      getInputs: () => {
+        const currentGame = team.team.games.find(
+          (g) => g.id === selectedGameId
+        );
+        return {
+          currentGame,
+          currentGameAttendance,
+          firstInningLineup,
+          previousLineup: lineup,
+          previousBattingLineup: battingLineup,
+          lineup,
+          battingLineup,
+          teamEvalGrades,
+          selectedRoundId,
+          newRoundLabel,
+        };
+      },
+      applyResult: ({ lineup: newLineup, battingLineup: newBatting }) => {
+        setLineup(newLineup);
+        setBattingLineup(newBatting);
+        setSwapSelection(null);
+        setGameSaved(false);
+      },
+      markSaved: () => {
+        setGameSaved(true);
+        setTimeout(() => setGameSaved(false), 2000);
+      },
+    };
+  });
 
   const value = useMemo(
     () => ({
