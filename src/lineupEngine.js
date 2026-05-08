@@ -1501,6 +1501,55 @@ function tryBuildLineup(ctx) {
       }
     }
 
+    // PRIMARY POSITION PRE-PIN: kids you marked with a primaryPosition get
+    // their slot before the random position shuffle assigns it elsewhere.
+    // Without this, the shuffle could fill RF first and pick a strong
+    // 3B-primary kid for RF before 3B is ever scored — the -10000 nudge
+    // inside pickBestForPosition only fires when THAT exact position is
+    // being scored, so processing-order matters.
+    //
+    // Big Game: pre-pin every inning (matches the "primary kid plays
+    // primary all game" behavior in pickBestForPosition).
+    // Fair mode: pre-pin only inning 0 (matches the existing -100 vs -2
+    // nudge — primary kid starts at primary but rotates after).
+    //
+    // Sort by defensive score so when two kids share a primaryPosition,
+    // the better defender wins it; the runner-up is unconstrained.
+    if (isBigGame || inn === 0) {
+      const sortedByDef = [...profiled].sort(
+        (a, b) => b.profile.defensiveScore - a.profile.defensiveScore
+      );
+      for (const p of sortedByDef) {
+        const pos = p.primaryPosition;
+        if (!pos) continue;
+        if (!remainingPositions.includes(pos)) continue;
+        if (benchedSet.has(p.id)) continue;
+        if (used.has(p.id)) continue;
+        if (p.restrictions?.includes(pos)) continue;
+        // Mirror pickBestForPosition's per-position eligibility checks so we
+        // don't pre-pin into an illegal slot.
+        const st = state.get(p.id);
+        if (pos === "C") {
+          const cCap = defenseSize === "10" ? 2 : 3;
+          if ((st.positions["C"] || 0) >= cCap) continue;
+        }
+        if (pos === "P" && defenseSize === "9") {
+          if (
+            leagueRuleSet === "NKB" &&
+            !checkPitchEligibility(p, targetDateStr, teamAge)
+          )
+            continue;
+          const pCount = st.positions["P"] || 0;
+          const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
+          if (inn > 0 && pCount > 0 && !playedHereLast) continue;
+        }
+        inningSlots[pos] = p;
+        used.add(p.id);
+        const idx = remainingPositions.indexOf(pos);
+        if (idx !== -1) remainingPositions.splice(idx, 1);
+      }
+    }
+
     shuffleInPlace(remainingPositions, rand);
 
     for (const pos of remainingPositions) {
