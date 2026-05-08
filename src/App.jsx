@@ -1496,6 +1496,18 @@ const ScheduleTab = memo(() => {
 
   const toast = useToast();
 
+  // Sort games by ISO date string once per games-array change instead of on
+  // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
+  // ISO YYYY-MM-DD is lexicographically equivalent to chronological, so
+  // string compare beats new Date(...) - new Date(...) on cost.
+  const sortedGames = useMemo(
+    () =>
+      [...games].sort((a, b) =>
+        (a.date || "").localeCompare(b.date || "")
+      ),
+    [games]
+  );
+
   const currentGame = games.find((g) => g.id === selectedGameId);
 
   // Game editor view
@@ -2193,7 +2205,7 @@ const ScheduleTab = memo(() => {
                     </th>
                     {lineup.map((_, idx) => (
                       <th
-                        key={idx}
+                        key={`inn-${idx}-${lineup.length}`}
                         className="p-4 print:p-2 border-r border-slate-200/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[140px] print:min-w-0 text-slate-700"
                       >
                         Inn {idx + 1}
@@ -2218,7 +2230,7 @@ const ScheduleTab = memo(() => {
                             swapSelection?.pos === pos;
                           return (
                             <td
-                              key={idx}
+                              key={`${pos}-${idx}-${lineup.length}`}
                               className="p-2 print:p-1 border-r border-slate-200/50 relative"
                             >
                               <div
@@ -2253,7 +2265,7 @@ const ScheduleTab = memo(() => {
                     </td>
                     {lineup.map((inning, idx) => (
                       <td
-                        key={idx}
+                        key={`bench-${idx}-${lineup.length}`}
                         className="p-3 print:p-1 align-top border-r border-slate-200/50 min-w-[140px] print:min-w-0"
                       >
                         <div className="flex flex-col gap-2 items-center">
@@ -2514,9 +2526,7 @@ const ScheduleTab = memo(() => {
           </div>
         ) : (
           <div className="flex flex-col gap-2 p-4 sm:p-6 bg-transparent">
-            {[...games]
-              .sort((a, b) => new Date(a.date) - new Date(b.date))
-              .map((game) => {
+            {sortedGames.map((game) => {
                 const status = game.status || "scheduled";
                 const isFinal =
                   status === "final" &&
