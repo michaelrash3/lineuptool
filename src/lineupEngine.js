@@ -1102,9 +1102,17 @@ function precomputeBenchSchedule(opts) {
     .fill(null)
     .map(() => new Set());
   if (catcherInningPairs && catcherInningPairs.length > 0) {
-    // Eligible catchers: not C-restricted
+    // Eligible catchers: not C-restricted, AND have enough remaining play
+    // budget to cover both innings of a catcher pair. A catcher must be on
+    // the field for both innings of the pair (they can't be benched), so
+    // kids whose target sit count would force more bench than the
+    // non-catcher innings can hold are infeasible — picking them would
+    // burn an attempt in step 3 when bench distribution can't satisfy
+    // their target. (totalInnings - 2 = innings still available for sits
+    // once this pair is committed.)
     const eligibleC = sortedForExtra
       .filter(({ p }) => !p.restrictions?.includes("C"))
+      .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher are
         // picked first. Within each tier fall back to the existing
@@ -1350,6 +1358,21 @@ function tryBuildLineup(ctx) {
     rand,
   } = ctx;
 
+  // Hoist age-derived constants used by pickBestForPosition out of the
+  // per-call hot path (they don't change inning-to-inning).
+  // 8U and below = no real pitcher (machine pitch), catcher matters less
+  // since there are no strikes/passed balls — spine is 1B/SS/3B.
+  // 9U+ = pitcher matters a lot, so spine is P/SS/3B/C/1B.
+  const teamAgeNum = (() => {
+    if (!teamAge) return 99;
+    const m = String(teamAge).match(/(\d+)/g);
+    if (!m) return 99;
+    return parseInt(m[m.length - 1], 10);
+  })();
+  const PREMIUM_POSITIONS = teamAgeNum <= 8
+    ? new Set(["1B", "SS", "3B"])
+    : new Set(["P", "SS", "3B", "C", "1B"]);
+
   const state = new Map();
   for (const p of profiled) {
     state.set(p.id, { bench: 0, positions: Object.create(null), history: [] });
@@ -1478,40 +1501,20 @@ function tryBuildLineup(ctx) {
       }
     }
 
-    // LOCK INNING: a player who held a position last inning and is still on
-    // the field should keep that position. Fill those slots BEFORE scoring
-    // any other candidates — otherwise the random shuffle can pick a different
-    // player for that slot first, breaking the lock.
-    if (isLockInning && inn > 0) {
-      const prevInning = lineup[inn - 1];
-      // Collect (pos, player) pairs from last inning where the player is still
-      // available and the position still needs filling.
-      for (const pos of [...remainingPositions]) {
-        const prevPlayer = prevInning?.[pos];
-        if (!prevPlayer) continue;
-        if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
-        if (used.has(prevPlayer.id)) continue; // already placed
-        if (prevPlayer.restrictions?.includes(pos)) continue;
-        // Pitcher carry-over rule for 9-fielder games is handled in pickBest;
-        // for lock innings we trust the prior assignment.
-        inningSlots[pos] = prevPlayer;
-        used.add(prevPlayer.id);
-        const idx = remainingPositions.indexOf(pos);
-        if (idx !== -1) remainingPositions.splice(idx, 1);
-      }
-    }
-
     // PRIMARY POSITION PRE-PIN: kids you marked with a primaryPosition get
-    // their slot before the random position shuffle assigns it elsewhere.
-    // Without this, the shuffle could fill RF first and pick a strong
-    // 3B-primary kid for RF before 3B is ever scored — the -10000 nudge
-    // inside pickBestForPosition only fires when THAT exact position is
-    // being scored, so processing-order matters.
+    // their slot before any other assignment runs. Without this, the random
+    // position shuffle could fill RF first and pick a strong 3B-primary kid
+    // for RF before 3B is ever scored — the -10000 nudge inside
+    // pickBestForPosition only fires when THAT exact position is being
+    // scored, so processing-order matters.
     //
     // Big Game: pre-pin every inning (matches the "primary kid plays
-    // primary all game" behavior in pickBestForPosition).
+    // primary all game" behavior in pickBestForPosition). MUST run before
+    // lock-inning carry-over so a kid bumped off their primary last inning
+    // gets it back, instead of being locked into the wrong spot.
     // Fair mode: pre-pin only inning 0 (matches the existing -100 vs -2
-    // nudge — primary kid starts at primary but rotates after).
+    // nudge — primary kid starts at primary but rotates after); for inn>0
+    // in Fair mode this block is a no-op and lock-inning runs alone.
     //
     // Sort by defensive score so when two kids share a primaryPosition,
     // the better defender wins it; the runner-up is unconstrained.
@@ -1550,6 +1553,30 @@ function tryBuildLineup(ctx) {
       }
     }
 
+    // LOCK INNING: a player who held a position last inning and is still on
+    // the field should keep that position. Fills any slot the primary
+    // pre-pin pass above didn't claim — pre-pin wins ties so a
+    // primary-position kid bumped off their primary last inning gets it
+    // back here, even in lock-inning + Big Game mode.
+    if (isLockInning && inn > 0) {
+      const prevInning = lineup[inn - 1];
+      // Collect (pos, player) pairs from last inning where the player is still
+      // available and the position still needs filling.
+      for (const pos of [...remainingPositions]) {
+        const prevPlayer = prevInning?.[pos];
+        if (!prevPlayer) continue;
+        if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
+        if (used.has(prevPlayer.id)) continue; // already placed
+        if (prevPlayer.restrictions?.includes(pos)) continue;
+        // Pitcher carry-over rule for 9-fielder games is handled in pickBest;
+        // for lock innings we trust the prior assignment.
+        inningSlots[pos] = prevPlayer;
+        used.add(prevPlayer.id);
+        const idx = remainingPositions.indexOf(pos);
+        if (idx !== -1) remainingPositions.splice(idx, 1);
+      }
+    }
+
     shuffleInPlace(remainingPositions, rand);
 
     for (const pos of remainingPositions) {
@@ -1571,6 +1598,7 @@ function tryBuildLineup(ctx) {
         isLockInning,
         isBigGame,
         rand,
+        premiumPositions: PREMIUM_POSITIONS,
       });
       if (!candidate) {
         return {
@@ -1703,23 +1731,13 @@ function pickBestForPosition(opts) {
     isLockInning,
     isBigGame,
     rand,
+    premiumPositions,
   } = opts;
 
-  // Premium positions vary by age tier. For Big Games, strong players are
-  // pulled toward these spots and weak players are pushed to the OF.
-  // 8U and below = no real pitcher (machine pitch), and catcher matters less
-  // since there are no real strikes/passed balls — spine is 1B/SS/3B.
-  // 9U+ = pitcher matters a lot, so spine is P/SS/3B/C/1B.
-  const teamAgeNum = (() => {
-    if (!teamAge) return 99;
-    const m = String(teamAge).match(/(\d+)/g);
-    if (!m) return 99;
-    return parseInt(m[m.length - 1], 10);
-  })();
-  const PREMIUM_POSITIONS = teamAgeNum <= 8
-    ? new Set(["1B", "SS", "3B"])
-    : new Set(["P", "SS", "3B", "C", "1B"]);
-  const isPremium = PREMIUM_POSITIONS.has(pos);
+  // Premium positions are computed once in tryBuildLineup and passed in.
+  // For Big Games, strong players are pulled toward these spots and weak
+  // players are pushed to the OF.
+  const isPremium = premiumPositions.has(pos);
 
   let bestPlayer = null;
   let bestScore = Infinity;
