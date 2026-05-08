@@ -722,8 +722,12 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
   if (dayDiff === 0) whenLabel = "Today";
   else if (dayDiff === 1) whenLabel = "Tomorrow";
   else {
-    const d = new Date(game.date);
-    whenLabel = d.toLocaleDateString(undefined, { weekday: "long" });
+    // game.date is "YYYY-MM-DD". Construct via local-time components so the
+    // weekday matches the user's calendar — `new Date("YYYY-MM-DD")` parses
+    // as UTC midnight and shifts a day back for any timezone west of UTC.
+    const [y, m, d] = game.date.split("-");
+    const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+    whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
   }
 
   // Pretty date line
