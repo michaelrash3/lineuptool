@@ -1106,6 +1106,14 @@ function precomputeBenchSchedule(opts) {
     const eligibleC = sortedForExtra
       .filter(({ p }) => !p.restrictions?.includes("C"))
       .sort((a, b) => {
+        // Tier 1 wins over tier 2: kids whose primary position is catcher are
+        // picked first. Within each tier fall back to the existing
+        // must-play / defensive-skill / random tiebreaker. This stops the
+        // "best player ends up at catcher" outcome when restrictions don't
+        // already gate the pool down to true catchers.
+        const aPrimary = a.p.primaryPosition === "C" ? 0 : 1;
+        const bPrimary = b.p.primaryPosition === "C" ? 0 : 1;
+        if (aPrimary !== bPrimary) return aPrimary - bPrimary;
         // Prefer kids with LOW target sit (they need to play more)
         const ta = targetSits.get(a.p.id);
         const tb = targetSits.get(b.p.id);
@@ -1740,10 +1748,13 @@ function pickBestForPosition(opts) {
     if (isLockInning && playedHereLast) score -= 1000;
 
     if (p.primaryPosition === pos) {
-      // Big Game: kid you marked as primary almost always plays there.
+      // Big Game: primary kids stick to their position every inning they're
+      // on the field — same hard preference inning 1+ as inning 0, so a
+      // primary-SS kid plays SS the whole game in Big Game mode (rotating
+      // off only when benched).
       // Fair mode: gentle preference, lots of room for rotation.
       if (isBigGame) {
-        score -= inn === 0 ? 10000 : 4;
+        score -= 10000;
       } else {
         score -= inn === 0 ? 100 : 2;
       }
