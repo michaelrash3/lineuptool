@@ -7503,12 +7503,28 @@ const TeamProvider = ({ children }) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const dataUrl = ev.target.result;
-        // Estimate the team doc size — Firestore caps at 1 MB total.
+        // Firestore caps a single document at ~1,048,487 bytes. Base64 also
+        // inflates the binary by ~1.33×, so a 1 MB image becomes ~1.33 MB of
+        // JSON. Reject before writing if the merged team doc would exceed a
+        // safe ceiling — otherwise the write fails server-side and the
+        // user's logo silently doesn't stick.
+        const HARD_LIMIT = 900_000; // leave headroom for Firestore overhead
+        const SOFT_WARN = 750_000;
         const approxSize = JSON.stringify({
           ...teamData,
           logoUrl: dataUrl,
         }).length;
-        if (approxSize > 900_000) {
+        if (approxSize > HARD_LIMIT) {
+          toast.push({
+            kind: "error",
+            title: "Logo too large to save",
+            message:
+              "Combined with the rest of your team data this would exceed Firestore's 1 MB document limit. Please choose a smaller image.",
+            duration: 8000,
+          });
+          return;
+        }
+        if (approxSize > SOFT_WARN) {
           toast.push({
             kind: "warn",
             title: "Logo accepted (close to limit)",
@@ -8187,6 +8203,7 @@ const TeamProvider = ({ children }) => {
 ============================================================================ */
 const UIProvider = ({ children }) => {
   const team = useTeam();
+  const toast = useToast();
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -8254,16 +8271,81 @@ const UIProvider = ({ children }) => {
     gamesRef.current = team.team.games;
   }, [team.team.games]);
 
+  // Snapshot of the game data we last loaded into local editor state, used
+  // by the conflict-detection effect below. We compare against this — not
+  // against the live `team.team.games` reference — so we can tell whether
+  // the *user* edited locally vs. whether a *remote* snapshot changed the
+  // game underneath us.
+  const loadedGameRef = useRef(null);
+
   useEffect(() => {
-    if (!selectedGameId) return;
+    if (!selectedGameId) {
+      loadedGameRef.current = null;
+      return;
+    }
     const game = gamesRef.current.find((g) => g.id === selectedGameId);
     if (!game) return;
+    loadedGameRef.current = {
+      id: game.id,
+      lineupJson: JSON.stringify(game.lineup || null),
+      battingJson: JSON.stringify(game.battingLineup || null),
+    };
     setOpponentName(game.opponent || "");
     setLineup(game.lineup || null);
     setBattingLineup(game.battingLineup || null);
     setCurrentGameAttendance(game.attendance || {});
     setGameSaved(false);
   }, [selectedGameId]);
+
+  // Detect when a remote Firestore snapshot updates the game we're editing.
+  // If the user has no unsaved local changes, silently re-sync. If they do,
+  // surface a toast so they know their next save will clobber the remote
+  // edit (better than silently overwriting another coach's work).
+  useEffect(() => {
+    if (!selectedGameId || !loadedGameRef.current) return;
+    if (loadedGameRef.current.id !== selectedGameId) return;
+    const game = team.team.games.find((g) => g.id === selectedGameId);
+    if (!game) return;
+
+    const remoteLineupJson = JSON.stringify(game.lineup || null);
+    const remoteBattingJson = JSON.stringify(game.battingLineup || null);
+    const remoteChanged =
+      remoteLineupJson !== loadedGameRef.current.lineupJson ||
+      remoteBattingJson !== loadedGameRef.current.battingJson;
+    if (!remoteChanged) return;
+
+    const localLineupJson = JSON.stringify(lineup || null);
+    const localBattingJson = JSON.stringify(battingLineup || null);
+    const localUnsaved =
+      localLineupJson !== loadedGameRef.current.lineupJson ||
+      localBattingJson !== loadedGameRef.current.battingJson;
+
+    if (!localUnsaved) {
+      loadedGameRef.current = {
+        id: game.id,
+        lineupJson: remoteLineupJson,
+        battingJson: remoteBattingJson,
+      };
+      setLineup(game.lineup || null);
+      setBattingLineup(game.battingLineup || null);
+      setCurrentGameAttendance(game.attendance || {});
+    } else {
+      toast.push({
+        kind: "warn",
+        title: "Game updated remotely",
+        message:
+          "Another device changed this game while you were editing. Saving now will overwrite those changes.",
+        duration: 8000,
+      });
+      // Update the snapshot so we don't fire the warning again for the
+      // same remote version.
+      loadedGameRef.current = {
+        id: game.id,
+        lineupJson: remoteLineupJson,
+        battingJson: remoteBattingJson,
+      };
+    }
+  }, [team.team.games, selectedGameId, lineup, battingLineup, toast]);
 
   // Clear any selected/scoring/in-game id whose underlying game has been
   // deleted (locally or via a remote snapshot). Without this, the UI would
@@ -8557,9 +8639,62 @@ const InGameView = memo(() => {
   } = useUI();
   const [showEndGameScore, setShowEndGameScore] = useState(false);
 
-  if (!inGameId) return null;
+  // ----- Coalesce in-game tap-swap writes -----
+  // Each tap previously fired its own setDoc, so a flurry of swaps became
+  // a flurry of writes — costly, and on tab close the latest swap could
+  // drop from the offline queue. Keep an optimistic `pendingLineup`
+  // locally for instant UI feedback and debounce-flush a single write
+  // covering the latest state. Flush eagerly when the page hides /
+  // unloads / unmounts so nothing is lost.
+  //
+  // These hooks must live above the early returns below so React sees
+  // the same hook order on every render — the rules-of-hooks invariant.
+  const [pendingLineup, setPendingLineup] = useState(null);
+  const flushTimerRef = useRef(null);
 
-  const game = team.games.find((g) => g.id === inGameId);
+  // Resolve the live game without an early return so downstream hooks
+  // still execute on null-game renders. The actual null/missing-game
+  // bailouts happen below the hook block.
+  const game = inGameId ? team.games.find((g) => g.id === inGameId) : null;
+  const gameId = game?.id ?? null;
+
+  const flush = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    setPendingLineup((cur) => {
+      if (cur && gameId) updateGame(gameId, { lineup: cur });
+      return null;
+    });
+  }, [gameId, updateGame]);
+
+  // Reset pending state when the user switches to a different in-game game.
+  useEffect(() => {
+    setPendingLineup(null);
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, [inGameId]);
+
+  // Flush eagerly on visibility change / page hide / unmount so a tab
+  // close mid-edit doesn't drop the latest swap from the offline write
+  // queue.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) flush();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [flush]);
+
+  if (!inGameId) return null;
   if (!game) return null;
   if (!game.lineup?.length) {
     // Edge case: someone hit "Start Game" before generating a lineup
@@ -8584,9 +8719,15 @@ const InGameView = memo(() => {
     );
   }
 
-  const totalInnings = game.lineup.length;
+  // Display data: prefer the local pending lineup (for instant UI) and
+  // fall back to the persisted game.lineup. Reseed automatically when
+  // game.lineup changes by virtue of pendingLineup being cleared on
+  // flush completion.
+  const liveLineup = pendingLineup ?? game.lineup;
+
+  const totalInnings = liveLineup.length;
   const currentInning = Math.min(Math.max(0, inGameInning), totalInnings - 1);
-  const inn = game.lineup[currentInning];
+  const inn = liveLineup[currentInning];
   const { primaryColor, tertiaryColor } = team;
 
   // Position order — display order (matches existing lineup grid)
@@ -8605,13 +8746,19 @@ const InGameView = memo(() => {
   ];
   const presentPositions = positionOrder.filter((pos) => inn[pos]);
 
-  // Update a specific inning's lineup with a patch.
+  // Update a specific inning's lineup with a patch. Writes go through the
+  // optimistic pendingLineup state and the flush is debounced so rapid taps
+  // coalesce into one Firestore write.
   const patchInning = (idx, patch) => {
-    const newLineup = game.lineup.map((existingInn, i) => {
-      if (i !== idx) return existingInn;
-      return { ...existingInn, ...patch };
+    setPendingLineup((cur) => {
+      const base = cur ?? game.lineup;
+      return base.map((existingInn, i) => {
+        if (i !== idx) return existingInn;
+        return { ...existingInn, ...patch };
+      });
     });
-    updateGame(game.id, { lineup: newLineup });
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(flush, 500);
   };
 
   // Perform a swap and record undo info.
@@ -8621,7 +8768,7 @@ const InGameView = memo(() => {
       first: firstSel,
       second: secondSel,
     };
-    const lineupInning = { ...game.lineup[currentInning] };
+    const lineupInning = { ...liveLineup[currentInning] };
     lineupInning.BENCH = [...(lineupInning.BENCH || [])];
 
     const getPlayer = (sel) => {
@@ -8678,7 +8825,7 @@ const InGameView = memo(() => {
     if (inGameUndoStack.length === 0) return;
     const entry = inGameUndoStack[0];
     // Re-do the swap (it's symmetric — swapping again undoes it)
-    const lineupInning = { ...game.lineup[entry.inning] };
+    const lineupInning = { ...liveLineup[entry.inning] };
     lineupInning.BENCH = [...(lineupInning.BENCH || [])];
 
     const getPlayer = (sel) => {
@@ -8798,7 +8945,7 @@ const InGameView = memo(() => {
           const usedPitcherIds = new Set();
           const usedPitcherList = [];
           for (let i = 0; i <= currentInning; i++) {
-            const pitcher = game.lineup[i]?.P;
+            const pitcher = liveLineup[i]?.P;
             if (pitcher && !usedPitcherIds.has(pitcher.id)) {
               usedPitcherIds.add(pitcher.id);
               usedPitcherList.push({ player: pitcher, firstInning: i + 1 });
