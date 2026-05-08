@@ -8619,9 +8619,62 @@ const InGameView = memo(() => {
   } = useUI();
   const [showEndGameScore, setShowEndGameScore] = useState(false);
 
-  if (!inGameId) return null;
+  // ----- Coalesce in-game tap-swap writes -----
+  // Each tap previously fired its own setDoc, so a flurry of swaps became
+  // a flurry of writes — costly, and on tab close the latest swap could
+  // drop from the offline queue. Keep an optimistic `pendingLineup`
+  // locally for instant UI feedback and debounce-flush a single write
+  // covering the latest state. Flush eagerly when the page hides /
+  // unloads / unmounts so nothing is lost.
+  //
+  // These hooks must live above the early returns below so React sees
+  // the same hook order on every render — the rules-of-hooks invariant.
+  const [pendingLineup, setPendingLineup] = useState(null);
+  const flushTimerRef = useRef(null);
 
-  const game = team.games.find((g) => g.id === inGameId);
+  // Resolve the live game without an early return so downstream hooks
+  // still execute on null-game renders. The actual null/missing-game
+  // bailouts happen below the hook block.
+  const game = inGameId ? team.games.find((g) => g.id === inGameId) : null;
+  const gameId = game?.id ?? null;
+
+  const flush = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    setPendingLineup((cur) => {
+      if (cur && gameId) updateGame(gameId, { lineup: cur });
+      return null;
+    });
+  }, [gameId, updateGame]);
+
+  // Reset pending state when the user switches to a different in-game game.
+  useEffect(() => {
+    setPendingLineup(null);
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, [inGameId]);
+
+  // Flush eagerly on visibility change / page hide / unmount so a tab
+  // close mid-edit doesn't drop the latest swap from the offline write
+  // queue.
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) flush();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [flush]);
+
+  if (!inGameId) return null;
   if (!game) return null;
   if (!game.lineup?.length) {
     // Edge case: someone hit "Start Game" before generating a lineup
@@ -8646,54 +8699,10 @@ const InGameView = memo(() => {
     );
   }
 
-  // ----- Coalesce in-game tap-swap writes -----
-  // Each tap previously fired its own setDoc, so a flurry of swaps became a
-  // flurry of writes — costly, and on tab close the latest swap could drop
-  // from the offline queue. Now we keep an optimistic `pendingLineup`
-  // locally for instant UI feedback and debounce-flush a single write
-  // covering the latest state. We also flush eagerly when the page hides /
-  // unloads / unmounts so nothing is lost.
-  const [pendingLineup, setPendingLineup] = useState(null);
-  const flushTimerRef = useRef(null);
-
-  const flush = useCallback(() => {
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-    setPendingLineup((cur) => {
-      if (cur) updateGame(game.id, { lineup: cur });
-      return null;
-    });
-  }, [game?.id, updateGame]);
-
-  // Reset pending state when the user switches to a different in-game game.
-  useEffect(() => {
-    setPendingLineup(null);
-    if (flushTimerRef.current) {
-      clearTimeout(flushTimerRef.current);
-      flushTimerRef.current = null;
-    }
-  }, [inGameId]);
-
-  // Flush eagerly on visibility change / page hide / unmount so a tab close
-  // mid-edit doesn't drop the latest swap from the offline write queue.
-  useEffect(() => {
-    const onVis = () => {
-      if (document.hidden) flush();
-    };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("pagehide", flush);
-    return () => {
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("pagehide", flush);
-      flush();
-    };
-  }, [flush]);
-
-  // Display data: prefer the local pending lineup (for instant UI) and fall
-  // back to the persisted game.lineup. Reseed automatically when game.lineup
-  // changes by virtue of pendingLineup being cleared on flush completion.
+  // Display data: prefer the local pending lineup (for instant UI) and
+  // fall back to the persisted game.lineup. Reseed automatically when
+  // game.lineup changes by virtue of pendingLineup being cleared on
+  // flush completion.
   const liveLineup = pendingLineup ?? game.lineup;
 
   const totalInnings = liveLineup.length;
