@@ -54,6 +54,7 @@ import {
 // Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
 import {
   generateLineup as engineGenerateLineup,
+  generateBattingOnly as engineGenerateBattingOnly,
   getPositionsForInning,
   getOffensiveScore,
   calculateTotalScore,
@@ -1447,6 +1448,7 @@ const ScheduleTab = memo(() => {
     saveCurrentGame,
     generateLineup,
     regenerateLineup,
+    regenerateBatting,
     record,
   } = useTeam();
   const {
@@ -1602,6 +1604,15 @@ const ScheduleTab = memo(() => {
                       className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
                     >
                       <Icons.Refresh className="w-4 h-4" /> Re-roll
+                    </button>
+                  )}
+                  {lineup && (
+                    <button
+                      onClick={regenerateBatting}
+                      title="Re-roll just the batting order — defense stays the same"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                    >
+                      <Icons.Bat className="w-4 h-4" /> Re-roll Batting
                     </button>
                   )}
                   {lineup && (
@@ -7237,6 +7248,88 @@ const TeamProvider = ({ children }) => {
     () => _runGenerate(Date.now() + Math.floor(Math.random() * 1e6)),
     [_runGenerate]
   );
+
+  // Re-roll JUST the batting order. Defensive lineup, attendance, and
+  // first-inning overrides are all left alone. Useful when the defense
+  // looks right but the order doesn't, or when the coach wants to try a
+  // different shuffle of similarly-rated kids in the middle of the order.
+  const regenerateBatting = useCallback(() => {
+    const inputs = uiBridge.current.getInputs();
+    if (!inputs) return;
+    const { currentGame, currentGameAttendance, lineup, battingLineup } = inputs;
+    if (!currentGame) {
+      toast.push({ kind: "error", title: "No game selected" });
+      return;
+    }
+    if (!lineup) {
+      toast.push({
+        kind: "error",
+        title: "Generate a lineup first",
+        message: "Re-roll batting works on top of an existing lineup.",
+      });
+      return;
+    }
+    const presentPlayers = teamData.players.filter(
+      (p) => currentGameAttendance[p.id] !== false
+    );
+    if (presentPlayers.length < 1) {
+      toast.push({ kind: "error", title: "No players present to bat" });
+      return;
+    }
+
+    const result = engineGenerateBattingOnly({
+      activePlayers: presentPlayers,
+      allPlayers: teamData.players,
+      evaluationEvents: teamData.evaluationEvents,
+      leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+      teamAge: teamData.teamAge,
+      battingSize: currentGame.battingSize || teamData.battingSize,
+      seed: Date.now() + Math.floor(Math.random() * 1e6),
+    });
+
+    if (result.error) {
+      toast.push({
+        kind: "error",
+        title: "Couldn't build batting order",
+        message: result.error,
+      });
+      return;
+    }
+
+    // Snapshot for undo (preserve current defensive lineup, swap batting).
+    previousLineupRef.current = { lineup, battingLineup };
+    uiBridge.current.applyResult({
+      lineup,
+      battingLineup: result.battingLineup,
+    });
+    toast.push({
+      kind: "success",
+      title: "Batting order re-rolled",
+      message: battingLineup ? "Tap Undo to restore the previous order." : "",
+      duration: 6000,
+      action: battingLineup
+        ? {
+            label: "Undo",
+            onClick: () => {
+              const snap = previousLineupRef.current;
+              if (snap)
+                uiBridge.current.applyResult({
+                  lineup: snap.lineup,
+                  battingLineup: snap.battingLineup,
+                });
+            },
+          }
+        : undefined,
+    });
+  }, [
+    teamData.players,
+    teamData.evaluationEvents,
+    teamData.leagueRuleSet,
+    teamData.teamAge,
+    teamData.battingSize,
+    toast,
+  ]);
+
   const undoLineup = useCallback(() => {
     const snap = previousLineupRef.current;
     if (snap)
@@ -8140,6 +8233,7 @@ const TeamProvider = ({ children }) => {
       deleteSavedGame,
       generateLineup,
       regenerateLineup,
+      regenerateBatting,
       undoLineup,
       saveCurrentGame,
       switchTeam,
@@ -8185,6 +8279,7 @@ const TeamProvider = ({ children }) => {
       deleteSavedGame,
       generateLineup,
       regenerateLineup,
+      regenerateBatting,
       undoLineup,
       saveCurrentGame,
       switchTeam,

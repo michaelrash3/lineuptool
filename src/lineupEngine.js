@@ -551,15 +551,30 @@ export function hasNkbRunCap(leagueRuleSet, teamAge) {
  * a number to limit to top N hitters.
  */
 export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
-  const { leagueRuleSet, teamAge } = opts;
+  const { leagueRuleSet, teamAge, seed } = opts;
   const total = profiledPlayers.length;
   const count =
     battingSize === "roster"
       ? total
       : Math.min(parseInt(battingSize, 10) || total, total);
 
+  // Per-player ±2% score jitter for re-roll variance. A single factor per
+  // player applied to every score key — strong/weak ends barely move,
+  // similarly-rated kids in the middle can swap on a different seed.
+  // Same seed → same order (deterministic).
+  const rand = mulberry32((seed ?? Date.now()) >>> 0);
+  const JITTER = 0.02;
+  const factor = new Map();
+  for (const p of profiledPlayers) {
+    factor.set(p.id, 1 + (rand() * 2 - 1) * JITTER);
+  }
+  const score = (p, key) => (p.profile[key] || 0) * factor.get(p.id);
+  // OPS lives on raw stats, not in the precomputed profile, so wrap it the
+  // same way for jittered selection (only used by the youth strategy).
+  const opsScore = (p) => (+(p.stats?.ops) || 0) * factor.get(p.id);
+
   const byOverall = [...profiledPlayers].sort(
-    (a, b) => b.profile.overallScore - a.profile.overallScore
+    (a, b) => score(b, "overallScore") - score(a, "overallScore")
   );
   const pool = byOverall.slice(0, count);
   const order = new Array(count).fill(null);
@@ -569,8 +584,17 @@ export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
     if (pool.length === 0) return null;
     let bestIdx = 0;
     for (let i = 1; i < pool.length; i++) {
-      if (pool[i].profile[scoreKey] > pool[bestIdx].profile[scoreKey])
+      if (score(pool[i], scoreKey) > score(pool[bestIdx], scoreKey))
         bestIdx = i;
+    }
+    return pool.splice(bestIdx, 1)[0];
+  }
+
+  function takeBestOps() {
+    if (pool.length === 0) return null;
+    let bestIdx = 0;
+    for (let i = 1; i < pool.length; i++) {
+      if (opsScore(pool[i]) > opsScore(pool[bestIdx])) bestIdx = i;
     }
     return pool.splice(bestIdx, 1)[0];
   }
@@ -582,17 +606,41 @@ export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
     }
   }
 
-  const capped = hasNkbRunCap(leagueRuleSet, teamAge);
+  // Strategy selection:
+  //   - NKB 6U/7U/8U: youth strategy (continuous roster batting, 7-run
+  //     cap, no walks, no real "power" — but OPS still flags genuine
+  //     big hitters at this age). Spread strong OPS across the top half
+  //     (3, 4, 7) so they bat with runners on without clustering.
+  //   - Everyone else: existing Tango/Book modern lineup. Unchanged.
+  const useYouth =
+    leagueRuleSet === "NKB" &&
+    (teamAge === "6U" || teamAge === "7U" || teamAge === "8U");
 
-  if (capped) {
-    // Distributed strategy for run-capped leagues
-    if (count > 0) place(0, takeBest("leadoffScore"), "Leadoff", "Best OBP — set the table early");
-    if (count > 1) place(1, takeBest("overallScore"), "#2 Spot", "Top all-around hitter — bat early before the cap");
-    if (count > 2) place(2, takeBest("powerScore"), "#3 Power", "Best power — driving runs in early innings");
-    if (count > 3) place(3, takeBest("leadoffScore"), "#4 OBP", "Strong OBP — keep the rally going past the cap-stoppers");
-    if (count > 4) place(4, takeBest("powerScore"), "#5 Power", "More power — second-half cap threat");
-    if (count > 5) place(5, takeBest("overallScore"), "#6 Bridge", "Solid bat to bridge the order");
-    if (count > 6) place(6, takeBest("leadoffScore"), "#7 OBP", "OBP again — turning the lineup over");
+  if (useYouth) {
+    if (count > 0) place(0, takeBest("leadoffScore"), "Leadoff", "Best OBP+speed — set the table");
+    if (count > 1) place(1, takeBest("contactScore"), "#2 Contact", "Top contact — extends the rally");
+    if (count > 2) place(2, takeBestOps(), "#3 OPS", "Best OPS — bat with runners on");
+    if (count > 3) place(3, takeBestOps(), "Cleanup OPS", "Second-best OPS — drive runs in");
+    if (count > 4) place(4, takeBest("leadoffScore"), "#5 Turnover", "Next-best OBP — turn the order over");
+    if (count > 5) place(5, takeBest("contactScore"), "#6 Sustain", "More contact — keep it going");
+    if (count > 6) place(6, takeBestOps(), "#7 Late OPS", "Third big hitter — late-inning threat");
+
+    // Tail: descending by composite youthScore (leadoff + contact + OPS).
+    // No `powerScore` — HR/SLG/RBI are noise at this age.
+    const youthScore = (p) =>
+      score(p, "leadoffScore") + score(p, "contactScore") + opsScore(p) * 100;
+    pool.sort((a, b) => youthScore(b) - youthScore(a));
+    let descIdx = 0;
+    for (let i = 7; i < count; i++) {
+      if (order[i] === null && pool.length > 0) {
+        order[i] = pool.shift();
+        descIdx++;
+        reasons[i] = {
+          role: descIdx <= 3 ? "Middle" : "Bottom",
+          note: `Descending youth composite (#${descIdx})`,
+        };
+      }
+    }
   } else {
     // Modern Tango / Book-style strategy for uncapped leagues
     if (count > 0) place(0, takeBest("leadoffScore"), "Leadoff", "Best OBP — leadoff");
@@ -600,19 +648,19 @@ export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
     if (count > 3) place(3, takeBest("powerScore"), "Cleanup", "Best slugger — cleanup");
     if (count > 2) place(2, takeBest("overallScore"), "#3 Modern", "Strong bat — modern #3 is the 4th-best slot");
     if (count > 4) place(4, takeBest("powerScore"), "#5 Power", "Next-best power — second cleanup");
-  }
 
-  // Fill remaining spots descending by overallScore
-  pool.sort((a, b) => b.profile.overallScore - a.profile.overallScore);
-  let descIdx = 0;
-  for (let i = 0; i < count; i++) {
-    if (order[i] === null && pool.length > 0) {
-      order[i] = pool.shift();
-      descIdx++;
-      reasons[i] = {
-        role: descIdx <= 3 ? "Middle" : "Bottom",
-        note: `Descending overall (#${descIdx})`,
-      };
+    // Fill remaining spots descending by overallScore (jittered).
+    pool.sort((a, b) => score(b, "overallScore") - score(a, "overallScore"));
+    let descIdx = 0;
+    for (let i = 0; i < count; i++) {
+      if (order[i] === null && pool.length > 0) {
+        order[i] = pool.shift();
+        descIdx++;
+        reasons[i] = {
+          role: descIdx <= 3 ? "Middle" : "Bottom",
+          note: `Descending overall (#${descIdx})`,
+        };
+      }
     }
   }
 
@@ -635,6 +683,63 @@ export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
     };
   }
   return order.filter(Boolean);
+}
+
+// Lightweight wrapper for "re-roll batting only" — builds player profiles
+// from raw players + grades and runs generateBattingOrder. Defense-side
+// state (lineup, bench schedule, etc.) is untouched. Returns the new
+// batting order or { error } if the inputs are too thin.
+export function generateBattingOnly(input) {
+  const {
+    activePlayers,
+    allPlayers,
+    evaluationEvents = [],
+    leagueRuleSet,
+    teamAge,
+    battingSize,
+    seed,
+  } = input;
+
+  if (!Array.isArray(activePlayers) || activePlayers.length < 1) {
+    return { error: "No active players to build a batting order from." };
+  }
+
+  const combinedGrades = getCombinedGrades(evaluationEvents, allPlayers || activePlayers);
+  const profiled = activePlayers.map((p) => ({
+    ...p,
+    profile: buildPlayerProfile(p, combinedGrades[p.id]),
+  }));
+
+  const battingLineup = generateBattingOrder(profiled, battingSize, {
+    leagueRuleSet,
+    teamAge,
+    seed,
+  });
+
+  // Mirror the effective-stats decoration that generateLineup applies, so
+  // the UI sees the same structured `battingReason` shape regardless of
+  // which entry point produced the order.
+  battingLineup.forEach((player) => {
+    if (!player || !player.battingReason) return;
+    const eff = getEffectiveStats(player);
+    if (eff.__blended && eff.__blendWeights?.current < 0.95) {
+      player.battingReason.blendNote = `Stats blended (current ${Math.round(
+        eff.__blendWeights.current * 100
+      )}% / past ${Math.round(
+        (eff.__blendWeights.past1 + eff.__blendWeights.past2) * 100
+      )}%)`;
+    }
+    player.battingReason.effective = {
+      ops: +eff.ops || 0,
+      avg: +eff.avg || 0,
+      obp: +eff.obp || 0,
+      ld: +eff.ld || 0,
+      hard: +eff.hard || 0,
+      qab: +eff.qab || 0,
+    };
+  });
+
+  return { battingLineup };
 }
 
 // ---------- Main generator ----------
@@ -700,6 +805,7 @@ export function generateLineup(input) {
   const battingLineup = generateBattingOrder(profiled, battingSize, {
     leagueRuleSet,
     teamAge,
+    seed,
   });
 
   // generateBattingOrder now sets `battingReason` on each player directly,
