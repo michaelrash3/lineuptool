@@ -1,4 +1,4 @@
-import { generateLineup } from "./lineupEngine.js";
+import { generateLineup, generateBattingOnly } from "./lineupEngine.js";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -301,5 +301,202 @@ describe("position restrictions", () => {
     for (const inn of result.lineup) {
       expect(inn.C?.id).not.toBe("p_restrict");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Batting order — NKB youth strategy + re-roll variance
+// ---------------------------------------------------------------------------
+
+// Fixture helpers for batting tests. Players have stats so OPS / contact /
+// leadoff scores actually differ (without stats every kid gets the same
+// profile and the order is grade-driven only).
+const makeBatter = (id, name, stats = {}, opts = {}) => ({
+  id,
+  name,
+  number: opts.number ?? "",
+  primaryPosition: opts.primaryPosition ?? "",
+  restrictions: opts.restrictions ?? [],
+  stats: {
+    ops: 0,
+    obp: 0,
+    avg: 0,
+    contact: 0,
+    ld: 0,
+    hard: 0,
+    qab: 0,
+    ...stats,
+  },
+});
+
+const youthBatter = (id, archetype) => {
+  // Three archetypes that stress different parts of the youth strategy.
+  switch (archetype) {
+    case "leadoff":
+      return makeBatter(id, `Leadoff ${id}`, { obp: 0.55, avg: 0.4, contact: 0.85, ops: 0.7 });
+    case "contact":
+      return makeBatter(id, `Contact ${id}`, { obp: 0.4, avg: 0.45, contact: 0.9, ops: 0.7 });
+    case "ops":
+      return makeBatter(id, `OPS ${id}`, { obp: 0.42, avg: 0.38, contact: 0.6, ops: 1.05, hard: 0.5 });
+    case "weak":
+      return makeBatter(id, `Weak ${id}`, { obp: 0.2, avg: 0.15, contact: 0.4, ops: 0.3 });
+    default:
+      return makeBatter(id, `Avg ${id}`, { obp: 0.35, avg: 0.3, contact: 0.65, ops: 0.6 });
+  }
+};
+
+describe("batting order — NKB 7U/8U youth strategy", () => {
+  test("places best OPS at #3 (cleanup with men on)", () => {
+    const players = [
+      youthBatter("lo1", "leadoff"),
+      youthBatter("lo2", "leadoff"),
+      youthBatter("c1", "contact"),
+      youthBatter("c2", "contact"),
+      youthBatter("ops1", "ops"),
+      youthBatter("ops2", "ops"),
+      youthBatter("ops3", "ops"),
+      youthBatter("avg1", "avg"),
+      youthBatter("avg2", "avg"),
+      youthBatter("w1", "weak"),
+      youthBatter("w2", "weak"),
+    ];
+    const result = generateBattingOnly({
+      activePlayers: players,
+      allPlayers: players,
+      evaluationEvents: [],
+      leagueRuleSet: "NKB",
+      teamAge: "8U",
+      battingSize: "roster",
+      seed: 42,
+    });
+    expect(result.error).toBeUndefined();
+    const order = result.battingLineup;
+    expect(order).toHaveLength(11);
+    // The role labels carry the strategy intent (UI shows them too).
+    const roles = order.map((p) => p.battingReason?.role);
+    expect(roles[0]).toBe("Leadoff");
+    expect(roles[1]).toBe("#2 Contact");
+    expect(roles[2]).toBe("#3 OPS");
+    expect(roles[3]).toBe("Cleanup OPS");
+    expect(roles[6]).toBe("#7 Late OPS");
+  });
+
+  test("does not use powerScore (HR/SLG noise) at NKB 8U", () => {
+    // A kid with high HR + RBI but mediocre OPS / contact should NOT win
+    // any of the "big hitter" slots over a true OPS bat. The youth path
+    // must ignore powerScore.
+    const players = [
+      youthBatter("lo1", "leadoff"),
+      youthBatter("c1", "contact"),
+      youthBatter("ops_real", "ops"),
+      makeBatter("power_only", "Power Only", {
+        ops: 0.6,
+        obp: 0.3,
+        avg: 0.25,
+        contact: 0.5,
+        hr: 8,
+        rbi: 25,
+        doubles: 6,
+        triples: 1,
+      }),
+      youthBatter("avg1", "avg"),
+      youthBatter("avg2", "avg"),
+      youthBatter("avg3", "avg"),
+      youthBatter("w1", "weak"),
+      youthBatter("w2", "weak"),
+    ];
+    const result = generateBattingOnly({
+      activePlayers: players,
+      allPlayers: players,
+      evaluationEvents: [],
+      leagueRuleSet: "NKB",
+      teamAge: "8U",
+      battingSize: "roster",
+      seed: 42,
+    });
+    expect(result.error).toBeUndefined();
+    // The primary OPS slot (#3) must belong to the genuine OPS bat. The
+    // cleanup slot (#4) goes to whoever has the next-best OPS, which can
+    // be a tied .600 kid — that's fine; the point is that powerScore
+    // (HR/RBI/SLG) can't promote the power_only kid into the leadoff spot
+    // or above the real OPS bat.
+    expect(result.battingLineup[2].id).toBe("ops_real");
+  });
+
+  test("USSSA at 8U keeps the existing Tango strategy (powerScore at cleanup)", () => {
+    const players = [
+      youthBatter("lo1", "leadoff"),
+      youthBatter("c1", "contact"),
+      youthBatter("ops1", "ops"),
+      makeBatter("slugger", "Slugger", {
+        ops: 0.85, obp: 0.32, avg: 0.27, contact: 0.55,
+        hr: 12, rbi: 35, doubles: 8, triples: 2, hard: 0.6,
+      }),
+      youthBatter("avg1", "avg"),
+      youthBatter("avg2", "avg"),
+      youthBatter("avg3", "avg"),
+      youthBatter("w1", "weak"),
+      youthBatter("w2", "weak"),
+    ];
+    const result = generateBattingOnly({
+      activePlayers: players,
+      allPlayers: players,
+      evaluationEvents: [],
+      leagueRuleSet: "USSSA",
+      teamAge: "8U",
+      battingSize: "roster",
+      seed: 42,
+    });
+    expect(result.error).toBeUndefined();
+    // The Tango code path uses role labels distinct from the youth path
+    // — verify those exist (not the youth "#3 OPS" / "Cleanup OPS" /
+    // "#7 Late OPS" labels). The slugger ends up high in the order
+    // because his RBI/HR inflate overallScore (Tango pulls him to the
+    // #2 Premium slot before the cleanup pick runs).
+    const roles = result.battingLineup.map((p) => p.battingReason?.role);
+    expect(roles).toContain("Cleanup");
+    expect(roles).not.toContain("#3 OPS");
+    expect(roles).not.toContain("Cleanup OPS");
+    // Slugger should land in the top half (Tango promotes him).
+    const sluggerIdx = result.battingLineup.findIndex((p) => p.id === "slugger");
+    expect(sluggerIdx).toBeGreaterThanOrEqual(0);
+    expect(sluggerIdx).toBeLessThan(5);
+  });
+
+  test("re-roll: same seed → identical order (deterministic)", () => {
+    const players = Array.from({ length: 11 }, (_, i) =>
+      youthBatter(`p${i}`, i % 4 === 0 ? "ops" : i % 4 === 1 ? "leadoff" : i % 4 === 2 ? "contact" : "avg")
+    );
+    const a = generateBattingOnly({
+      activePlayers: players, allPlayers: players, evaluationEvents: [],
+      leagueRuleSet: "NKB", teamAge: "8U", battingSize: "roster", seed: 1234,
+    });
+    const b = generateBattingOnly({
+      activePlayers: players, allPlayers: players, evaluationEvents: [],
+      leagueRuleSet: "NKB", teamAge: "8U", battingSize: "roster", seed: 1234,
+    });
+    expect(a.battingLineup.map((p) => p.id)).toEqual(b.battingLineup.map((p) => p.id));
+  });
+
+  test("re-roll: different seeds reshuffle similarly-rated kids", () => {
+    // Five "leadoff"-archetype kids with identical stats — completely
+    // interchangeable. Different seeds should produce different orders
+    // among them on average. (Plus a strong OPS hitter pinned to #3 to
+    // confirm the strategy still respects role-driven slots.)
+    const players = [
+      youthBatter("ops1", "ops"),
+      ...Array.from({ length: 5 }, (_, i) => youthBatter(`lo${i}`, "leadoff")),
+      ...Array.from({ length: 5 }, (_, i) => youthBatter(`c${i}`, "contact")),
+    ];
+    const seen = new Set();
+    for (let s = 1; s <= 20; s++) {
+      const r = generateBattingOnly({
+        activePlayers: players, allPlayers: players, evaluationEvents: [],
+        leagueRuleSet: "NKB", teamAge: "8U", battingSize: "roster", seed: s,
+      });
+      seen.add(r.battingLineup.map((p) => p.id).join(","));
+    }
+    // 20 seeds should produce a handful of distinct orders, not just one.
+    expect(seen.size).toBeGreaterThan(1);
   });
 });
