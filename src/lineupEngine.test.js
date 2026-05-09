@@ -279,6 +279,136 @@ describe("primary-position pre-pin", () => {
       expect(pos).toBe("SS");
     }
   });
+
+  test("Big Game: primary-3B kid returns to 3B after sitting an inning (13-player roster)", () => {
+    // The user's exact scenario: a kid set as 3B in Big Game should play
+    // 3B the whole game, including after a fairness bench. With 13 active
+    // and 10 fielders, the bench schedule forces every kid to sit
+    // approximately once. The ace must come back to 3B — never displaced
+    // by the substitute who held 3B during the bench inning.
+    const players = [
+      makePlayer("ace", "Ace 3B", { primaryPosition: "3B", restrictions: ["C"] }),
+      ...makeRoster(12),
+    ];
+    const grades = {};
+    for (const p of players) grades[p.id] = { fielding: 5 };
+    grades.ace = {
+      fielding: 9,
+      armStrength: 9,
+      armAccuracy: 9,
+      speedAgility: 9,
+      baseballIQ: 9,
+    };
+
+    let benchedAtLeastOnce = false;
+    const violations = [];
+    for (let seed = 1; seed <= 30; seed++) {
+      const result = buildLineup({
+        players,
+        evaluationEvents: [headEval(grades)],
+        teamAge: "8U",
+        isBigGame: true,
+        seed,
+      });
+      if (result.error) continue;
+      const acePos = result.lineup.map((inn) => {
+        if ((inn.BENCH || []).some((p) => p?.id === "ace")) return "BENCH";
+        for (const k of Object.keys(inn)) {
+          if (k === "BENCH") continue;
+          if (inn[k]?.id === "ace") return k;
+        }
+        return null;
+      });
+      if (acePos.includes("BENCH")) benchedAtLeastOnce = true;
+      // Walk innings: any non-BENCH inning that isn't 3B is a violation.
+      const wrong = acePos.filter((p) => p !== null && p !== "BENCH" && p !== "3B");
+      if (wrong.length > 0) violations.push({ seed, acePos });
+    }
+    expect(benchedAtLeastOnce).toBe(true); // sanity: roster size forces sits
+    expect(violations).toEqual([]);
+  });
+
+  test("8U Big Game: primary-3B kid is never pulled into the catcher pool", () => {
+    // Reported scenario: at 8U, the 3B-primary kid was being placed at C
+    // for the first inning pair (because the catcher pre-pin's tier-2
+    // defScore tiebreaker grabbed him before the primary pre-pin ran),
+    // and the substitute kept 3B for the rest of the game until the
+    // primary kid "returned" mid-game. At developmental-catcher ages
+    // (8U and below), kids with a primary infield position should anchor
+    // to that spot — not be drafted to catch.
+    //
+    // No explicit C restriction on the ace; the engine should still leave
+    // him at 3B every inning he's on the field.
+    const players = [
+      makePlayer("ace", "Ace 3B", { primaryPosition: "3B" }),
+      ...makeRoster(10),
+    ];
+    const grades = {};
+    for (const p of players) grades[p.id] = { fielding: 5 };
+    grades.ace = {
+      fielding: 9,
+      armStrength: 9,
+      armAccuracy: 9,
+      speedAgility: 9,
+      baseballIQ: 9,
+    };
+
+    const violations = [];
+    for (let seed = 1; seed <= 50; seed++) {
+      const result = buildLineup({
+        players,
+        evaluationEvents: [headEval(grades)],
+        teamAge: "8U",
+        isBigGame: true,
+        seed,
+      });
+      if (result.error) continue;
+      const acePositions = positionsOf(result.lineup, "ace");
+      const wrong = acePositions
+        .map((p, idx) => ({ idx, pos: p }))
+        .filter(({ pos }) => pos !== null && pos !== "3B");
+      if (wrong.length > 0) violations.push({ seed, wrong });
+    }
+    expect(violations).toEqual([]);
+  });
+
+  test("10U Big Game: primary-3B kid CAN be drafted as catcher (older-age behavior)", () => {
+    // Sanity check that the 8U filter doesn't accidentally apply at 10U+.
+    // Without an explicit C restriction, the catcher pool can still pull a
+    // strong defender behind the plate at older ages — coaches handle this
+    // with explicit restrictions, per their established workflow.
+    const players = [
+      makePlayer("ace", "Ace 3B", { primaryPosition: "3B" }),
+      ...makeRoster(10),
+    ];
+    const grades = {};
+    for (const p of players) grades[p.id] = { fielding: 5 };
+    grades.ace = {
+      fielding: 9,
+      armStrength: 9,
+      armAccuracy: 9,
+      speedAgility: 9,
+      baseballIQ: 9,
+    };
+
+    let aceCaughtSomeSeed = false;
+    for (let seed = 1; seed <= 30; seed++) {
+      const result = buildLineup({
+        players,
+        evaluationEvents: [headEval(grades)],
+        teamAge: "10U",
+        isBigGame: true,
+        seed,
+      });
+      if (result.error) continue;
+      const acePositions = positionsOf(result.lineup, "ace");
+      if (acePositions.includes("C")) {
+        aceCaughtSomeSeed = true;
+        break;
+      }
+    }
+    expect(aceCaughtSomeSeed).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
