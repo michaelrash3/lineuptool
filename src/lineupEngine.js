@@ -903,6 +903,7 @@ function precomputeBenchSchedule(opts) {
     catcherInningPairs,
     rand,
     forcedBenchInning0,
+    teamAge,
   } = opts;
 
   const N = profiled.length;
@@ -1102,6 +1103,21 @@ function precomputeBenchSchedule(opts) {
     .fill(null)
     .map(() => new Set());
   if (catcherInningPairs && catcherInningPairs.length > 0) {
+    // 8U-and-below: catcher is developmental at machine-pitch ages (no
+    // called strikes, no real passed balls), so a kid you've marked with a
+    // primary infield position should anchor to that spot rather than be
+    // pulled behind the plate by the catcher pre-pin's defScore tiebreaker.
+    // Older ages still allow primary-non-C kids in the catcher pool — those
+    // games have real catcher mechanics and coaches typically gate the pool
+    // with explicit C restrictions instead.
+    const teamAgeNum = (() => {
+      if (!teamAge) return 99;
+      const m = String(teamAge).match(/(\d+)/g);
+      if (!m) return 99;
+      return parseInt(m[m.length - 1], 10);
+    })();
+    const developmentalC = teamAgeNum <= 8;
+
     // Eligible catchers: not C-restricted, AND have enough remaining play
     // budget to cover both innings of a catcher pair. A catcher must be on
     // the field for both innings of the pair (they can't be benched), so
@@ -1113,26 +1129,22 @@ function precomputeBenchSchedule(opts) {
     const eligibleC = sortedForExtra
       .filter(({ p }) => !p.restrictions?.includes("C"))
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
+      .filter(({ p }) => {
+        // 8U: exclude kids with primaryPosition set to anything other than
+        // "C". They have a designated spot and should stay there.
+        if (!developmentalC) return true;
+        if (!p.primaryPosition) return true;
+        return p.primaryPosition === "C";
+      })
       .sort((a, b) => {
-        // Three-effective-tier sort:
-        //   Tier 1: primaryPosition === "C" — kids you've designated as
-        //           catchers; picked first.
-        //   Tier 2: no primaryPosition set — flexible kids with no other
-        //           designated spot.
-        //   Tier 3: primaryPosition is set, but to something other than
-        //           "C" — only used as a last resort. Without this rank
-        //           the engine could grab a strong primary-3B kid for a
-        //           catcher pair before the primary pre-pin pass downstream
-        //           gets to claim him for 3B, leaving him stuck behind the
-        //           plate for two innings before "returning" to his
-        //           primary later (the reported "doesn't move back to
-        //           primary after benching" bug — same root cause).
-        // Within each tier fall back to the existing must-play /
-        // defensive-skill / random tiebreaker.
-        const tier = (pp) => (pp === "C" ? 0 : !pp ? 1 : 2);
-        const aTier = tier(a.p.primaryPosition);
-        const bTier = tier(b.p.primaryPosition);
-        if (aTier !== bTier) return aTier - bTier;
+        // Tier 1 wins over tier 2: kids whose primary position is catcher are
+        // picked first. Within each tier fall back to the existing
+        // must-play / defensive-skill / random tiebreaker. This stops the
+        // "best player ends up at catcher" outcome when restrictions don't
+        // already gate the pool down to true catchers.
+        const aPrimary = a.p.primaryPosition === "C" ? 0 : 1;
+        const bPrimary = b.p.primaryPosition === "C" ? 0 : 1;
+        if (aPrimary !== bPrimary) return aPrimary - bPrimary;
         // Prefer kids with LOW target sit (they need to play more)
         const ta = targetSits.get(a.p.id);
         const tb = targetSits.get(b.p.id);
@@ -1432,6 +1444,7 @@ function tryBuildLineup(ctx) {
     catcherInningPairs,
     rand,
     forcedBenchInning0,
+    teamAge,
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
