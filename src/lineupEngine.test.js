@@ -151,6 +151,50 @@ describe("catcher pre-assignment respects primaryPosition", () => {
     expect(caughtPairs.some((id) => id === "the_catcher")).toBe(true);
   });
 
+  test("a kid with primaryPosition set to non-C is a last-resort catcher", () => {
+    // Reproduces the "primary-3B kid catches innings 0-1 and doesn't return
+    // to 3B until later" report: without this rule, the catcher pre-pin's
+    // tier-2 defScore tiebreaker pulls the strong 3B-primary kid behind
+    // the plate before the primary pre-pin pass downstream can claim him
+    // for 3B. Across many seeds and with the strong defender having no
+    // C restriction, the bug surfaces deterministically. After the
+    // three-tier sort, primary-non-C kids are last-resort and the bug
+    // goes away as long as another eligible kid exists.
+    const players = [
+      makePlayer("ace", "Ace", { primaryPosition: "3B" }),
+      ...makeRoster(10),
+    ];
+    const grades = {};
+    for (const p of players) grades[p.id] = { fielding: 5 };
+    grades.ace = {
+      fielding: 9,
+      armStrength: 9,
+      armAccuracy: 9,
+      speedAgility: 9,
+      baseballIQ: 9,
+    };
+
+    // Sweep seeds — across 50 generations the ace should never catch
+    // (a tier-2 / tier-3 kid is always available).
+    const violations = [];
+    for (let seed = 1; seed <= 50; seed++) {
+      const result = buildLineup({
+        players,
+        evaluationEvents: [headEval(grades)],
+        teamAge: "10U",
+        isBigGame: true,
+        seed,
+      });
+      if (result.error) continue;
+      const acePositions = positionsOf(result.lineup, "ace");
+      const wrong = acePositions
+        .map((p, idx) => ({ idx, pos: p }))
+        .filter(({ pos }) => pos !== null && pos !== "3B");
+      if (wrong.length > 0) violations.push({ seed, wrong });
+    }
+    expect(violations).toEqual([]);
+  });
+
   test("without any primary-C kid, falls back to high-defScore tiebreaker", () => {
     const players = makeRoster(11);
     const grades = {};

@@ -1114,14 +1114,25 @@ function precomputeBenchSchedule(opts) {
       .filter(({ p }) => !p.restrictions?.includes("C"))
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
-        // Tier 1 wins over tier 2: kids whose primary position is catcher are
-        // picked first. Within each tier fall back to the existing
-        // must-play / defensive-skill / random tiebreaker. This stops the
-        // "best player ends up at catcher" outcome when restrictions don't
-        // already gate the pool down to true catchers.
-        const aPrimary = a.p.primaryPosition === "C" ? 0 : 1;
-        const bPrimary = b.p.primaryPosition === "C" ? 0 : 1;
-        if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+        // Three-effective-tier sort:
+        //   Tier 1: primaryPosition === "C" — kids you've designated as
+        //           catchers; picked first.
+        //   Tier 2: no primaryPosition set — flexible kids with no other
+        //           designated spot.
+        //   Tier 3: primaryPosition is set, but to something other than
+        //           "C" — only used as a last resort. Without this rank
+        //           the engine could grab a strong primary-3B kid for a
+        //           catcher pair before the primary pre-pin pass downstream
+        //           gets to claim him for 3B, leaving him stuck behind the
+        //           plate for two innings before "returning" to his
+        //           primary later (the reported "doesn't move back to
+        //           primary after benching" bug — same root cause).
+        // Within each tier fall back to the existing must-play /
+        // defensive-skill / random tiebreaker.
+        const tier = (pp) => (pp === "C" ? 0 : !pp ? 1 : 2);
+        const aTier = tier(a.p.primaryPosition);
+        const bTier = tier(b.p.primaryPosition);
+        if (aTier !== bTier) return aTier - bTier;
         // Prefer kids with LOW target sit (they need to play more)
         const ta = targetSits.get(a.p.id);
         const tb = targetSits.get(b.p.id);
