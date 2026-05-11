@@ -1071,7 +1071,6 @@ function precomputeBenchSchedule(opts) {
     catcherInningPairs,
     rand,
     forcedBenchInning0,
-    teamAge,
   } = opts;
 
   const N = profiled.length;
@@ -1604,7 +1603,6 @@ function tryBuildLineup(ctx) {
     catcherInningPairs,
     rand,
     forcedBenchInning0,
-    teamAge,
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
