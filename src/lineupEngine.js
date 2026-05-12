@@ -1053,9 +1053,7 @@ export function generateLineup(input) {
                                null for 9 fielder (no continuity)
      rand                   seeded random function for tiebreakers
      firstInningBenchOverride  Set<playerId> who MUST be benched in inning 0
-                                  (from firstInningOverridesById indirectly; the
-                                  fact that they aren't in any starting position
-                                  means they should sit)
+     firstInningOverridesById  Map of positions locked in inning 0 so we don't bench them
 
    Returns: { schedule: Map<playerId, Set<inning>>, catcherByPair: Map<pairIdx, playerId> }
    On infeasibility: returns null (caller restarts attempt).
@@ -1071,6 +1069,7 @@ function precomputeBenchSchedule(opts) {
     catcherInningPairs,
     rand,
     forcedBenchInning0,
+    firstInningOverridesById,
   } = opts;
 
   const N = profiled.length;
@@ -1080,6 +1079,16 @@ function precomputeBenchSchedule(opts) {
     const empty = new Map();
     for (const p of profiled) empty.set(p.id, new Set());
     return { schedule: empty, catcherByPair: new Map() };
+  }
+
+  const firstInningMustPlay = new Set();
+  const firstInningLockedPos = new Map();
+  if (firstInningOverridesById) {
+    for (const pos of Object.keys(firstInningOverridesById)) {
+      const pid = firstInningOverridesById[pos];
+      firstInningMustPlay.add(pid);
+      firstInningLockedPos.set(pid, pos);
+    }
   }
 
   // ============================================================
@@ -1293,27 +1302,46 @@ function precomputeBenchSchedule(opts) {
     const usedCatchers = new Set();
     for (let i = 0; i < catcherInningPairs.length; i++) {
       const [a, b] = catcherInningPairs[i];
+      const involvesInning0 = a === 0 || b === 0;
+
+      const isAvailableForPair = (p) => {
+        if (involvesInning0) {
+          const lockedPos = firstInningLockedPos.get(p.id);
+          // If you forced them to play a specific spot that IS NOT catcher in the 1st inning,
+          // they cannot be the catcher for the (0, 1) pair!
+          if (lockedPos && lockedPos !== "C") return false;
+        }
+        return true;
+      };
 
       // 1. Unused Primary Catcher
       let candidate = allEligibleC.find(
-        ({ p }) => p.primaryPosition === "C" && !usedCatchers.has(p.id)
+        ({ p }) =>
+          p.primaryPosition === "C" &&
+          !usedCatchers.has(p.id) &&
+          isAvailableForPair(p)
       );
 
       // 2. Unused Secondary Catcher (can catch, but different primary)
       if (!candidate) {
         candidate = allEligibleC.find(
-          ({ p }) => p.primaryPosition !== "C" && !usedCatchers.has(p.id)
+          ({ p }) =>
+            p.primaryPosition !== "C" &&
+            !usedCatchers.has(p.id) &&
+            isAvailableForPair(p)
         );
       }
 
       // 3. Reuse a Primary Catcher (if we ran out of unique catchers)
       if (!candidate) {
-        candidate = allEligibleC.find(({ p }) => p.primaryPosition === "C");
+        candidate = allEligibleC.find(
+          ({ p }) => p.primaryPosition === "C" && isAvailableForPair(p)
+        );
       }
 
       // 4. Reuse whatever eligible catcher we have
       if (!candidate) {
-        candidate = allEligibleC[0];
+        candidate = allEligibleC.find(({ p }) => isAvailableForPair(p));
       }
 
       if (!candidate) {
@@ -1372,8 +1400,11 @@ function precomputeBenchSchedule(opts) {
     for (const p of profiled) {
       if (alreadyBenched.has(p.id)) continue;
       if (offFieldByInning[inn].has(p.id)) continue;
+      // 1st Inning Override safety: Do not bench a kid if the user explicitly forced them into a position in Inning 0
+      if (inn === 0 && firstInningMustPlay.has(p.id)) continue;
       // Hard rule: no kid sits two innings in a row.
       if (inn > 0 && schedule.get(p.id).has(inn - 1)) continue;
+
       const debt = remaining.get(p.id) || 0;
       if (debt <= 0) continue;
       const hist = priorExtraSits.get(p.id);
@@ -1405,6 +1436,7 @@ function precomputeBenchSchedule(opts) {
         (p) =>
           !alreadyBenched.has(p.id) &&
           !offFieldByInning[inn].has(p.id) &&
+          !(inn === 0 && firstInningMustPlay.has(p.id)) &&
           // No back to back: skip kids who sat the previous inning
           !(inn > 0 && schedule.get(p.id).has(inn - 1)) &&
           (remaining.get(p.id) || 0) === 0
@@ -1603,6 +1635,7 @@ function tryBuildLineup(ctx) {
     catcherInningPairs,
     rand,
     forcedBenchInning0,
+    firstInningOverridesById, // Safe-guards our overrides so we don't bench them
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
@@ -1759,7 +1792,44 @@ function tryBuildLineup(ctx) {
       }
     }
 
-    shuffleInPlace(remainingPositions, rand);
+    // Instead of pure random shuffle, fill the hardest positions first.
+    // A position is "hard" if very few unassigned, unbenched kids are eligible to play it.
+    const posScarcity = remainingPositions.map((pos) => {
+      let count = 0;
+      for (const p of profiled) {
+        if (used.has(p.id) || benchedSet.has(p.id)) continue;
+        if (p.restrictions?.includes(pos)) continue;
+
+        const st = state.get(p.id);
+        if (pos === "P" && defenseSize === "9") {
+          if (
+            leagueRuleSet === "NKB" &&
+            !checkPitchEligibility(p, targetDateStr, teamAge)
+          )
+            continue;
+          const pCount = st.positions["P"] || 0;
+          const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
+          if (inn > 0 && pCount > 0 && !playedHereLast) continue;
+        }
+        if (pos === "C") {
+          const cCap = defenseSize === "10" ? 2 : 3;
+          if ((st.positions["C"] || 0) >= cCap) continue;
+        }
+        count++;
+      }
+      return { pos, count, r: rand() };
+    });
+
+    // Sort by fewest eligible candidates first. Tie-breaker is random.
+    posScarcity.sort((a, b) => {
+      if (a.count !== b.count) return a.count - b.count;
+      return a.r - b.r;
+    });
+
+    remainingPositions.length = 0;
+    for (const item of posScarcity) {
+      remainingPositions.push(item.pos);
+    }
 
     for (const pos of remainingPositions) {
       const candidate = pickBestForPosition({
