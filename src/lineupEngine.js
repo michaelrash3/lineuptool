@@ -316,16 +316,6 @@ function mulberry32(seed) {
   };
 }
 
-function shuffleInPlace(arr, rand) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    const tmp = arr[i];
-    arr[i] = arr[j];
-    arr[j] = tmp;
-  }
-  return arr;
-}
-
 // ---------- Player profile cache ----------
 
 function buildPlayerProfile(p, grades) {
