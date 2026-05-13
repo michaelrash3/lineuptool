@@ -477,9 +477,17 @@ const TeamProvider = ({ children }) => {
     (id) => {
       if (!window.confirm("Remove this player from the roster?")) return;
 
-      // Strip the player out of every shape that holds player references —
-      // otherwise stat aggregation, the In-Game view, and PDF lineups will
-      // surface phantom names long after the player is "removed".
+      // Snapshot the pre-delete shapes so Undo can restore exactly what was
+      // removed. Stat aggregation, In-Game view, and PDF lineups all need
+      // these references rehydrated to avoid phantom-name fallout — a
+      // partial restore (just the roster row) would still leave the player
+      // absent from games/eval grades.
+      const prevPlayers = teamData.players;
+      const prevGames = teamData.games || [];
+      const prevEvents = teamData.evaluationEvents || [];
+      const removedPlayer = prevPlayers.find((p) => p.id === id);
+
+      // Strip the player out of every shape that holds player references.
       const stripFromInning = (inning) => {
         if (!inning || typeof inning !== "object") return inning;
         const out = {};
@@ -523,12 +531,30 @@ const TeamProvider = ({ children }) => {
       };
 
       updateTeam({
-        players: teamData.players.filter((p) => p.id !== id),
-        games: (teamData.games || []).map(stripFromGame),
-        evaluationEvents: (teamData.evaluationEvents || []).map(stripFromEvent),
+        players: prevPlayers.filter((p) => p.id !== id),
+        games: prevGames.map(stripFromGame),
+        evaluationEvents: prevEvents.map(stripFromEvent),
+      });
+
+      toast.push({
+        kind: "success",
+        title: "Player removed",
+        message: removedPlayer
+          ? `${removedPlayer.name} removed. Tap Undo to restore.`
+          : "Tap Undo to restore.",
+        duration: 10000,
+        action: {
+          label: "Undo",
+          onClick: () =>
+            updateTeam({
+              players: prevPlayers,
+              games: prevGames,
+              evaluationEvents: prevEvents,
+            }),
+        },
       });
     },
-    [teamData.players, teamData.games, teamData.evaluationEvents, updateTeam]
+    [teamData.players, teamData.games, teamData.evaluationEvents, updateTeam, toast]
   );
 
   // Add a past-season entry to a single player.
@@ -830,9 +856,23 @@ const TeamProvider = ({ children }) => {
   const deleteSavedGame = useCallback(
     (gameId) => {
       if (!window.confirm("Delete this game?")) return;
-      updateTeam({ games: teamData.games.filter((g) => g.id !== gameId) });
+      const prevGames = teamData.games;
+      const removed = prevGames.find((g) => g.id === gameId);
+      updateTeam({ games: prevGames.filter((g) => g.id !== gameId) });
+      toast.push({
+        kind: "success",
+        title: "Game deleted",
+        message: removed?.opponent
+          ? `vs ${removed.opponent} — tap Undo to restore.`
+          : "Tap Undo to restore.",
+        duration: 10000,
+        action: {
+          label: "Undo",
+          onClick: () => updateTeam({ games: prevGames }),
+        },
+      });
     },
-    [teamData.games, updateTeam]
+    [teamData.games, updateTeam, toast]
   );
 
   // ----- Lineup generation (uses the engine) -----
