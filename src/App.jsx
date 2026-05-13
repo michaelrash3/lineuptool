@@ -6,6 +6,7 @@ import React, {
   useRef,
   memo,
 } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import {
   signInWithCustomToken,
   onAuthStateChanged,
@@ -2539,6 +2540,7 @@ const App = () => {
       <TeamProvider>
         <UIProvider>
           <MainShell />
+          <Analytics />
         </UIProvider>
       </TeamProvider>
     </ToastProvider>
