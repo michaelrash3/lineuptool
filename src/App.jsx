@@ -11,7 +11,7 @@ import React, {
 // (Uncomment the original imports below when copying to your local project)
 const signInWithCustomToken = async () => {};
 const onAuthStateChanged = (auth, cb) => {
-  cb({ uid: "test-user" });
+  cb({ uid: "test user" });
   return () => {};
 };
 const GoogleAuthProvider = class {};
@@ -1779,7 +1779,7 @@ const TeamProvider = ({ children }) => {
           const teamFmt = (teamData.pitchingFormat || "").toLowerCase();
           const isMachinePitchTeam = teamFmt.includes("machine");
           const prevImportDate = teamData.lastCsvImportDate || "";
-          const todayIso = new DatetoISOString().slice(0, 10);
+          const todayIso = new Date().toISOString().slice(0, 10);
           const sanityWarnings = [];
           if (!isMachinePitchTeam) {
             for (let pi = 0; pi < next.length; pi++) {
@@ -2258,10 +2258,10 @@ const UIProvider = ({ children }) => {
     setGameSaved(false);
   }, [selectedGameId]);
 
-  // Detect when a remote Firestore snapshot updates the game we're editing.
+  // Detect when a remote Firestore snapshot updates the game were editing.
   // If the user has no unsaved local changes, silently re sync. If they do,
   // surface a toast so they know their next save will clobber the remote
-  // edit (better than silently overwriting another coach's work).
+  // edit (better than silently overwriting another coachs work).
   useEffect(() => {
     if (!selectedGameId || !loadedGameRef.current) return;
     if (loadedGameRef.current.id !== selectedGameId) return;
