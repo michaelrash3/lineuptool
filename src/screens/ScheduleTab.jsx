@@ -10,6 +10,7 @@ import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine.js";
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { RecordBadge } from "../components/shared.jsx";
+import { LineupGrid } from "./LineupGrid.jsx";
 
 export const ScoreEditor = memo(
   ({ game, primaryColor, tertiaryColor, onSave, onClear, onCancel }) => {
@@ -689,13 +690,61 @@ export const ScheduleTab = memo(() => {
           
             <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/40 bg-transparent">
               <div className="p-6">
-                <div className="flex items-center gap-3 mb-5">
+                <div className="flex items-center gap-3 mb-3">
                   <div className="p-1.5 rounded bg-white/60 border border-white/50 shadow-sm">
                     <Icons.Users className="w-4 h-4 text-blue-600" />
                   </div>
                   <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">
                     Game Day Attendance
                   </h3>
+                  <span className="ml-auto text-[10px] font-black uppercase tracking-widest text-slate-500 tabular-nums">
+                    {players.filter(
+                      (p) => currentGameAttendance[p.id] !== false
+                    ).length}
+                    /{players.length} present
+                  </span>
+                </div>
+                {/* Bulk attendance — saves a lot of tapping when most of
+                    the roster is present or absent. */}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = {};
+                      for (const p of players) next[p.id] = true;
+                      setCurrentGameAttendance(next);
+                    }}
+                    className="flex-1 text-[10px] font-black uppercase tracking-widest px-3 py-2 bg-white/80 border border-slate-200 text-slate-700 rounded-lg hover:bg-white transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Icons.Check className="w-3.5 h-3.5 text-green-600" />
+                    All present
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = {};
+                      for (const p of players) next[p.id] = false;
+                      setCurrentGameAttendance(next);
+                    }}
+                    className="flex-1 text-[10px] font-black uppercase tracking-widest px-3 py-2 bg-white/80 border border-slate-200 text-slate-700 rounded-lg hover:bg-white transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Icons.X className="w-3.5 h-3.5 text-slate-500" />
+                    All absent
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = { ...currentGameAttendance };
+                      for (const p of players) {
+                        next[p.id] = !(currentGameAttendance[p.id] !== false);
+                      }
+                      setCurrentGameAttendance(next);
+                    }}
+                    className="flex-1 text-[10px] font-black uppercase tracking-widest px-3 py-2 bg-white/80 border border-slate-200 text-slate-700 rounded-lg hover:bg-white transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <Icons.Refresh className="w-3.5 h-3.5 text-blue-600" />
+                    Invert
+                  </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                   {players.map((p) => (
@@ -908,110 +957,12 @@ export const ScheduleTab = memo(() => {
               </h2>
             </div>
 
-            <div className="overflow-x-auto print:overflow-visible">
-              <table className="w-full text-left border-collapse print:text-xs">
-                <thead>
-                  <tr className="bg-white/40 border-b border-slate-200/50 print:bg-slate-200">
-                    <th className="p-4 print:p-2 font-black text-[11px] uppercase tracking-widest text-center w-20 print:w-12 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-slate-500 bg-white/60 print:bg-slate-200 print:text-slate-900 border-r border-slate-200/50">
-                      Pos
-                    </th>
-                    {lineup.map((_, idx) => (
-                      <th
-                        key={`inn-${idx}-${lineup.length}`}
-                        className="p-4 print:p-2 border-r border-slate-200/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[140px] print:min-w-0 text-slate-700"
-                      >
-                        Inn {idx + 1}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {getPositionsForInning(presentCount, gameDefenseSize).map(
-                    (pos) => (
-                      <tr
-                        key={pos}
-                        className="border-b border-slate-200/50 hover:bg-white/50 break-inside-avoid transition-colors"
-                      >
-                        <td className="p-3 print:p-1.5 font-black text-sm border-r border-slate-200/50 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-center bg-white/80 print:bg-transparent text-slate-800">
-                          {pos}
-                        </td>
-                        {lineup.map((inning, idx) => {
-                          const pAtPos = inning[pos];
-                          const isSelected =
-                            swapSelection?.innIdx === idx &&
-                            swapSelection?.pos === pos;
-                          return (
-                            <td
-                              key={`${pos}-${idx}-${lineup.length}`}
-                              className="p-2 print:p-1 border-r border-slate-200/50 relative"
-                            >
-                              <div
-                                onClick={() =>
-                                  handleCellClick(idx, pos, pAtPos)
-                                }
-                                className={`w-full p-3 text-xs font-bold text-center rounded-lg cursor-pointer transition-all border ${
-                                  isSelected
-                                    ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md scale-105 z-20 relative"
-                                    : pAtPos
-                                    ? "bg-white/80 border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300"
-                                    : "bg-white/30 border-dashed border-slate-300 text-slate-400 hover:bg-white/80"
-                                }`}
-                              >
-                                {pAtPos ? (
-                                  pAtPos.name
-                                ) : (
-                                  <span className="italic font-medium">
-                                    Assign
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    )
-                  )}
-                  <tr className="break-inside-avoid border-t-2 border-slate-200/80 bg-white/20">
-                    <td className="p-3 print:p-1.5 font-black text-[10px] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none uppercase tracking-widest text-center text-slate-500 bg-white/60 print:bg-transparent border-r border-slate-200/50">
-                      Bench
-                    </td>
-                    {lineup.map((inning, idx) => (
-                      <td
-                        key={`bench-${idx}-${lineup.length}`}
-                        className="p-3 print:p-1 align-top border-r border-slate-200/50 min-w-[140px] print:min-w-0"
-                      >
-                        <div className="flex flex-col gap-2 items-center">
-                          {inning.BENCH?.map((p) => {
-                            const isSelected =
-                              swapSelection?.innIdx === idx &&
-                              swapSelection?.pos === "BENCH" &&
-                              swapSelection?.player?.id === p.id;
-                            return (
-                              <div
-                                key={p.id}
-                                onClick={() => handleCellClick(idx, "BENCH", p)}
-                                className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
-                                  isSelected
-                                    ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 scale-105 z-20 relative"
-                                    : "bg-white/90 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300"
-                                }`}
-                              >
-                                {p.name}
-                              </div>
-                            );
-                          })}
-                          {(!inning.BENCH || inning.BENCH.length === 0) && (
-                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400/50 py-2">
-                              Empty
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    ))}
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <LineupGrid
+              lineup={lineup}
+              positions={getPositionsForInning(presentCount, gameDefenseSize)}
+              swapSelection={swapSelection}
+              onCellClick={handleCellClick}
+            />
 
             {battingLineup && (
               <div className="p-6 border-t border-slate-200/80 print:hidden bg-transparent">
