@@ -1295,6 +1295,12 @@ function precomputeBenchSchedule(opts) {
         if (!p.primaryPosition) return true;
         return p.primaryPosition === "C";
       })
+  if (catcherInningPairs && catcherInningPairs.length > 0) {
+    // Eligible catchers: not C restricted, AND have enough remaining play
+    // budget to cover both innings of a catcher pair.
+    const allEligibleC = sortedForExtra
+      .filter(({ p }) => !p.restrictions?.includes("C"))
+      .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher
         // are picked first.
@@ -1336,6 +1342,27 @@ function precomputeBenchSchedule(opts) {
       );
 
       // 2. Unused Secondary Catcher (can catch, but different primary)
+      if (!candidate) {
+        candidate = allEligibleC.find(
+          ({ p }) =>
+            p.primaryPosition !== "C" &&
+            !usedCatchers.has(p.id) &&
+            isAvailableForPair(p)
+        );
+      }
+
+      // 3. Reuse a Primary Catcher (if we ran out of unique catchers)
+      if (!candidate) {
+        candidate = allEligibleC.find(
+          ({ p }) => p.primaryPosition === "C" && isAvailableForPair(p)
+        );
+      }
+
+      // 4. Reuse whatever eligible catcher we have
+      if (!candidate) {
+        candidate = allEligibleC.find(({ p }) => isAvailableForPair(p));
+      }
+
       if (!candidate) {
         candidate = allEligibleC.find(
           ({ p }) =>
