@@ -6,6 +6,74 @@ import React, {
   useRef,
   memo,
 } from "react";
+
+// --- START OF MOCKS FOR PREVIEW COMPILATION ---
+// (Uncomment the original imports below when copying to your local project)
+const signInWithCustomToken = async () => {};
+const onAuthStateChanged = (auth, cb) => {
+  cb({ uid: "test-user" });
+  return () => {};
+};
+const GoogleAuthProvider = class {};
+const signInWithPopup = async () => {};
+const doc = () => ({});
+const setDoc = async () => {};
+const getDoc = async () => ({ exists: () => false, data: () => ({}) });
+const onSnapshot = (ref, cb) => {
+  cb({ exists: () => true, data: () => ({ teams: [] }) });
+  return () => {};
+};
+const deleteDoc = async () => {};
+
+const Icons = new Proxy({}, { get: () => (props) => <span {...props} /> });
+const auth = {};
+const db = {};
+const appId = "test";
+const ToastContext = React.createContext();
+const TeamContext = React.createContext();
+const UIContext = React.createContext();
+const useToast = () => React.useContext(ToastContext);
+const useTeam = () => React.useContext(TeamContext);
+const useUI = () => React.useContext(UIContext);
+const SharedModals = () => null;
+const LoginScreen = () => null;
+const AppHeader = () => null;
+const TabBarNav = () => null;
+const HomeTab = () => null;
+const RosterTab = () => null;
+const ScheduleTab = () => null;
+const EvaluationTab = () => null;
+const SettingsTab = () => null;
+const PlayerProfileModal = () => null;
+const AddPlayerModal = () => null;
+const PastSeasonImportModal = () => null;
+const InGameView = () => null;
+const normalizeDateToIso = (d) => d;
+const slimGame = (g) => g;
+const scrubUndefined = (o) => o;
+const parseCsvLine = () => [];
+const buildCsvHeaderIndex = () =>
+  new Proxy({}, { get: (_, prop) => (prop === "isTeamSnap" ? false : 0) });
+const parsePercent = () => 0;
+const blankStats = () => ({});
+const getLocalDateString = () => "2026-05-13";
+const bumpAgeTier = (a) => a;
+const computeNextSeason = (s) => ({ nextSeason: s, shouldBump: false });
+const DEFAULT_TEAM_DATA = {
+  players: [],
+  games: [],
+  evaluationEvents: [],
+  coaches: [],
+  teamAge: "8U",
+  leagueRuleSet: "USSSA",
+  defenseSize: "9",
+  pitchingFormat: "Kid Pitch",
+};
+const engineGenerateLineup = () => ({ lineup: [], battingLineup: [] });
+const engineGenerateBattingOnly = () => ({ battingLineup: [] });
+// --- END OF MOCKS ---
+
+/*
 import {
   signInWithCustomToken,
   onAuthStateChanged,
@@ -62,19 +130,20 @@ import {
   DEFAULT_TEAM_DATA,
 } from "./constants/ui";
 
-// Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
+// Pure function lineup engine. Lives in ./lineupEngine.js next to this file.
 import {
   generateLineup as engineGenerateLineup,
   generateBattingOnly as engineGenerateBattingOnly,
 } from "./lineupEngine.js";
+*/
 
 /* ============================================================================
-   SECTION 2 · Firebase setup — see ./firebase.js
-   SECTION 3 · Pure helpers — see ./utils/helpers.js
+   SECTION 2 · Firebase setup see ./firebase.js
+   SECTION 3 · Pure helpers see ./utils/helpers.js
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 4 · UI-only constants — see ./constants/ui.js
+   SECTION 4 · UI only constants see ./constants/ui.js
 ============================================================================ */
 
 /* ============================================================================
@@ -168,53 +237,53 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
 });
 
 /* ============================================================================
-   SECTION 6 · TeamContext   — see ./contexts.js
-   SECTION 7 · UIContext     — see ./contexts.js
+   SECTION 6 · TeamContext   see ./contexts.js
+   SECTION 7 · UIContext     see ./contexts.js
    The hooks (useToast / useTeam / useUI) live in ./contexts.js so screens
    can import them without dragging the providers.
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 8 · Small reusable presentational components — see ./components/shared.jsx
+   SECTION 8 · Small reusable presentational components see ./components/shared.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 9 · LoginScreen, AppHeader, TabBarNav — see ./components/Chrome.jsx
+   SECTION 9 · LoginScreen, AppHeader, TabBarNav see ./components/Chrome.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 10 · HomeTab — see ./screens/HomeTab.jsx
+   SECTION 10 · HomeTab see ./screens/HomeTab.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 11 · RosterTab — see ./screens/RosterTab.jsx
+   SECTION 11 · RosterTab see ./screens/RosterTab.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 12 · ScheduleTab — see ./screens/ScheduleTab.jsx (also includes ScoreEditor)
+   SECTION 12 · ScheduleTab see ./screens/ScheduleTab.jsx (also includes ScoreEditor)
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 13 · EvaluationTab + RosterDecisionsPanel — see ./screens/EvaluationTab.jsx
+   SECTION 13 · EvaluationTab + RosterDecisionsPanel see ./screens/EvaluationTab.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 14 · SettingsTab — see ./screens/SettingsTab.jsx
+   SECTION 14 · SettingsTab see ./screens/SettingsTab.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 15 · PlayerProfileModal — see ./components/modals.jsx
-   SECTION 16 · AddPlayerModal     — see ./components/modals.jsx
+   SECTION 15 · PlayerProfileModal see ./components/modals.jsx
+   SECTION 16 · AddPlayerModal     see ./components/modals.jsx
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 17 · TeamProvider — owns team state, Firebase subscriptions, actions
-   This replaces the prop-drilled state/actions object in the original.
+   SECTION 17 · TeamProvider owns team state, Firebase subscriptions, actions
+   This replaces the prop drilled state/actions object in the original.
 ============================================================================ */
 const TeamProvider = ({ children }) => {
   const toast = useToast();
 
-  // Auth + team-list state
+  // Auth + team list state
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [teams, setTeams] = useState([]);
@@ -232,12 +301,14 @@ const TeamProvider = ({ children }) => {
     let cancelled = false;
     (async () => {
       try {
-        const tokenFromHost = (typeof window !== "undefined" && window.__initial_auth_token) || null;
+        const tokenFromHost =
+          (typeof window !== "undefined" && window.__initial_auth_token) ||
+          null;
         if (tokenFromHost) {
           await signInWithCustomToken(auth, tokenFromHost);
         }
       } catch (e) {
-        console.warn("Custom token sign-in failed", e);
+        console.warn("Custom token sign in failed", e);
       }
       const unsub = onAuthStateChanged(auth, async (u) => {
         if (cancelled) return;
@@ -363,13 +434,13 @@ const TeamProvider = ({ children }) => {
   const persistTeam = useCallback(
     async (updates) => {
       if (!activeTeamId) return;
-      // Slim any games being persisted — strip embedded player objects down
+      // Slim any games being persisted strip embedded player objects down
       // to {id, name, number} to stay under the Firestore 1MB document limit.
       let toPersist = updates;
       if (Array.isArray(updates.games)) {
         toPersist = { ...updates, games: updates.games.map(slimGame) };
       }
-      // Scrub any undefined values from the tree — Firestore rejects them.
+      // Scrub any undefined values from the tree Firestore rejects them.
       toPersist = scrubUndefined(toPersist);
       setSyncStatus("Saving");
       try {
@@ -401,9 +472,9 @@ const TeamProvider = ({ children }) => {
     [persistTeam]
   );
 
-  // Auto-correct defenseSize on age/league change. BATCHED into a single write.
+  // Auto correct defenseSize on age/league change. BATCHED into a single write.
   // We read the four relevant fields outside the effect so the dependency list
-  // literally matches what's used (avoids the ESLint exhaustive-deps confusion
+  // literally matches what's used (avoids the ESLint exhaustive deps confusion
   // that would otherwise want all of `teamData` in the deps).
   const _league = teamData.leagueRuleSet;
   const _teamAge = teamData.teamAge;
@@ -433,7 +504,8 @@ const TeamProvider = ({ children }) => {
     }
     if (Object.keys(updates).length > 0) updateTeam(updates);
   }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam]);
-  // ----- Roster actions -----
+
+  // Roster actions
   const addPlayer = useCallback(
     (form) => {
       const newPlayer = {
@@ -477,25 +549,22 @@ const TeamProvider = ({ children }) => {
     (id) => {
       if (!window.confirm("Remove this player from the roster?")) return;
 
-      // Snapshot the pre-delete shapes so Undo can restore exactly what was
-      // removed. Stat aggregation, In-Game view, and PDF lineups all need
-      // these references rehydrated to avoid phantom-name fallout — a
-      // partial restore (just the roster row) would still leave the player
-      // absent from games/eval grades.
-      const prevPlayers = teamData.players;
-      const prevGames = teamData.games || [];
-      const prevEvents = teamData.evaluationEvents || [];
-      const removedPlayer = prevPlayers.find((p) => p.id === id);
+      const playerToRemove = teamData.players.find((p) => p.id === id);
+      if (!playerToRemove) return;
 
-      // Strip the player out of every shape that holds player references.
+      const prevPlayers = [...teamData.players];
+      const prevGames = [...(teamData.games || [])];
+      const prevEvents = [...(teamData.evaluationEvents || [])];
+
+      // Strip the player out of every shape that holds player references
+      // otherwise stat aggregation, the In Game view, and PDF lineups will
+      // surface phantom names long after the player is removed.
       const stripFromInning = (inning) => {
         if (!inning || typeof inning !== "object") return inning;
         const out = {};
         for (const pos in inning) {
           if (pos === "BENCH") {
-            out.BENCH = (inning.BENCH || []).filter(
-              (p) => p && p.id !== id
-            );
+            out.BENCH = (inning.BENCH || []).filter((p) => p && p.id !== id);
           } else {
             const slot = inning[pos];
             out[pos] = slot && slot.id === id ? null : slot;
@@ -506,13 +575,12 @@ const TeamProvider = ({ children }) => {
 
       const stripFromGame = (g) => {
         const next = { ...g };
-        if (Array.isArray(g.lineup)) next.lineup = g.lineup.map(stripFromInning);
+        if (Array.isArray(g.lineup))
+          next.lineup = g.lineup.map(stripFromInning);
         if (Array.isArray(g.originalLineup))
           next.originalLineup = g.originalLineup.map(stripFromInning);
         if (Array.isArray(g.battingLineup))
-          next.battingLineup = g.battingLineup.filter(
-            (p) => p && p.id !== id
-          );
+          next.battingLineup = g.battingLineup.filter((p) => p && p.id !== id);
         if (g.attendance && id in g.attendance) {
           const { [id]: _dropAtt, ...rest } = g.attendance;
           next.attendance = rest;
@@ -539,25 +607,29 @@ const TeamProvider = ({ children }) => {
       toast.push({
         kind: "success",
         title: "Player removed",
-        message: removedPlayer
-          ? `${removedPlayer.name} removed. Tap Undo to restore.`
-          : "Tap Undo to restore.",
-        duration: 10000,
+        message: `${playerToRemove.name} was removed.`,
         action: {
           label: "Undo",
-          onClick: () =>
+          onClick: () => {
             updateTeam({
               players: prevPlayers,
               games: prevGames,
               evaluationEvents: prevEvents,
-            }),
+            });
+          },
         },
       });
     },
-    [teamData.players, teamData.games, teamData.evaluationEvents, updateTeam, toast]
+    [
+      teamData.players,
+      teamData.games,
+      teamData.evaluationEvents,
+      updateTeam,
+      toast,
+    ]
   );
 
-  // Add a past-season entry to a single player.
+  // Add a past season entry to a single player.
   const addPastSeason = useCallback(
     (playerId, entry) => {
       const next = teamData.players.map((p) => {
@@ -591,7 +663,7 @@ const TeamProvider = ({ children }) => {
         if (p.id !== playerId) return p;
         const past = (p.pastSeasons || []).map((e) => {
           if (e.id !== entryId) return e;
-          // Stats merge field-by-field; everything else replaces
+          // Stats merge field by field; everything else replaces
           return {
             ...e,
             ...patch,
@@ -625,7 +697,7 @@ const TeamProvider = ({ children }) => {
     [teamData.players, updateTeam]
   );
 
-  // Bulk add past-season entries from a CSV import. `assignments` is an array of
+  // Bulk add past season entries from a CSV import. `assignments` is an array of
   // { playerId, season, ageGroup, pitchingFormat, stats }. Adds one entry per
   // assignment to the matching player.
   const bulkAddPastSeasons = useCallback(
@@ -661,7 +733,7 @@ const TeamProvider = ({ children }) => {
     [teamData.players, updateTeam]
   );
 
-  // ----- Coach actions -----
+  // Coach actions
   const addCoach = useCallback(
     (form) => {
       if (!form.name.trim()) return;
@@ -682,7 +754,7 @@ const TeamProvider = ({ children }) => {
     [teamData.coaches, updateTeam]
   );
 
-  // ----- Game actions -----
+  // Game actions
   const addGame = useCallback(
     (form) => {
       if (!form.date || !form.opponent.trim()) {
@@ -718,7 +790,7 @@ const TeamProvider = ({ children }) => {
     (gameId, updates) => {
       // Defend against callers that pass empty/invalid dates from a cleared
       // input field. An empty `date` would break every `games.sort((a,b) =>
-      // new Date(a.date) - new Date(b.date))` comparator and the upcoming-game
+      // new Date(a.date)  new Date(b.date))` comparator and the upcoming game
       // logic. If the date is empty/unparseable, drop just that key from the
       // update rather than persisting garbage.
       let safeUpdates = updates;
@@ -742,7 +814,7 @@ const TeamProvider = ({ children }) => {
 
   // Helper: push the game's pitch counts to each pitcher's player record.
   // Replaces (not accumulates) the pitcher's recentPitches/lastPitchDate, since
-  // the engine treats those as "most recent outing" for rest-day calculations.
+  // the engine treats those as "most recent outing" for rest day calculations.
   // Returns the next players array (or the unchanged players array if there's
   // nothing to commit). Caller is responsible for combining this with their
   // own game updates and writing both via updateTeam.
@@ -772,7 +844,7 @@ const TeamProvider = ({ children }) => {
 
   // Postpone a game: set status to "postponed", clear scores, AND commit any
   // pitch counts that were entered before the rain came. Pitchers still threw
-  // their warm-up tosses or innings before the call; their counts should
+  // their warm up tosses or innings before the call; their counts should
   // count toward rest just like a finalized game.
   const postponeGame = useCallback(
     (gameId) => {
@@ -803,12 +875,12 @@ const TeamProvider = ({ children }) => {
   // match how many innings were actually played.
   //
   // Trim semantics:
-  //  - First time we trim: stash full lineup in `originalLineup`, then slice.
-  //  - Trimming further: leave `originalLineup` alone (still has the longest
+  //   First time we trim: stash full lineup in `originalLineup`, then slice.
+  //   Trimming further: leave `originalLineup` alone (still has the longest
   //    version we've ever seen).
-  //  - Restoring (passing a count larger than current `lineup.length`):
+  //   Restoring (passing a count larger than current `lineup.length`):
   //    pull from `originalLineup` if it has enough entries.
-  //  - If `inningsPlayed` matches current length, no lineup change is made.
+  //   If `inningsPlayed` matches current length, no lineup change is made.
   const finalizeGame = useCallback(
     (gameId, teamScore, opponentScore, inningsPlayed) => {
       const game = teamData.games.find((g) => g.id === gameId);
@@ -818,10 +890,15 @@ const TeamProvider = ({ children }) => {
         opponentScore,
         status: "final",
       };
-      if (game.lineup?.length && Number.isFinite(inningsPlayed) && inningsPlayed > 0) {
-        const longest = game.originalLineup?.length > game.lineup.length
-          ? game.originalLineup
-          : game.lineup;
+      if (
+        game.lineup?.length &&
+        Number.isFinite(inningsPlayed) &&
+        inningsPlayed > 0
+      ) {
+        const longest =
+          game.originalLineup?.length > game.lineup.length
+            ? game.originalLineup
+            : game.lineup;
         const target = Math.min(inningsPlayed, longest.length);
         if (target < game.lineup.length) {
           // Trim. Stash longest version (only on first trim).
@@ -834,7 +911,7 @@ const TeamProvider = ({ children }) => {
           if (game.originalLineup && game.originalLineup.length >= target) {
             gameUpdates.lineup = game.originalLineup.slice(0, target);
           }
-          // else: no-op (can't restore beyond what we have)
+          // else: no op (can't restore beyond what we have)
         }
       }
 
@@ -850,32 +927,38 @@ const TeamProvider = ({ children }) => {
         updateGame(gameId, gameUpdates);
       }
     },
-    [teamData.games, teamData.players, updateGame, updateTeam, commitPitchCountsToPlayers]
+    [
+      teamData.games,
+      teamData.players,
+      updateGame,
+      updateTeam,
+      commitPitchCountsToPlayers,
+    ]
   );
 
   const deleteSavedGame = useCallback(
     (gameId) => {
       if (!window.confirm("Delete this game?")) return;
-      const prevGames = teamData.games;
-      const removed = prevGames.find((g) => g.id === gameId);
+
+      const prevGames = [...teamData.games];
+
       updateTeam({ games: prevGames.filter((g) => g.id !== gameId) });
+
       toast.push({
         kind: "success",
         title: "Game deleted",
-        message: removed?.opponent
-          ? `vs ${removed.opponent} — tap Undo to restore.`
-          : "Tap Undo to restore.",
-        duration: 10000,
         action: {
           label: "Undo",
-          onClick: () => updateTeam({ games: prevGames }),
+          onClick: () => {
+            updateTeam({ games: prevGames });
+          },
         },
       });
     },
     [teamData.games, updateTeam, toast]
   );
 
-  // ----- Lineup generation (uses the engine) -----
+  // Lineup generation (uses the engine)
   // The UI sets these via useUI() and we read them at call time via a ref pattern,
   // but to keep things simple we pass them in to a closure exposed via a ref.
   const uiBridge = useRef({ getInputs: () => null, applyResult: () => {} });
@@ -895,13 +978,11 @@ const TeamProvider = ({ children }) => {
         toast.push({ kind: "error", title: "No game selected" });
         return;
       }
-      // Per-game toggle drives default; explicit options override (used by the
-      // failure-prompt "Retry Relaxed" action).
+      // Per game toggle drives default; explicit options override (used by the
+      // failure prompt "Retry Relaxed" action).
       const gameSaysRelaxed = currentGame.applySeasonalFairness === false;
       const relaxFairness =
-        options.relaxFairness != null
-          ? options.relaxFairness
-          : gameSaysRelaxed;
+        options.relaxFairness != null ? options.relaxFairness : gameSaysRelaxed;
 
       const presentPlayers = teamData.players.filter(
         (p) => currentGameAttendance[p.id] !== false
@@ -962,7 +1043,7 @@ const TeamProvider = ({ children }) => {
       const internallyRelaxed = result.fairnessRelaxed === true;
       const showAsRelaxed = relaxFairness || internallyRelaxed;
       const successMessage = internallyRelaxed
-        ? "Couldn't satisfy strict fairness — built without past games. Catch up over future games."
+        ? "Couldn't satisfy strict fairness built without past games. Catch up over future games."
         : relaxFairness
         ? "Built without considering past games. Some kids may bench more than others this season."
         : hasPrev
@@ -971,7 +1052,7 @@ const TeamProvider = ({ children }) => {
       toast.push({
         kind: showAsRelaxed ? "warn" : "success",
         title: showAsRelaxed
-          ? "Lineup built (one-game balance)"
+          ? "Lineup built (one game balance)"
           : "Lineup generated",
         message: successMessage,
         duration: 10000,
@@ -1013,14 +1094,15 @@ const TeamProvider = ({ children }) => {
     [_runGenerate]
   );
 
-  // Re-roll JUST the batting order. Defensive lineup, attendance, and
-  // first-inning overrides are all left alone. Useful when the defense
+  // Re roll JUST the batting order. Defensive lineup, attendance, and
+  // first inning overrides are all left alone. Useful when the defense
   // looks right but the order doesn't, or when the coach wants to try a
-  // different shuffle of similarly-rated kids in the middle of the order.
+  // different shuffle of similarly rated kids in the middle of the order.
   const regenerateBatting = useCallback(() => {
     const inputs = uiBridge.current.getInputs();
     if (!inputs) return;
-    const { currentGame, currentGameAttendance, lineup, battingLineup } = inputs;
+    const { currentGame, currentGameAttendance, lineup, battingLineup } =
+      inputs;
     if (!currentGame) {
       toast.push({ kind: "error", title: "No game selected" });
       return;
@@ -1029,7 +1111,7 @@ const TeamProvider = ({ children }) => {
       toast.push({
         kind: "error",
         title: "Generate a lineup first",
-        message: "Re-roll batting works on top of an existing lineup.",
+        message: "Re roll batting works on top of an existing lineup.",
       });
       return;
     }
@@ -1068,7 +1150,7 @@ const TeamProvider = ({ children }) => {
     });
     toast.push({
       kind: "success",
-      title: "Batting order re-rolled",
+      title: "Batting order re rolled",
       message: battingLineup ? "Tap Undo to restore the previous order." : "",
       duration: 6000,
       action: battingLineup
@@ -1124,7 +1206,7 @@ const TeamProvider = ({ children }) => {
     uiBridge.current.markSaved?.();
   }, [updateGame, toast]);
 
-  // ----- Team management -----
+  // Team management
   const switchTeam = useCallback(
     async (id) => {
       setActiveTeamId(id);
@@ -1141,7 +1223,7 @@ const TeamProvider = ({ children }) => {
         );
         await setDoc(ref, { activeTeamId: id }, { merge: true });
       } catch (e) {
-        /* non-fatal */
+        /* non fatal */
       }
     },
     [user]
@@ -1271,7 +1353,7 @@ const TeamProvider = ({ children }) => {
       ? bumpAgeTier(teamData.teamAge)
       : teamData.teamAge;
 
-    // Compute team-level record from final games for the season being archived
+    // Compute team level record from final games for the season being archived
     let wins = 0,
       losses = 0,
       ties = 0,
@@ -1319,7 +1401,7 @@ const TeamProvider = ({ children }) => {
     // unconditionally; the display layer hides pitching when format isn't Kid Pitch.
     const updatedPlayers = teamData.players.map((p) => {
       const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
-      // Only archive if there's something meaningful (skip totally-empty stat objects)
+      // Only archive if there's something meaningful (skip totally empty stat objects)
       const stats = p.stats || blankStats();
       const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
       if (hasAnyData) {
@@ -1373,7 +1455,7 @@ const TeamProvider = ({ children }) => {
         // Firestore caps a single document at ~1,048,487 bytes. Base64 also
         // inflates the binary by ~1.33×, so a 1 MB image becomes ~1.33 MB of
         // JSON. Reject before writing if the merged team doc would exceed a
-        // safe ceiling — otherwise the write fails server-side and the
+        // safe ceiling otherwise the write fails server side and the
         // user's logo silently doesn't stick.
         const HARD_LIMIT = 900_000; // leave headroom for Firestore overhead
         const SOFT_WARN = 750_000;
@@ -1483,7 +1565,7 @@ const TeamProvider = ({ children }) => {
           const lines = text.split(/\r?\n/).filter((l) => l.trim());
           if (lines.length < 2) throw new Error("Empty file.");
 
-          // Detect GameChanger's two-row header layout. The first row is just
+          // Detect GameChanger's two row header layout. The first row is just
           // "Batting", "Pitching", "Fielding" section labels with most cells empty.
           // The second row has the real column names.
           let headerRowIndex = 0;
@@ -1504,7 +1586,7 @@ const TeamProvider = ({ children }) => {
           if (idx.fn === -1 && idx.ln === -1)
             throw new Error("Could not find name columns.");
 
-          // Auto-detect file type by header signatures.
+          // Auto detect file type by header signatures.
           // TeamSnap members export has "Contact 1 Name" / "Jersey Number" / "Position" with role values.
           // GameChanger stats export has "OPS" / "AVG" / "AB" with no contact columns.
           const isTeamSnap =
@@ -1560,7 +1642,7 @@ const TeamProvider = ({ children }) => {
             );
 
             if (isTeamSnap) {
-              // Roster info only — never touch stats or pitching
+              // Roster info only never touch stats or pitching
               const rosterFields = {};
               if (idx.num !== -1 && cols[idx.num])
                 rosterFields.number = cols[idx.num];
@@ -1601,7 +1683,7 @@ const TeamProvider = ({ children }) => {
               continue;
             }
 
-            // GameChanger path — stats only.
+            // GameChanger path stats only.
             // Build a stats patch with ONLY fields actually present in this CSV.
             const statsPatch = {};
             const setNum = (key, colIdx) => {
@@ -1652,7 +1734,7 @@ const TeamProvider = ({ children }) => {
             if (Object.keys(statsPatch).length === 0) continue;
 
             if (existingIndex >= 0) {
-              // Merge stats over existing — preserves any field not in this CSV
+              // Merge stats over existing preserves any field not in this CSV
               next[existingIndex] = {
                 ...next[existingIndex],
                 stats: {
@@ -1663,7 +1745,7 @@ const TeamProvider = ({ children }) => {
               };
               updated++;
             } else {
-              // New player from a stats CSV — minimal record
+              // New player from a stats CSV minimal record
               next.push({
                 id: "p-" + Math.random().toString(36).substring(2, 10),
                 name,
@@ -1684,20 +1766,20 @@ const TeamProvider = ({ children }) => {
             }
           }
 
-          // ---- Pitch count sanity check (kid-pitch only) ----
+          //  Pitch count sanity check (kid pitch only)
           // For each pitcher whose CSV totalPitches changed since the last
           // import, compare the CSV delta against the sum of manual pitchCounts
           // entered for games played since that previous import. Mismatches
           // (>5 pitches off) raise a toast warning so the coach can investigate
-          // and fix manually if needed. We do NOT auto-override anything.
+          // and fix manually if needed. We do NOT auto override anything.
           //
-          // Skip entirely for machine-pitch teams: the totalPitches field is
+          // Skip entirely for machine pitch teams: the totalPitches field is
           // still populated by GameChanger (scorers count pitches faced) but
           // no kid actually pitched, so there's nothing to validate.
           const teamFmt = (teamData.pitchingFormat || "").toLowerCase();
           const isMachinePitchTeam = teamFmt.includes("machine");
           const prevImportDate = teamData.lastCsvImportDate || "";
-          const todayIso = new Date().toISOString().slice(0, 10);
+          const todayIso = new DatetoISOString().slice(0, 10);
           const sanityWarnings = [];
           if (!isMachinePitchTeam) {
             for (let pi = 0; pi < next.length; pi++) {
@@ -1711,7 +1793,10 @@ const TeamProvider = ({ children }) => {
                 next[pi] = {
                   ...newPlayer,
                   pitching: {
-                    ...(newPlayer.pitching || { recentPitches: 0, lastPitchDate: null }),
+                    ...(newPlayer.pitching || {
+                      recentPitches: 0,
+                      lastPitchDate: null,
+                    }),
                     csvTotalPitches: newTp,
                   },
                 };
@@ -1737,7 +1822,10 @@ const TeamProvider = ({ children }) => {
               next[pi] = {
                 ...newPlayer,
                 pitching: {
-                  ...(newPlayer.pitching || { recentPitches: 0, lastPitchDate: null }),
+                  ...(newPlayer.pitching || {
+                    recentPitches: 0,
+                    lastPitchDate: null,
+                  }),
                   csvTotalPitches: newTp,
                 },
               };
@@ -1752,14 +1840,18 @@ const TeamProvider = ({ children }) => {
               skipped === 1 ? "" : "s"
             }.)`;
           toast.push({ kind: "success", title: `${kind} imported`, message });
-          // Surface each pitch-count discrepancy as its own warning toast.
-          // duration: 0 = persistent (won't auto-dismiss). Coach taps the X to clear.
+          // Surface each pitch count discrepancy as its own warning toast.
+          // duration: 0 = persistent (won't auto dismiss). Coach taps the X to clear.
           for (const w of sanityWarnings) {
             toast.push({
               kind: "warn",
               duration: 0,
               title: `Pitch count mismatch: ${w.name}`,
-              message: `CSV shows +${w.csvDelta} pitches since last import; you entered ${w.manualDelta}. Off by ${Math.abs(w.csvDelta - w.manualDelta)}.`,
+              message: `CSV shows +${
+                w.csvDelta
+              } pitches since last import; you entered ${
+                w.manualDelta
+              }. Off by ${Math.abs(w.csvDelta - w.manualDelta)}.`,
             });
           }
         } catch (err) {
@@ -1911,7 +2003,7 @@ const TeamProvider = ({ children }) => {
     );
 
     if (selectedRoundId) {
-      // Editing an existing round — update its grades, keep its label/date/id
+      // Editing an existing round update its grades, keep its label/date/id
       const next = teamData.evaluationEvents.map((e) =>
         e.id === selectedRoundId ? { ...e, grades } : e
       );
@@ -1940,10 +2032,10 @@ const TeamProvider = ({ children }) => {
       title: "Eval saved",
       message: label,
     });
-    // Caller is expected to clear newRoundLabel and re-select the new round if desired
+    // Caller is expected to clear newRoundLabel and re select the new round if desired
   }, [user, teamData.evaluationEvents, updateTeam, toast]);
 
-  // Win-loss record derived from final games only.
+  // Win loss record derived from final games only.
   const record = useMemo(() => {
     let wins = 0,
       losses = 0,
@@ -1964,7 +2056,7 @@ const TeamProvider = ({ children }) => {
     return { wins, losses, ties, runsScored, runsAllowed };
   }, [teamData.games]);
 
-  // Memoized context value — only changes when actual data does
+  // Memoized context value only changes when actual data does
   const value = useMemo(
     () => ({
       team: teamData,
@@ -1977,7 +2069,7 @@ const TeamProvider = ({ children }) => {
       genError,
       setGenError,
       record,
-      uiBridge, // private — used by UIProvider
+      uiBridge, // private used by UIProvider
       // actions
       updateTeam,
       addPlayer,
@@ -2066,9 +2158,9 @@ const TeamProvider = ({ children }) => {
 };
 
 /* ============================================================================
-   SECTION 18 · UIProvider — local UI state (modals, selections, attendance)
+   SECTION 18 · UIProvider local UI state (modals, selections, attendance)
    Bridges back to TeamProvider through `uiBridge` ref so generate/save can
-   read the current UI state without re-rendering on every keystroke.
+   read the current UI state without re rendering on every keystroke.
 ============================================================================ */
 const UIProvider = ({ children }) => {
   const team = useTeam();
@@ -2093,9 +2185,9 @@ const UIProvider = ({ children }) => {
     pitchingFormat: "Kid Pitch",
   });
   const [scoringGameId, setScoringGameId] = useState(null); // game whose score is being entered inline
-  const [inGameId, setInGameId] = useState(null); // game currently in In-Game mode
-  const [inGameInning, setInGameInning] = useState(0); // current inning during in-game mode (0-indexed)
-  const [inGameSelection, setInGameSelection] = useState(null); // { type: "position"|"bench", pos?, playerId } — first tap of a swap pair
+  const [inGameId, setInGameId] = useState(null); // game currently in In Game mode
+  const [inGameInning, setInGameInning] = useState(0); // current inning during in game mode (0 indexed)
+  const [inGameSelection, setInGameSelection] = useState(null); // { type: "position"|"bench", pos?, playerId } first tap of a swap pair
   const [inGameUndoStack, setInGameUndoStack] = useState([]); // last swap undo data
   const [activeTab, setActiveTab] = useState("home");
   const [pastSeasonImport, setPastSeasonImport] = useState(null); // null when closed; { rows, season, ageGroup, pitchingFormat, assignments } when open
@@ -2141,8 +2233,8 @@ const UIProvider = ({ children }) => {
   }, [team.team.games]);
 
   // Snapshot of the game data we last loaded into local editor state, used
-  // by the conflict-detection effect below. We compare against this — not
-  // against the live `team.team.games` reference — so we can tell whether
+  // by the conflict detection effect below. We compare against this not
+  // against the live `team.team.games` reference so we can tell whether
   // the *user* edited locally vs. whether a *remote* snapshot changed the
   // game underneath us.
   const loadedGameRef = useRef(null);
@@ -2167,7 +2259,7 @@ const UIProvider = ({ children }) => {
   }, [selectedGameId]);
 
   // Detect when a remote Firestore snapshot updates the game we're editing.
-  // If the user has no unsaved local changes, silently re-sync. If they do,
+  // If the user has no unsaved local changes, silently re sync. If they do,
   // surface a toast so they know their next save will clobber the remote
   // edit (better than silently overwriting another coach's work).
   useEffect(() => {
@@ -2216,9 +2308,9 @@ const UIProvider = ({ children }) => {
     }
   }, [team.team.games, selectedGameId, lineup, battingLineup, toast]);
 
-  // Clear any selected/scoring/in-game id whose underlying game has been
+  // Clear any selected/scoring/in game id whose underlying game has been
   // deleted (locally or via a remote snapshot). Without this, the UI would
-  // try to render against a non-existent game until the next interaction.
+  // try to render against a non existent game until the next interaction.
   useEffect(() => {
     const ids = new Set(team.team.games.map((g) => g.id));
     if (selectedGameId && !ids.has(selectedGameId)) setSelectedGameId(null);
@@ -2241,8 +2333,8 @@ const UIProvider = ({ children }) => {
   }, [team.team.players]);
 
   // Sync teamEvalGrades based on selectedRoundId:
-  //   - If a specific round is selected, load its grades for editing
-  //   - If no round selected (= creating new), load from latest round as a
+  //    If a specific round is selected, load its grades for editing
+  //    If no round selected (= creating new), load from latest round as a
   //     starting baseline. Coach can then adjust and save as a new round.
   useEffect(() => {
     if (!team.user) return;
@@ -2253,12 +2345,12 @@ const UIProvider = ({ children }) => {
       const target = mine.find((e) => e.id === selectedRoundId);
       if (target?.grades) setTeamEvalGrades(target.grades);
     } else {
-      // Pre-fill with the latest round's grades when starting a new round
+      // Pre fill with the latest round's grades when starting a new round
       if (mine[0]?.grades) setTeamEvalGrades(mine[0].grades);
     }
   }, [team.user, team.team.evaluationEvents, selectedRoundId]);
 
-  // Handle copy-link feedback
+  // Handle copy link feedback
   const copyTeamCode = useCallback(() => {
     team.copyTeamCode();
     setLinkCopied(true);
@@ -2313,8 +2405,8 @@ const UIProvider = ({ children }) => {
   const addInning = useCallback(() => {
     if (!lineup) return;
     const last = lineup[lineup.length - 1] || {};
-    // Deep-copy BENCH so the new inning doesn't share an array reference with
-    // the previous one — a subsequent BENCH edit would otherwise mutate both.
+    // Deep copy BENCH so the new inning doesn't share an array reference with
+    // the previous one a subsequent BENCH edit would otherwise mutate both.
     const cloned = {
       ...last,
       BENCH: Array.isArray(last.BENCH) ? [...last.BENCH] : [],
@@ -2342,9 +2434,9 @@ const UIProvider = ({ children }) => {
 
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
   // owned by TeamProvider; mutating it during render would be a
-  // setState-like side effect. Defer to an effect that runs after commit
-  // so React's rules-of-hooks invariants hold and concurrent rendering
-  // can't observe a half-written bridge.
+  // setState like side effect. Defer to an effect that runs after commit
+  // so React's rules of hooks invariants hold and concurrent rendering
+  // can't observe a half written bridge.
   const uiBridgeRef = team.uiBridge;
   useEffect(() => {
     uiBridgeRef.current = {
@@ -2491,21 +2583,14 @@ const UIProvider = ({ children }) => {
 };
 
 /* ============================================================================
-   SECTION 18.5 · InGameView — see ./screens/InGameView.jsx
+   SECTION 18.5 · InGameView see ./screens/InGameView.jsx
 ============================================================================ */
 
 /* ============================================================================
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
 const MainShell = () => {
-  const {
-    team,
-    user,
-    authReady,
-    loading,
-    genError,
-    setGenError,
-  } = useTeam();
+  const { team, user, authReady, loading, genError, setGenError } = useTeam();
   const { viewingPlayerId, activeTab, setActiveTab } = useUI();
 
   if (!authReady || loading) {
