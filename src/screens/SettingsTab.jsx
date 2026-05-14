@@ -51,6 +51,7 @@ export const SettingsTab = memo(() => {
     gameChangerAutoSyncEnabled,
     gameChangerLastSyncAt,
     gameChangerSyncUrl,
+    gameChangerTeamId,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
 
@@ -509,6 +510,20 @@ export const SettingsTab = memo(() => {
                       className="w-full p-3 bg-white border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 rounded-xl shadow-sm"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    GameChanger Team ID
+                  </label>
+                  <input
+                    type="text"
+                    value={gameChangerTeamId || ""}
+                    onChange={(e) =>
+                      updateTeam({ gameChangerTeamId: e.target.value })
+                    }
+                    placeholder="jpXdsmXuoalP"
+                    className="w-full p-3 bg-white border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 rounded-xl shadow-sm"
+                  />
                 </div>
                 <div>
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">

@@ -78,4 +78,5 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   gameChangerAutoSyncEnabled: false,
   gameChangerLastSyncAt: "",
   gameChangerSyncUrl: "",
+  gameChangerTeamId: "",
 });

@@ -1745,6 +1745,14 @@ const TeamProvider = ({ children }) => {
       });
       return;
     }
+    if (!teamData.gameChangerTeamId) {
+      toast.push({
+        kind: "warn",
+        title: "Missing GameChanger Team ID",
+        message: "Add the GameChanger Team ID in Settings first.",
+      });
+      return;
+    }
     try {
       const endpoint =
         (teamData.gameChangerSyncUrl || "").trim() || "/api/gamechanger/sync";
@@ -1754,7 +1762,8 @@ const TeamProvider = ({ children }) => {
         body: JSON.stringify({
           email: teamData.gameChangerEmail,
           password: teamData.gameChangerPassword,
-          teamId: activeTeamId,
+          teamId: teamData.gameChangerTeamId,
+          lineupToolTeamId: activeTeamId,
         }),
       });
       if (!res.ok) {
