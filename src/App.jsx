@@ -1436,7 +1436,7 @@ const TeamProvider = ({ children }) => {
       try {
         const trimmed = (rawUrl || "").trim();
         if (!trimmed) throw new Error("Enter a calendar URL first.");
-        const normalizedUrl = trimmed.replace(/^webcal:\/\//i, "https://");
+        const normalizedUrl = trimmed.replace(/^webcals?:\/\//i, "https://");
         const res = await fetch(normalizedUrl);
         if (!res.ok) throw new Error(`Calendar fetch failed (${res.status}).`);
         const text = await res.text();
