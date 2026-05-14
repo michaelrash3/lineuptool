@@ -1746,7 +1746,9 @@ const TeamProvider = ({ children }) => {
       return;
     }
     try {
-      const res = await fetch("/api/gamechanger/sync", {
+      const endpoint =
+        (teamData.gameChangerSyncUrl || "").trim() || "/api/gamechanger/sync";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1755,7 +1757,23 @@ const TeamProvider = ({ children }) => {
           teamId: activeTeamId,
         }),
       });
-      if (!res.ok) throw new Error("GameChanger sync request failed.");
+      if (!res.ok) {
+        let details = "";
+        try {
+          const body = await res.text();
+          details = body ? ` ${body.slice(0, 180)}` : "";
+        } catch {
+          details = "";
+        }
+        if (res.status === 404) {
+          throw new Error(
+            `Sync endpoint not found (${endpoint}). Add your backend URL in Settings.`
+          );
+        }
+        throw new Error(
+          `Sync request failed (${res.status} ${res.statusText}).${details}`
+        );
+      }
       const payload = await res.json();
       const incoming = Array.isArray(payload?.players) ? payload.players : [];
       if (incoming.length === 0) {

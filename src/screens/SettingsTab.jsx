@@ -50,6 +50,7 @@ export const SettingsTab = memo(() => {
     gameChangerPassword,
     gameChangerAutoSyncEnabled,
     gameChangerLastSyncAt,
+    gameChangerSyncUrl,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
 
@@ -508,6 +509,20 @@ export const SettingsTab = memo(() => {
                       className="w-full p-3 bg-white border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 rounded-xl shadow-sm"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    Sync Endpoint URL
+                  </label>
+                  <input
+                    type="text"
+                    value={gameChangerSyncUrl || ""}
+                    onChange={(e) =>
+                      updateTeam({ gameChangerSyncUrl: e.target.value })
+                    }
+                    placeholder="https://your-backend.example.com/api/gamechanger/sync"
+                    className="w-full p-3 bg-white border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 rounded-xl shadow-sm"
+                  />
                 </div>
                 <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
                   <input
