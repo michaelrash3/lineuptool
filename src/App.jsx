@@ -1431,6 +1431,87 @@ const TeamProvider = ({ children }) => {
     [teamData, updateTeam, toast]
   );
 
+  const importScheduleIcsUrl = useCallback(
+    async (rawUrl) => {
+      try {
+        const trimmed = (rawUrl || "").trim();
+        if (!trimmed) throw new Error("Enter a calendar URL first.");
+        const normalizedUrl = trimmed.replace(/^webcal:\/\//i, "https://");
+        const res = await fetch(normalizedUrl);
+        if (!res.ok) throw new Error(`Calendar fetch failed (${res.status}).`);
+        const text = await res.text();
+        const lines = text.split(/\r?\n/);
+
+        const toIsoDate = (icsDate) => {
+          const v = (icsDate || "").trim();
+          if (!v) return null;
+          if (/^\d{8}$/.test(v)) {
+            return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+          }
+          if (/^\d{8}T\d{6}Z?$/.test(v)) {
+            return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+          }
+          return null;
+        };
+
+        const events = [];
+        let current = null;
+        for (const line of lines) {
+          if (line === "BEGIN:VEVENT") {
+            current = {};
+            continue;
+          }
+          if (line === "END:VEVENT") {
+            if (current?.date) events.push(current);
+            current = null;
+            continue;
+          }
+          if (!current) continue;
+
+          if (line.startsWith("DTSTART")) {
+            const val = line.split(":").slice(1).join(":");
+            current.date = toIsoDate(val);
+          } else if (line.startsWith("SUMMARY:")) {
+            current.summary = line.slice(8).trim();
+          }
+        }
+
+        if (!events.length) throw new Error("No games found in calendar feed.");
+
+        const newGames = events.map((ev) => ({
+          id: "g-" + Math.random().toString(36).substring(2, 10),
+          date: ev.date,
+          opponent: ev.summary || "TBD",
+          leagueRuleSet: teamData.leagueRuleSet,
+          pitchingFormat: teamData.pitchingFormat,
+          defenseSize: teamData.defenseSize,
+          battingSize: teamData.battingSize,
+          positionLock: teamData.positionLock,
+          lineup: null,
+          battingLineup: null,
+          attendance: {},
+          status: "scheduled",
+          teamScore: null,
+          opponentScore: null,
+        }));
+
+        updateTeam({ games: [...teamData.games, ...newGames] });
+        toast.push({
+          kind: "success",
+          title: `Imported ${newGames.length} games`,
+          message: "Calendar sync imported from iCal feed.",
+        });
+      } catch (err) {
+        toast.push({
+          kind: "error",
+          title: "iCal import failed",
+          message: err.message || "Could not import calendar.",
+        });
+      }
+    },
+    [teamData, updateTeam, toast]
+  );
+
   const uploadStatsCsv = useCallback(
     (e) => {
       const file = e.target.files?.[0];
@@ -1966,6 +2047,7 @@ const TeamProvider = ({ children }) => {
       advanceSeason,
       uploadLogo,
       uploadScheduleCsv,
+      importScheduleIcsUrl,
       uploadStatsCsv,
       exportBackup,
       importBackup,
@@ -2012,6 +2094,7 @@ const TeamProvider = ({ children }) => {
       advanceSeason,
       uploadLogo,
       uploadScheduleCsv,
+      importScheduleIcsUrl,
       uploadStatsCsv,
       exportBackup,
       importBackup,

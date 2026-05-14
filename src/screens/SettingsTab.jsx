@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { Icons } from "../icons";
 import {
   parseGameChangerPastSeasonCsv,
@@ -14,6 +14,7 @@ export const SettingsTab = memo(() => {
     advanceSeason,
     uploadLogo,
     uploadScheduleCsv,
+    importScheduleIcsUrl,
     uploadStatsCsv,
     exportBackup,
     importBackup,
@@ -47,6 +48,7 @@ export const SettingsTab = memo(() => {
     currentSeason,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
+  const [icsUrl, setIcsUrl] = useState("");
 
   // Past-season CSV import: parse the file, open the review modal.
   const startPastSeasonImport = useCallback(
@@ -517,6 +519,27 @@ export const SettingsTab = memo(() => {
                       onChange={startPastSeasonImport}
                     />
                   </label>
+                </div>
+                <div className="bg-white/70 border border-slate-200 rounded-xl p-3.5 shadow-sm">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    iCal / GameChanger Calendar URL
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="url"
+                      value={icsUrl}
+                      onChange={(e) => setIcsUrl(e.target.value)}
+                      placeholder="webcal://... or https://... .ics"
+                      className="flex-1 px-3 py-2.5 text-xs bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => importScheduleIcsUrl(icsUrl)}
+                      className="px-4 py-2.5 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-lg"
+                    >
+                      Import iCal
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button

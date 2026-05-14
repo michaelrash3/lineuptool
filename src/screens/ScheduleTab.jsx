@@ -918,7 +918,11 @@ export const ScheduleTab = memo(() => {
                     {lineup.map((_, idx) => (
                       <th
                         key={`inn-${idx}-${lineup.length}`}
-                        className="p-4 print:p-2 border-r border-slate-200/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[140px] print:min-w-0 text-slate-700"
+                        className={`p-3 sm:p-4 print:p-2 border-r border-slate-200/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[172px] sm:min-w-[140px] print:min-w-0 ${
+                          swapSelection?.innIdx === idx
+                            ? "bg-blue-50/80 text-blue-800"
+                            : "text-slate-700"
+                        }`}
                       >
                         Inn {idx + 1}
                       </th>
@@ -943,13 +947,17 @@ export const ScheduleTab = memo(() => {
                           return (
                             <td
                               key={`${pos}-${idx}-${lineup.length}`}
-                              className="p-2 print:p-1 border-r border-slate-200/50 relative"
+                              className={`p-2 sm:p-2 print:p-1 border-r border-slate-200/50 relative ${
+                                swapSelection?.innIdx === idx
+                                  ? "bg-blue-50/40"
+                                  : ""
+                              }`}
                             >
                               <div
                                 onClick={() =>
                                   handleCellClick(idx, pos, pAtPos)
                                 }
-                                className={`w-full p-3 text-xs font-bold text-center rounded-lg cursor-pointer transition-all border ${
+                                className={`w-full min-h-[48px] sm:min-h-0 p-3.5 sm:p-3 text-[13px] sm:text-xs font-bold text-center rounded-lg cursor-pointer transition-all border ${
                                   isSelected
                                     ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md scale-105 z-20 relative"
                                     : pAtPos
@@ -978,7 +986,9 @@ export const ScheduleTab = memo(() => {
                     {lineup.map((inning, idx) => (
                       <td
                         key={`bench-${idx}-${lineup.length}`}
-                        className="p-3 print:p-1 align-top border-r border-slate-200/50 min-w-[140px] print:min-w-0"
+                        className={`p-3 print:p-1 align-top border-r border-slate-200/50 min-w-[172px] sm:min-w-[140px] print:min-w-0 ${
+                          swapSelection?.innIdx === idx ? "bg-blue-50/30" : ""
+                        }`}
                       >
                         <div className="flex flex-col gap-2 items-center">
                           {inning.BENCH?.map((p) => {
@@ -990,7 +1000,7 @@ export const ScheduleTab = memo(() => {
                               <div
                                 key={p.id}
                                 onClick={() => handleCellClick(idx, "BENCH", p)}
-                                className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
+                                className={`text-xs sm:text-[11px] print:p-0 px-3 py-2.5 sm:py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
                                   isSelected
                                     ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 scale-105 z-20 relative"
                                     : "bg-white/90 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300"
