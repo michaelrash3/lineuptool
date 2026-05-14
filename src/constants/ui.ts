@@ -74,4 +74,5 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   teamAge: "8U",
   positionLock: "1",
   onboardingCompletedBy: {},
+  onboardingDismissedBy: {},
 });

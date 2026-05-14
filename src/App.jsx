@@ -2469,8 +2469,11 @@ const MainShell = () => {
   } = useTeam();
   const { viewingPlayerId, activeTab, setActiveTab } = useUI();
   const wizardCompleted = Boolean(team.onboardingCompletedBy?.[user?.uid || ""]);
+  const wizardDismissed = Boolean(team.onboardingDismissedBy?.[user?.uid || ""]);
   const shouldShowWizard =
-    !wizardCompleted && ((team.players || []).length === 0 || (team.games || []).length === 0);
+    !wizardCompleted &&
+    !wizardDismissed &&
+    ((team.players || []).length === 0 || (team.games || []).length === 0);
 
   if (!authReady || loading) {
     return (
@@ -2517,17 +2520,12 @@ const MainShell = () => {
         navButtons={navButtons}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
-        {shouldShowWizard ? (
-          <OnboardingWizard />
-        ) : (
-          <>
-            {activeTab === "home" && <HomeTab />}
-            {activeTab === "roster" && <RosterTab />}
-            {activeTab === "schedule" && <ScheduleTab />}
-            {activeTab === "evaluation" && <EvaluationTab />}
-            {activeTab === "settings" && <SettingsTab />}
-          </>
-        )}
+        {activeTab === "home" && shouldShowWizard && <OnboardingWizard />}
+        {activeTab === "home" && <HomeTab />}
+        {activeTab === "roster" && <RosterTab />}
+        {activeTab === "schedule" && <ScheduleTab />}
+        {activeTab === "evaluation" && <EvaluationTab />}
+        {activeTab === "settings" && <SettingsTab />}
       </main>
       <SharedModals />
       {viewingPlayerId && <PlayerProfileModal />}

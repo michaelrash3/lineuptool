@@ -38,6 +38,7 @@ export const OnboardingWizard = memo(() => {
   ];
 
   const allDone = steps.every((s) => s.done);
+  const dismissed = Boolean(team.onboardingDismissedBy?.[user?.uid || ""]);
 
   useEffect(() => {
     if (!user?.uid || !allDone) return;
@@ -52,6 +53,7 @@ export const OnboardingWizard = memo(() => {
   }, [allDone, team.onboardingCompletedBy, updateTeam, user?.uid]);
 
   const firstIncomplete = steps.find((s) => !s.done)?.id || 4;
+  if (dismissed || allDone) return null;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -111,20 +113,28 @@ export const OnboardingWizard = memo(() => {
                 onClick={() => setActiveTab("settings")}
                 className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest"
               >
-                Import from Settings
+                Import Roster
               </button>
             </>
           )}
           {firstIncomplete === 3 && (
-            <button
-              onClick={() => {
-                setActiveTab("schedule");
-                setIsAddingGame(true);
-              }}
-              className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest"
-            >
-              Add First Game
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setActiveTab("schedule");
+                  setIsAddingGame(true);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest"
+              >
+                Add First Game
+              </button>
+              <button
+                onClick={() => setActiveTab("settings")}
+                className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-widest"
+              >
+                Import Schedule
+              </button>
+            </>
           )}
           {firstIncomplete === 4 && (
             <button
@@ -134,6 +144,18 @@ export const OnboardingWizard = memo(() => {
               Open Game Setup
             </button>
           )}
+          <button
+            onClick={() => {
+              if (!user?.uid) return;
+              const dismissedBy = team.onboardingDismissedBy || {};
+              updateTeam({
+                onboardingDismissedBy: { ...dismissedBy, [user.uid]: true },
+              });
+            }}
+            className="ml-auto px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-500 text-xs font-black uppercase tracking-widest"
+          >
+            Hide Guide
+          </button>
         </div>
       </div>
     </div>
