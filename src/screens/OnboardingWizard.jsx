@@ -72,7 +72,7 @@ export const OnboardingWizard = memo(() => {
             >
               <div className="flex items-center gap-3">
                 {step.done ? (
-                  <Icons.CheckCircle className="w-5 h-5 text-green-700" />
+                  <Icons.Check className="w-5 h-5 text-green-700" />
                 ) : (
                   <div className="w-5 h-5 rounded-full border-2 border-slate-300" />
                 )}
