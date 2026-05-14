@@ -1437,7 +1437,14 @@ const TeamProvider = ({ children }) => {
         const trimmed = (rawUrl || "").trim();
         if (!trimmed) throw new Error("Enter a calendar URL first.");
         const normalizedUrl = trimmed.replace(/^webcals?:\/\//i, "https://");
-        const res = await fetch(normalizedUrl);
+        let res;
+        try {
+          res = await fetch(normalizedUrl);
+        } catch (fetchErr) {
+          throw new Error(
+            "Could not reach this calendar URL. If the link opens in your browser but import still fails, the calendar host may block browser CORS requests."
+          );
+        }
         if (!res.ok) throw new Error(`Calendar fetch failed (${res.status}).`);
         const text = await res.text();
         const lines = text.split(/\r?\n/);
