@@ -45,6 +45,9 @@ export const SettingsTab = memo(() => {
     coaches,
     players,
     currentSeason,
+    gameChangerEmail,
+    gameChangerPassword,
+    gameChangerAutoSyncEnabled,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
 
@@ -467,6 +470,60 @@ export const SettingsTab = memo(() => {
                     PNG/JPG up to 1 MB. Stored inline in your team document.
                   </p>
                 </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <Icons.Cloud className="w-4 h-4" /> GameChanger Connection
+              </h3>
+              <div className="space-y-4 bg-white/70 border border-slate-200 rounded-2xl p-4 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                      GameChanger Email
+                    </label>
+                    <input
+                      type="email"
+                      value={gameChangerEmail || ""}
+                      onChange={(e) =>
+                        updateTeam({ gameChangerEmail: e.target.value })
+                      }
+                      placeholder="coach@team.com"
+                      className="w-full p-3 bg-white border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 rounded-xl shadow-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                      GameChanger Password
+                    </label>
+                    <input
+                      type="password"
+                      value={gameChangerPassword || ""}
+                      onChange={(e) =>
+                        updateTeam({ gameChangerPassword: e.target.value })
+                      }
+                      placeholder="Enter password"
+                      className="w-full p-3 bg-white border border-slate-200 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 rounded-xl shadow-sm"
+                    />
+                  </div>
+                </div>
+                <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={!!gameChangerAutoSyncEnabled}
+                    onChange={(e) =>
+                      updateTeam({
+                        gameChangerAutoSyncEnabled: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 accent-blue-600"
+                  />
+                  Enable auto-sync from GameChanger when direct integration is configured.
+                </label>
+                <p className="text-xs text-slate-500">
+                  Credentials are stored with your team settings so future
+                  direct-import integration can use them.
+                </p>
               </div>
             </div>
             <div>

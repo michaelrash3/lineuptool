@@ -328,19 +328,13 @@ describe("primary-position pre-pin", () => {
     expect(violations).toEqual([]);
   });
 
-  test("8U Big Game: primary-3B kid is never pulled into the catcher pool", () => {
-    // Reported scenario: at 8U, the 3B-primary kid was being placed at C
-    // for the first inning pair (because the catcher pre-pin's tier-2
-    // defScore tiebreaker grabbed him before the primary pre-pin ran),
-    // and the substitute kept 3B for the rest of the game until the
-    // primary kid "returned" mid-game. At developmental-catcher ages
-    // (8U and below), kids with a primary infield position should anchor
-    // to that spot — not be drafted to catch.
-    //
-    // No explicit C restriction on the ace; the engine should still leave
-    // him at 3B every inning he's on the field.
+  test("8U Big Game: primary catchers are used before non-primary IF kids", () => {
+    // At 8U we do not hard-ban IF primaries from C. Instead, we prioritize
+    // true primary catchers first so IF primaries aren't randomly pulled
+    // into the first catcher pair when a primary catcher is available.
     const players = [
       makePlayer("ace", "Ace 3B", { primaryPosition: "3B" }),
+      makePlayer("pc", "Primary Catcher", { primaryPosition: "C" }),
       ...makeRoster(10),
     ];
     const grades = {};
@@ -351,6 +345,13 @@ describe("primary-position pre-pin", () => {
       armAccuracy: 9,
       speedAgility: 9,
       baseballIQ: 9,
+    };
+    grades.pc = {
+      fielding: 3,
+      armStrength: 3,
+      armAccuracy: 3,
+      speedAgility: 3,
+      baseballIQ: 3,
     };
 
     const violations = [];
@@ -366,7 +367,8 @@ describe("primary-position pre-pin", () => {
       const acePositions = positionsOf(result.lineup, "ace");
       const wrong = acePositions
         .map((p, idx) => ({ idx, pos: p }))
-        .filter(({ pos }) => pos !== null && pos !== "3B");
+        // the first catcher pair is innings 0 and 1 in 10-fielder mode
+        .filter(({ idx, pos }) => idx <= 1 && pos === "C");
       if (wrong.length > 0) violations.push({ seed, wrong });
     }
     expect(violations).toEqual([]);

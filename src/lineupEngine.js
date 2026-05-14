@@ -1267,6 +1267,15 @@ function precomputeBenchSchedule(opts) {
     .map(() => new Set());
 
   if (catcherInningPairs && catcherInningPairs.length > 0) {
+    // Scarcity model: kids with fewer total playable defensive positions
+    // should be consumed by scarce needs first (like catcher continuity).
+    // We use restriction-based flexibility as the scarcity signal.
+    const playablePositionCount = (p) =>
+      POS_10.reduce(
+        (n, pos) => n + (p.restrictions?.includes(pos) ? 0 : 1),
+        0
+      );
+
     // Eligible catchers: not C restricted, AND have enough remaining play
     // budget to cover both innings of a catcher pair.
     const allEligibleC = sortedForExtra
@@ -1278,6 +1287,11 @@ function precomputeBenchSchedule(opts) {
         const aPrimary = a.p.primaryPosition === "C" ? 0 : 1;
         const bPrimary = b.p.primaryPosition === "C" ? 0 : 1;
         if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+
+        // Scarcity: fewer alternative defensive slots goes first.
+        const aPlayable = playablePositionCount(a.p);
+        const bPlayable = playablePositionCount(b.p);
+        if (aPlayable !== bPlayable) return aPlayable - bPlayable;
 
         // Prefer kids with LOW target sit (they need to play more)
         const ta = targetSits.get(a.p.id);
@@ -1683,6 +1697,47 @@ function tryBuildLineup(ctx) {
     const remainingPositions = positionsToFill.filter(
       (pos) => !inningSlots[pos]
     );
+    const canPlayerCoverPosition = (p, pos) => {
+      if (used.has(p.id) || benchedSet.has(p.id)) return false;
+      if (p.restrictions?.includes(pos)) return false;
+      const st = state.get(p.id);
+      if (pos === "P" && defenseSize === "9") {
+        if (leagueRuleSet === "NKB" && !checkPitchEligibility(p, targetDateStr, teamAge))
+          return false;
+        const pCount = st.positions["P"] || 0;
+        const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
+        if (inn > 0 && pCount > 0 && !playedHereLast) return false;
+      }
+      if (pos === "C") {
+        const cCap = defenseSize === "10" ? 2 : 3;
+        if ((st.positions["C"] || 0) >= cCap) return false;
+      }
+      return true;
+    };
+    const remainingIsFeasible = () => {
+      const openPlayers = profiled.filter((p) => !used.has(p.id) && !benchedSet.has(p.id));
+      const matchByPlayer = new Map();
+      const seen = new Set();
+      const tryAssign = (pos) => {
+        for (const p of openPlayers) {
+          const key = `${pos}|${p.id}`;
+          if (seen.has(key)) continue;
+          if (!canPlayerCoverPosition(p, pos)) continue;
+          seen.add(key);
+          const prevPos = matchByPlayer.get(p.id);
+          if (prevPos == null || tryAssign(prevPos)) {
+            matchByPlayer.set(p.id, pos);
+            return true;
+          }
+        }
+        return false;
+      };
+      for (const pos of remainingPositions) {
+        seen.clear();
+        if (!tryAssign(pos)) return false;
+      }
+      return true;
+    };
 
     // 10 fielder mode: catcher is fixed by the precomputed schedule
     // (one catcher per (inn, inn+1) pair, then the next, etc.).
@@ -1755,6 +1810,12 @@ function tryBuildLineup(ctx) {
         used.add(p.id);
         const idx = remainingPositions.indexOf(pos);
         if (idx !== -1) remainingPositions.splice(idx, 1);
+        if (!remainingIsFeasible()) {
+          delete inningSlots[pos];
+          used.delete(p.id);
+          if (idx !== -1) remainingPositions.splice(idx, 0, pos);
+          continue;
+        }
       }
     }
 
@@ -1779,6 +1840,12 @@ function tryBuildLineup(ctx) {
         used.add(prevPlayer.id);
         const idx = remainingPositions.indexOf(pos);
         if (idx !== -1) remainingPositions.splice(idx, 1);
+        if (!remainingIsFeasible()) {
+          delete inningSlots[pos];
+          used.delete(prevPlayer.id);
+          if (idx !== -1) remainingPositions.splice(idx, 0, pos);
+          continue;
+        }
       }
     }
 
@@ -1787,24 +1854,7 @@ function tryBuildLineup(ctx) {
     const posScarcity = remainingPositions.map((pos) => {
       let count = 0;
       for (const p of profiled) {
-        if (used.has(p.id) || benchedSet.has(p.id)) continue;
-        if (p.restrictions?.includes(pos)) continue;
-
-        const st = state.get(p.id);
-        if (pos === "P" && defenseSize === "9") {
-          if (
-            leagueRuleSet === "NKB" &&
-            !checkPitchEligibility(p, targetDateStr, teamAge)
-          )
-            continue;
-          const pCount = st.positions["P"] || 0;
-          const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
-          if (inn > 0 && pCount > 0 && !playedHereLast) continue;
-        }
-        if (pos === "C") {
-          const cCap = defenseSize === "10" ? 2 : 3;
-          if ((st.positions["C"] || 0) >= cCap) continue;
-        }
+        if (!canPlayerCoverPosition(p, pos)) continue;
         count++;
       }
       return { pos, count, r: rand() };
