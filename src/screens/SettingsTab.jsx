@@ -15,6 +15,7 @@ export const SettingsTab = memo(() => {
     uploadLogo,
     uploadScheduleCsv,
     uploadStatsCsv,
+    syncGameChangerDirect,
     exportBackup,
     importBackup,
     deleteTeamCmd,
@@ -48,6 +49,7 @@ export const SettingsTab = memo(() => {
     gameChangerEmail,
     gameChangerPassword,
     gameChangerAutoSyncEnabled,
+    gameChangerLastSyncAt,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
 
@@ -524,6 +526,20 @@ export const SettingsTab = memo(() => {
                   Credentials are stored with your team settings so future
                   direct-import integration can use them.
                 </p>
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    onClick={syncGameChangerDirect}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-widest rounded-lg"
+                  >
+                    Sync Now
+                  </button>
+                  <span className="text-[11px] text-slate-500">
+                    Last sync:{" "}
+                    {gameChangerLastSyncAt
+                      ? new Date(gameChangerLastSyncAt).toLocaleString()
+                      : "Never"}
+                  </span>
+                </div>
               </div>
             </div>
             <div>

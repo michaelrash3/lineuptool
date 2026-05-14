@@ -1736,6 +1736,76 @@ const TeamProvider = ({ children }) => {
     [teamData, updateTeam, toast]
   );
 
+  const syncGameChangerDirect = useCallback(async () => {
+    if (!teamData.gameChangerEmail || !teamData.gameChangerPassword) {
+      toast.push({
+        kind: "warn",
+        title: "Missing GameChanger credentials",
+        message: "Add GameChanger email and password in Settings first.",
+      });
+      return;
+    }
+    try {
+      const res = await fetch("/api/gamechanger/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: teamData.gameChangerEmail,
+          password: teamData.gameChangerPassword,
+          teamId: activeTeamId,
+        }),
+      });
+      if (!res.ok) throw new Error("GameChanger sync request failed.");
+      const payload = await res.json();
+      const incoming = Array.isArray(payload?.players) ? payload.players : [];
+      if (incoming.length === 0) {
+        toast.push({ kind: "warn", title: "No GameChanger players returned" });
+        return;
+      }
+
+      const next = [...teamData.players];
+      let updated = 0;
+      for (const row of incoming) {
+        const name = String(row?.name || "").trim();
+        if (!name) continue;
+        const existingIndex = next.findIndex(
+          (p) => p.name.toLowerCase() === name.toLowerCase()
+        );
+        const incomingStats = { ...(row?.stats || {}) };
+        // Explicitly ignore innings-by-position style fields.
+        delete incomingStats.inningsByPosition;
+        delete incomingStats.positionInnings;
+        delete incomingStats.defensiveInnings;
+        if (existingIndex >= 0) {
+          next[existingIndex] = {
+            ...next[existingIndex],
+            stats: {
+              ...(next[existingIndex].stats || blankStats()),
+              ...incomingStats,
+            },
+          };
+          updated++;
+        }
+      }
+
+      updateTeam({
+        players: next,
+        gameChangerLastSyncAt: new Date().toISOString(),
+      });
+      toast.push({
+        kind: "success",
+        title: "GameChanger sync complete",
+        message: `${updated} player stat lines updated (position innings ignored).`,
+      });
+    } catch (err) {
+      toast.push({
+        kind: "error",
+        title: "GameChanger sync failed",
+        message: err.message || "Unable to sync.",
+      });
+    }
+  }, [teamData, activeTeamId, updateTeam, toast]);
+
   const exportBackup = useCallback(() => {
     const blob = new Blob([JSON.stringify(teamData, null, 2)], {
       type: "application/json",
@@ -1967,6 +2037,7 @@ const TeamProvider = ({ children }) => {
       uploadLogo,
       uploadScheduleCsv,
       uploadStatsCsv,
+      syncGameChangerDirect,
       exportBackup,
       importBackup,
       deleteTeamCmd,
@@ -2013,6 +2084,7 @@ const TeamProvider = ({ children }) => {
       uploadLogo,
       uploadScheduleCsv,
       uploadStatsCsv,
+      syncGameChangerDirect,
       exportBackup,
       importBackup,
       deleteTeamCmd,
