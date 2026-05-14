@@ -40,6 +40,7 @@ import { RosterTab } from "./screens/RosterTab.jsx";
 import { ScheduleTab } from "./screens/ScheduleTab.jsx";
 import { EvaluationTab } from "./screens/EvaluationTab.jsx";
 import { SettingsTab } from "./screens/SettingsTab.jsx";
+import { OnboardingWizard } from "./screens/OnboardingWizard.jsx";
 import {
   PlayerProfileModal,
   AddPlayerModal,
@@ -2467,6 +2468,9 @@ const MainShell = () => {
     setGenError,
   } = useTeam();
   const { viewingPlayerId, activeTab, setActiveTab } = useUI();
+  const wizardCompleted = Boolean(team.onboardingCompletedBy?.[user?.uid || ""]);
+  const shouldShowWizard =
+    !wizardCompleted && ((team.players || []).length === 0 || (team.games || []).length === 0);
 
   if (!authReady || loading) {
     return (
@@ -2513,11 +2517,17 @@ const MainShell = () => {
         navButtons={navButtons}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
-        {activeTab === "home" && <HomeTab />}
-        {activeTab === "roster" && <RosterTab />}
-        {activeTab === "schedule" && <ScheduleTab />}
-        {activeTab === "evaluation" && <EvaluationTab />}
-        {activeTab === "settings" && <SettingsTab />}
+        {shouldShowWizard ? (
+          <OnboardingWizard />
+        ) : (
+          <>
+            {activeTab === "home" && <HomeTab />}
+            {activeTab === "roster" && <RosterTab />}
+            {activeTab === "schedule" && <ScheduleTab />}
+            {activeTab === "evaluation" && <EvaluationTab />}
+            {activeTab === "settings" && <SettingsTab />}
+          </>
+        )}
       </main>
       <SharedModals />
       {viewingPlayerId && <PlayerProfileModal />}

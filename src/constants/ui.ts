@@ -73,4 +73,5 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   tertiaryColor: "#ffffff",
   teamAge: "8U",
   positionLock: "1",
+  onboardingCompletedBy: {},
 });
