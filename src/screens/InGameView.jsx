@@ -19,6 +19,7 @@ export const InGameView = memo(() => {
     setInGameUndoStack,
   } = useUI();
   const [showEndGameScore, setShowEndGameScore] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
 
   // ----- Coalesce in-game tap-swap writes -----
   // Each tap previously fired its own setDoc, so a flurry of swaps became
@@ -126,6 +127,85 @@ export const InGameView = memo(() => {
     "RF",
   ];
   const presentPositions = positionOrder.filter((pos) => inn[pos]);
+
+  // Mid-game removal state (injury / illness / left site). When the coach
+  // marks a kid removed, they're gone from the lineup for the current
+  // inning and every inning after — but innings 0..N-1 still count for
+  // their season totals (the engine's buildExtraSitHistory respects
+  // game.midGameRemovals when crunching past games). showRemoveModal
+  // hook is declared up top with the other state to keep hook order
+  // stable across renders.
+
+  // Apply a mid-game removal: record it on the game, clear the player
+  // from inning N+ across both position slots and BENCH. The vacated
+  // spot is left null so the coach can swap in a bench kid manually
+  // (which is consistent with how a real coach handles a sub on the
+  // field — the umpire/scorekeeper waits while you pick a replacement).
+  const removePlayerMidGame = (playerId, reason = "injury") => {
+    const fromInning = currentInning;
+    // Build the new lineup with the player stripped from inning N+.
+    const base = pendingLineup ?? game.lineup;
+    const nextLineup = base.map((existingInn, i) => {
+      if (i < fromInning) return existingInn;
+      const next = {
+        ...existingInn,
+        BENCH: (existingInn.BENCH || []).filter(
+          (p) => p && p.id !== playerId
+        ),
+      };
+      for (const pos of Object.keys(existingInn)) {
+        if (pos === "BENCH") continue;
+        if (existingInn[pos]?.id === playerId) next[pos] = null;
+      }
+      return next;
+    });
+    setPendingLineup(nextLineup);
+    // Persist both the new lineup AND the midGameRemovals record. Flush
+    // happens via the existing debounce + immediate write for the
+    // midGameRemovals field (small).
+    updateGame(game.id, {
+      lineup: nextLineup,
+      midGameRemovals: {
+        ...(game.midGameRemovals || {}),
+        [playerId]: { fromInning, reason },
+      },
+    });
+    setShowRemoveModal(false);
+    toast.push({
+      kind: "success",
+      title: "Player removed",
+      message: `Removed from inning ${
+        fromInning + 1
+      }+. Their played innings still count.`,
+      duration: 6000,
+    });
+  };
+
+  // Currently-active roster set: present and not already removed.
+  // Used by the removal modal to list eligible players.
+  const eligibleForRemoval = (() => {
+    const removed = game.midGameRemovals || {};
+    const ids = new Set();
+    // Include anyone currently in a position or on the bench this inning.
+    for (const pos of Object.keys(inn || {})) {
+      if (pos === "BENCH") continue;
+      const p = inn[pos];
+      if (p && !removed[p.id]) ids.add(p.id);
+    }
+    for (const bp of inn?.BENCH || []) {
+      if (bp && !removed[bp.id]) ids.add(bp.id);
+    }
+    // Map ids back to players. Use the in-game inning's own data (slim
+    // player records) so the names match what's on the field.
+    const byId = new Map();
+    for (const pos of Object.keys(inn || {})) {
+      if (pos === "BENCH") continue;
+      const p = inn[pos];
+      if (p) byId.set(p.id, p);
+    }
+    for (const bp of inn?.BENCH || []) if (bp) byId.set(bp.id, bp);
+    return [...ids].map((id) => byId.get(id)).filter(Boolean);
+  })();
 
   // Update a specific inning's lineup with a patch. Writes go through the
   // optimistic pendingLineup state and the flush is debounced so rapid taps
@@ -272,14 +352,24 @@ export const InGameView = memo(() => {
               In-Game Mode
             </div>
           </div>
-          <button
-            onClick={undo}
-            disabled={inGameUndoStack.length === 0}
-            className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="Undo last swap"
-          >
-            <Icons.Refresh className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowRemoveModal(true)}
+              className="p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
+              aria-label="Remove a player (injured / ill / left)"
+              title="Mark a player out for the rest of the game"
+            >
+              <Icons.Alert className="w-5 h-5" />
+            </button>
+            <button
+              onClick={undo}
+              disabled={inGameUndoStack.length === 0}
+              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              aria-label="Undo last swap"
+            >
+              <Icons.Refresh className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -609,6 +699,120 @@ export const InGameView = memo(() => {
               }}
               onCancel={() => setShowEndGameScore(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Mid-game removal modal — injury / illness / left site. */}
+      {showRemoveModal && (
+        <div
+          className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm"
+          onClick={() => setShowRemoveModal(false)}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+            <div className="p-5 sm:p-6 border-b border-slate-200">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                    Remove a Player
+                  </h3>
+                  <p className="text-[12px] text-slate-600 font-medium mt-1">
+                    Mark a player out for the rest of the game (injury, illness, or had to leave). Innings they already played still count toward season totals.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowRemoveModal(false)}
+                  className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+                  aria-label="Cancel"
+                >
+                  <Icons.X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                Inning {currentInning + 1} of {totalInnings} — they'll be removed from this inning onward
+              </div>
+              {eligibleForRemoval.length === 0 ? (
+                <div className="text-sm font-bold text-slate-400 italic text-center py-8">
+                  No players to remove this inning.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {eligibleForRemoval.map((p) => (
+                    <button
+                      key={`rem-${p.id}`}
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Remove ${p.name} from inning ${
+                              currentInning + 1
+                            } onward? Their played innings will still count.`
+                          )
+                        ) {
+                          removePlayerMidGame(p.id, "injury");
+                        }
+                      }}
+                      className="w-full text-left px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 font-bold hover:bg-red-50 hover:border-red-300 hover:text-red-900 transition-colors flex items-center justify-between gap-3"
+                    >
+                      <span className="truncate">
+                        {p.number ? `#${p.number} ` : ""}
+                        {p.name}
+                      </span>
+                      <Icons.Alert className="w-4 h-4 text-red-500 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              {Object.keys(game.midGameRemovals || {}).length > 0 && (
+                <div className="mt-5 pt-4 border-t border-slate-200">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Already removed
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {Object.entries(game.midGameRemovals).map(([pid, info]) => {
+                      const player =
+                        team.players.find((q) => q.id === pid) || { name: "(unknown)" };
+                      return (
+                        <div
+                          key={`removed-${pid}`}
+                          className="text-xs font-bold text-slate-500 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-2"
+                        >
+                          <span>
+                            {player.name} — out from inning {info.fromInning + 1}
+                            {info.reason ? ` (${info.reason})` : ""}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Restore ${player.name}? They'll come back available to assign from inning ${
+                                    currentInning + 1
+                                  } onward. (Coach-initiated mistake fix.)`
+                                )
+                              ) {
+                                const next = { ...(game.midGameRemovals || {}) };
+                                delete next[pid];
+                                updateGame(game.id, { midGameRemovals: next });
+                              }
+                            }}
+                            className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 px-2 py-1 rounded"
+                          >
+                            Undo
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

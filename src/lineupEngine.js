@@ -436,6 +436,23 @@ function buildExtraSitHistory(games, currentGameId) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
     if (g.status && g.status !== "final") continue;
 
+    // Mid-game removals: a kid marked as injured/ill/left from inning N
+    // played innings 0..N-1 and is gone from N onward. Innings before N
+    // count toward their season totals; innings after N don't (they
+    // weren't there). NKB rules treat them as "skip in batting without
+    // penalty," and for fairness purposes their bench/play count must
+    // be prorated to the innings they actually played.
+    const removedFrom = (pid) => {
+      const r = g.midGameRemovals?.[pid];
+      return Number.isFinite(r?.fromInning) ? r.fromInning : null;
+    };
+    const isActiveAtInning = (pid, inn) => {
+      if (g.attendance?.[pid] === false) return false;
+      const rf = removedFrom(pid);
+      if (rf !== null && inn >= rf) return false;
+      return true;
+    };
+
     // For this game, count attending players and bench slots per inning.
     // Bench slots per inning is constant within a game (driven by defenseSize
     // + roster present), so we read it from the first inning's BENCH array.
@@ -465,15 +482,29 @@ function buildExtraSitHistory(games, currentGameId) {
 
     // Math floor for this game: floor(totalBenchSlots / playerCount)
     const minBenchPerPlayer = Math.floor(totalBenchSlots / playerCount);
-    // Fair share of defense innings for an attending kid in this game
+    // Fair share of defense innings for a kid who played the whole game.
+    // Prorated below for kids who were removed mid-game.
     const expectedDefThisGame = totalDefenseSlots / playerCount;
 
-    // Tally each attending player's bench count this game.
+    // Per-player innings-played count: every inning they were active.
+    const playedInn = new Map();
+    for (const id of attending) playedInn.set(id, 0);
+    for (let i = 0; i < innings; i++) {
+      for (const id of attending) {
+        if (isActiveAtInning(id, i)) {
+          playedInn.set(id, (playedInn.get(id) || 0) + 1);
+        }
+      }
+    }
+
+    // Tally each attending player's bench count, skipping innings they
+    // weren't active for (full absence OR mid-game removal).
     const benchCount = new Map();
     for (const id of attending) benchCount.set(id, 0);
-    for (const inning of g.lineup) {
+    for (let i = 0; i < innings; i++) {
+      const inning = g.lineup[i];
       for (const bp of inning.BENCH || []) {
-        if (g.attendance?.[bp.id] === false) continue;
+        if (!isActiveAtInning(bp.id, i)) continue;
         if (benchCount.has(bp.id)) {
           benchCount.set(bp.id, benchCount.get(bp.id) + 1);
         }
@@ -481,9 +512,11 @@ function buildExtraSitHistory(games, currentGameId) {
     }
 
     // Update per player tallies: extraSits, raw bench, raw defense, AND
-    // the per game expected defense (so absent games don't skew the kid's
-    // expected total).
+    // the per game expected defense. expectedDef is prorated by the
+    // share of innings the kid actually played, so a kid pulled in the
+    // 4th of 6 innings doesn't accumulate a 6-inning fair share.
     for (const [pid, count] of benchCount) {
+      const played = playedInn.get(pid) || 0;
       const cur = out.get(pid) || {
         extraSits: 0,
         benchInn: 0,
@@ -493,8 +526,9 @@ function buildExtraSitHistory(games, currentGameId) {
       const extra = Math.max(0, count - minBenchPerPlayer);
       cur.extraSits += extra;
       cur.benchInn += count;
-      cur.defInn += innings - count;
-      cur.expectedDef += expectedDefThisGame;
+      cur.defInn += Math.max(0, played - count);
+      cur.expectedDef +=
+        innings > 0 ? (played / innings) * expectedDefThisGame : 0;
       out.set(pid, cur);
     }
   }
@@ -1786,7 +1820,13 @@ function tryBuildLineup(ctx) {
     }
 
     // Instead of pure random shuffle, fill the hardest positions first.
-    // A position is "hard" if very few unassigned, unbenched kids are eligible to play it.
+    // A position is "hard" if very few unassigned, unbenched kids are
+    // eligible to play it. Mirrors EVERY hard filter from
+    // pickBestForPosition so the count reflects reality — otherwise the
+    // engine cheerfully fills the easy positions first and gets stuck
+    // with no candidate for (say) RF at inning 3 because the OF rotation
+    // lock or "can't play same spot back-to-back" rule eliminated every
+    // remaining kid.
     const posScarcity = remainingPositions.map((pos) => {
       let count = 0;
       for (const p of profiled) {
@@ -1794,6 +1834,8 @@ function tryBuildLineup(ctx) {
         if (p.restrictions?.includes(pos)) continue;
 
         const st = state.get(p.id);
+        const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
+
         if (pos === "P" && defenseSize === "9") {
           if (
             leagueRuleSet === "NKB" &&
@@ -1801,13 +1843,37 @@ function tryBuildLineup(ctx) {
           )
             continue;
           const pCount = st.positions["P"] || 0;
-          const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
           if (inn > 0 && pCount > 0 && !playedHereLast) continue;
         }
         if (pos === "C") {
           const cCap = defenseSize === "10" ? 2 : 3;
           if ((st.positions["C"] || 0) >= cCap) continue;
         }
+
+        // Same-position back-to-back rule: C and 9-fielder P are
+        // "carry-over" positions (a kid can repeat them); everything
+        // else excludes a candidate who played the spot last inning
+        // unless we're in a lock-inning (where carry-over is desired).
+        const isCarryOverPos =
+          pos === "C" || (pos === "P" && defenseSize === "9");
+        if (!isCarryOverPos && !isLockInning && playedHereLast) continue;
+
+        // OF rotation lock: when positionLock is "1" or "2" and we're
+        // past inning 2, a kid who played any OF position in BOTH of
+        // the last two innings is ineligible for OF this inning. This
+        // is the rule most often responsible for the "no eligible
+        // player for RF" failure — and the old scarcity counter
+        // missed it entirely.
+        if (
+          (positionLock === "1" || positionLock === "2") &&
+          OF_POSITIONS.has(pos) &&
+          inn >= 2
+        ) {
+          const h = st.history;
+          if (OF_POSITIONS.has(h[inn - 1]) && OF_POSITIONS.has(h[inn - 2]))
+            continue;
+        }
+
         count++;
       }
       return { pos, count, r: rand() };
