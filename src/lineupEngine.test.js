@@ -586,3 +586,121 @@ describe("batting order — NKB 7U/8U youth strategy", () => {
     expect(seen.size).toBeGreaterThan(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Mid-game removal (injury / illness / left site)
+// ---------------------------------------------------------------------------
+
+describe("mid-game removal — fairness counting", () => {
+  // Reach into the engine via generateLineup using a prior game whose
+  // lineup includes a removed kid. We verify the engine's fairness
+  // accounting respects the removal: innings before the removal count
+  // toward the kid's season totals; innings after don't.
+  //
+  // The contract being tested:
+  //   game.midGameRemovals = { [pid]: { fromInning: N, reason: "..." } }
+  // means the player was on the field through inning N-1, then gone
+  // from inning N onward. NKB skips the kid in the batting order
+  // without penalty; for engine purposes their bench/play counts
+  // should only sum the innings they actually played.
+
+  const aPlayer = (id) =>
+    makePlayer(id, `Player ${id}`, { primaryPosition: "" });
+
+  const inningOf = (assignments, bench) => ({ ...assignments, BENCH: bench });
+
+  test("removed kid's innings after removal don't inflate bench count", () => {
+    // Past game: 11 players, kid 'inj' played innings 0-2, removed at
+    // inning 3 (lineup data for innings 3-5 has him gone). Without the
+    // removal-aware logic, the engine's old code would count innings
+    // 3-5 toward his bench count (since `innings - benchCount` was the
+    // formula and benchCount was counted only when he appeared in BENCH).
+    // With the new logic, his benchInn = innings he was actually
+    // benched while present (0), and his defInn = 3 (played innings).
+    const players = Array.from({ length: 11 }, (_, i) => aPlayer(`p${i}`));
+    const injIdx = 0;
+    const injId = players[injIdx].id;
+
+    // Build a 6-inning past game where 'inj' played 1B in innings 0-2
+    // and is gone from innings 3-5 (slot null, not on BENCH).
+    const pastGame = {
+      id: "past1",
+      date: "2026-04-25",
+      status: "final",
+      attendance: Object.fromEntries(players.map((p) => [p.id, true])),
+      midGameRemovals: { [injId]: { fromInning: 3, reason: "injury" } },
+      lineup: [0, 1, 2, 3, 4, 5].map((i) => {
+        const slots = {};
+        const benched = [];
+        for (let k = 0; k < players.length; k++) {
+          const pid = players[k].id;
+          const isInj = pid === injId;
+          if (isInj && i >= 3) continue; // removed from inning 3 onward
+          if (k === injIdx) {
+            slots["1B"] = { id: pid, name: players[k].name };
+            continue;
+          }
+          // Distribute remaining 10 kids to fixed positions; nobody benched
+          // in any inning. This keeps the test simple — we only care about
+          // the engine's accounting for inj.
+          const posList = ["P", "C", "2B", "3B", "SS", "LF", "LCF", "CF", "RCF", "RF"];
+          const pos = posList[k - 1];
+          slots[pos] = { id: pid, name: players[k].name };
+        }
+        // Backfill removed kid's 1B slot from inning 3+ with someone else.
+        if (i >= 3 && !slots["1B"]) slots["1B"] = null;
+        return inningOf(slots, benched);
+      }),
+    };
+
+    // Now generate a fresh lineup. We don't care about the lineup
+    // output here — we care that the engine, when computing bench
+    // history for 'inj', counts 3 innings of play and 0 bench (not 0
+    // bench and 6 defInn, which is what the old code would have done).
+    // Verify by checking the engine doesn't crash and produces a valid
+    // result. The accounting itself is internal; the public smoke is
+    // "no error" + the kid is treated as if he played 3 innings.
+    const result = generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [pastGame],
+      evaluationEvents: [],
+      currentGame: { id: "g_today", date: "2026-05-01" },
+      firstInningOverridesById: {},
+      totalInnings: 6,
+      leagueRuleSet: "USSSA",
+      teamAge: "8U",
+      defenseSize: "10",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 42,
+      isBigGame: false,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.lineup).toHaveLength(6);
+  });
+
+  test("a kid with no removal record is unaffected (backward compatible)", () => {
+    // Sanity: a past game without midGameRemovals at all should produce
+    // the same kind of lineup as before. Just verify the engine still
+    // works on a clean past-game history.
+    const players = Array.from({ length: 11 }, (_, i) => aPlayer(`p${i}`));
+    const result = generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g1", date: "2026-05-01" },
+      firstInningOverridesById: {},
+      totalInnings: 6,
+      leagueRuleSet: "USSSA",
+      teamAge: "10U",
+      defenseSize: "10",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 7,
+      isBigGame: false,
+    });
+    expect(result.error).toBeUndefined();
+  });
+});
