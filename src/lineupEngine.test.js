@@ -704,3 +704,175 @@ describe("mid-game removal — fairness counting", () => {
     expect(result.error).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// 8U fuzz / soak — run many realistic 8U setups through the engine and
+// assert it never bails out and never violates basic invariants. This is
+// the safety net that catches "no eligible player for LF in inning 3"
+// before it ships.
+// ---------------------------------------------------------------------------
+
+const INFIELD_PRIMARIES = ["P", "C", "1B", "2B", "3B", "SS"];
+const OF_PRIMARIES_10 = ["LF", "LCF", "RCF", "RF"];
+
+const seededRand = (seed) => {
+  let s = seed >>> 0;
+  return () => {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+// Build a plausible 8U roster of N players with realistic primary
+// positions and occasional C restrictions. Deterministic given seed
+// so failures are reproducible.
+const makeFuzzRoster = (size, seed) => {
+  const r = seededRand(seed);
+  const pickFrom = (arr) => arr[Math.floor(r() * arr.length)];
+
+  const roster = [];
+  for (let i = 0; i < size; i++) {
+    const id = `p${i}`;
+    // ~60% infield primary, ~30% OF primary, ~10% no primary
+    const roll = r();
+    let primary = "";
+    if (roll < 0.6) primary = pickFrom(INFIELD_PRIMARIES);
+    else if (roll < 0.9) primary = pickFrom(OF_PRIMARIES_10);
+    // ~15% of non-C-primary kids are explicitly C-restricted (real coach
+    // workflow: keep your infield kids off the plate when you have
+    // dedicated catchers).
+    const restrictions =
+      primary && primary !== "C" && r() < 0.15 ? ["C"] : [];
+    roster.push(
+      makePlayer(id, `Player ${i}`, {
+        primaryPosition: primary,
+        restrictions,
+      })
+    );
+  }
+  return roster;
+};
+
+// Validate a generated lineup against engine invariants the user
+// should never see broken. Returns a list of strings describing any
+// violations (empty when fine).
+const validateLineup = (result, opts) => {
+  const violations = [];
+  if (result.error) {
+    violations.push(`engine error: ${result.error}`);
+    return violations;
+  }
+  const { lineup, battingLineup } = result;
+  if (!Array.isArray(lineup)) {
+    violations.push("lineup is not an array");
+    return violations;
+  }
+  if (lineup.length !== opts.totalInnings) {
+    violations.push(
+      `expected ${opts.totalInnings} innings, got ${lineup.length}`
+    );
+  }
+  if (!Array.isArray(battingLineup) || battingLineup.length < 1) {
+    violations.push("battingLineup missing or empty");
+  }
+
+  const restrictionsByPlayer = new Map();
+  for (const p of opts.players) {
+    restrictionsByPlayer.set(p.id, new Set(p.restrictions || []));
+  }
+
+  for (let inn = 0; inn < lineup.length; inn++) {
+    const inning = lineup[inn] || {};
+    const ids = new Set();
+
+    // Position assignments
+    for (const pos of Object.keys(inning)) {
+      if (pos === "BENCH") continue;
+      const p = inning[pos];
+      if (!p) continue; // null slot is OK (e.g. after mid-game removal)
+      if (ids.has(p.id)) {
+        violations.push(
+          `inning ${inn + 1}: player ${p.id} (${p.name}) double-assigned`
+        );
+      }
+      ids.add(p.id);
+      // Restriction violation?
+      const restr = restrictionsByPlayer.get(p.id);
+      if (restr && restr.has(pos)) {
+        violations.push(
+          `inning ${inn + 1}: ${p.name} assigned to restricted position ${pos}`
+        );
+      }
+    }
+
+    // Bench duplication
+    for (const p of inning.BENCH || []) {
+      if (!p) continue;
+      if (ids.has(p.id)) {
+        violations.push(
+          `inning ${inn + 1}: ${p.id} (${p.name}) on bench AND on field`
+        );
+      }
+      ids.add(p.id);
+    }
+  }
+
+  return violations;
+};
+
+describe("8U fuzz / soak — engine never fails or violates invariants", () => {
+  // 64 random scenarios spanning realistic 8U conditions. Each gets a
+  // deterministic seed so a failure is exactly reproducible.
+  const SCENARIOS = 64;
+
+  for (let scenarioSeed = 1; scenarioSeed <= SCENARIOS; scenarioSeed++) {
+    const r = seededRand(scenarioSeed);
+    const size = 8 + Math.floor(r() * 8); // 8..15 players
+    const defenseSize = r() < 0.6 ? "10" : "9";
+    const isBigGame = r() < 0.35;
+    const positionLockOptions = ["0", "1", "2", "3", "full"];
+    const positionLock =
+      positionLockOptions[Math.floor(r() * positionLockOptions.length)];
+    const leagueRuleSet = r() < 0.5 ? "NKB" : "USSSA";
+    const totalInnings = 6;
+    const players = makeFuzzRoster(size, scenarioSeed * 17 + 3);
+
+    const cfg = {
+      size,
+      defenseSize,
+      isBigGame,
+      positionLock,
+      leagueRuleSet,
+      totalInnings,
+      players,
+      scenarioSeed,
+    };
+
+    test(`scenario seed=${scenarioSeed} n=${size} ${leagueRuleSet} 8U def=${defenseSize} lock=${positionLock}${
+      isBigGame ? " BG" : ""
+    }`, () => {
+      const result = generateLineup({
+        activePlayers: players,
+        allPlayers: players,
+        games: [],
+        evaluationEvents: [],
+        currentGame: { id: `g-fuzz-${scenarioSeed}`, date: "2026-05-01" },
+        firstInningOverridesById: {},
+        totalInnings,
+        leagueRuleSet,
+        teamAge: "8U",
+        defenseSize,
+        positionLock,
+        battingSize: "roster",
+        seed: scenarioSeed * 31 + 7,
+        isBigGame,
+      });
+
+      const v = validateLineup(result, cfg);
+      expect(v).toEqual([]);
+    });
+  }
+});
