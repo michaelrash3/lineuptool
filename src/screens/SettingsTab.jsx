@@ -428,6 +428,41 @@ export const SettingsTab = memo(() => {
                       </div>
                     ))}
                   </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 bg-white/80 p-3 border border-slate-200 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest mr-1">
+                      Live Preview
+                    </span>
+                    <span
+                      className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-sm tabular-nums"
+                      style={{
+                        backgroundColor: primaryColor,
+                        color: tertiaryColor,
+                      }}
+                    >
+                      8-3
+                    </span>
+                    <span
+                      className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border"
+                      style={{
+                        backgroundColor: secondaryColor,
+                        color: primaryColor,
+                        borderColor: primaryColor,
+                      }}
+                    >
+                      Today
+                    </span>
+                    <button
+                      type="button"
+                      className="text-[11px] px-4 py-2 font-black uppercase tracking-widest rounded-xl shadow-md cursor-default"
+                      style={{
+                        backgroundColor: primaryColor,
+                        color: tertiaryColor,
+                      }}
+                      tabIndex={-1}
+                    >
+                      Primary Button
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">

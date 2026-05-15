@@ -1,0 +1,270 @@
+/* ============================================================================
+   Coach's Card Design System — Foundations
+   Color + type tokens extracted from the lineuptool React app.
+   The product is a Tailwind app, so the values below mirror Tailwind's slate
+   palette plus the team-color primary/secondary/tertiary triplet that drives
+   every button, badge, and accent bar in the UI.
+   ============================================================================ */
+
+/* ---- Font face (Inter is a Google Fonts substitute for the app's
+        Tailwind default system stack — flagged in README). ---- */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+
+:root {
+  /* =========================================================
+     COLOR — TEAM TRIPLET (user-tunable in Settings)
+     The whole interface re-tints from these three CSS vars.
+     ========================================================= */
+  --team-primary:   #2563eb;  /* Blue-600 — buttons, accent bars, header stripe */
+  --team-secondary: #f8fafc;  /* Slate-50 — soft fill for active tabs / chips */
+  --team-tertiary:  #ffffff;  /* White   — foreground on primary fills */
+
+  /* Common primary-tint compositions used at call sites */
+  --team-primary-15: color-mix(in srgb, var(--team-primary) 15%, transparent);
+  --team-primary-soft: color-mix(in srgb, var(--team-primary) 8%, white);
+
+  /* =========================================================
+     COLOR — NEUTRAL SCALE (Tailwind slate)
+     ========================================================= */
+  --slate-50:  #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+
+  /* =========================================================
+     COLOR — SEMANTIC (Tailwind family aliases)
+     Each lane has -50 (chip fill) / -500 (solid) / -700 (text on chip).
+     ========================================================= */
+  --success-50:  #f0fdf4;  --success-200: #bbf7d0;  --success-500: #22c55e;
+  --success-600: #16a34a;  --success-700: #15803d;  --success-800: #166534;
+
+  --danger-50:   #fef2f2;  --danger-200:  #fecaca;  --danger-500:  #ef4444;
+  --danger-600:  #dc2626;  --danger-700:  #b91c1c;  --danger-800:  #991b1b;
+
+  --warn-50:     #fffbeb;  --warn-200:    #fde68a;  --warn-500:    #f59e0b;
+  --warn-700:    #b45309;  --warn-800:    #92400e;
+
+  --info-50:     #eff6ff;  --info-200:    #bfdbfe;  --info-500:    #3b82f6;
+  --info-600:    #2563eb;  --info-700:    #1d4ed8;
+
+  /* =========================================================
+     COLOR — FOREGROUND / BACKGROUND ALIASES
+     ========================================================= */
+  --fg-1: var(--slate-900);   /* primary heading + numerals */
+  --fg-2: var(--slate-800);   /* body */
+  --fg-3: var(--slate-600);   /* secondary text */
+  --fg-4: var(--slate-500);   /* meta / labels */
+  --fg-5: var(--slate-400);   /* placeholder */
+  --fg-inverse: #ffffff;      /* text on primary/dark surfaces */
+
+  --bg-app:    var(--slate-50);
+  --bg-dark:   color-mix(in srgb, var(--slate-900) 80%, transparent); /* the navbar band */
+  --surface-glass-1: rgba(255,255,255,0.20);
+  --surface-glass-2: rgba(255,255,255,0.30);
+  --surface-glass-3: rgba(255,255,255,0.40);
+  --surface-glass-4: rgba(255,255,255,0.60);
+  --surface-glass-5: rgba(255,255,255,0.80);
+  --hairline:   rgba(255,255,255,0.50);
+  --hairline-solid: var(--slate-200);
+
+  /* =========================================================
+     ELEVATION / SHADOW
+     The signature card shadow is a very soft 0 4 20 black/4.
+     ========================================================= */
+  --shadow-card:   0 4px 20px rgb(0 0 0 / 0.04);
+  --shadow-sm:     0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md:     0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.10);
+  --shadow-lg:     0 10px 15px -3px rgb(0 0 0 / 0.10), 0 4px 6px -4px rgb(0 0 0 / 0.10);
+  --shadow-xl:     0 20px 25px -5px rgb(0 0 0 / 0.10), 0 8px 10px -6px rgb(0 0 0 / 0.10);
+  --shadow-2xl:    0 25px 50px -12px rgb(0 0 0 / 0.25);
+  --shadow-inner:  inset 0 2px 4px rgb(0 0 0 / 0.05);
+
+  /* =========================================================
+     RADII — Tailwind's scale; rounded-xl / 2xl dominate the UI.
+     ========================================================= */
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;   /* buttons, inputs, chip badges */
+  --radius-2xl:  16px;   /* cards, panels */
+  --radius-3xl:  24px;
+  --radius-full: 9999px; /* pills, player number circles, icon halos */
+
+  /* =========================================================
+     SPACING — 4px base, Tailwind compatible.
+     ========================================================= */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* =========================================================
+     TYPE — Font family & weights
+     The codebase loads no custom webfont; it inherits Tailwind's
+     `font-sans` default. We substitute Inter from Google Fonts
+     because it's the closest free analogue with the heavy-weights
+     the UI relies on.  Flagged in README for confirmation.
+     ========================================================= */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               Roboto, "Helvetica Neue", Arial, "Apple Color Emoji",
+               "Segoe UI Emoji", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --fw-regular:   400;
+  --fw-medium:    500;
+  --fw-semibold:  600;
+  --fw-bold:      700;
+  --fw-extrabold: 800;
+  --fw-black:     900;   /* the workhorse weight of the system */
+
+  /* =========================================================
+     TYPE — RAW SIZE SCALE (Tailwind text-*)
+     ========================================================= */
+  --text-2xs: 10px;     /* status chips, meta labels — always uppercase */
+  --text-xs:  12px;     /* form labels, badge text */
+  --text-sm:  14px;     /* body in dense surfaces */
+  --text-base:16px;
+  --text-lg:  18px;
+  --text-xl:  20px;     /* section headers */
+  --text-2xl: 24px;     /* card titles */
+  --text-3xl: 30px;     /* team name */
+  --text-4xl: 36px;
+  --text-5xl: 48px;
+
+  /* Tracking */
+  --tracking-tight:   -0.025em;
+  --tracking-normal:   0;
+  --tracking-wide:     0.025em;
+  --tracking-wider:    0.05em;
+  --tracking-widest:   0.1em;
+
+  /* Line heights */
+  --leading-none:    1;
+  --leading-tight:   1.25;
+  --leading-snug:    1.375;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.625;
+
+  /* =========================================================
+     MOTION — small, restrained
+     ========================================================= */
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --duration-fast:   150ms;
+  --duration-normal: 200ms;
+  --duration-slow:   300ms;
+}
+
+/* ============================================================================
+   SEMANTIC TYPE ROLES
+   Every text style in the UI maps to one of these.  The naming follows the
+   pattern: <ROLE> = <SIZE> / <WEIGHT> / <TRACKING> / <CASE>.
+   ============================================================================ */
+
+.t-display {            /* Team name on the home dashboard */
+  font: var(--fw-black) var(--text-4xl)/1 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+
+.t-h1 {                 /* Login title, big page titles */
+  font: var(--fw-black) var(--text-3xl)/1 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+
+.t-h2 {                 /* Section headers ("Team Roster", "Team Settings") */
+  font: var(--fw-black) var(--text-xl)/1.1 var(--font-sans);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+
+.t-h3 {                 /* Sub-section headers ("Hitting Leaders") */
+  font: var(--fw-black) var(--text-lg)/1.2 var(--font-sans);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+
+.t-card-title {         /* Card titles, e.g. opponent name "VS. RAPTORS" */
+  font: var(--fw-black) var(--text-2xl)/1.1 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+  text-transform: uppercase;
+  color: var(--fg-1);
+}
+
+.t-eyebrow {            /* The tiny ALL-CAPS labels above almost every group */
+  font: var(--fw-extrabold) var(--text-2xs)/1 var(--font-sans);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.t-label {              /* Field labels in forms */
+  font: var(--fw-extrabold) var(--text-2xs)/1 var(--font-sans);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.t-button {             /* Every button uses this voice */
+  font: var(--fw-black) var(--text-xs)/1 var(--font-sans);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+}
+
+.t-chip {               /* Status pills — Today, Win, Loss, Lineup Ready */
+  font: var(--fw-black) var(--text-2xs)/1 var(--font-sans);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+}
+
+.t-stat-num {           /* Large numerals (avg, ops, roster size) */
+  font: var(--fw-black) var(--text-3xl)/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-1);
+}
+
+.t-stat-num-sm {        /* Inline stat numerals next to a chip */
+  font: var(--fw-black) var(--text-sm)/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-1);
+}
+
+.t-body {               /* Default body copy */
+  font: var(--fw-medium) var(--text-sm)/1.5 var(--font-sans);
+  color: var(--fg-3);
+}
+
+.t-body-bold {          /* Player names in dense lists */
+  font: var(--fw-extrabold) var(--text-sm)/1.4 var(--font-sans);
+  color: var(--fg-2);
+}
+
+.t-meta {               /* The "12U • USSSA • Kid Pitch" rail under titles */
+  font: var(--fw-bold) var(--text-2xs)/1 var(--font-sans);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.t-mono {               /* Codes, IDs */
+  font: var(--fw-bold) var(--text-xs)/1 var(--font-mono);
+  letter-spacing: var(--tracking-wider);
+  color: var(--fg-2);
+}

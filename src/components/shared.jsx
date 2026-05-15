@@ -139,6 +139,114 @@ export const RecordBadge = memo(
   }
 );
 
+/* ============================================================================
+   Design-system primitives — Coach's Card handoff
+   ============================================================================ */
+
+export const GlassCard = ({ accent = false, className = "", children, ...rest }) => (
+  <div
+    className={`glass-card ${className}`}
+    {...rest}
+  >
+    {accent && (
+      <div
+        className="h-1.5 w-full"
+        style={{ backgroundColor: "var(--team-primary)" }}
+      />
+    )}
+    {children}
+  </div>
+);
+
+export const Eyebrow = ({ className = "", children, ...rest }) => (
+  <span className={`t-eyebrow ${className}`} {...rest}>
+    {children}
+  </span>
+);
+
+export const StatTile = ({ label, value, className = "" }) => (
+  <div
+    className={`bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl ${className}`}
+  >
+    <span className="block mb-1.5 t-eyebrow">{label}</span>
+    <span className="block t-stat-num">{value}</span>
+  </div>
+);
+
+const CHIP_VARIANTS = {
+  primary: { bg: "var(--team-primary)", color: "var(--team-tertiary)", border: "transparent" },
+  success: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+  danger: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
+  warn: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
+  info: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
+  slate: { bg: "#f1f5f9", color: "#334155", border: "#e2e8f0" },
+};
+
+export const Chip = ({ variant = "slate", className = "", children, ...rest }) => {
+  const v = CHIP_VARIANTS[variant] || CHIP_VARIANTS.slate;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border t-chip ${className}`}
+      style={{ backgroundColor: v.bg, color: v.color, borderColor: v.border }}
+      {...rest}
+    >
+      {children}
+    </span>
+  );
+};
+
+const BUTTON_SIZE = {
+  sm: "px-3 py-2 text-[11px]",
+  md: "px-5 py-2.5 text-xs",
+  lg: "px-6 py-3 text-xs",
+};
+
+const BUTTON_VARIANTS = {
+  primary: {
+    className: "shadow-md hover:-translate-y-0.5 hover:shadow-xl",
+    style: { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" },
+  },
+  secondary: {
+    className:
+      "bg-white/80 border border-slate-200 text-slate-700 shadow-sm hover:bg-white",
+    style: {},
+  },
+  ghost: {
+    className: "bg-transparent text-slate-600 hover:bg-white/60",
+    style: {},
+  },
+  success: {
+    className: "bg-emerald-600 text-white shadow-md hover:bg-emerald-700 hover:-translate-y-0.5",
+    style: {},
+  },
+  danger: {
+    className: "bg-rose-600 text-white shadow-md hover:bg-rose-700 hover:-translate-y-0.5",
+    style: {},
+  },
+};
+
+export const Button = ({
+  variant = "primary",
+  size = "md",
+  className = "",
+  style: styleOverride,
+  type = "button",
+  children,
+  ...rest
+}) => {
+  const v = BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary;
+  return (
+    <button
+      type={type}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl transition-all t-button ${BUTTON_SIZE[size] || BUTTON_SIZE.md} ${v.className} ${className}`}
+      style={{ ...v.style, ...styleOverride }}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+};
+
 export const SharedModals = memo(() => {
   const { modal, setModal } = useUI();
   const { team } = useTeam();

@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .grid { padding: 28px 24px; display:grid; grid-template-columns: repeat(5, 1fr); gap: 16px; align-items: end; }
+  .r { display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .box { width: 84px; height: 64px; background:#fff; border-radius: 12px; }
+  .lab { font: 800 10px/1 var(--font-sans); letter-spacing:0.1em; text-transform:uppercase; color: var(--fg-4); }
+  .v { font: 700 10px/1 var(--font-mono); color:#475569; text-align:center; }
+  .s-card { box-shadow: 0 4px 20px rgb(0 0 0 / 0.04); }
+  .s-sm { box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); }
+  .s-md { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+  .s-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
+  .s-inner { box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.06); background: #e2e8f0; }
+</style></head>
+<body><div class="card-stage">
+  <div class="grid">
+    <div class="r"><div class="box s-card"></div><div class="lab">card</div><div class="v">0 4 20 / 4%</div></div>
+    <div class="r"><div class="box s-sm"></div><div class="lab">sm</div><div class="v">0 1 2 / 5%</div></div>
+    <div class="r"><div class="box s-md"></div><div class="lab">md · buttons</div><div class="v">0 4 6 / 10%</div></div>
+    <div class="r"><div class="box s-lg"></div><div class="lab">lg · primary cta</div><div class="v">0 10 15 / 10%</div></div>
+    <div class="r"><div class="box s-inner"></div><div class="lab">inner</div><div class="v">inset 0 2 4 / 6%</div></div>
+  </div>
+</div></body></html>

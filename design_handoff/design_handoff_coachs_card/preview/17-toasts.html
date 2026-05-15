@@ -1,0 +1,167 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .wrap { padding: 18px 22px; display: grid; gap: 12px; }
+  /* Stacked toasts — appear as if layered in the top-right of the app */
+  .stage {
+    background:
+      radial-gradient(circle at 0% 100%, rgba(15,23,42,0.04), transparent 50%),
+      linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid rgba(15,23,42,0.06);
+    border-radius: 14px;
+    padding: 14px 14px 18px;
+    display: grid;
+    gap: 8px;
+  }
+  .toast {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px 11px 14px;
+    border-radius: 12px;
+    position: relative;
+    box-shadow:
+      0 1px 0 rgba(15,23,42,0.05),
+      0 10px 25px -10px rgba(15,23,42,0.25),
+      0 4px 10px -4px rgba(15,23,42,0.1);
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(15,23,42,0.06);
+  }
+  .toast::before {
+    content: "";
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px;
+  }
+  .toast .icon {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    color: #fff;
+  }
+  .toast .icon svg { width: 18px; height: 18px; }
+  .toast .body { min-width: 0; }
+  .toast .title {
+    font: 900 12px/1.1 var(--font-sans);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #0f172a;
+  }
+  .toast .msg {
+    font: 600 11.5px/1.4 var(--font-sans);
+    color: #475569;
+    margin-top: 3px;
+  }
+  .toast .msg b { color: #0f172a; font-weight: 800; }
+  .toast .action {
+    font: 900 10px/1 var(--font-sans);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #1d4ed8;
+    background: transparent;
+    border: 1px solid #bfdbfe;
+    padding: 6px 10px;
+    border-radius: 8px;
+  }
+  .toast .close {
+    color: #94a3b8;
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+  }
+  .toast .close svg { width: 12px; height: 12px; }
+  .toast .progress {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: linear-gradient(90deg, currentColor 60%, transparent 60%);
+    background-size: 100% 100%;
+    opacity: 0.85;
+  }
+
+  /* Success */
+  .t-success::before { background: #10b981; }
+  .t-success .icon { background: linear-gradient(180deg, #10b981, #059669); box-shadow: 0 2px 6px rgba(16,185,129,0.35); }
+  .t-success .progress { color: #10b981; background: linear-gradient(90deg, #10b981 78%, #d1fae5 78%); }
+  /* Danger */
+  .t-danger::before { background: #f43f5e; }
+  .t-danger .icon { background: linear-gradient(180deg, #f43f5e, #e11d48); box-shadow: 0 2px 6px rgba(244,63,94,0.35); }
+  .t-danger .progress { color: #f43f5e; background: linear-gradient(90deg, #f43f5e 25%, #fecdd3 25%); }
+  /* Warning */
+  .t-warning::before { background: #f59e0b; }
+  .t-warning .icon { background: linear-gradient(180deg, #fbbf24, #f59e0b); box-shadow: 0 2px 6px rgba(245,158,11,0.35); }
+  .t-warning .progress { color: #f59e0b; background: linear-gradient(90deg, #f59e0b 50%, #fde68a 50%); }
+  /* Info / saved (slate) */
+  .t-info::before { background: #2563eb; }
+  .t-info .icon { background: linear-gradient(180deg, #3b82f6, #2563eb); box-shadow: 0 2px 6px rgba(37,99,235,0.35); }
+  .t-info .progress { color: #2563eb; background: linear-gradient(90deg, #2563eb 92%, #bfdbfe 92%); }
+
+  /* Stacked behind effect for the bottom toast */
+  .stack-hint {
+    height: 6px;
+    border-radius: 0 0 12px 12px;
+    margin: -10px 12px 0;
+    background: rgba(15,23,42,0.04);
+    box-shadow: 0 2px 6px -2px rgba(15,23,42,0.08);
+  }
+</style></head>
+<body><div class="card-stage">
+  <div class="wrap"><div class="stage">
+
+    <!-- Success -->
+    <div class="toast t-success">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="body">
+        <div class="title">Score Reported</div>
+        <div class="msg">Final · <b>W 9–6</b> over Raptors. Stats updated.</div>
+      </div>
+      <button class="close" aria-label="Dismiss">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <div class="progress"></div>
+    </div>
+
+    <!-- Info / saved -->
+    <div class="toast t-info">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 21a6 6 0 0 0-12 0"/><path d="M5 17l-2 2v-7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v7l-2-2"/><circle cx="12" cy="11" r="2"/></svg>
+      </div>
+      <div class="body">
+        <div class="title">Lineup Saved</div>
+        <div class="msg">vs Raptors · 9 batters, 3 subs. Synced to cloud.</div>
+      </div>
+      <button class="action">Undo</button>
+      <div class="progress"></div>
+    </div>
+
+    <!-- Warning -->
+    <div class="toast t-warning">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+      <div class="body">
+        <div class="title">Lineup Needed</div>
+        <div class="msg">Today's game has <b>no assignments</b> yet — game starts 10:30 AM.</div>
+      </div>
+      <button class="action" style="color:#a16207;border-color:#fcd34d">Open</button>
+      <div class="progress"></div>
+    </div>
+
+    <!-- Danger -->
+    <div class="toast t-danger">
+      <div class="icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div class="body">
+        <div class="title">Could Not Import</div>
+        <div class="msg">CSV missing required column <b>"Player Name"</b>. Row 1, col 3.</div>
+      </div>
+      <button class="action" style="color:#b91c1c;border-color:#fecaca">Retry</button>
+      <div class="progress"></div>
+    </div>
+    <div class="stack-hint"></div>
+
+  </div></div>
+</div></body></html>
