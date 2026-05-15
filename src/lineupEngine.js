@@ -1850,29 +1850,10 @@ function tryBuildLineup(ctx) {
           if ((st.positions["C"] || 0) >= cCap) continue;
         }
 
-        // Same-position back-to-back rule: C and 9-fielder P are
-        // "carry-over" positions (a kid can repeat them); everything
-        // else excludes a candidate who played the spot last inning
-        // unless we're in a lock-inning (where carry-over is desired).
-        const isCarryOverPos =
-          pos === "C" || (pos === "P" && defenseSize === "9");
-        if (!isCarryOverPos && !isLockInning && playedHereLast) continue;
-
-        // OF rotation lock: when positionLock is "1" or "2" and we're
-        // past inning 2, a kid who played any OF position in BOTH of
-        // the last two innings is ineligible for OF this inning. This
-        // is the rule most often responsible for the "no eligible
-        // player for RF" failure — and the old scarcity counter
-        // missed it entirely.
-        if (
-          (positionLock === "1" || positionLock === "2") &&
-          OF_POSITIONS.has(pos) &&
-          inn >= 2
-        ) {
-          const h = st.history;
-          if (OF_POSITIONS.has(h[inn - 1]) && OF_POSITIONS.has(h[inn - 2]))
-            continue;
-        }
+        // Same-position back-to-back AND the OF 2-inning rotation lock
+        // are now soft score penalties inside pickBestForPosition rather
+        // than hard exclusions (see comment there). So they're still
+        // eligible for counting here — just disfavored.
 
         count++;
       }
@@ -2075,20 +2056,31 @@ function pickBestForPosition(opts) {
       if ((st.positions["C"] || 0) >= cCap) continue;
     }
 
+    // ---- Soft rotation rules (used to be hard `continue` blocks) -----
+    // The same-position back-to-back rule and the OF 2-inning rotation
+    // lock used to hard-exclude candidates. When a tight roster + heavy
+    // restrictions made every remaining kid match the rule, generation
+    // failed with "no eligible player for LF in inning 3" — even though
+    // the rule is a coach-preference, not a physical constraint. Convert
+    // both to heavy score penalties so the engine prefers anyone else
+    // first but falls back rather than failing the whole build.
     const isCarryOverPos = pos === "C" || (pos === "P" && defenseSize === "9");
-    if (!isCarryOverPos && !isLockInning && playedHereLast) continue;
-
+    let softPenalty = 0;
+    if (!isCarryOverPos && !isLockInning && playedHereLast) {
+      softPenalty += 500;
+    }
     if (
       (positionLock === "1" || positionLock === "2") &&
       OF_POSITIONS.has(pos) &&
       inn >= 2
     ) {
       const h = st.history;
-      if (OF_POSITIONS.has(h[inn - 1]) && OF_POSITIONS.has(h[inn - 2]))
-        continue;
+      if (OF_POSITIONS.has(h[inn - 1]) && OF_POSITIONS.has(h[inn - 2])) {
+        softPenalty += 750;
+      }
     }
 
-    let score = Math.abs((POS_DIFFICULTY[pos] || 3) - 3);
+    let score = Math.abs((POS_DIFFICULTY[pos] || 3) - 3) + softPenalty;
 
     const histPos = positionHistory.get(p.id);
     const histEntry = histPos?.get(pos) || { total: 0, bigGame: 0 };
