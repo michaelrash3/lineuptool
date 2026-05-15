@@ -1268,7 +1268,10 @@ function precomputeBenchSchedule(opts) {
 
   if (catcherInningPairs && catcherInningPairs.length > 0) {
     // Eligible catchers: not C restricted, AND have enough remaining play
-    // budget to cover both innings of a catcher pair.
+    // budget to cover both innings of a catcher pair. Coaches who don't
+    // want a particular kid catching use the explicit C restriction —
+    // primary-infield kids are not auto-excluded (real rosters have
+    // catchers whose primary is 2B/SS/3B).
     const allEligibleC = sortedForExtra
       .filter(({ p }) => !p.restrictions?.includes("C"))
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
