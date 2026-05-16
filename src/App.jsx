@@ -71,7 +71,7 @@ import {
 import {
   generateLineup as engineGenerateLineup,
   generateBattingOnly as engineGenerateBattingOnly,
-} from "./lineupEngine.js";
+} from "./lineupEngine";
 
 /* ============================================================================
    SECTION 2 · Firebase setup — see ./firebase.js

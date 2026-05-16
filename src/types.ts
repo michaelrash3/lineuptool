@@ -91,3 +91,119 @@ export interface CsvImportResult {
   rows: CsvImportRow[];
   error?: string;
 }
+
+/* ============================================================================
+   Lineup engine — typed surface (Phase 8 TS conversion).
+   The engine emits these shapes and consumers (App.jsx, ScheduleTab.jsx,
+   EvaluationTab.jsx) read them. Kept intentionally permissive in places where
+   the engine's runtime accepts looser shapes than strict TS would prefer.
+   ============================================================================ */
+
+// 11 standard youth-baseball positions. The engine accepts unknown strings as
+// keys on `Inning` so this stays a literal union for places that need it.
+export type Position =
+  | "P"
+  | "C"
+  | "1B"
+  | "2B"
+  | "3B"
+  | "SS"
+  | "LF"
+  | "LCF"
+  | "CF"
+  | "RCF"
+  | "RF";
+
+// 11 universal eval-category IDs from constants/ui.ts (Coach's Card v2).
+// Kid-Pitch pitching + catching add-on IDs ride on the same Record because the
+// engine's GradeMap is treated as `Record<string, number>` internally.
+export type EvalCategoryId =
+  | "contact"
+  | "power"
+  | "plateDiscipline"
+  | "approach"
+  | "glove"
+  | "range"
+  | "armStrength"
+  | "armAccuracy"
+  | "baserunning"
+  | "baseballIQ"
+  | "coachability";
+
+// Grade record per player per round. Numeric 1–10 on every category, plus an
+// optional free-form notes string (added in the Phase 5a workflow PR).
+export type GradeMap = Partial<Record<EvalCategoryId | string, number>> & {
+  notes?: string;
+};
+
+// Eval round payload as persisted in team.evaluationEvents.
+export interface EvaluationEvent {
+  id: string;
+  date: string;
+  coachRole?: "Head" | "Assistant";
+  evaluatorId?: string;
+  label?: string;
+  grades?: Record<string, GradeMap>;
+  [key: string]: unknown;
+}
+
+// Computed player profile — the engine builds one per active player as part
+// of generateLineup. Score components feed batting-order strategies and
+// position picking.
+export interface PlayerProfile {
+  grades: GradeMap;
+  leadoffScore: number;
+  powerScore: number;
+  contactScore: number;
+  overallScore: number;
+  defensiveScore: number;
+}
+
+// Output of precomputeBenchSchedule(): a per-inning set of who's sitting plus
+// any diagnostic notes about roster-size deficits.
+export interface BenchScheduleResult {
+  benchByInning: Array<Set<string>>;
+  deficitNotes: string[];
+}
+
+// Top-level argument bundle for generateLineup / generateBattingOnly. Stays
+// permissive (lots of optionals) — call sites in App.jsx pass a slightly
+// different shape on each path. Tightening individual fields is an iterative
+// follow-up, not part of this conversion PR.
+export interface EngineInput {
+  activePlayers: Player[];
+  allPlayers?: Player[];
+  games?: Game[];
+  evaluationEvents?: EvaluationEvent[];
+  currentGame?: Partial<Game> & { id?: string };
+  firstInningOverridesById?: Record<string, string>;
+  totalInnings?: number;
+  leagueRuleSet?: string;
+  teamAge?: string;
+  defenseSize?: string;
+  positionLock?: string;
+  battingSize?: string;
+  seed?: number;
+  isBigGame?: boolean;
+  pitchingFormat?: string;
+  [key: string]: unknown;
+}
+
+// Top-level engine return type. Most fields are optional because failure
+// paths populate `error` only.
+export interface EngineResult {
+  lineup?: Inning[];
+  battingLineup?: SlimPlayer[];
+  error?: string;
+  details?: string[];
+  [key: string]: unknown;
+}
+
+// Per-player extra-sit history derived from past games' BENCH usage. Used by
+// the engine's fairness scheduler.
+export interface ExtraSitHistory {
+  defInn: number;
+  benchInn: number;
+  expectedDef: number;
+  gamesAttended: number;
+}

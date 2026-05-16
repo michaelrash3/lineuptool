@@ -15,7 +15,7 @@ import {
   getEvalCategoriesForTeam,
   isKidPitchFormat,
 } from "../constants/ui";
-import { getOffensiveScore, calculateTotalScore } from "../lineupEngine.js";
+import { getOffensiveScore, calculateTotalScore } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts.js";
 
 const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
