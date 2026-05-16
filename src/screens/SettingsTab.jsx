@@ -21,6 +21,7 @@ export const SettingsTab = memo(() => {
     leaveTeamCmd,
     addCoach,
     removeCoach,
+    resetTeamStats,
   } = useTeam();
   const {
     isAddingCoach,
@@ -570,6 +571,35 @@ export const SettingsTab = memo(() => {
                     />
                   </label>
                 </div>
+                {(team.players || []).length > 0 && (
+                  <div className="mt-4 bg-rose-50/60 border border-rose-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-extrabold uppercase tracking-widest text-rose-700 mb-1">
+                        Reset CSV-Imported Stats
+                      </div>
+                      <p className="text-[11px] font-medium text-rose-900/80 leading-snug max-w-md">
+                        Wipes every player&apos;s current-season stats and trend
+                        history so you can re-upload CSVs from scratch. Past
+                        seasons + pitch counts + evaluations are kept.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Reset every player's stats and trend history? Past seasons + pitch counts + evaluations are kept. This can't be undone."
+                          )
+                        ) {
+                          resetTeamStats?.();
+                        }
+                      }}
+                      className="shrink-0 px-4 py-2.5 t-button rounded-xl bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-md flex items-center gap-2"
+                    >
+                      <Icons.Refresh className="w-3.5 h-3.5" /> Reset Stats
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             {/* Storage usage indicator — shows how close the team document is
