@@ -31,6 +31,10 @@ import {
 } from "./contexts.js";
 import { SharedModals } from "./components/shared.jsx";
 import {
+  OnboardingTutorial,
+  onboardingHasBeenCompleted,
+} from "./components/OnboardingTutorial.jsx";
+import {
   LoginScreen,
   AppHeader,
   TabBarNav,
@@ -2512,6 +2516,26 @@ const MainShell = () => {
     setGenError,
   } = useTeam();
   const { viewingPlayerId, activeTab, setActiveTab } = useUI();
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+
+  useEffect(() => {
+    if (authReady && user && !onboardingHasBeenCompleted()) {
+      setTutorialOpen(true);
+    }
+  }, [authReady, user]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (team?.primaryColor) {
+      root.style.setProperty("--team-primary", team.primaryColor);
+    }
+    if (team?.secondaryColor) {
+      root.style.setProperty("--team-secondary", team.secondaryColor);
+    }
+    if (team?.tertiaryColor) {
+      root.style.setProperty("--team-tertiary", team.tertiaryColor);
+    }
+  }, [team?.primaryColor, team?.secondaryColor, team?.tertiaryColor]);
 
   if (!authReady || loading) {
     return (
@@ -2569,6 +2593,19 @@ const MainShell = () => {
       <AddPlayerModal />
       <PastSeasonImportModal />
       <InGameView />
+      <OnboardingTutorial
+        open={tutorialOpen}
+        onClose={() => setTutorialOpen(false)}
+      />
+      <button
+        type="button"
+        onClick={() => setTutorialOpen(true)}
+        aria-label="Open tutorial"
+        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg hover:-translate-y-0.5 transition-transform print:hidden"
+        style={{ backgroundColor: "var(--team-primary)" }}
+      >
+        ?
+      </button>
       {genError && (
         <div className="fixed bottom-4 left-4 bg-red-600 text-white px-4 py-3 rounded-xl shadow-lg max-w-sm text-xs font-bold print:hidden">
           {genError}

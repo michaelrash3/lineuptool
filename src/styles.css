@@ -1,4 +1,229 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   Coach's Card Design System — Foundations
+   Tokens from design_handoff/design_handoff_coachs_card/colors_and_type.css
+   ============================================================================ */
+
+:root {
+  /* TEAM TRIPLET — user-tunable in Settings, drives every accent */
+  --team-primary: #2563eb;
+  --team-secondary: #f8fafc;
+  --team-tertiary: #ffffff;
+  --team-primary-15: color-mix(in srgb, var(--team-primary) 15%, transparent);
+  --team-primary-soft: color-mix(in srgb, var(--team-primary) 8%, white);
+
+  /* SLATE SCALE */
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+
+  /* SEMANTIC LANES */
+  --success-50: #f0fdf4;
+  --success-200: #bbf7d0;
+  --success-500: #22c55e;
+  --success-600: #16a34a;
+  --success-700: #15803d;
+  --success-800: #166534;
+
+  --danger-50: #fef2f2;
+  --danger-200: #fecaca;
+  --danger-500: #ef4444;
+  --danger-600: #dc2626;
+  --danger-700: #b91c1c;
+  --danger-800: #991b1b;
+
+  --warn-50: #fffbeb;
+  --warn-200: #fde68a;
+  --warn-500: #f59e0b;
+  --warn-700: #b45309;
+  --warn-800: #92400e;
+
+  --info-50: #eff6ff;
+  --info-200: #bfdbfe;
+  --info-500: #3b82f6;
+  --info-600: #2563eb;
+  --info-700: #1d4ed8;
+
+  /* SURFACE */
+  --bg-app: var(--slate-50);
+  --surface-glass-1: rgba(255, 255, 255, 0.2);
+  --surface-glass-2: rgba(255, 255, 255, 0.3);
+  --surface-glass-3: rgba(255, 255, 255, 0.4);
+  --surface-glass-4: rgba(255, 255, 255, 0.6);
+  --surface-glass-5: rgba(255, 255, 255, 0.8);
+  --hairline: rgba(255, 255, 255, 0.5);
+
+  /* SHADOWS */
+  --shadow-card: 0 4px 20px rgb(0 0 0 / 0.04);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+}
+
+html,
+body {
+  background: var(--bg-app);
+  font-family: var(--font-sans);
+  color: var(--slate-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================================
+   SEMANTIC TYPE ROLES
+   ============================================================================ */
+
+.t-display {
+  font: 900 36px/1 var(--font-sans);
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  color: var(--slate-900);
+}
+
+.t-h1 {
+  font: 900 30px/1 var(--font-sans);
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  color: var(--slate-900);
+}
+
+.t-h2 {
+  font: 900 20px/1.1 var(--font-sans);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--slate-800);
+}
+
+.t-h3 {
+  font: 900 18px/1.2 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate-800);
+}
+
+.t-card-title {
+  font: 900 24px/1.1 var(--font-sans);
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+  color: var(--slate-900);
+}
+
+.t-eyebrow {
+  font: 800 10px/1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.t-label {
+  font: 800 10px/1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.t-button {
+  font: 900 12px/1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.t-chip {
+  font: 900 10px/1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.t-stat-num {
+  font: 900 30px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--slate-900);
+}
+
+.t-stat-num-sm {
+  font: 900 14px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--slate-900);
+}
+
+.t-body {
+  font: 500 14px/1.5 var(--font-sans);
+  color: var(--slate-600);
+}
+
+.t-body-bold {
+  font: 800 14px/1.4 var(--font-sans);
+  color: var(--slate-800);
+}
+
+.t-meta {
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.t-mono {
+  font: 700 12px/1 var(--font-mono);
+  letter-spacing: 0.05em;
+  color: var(--slate-800);
+}
+
+/* ============================================================================
+   COMPONENT HELPERS
+   ============================================================================ */
+
+.glass-card {
+  background: var(--surface-glass-3);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.bg-team-primary-15 {
+  background-color: var(--team-primary-15);
+}
+
+.text-team-primary {
+  color: var(--team-primary);
+}
+
+.bg-team-primary {
+  background-color: var(--team-primary);
+}
+
+.bg-team-secondary {
+  background-color: var(--team-secondary);
+}
+
+.text-team-tertiary {
+  color: var(--team-tertiary);
+}
+
+.border-team-primary {
+  border-color: var(--team-primary);
+}
+
+/* legacy .App helper from CRA boilerplate — kept for any stray usage */
 .App {
-  font-family: sans-serif;
-  text-align: center;
+  font-family: var(--font-sans);
 }

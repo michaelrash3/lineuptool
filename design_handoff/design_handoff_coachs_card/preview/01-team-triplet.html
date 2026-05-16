@@ -1,0 +1,35 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .palette { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding: 24px; }
+  .swatch .chip { height: 88px; }
+  .swatch .chip.primary { background: #2563eb; }
+  .swatch .chip.secondary { background: #f8fafc; }
+  .swatch .chip.tertiary { background: #ffffff; }
+  .swatch .role { font: var(--fw-black) 11px/1 var(--font-sans); letter-spacing: var(--tracking-widest); text-transform: uppercase; color: var(--fg-2); }
+  .compose {
+    margin-top: 14px;
+    display: flex; gap: 10px; align-items: center;
+    background: var(--surface-glass-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-2xl);
+    padding: 12px 14px;
+    box-shadow: var(--shadow-card);
+  }
+  .pill { background:#2563eb; color:#fff; border-radius:12px; padding:8px 14px; font: var(--fw-black) 11px/1 var(--font-sans); letter-spacing: var(--tracking-widest); text-transform:uppercase; box-shadow: var(--shadow-md); }
+  .pill-2 { background:#f8fafc; color:#2563eb; border:1px solid #2563eb; border-radius:9999px; padding:8px 14px; font: var(--fw-black) 11px/1 var(--font-sans); letter-spacing: var(--tracking-widest); text-transform:uppercase; }
+  .stripe { width: 80px; height: 6px; border-radius: 2px; background: #2563eb; }
+</style></head>
+<body><div class="card-stage">
+  <div class="palette">
+    <div class="swatch"><div class="chip primary"></div><div class="role">Primary</div><div class="value">#2563EB</div><div class="name">Team Primary</div></div>
+    <div class="swatch"><div class="chip secondary"></div><div class="role">Secondary</div><div class="value">#F8FAFC</div><div class="name">Soft Fill</div></div>
+    <div class="swatch"><div class="chip tertiary" style="border:1px solid var(--slate-200);"></div><div class="role">Tertiary</div><div class="value">#FFFFFF</div><div class="name">FG on Primary</div></div>
+  </div>
+  <div class="compose" style="margin: 0 24px 24px;">
+    <div class="stripe"></div>
+    <span class="pill">Primary CTA</span>
+    <span class="pill-2">Active Tab</span>
+    <span class="eyebrow" style="margin-left:auto">Team Triplet — User Tunable</span>
+  </div>
+</div></body></html>

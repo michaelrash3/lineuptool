@@ -156,7 +156,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
                   title="Big Game"
                   aria-label="Big Game"
                 >
-                  ⚡
+                  ⭐
                 </span>
               )}
               VS. {game.opponent}

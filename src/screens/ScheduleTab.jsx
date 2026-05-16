@@ -489,7 +489,7 @@ export const ScheduleTab = memo(() => {
               </button>
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5">
-                  <span aria-hidden>⚡</span>
+                  <span aria-hidden>⭐</span>
                   Big Game {isBigGame ? "ON" : "OFF"}
                 </div>
                 <div className="text-[10px] text-slate-600 font-medium leading-tight mt-0.5">
