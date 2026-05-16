@@ -547,6 +547,24 @@ const TeamProvider = ({ children }) => {
     [teamData.players, updateTeam]
   );
 
+  // Wipe every player's current-season stats + CSV-import snapshot history so
+  // the coach can re-upload past CSVs and rebuild the trend trail from scratch.
+  // Untouched: pastSeasons archives, pitching state (recentPitches /
+  // lastPitchDate), evaluation grades, presence flag, profile fields.
+  const resetTeamStats = useCallback(() => {
+    const next = (teamData.players || []).map((p) => ({
+      ...p,
+      stats: blankStats(),
+      statsHistory: [],
+    }));
+    updateTeam({ players: next });
+    toast.push({
+      kind: "success",
+      title: "Stats reset",
+      message: "Re-upload CSVs to rebuild the trend history.",
+    });
+  }, [teamData.players, updateTeam, toast]);
+
   const updatePlayerNested = useCallback(
     (id, key, updates) => {
       const next = teamData.players.map((p) =>
@@ -2273,6 +2291,7 @@ const TeamProvider = ({ children }) => {
       updatePlayer,
       updatePlayerNested,
       removePlayer,
+      resetTeamStats,
       addPastSeason,
       updatePastSeason,
       removePastSeason,
@@ -2323,6 +2342,7 @@ const TeamProvider = ({ children }) => {
       updatePlayer,
       updatePlayerNested,
       removePlayer,
+      resetTeamStats,
       addPastSeason,
       updatePastSeason,
       removePastSeason,
