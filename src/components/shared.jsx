@@ -164,6 +164,119 @@ export const Eyebrow = ({ className = "", children, ...rest }) => (
   </span>
 );
 
+const getPlayerInitials = (name) => {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// Reusable player avatar. Renders the player's photoUrl when set, otherwise
+// the player's initials over a team-primary gradient. Used in:
+//   - roster row
+//   - lineup grid (mobile cards + desktop cells)
+//   - lineup card PNG / PDF export (off-DOM via Image preload)
+//   - player profile modal header
+// Size is a Tailwind-compatible pixel measure; the wrapper takes care of
+// rounding + shadow + border.
+export const PlayerAvatar = memo(
+  ({ player, size = 40, className = "", showNumber = false }) => {
+    const photo = player?.photoUrl;
+    const initials = getPlayerInitials(player?.name);
+    const dim = { width: size, height: size };
+    if (photo) {
+      return (
+        <span
+          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-slate-200 border border-white/60 shadow-inner ${className}`}
+          style={dim}
+        >
+          <img
+            src={photo}
+            alt={player?.name || "Player photo"}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          {showNumber && player?.number != null && player.number !== "" && (
+            <span
+              className="absolute bottom-0 right-0 px-1 rounded-tl-md text-[10px] font-black tabular-nums text-white"
+              style={{
+                background: "rgba(15,23,42,0.7)",
+                lineHeight: 1.1,
+              }}
+            >
+              {player.number}
+            </span>
+          )}
+        </span>
+      );
+    }
+    return (
+      <span
+        className={`relative inline-flex items-center justify-center rounded-full font-black tabular-nums text-white border border-white/60 shadow-inner ${className}`}
+        style={{
+          ...dim,
+          fontSize: Math.max(10, size * 0.4),
+          background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
+        }}
+        aria-label={player?.name || "Player"}
+      >
+        {initials}
+        {showNumber && player?.number != null && player.number !== "" && (
+          <span
+            className="absolute bottom-0 right-0 px-1 rounded-tl-md text-[10px] font-black tabular-nums"
+            style={{
+              background: "rgba(15,23,42,0.7)",
+              lineHeight: 1.1,
+            }}
+          >
+            {player.number}
+          </span>
+        )}
+      </span>
+    );
+  }
+);
+
+// Off-DOM 256×256 canvas crop helper for photo upload. Used by
+// PlayerProfileModal + AddPlayerModal. Returns a JPEG Blob, ~5–10 KB.
+export const cropImageTo256 = (file) =>
+  new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("No file"));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Invalid image"));
+      img.onload = () => {
+        const SIZE = 256;
+        const canvas = document.createElement("canvas");
+        canvas.width = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas unsupported"));
+        // Cover crop: fill the square, center the longer side.
+        const ratio = Math.max(SIZE / img.width, SIZE / img.height);
+        const w = img.width * ratio;
+        const h = img.height * ratio;
+        const x = (SIZE - w) / 2;
+        const y = (SIZE - h) / 2;
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(0, 0, SIZE, SIZE);
+        ctx.drawImage(img, x, y, w, h);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas export failed"));
+          },
+          "image/jpeg",
+          0.82
+        );
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
 export const StatTile = ({ label, value, className = "" }) => (
   <div
     className={`bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl ${className}`}

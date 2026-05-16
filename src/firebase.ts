@@ -7,6 +7,7 @@ import {
   persistentMultipleTabManager,
   Firestore,
 } from "firebase/firestore";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 
 declare global {
   interface Window {
@@ -49,6 +50,11 @@ try {
   _db = getFirestore(app);
 }
 export const db = _db;
+
+// Storage backs player photo uploads. Photos are stored under
+// `teams/{teamId}/players/{playerId}.jpg`. Storage rules should restrict
+// writes to team members; reads are public-ish (anyone with the URL).
+export const storage: FirebaseStorage = getStorage(app);
 
 const _hostAppId = (typeof window !== "undefined" && window.__app_id) || null;
 export const appId = _hostAppId || "baseball_lineup_v1";

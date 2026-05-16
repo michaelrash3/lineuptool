@@ -59,11 +59,16 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   const finalInningColW = usableW / Math.max(totalInnings, 1);
 
   // ---- Compute layout (top-down) ----
+  // Any batter with a `battingReason` adds a second 11px line under the
+  // primary name row. Pre-detect so we can size the section correctly.
+  const hasAnyReason = battingLineup.some(
+    (p) => p && (p as SlimPlayer & { battingReason?: { role?: string; note?: string } }).battingReason
+  );
   const headerH = 90;
   const sectionTitleH = 36;
   const cellH = 38;
   const defenseH = sectionTitleH + cellH * (presentPositions.length + 1);
-  const battingRowH = 32;
+  const battingRowH = hasAnyReason ? 44 : 32;
   const battingH = sectionTitleH + battingRowH * battingLineup.length;
   const footerH = 28;
   const H = headerH + defenseH + battingH + footerH + PAD * 4;
@@ -159,7 +164,9 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   y += sectionTitleH;
 
   for (let i = 0; i < battingLineup.length; i++) {
-    const player = battingLineup[i];
+    const player = battingLineup[i] as
+      | (SlimPlayer & { battingReason?: { role?: string; note?: string } })
+      | undefined;
     if (i % 2 === 0) {
       ctx.fillStyle = "#f1f5f9";
       ctx.fillRect(PAD, y, W - PAD * 2, battingRowH);
@@ -167,16 +174,40 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
     ctx.fillStyle = primary;
     ctx.font = "900 13px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(`${i + 1}`, PAD + 18, y + battingRowH / 2 - 5);
+    const nameY = hasAnyReason ? y + 13 : y + battingRowH / 2 - 5;
+    ctx.fillText(`${i + 1}`, PAD + 18, nameY);
     ctx.fillStyle = "#0f172a";
     ctx.font = "700 13px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(player?.name || "—", PAD + 50, y + battingRowH / 2 - 5);
+    ctx.fillText(player?.name || "—", PAD + 50, nameY);
     if (player?.number) {
       ctx.fillStyle = "#94a3b8";
       ctx.font = "700 11px system-ui, -apple-system, Segoe UI, sans-serif";
       ctx.textAlign = "right";
-      ctx.fillText(`#${player.number}`, W - PAD - 8, y + battingRowH / 2 - 4);
+      ctx.fillText(`#${player.number}`, W - PAD - 8, nameY + 1);
+    }
+    // Second-line reasoning: italicized role + note. Empty rows still get
+    // the height so striping stays consistent.
+    if (hasAnyReason) {
+      const reason = player?.battingReason;
+      if (reason && (reason.role || reason.note)) {
+        ctx.fillStyle = "#64748b";
+        ctx.font = "italic 600 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
+        ctx.textAlign = "left";
+        const why = [reason.role, reason.note].filter(Boolean).join(" — ");
+        const maxW = W - PAD * 2 - 50 - 60; // leave room for jersey number
+        let trimmed = why;
+        if (ctx.measureText(trimmed).width > maxW) {
+          while (
+            trimmed.length > 1 &&
+            ctx.measureText(trimmed + "…").width > maxW
+          ) {
+            trimmed = trimmed.slice(0, -1);
+          }
+          trimmed = trimmed + "…";
+        }
+        ctx.fillText(trimmed, PAD + 50, y + 30);
+      }
     }
     y += battingRowH;
   }
