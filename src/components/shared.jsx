@@ -39,39 +39,39 @@ export const LeaderboardCard = memo(
     }, [players, statKey, asc]);
 
     return (
-      <div className="bg-white/30 rounded-2xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-white/50 overflow-hidden hover:-translate-y-1 transition-transform duration-300">
-        <div className="p-5 border-b border-white/40 flex items-center gap-4 bg-white/20">
+      <div className="bg-white/30 rounded-xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-white/50 overflow-hidden hover:-translate-y-0.5 transition-transform duration-300">
+        <div className="p-3 border-b border-white/40 flex items-center gap-2.5 bg-white/20">
           <div
-            className="p-2.5 rounded-full"
+            className="p-1.5 rounded-lg"
             style={{ backgroundColor: `${primaryColor}15` }}
           >
-            <Icon className="w-5 h-5" style={{ color: primaryColor }} />
+            <Icon className="w-4 h-4" style={{ color: primaryColor }} />
           </div>
-          <h4 className="font-extrabold text-[11px] uppercase tracking-widest text-slate-700">
+          <h4 className="font-extrabold text-[10px] uppercase tracking-widest text-slate-700 truncate">
             {title}
           </h4>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="p-3 space-y-1.5">
           {sorted.length > 0 ? (
             sorted.map((p, i) => (
               <div
                 key={p.id}
-                className="flex justify-between items-center group"
+                className="flex justify-between items-center gap-2"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="text-xs font-black text-slate-500 w-4 shrink-0">
-                    {i + 1}.
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] font-black text-slate-500 w-3 shrink-0 tabular-nums">
+                    {i + 1}
                   </span>
                   <button
                     type="button"
                     onClick={() => onPlayerClick && onPlayerClick(p.id)}
-                    className="text-sm font-extrabold text-slate-800 truncate text-left hover:text-blue-600 transition-colors cursor-pointer"
+                    className="text-[13px] font-extrabold text-slate-800 truncate text-left hover:text-blue-600 transition-colors cursor-pointer leading-tight"
                   >
                     {p.name}
                   </button>
                 </div>
                 <span
-                  className="text-sm font-black tabular-nums px-3 py-1 rounded-lg shadow-sm border border-white/50 shrink-0 ml-2"
+                  className="text-[12px] font-black tabular-nums px-2 py-0.5 rounded-md shadow-sm border border-white/50 shrink-0"
                   style={{
                     backgroundColor: primaryColor,
                     color: tertiaryColor,
@@ -84,8 +84,8 @@ export const LeaderboardCard = memo(
               </div>
             ))
           ) : (
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-widest text-center py-6">
-              Data Void
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center py-3 italic">
+              No data
             </div>
           )}
         </div>
