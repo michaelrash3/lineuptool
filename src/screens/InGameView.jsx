@@ -6,7 +6,12 @@ import { useTeam, useUI, useToast } from "../contexts.js";
 import { ScoreEditor } from "./ScheduleTab.jsx";
 
 export const InGameView = memo(() => {
-  const { team, updateGame, finalizeGame } = useTeam();
+  const {
+    team,
+    updateGame,
+    finalizeGame,
+    removePlayerMidGame: removePlayerMidGameAction,
+  } = useTeam();
   const toast = useToast();
   const {
     inGameId,
@@ -142,43 +147,22 @@ export const InGameView = memo(() => {
   // (which is consistent with how a real coach handles a sub on the
   // field — the umpire/scorekeeper waits while you pick a replacement).
   const removePlayerMidGame = (playerId, reason = "injury") => {
-    const fromInning = currentInning;
-    // Build the new lineup with the player stripped from inning N+.
-    const base = pendingLineup ?? game.lineup;
-    const nextLineup = base.map((existingInn, i) => {
-      if (i < fromInning) return existingInn;
-      const next = {
-        ...existingInn,
-        BENCH: (existingInn.BENCH || []).filter(
-          (p) => p && p.id !== playerId
-        ),
-      };
-      for (const pos of Object.keys(existingInn)) {
-        if (pos === "BENCH") continue;
-        if (existingInn[pos]?.id === playerId) next[pos] = null;
-      }
-      return next;
+    // Flush any in-flight optimistic edits first so the engine rebuild sees
+    // the latest lineup state (not a stale Firestore copy).
+    setPendingLineup((cur) => {
+      if (cur) updateGame(game.id, { lineup: cur });
+      return null;
     });
-    setPendingLineup(nextLineup);
-    // Persist both the new lineup AND the midGameRemovals record. Flush
-    // happens via the existing debounce + immediate write for the
-    // midGameRemovals field (small).
-    updateGame(game.id, {
-      lineup: nextLineup,
-      midGameRemovals: {
-        ...(game.midGameRemovals || {}),
-        [playerId]: { fromInning, reason },
-      },
+    // Delegate to the TeamProvider orchestrator — it runs the engine to
+    // refill the defensive slots and strips the player from battingLineup.
+    removePlayerMidGameAction?.(playerId, {
+      gameId: game.id,
+      fromInning: currentInning,
+      reason,
+      currentLineup: pendingLineup ?? game.lineup,
+      currentBatting: game.battingLineup,
     });
     setShowRemoveModal(false);
-    toast.push({
-      kind: "success",
-      title: "Player removed",
-      message: `Removed from inning ${
-        fromInning + 1
-      }+. Their played innings still count.`,
-      duration: 6000,
-    });
   };
 
   // Currently-active roster set: present and not already removed.

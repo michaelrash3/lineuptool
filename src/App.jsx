@@ -1277,6 +1277,120 @@ const TeamProvider = ({ children }) => {
     [teamData.lineupTemplates, updateTeam]
   );
 
+  // Mid-game player removal: rebuild the defensive lineup from the current
+  // inning onward (engine fills the open slots with remaining roster), strip
+  // the removed player from the batting order (the rest of the order stays
+  // static), and record the removal so the engine's fairness math prorates
+  // their played innings.
+  const removePlayerMidGame = useCallback(
+    (playerId, opts = {}) => {
+      const { fromInning = 0, reason = "injury" } = opts;
+      const inputs = uiBridge.current.getInputs?.() || {};
+      const game =
+        inputs.currentGame ||
+        (teamData.games || []).find(
+          (g) => g.id === (opts.gameId || teamData?.inGameId)
+        );
+      const gameId = game?.id || opts.gameId;
+      if (!gameId) {
+        toast.push({ kind: "error", title: "No game selected" });
+        return;
+      }
+      // Re-read the game from teamData to make sure we have the latest
+      // persisted lineup (InGameView passes its pendingLineup via opts).
+      const persistedGame = (teamData.games || []).find((g) => g.id === gameId);
+      const existingLineup = opts.currentLineup || persistedGame?.lineup || [];
+      const existingBatting =
+        opts.currentBatting || persistedGame?.battingLineup || [];
+      if (!Array.isArray(existingLineup) || existingLineup.length === 0) {
+        toast.push({
+          kind: "warn",
+          title: "No lineup to rebuild",
+          message: "Generate a lineup first before removing a player.",
+        });
+        return;
+      }
+      const existingRemovals = persistedGame?.midGameRemovals || {};
+      // Active set = currently-rostered players who are still on the field
+      // for this game: present (or no attendance flag) AND not previously
+      // removed AND not the player we're removing now.
+      const attendance = persistedGame?.attendance || {};
+      const activePlayers = (teamData.players || []).filter((p) => {
+        if (!p?.id) return false;
+        if (p.id === playerId) return false;
+        if (existingRemovals[p.id]) return false;
+        if (attendance[p.id] === false) return false;
+        return true;
+      });
+
+      const fromInn = Math.min(
+        Math.max(0, fromInning),
+        existingLineup.length - 1
+      );
+
+      const result = engineGenerateLineup({
+        activePlayers,
+        allPlayers: teamData.players || [],
+        games: teamData.games || [],
+        evaluationEvents: teamData.evaluationEvents || [],
+        currentGame: persistedGame,
+        totalInnings: existingLineup.length,
+        leagueRuleSet:
+          persistedGame?.leagueRuleSet || teamData.leagueRuleSet,
+        teamAge: persistedGame?.teamAge || teamData.teamAge,
+        defenseSize: persistedGame?.defenseSize || teamData.defenseSize,
+        positionLock: persistedGame?.positionLock || teamData.positionLock,
+        battingSize: persistedGame?.battingSize || teamData.battingSize,
+        pitchingFormat:
+          persistedGame?.pitchingFormat || teamData.pitchingFormat,
+        isBigGame: persistedGame?.isBigGame === true,
+        seed: Date.now() & 0xffffffff,
+        relaxFairness: true,
+        fromInning: fromInn,
+        currentLineup: existingLineup,
+      });
+
+      if (result.error) {
+        toast.push({
+          kind: "error",
+          title: "Rebuild failed",
+          message: result.error,
+        });
+        return;
+      }
+
+      const nextLineup = Array.isArray(result.lineup)
+        ? result.lineup
+        : existingLineup;
+      const nextBatting = (existingBatting || []).filter(
+        (p) => p && p.id !== playerId
+      );
+      const nextRemovals = {
+        ...existingRemovals,
+        [playerId]: { fromInning: fromInn, reason },
+      };
+
+      updateGame(gameId, {
+        lineup: nextLineup,
+        battingLineup: nextBatting,
+        midGameRemovals: nextRemovals,
+      });
+
+      const removedPlayer = (teamData.players || []).find(
+        (p) => p.id === playerId
+      );
+      toast.push({
+        kind: "success",
+        title: "Player removed",
+        message: `${
+          removedPlayer?.name || "Player"
+        } removed from inning ${fromInn + 1}+. Defense rebuilt; batting order shrunk by one.`,
+        duration: 6000,
+      });
+    },
+    [teamData, updateGame, toast]
+  );
+
   // ----- Team management -----
   const switchTeam = useCallback(
     async (id) => {
@@ -2191,6 +2305,7 @@ const TeamProvider = ({ children }) => {
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
+      removePlayerMidGame,
     }),
     [
       teamData,
@@ -2240,6 +2355,7 @@ const TeamProvider = ({ children }) => {
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
+      removePlayerMidGame,
     ]
   );
 

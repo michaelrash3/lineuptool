@@ -186,6 +186,12 @@ export interface EngineInput {
   seed?: number;
   isBigGame?: boolean;
   pitchingFormat?: string;
+  // Mid-game removal regeneration. When `fromInning > 0`, the engine pre-fills
+  // innings `0..fromInning-1` from `currentLineup` and seeds its per-player
+  // state from those placements, so the catcher 2-inning cap / P-cap / OF
+  // rotation / fairness carry across the rebuild.
+  fromInning?: number;
+  currentLineup?: Inning[];
   [key: string]: unknown;
 }
 
