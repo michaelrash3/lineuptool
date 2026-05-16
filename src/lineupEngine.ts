@@ -959,6 +959,13 @@ export function generateLineup(input: EngineInput): EngineResult {
     //   (8U: C/1B/SS, 9U+: P/SS/3B/C/1B)
     //  Weak players are pushed toward the OF
     isBigGame = false,
+    // Mid-game rebuild path: when `fromInning > 0` and `currentLineup` is
+    // provided, innings 0..fromInning-1 are pre-locked from currentLineup and
+    // the engine only fills the remaining innings — seeding its per-player
+    // state (catcher cap, position history, bench tally) from the locked
+    // innings so all rotation rules carry across the rebuild.
+    fromInning = 0,
+    currentLineup = null,
   } = input;
 
   if (!Array.isArray(activePlayers) || activePlayers.length < 7) {
@@ -1076,6 +1083,8 @@ export function generateLineup(input: EngineInput): EngineResult {
         leftyPenalty,
         isBigGame,
         rand,
+        fromInning,
+        currentLineup,
       });
       if (!result.ok) {
         if (result.failure) failureReasons.push(result.failure);
@@ -1704,6 +1713,8 @@ function tryBuildLineup(ctx: any): any {
     leftyPenalty,
     isBigGame,
     rand,
+    fromInning = 0,
+    currentLineup = null,
   } = ctx;
 
   // Hoist age derived constants used by pickBestForPosition out of the
@@ -1778,7 +1789,45 @@ function tryBuildLineup(ctx: any): any {
 
   const lineup = [];
 
-  for (let inn = 0; inn < totalInnings; inn++) {
+  // Mid-game rebuild seed: when `fromInning > 0` and `currentLineup` is
+  // provided, replay the already-played innings into our per-player state
+  // (catcher cap / position history / bench tally) and push their slot maps
+  // verbatim into `lineup`, so the main fill loop below only has to fill
+  // the remaining innings while still respecting carry-over rules.
+  const mgFromInning =
+    fromInning > 0 && Array.isArray(currentLineup) && currentLineup.length > 0
+      ? Math.min(fromInning, currentLineup.length, totalInnings)
+      : 0;
+  for (let inn = 0; inn < mgFromInning; inn++) {
+    const playedInn = currentLineup[inn] || {};
+    const seeded: any = {};
+    for (const key of Object.keys(playedInn)) {
+      if (key === "BENCH") continue;
+      const player = playedInn[key];
+      if (!player) continue;
+      seeded[key] = player;
+      const st = state.get(player.id);
+      if (st) {
+        st.positions[key] = (st.positions[key] || 0) + 1;
+        st.history.push(key);
+      }
+    }
+    const benchArr = Array.isArray(playedInn.BENCH) ? playedInn.BENCH : [];
+    const benchOut: any[] = [];
+    for (const p of benchArr) {
+      if (!p) continue;
+      const st = state.get(p.id);
+      if (st) {
+        st.bench++;
+        st.history.push("BENCH");
+        benchOut.push(p);
+      }
+    }
+    seeded.BENCH = benchOut;
+    lineup.push(seeded);
+  }
+
+  for (let inn = mgFromInning; inn < totalInnings; inn++) {
     const isLockInning =
       (positionLock === "2" && inn % 2 !== 0) ||
       (positionLock === "3" && inn % 3 !== 0) ||
