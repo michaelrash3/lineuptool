@@ -1933,30 +1933,9 @@ export const PlayerProfileModal = memo(() => {
               {/* Recent Movement — game-to-game stat trends derived from
                   consecutive CSV import snapshots. */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 flex items-center gap-2">
-                    <Icons.Forward className="w-4 h-4" /> Recent Movement
-                  </h4>
-                  {Array.isArray(player.statsHistory) &&
-                    player.statsHistory.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Clear ${player.name}'s stat history? Their current stats stay; only the snapshot trail is wiped.`
-                            )
-                          ) {
-                            updatePlayer(player.id, { statsHistory: [] });
-                          }
-                        }}
-                        className="t-button text-rose-500 hover:text-rose-700 flex items-center gap-1 shrink-0"
-                        title="Wipe just this player's trend history"
-                      >
-                        <Icons.X className="w-3 h-3" /> Reset Trend
-                      </button>
-                    )}
-                </div>
+                <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 flex items-center gap-2 mb-3">
+                  <Icons.Forward className="w-4 h-4" /> Recent Movement
+                </h4>
                 {(() => {
                   const history = Array.isArray(player.statsHistory)
                     ? player.statsHistory
