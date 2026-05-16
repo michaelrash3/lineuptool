@@ -201,7 +201,8 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
 });
 
 export const RosterTab = memo(() => {
-  const { team } = useTeam();
+  const { team, currentRole } = useTeam();
+  const canEdit = currentRole !== "assistant";
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
 
@@ -279,17 +280,19 @@ export const RosterTab = memo(() => {
             </h2>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsAddingPlayer(true)}
-            className="flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl shadow-md hover:-translate-y-0.5 transition-transform"
-            style={{
-              backgroundColor: "var(--team-primary)",
-              color: "var(--team-tertiary)",
-            }}
-          >
-            <Icons.UserPlus className="w-4 h-4" /> Add Player
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsAddingPlayer(true)}
+              className="flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl shadow-md hover:-translate-y-0.5 transition-transform"
+              style={{
+                backgroundColor: "var(--team-primary)",
+                color: "var(--team-tertiary)",
+              }}
+            >
+              <Icons.UserPlus className="w-4 h-4" /> Add Player
+            </button>
+          )}
         </div>
         {players.length > 0 && (
           <div className="px-4 sm:px-6 pt-4 pb-3 bg-white/20 border-b border-white/40 space-y-3">

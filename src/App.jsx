@@ -50,6 +50,7 @@ import {
   AddPlayerModal,
   PastSeasonImportModal,
 } from "./components/modals.jsx";
+import { AssistantEvalModal } from "./components/AssistantEvalModal.jsx";
 import { InGameView } from "./screens/InGameView.jsx";
 import {
   normalizeDateToIso,
@@ -1463,66 +1464,6 @@ const TeamProvider = ({ children }) => {
     [user, teams, toast]
   );
 
-  const joinTeam = useCallback(
-    async (id) => {
-      if (!user || !id.trim()) return;
-      const cleanId = id.trim();
-      setSyncStatus("Joining");
-      try {
-        const teamRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "public",
-          "data",
-          "teams",
-          cleanId
-        );
-        const snap = await getDoc(teamRef);
-        if (!snap.exists()) {
-          toast.push({ kind: "error", title: "Team not found" });
-          setSyncStatus("");
-          return;
-        }
-        const data = snap.data();
-        const members = Array.isArray(data.members) ? data.members : [];
-        if (!members.includes(user.uid))
-          await setDoc(
-            teamRef,
-            { members: [...members, user.uid] },
-            { merge: true }
-          );
-        const userRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "settings",
-          "teams"
-        );
-        const newEntry = { id: cleanId, name: data.name || "Joined Team" };
-        const exists = teams.some((t) => t.id === cleanId);
-        const nextTeams = exists ? teams : [...teams, newEntry];
-        await setDoc(
-          userRef,
-          { teams: nextTeams, activeTeamId: cleanId },
-          { merge: true }
-        );
-        toast.push({ kind: "success", title: "Joined team" });
-        setSyncStatus("");
-      } catch (e) {
-        setSyncStatus("");
-        toast.push({
-          kind: "error",
-          title: "Could not join",
-          message: e.message,
-        });
-      }
-    },
-    [user, teams, toast]
-  );
-
   const advanceSeason = useCallback(() => {
     const computed = computeNextSeason(teamData.currentSeason);
     if (!computed) {
@@ -2178,16 +2119,6 @@ const TeamProvider = ({ children }) => {
     }
   }, [user, teams, activeTeamId, toast]);
 
-  const copyTeamCode = useCallback(() => {
-    if (!activeTeamId) return;
-    if (navigator.clipboard) navigator.clipboard.writeText(activeTeamId);
-    toast.push({
-      kind: "success",
-      title: "Team Code copied",
-      message: "Paste it into another coach's Join Team prompt.",
-    });
-  }, [activeTeamId, toast]);
-
   const saveTeamEvaluation = useCallback(() => {
     const inputs = uiBridge.current.getInputs?.();
     const grades = inputs?.teamEvalGrades || {};
@@ -2232,6 +2163,251 @@ const TeamProvider = ({ children }) => {
     // Caller is expected to clear newRoundLabel and re-select the new round if desired
   }, [user, teamData.evaluationEvents, updateTeam, toast]);
 
+  // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
+  // upsert behavior — if this assistant already has a round on today's date
+  // we update it in place; otherwise we append a new event.
+  const saveAssistantEvaluation = useCallback(
+    (grades) => {
+      if (!user) return;
+      const today = getLocalDateString();
+      const existing = (teamData.evaluationEvents || []).find(
+        (e) =>
+          e.coachRole === "Assistant" &&
+          e.evaluatorId === user.uid &&
+          e.date === today
+      );
+      let nextEvents;
+      if (existing) {
+        nextEvents = teamData.evaluationEvents.map((e) =>
+          e.id === existing.id ? { ...e, grades } : e
+        );
+      } else {
+        const newEvent = {
+          id: "ev-" + Math.random().toString(36).substring(2, 10),
+          date: today,
+          coachRole: "Assistant",
+          evaluatorId: user.uid,
+          label: `Assistant Eval · ${today}`,
+          grades,
+        };
+        nextEvents = [...(teamData.evaluationEvents || []), newEvent];
+      }
+      updateTeam({ evaluationEvents: nextEvents });
+      toast.push({
+        kind: "success",
+        title: "Submitted to head coach",
+      });
+    },
+    [user, teamData.evaluationEvents, updateTeam, toast]
+  );
+
+  // Promote / demote a non-owner team member. Owner is implicitly head and
+  // cannot be demoted from here.
+  const setCoachRole = useCallback(
+    (uid, role) => {
+      if (!uid || uid === teamData.ownerId) return;
+      if (role !== "head" && role !== "assistant") return;
+      const next = { ...(teamData.coachRoles || {}), [uid]: role };
+      updateTeam({ coachRoles: next });
+    },
+    [teamData.coachRoles, teamData.ownerId, updateTeam]
+  );
+
+  // Generate a one-time invite token. Head coach copies the resulting URL and
+  // shares it with the invitee. Token survives reloads because it lives on
+  // the team document.
+  const createInviteToken = useCallback(
+    (role) => {
+      if (!user) return null;
+      if (role !== "head" && role !== "assistant") role = "assistant";
+      const token =
+        Math.random().toString(36).substring(2, 10) +
+        Math.random().toString(36).substring(2, 10);
+      const entry = {
+        token,
+        role,
+        createdAt: new Date().toISOString(),
+        createdBy: user.uid,
+      };
+      const next = [...(teamData.invites || []), entry];
+      updateTeam({ invites: next });
+      return token;
+    },
+    [user, teamData.invites, updateTeam]
+  );
+
+  // Drop an invite (used or unused) from the team's invite list.
+  const revokeInviteToken = useCallback(
+    (token) => {
+      const next = (teamData.invites || []).filter((i) => i.token !== token);
+      updateTeam({ invites: next });
+    },
+    [teamData.invites, updateTeam]
+  );
+
+  // Consume an invite token: find the team that issued it, add the current
+  // user to its members + coachRoles, mark the invite used, switch the
+  // active team to it. Mirrors the legacy joinTeam flow but gated on the
+  // token + carries the encoded role.
+  const redeemInviteToken = useCallback(
+    async (token) => {
+      if (!user || !token) return false;
+      // Search every team this user already belongs to first (covers the
+      // case where they're already a member but want to re-trigger).
+      // Otherwise we need to locate the team via the invite — since the
+      // token is per-team, callers should pass the team id alongside; here
+      // we scan known teams. For a fresh invitee who isn't a member yet,
+      // the URL needs to embed the team id as well, so we accept either
+      // "teamId.token" or a plain token (scanned against known teams).
+      let teamId = null;
+      let plainToken = token;
+      if (token.includes(".")) {
+        const [tId, t] = token.split(".");
+        teamId = tId;
+        plainToken = t;
+      }
+      try {
+        if (!teamId) {
+          // Plain-token path: scan the user's known teams (no read access
+          // to other teams here without an explicit id, so plain tokens
+          // only work if you're already a member).
+          for (const t of teams) {
+            const snap = await getDoc(
+              doc(db, "artifacts", appId, "public", "data", "teams", t.id)
+            );
+            if (!snap.exists()) continue;
+            const data = snap.data();
+            if ((data.invites || []).some((i) => i.token === plainToken)) {
+              teamId = t.id;
+              break;
+            }
+          }
+        }
+        if (!teamId) {
+          toast.push({ kind: "error", title: "Invite not recognized" });
+          return false;
+        }
+        const teamRef = doc(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "teams",
+          teamId
+        );
+        const snap = await getDoc(teamRef);
+        if (!snap.exists()) {
+          toast.push({ kind: "error", title: "Team not found" });
+          return false;
+        }
+        const data = snap.data();
+        const invites = Array.isArray(data.invites) ? data.invites : [];
+        const invite = invites.find((i) => i.token === plainToken);
+        if (!invite) {
+          toast.push({ kind: "error", title: "Invite not recognized" });
+          return false;
+        }
+        if (invite.usedBy) {
+          toast.push({ kind: "error", title: "Invite already used" });
+          return false;
+        }
+        const members = Array.isArray(data.members) ? data.members : [];
+        const nextMembers = members.includes(user.uid)
+          ? members
+          : [...members, user.uid];
+        const nextCoachRoles = {
+          ...(data.coachRoles || {}),
+          [user.uid]: invite.role,
+        };
+        const nextInvites = invites.map((i) =>
+          i.token === plainToken
+            ? { ...i, usedBy: user.uid, usedAt: new Date().toISOString() }
+            : i
+        );
+        await setDoc(
+          teamRef,
+          {
+            members: nextMembers,
+            coachRoles: nextCoachRoles,
+            invites: nextInvites,
+          },
+          { merge: true }
+        );
+        const userRef = doc(
+          db,
+          "artifacts",
+          appId,
+          "users",
+          user.uid,
+          "settings",
+          "teams"
+        );
+        const newEntry = { id: teamId, name: data.name || "Joined Team" };
+        const exists = teams.some((t) => t.id === teamId);
+        const nextTeams = exists ? teams : [...teams, newEntry];
+        await setDoc(
+          userRef,
+          { teams: nextTeams, activeTeamId: teamId },
+          { merge: true }
+        );
+        toast.push({
+          kind: "success",
+          title: "Joined team",
+          message:
+            invite.role === "head"
+              ? "You're a head coach on this team."
+              : "You're an assistant coach on this team.",
+        });
+        return true;
+      } catch (e) {
+        toast.push({
+          kind: "error",
+          title: "Could not redeem invite",
+          message: e.message,
+        });
+        return false;
+      }
+    },
+    [user, teams, toast]
+  );
+
+  // Derive the current user's role on the active team.
+  // Owner is always head; coachRoles[uid] takes precedence otherwise;
+  // anyone else (legacy members) defaults to assistant.
+  const currentRole = useMemo(() => {
+    if (!user) return "head";
+    if (user.uid === teamData.ownerId) return "head";
+    const explicit = teamData.coachRoles?.[user.uid];
+    if (explicit === "head") return "head";
+    if (explicit === "assistant") return "assistant";
+    // Legacy teams have no coachRoles map. Treat the owner as head and
+    // everyone else as assistant — the head coach can promote via Settings.
+    return "assistant";
+  }, [user, teamData.ownerId, teamData.coachRoles]);
+
+  // Auto-redeem ?invite= URL params once auth + team list are ready.
+  useEffect(() => {
+    if (!authReady || !user || loadingTeams) return;
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const invite = params.get("invite");
+    if (!invite) return;
+    // Stash the token in sessionStorage if we somehow don't have teams yet.
+    sessionStorage.setItem("pendingInvite", invite);
+    // Strip the query param so a refresh doesn't re-trigger.
+    params.delete("invite");
+    const newSearch = params.toString();
+    const newUrl =
+      window.location.pathname +
+      (newSearch ? `?${newSearch}` : "") +
+      window.location.hash;
+    window.history.replaceState({}, "", newUrl);
+    redeemInviteToken(invite).then((ok) => {
+      if (ok) sessionStorage.removeItem("pendingInvite");
+    });
+  }, [authReady, user, loadingTeams, redeemInviteToken]);
+
   // Win-loss record derived from final games only.
   const record = useMemo(() => {
     let wins = 0,
@@ -2266,6 +2442,7 @@ const TeamProvider = ({ children }) => {
       genError,
       setGenError,
       record,
+      currentRole,
       uiBridge, // private — used by UIProvider
       // actions
       updateTeam,
@@ -2291,7 +2468,6 @@ const TeamProvider = ({ children }) => {
       saveCurrentGame,
       switchTeam,
       createTeam,
-      joinTeam,
       advanceSeason,
       uploadLogo,
       uploadScheduleCsv,
@@ -2300,12 +2476,16 @@ const TeamProvider = ({ children }) => {
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
-      copyTeamCode,
       saveTeamEvaluation,
+      saveAssistantEvaluation,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
       removePlayerMidGame,
+      setCoachRole,
+      createInviteToken,
+      revokeInviteToken,
+      redeemInviteToken,
     }),
     [
       teamData,
@@ -2318,6 +2498,7 @@ const TeamProvider = ({ children }) => {
       loadingActive,
       genError,
       record,
+      currentRole,
       updateTeam,
       addPlayer,
       updatePlayer,
@@ -2341,7 +2522,6 @@ const TeamProvider = ({ children }) => {
       saveCurrentGame,
       switchTeam,
       createTeam,
-      joinTeam,
       advanceSeason,
       uploadLogo,
       uploadScheduleCsv,
@@ -2350,12 +2530,16 @@ const TeamProvider = ({ children }) => {
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
-      copyTeamCode,
       saveTeamEvaluation,
+      saveAssistantEvaluation,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
       removePlayerMidGame,
+      setCoachRole,
+      createInviteToken,
+      revokeInviteToken,
+      redeemInviteToken,
     ]
   );
 
@@ -2378,7 +2562,6 @@ const UIProvider = ({ children }) => {
     type: "alert",
     onConfirm: null,
   });
-  const [linkCopied, setLinkCopied] = useState(false);
 
   // Schedule tab state
   const [selectedGameId, setSelectedGameId] = useState(null);
@@ -2407,8 +2590,8 @@ const UIProvider = ({ children }) => {
   // Header state
   const [isAddingTeam, setIsAddingTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
-  const [isJoiningTeam, setIsJoiningTeam] = useState(false);
-  const [joinTeamId, setJoinTeamId] = useState("");
+  const [inviteModal, setInviteModal] = useState(null); // { token, url, role } | null
+  const [assistantEvalOpen, setAssistantEvalOpen] = useState(false);
 
   // Roster/profile state
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
@@ -2555,13 +2738,6 @@ const UIProvider = ({ children }) => {
     }
   }, [team.user, team.team.evaluationEvents, selectedRoundId]);
 
-  // Handle copy-link feedback
-  const copyTeamCode = useCallback(() => {
-    team.copyTeamCode();
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
-  }, [team]);
-
   // Lineup edits (swap / add inning / remove inning / reorder batters)
   const handleCellClick = useCallback(
     (innIdx, pos, player) => {
@@ -2686,8 +2862,6 @@ const UIProvider = ({ children }) => {
     () => ({
       modal,
       setModal,
-      linkCopied,
-      copyTeamCode,
       selectedGameId,
       setSelectedGameId,
       isAddingGame,
@@ -2728,10 +2902,10 @@ const UIProvider = ({ children }) => {
       setIsAddingTeam,
       newTeamName,
       setNewTeamName,
-      isJoiningTeam,
-      setIsJoiningTeam,
-      joinTeamId,
-      setJoinTeamId,
+      inviteModal,
+      setInviteModal,
+      assistantEvalOpen,
+      setAssistantEvalOpen,
       isAddingPlayer,
       setIsAddingPlayer,
       viewingPlayerId,
@@ -2752,7 +2926,6 @@ const UIProvider = ({ children }) => {
     }),
     [
       modal,
-      linkCopied,
       selectedGameId,
       isAddingGame,
       newGameForm,
@@ -2776,15 +2949,14 @@ const UIProvider = ({ children }) => {
       opponentName,
       isAddingTeam,
       newTeamName,
-      isJoiningTeam,
-      joinTeamId,
+      inviteModal,
+      assistantEvalOpen,
       isAddingPlayer,
       viewingPlayerId,
       openPlayerProfile,
       isAddingCoach,
       newCoachForm,
       teamEvalGrades,
-      copyTeamCode,
       selectedRoundId,
       newRoundLabel,
       evalTrendPlayerId,
@@ -2801,7 +2973,8 @@ const UIProvider = ({ children }) => {
 /* ============================================================================
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
-const TAB_ORDER = ["home", "roster", "schedule", "evaluation", "settings"];
+const TAB_ORDER_HEAD = ["home", "roster", "schedule", "evaluation", "settings"];
+const TAB_ORDER_ASSISTANT = ["home", "roster", "schedule", "submit-eval"];
 
 const MainShell = () => {
   const {
@@ -2813,8 +2986,19 @@ const MainShell = () => {
     setGenError,
     regenerateLineup,
     regenerateBatting,
+    currentRole,
   } = useTeam();
-  const { viewingPlayerId, activeTab, setActiveTab, selectedGameId } = useUI();
+  const {
+    viewingPlayerId,
+    activeTab,
+    setActiveTab,
+    selectedGameId,
+    inGameId,
+    setInGameId,
+    setAssistantEvalOpen,
+  } = useUI();
+  const isAssistant = currentRole === "assistant";
+  const TAB_ORDER = isAssistant ? TAB_ORDER_ASSISTANT : TAB_ORDER_HEAD;
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -2888,6 +3072,7 @@ const MainShell = () => {
     selectedGameId,
     regenerateLineup,
     regenerateBatting,
+    TAB_ORDER,
   ]);
 
   useEffect(() => {
@@ -2902,6 +3087,24 @@ const MainShell = () => {
       root.style.setProperty("--team-tertiary", team.tertiaryColor);
     }
   }, [team?.primaryColor, team?.secondaryColor, team?.tertiaryColor]);
+
+  // Guard: assistants can't land on head-only tabs or open the in-game view.
+  // Snap back to home if they somehow do.
+  useEffect(() => {
+    if (!isAssistant) return;
+    if (activeTab === "evaluation" || activeTab === "settings") {
+      setActiveTab("home");
+    }
+    if (inGameId) setInGameId(null);
+  }, [isAssistant, activeTab, setActiveTab, inGameId, setInGameId]);
+
+  // The "submit-eval" tab isn't a real screen — it opens the assistant
+  // submission modal and snaps the tab back to home.
+  useEffect(() => {
+    if (activeTab !== "submit-eval") return;
+    setAssistantEvalOpen(true);
+    setActiveTab("home");
+  }, [activeTab, setActiveTab, setAssistantEvalOpen]);
 
   if (!authReady || loading) {
     return (
@@ -2931,13 +3134,20 @@ const MainShell = () => {
     );
   }
 
-  const navButtons = [
-    { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-    { id: "roster", icon: Icons.Users, label: "Roster" },
-    { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
-    { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
-    { id: "settings", icon: Icons.Settings, label: "Settings" },
-  ];
+  const navButtons = isAssistant
+    ? [
+        { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
+        { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        { id: "submit-eval", icon: Icons.Clipboard, label: "Submit Eval" },
+      ]
+    : [
+        { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
+        { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
+        { id: "settings", icon: Icons.Settings, label: "Settings" },
+      ];
 
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white">
@@ -2951,14 +3161,15 @@ const MainShell = () => {
         {activeTab === "home" && <HomeTab />}
         {activeTab === "roster" && <RosterTab />}
         {activeTab === "schedule" && <ScheduleTab />}
-        {activeTab === "evaluation" && <EvaluationTab />}
-        {activeTab === "settings" && <SettingsTab />}
+        {activeTab === "evaluation" && !isAssistant && <EvaluationTab />}
+        {activeTab === "settings" && !isAssistant && <SettingsTab />}
       </main>
       <SharedModals />
       {viewingPlayerId && <PlayerProfileModal />}
       <AddPlayerModal />
       <PastSeasonImportModal />
-      <InGameView />
+      {!isAssistant && <InGameView />}
+      <AssistantEvalModal />
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
