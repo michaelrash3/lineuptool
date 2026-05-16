@@ -1168,19 +1168,59 @@ export const ScheduleTab = memo(() => {
                 return (
                   <div
                     key={game.id}
-                    className={`bg-white/40 border border-white/50 shadow-sm rounded-xl hover:shadow-md hover:bg-white/60 transition-all ${
+                    className={`glass-card bg-white/40 hover:bg-white/60 transition-all ${
                       isPostponed ? "opacity-60" : ""
                     }`}
                   >
+                    <div
+                      className="h-1.5"
+                      style={{
+                        backgroundColor: isToday
+                          ? "var(--team-primary)"
+                          : "transparent",
+                      }}
+                    />
                     <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div>
+                      <div className="flex items-start gap-4 sm:gap-5 min-w-0">
+                        <div
+                          className="hidden sm:grid place-items-center shrink-0 w-14 h-14 rounded-2xl shadow-inner"
+                          style={{
+                            backgroundColor: "var(--team-primary-15)",
+                          }}
+                        >
+                          <Icons.Calendar
+                            className="w-7 h-7"
+                            style={{ color: "var(--team-primary)" }}
+                          />
+                        </div>
+                        <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                          <h3 className="font-black text-xl text-slate-900 uppercase tracking-tight">
+                          {isToday && !isFinal && !isPostponed && (
+                            <span
+                              className="t-chip px-2 py-1 rounded-md text-white"
+                              style={{
+                                backgroundColor: "var(--team-primary)",
+                                color: "var(--team-tertiary)",
+                              }}
+                            >
+                              Today
+                            </span>
+                          )}
+                          <h3 className="t-card-title leading-tight">
+                            {game.isBigGame && (
+                              <span
+                                className="inline-block mr-1.5 text-yellow-500"
+                                title="Big Game"
+                                aria-label="Big Game"
+                              >
+                                ⭐
+                              </span>
+                            )}
                             VS. {game.opponent}
                           </h3>
                           {isFinal ? (
                             <span
-                              className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border tabular-nums ${
+                              className={`t-chip px-2.5 py-1 rounded-md border tabular-nums ${
                                 result === "win"
                                   ? "bg-green-50 text-green-800 border-green-200"
                                   : result === "loss"
@@ -1196,15 +1236,15 @@ export const ScheduleTab = memo(() => {
                               {game.teamScore}-{game.opponentScore}
                             </span>
                           ) : isPostponed ? (
-                            <span className="bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-300">
+                            <span className="t-chip bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-300">
                               Postponed
                             </span>
                           ) : game.lineup ? (
-                            <span className="bg-green-50 text-green-700 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-green-200">
+                            <span className="t-chip bg-green-50 text-green-700 px-2 py-1 rounded-md border border-green-200">
                               Lineup Ready
                             </span>
                           ) : (
-                            <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-amber-200">
+                            <span className="t-chip bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-200">
                               Lineup Needed
                             </span>
                           )}
@@ -1262,7 +1302,8 @@ export const ScheduleTab = memo(() => {
                               </label>
                             )}
                           </div>
-                        
+
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap justify-end">
                         <button

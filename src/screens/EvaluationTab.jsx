@@ -404,25 +404,27 @@ export const EvaluationTab = memo(() => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="bg-white/30 shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-white/50 rounded-2xl overflow-hidden">
+      <div className="glass-card">
+        <div
+          className="h-1.5 w-full"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
         <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/40 border-b border-white/40">
           <div className="flex items-center gap-4">
             <div
               className="p-2.5 rounded-full"
-              style={{ backgroundColor: `${primaryColor}15` }}
+              style={{ backgroundColor: "var(--team-primary-15)" }}
             >
               <Icons.Clipboard
                 className="w-6 h-6"
-                style={{ color: primaryColor }}
+                style={{ color: "var(--team-primary)" }}
               />
             </div>
             <div>
-              <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider flex items-center gap-3">
+              <h2 className="t-h2 flex items-center gap-3">
                 Player Evaluation
               </h2>
-              <p className="text-[10px] font-extrabold uppercase tracking-widest mt-1 text-slate-500">
-                Head Coach Dashboard
-              </p>
+              <p className="t-eyebrow mt-1">Head Coach Dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
@@ -492,7 +494,7 @@ export const EvaluationTab = memo(() => {
                 {EVAL_CATEGORIES.map((cat) => (
                   <th
                     key={cat.id}
-                    className="p-5 font-black text-slate-500 text-[10px] uppercase tracking-widest text-center"
+                    className="p-5 t-eyebrow text-center"
                   >
                     {cat.label}
                   </th>
