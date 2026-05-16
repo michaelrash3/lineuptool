@@ -1,9 +1,38 @@
-import React, { memo, useMemo } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Icons } from "../icons";
 import { calculateBaseballAge } from "../utils/helpers";
 import { EVAL_CATEGORIES } from "../constants/ui";
 import { getOffensiveScore, calculateTotalScore } from "../lineupEngine.js";
 import { useTeam, useUI } from "../contexts.js";
+
+const DEFAULT_GRADES = {
+  fielding: 5,
+  baseballIQ: 5,
+  armStrength: 5,
+  armAccuracy: 5,
+  speedAgility: 5,
+  coachability: 5,
+};
+
+const draftKey = (teamId, userUid) =>
+  `lineuptool.evalDraft.${teamId || "unknown"}.${userUid || "anon"}`;
+
+const sanitizeGrades = (g) => {
+  const out = { ...DEFAULT_GRADES };
+  EVAL_CATEGORIES.forEach((c) => {
+    const v = parseInt(g?.[c.id], 10);
+    if (Number.isFinite(v)) out[c.id] = Math.max(1, Math.min(10, v));
+  });
+  if (typeof g?.notes === "string" && g.notes.trim()) out.notes = g.notes;
+  return out;
+};
 
 export const RosterDecisionsPanel = memo(() => {
   const { team, user } = useTeam();
@@ -374,6 +403,44 @@ export const RosterDecisionsPanel = memo(() => {
 /* ============================================================================
    SECTION 13b · EvaluationTab
 ============================================================================ */
+const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
+  <div
+    className="flex items-center gap-1 flex-wrap"
+    role="radiogroup"
+    aria-label={ariaLabel}
+  >
+    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+      const isActive = n === value;
+      return (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={isActive}
+          onClick={() => onChange(n)}
+          className="min-w-[36px] h-9 px-2.5 t-button rounded-lg border transition-all tabular-nums"
+          style={
+            isActive
+              ? {
+                  backgroundColor: "var(--team-primary)",
+                  color: "var(--team-tertiary)",
+                  borderColor: "var(--team-primary)",
+                  boxShadow: "var(--shadow-md)",
+                }
+              : {
+                  backgroundColor: "rgba(255,255,255,0.7)",
+                  color: "#475569",
+                  borderColor: "#e2e8f0",
+                }
+          }
+        >
+          {n}
+        </button>
+      );
+    })}
+  </div>
+));
+
 export const EvaluationTab = memo(() => {
   const { team, user, saveTeamEvaluation } = useTeam();
   const {
@@ -388,6 +455,11 @@ export const EvaluationTab = memo(() => {
   } = useUI();
   const { players, primaryColor, evaluationEvents } = team;
 
+  const [openNotesPlayerId, setOpenNotesPlayerId] = useState(null);
+  const [saveState, setSaveState] = useState("idle");
+  const lastSavedRef = useRef("");
+  const draftRestoredRef = useRef(false);
+
   // Eval rounds belonging to this head coach, newest first
   const myRounds = useMemo(() => {
     return (evaluationEvents || [])
@@ -401,6 +473,164 @@ export const EvaluationTab = memo(() => {
   const activeRound = selectedRoundId
     ? myRounds.find((r) => r.id === selectedRoundId)
     : null;
+
+  const teamId = team?.id;
+  const userUid = user?.uid;
+
+  // Restore draft for new rounds on first mount/team change.
+  useEffect(() => {
+    if (!isNewRound || draftRestoredRef.current) return;
+    if (Object.keys(teamEvalGrades || {}).length > 0) {
+      draftRestoredRef.current = true;
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(draftKey(teamId, userUid));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          setTeamEvalGrades(parsed.grades || {});
+          if (parsed.label) setNewRoundLabel(parsed.label);
+          setSaveState("draft-restored");
+        }
+      }
+    } catch {
+      /* ignore corrupt draft */
+    }
+    draftRestoredRef.current = true;
+  }, [isNewRound, teamId, userUid, teamEvalGrades, setTeamEvalGrades, setNewRoundLabel]);
+
+  // Persist new-round drafts to localStorage on every change.
+  useEffect(() => {
+    if (!isNewRound) return;
+    try {
+      window.localStorage.setItem(
+        draftKey(teamId, userUid),
+        JSON.stringify({ grades: teamEvalGrades, label: newRoundLabel })
+      );
+      setSaveState((s) =>
+        s === "saved" || s === "saving" ? s : "draft"
+      );
+    } catch {
+      /* quota exceeded — silent */
+    }
+  }, [isNewRound, teamEvalGrades, newRoundLabel, teamId, userUid]);
+
+  // Auto-save existing rounds with a 1.5s debounce.
+  useEffect(() => {
+    if (isNewRound) return;
+    const snapshot = JSON.stringify(teamEvalGrades);
+    if (snapshot === lastSavedRef.current) return;
+    if (lastSavedRef.current === "") {
+      // First snapshot after switching to this round — initialize without saving.
+      lastSavedRef.current = snapshot;
+      return;
+    }
+    setSaveState("saving");
+    const handle = setTimeout(() => {
+      saveTeamEvaluation();
+      lastSavedRef.current = snapshot;
+      setSaveState("saved");
+    }, 1500);
+    return () => clearTimeout(handle);
+  }, [isNewRound, teamEvalGrades, saveTeamEvaluation]);
+
+  // Reset save baseline when switching between rounds.
+  useEffect(() => {
+    lastSavedRef.current = "";
+    setSaveState("idle");
+  }, [selectedRoundId]);
+
+  const handleSaveClick = useCallback(() => {
+    saveTeamEvaluation();
+    if (isNewRound) {
+      setNewRoundLabel("");
+      try {
+        window.localStorage.removeItem(draftKey(teamId, userUid));
+      } catch {
+        /* ignore */
+      }
+    }
+    lastSavedRef.current = JSON.stringify(teamEvalGrades);
+    setSaveState("saved");
+  }, [
+    saveTeamEvaluation,
+    isNewRound,
+    setNewRoundLabel,
+    teamId,
+    userUid,
+    teamEvalGrades,
+  ]);
+
+  const setGrade = useCallback(
+    (playerId, categoryId, value) => {
+      setTeamEvalGrades({
+        ...teamEvalGrades,
+        [playerId]: {
+          ...DEFAULT_GRADES,
+          ...(teamEvalGrades[playerId] || {}),
+          [categoryId]: value,
+        },
+      });
+    },
+    [teamEvalGrades, setTeamEvalGrades]
+  );
+
+  const setNotes = useCallback(
+    (playerId, notesValue) => {
+      setTeamEvalGrades({
+        ...teamEvalGrades,
+        [playerId]: {
+          ...DEFAULT_GRADES,
+          ...(teamEvalGrades[playerId] || {}),
+          notes: notesValue,
+        },
+      });
+    },
+    [teamEvalGrades, setTeamEvalGrades]
+  );
+
+  const applyAllAverage = useCallback(() => {
+    const next = {};
+    players.forEach((p) => {
+      next[p.id] = {
+        ...DEFAULT_GRADES,
+        notes: teamEvalGrades[p.id]?.notes || "",
+      };
+    });
+    setTeamEvalGrades(next);
+  }, [players, teamEvalGrades, setTeamEvalGrades]);
+
+  const copyFromLastRound = useCallback(() => {
+    const last = myRounds[0];
+    if (!last) return;
+    const next = {};
+    players.forEach((p) => {
+      next[p.id] = sanitizeGrades({
+        ...DEFAULT_GRADES,
+        ...(last.grades?.[p.id] || {}),
+        notes: teamEvalGrades[p.id]?.notes || "",
+      });
+    });
+    setTeamEvalGrades(next);
+  }, [myRounds, players, teamEvalGrades, setTeamEvalGrades]);
+
+  const setColumnAll = useCallback(
+    (categoryId, value) => {
+      const next = { ...teamEvalGrades };
+      players.forEach((p) => {
+        next[p.id] = {
+          ...DEFAULT_GRADES,
+          ...(next[p.id] || {}),
+          [categoryId]: value,
+        };
+      });
+      setTeamEvalGrades(next);
+    },
+    [players, teamEvalGrades, setTeamEvalGrades]
+  );
+
+  const hasLastRound = myRounds.length > 0;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -428,15 +658,45 @@ export const EvaluationTab = memo(() => {
             </div>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
-            <button
-              onClick={() => {
-                saveTeamEvaluation();
-                if (isNewRound) setNewRoundLabel("");
-              }}
-              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md text-white"
-              style={{ backgroundColor: primaryColor }}
+            <span
+              className="t-eyebrow flex items-center gap-1.5"
+              aria-live="polite"
             >
-              <Icons.Save className="w-4 h-4" />{" "}
+              {!isNewRound && saveState === "saving" && (
+                <>
+                  <Icons.Refresh className="w-3 h-3 animate-spin text-blue-500" />
+                  Saving…
+                </>
+              )}
+              {!isNewRound && saveState === "saved" && (
+                <>
+                  <Icons.Check className="w-3 h-3 text-emerald-600" />
+                  Saved
+                </>
+              )}
+              {isNewRound && saveState === "draft" && (
+                <>
+                  <Icons.Cloud className="w-3 h-3 text-slate-400" />
+                  Draft saved locally
+                </>
+              )}
+              {isNewRound && saveState === "draft-restored" && (
+                <>
+                  <Icons.Refresh className="w-3 h-3 text-amber-500" />
+                  Draft restored
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={handleSaveClick}
+              className="flex-1 sm:flex-none t-button px-6 py-3 rounded-xl shadow-md hover:-translate-y-0.5 transition-transform flex items-center justify-center gap-2"
+              style={{
+                backgroundColor: "var(--team-primary)",
+                color: "var(--team-tertiary)",
+              }}
+            >
+              <Icons.Save className="w-4 h-4" />
               {isNewRound ? "Save New Eval" : "Update Eval"}
             </button>
           </div>
@@ -484,7 +744,118 @@ export const EvaluationTab = memo(() => {
             </span>
           )}
         </div>
-        <div className="p-0 overflow-x-auto">
+
+        {/* Quick-set toolbar */}
+        <div className="px-5 py-3 bg-white/40 border-b border-white/40 flex flex-wrap items-center gap-2">
+          <span className="t-eyebrow mr-1">Quick Set:</span>
+          <button
+            type="button"
+            onClick={copyFromLastRound}
+            disabled={!hasLastRound}
+            className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            title={
+              hasLastRound
+                ? "Copy grades from your most recent saved eval"
+                : "No previous eval to copy from"
+            }
+          >
+            <Icons.Forward className="w-3.5 h-3.5" /> Copy From Last Round
+          </button>
+          <button
+            type="button"
+            onClick={applyAllAverage}
+            className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white flex items-center gap-1.5"
+            title="Set every category for every player to 5"
+          >
+            <Icons.Refresh className="w-3.5 h-3.5" /> All Average (5)
+          </button>
+          <button
+            type="button"
+            onClick={() => setTeamEvalGrades({})}
+            className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 flex items-center gap-1.5"
+            title="Clear all in-progress grades"
+          >
+            <Icons.X className="w-3.5 h-3.5" /> Clear
+          </button>
+        </div>
+
+        {/* Mobile per-player card grading view */}
+        <div className="sm:hidden p-4 space-y-3 bg-white/20">
+          {players.length === 0 ? (
+            <div className="text-center py-10 t-body">
+              No players on the roster yet.
+            </div>
+          ) : (
+            players.map((player) => {
+              const grades = {
+                ...DEFAULT_GRADES,
+                ...(teamEvalGrades[player.id] || {}),
+              };
+              const totalScore = calculateTotalScore(grades, player.stats);
+              const notesOpen = openNotesPlayerId === player.id;
+              return (
+                <div
+                  key={`mc-${player.id}`}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                >
+                  <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setEvalTrendPlayerId(player.id)}
+                      className="flex items-center gap-2 t-body-bold uppercase tracking-tight text-slate-900 hover:text-team-primary text-left"
+                    >
+                      {player.name}
+                      <Icons.ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    </button>
+                    <span
+                      className="t-stat-num-sm px-3 py-1 rounded-lg shadow-sm"
+                      style={{
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                      }}
+                      title="Total Score"
+                    >
+                      {totalScore}
+                    </span>
+                  </div>
+                  <div className="px-4 py-3 space-y-3">
+                    {EVAL_CATEGORIES.map((cat) => (
+                      <div key={cat.id}>
+                        <div className="t-eyebrow mb-1.5">{cat.label}</div>
+                        <GradeChipRow
+                          value={grades[cat.id]}
+                          onChange={(v) => setGrade(player.id, cat.id, v)}
+                          ariaLabel={`${player.name} ${cat.label}`}
+                        />
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenNotesPlayerId(notesOpen ? null : player.id)
+                      }
+                      className="t-button text-slate-500 hover:text-slate-800 flex items-center gap-1.5 pt-1"
+                    >
+                      <Icons.FileText className="w-3.5 h-3.5" />
+                      {notesOpen ? "Hide Notes" : grades.notes ? "Edit Notes" : "Add Notes"}
+                    </button>
+                    {notesOpen && (
+                      <textarea
+                        value={grades.notes || ""}
+                        onChange={(e) => setNotes(player.id, e.target.value)}
+                        placeholder="What stood out this round?"
+                        rows={3}
+                        className="w-full text-sm font-medium border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden sm:block p-0 overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-white/40 border-b border-slate-200/50">
@@ -494,9 +865,28 @@ export const EvaluationTab = memo(() => {
                 {EVAL_CATEGORIES.map((cat) => (
                   <th
                     key={cat.id}
-                    className="p-5 t-eyebrow text-center"
+                    className="p-3 t-eyebrow text-center align-bottom"
                   >
-                    {cat.label}
+                    <div className="flex flex-col items-center gap-1.5">
+                      {cat.label}
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (Number.isFinite(v)) setColumnAll(cat.id, v);
+                        }}
+                        className="text-[9px] font-bold bg-white/80 border border-slate-200 rounded-md px-1.5 py-0.5 text-slate-500 cursor-pointer hover:bg-white"
+                        title={`Set all players' ${cat.label} grade`}
+                        aria-label={`Bulk set ${cat.label}`}
+                      >
+                        <option value="">Set all…</option>
+                        {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </th>
                 ))}
                 <th className="p-5 font-black text-slate-800 text-[10px] uppercase tracking-widest text-center border-l border-slate-200/50">
@@ -509,62 +899,101 @@ export const EvaluationTab = memo(() => {
             </thead>
             <tbody className="divide-y divide-slate-100/50">
               {players.map((player) => {
-                const grades = teamEvalGrades[player.id] || {
-                  fielding: 5,
-                  armStrength: 5,
-                  armAccuracy: 5,
-                  speedAgility: 5,
-                  baseballIQ: 5,
-                  coachability: 5,
+                const grades = {
+                  ...DEFAULT_GRADES,
+                  ...(teamEvalGrades[player.id] || {}),
                 };
                 const offScore = getOffensiveScore(player.stats);
                 const totalScore = calculateTotalScore(grades, player.stats);
+                const notesOpen = openNotesPlayerId === player.id;
+                const hasNotes = !!(grades.notes && grades.notes.trim());
                 return (
-                  <tr
-                    key={player.id}
-                    className="hover:bg-white/60 transition-colors"
-                  >
-                    <td className="p-4 font-black text-sm text-slate-800 sticky left-0 bg-white/90 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)] truncate max-w-[250px] uppercase border-r border-slate-100/50">
-                      <button
-                        type="button"
-                        onClick={() => setEvalTrendPlayerId(player.id)}
-                        className="text-left hover:text-blue-700 hover:underline transition-colors flex items-center gap-1.5"
-                        title="View evaluation trend"
-                      >
-                        {player.name}
-                        <Icons.ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </button>
-                    </td>
-                    {EVAL_CATEGORIES.map((cat) => (
-                      <td key={cat.id} className="p-3 text-center">
-                        <select
-                          value={grades[cat.id]}
-                          onChange={(e) => {
-                            setTeamEvalGrades({
-                              ...teamEvalGrades,
-                              [player.id]: {
-                                ...grades,
-                                [cat.id]: parseInt(e.target.value, 10),
-                              },
-                            });
-                          }}
-                          className="text-sm font-black border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 w-20 text-center shadow-sm transition-colors bg-white/80 border-slate-200 text-slate-700 cursor-pointer hover:bg-white"
-                        >
-                          {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((num) => (
-                            <option key={num} value={num}>
-                              {num}
-                            </option>
-                          ))}
-                        </select>
+                  <React.Fragment key={player.id}>
+                    <tr className="hover:bg-white/60 transition-colors">
+                      <td className="p-4 font-black text-sm text-slate-800 sticky left-0 bg-white/90 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.02)] truncate max-w-[250px] uppercase border-r border-slate-100/50">
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEvalTrendPlayerId(player.id)}
+                            className="text-left hover:text-blue-700 hover:underline transition-colors flex items-center gap-1.5 min-w-0"
+                            title="View evaluation trend"
+                          >
+                            <span className="truncate">{player.name}</span>
+                            <Icons.ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenNotesPlayerId(notesOpen ? null : player.id)
+                            }
+                            className={`shrink-0 p-1.5 rounded-md transition-colors ${
+                              notesOpen
+                                ? "bg-amber-100 text-amber-700"
+                                : hasNotes
+                                ? "text-amber-600 hover:bg-amber-50"
+                                : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                            }`}
+                            title={hasNotes ? "Edit notes" : "Add notes"}
+                            aria-label={`${
+                              hasNotes ? "Edit" : "Add"
+                            } notes for ${player.name}`}
+                          >
+                            <Icons.FileText className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
-                    ))}
-                    <td className="p-4 font-black text-lg text-center text-slate-800 bg-white/40 border-l border-slate-200/50">
-                      {offScore}
-                    </td>
-                    <td className="p-4 font-black text-xl text-center bg-white/60 border-l border-slate-200/50 text-slate-900 shadow-inner">
-                      {totalScore}
-                    </td>
-                  </tr>
+                      {EVAL_CATEGORIES.map((cat) => (
+                        <td key={cat.id} className="p-3 text-center">
+                          <select
+                            value={grades[cat.id]}
+                            onChange={(e) =>
+                              setGrade(
+                                player.id,
+                                cat.id,
+                                parseInt(e.target.value, 10)
+                              )
+                            }
+                            className="text-sm font-black border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 w-20 text-center shadow-sm transition-colors bg-white/80 border-slate-200 text-slate-700 cursor-pointer hover:bg-white"
+                          >
+                            {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((num) => (
+                              <option key={num} value={num}>
+                                {num}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      ))}
+                      <td className="p-4 font-black text-lg text-center text-slate-800 bg-white/40 border-l border-slate-200/50">
+                        {offScore}
+                      </td>
+                      <td className="p-4 font-black text-xl text-center bg-white/60 border-l border-slate-200/50 text-slate-900 shadow-inner">
+                        {totalScore}
+                      </td>
+                    </tr>
+                    {notesOpen && (
+                      <tr className="bg-amber-50/50">
+                        <td
+                          colSpan={EVAL_CATEGORIES.length + 3}
+                          className="px-4 py-3 sticky left-0"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="t-eyebrow shrink-0">
+                              Notes · {player.name}
+                            </span>
+                            <textarea
+                              value={grades.notes || ""}
+                              onChange={(e) =>
+                                setNotes(player.id, e.target.value)
+                              }
+                              placeholder="What stood out this round?"
+                              rows={2}
+                              className="flex-1 text-sm font-medium border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>
