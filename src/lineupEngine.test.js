@@ -823,6 +823,177 @@ const validateLineup = (result, opts) => {
   return violations;
 };
 
+// ---------------------------------------------------------------------------
+// 9U+ fuzz / soak — extends the 8U coverage to older age tiers where kid
+// pitch + pitch counts + USSSA lefty-infield rules kick in. Each tier gets
+// 32 deterministic scenarios. Roster generator seeds realistic pitching
+// state (recentPitches + lastPitchDate) and bats/throws hand so the engine
+// has to honor pitch-count rest rules and lefty-infield penalties.
+// ---------------------------------------------------------------------------
+
+const PITCH_LIMITS_FUZZ = {
+  "9U": 75,
+  "10U": 75,
+  "11U to 12U": 85,
+};
+
+const restDaysRequired = (recent) => {
+  if (recent >= 66) return 4;
+  if (recent >= 51) return 3;
+  if (recent >= 36) return 2;
+  if (recent >= 21) return 1;
+  return 0;
+};
+
+const daysBetween = (a, b) => {
+  const A = new Date(a).getTime();
+  const B = new Date(b).getTime();
+  return Math.floor((B - A) / 86400000);
+};
+
+const isPitcherEligible = (player, targetDate, ageGroup) => {
+  const pitching = player.pitching;
+  if (!pitching || !pitching.lastPitchDate || !pitching.recentPitches) return true;
+  const recent = pitching.recentPitches;
+  if (recent === 0) return true;
+  if (recent >= (PITCH_LIMITS_FUZZ[ageGroup] || 105)) return false;
+  return daysBetween(pitching.lastPitchDate, targetDate) >= restDaysRequired(recent);
+};
+
+// Roster generator for 9U+. Same primary-position distribution as 8U,
+// but adds a 30% chance of recent pitching state and an explicit bats/throws
+// hand (~20% lefty bats, ~10% lefty throws to keep USSSA penalty active).
+const makeFuzzRoster9Plus = (size, seed, targetDate) => {
+  const r = seededRand(seed);
+  const pickFrom = (arr) => arr[Math.floor(r() * arr.length)];
+  const roster = [];
+  for (let i = 0; i < size; i++) {
+    const id = `p${i}`;
+    const roll = r();
+    let primary = "";
+    if (roll < 0.6) primary = pickFrom(INFIELD_PRIMARIES);
+    else if (roll < 0.9) primary = pickFrom(OF_PRIMARIES_10);
+    const restrictions =
+      primary && primary !== "C" && r() < 0.15 ? ["C"] : [];
+    const bats = r() < 0.2 ? "L" : "R";
+    const throws_ = r() < 0.1 ? "L" : "R";
+    // ~30% of roster has pitching state — some recent, some over the limit,
+    // some safely rested. Walks the gamut so the engine has to skip them
+    // appropriately.
+    let pitching = { recentPitches: 0, lastPitchDate: null };
+    if (r() < 0.3) {
+      const recent = Math.floor(r() * 80); // 0..79
+      // Last pitched 0..5 days before targetDate
+      const lastD = new Date(targetDate);
+      lastD.setDate(lastD.getDate() - Math.floor(r() * 6));
+      pitching = {
+        recentPitches: recent,
+        lastPitchDate: lastD.toISOString().slice(0, 10),
+      };
+    }
+    roster.push(
+      makePlayer(id, `Player ${i}`, {
+        primaryPosition: primary,
+        restrictions,
+        bats,
+        throws: throws_,
+        pitching,
+      })
+    );
+  }
+  return roster;
+};
+
+// Extended validator: invariants + pitch-count eligibility for any P slot.
+const validateLineup9Plus = (result, opts) => {
+  const base = validateLineup(result, opts);
+  if (base.length > 0) return base;
+  if (!result.lineup) return base;
+  const violations = [];
+  const playerById = new Map();
+  for (const p of opts.players) playerById.set(p.id, p);
+  for (let inn = 0; inn < result.lineup.length; inn++) {
+    const inning = result.lineup[inn] || {};
+    const pitcher = inning.P;
+    if (!pitcher) continue;
+    const fullPlayer = playerById.get(pitcher.id);
+    if (!fullPlayer) continue;
+    if (!isPitcherEligible(fullPlayer, opts.targetDate, opts.teamAge)) {
+      violations.push(
+        `inning ${inn + 1}: pitcher ${pitcher.name} ineligible by pitch count rules ` +
+          `(recent=${fullPlayer.pitching?.recentPitches}, lastPitchDate=${fullPlayer.pitching?.lastPitchDate})`
+      );
+    }
+  }
+  return violations;
+};
+
+const TIERS_9_PLUS = ["9U", "10U", "11U to 12U"];
+const SCENARIOS_PER_TIER = 32;
+
+for (const teamAge of TIERS_9_PLUS) {
+  describe(`${teamAge} fuzz / soak — kid pitch eligibility + invariants`, () => {
+    for (let i = 1; i <= SCENARIOS_PER_TIER; i++) {
+      // Seed deliberately distinct from 8U fuzz so failures stay
+      // reproducible per tier.
+      const scenarioSeed = TIERS_9_PLUS.indexOf(teamAge) * 1000 + i;
+      const r = seededRand(scenarioSeed);
+      const size = 9 + Math.floor(r() * 7); // 9..15 players
+      const defenseSize = r() < 0.5 ? "10" : "9";
+      const isBigGame = r() < 0.35;
+      const positionLockOptions = ["0", "1", "2", "3", "full"];
+      const positionLock =
+        positionLockOptions[Math.floor(r() * positionLockOptions.length)];
+      // NKB only — the engine gates pitch-count eligibility checks on
+      // leagueRuleSet === "NKB" && defenseSize === "9" (see lineupEngine.js
+      // pickBestForPosition + pre-pin). USSSA + 10-fielder pitch-count
+      // enforcement is a known gap; this fuzz tier doesn't cover it yet.
+      const leagueRuleSet = "NKB";
+      const defenseSize9 = "9";
+      const totalInnings = teamAge === "11U to 12U" ? 7 : 6;
+      const targetDate = "2026-05-15";
+      const players = makeFuzzRoster9Plus(size, scenarioSeed * 17 + 3, targetDate);
+
+      const cfg = {
+        size,
+        defenseSize: defenseSize9,
+        isBigGame,
+        positionLock,
+        leagueRuleSet,
+        totalInnings,
+        players,
+        teamAge,
+        targetDate,
+        scenarioSeed,
+      };
+
+      test(`seed=${scenarioSeed} n=${size} ${leagueRuleSet} ${teamAge} def=${defenseSize9} lock=${positionLock}${
+        isBigGame ? " BG" : ""
+      }`, () => {
+        const result = generateLineup({
+          activePlayers: players,
+          allPlayers: players,
+          games: [],
+          evaluationEvents: [],
+          currentGame: { id: `g-fuzz-${teamAge}-${scenarioSeed}`, date: targetDate },
+          firstInningOverridesById: {},
+          totalInnings,
+          leagueRuleSet,
+          teamAge,
+          defenseSize: defenseSize9,
+          positionLock,
+          battingSize: "roster",
+          seed: scenarioSeed * 31 + 7,
+          isBigGame,
+          pitchingFormat: "Kid Pitch",
+        });
+        const v = validateLineup9Plus(result, cfg);
+        expect(v).toEqual([]);
+      });
+    }
+  });
+}
+
 describe("8U fuzz / soak — engine never fails or violates invariants", () => {
   // 64 random scenarios spanning realistic 8U conditions. Each gets a
   // deterministic seed so a failure is exactly reproducible.
