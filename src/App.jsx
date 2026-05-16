@@ -515,19 +515,23 @@ const TeamProvider = ({ children }) => {
   // ----- Roster actions -----
   const addPlayer = useCallback(
     (form) => {
+      const id =
+        form.id || "p-" + Math.random().toString(36).substring(2, 10);
       const newPlayer = {
-        id: "p-" + Math.random().toString(36).substring(2, 10),
+        id,
         name: form.name.trim(),
         number: form.number || "",
         bats: form.bats || "R",
         throws: form.throws || "R",
         primaryPosition: form.primaryPosition || "",
+        photoUrl: form.photoUrl || "",
         present: true,
         restrictions: [],
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
       };
       updateTeam({ players: [...teamData.players, newPlayer] });
+      return id;
     },
     [teamData.players, updateTeam]
   );
@@ -2581,6 +2585,8 @@ const UIProvider = ({ children }) => {
 /* ============================================================================
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
+const TAB_ORDER = ["home", "roster", "schedule", "evaluation", "settings"];
+
 const MainShell = () => {
   const {
     team,
@@ -2589,8 +2595,10 @@ const MainShell = () => {
     loading,
     genError,
     setGenError,
+    regenerateLineup,
+    regenerateBatting,
   } = useTeam();
-  const { viewingPlayerId, activeTab, setActiveTab } = useUI();
+  const { viewingPlayerId, activeTab, setActiveTab, selectedGameId } = useUI();
   const [tutorialOpen, setTutorialOpen] = useState(false);
 
   useEffect(() => {
@@ -2598,6 +2606,65 @@ const MainShell = () => {
       setTutorialOpen(true);
     }
   }, [authReady, user]);
+
+  // Global keyboard shortcuts. Disabled while typing in form fields. Active
+  // anywhere in the app:
+  //   1-5 → switch primary tab
+  //   ?    → open the tutorial
+  //   G    → regenerate lineup (only when a game is selected for editing)
+  //   B    → regenerate batting order (same gate as G)
+  //   Esc  → close tutorial / does not handle modals here (each owns its own)
+  useEffect(() => {
+    if (!authReady || !user) return undefined;
+    const onKey = (e) => {
+      // Bail in any form field or contentEditable region.
+      const target = e.target;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      // Don't intercept when a modifier is held (we're not stealing OS shortcuts).
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const k = e.key;
+      if (k >= "1" && k <= "5") {
+        const idx = parseInt(k, 10) - 1;
+        if (TAB_ORDER[idx]) {
+          e.preventDefault();
+          setActiveTab(TAB_ORDER[idx]);
+        }
+        return;
+      }
+      if (k === "?" || (k === "/" && e.shiftKey)) {
+        e.preventDefault();
+        setTutorialOpen(true);
+        return;
+      }
+      if ((k === "g" || k === "G") && selectedGameId) {
+        e.preventDefault();
+        regenerateLineup?.();
+        return;
+      }
+      if ((k === "b" || k === "B") && selectedGameId) {
+        e.preventDefault();
+        regenerateBatting?.();
+        return;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [
+    authReady,
+    user,
+    setActiveTab,
+    selectedGameId,
+    regenerateLineup,
+    regenerateBatting,
+  ]);
 
   useEffect(() => {
     const root = document.documentElement;

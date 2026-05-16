@@ -2,18 +2,11 @@ import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
-
-const getInitials = (name) => {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-};
+import { PlayerAvatar } from "../components/shared.jsx";
 
 const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
-  const initials = getInitials(player.name);
   const positionTag = player.primaryPosition || "—";
 
   return (
@@ -25,9 +18,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
       }`}
     >
       <div
-        className={`relative grid place-items-center overflow-hidden ${
-          absent ? "" : ""
-        }`}
+        className="relative grid place-items-center overflow-hidden"
         style={{
           background: absent
             ? "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 60%), linear-gradient(135deg, #64748b 0%, #475569 60%, #1e293b 100%)"
@@ -35,7 +26,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
         }}
       >
         <span
-          className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded text-white/80"
+          className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded text-white/80 z-10"
           style={{
             backgroundColor: "rgba(0,0,0,0.3)",
             fontSize: "8px",
@@ -44,18 +35,9 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
         >
           {positionTag}
         </span>
+        <PlayerAvatar player={player} size={54} className="shadow-inner" />
         <span
-          className="relative w-[54px] h-[54px] rounded-full grid place-items-center font-black text-lg shadow-inner"
-          style={{
-            background:
-              "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(241,245,249,0.85))",
-            color: absent ? "#475569" : "var(--team-primary)",
-          }}
-        >
-          {initials}
-        </span>
-        <span
-          className="absolute bottom-1.5 right-2 font-black text-2xl text-white/95 tabular-nums"
+          className="absolute bottom-1.5 right-2 font-black text-2xl text-white/95 tabular-nums z-10"
           style={{
             letterSpacing: "-0.03em",
             textShadow: "0 2px 4px rgba(0,0,0,0.5)",
