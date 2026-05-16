@@ -116,53 +116,102 @@ const ToastProvider = ({ children }) => {
   );
 };
 
+const TOAST_TONES = {
+  success: {
+    accent: "#10b981",
+    iconBg: "linear-gradient(180deg, #10b981, #059669)",
+    iconShadow: "0 2px 6px rgba(16,185,129,0.35)",
+    actionColor: "#047857",
+    actionBorder: "#a7f3d0",
+  },
+  error: {
+    accent: "#f43f5e",
+    iconBg: "linear-gradient(180deg, #f43f5e, #e11d48)",
+    iconShadow: "0 2px 6px rgba(244,63,94,0.35)",
+    actionColor: "#b91c1c",
+    actionBorder: "#fecaca",
+  },
+  warn: {
+    accent: "#f59e0b",
+    iconBg: "linear-gradient(180deg, #fbbf24, #f59e0b)",
+    iconShadow: "0 2px 6px rgba(245,158,11,0.35)",
+    actionColor: "#a16207",
+    actionBorder: "#fcd34d",
+  },
+  info: {
+    accent: "var(--team-primary)",
+    iconBg: "linear-gradient(180deg, #3b82f6, var(--team-primary))",
+    iconShadow: "0 2px 6px rgba(37,99,235,0.35)",
+    actionColor: "var(--team-primary)",
+    actionBorder: "#bfdbfe",
+  },
+};
+
+const toastIcon = (kind) => {
+  if (kind === "success") return Icons.Check;
+  if (kind === "error") return Icons.Alert;
+  if (kind === "warn") return Icons.Alert;
+  return Icons.Cloud;
+};
+
 const ToastContainer = memo(({ toasts, dismiss }) => {
   if (toasts.length === 0) return null;
   return (
-    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2 max-w-sm print:hidden">
+    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden">
       {toasts.map((t) => {
-        const tone =
-          t.kind === "error"
-            ? "bg-red-600 text-white border-red-700"
-            : t.kind === "success"
-            ? "bg-green-600 text-white border-green-700"
-            : t.kind === "warn"
-            ? "bg-amber-500 text-white border-amber-600"
-            : "bg-slate-900 text-white border-slate-800";
+        const tone = TOAST_TONES[t.kind] || TOAST_TONES.info;
+        const Icon = toastIcon(t.kind);
         return (
           <div
             key={t.id}
-            className={`shadow-lg border rounded-xl px-4 py-3 flex items-start gap-3 animate-in slide-in-from-right ${tone}`}
+            className="relative bg-white rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
+            role="status"
           >
+            <span
+              className="absolute left-0 top-0 bottom-0 w-1"
+              style={{ backgroundColor: tone.accent }}
+            />
+            <span
+              className="shrink-0 w-9 h-9 rounded-[10px] grid place-items-center text-white"
+              style={{ background: tone.iconBg, boxShadow: tone.iconShadow }}
+            >
+              <Icon className="w-[18px] h-[18px]" />
+            </span>
             <div className="flex-1 min-w-0">
               {t.title && (
-                <div className="font-black text-sm uppercase tracking-wider">
+                <div className="t-button text-slate-900" style={{ fontSize: "12px" }}>
                   {t.title}
                 </div>
               )}
               {t.message && (
-                <div className="text-xs font-bold mt-0.5 opacity-95">
+                <div className="text-[11.5px] font-semibold text-slate-600 mt-0.5 leading-snug">
                   {t.message}
                 </div>
               )}
             </div>
             {t.action && (
               <button
+                type="button"
                 onClick={() => {
                   t.action.onClick();
                   dismiss(t.id);
                 }}
-                className="shrink-0 bg-white/20 hover:bg-white/30 text-white text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-white/30 transition-colors"
+                className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-slate-50"
+                style={{
+                  color: tone.actionColor,
+                  borderColor: tone.actionBorder,
+                }}
               >
                 {t.action.label}
               </button>
             )}
             <button
+              type="button"
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss"
-              className="shrink-0 p-1 hover:bg-white/20 rounded transition-colors"
+              className="shrink-0 w-[22px] h-[22px] grid place-items-center text-slate-400 hover:text-slate-700 rounded-md"
             >
-              <Icons.X className="w-3.5 h-3.5" />
+              <Icons.X className="w-3 h-3" />
             </button>
           </div>
         );
