@@ -1,4 +1,4 @@
-import { generateLineup, generateBattingOnly } from "./lineupEngine.js";
+import { generateLineup, generateBattingOnly } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
 // Test fixtures

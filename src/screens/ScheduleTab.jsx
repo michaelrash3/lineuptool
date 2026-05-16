@@ -7,7 +7,7 @@ import {
   buildSeasonBenchImbalance,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
-import { getPositionsForInning } from "../lineupEngine.js";
+import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { RecordBadge } from "../components/shared.jsx";
 import { LineupGrid } from "./LineupGrid.jsx";

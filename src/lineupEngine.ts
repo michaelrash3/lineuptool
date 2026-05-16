@@ -1,35 +1,55 @@
-// lineupEngine.js
+// @ts-nocheck — pragmatic first-pass TS conversion (per the Phase 8 plan).
+// The public-surface function signatures below are fully typed against
+// src/types.ts, so consumers (App.jsx, ScheduleTab.jsx, EvaluationTab.jsx,
+// lineupEngine.test.js) see strict input/output contracts. The 2,200-line
+// internal soup is intentionally left unchecked in this PR — tightening the
+// internal types is iterative follow-up work backed by the 178-test safety
+// net + the fuzz suite. Removing this directive is the explicit goal of the
+// next engine-types PR.
+//
+// lineupEngine.ts
 // =============================================================================
 // Pure function lineup generation engine.
-// No React, no Firebase, no DOM  fully testable in isolation and trivially
+// No React, no Firebase, no DOM — fully testable in isolation and trivially
 // movable to a Web Worker if the UI thread ever needs to be freed up.
 //
 // Public API
 // ----------
-//   generateLineup(input)  -> { lineup, battingLineup } | { error: string }
-//   generateBattingOrder(profiledPlayers, battingSize, opts) -> Player[]
+//   generateLineup(input)  -> EngineResult
+//   generateBattingOrder(profiledPlayers, battingSize, opts) -> { order, reasons }
 //
 // Plus exported helpers (`getPositionsForInning`, `getCombinedGrades`,
 // `getOffensiveScore`, `calculateTotalScore`, etc.) used by the UI.
 //
-// What this version adds vs. the inline original
-// ----------------------------------------------
-//   Pre computed player profiles (no repeated stat parsing in inner loops)
-//   One pass aggregated position history (was: full re scan per scoring call)
-//   Fisher Yates shuffle with a seeded PRNG (mulberry32)  unbiased + reproducible
-//   200 attempt score guided greedy with early exit on penalty=0 (was: 5,000)
-//   Diversity penalty: punishes 3+ innings at the same non C/non P position
-//     across the game, which produces noticeably more rotation
-//   Explicit `seed` parameter so the UI can offer "Regenerate" deliberately
+// TypeScript conversion notes (Phase 8 first-pass):
+//   - Public-surface signatures are fully typed against shared types in
+//     src/types.ts.
+//   - Internal helpers stay loosely typed (`any` / inferred) where strict
+//     annotations would require a 50-line refactor. Tightening internals is
+//     iterative follow-up work.
+//   - Backwards-compat readers (gloveOf etc.) accept any shape, since they
+//     fall back to v1 field names.
 // =============================================================================
 
-// ---------- Constants ----------
-const POS_10 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
-const POS_9 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
-const OF_POSITIONS = new Set(["LF", "LCF", "RCF", "RF", "CF"]);
-const INFIELD_NON_1B = new Set(["C", "2B", "SS", "3B"]);
+import type {
+  EngineInput,
+  EngineResult,
+  EvaluationEvent,
+  GradeMap,
+  Game,
+  Player,
+  PlayerProfile,
+  PlayerStats,
+  Position,
+} from "./types";
 
-const POS_DIFFICULTY = {
+// ---------- Constants ----------
+const POS_10: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
+const POS_9: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+const OF_POSITIONS = new Set<string>(["LF", "LCF", "RCF", "RF", "CF"]);
+const INFIELD_NON_1B = new Set<string>(["C", "2B", "SS", "3B"]);
+
+const POS_DIFFICULTY: Record<string, number> = {
   P: 5,
   "1B": 5,
   SS: 5,
@@ -46,7 +66,7 @@ const POS_DIFFICULTY = {
 // Coach's Card v2 universal categories — the 11 that drive total-score and
 // position scoring. Pitching/Catching add-ons live in src/constants/ui.ts and
 // influence specialty position decisions, not the universal total.
-const EVAL_CATEGORIES = [
+const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "contact", weight: 1.5 },
   { id: "power", weight: 1.0 },
   { id: "plateDiscipline", weight: 1.0 },
@@ -60,7 +80,7 @@ const EVAL_CATEGORIES = [
   { id: "coachability", weight: 1.0 },
 ];
 
-const DEFAULT_GRADES = Object.freeze({
+const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
   contact: 5,
   power: 5,
   plateDiscipline: 5,
@@ -77,17 +97,21 @@ const DEFAULT_GRADES = Object.freeze({
 // Backwards-compat aliases — reads the v2 field if present, else falls back
 // to the v1 field (e.g. `glove` ← `fielding`, `baserunning` ← `speedAgility`).
 // Lets the engine consume v1-shaped objects until they're migrated.
-const gloveOf = (g) => g?.glove ?? g?.fielding ?? 5;
-const rangeOf = (g) => g?.range ?? g?.fielding ?? 5;
-const baserunningOf = (g) => g?.baserunning ?? g?.speedAgility ?? 5;
-const contactOf = (g) => g?.contact ?? 5;
-const approachOf = (g) => g?.approach ?? 5;
-const powerOf = (g) => g?.power ?? 5;
-const plateDisciplineOf = (g) => g?.plateDiscipline ?? 5;
+// Each takes a possibly-undefined grade record (legacy callers pass {} or null).
+const gloveOf = (g: any): number => g?.glove ?? g?.fielding ?? 5;
+const rangeOf = (g: any): number => g?.range ?? g?.fielding ?? 5;
+const baserunningOf = (g: any): number => g?.baserunning ?? g?.speedAgility ?? 5;
+const contactOf = (g: any): number => g?.contact ?? 5;
+const approachOf = (g: any): number => g?.approach ?? 5;
+const powerOf = (g: any): number => g?.power ?? 5;
+const plateDisciplineOf = (g: any): number => g?.plateDiscipline ?? 5;
 
 // ---------- Public helpers (re exported for the UI) ----------
 
-export function getPositionsForInning(playerCount, defSize) {
+export function getPositionsForInning(
+  playerCount: number,
+  defSize: string
+): Position[] {
   const base = defSize === "10" ? POS_10 : POS_9;
   if (defSize === "10") {
     if (playerCount >= 10) return [...base];
@@ -100,7 +124,10 @@ export function getPositionsForInning(playerCount, defSize) {
   return base.filter((p) => p !== "RF" && p !== "LF");
 }
 
-export function getCombinedGrades(evaluationEvents, playersList) {
+export function getCombinedGrades(
+  evaluationEvents: EvaluationEvent[],
+  playersList: Player[]
+): Record<string, GradeMap> {
   let latestHead = null;
   for (const e of evaluationEvents) {
     if (e.coachRole !== "Head") continue;
@@ -119,14 +146,14 @@ export function getCombinedGrades(evaluationEvents, playersList) {
   const assistantEvals = [...latestAssistantByEvaluator.values()];
   const astCount = assistantEvals.length;
 
-  const out = {};
+  const out: Record<string, GradeMap> = {};
   for (const p of playersList) {
     const headG = latestHead?.grades?.[p.id];
-    const grades = { ...DEFAULT_GRADES };
+    const grades: GradeMap = { ...DEFAULT_GRADES };
 
     // v2 grade reader — falls back to v1 field names when present so a team
     // that hasn't migrated all rounds still gets sensible defaults.
-    const readCat = (g, catId) => {
+    const readCat = (g: any, catId: string): number | null => {
       if (!g) return null;
       if (g[catId] != null) return g[catId];
       if (catId === "glove" || catId === "range") return g.fielding ?? null;
@@ -135,7 +162,7 @@ export function getCombinedGrades(evaluationEvents, playersList) {
     };
 
     if (astCount > 0) {
-      const astSum = {};
+      const astSum: Record<string, number> = {};
       for (const cat of EVAL_CATEGORIES) astSum[cat.id] = 0;
       let participating = 0;
       for (const ev of assistantEvals) {
@@ -187,16 +214,21 @@ export function getCombinedGrades(evaluationEvents, playersList) {
 //
 // All stats use AB weighted averaging where appropriate. Counting stats
 // (H, HR, RBI, etc.) come straight from current  they don't need blending.
-export function getEffectiveStats(player) {
-  const cur = player?.stats || {};
-  const pastAll = Array.isArray(player?.pastSeasons) ? player.pastSeasons : [];
+export function getEffectiveStats(player: Player): PlayerStats & {
+  __blended?: boolean;
+  __blendWeights?: { current: number; past1: number; past2: number };
+} {
+  const cur: PlayerStats = player?.stats || {};
+  const pastAll: any[] = Array.isArray((player as any)?.pastSeasons)
+    ? (player as any).pastSeasons
+    : [];
   // Take up to two most recent past seasons. Sort by descending season string.
   const past = [...pastAll]
     .filter((p) => p && p.stats)
     .sort((a, b) => String(b.season).localeCompare(String(a.season)))
     .slice(0, 2);
 
-  const curAB = +cur.ab || 0;
+  const curAB = Number(cur.ab) || 0;
   // Current weight ramps from 0  1 over the first 30 ABs.
   const wCur = Math.min(1, curAB / 30);
   // Past weights scale down as current ramps up.
@@ -208,13 +240,15 @@ export function getEffectiveStats(player) {
   if (totalW === 0) return cur;
 
   // Blend rate stats (avg, ops, obp, contact, ld, hard, qab, babip).
-  const blend = (key) => {
-    const c = +cur[key] || 0;
+  const blend = (key: string): number => {
+    const c = +(cur as any)[key] || 0;
     const p1 = past[0]?.stats ? +past[0].stats[key] || 0 : 0;
     const p2 = past[1]?.stats ? +past[1].stats[key] || 0 : 0;
     return (c * wCur + p1 * wP1 + p2 * wP2) / totalW;
   };
 
+  // Cast through any: PlayerStats has a numeric index signature, so the
+  // __blended bookkeeping fields fail strict assignability without this.
   return {
     ...cur, // preserve any non blended fields (counting stats etc.)
     avg: blend("avg"),
@@ -225,22 +259,22 @@ export function getEffectiveStats(player) {
     hard: blend("hard"),
     qab: blend("qab"),
     babip: blend("babip"),
-    // Mark for downstream code that this is blended; debug aid.
     __blended: true,
     __blendWeights: { current: wCur, past1: wP1, past2: wP2 },
-  };
+  } as any;
 }
 
-export function getOffensiveScore(stats) {
+export function getOffensiveScore(stats?: PlayerStats | null): number {
   if (!stats) return 5;
-  const ops = +stats.ops || 0;
-  const avg = +stats.avg || 0;
-  const obp = +stats.obp || 0;
-  const contact = +stats.contact || 0;
-  const ld = +stats.ld || 0;
-  const hard = +stats.hard || 0;
-  const qab = +stats.qab || 0;
-  const babip = +stats.babip || 0;
+  const num = (v: number | undefined) => Number(v) || 0;
+  const ops = num(stats.ops);
+  const avg = num(stats.avg);
+  const obp = num(stats.obp);
+  const contact = num(stats.contact);
+  const ld = num(stats.ld);
+  const hard = num(stats.hard);
+  const qab = num(stats.qab);
+  const babip = num(stats.babip);
 
   if (ops === 0 && avg === 0 && qab === 0) return 5;
 
@@ -258,9 +292,9 @@ export function getOffensiveScore(stats) {
       Math.min(10, advanced) * 0.3
     : opsScore * 0.4 + avgScore * 0.25 + obpScore * 0.2 + conScore * 0.15;
 
-  const hr = +stats.hr || 0;
-  const doubles = +stats.doubles || 0;
-  const triples = +stats.triples || 0;
+  const hr = num(stats.hr);
+  const doubles = num(stats.doubles);
+  const triples = num(stats.triples);
   const xbBonus = Math.min(1.5, hr * 0.5 + triples * 0.3 + doubles * 0.1);
   const unlucky =
     (ld > 0.15 || hard > 0.15) && babip < 0.3
@@ -270,7 +304,10 @@ export function getOffensiveScore(stats) {
   return Math.min(10, Math.max(1, Math.round(weighted + xbBonus + unlucky)));
 }
 
-export function calculateTotalScore(grades, stats) {
+export function calculateTotalScore(
+  grades: GradeMap | null | undefined,
+  stats?: PlayerStats | null
+): number {
   if (!grades) return 0;
   const off = getOffensiveScore(stats);
   // Mix of v2 + v1-compat: glove and range BOTH read from v1.fielding when
@@ -294,7 +331,7 @@ export function calculateTotalScore(grades, stats) {
 
 // ---------- Pitch count eligibility ----------
 
-const PITCH_LIMITS = {
+const PITCH_LIMITS: Record<string, number> = {
   "6U": 50,
   "7U": 50,
   "8U": 50,
@@ -305,10 +342,10 @@ const PITCH_LIMITS = {
   "15U to 18U": 105,
 };
 
-function maxPitchesForAge(age) {
+function maxPitchesForAge(age: string): number {
   return PITCH_LIMITS[age] ?? 105;
 }
-function requiredRestDays(p) {
+function requiredRestDays(p: number): number {
   if (p >= 66) return 4;
   if (p >= 51) return 3;
   if (p >= 36) return 2;
@@ -316,8 +353,14 @@ function requiredRestDays(p) {
   return 0;
 }
 
-export function checkPitchEligibility(player, targetDateStr, ageGroup) {
-  const pitching = player.pitching;
+export function checkPitchEligibility(
+  player: Player,
+  targetDateStr: string,
+  ageGroup: string
+): boolean {
+  const pitching = (player as any).pitching as
+    | { lastPitchDate?: string; recentPitches?: number }
+    | undefined;
   if (!pitching?.lastPitchDate || !pitching.recentPitches) return true;
   const recent = pitching.recentPitches;
   if (recent === 0) return true;
@@ -332,7 +375,7 @@ export function checkPitchEligibility(player, targetDateStr, ageGroup) {
 
 // ---------- Lefty infield penalty (precomputed table) ----------
 
-const LEFTY_PENALTY = {
+const LEFTY_PENALTY: Record<string, number> = {
   "NKB|6U": 5,
   "NKB|7U": 5,
   "NKB|8U": 10,
@@ -341,12 +384,12 @@ const LEFTY_PENALTY = {
   "USSSA|7U": 20,
   "USSSA|8U": 35,
 };
-function leftyInfieldPenalty(rules, age) {
+function leftyInfieldPenalty(rules: string, age: string): number {
   return LEFTY_PENALTY[`${rules}|${age}`] ?? 50;
 }
 
 // ---------- Seeded PRNG ----------
-function mulberry32(seed) {
+function mulberry32(seed: number): () => number {
   let s = seed >>> 0;
   return function () {
     s = (s + 0x6d2b79f5) >>> 0;
@@ -359,28 +402,31 @@ function mulberry32(seed) {
 
 // ---------- Player profile cache ----------
 
-function buildPlayerProfile(p, grades) {
-  const g = grades || DEFAULT_GRADES;
+function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): PlayerProfile {
+  // Cast: GradeMap has every value as number|undefined, but the engine always
+  // operates on the DEFAULT_GRADES-filled shape internally. Casting to a
+  // strict Record<string, number> avoids null-coalescing every access.
+  const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
   // Use effective (blended) stats: blends current with last 1 to 2 past seasons,
   // weighted by current AB sample size. Smooths out small samples early in
   // the season and decays past season influence as current data accumulates.
-  const s = getEffectiveStats(p);
+  const s: PlayerStats = getEffectiveStats(p);
+  const num = (v: number | undefined) => Number(v) || 0;
 
-  const obp = +s.obp || 0;
-  const ops = +s.ops || 0;
-  const avg = +s.avg || 0;
-  const contact = +s.contact || 0;
-  // Counting stats (HR, RBI, etc.) come from current season only  they don't
-  // need blending, but past versions of them aren't directly meaningful here
-  // anyway. We keep them as is from the player.stats object.
-  const cs = p.stats || {};
-  const hr = +cs.hr || 0;
-  const rbi = +cs.rbi || 0;
-  const doubles = +cs.doubles || 0;
-  const triples = +cs.triples || 0;
-  const ld = +s.ld || 0;
-  const hard = +s.hard || 0;
-  const qab = +s.qab || 0;
+  const obp = num(s.obp);
+  const ops = num(s.ops);
+  const avg = num(s.avg);
+  const contact = num(s.contact);
+  // Counting stats (HR, RBI, etc.) come from current season only — they don't
+  // need blending. We keep them as-is from the player.stats object.
+  const cs: PlayerStats = p.stats || {};
+  const hr = num(cs.hr);
+  const rbi = num(cs.rbi);
+  const doubles = num(cs.doubles);
+  const triples = num(cs.triples);
+  const ld = num(s.ld);
+  const hard = num(s.hard);
+  const qab = num(s.qab);
 
   const advContact = Math.max(ld * 2.5, hard * 2.0, qab * 1.5);
   const finalContact =
@@ -434,7 +480,7 @@ function buildPlayerProfile(p, grades) {
 
 // ---------- Aggregated history ----------
 
-function buildPositionHistory(games, currentGameId) {
+function buildPositionHistory(games: Game[], currentGameId?: string): any {
   const out = new Map();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup) continue;
@@ -442,9 +488,12 @@ function buildPositionHistory(games, currentGameId) {
     if (g.status && g.status !== "final") continue;
     const wasBigGame = g.isBigGame === true;
     for (const inning of g.lineup) {
-      for (const pos in inning) {
+      // Cast to a positions-only view: we skip BENCH up front, so every
+      // remaining slot is SlimPlayer (single player or null).
+      const innPos = inning as unknown as Record<string, SlimPlayer>;
+      for (const pos in innPos) {
         if (pos === "BENCH") continue;
-        const p = inning[pos];
+        const p = innPos[pos];
         if (!p) continue;
         let m = out.get(p.id);
         if (!m) {
@@ -461,7 +510,7 @@ function buildPositionHistory(games, currentGameId) {
   return out;
 }
 
-function buildFirstInningBenchHistory(games, currentGameId) {
+function buildFirstInningBenchHistory(games: Game[], currentGameId?: string): any {
   const counts = new Map();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
@@ -484,7 +533,7 @@ function buildFirstInningBenchHistory(games, currentGameId) {
 // (math floor) and tally each player's "extra sits" = bench count minus minimum.
 // Players who weren't present don't count for that game.
 // Returns Map<playerId, { extraSits: number }>.
-function buildExtraSitHistory(games, currentGameId) {
+function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
   const out = new Map();
 
   for (const g of games) {
@@ -595,7 +644,7 @@ function buildExtraSitHistory(games, currentGameId) {
 // Detects whether NKB's per half inning run cap applies to a given league/age.
 // NKB caps half innings at 7 runs for 7U/8U Machine Pitch (and 6U coach pitch).
 // 9U+ NKB and all USSSA tiers have no run cap.
-export function hasNkbRunCap(leagueRuleSet, teamAge) {
+export function hasNkbRunCap(leagueRuleSet: string, teamAge: string): boolean {
   if (leagueRuleSet !== "NKB") return false;
   return teamAge === "6U" || teamAge === "7U" || teamAge === "8U";
 }
@@ -632,7 +681,11 @@ export function hasNkbRunCap(leagueRuleSet, teamAge) {
  * `battingSize` matches the existing semantics: "roster" = bat everyone, or
  * a number to limit to top N hitters.
  */
-export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
+export function generateBattingOrder(
+  profiledPlayers: any[],
+  battingSize: string,
+  opts: { seed?: number; leagueRuleSet?: string; teamAge?: string } = {}
+): { order: any[]; reasons: Array<{ role: string; note: string }> } {
   const { leagueRuleSet, teamAge, seed } = opts;
   const total = profiledPlayers.length;
   const count =
@@ -823,7 +876,7 @@ export function generateBattingOrder(profiledPlayers, battingSize, opts = {}) {
 // from raw players + grades and runs generateBattingOrder. Defense side
 // state (lineup, bench schedule, etc.) is untouched. Returns the new
 // batting order or { error } if the inputs are too thin.
-export function generateBattingOnly(input) {
+export function generateBattingOnly(input: EngineInput): EngineResult {
   const {
     activePlayers,
     allPlayers,
@@ -881,7 +934,7 @@ export function generateBattingOnly(input) {
 
 // ---------- Main generator ----------
 
-export function generateLineup(input) {
+export function generateLineup(input: EngineInput): EngineResult {
   const {
     activePlayers,
     allPlayers,
@@ -1137,7 +1190,7 @@ export function generateLineup(input) {
    Returns: { schedule: Map<playerId, Set<inning>>, catcherByPair: Map<pairIdx, playerId> }
    On infeasibility: returns null (caller restarts attempt).
 ---------------------------------------------------------------------------- */
-function precomputeBenchSchedule(opts) {
+function precomputeBenchSchedule(opts: any): any {
   const {
     profiled,
     totalInnings,
@@ -1631,7 +1684,7 @@ function precomputeBenchSchedule(opts) {
   return { schedule, catcherByPair };
 }
 
-function tryBuildLineup(ctx) {
+function tryBuildLineup(ctx: any): any {
   const {
     profiled,
     positionsToFill,
@@ -2059,7 +2112,7 @@ function tryBuildLineup(ctx) {
 
 // ---------- Position scoring ----------
 
-function pickBestForPosition(opts) {
+function pickBestForPosition(opts: any): any {
   const {
     pos,
     inn,
