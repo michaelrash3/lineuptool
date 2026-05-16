@@ -8,18 +8,20 @@ import React, {
 } from "react";
 import { Icons } from "../icons";
 import { calculateBaseballAge } from "../utils/helpers";
-import { EVAL_CATEGORIES } from "../constants/ui";
+import {
+  EVAL_CATEGORIES,
+  EVAL_GROUPS_UNIVERSAL,
+  EVAL_GROUPS_KID_PITCH_ADDONS,
+  getEvalCategoriesForTeam,
+  isKidPitchFormat,
+} from "../constants/ui";
 import { getOffensiveScore, calculateTotalScore } from "../lineupEngine.js";
 import { useTeam, useUI } from "../contexts.js";
 
-const DEFAULT_GRADES = {
-  fielding: 5,
-  baseballIQ: 5,
-  armStrength: 5,
-  armAccuracy: 5,
-  speedAgility: 5,
-  coachability: 5,
-};
+const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
+  (acc, c) => ({ ...acc, [c.id]: 5 }),
+  {}
+);
 
 const draftKey = (teamId, userUid) =>
   `lineuptool.evalDraft.${teamId || "unknown"}.${userUid || "anon"}`;
@@ -403,6 +405,327 @@ export const RosterDecisionsPanel = memo(() => {
 /* ============================================================================
    SECTION 13b · EvaluationTab
 ============================================================================ */
+// ---------- Insights helpers ----------
+
+// Average a player's grades across all the universal categories they have a
+// number for (excludes notes / non-numeric fields).
+const avgUniversal = (gradeRecord) => {
+  if (!gradeRecord) return null;
+  const vals = EVAL_CATEGORIES.filter((c) => !c.addOn)
+    .map((c) => +gradeRecord[c.id])
+    .filter((v) => Number.isFinite(v) && v >= 1 && v <= 10);
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+};
+
+// Compute the list of automatic flags from the most-recent two rounds.
+// Standouts: average grade up by ≥ 0.75 round-over-round
+// Regressions: average grade down by ≥ 0.75 round-over-round
+// Per-category alerts: any single category dropped 2+ points round-over-round
+const computeFlags = (rounds, players, activeCategories) => {
+  if (!rounds || rounds.length < 2) {
+    return { standouts: [], regressions: [], categoryDrops: [] };
+  }
+  const [latest, previous] = rounds;
+  const standouts = [];
+  const regressions = [];
+  const categoryDrops = [];
+  players.forEach((p) => {
+    const latestG = latest.grades?.[p.id];
+    const prevG = previous.grades?.[p.id];
+    if (!latestG || !prevG) return;
+    const a = avgUniversal(latestG);
+    const b = avgUniversal(prevG);
+    if (a == null || b == null) return;
+    const delta = a - b;
+    if (delta >= 0.75) standouts.push({ player: p, delta });
+    if (delta <= -0.75) regressions.push({ player: p, delta });
+    activeCategories.forEach((cat) => {
+      const va = +latestG[cat.id];
+      const vb = +prevG[cat.id];
+      if (Number.isFinite(va) && Number.isFinite(vb) && vb - va >= 2) {
+        categoryDrops.push({
+          player: p,
+          category: cat,
+          from: vb,
+          to: va,
+        });
+      }
+    });
+  });
+  standouts.sort((a, b) => b.delta - a.delta);
+  regressions.sort((a, b) => a.delta - b.delta);
+  return {
+    standouts: standouts.slice(0, 3),
+    regressions: regressions.slice(0, 3),
+    categoryDrops: categoryDrops.slice(0, 5),
+  };
+};
+
+const fmtDelta = (d) =>
+  `${d >= 0 ? "+" : ""}${d.toFixed(1)}`.replace(/\.0$/, "");
+
+const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }) => {
+  const flags = useMemo(
+    () => computeFlags(rounds, players, activeCategories),
+    [rounds, players, activeCategories]
+  );
+  if (rounds.length < 2) return null;
+  const hasAny =
+    flags.standouts.length || flags.regressions.length || flags.categoryDrops.length;
+  if (!hasAny) return null;
+  return (
+    <div className="px-5 py-4 bg-white/40 border-b border-slate-200/50 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <span className="t-eyebrow">Round-Over-Round Insights</span>
+        <span className="text-[10px] font-bold text-slate-400">
+          {rounds[0].label || rounds[0].date} vs {rounds[1].label || rounds[1].date}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {flags.standouts.length > 0 && (
+          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3">
+            <div className="t-eyebrow text-emerald-700 mb-2 flex items-center gap-1.5">
+              <Icons.ChevronUp className="w-3 h-3" /> Standouts
+            </div>
+            <ul className="space-y-1.5">
+              {flags.standouts.map((s) => (
+                <li
+                  key={`std-${s.player.id}`}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onPlayerClick(s.player.id)}
+                    className="t-body-bold text-emerald-900 hover:underline text-left truncate"
+                  >
+                    {s.player.name}
+                  </button>
+                  <span className="t-stat-num-sm text-emerald-700 tabular-nums">
+                    {fmtDelta(s.delta)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {flags.regressions.length > 0 && (
+          <div className="bg-rose-50/70 border border-rose-200 rounded-xl px-4 py-3">
+            <div className="t-eyebrow text-rose-700 mb-2 flex items-center gap-1.5">
+              <Icons.ChevronDown className="w-3 h-3" /> Regressions
+            </div>
+            <ul className="space-y-1.5">
+              {flags.regressions.map((r) => (
+                <li
+                  key={`reg-${r.player.id}`}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onPlayerClick(r.player.id)}
+                    className="t-body-bold text-rose-900 hover:underline text-left truncate"
+                  >
+                    {r.player.name}
+                  </button>
+                  <span className="t-stat-num-sm text-rose-700 tabular-nums">
+                    {fmtDelta(r.delta)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      {flags.categoryDrops.length > 0 && (
+        <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="t-eyebrow text-amber-700 mb-2 flex items-center gap-1.5">
+            <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
+          </div>
+          <ul className="space-y-1.5">
+            {flags.categoryDrops.map((d, i) => (
+              <li
+                key={`drop-${d.player.id}-${d.category.id}-${i}`}
+                className="flex items-center justify-between text-sm flex-wrap gap-2"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => onPlayerClick(d.player.id)}
+                    className="t-body-bold text-amber-900 hover:underline text-left truncate"
+                  >
+                    {d.player.name}
+                  </button>
+                  <span className="t-eyebrow text-amber-700">
+                    {d.category.label}
+                  </span>
+                </span>
+                <span className="t-stat-num-sm text-amber-700 tabular-nums">
+                  {d.from} → {d.to}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+});
+
+// Side-by-side round comparison view. Lists every player with the per-category
+// delta between two saved rounds (left = older, right = newer).
+const RoundComparisonView = memo(
+  ({ rounds, players, activeCategories, onPlayerClick, onClose, primaryColor }) => {
+    const [leftId, setLeftId] = useState(rounds[1]?.id || "");
+    const [rightId, setRightId] = useState(rounds[0]?.id || "");
+    const left = rounds.find((r) => r.id === leftId);
+    const right = rounds.find((r) => r.id === rightId);
+    return (
+      <div
+        className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm p-4 flex items-end sm:items-center justify-center"
+        onClick={onClose}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-t-2xl sm:rounded-2xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col"
+        >
+          <div
+            className="h-1.5"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          />
+          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+            <div>
+              <div className="t-eyebrow">Round Comparison</div>
+              <h3 className="t-card-title">Side By Side</h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              aria-label="Close round comparison"
+            >
+              <Icons.X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="px-6 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <span className="t-eyebrow shrink-0">From:</span>
+              <select
+                value={leftId}
+                onChange={(e) => setLeftId(e.target.value)}
+                className="flex-1 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 rounded-lg cursor-pointer outline-none"
+              >
+                {rounds.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label || r.date} — {r.date}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <span className="t-eyebrow shrink-0">To:</span>
+              <select
+                value={rightId}
+                onChange={(e) => setRightId(e.target.value)}
+                className="flex-1 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 rounded-lg cursor-pointer outline-none"
+              >
+                {rounds.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label || r.date} — {r.date}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="overflow-auto flex-1">
+            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+              <thead className="bg-slate-50 sticky top-0 z-10">
+                <tr>
+                  <th className="p-3 t-eyebrow text-left w-48 sticky left-0 bg-slate-50 z-20 border-r border-slate-200">
+                    Player
+                  </th>
+                  {activeCategories.map((cat) => (
+                    <th key={cat.id} className="p-3 t-eyebrow text-center">
+                      {cat.label}
+                    </th>
+                  ))}
+                  <th className="p-3 t-eyebrow text-center bg-slate-100 border-l border-slate-200">
+                    Avg Δ
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {players.map((p) => {
+                  const lg = left?.grades?.[p.id];
+                  const rg = right?.grades?.[p.id];
+                  const la = avgUniversal(lg);
+                  const ra = avgUniversal(rg);
+                  const avgDelta =
+                    la != null && ra != null ? ra - la : null;
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="p-3 sticky left-0 bg-white z-10 border-r border-slate-100 max-w-[200px]">
+                        <button
+                          type="button"
+                          onClick={() => onPlayerClick(p.id)}
+                          className="t-body-bold text-slate-900 hover:text-team-primary uppercase tracking-tight text-left truncate"
+                        >
+                          {p.name}
+                        </button>
+                      </td>
+                      {activeCategories.map((cat) => {
+                        const v1 = +lg?.[cat.id];
+                        const v2 = +rg?.[cat.id];
+                        const has1 = Number.isFinite(v1);
+                        const has2 = Number.isFinite(v2);
+                        const delta = has1 && has2 ? v2 - v1 : null;
+                        return (
+                          <td key={cat.id} className="p-2 text-center">
+                            <div className="flex flex-col items-center leading-none gap-0.5">
+                              <span className="text-sm font-black text-slate-900 tabular-nums">
+                                {has2 ? v2 : "—"}
+                              </span>
+                              {delta != null && delta !== 0 && (
+                                <span
+                                  className={`text-[10px] font-black tabular-nums ${
+                                    delta > 0
+                                      ? "text-emerald-600"
+                                      : "text-rose-600"
+                                  }`}
+                                >
+                                  {fmtDelta(delta)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                      <td className="p-2 text-center bg-slate-50 border-l border-slate-200">
+                        <span
+                          className={`text-sm font-black tabular-nums ${
+                            avgDelta == null
+                              ? "text-slate-400"
+                              : avgDelta > 0
+                              ? "text-emerald-600"
+                              : avgDelta < 0
+                              ? "text-rose-600"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          {avgDelta != null ? fmtDelta(avgDelta) : "—"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
+
 const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
   <div
     className="flex items-center gap-1 flex-wrap"
@@ -457,8 +780,38 @@ export const EvaluationTab = memo(() => {
 
   const [openNotesPlayerId, setOpenNotesPlayerId] = useState(null);
   const [saveState, setSaveState] = useState("idle");
+  const [activeGroup, setActiveGroup] = useState("Hitting");
+  const [comparisonOpen, setComparisonOpen] = useState(false);
   const lastSavedRef = useRef("");
   const draftRestoredRef = useRef(false);
+
+  const activeCategories = useMemo(
+    () => getEvalCategoriesForTeam(team?.pitchingFormat),
+    [team?.pitchingFormat]
+  );
+  const includeKidPitchAddons = useMemo(
+    () => isKidPitchFormat(team?.pitchingFormat),
+    [team?.pitchingFormat]
+  );
+  const visibleGroups = useMemo(() => {
+    const base = [...EVAL_GROUPS_UNIVERSAL];
+    if (includeKidPitchAddons) base.push(...EVAL_GROUPS_KID_PITCH_ADDONS);
+    return base;
+  }, [includeKidPitchAddons]);
+  const groupCategories = useMemo(() => {
+    const byGroup = {};
+    activeCategories.forEach((c) => {
+      if (!byGroup[c.group]) byGroup[c.group] = [];
+      byGroup[c.group].push(c);
+    });
+    return byGroup;
+  }, [activeCategories]);
+  // If a group disappears (e.g. user changed pitchingFormat away from Kid Pitch
+  // while viewing the Pitching tab), bounce back to Hitting.
+  useEffect(() => {
+    if (!visibleGroups.includes(activeGroup)) setActiveGroup("Hitting");
+  }, [visibleGroups, activeGroup]);
+  const visibleCategoriesForGroup = groupCategories[activeGroup] || [];
 
   // Eval rounds belonging to this head coach, newest first
   const myRounds = useMemo(() => {
@@ -743,7 +1096,25 @@ export const EvaluationTab = memo(() => {
               Editing &quot;{activeRound.label || activeRound.date}&quot;
             </span>
           )}
+          {myRounds.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => setComparisonOpen(true)}
+              className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white flex items-center gap-1.5 shrink-0"
+              title="Compare any two saved rounds side by side"
+            >
+              <Icons.Forward className="w-3.5 h-3.5" /> Compare Rounds
+            </button>
+          )}
         </div>
+
+        {/* Round-over-round auto-flags (standouts / regressions / category drops) */}
+        <InsightsPanel
+          rounds={myRounds}
+          players={players}
+          activeCategories={activeCategories}
+          onPlayerClick={setEvalTrendPlayerId}
+        />
 
         {/* Quick-set toolbar */}
         <div className="px-5 py-3 bg-white/40 border-b border-white/40 flex flex-wrap items-center gap-2">
@@ -818,17 +1189,32 @@ export const EvaluationTab = memo(() => {
                       {totalScore}
                     </span>
                   </div>
-                  <div className="px-4 py-3 space-y-3">
-                    {EVAL_CATEGORIES.map((cat) => (
-                      <div key={cat.id}>
-                        <div className="t-eyebrow mb-1.5">{cat.label}</div>
-                        <GradeChipRow
-                          value={grades[cat.id]}
-                          onChange={(v) => setGrade(player.id, cat.id, v)}
-                          ariaLabel={`${player.name} ${cat.label}`}
-                        />
-                      </div>
-                    ))}
+                  <div className="px-4 py-3 space-y-4">
+                    {visibleGroups.map((group) => {
+                      const cats = groupCategories[group] || [];
+                      if (cats.length === 0) return null;
+                      return (
+                        <div key={group}>
+                          <div className="t-h3 mb-2 pb-1 border-b border-slate-100">
+                            {group}
+                          </div>
+                          <div className="space-y-3">
+                            {cats.map((cat) => (
+                              <div key={cat.id}>
+                                <div className="t-eyebrow mb-1.5">{cat.label}</div>
+                                <GradeChipRow
+                                  value={grades[cat.id]}
+                                  onChange={(v) =>
+                                    setGrade(player.id, cat.id, v)
+                                  }
+                                  ariaLabel={`${player.name} ${cat.label}`}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
                     <button
                       type="button"
                       onClick={() =>
@@ -855,14 +1241,48 @@ export const EvaluationTab = memo(() => {
           )}
         </div>
 
-        <div className="hidden sm:block p-0 overflow-x-auto">
+        <div className="hidden sm:block">
+          {/* Group tab bar — pick which category cluster to grade across the roster */}
+          <div className="px-5 py-3 bg-white/40 border-b border-slate-200/50 flex flex-wrap items-center gap-2">
+            <span className="t-eyebrow mr-1">Section:</span>
+            {visibleGroups.map((group) => {
+              const isActive = activeGroup === group;
+              const count = (groupCategories[group] || []).length;
+              return (
+                <button
+                  key={group}
+                  type="button"
+                  onClick={() => setActiveGroup(group)}
+                  aria-pressed={isActive}
+                  className="t-button px-3 py-2 rounded-lg border transition-all flex items-center gap-1.5"
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: "var(--team-secondary)",
+                          color: "var(--team-primary)",
+                          borderColor: "var(--team-primary)",
+                        }
+                      : {
+                          backgroundColor: "rgba(255,255,255,0.7)",
+                          color: "#475569",
+                          borderColor: "#e2e8f0",
+                        }
+                  }
+                >
+                  {group}
+                  <span className="opacity-60 tabular-nums">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="p-0 overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
             <thead>
               <tr className="bg-white/40 border-b border-slate-200/50">
                 <th className="p-5 font-black text-slate-500 text-xs uppercase tracking-widest sticky left-0 bg-white/60 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.03)] w-64 border-r border-slate-200/50">
                   Player Name
                 </th>
-                {EVAL_CATEGORIES.map((cat) => (
+                {visibleCategoriesForGroup.map((cat) => (
                   <th
                     key={cat.id}
                     className="p-3 t-eyebrow text-center align-bottom"
@@ -942,7 +1362,7 @@ export const EvaluationTab = memo(() => {
                           </button>
                         </div>
                       </td>
-                      {EVAL_CATEGORIES.map((cat) => (
+                      {visibleCategoriesForGroup.map((cat) => (
                         <td key={cat.id} className="p-3 text-center">
                           <select
                             value={grades[cat.id]}
@@ -973,7 +1393,7 @@ export const EvaluationTab = memo(() => {
                     {notesOpen && (
                       <tr className="bg-amber-50/50">
                         <td
-                          colSpan={EVAL_CATEGORIES.length + 3}
+                          colSpan={visibleCategoriesForGroup.length + 3}
                           className="px-4 py-3 sticky left-0"
                         >
                           <div className="flex items-center gap-3">
@@ -998,12 +1418,28 @@ export const EvaluationTab = memo(() => {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
       {/* Roster Decisions panel — advisory recommendations based on
           eval trends, current performance, and age eligibility */}
       <RosterDecisionsPanel />
+
+      {/* Side-by-side round comparison modal */}
+      {comparisonOpen && (
+        <RoundComparisonView
+          rounds={myRounds}
+          players={players}
+          activeCategories={activeCategories}
+          primaryColor={primaryColor}
+          onPlayerClick={(id) => {
+            setComparisonOpen(false);
+            setEvalTrendPlayerId(id);
+          }}
+          onClose={() => setComparisonOpen(false)}
+        />
+      )}
 
       {/* Trend modal — opens when a player name is clicked */}
       {evalTrendPlayerId && (

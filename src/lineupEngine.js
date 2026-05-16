@@ -43,23 +43,47 @@ const POS_DIFFICULTY = {
   RF: 1,
 };
 
+// Coach's Card v2 universal categories — the 11 that drive total-score and
+// position scoring. Pitching/Catching add-ons live in src/constants/ui.ts and
+// influence specialty position decisions, not the universal total.
 const EVAL_CATEGORIES = [
-  { id: "fielding", weight: 2.5 },
-  { id: "baseballIQ", weight: 2.0 },
+  { id: "contact", weight: 1.5 },
+  { id: "power", weight: 1.0 },
+  { id: "plateDiscipline", weight: 1.0 },
+  { id: "approach", weight: 1.5 },
+  { id: "glove", weight: 2.5 },
+  { id: "range", weight: 2.0 },
   { id: "armStrength", weight: 1.5 },
   { id: "armAccuracy", weight: 1.5 },
-  { id: "speedAgility", weight: 1.5 },
+  { id: "baserunning", weight: 1.5 },
+  { id: "baseballIQ", weight: 2.0 },
   { id: "coachability", weight: 1.0 },
 ];
 
 const DEFAULT_GRADES = Object.freeze({
-  fielding: 5,
+  contact: 5,
+  power: 5,
+  plateDiscipline: 5,
+  approach: 5,
+  glove: 5,
+  range: 5,
   armStrength: 5,
   armAccuracy: 5,
-  speedAgility: 5,
+  baserunning: 5,
   baseballIQ: 5,
   coachability: 5,
 });
+
+// Backwards-compat aliases — reads the v2 field if present, else falls back
+// to the v1 field (e.g. `glove` ← `fielding`, `baserunning` ← `speedAgility`).
+// Lets the engine consume v1-shaped objects until they're migrated.
+const gloveOf = (g) => g?.glove ?? g?.fielding ?? 5;
+const rangeOf = (g) => g?.range ?? g?.fielding ?? 5;
+const baserunningOf = (g) => g?.baserunning ?? g?.speedAgility ?? 5;
+const contactOf = (g) => g?.contact ?? 5;
+const approachOf = (g) => g?.approach ?? 5;
+const powerOf = (g) => g?.power ?? 5;
+const plateDisciplineOf = (g) => g?.plateDiscipline ?? 5;
 
 // ---------- Public helpers (re exported for the UI) ----------
 
@@ -100,27 +124,33 @@ export function getCombinedGrades(evaluationEvents, playersList) {
     const headG = latestHead?.grades?.[p.id];
     const grades = { ...DEFAULT_GRADES };
 
+    // v2 grade reader — falls back to v1 field names when present so a team
+    // that hasn't migrated all rounds still gets sensible defaults.
+    const readCat = (g, catId) => {
+      if (!g) return null;
+      if (g[catId] != null) return g[catId];
+      if (catId === "glove" || catId === "range") return g.fielding ?? null;
+      if (catId === "baserunning") return g.speedAgility ?? null;
+      return null;
+    };
+
     if (astCount > 0) {
-      const astSum = {
-        fielding: 0,
-        armStrength: 0,
-        armAccuracy: 0,
-        speedAgility: 0,
-        baseballIQ: 0,
-        coachability: 0,
-      };
+      const astSum = {};
+      for (const cat of EVAL_CATEGORIES) astSum[cat.id] = 0;
       let participating = 0;
       for (const ev of assistantEvals) {
         const g = ev.grades?.[p.id];
         if (!g) continue;
-        for (const cat of EVAL_CATEGORIES) astSum[cat.id] += g[cat.id] || 5;
+        for (const cat of EVAL_CATEGORIES)
+          astSum[cat.id] += readCat(g, cat.id) ?? 5;
         participating++;
       }
       if (participating > 0) {
         for (const cat of EVAL_CATEGORIES) {
           const astAvg = astSum[cat.id] / participating;
-          if (headG)
-            grades[cat.id] = Math.round((headG[cat.id] * 2 + astAvg) / 3);
+          const headVal = readCat(headG, cat.id);
+          if (headVal != null)
+            grades[cat.id] = Math.round((headVal * 2 + astAvg) / 3);
           else grades[cat.id] = Math.round(astAvg);
         }
         out[p.id] = grades;
@@ -129,7 +159,10 @@ export function getCombinedGrades(evaluationEvents, playersList) {
     }
 
     if (headG) {
-      for (const cat of EVAL_CATEGORIES) grades[cat.id] = headG[cat.id];
+      for (const cat of EVAL_CATEGORIES) {
+        const v = readCat(headG, cat.id);
+        if (v != null) grades[cat.id] = v;
+      }
     }
     out[p.id] = grades;
   }
@@ -240,13 +273,21 @@ export function getOffensiveScore(stats) {
 export function calculateTotalScore(grades, stats) {
   if (!grades) return 0;
   const off = getOffensiveScore(stats);
+  // Mix of v2 + v1-compat: glove and range BOTH read from v1.fielding when
+  // a legacy round is the only data we have, so legacy totals stay in the
+  // same ballpark while new rounds use the more granular split.
   return Math.round(
-    (grades.fielding || 5) * 2.5 +
-      (grades.baseballIQ || 5) * 2.0 +
+    gloveOf(grades) * 2.5 +
+      rangeOf(grades) * 2.0 +
       (grades.armStrength || 5) * 1.5 +
       (grades.armAccuracy || 5) * 1.5 +
-      (grades.speedAgility || 5) * 1.5 +
+      baserunningOf(grades) * 1.5 +
+      (grades.baseballIQ || 5) * 2.0 +
       (grades.coachability || 5) * 1.0 +
+      contactOf(grades) * 1.5 +
+      powerOf(grades) * 1.0 +
+      plateDisciplineOf(grades) * 1.0 +
+      approachOf(grades) * 1.5 +
       off * 2.0
   );
 }
@@ -346,11 +387,24 @@ function buildPlayerProfile(p, grades) {
     advContact > 0 ? contact * 10 + advContact * 15 : contact * 25;
 
   const leadoffScore =
-    obp * 50 + g.speedAgility * 2.5 + finalContact * 0.4 + g.baseballIQ * 1.0;
+    obp * 50 +
+    baserunningOf(g) * 2.5 +
+    finalContact * 0.4 +
+    g.baseballIQ * 1.0;
   const powerScore =
-    ops * 40 + hr * 15 + doubles * 4 + triples * 5 + rbi * 2 + hard * 20;
+    ops * 40 +
+    hr * 15 +
+    doubles * 4 +
+    triples * 5 +
+    rbi * 2 +
+    hard * 20 +
+    powerOf(g) * 1.5;
   const contactScore =
-    avg * 30 + finalContact + g.speedAgility * 1.0 + g.baseballIQ * 1.0;
+    avg * 30 +
+    finalContact +
+    baserunningOf(g) * 1.0 +
+    g.baseballIQ * 1.0 +
+    contactOf(g) * 2.0;
   const overallScore =
     ops * 30 +
     obp * 20 +
@@ -361,10 +415,11 @@ function buildPlayerProfile(p, grades) {
     hard * 10;
 
   const defensiveScore =
-    g.fielding * 3.0 +
+    gloveOf(g) * 2.0 +
+    rangeOf(g) * 1.5 +
     g.armStrength * 1.5 +
     g.armAccuracy * 1.5 +
-    g.speedAgility * 2.0 +
+    baserunningOf(g) * 1.5 +
     g.baseballIQ * 2.0;
 
   return {
