@@ -40,7 +40,9 @@ export interface Player {
   [key: string]: unknown;
 }
 
-export type SlimPlayer = Pick<Player, "id" | "name" | "number"> | null;
+export type SlimPlayer =
+  | (Pick<Player, "id" | "name" | "number"> & { photoUrl?: string })
+  | null;
 
 // An inning maps position labels to a single player, except BENCH which is
 // an array of players sitting that inning.

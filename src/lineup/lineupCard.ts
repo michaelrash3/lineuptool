@@ -16,7 +16,123 @@ interface DownloadArgs extends RenderArgs {
   toast?: Toast;
 }
 
-export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLCanvasElement => {
+// Off-DOM image loader with CORS attribute set. getDownloadURL() URLs from
+// Firebase Storage serve with CORS headers so this works without tainting
+// the canvas. Resolves null on any error so we silently fall back to initials.
+const loadImage = (url: string): Promise<HTMLImageElement | null> =>
+  new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+
+// Walk the game's defense and batting lineups, look up each unique player's
+// photoUrl in the team roster, and preload them all in parallel. Returns a
+// Map<playerId, HTMLImageElement> for use inside buildLineupCanvas.
+const preloadPhotos = async (
+  game: Game,
+  team?: Team | null
+): Promise<Map<string, HTMLImageElement>> => {
+  const ids = new Set<string>();
+  for (const inn of game.lineup || []) {
+    if (!inn) continue;
+    for (const key of Object.keys(inn)) {
+      const v = inn[key];
+      if (Array.isArray(v)) {
+        v.forEach((p) => p && ids.add(p.id));
+      } else if (v) {
+        ids.add(v.id);
+      }
+    }
+  }
+  for (const p of game.battingLineup || []) {
+    if (p) ids.add(p.id);
+  }
+  const playerById = new Map<string, { id: string; photoUrl?: string }>();
+  for (const p of team?.players || []) {
+    if (p && typeof p.id === "string") {
+      playerById.set(p.id, p as unknown as { id: string; photoUrl?: string });
+    }
+  }
+  const out = new Map<string, HTMLImageElement>();
+  await Promise.all(
+    Array.from(ids).map(async (id) => {
+      const url = playerById.get(id)?.photoUrl;
+      if (!url) return;
+      const img = await loadImage(url);
+      if (img) out.set(id, img);
+    })
+  );
+  return out;
+};
+
+// Draw an avatar circle: photo if available, initials over a colored fill
+// otherwise. The cx/cy are circle center; radius defines the diameter.
+const drawAvatar = (
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  player: SlimPlayer | { id?: string; name?: string } | undefined,
+  photo: HTMLImageElement | undefined,
+  fillColor: string
+) => {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.closePath();
+  if (photo) {
+    ctx.clip();
+    // Cover fit
+    const ratio = Math.max(
+      (radius * 2) / photo.width,
+      (radius * 2) / photo.height
+    );
+    const w = photo.width * ratio;
+    const h = photo.height * ratio;
+    ctx.drawImage(photo, cx - w / 2, cy - h / 2, w, h);
+  } else {
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `900 ${Math.max(8, radius * 0.9)}px system-ui, -apple-system, Segoe UI, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const name = player?.name || "?";
+    const parts = name.trim().split(/\s+/);
+    const initials =
+      parts.length === 1
+        ? parts[0].slice(0, 2).toUpperCase()
+        : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    ctx.fillText(initials, cx, cy + 0.5);
+  }
+  ctx.restore();
+};
+
+// Internal canvas-build args carry the preloaded photo map.
+interface CanvasArgs extends RenderArgs {
+  photos: Map<string, HTMLImageElement>;
+}
+
+const PITCH_LIMITS: Record<string, number> = {
+  "6U": 50,
+  "7U": 50,
+  "8U": 50,
+  "9U": 75,
+  "10U": 75,
+  "11U to 12U": 85,
+  "13U to 14U": 95,
+  "15U to 18U": 105,
+};
+
+const buildLineupCanvasInternal = ({
+  game,
+  team,
+  formatDate,
+  photos,
+}: CanvasArgs): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   const ratio = window.devicePixelRatio || 1;
@@ -64,6 +180,49 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   const hasAnyReason = battingLineup.some(
     (p) => p && (p as SlimPlayer & { battingReason?: { role?: string; note?: string } }).battingReason
   );
+
+  // Pitcher footer: list each pitcher used in the game with their inning
+  // appearances + recent-pitch / limit status. Only renders on Kid Pitch.
+  const isKidPitch =
+    typeof team?.pitchingFormat === "string" &&
+    team.pitchingFormat.toLowerCase().includes("kid");
+  const pitcherEntries: Array<{
+    player: NonNullable<SlimPlayer>;
+    innings: number[];
+    limit: number;
+    recent: number;
+  }> = [];
+  if (isKidPitch) {
+    const ageGroup = (typeof team?.teamAge === "string" && team.teamAge) || "";
+    const limit = PITCH_LIMITS[ageGroup] ?? 105;
+    const byId = new Map<string, { player: NonNullable<SlimPlayer>; innings: number[] }>();
+    lineup.forEach((inn, idx) => {
+      const p = inn?.P;
+      if (p && !Array.isArray(p)) {
+        const cur = byId.get(p.id);
+        if (cur) cur.innings.push(idx + 1);
+        else byId.set(p.id, { player: p, innings: [idx + 1] });
+      }
+    });
+    for (const entry of byId.values()) {
+      const rosterP = (team?.players || []).find((rp) => rp.id === entry.player.id) as
+        | { pitching?: { recentPitches?: number } }
+        | undefined;
+      pitcherEntries.push({
+        player: entry.player,
+        innings: entry.innings,
+        limit,
+        recent: rosterP?.pitching?.recentPitches || 0,
+      });
+    }
+  }
+  const pitcherRowH = 22;
+  const pitcherSectionTitleH = pitcherEntries.length > 0 ? 28 : 0;
+  const pitcherSectionH =
+    pitcherEntries.length > 0
+      ? pitcherSectionTitleH + pitcherRowH * pitcherEntries.length
+      : 0;
+
   const headerH = 90;
   const sectionTitleH = 36;
   const cellH = 38;
@@ -71,7 +230,14 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   const battingRowH = hasAnyReason ? 44 : 32;
   const battingH = sectionTitleH + battingRowH * battingLineup.length;
   const footerH = 28;
-  const H = headerH + defenseH + battingH + footerH + PAD * 4;
+  const H =
+    headerH +
+    defenseH +
+    pitcherSectionH +
+    battingH +
+    footerH +
+    PAD * 4 +
+    (pitcherSectionH > 0 ? PAD : 0);
 
   canvas.width = W * ratio;
   canvas.height = H * ratio;
@@ -156,6 +322,43 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   }
   y += PAD;
 
+  // ---- Pitcher rotation section (Kid Pitch only) ----
+  if (pitcherEntries.length > 0) {
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "900 14px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("PITCHING PLAN", PAD, y);
+    y += pitcherSectionTitleH;
+
+    for (let i = 0; i < pitcherEntries.length; i++) {
+      const pe = pitcherEntries[i];
+      if (i % 2 === 0) {
+        ctx.fillStyle = "#f1f5f9";
+        ctx.fillRect(PAD, y, W - PAD * 2, pitcherRowH);
+      }
+      ctx.fillStyle = "#0f172a";
+      ctx.font = "800 11.5px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(pe.player.name, PAD + 12, y + pitcherRowH / 2 + 4);
+
+      ctx.fillStyle = "#64748b";
+      ctx.font = "600 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
+      const innLabel = `Inn ${pe.innings.join(", ")}`;
+      ctx.fillText(innLabel, PAD + 180, y + pitcherRowH / 2 + 4);
+
+      // Remaining pitch budget (limit minus recent).
+      const remaining = Math.max(0, pe.limit - pe.recent);
+      const budgetText = `${remaining}/${pe.limit} avail`;
+      ctx.fillStyle = remaining > pe.limit * 0.5 ? "#047857" : remaining > 0 ? "#b45309" : "#b91c1c";
+      ctx.font = "800 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(budgetText, W - PAD - 8, y + pitcherRowH / 2 + 4);
+
+      y += pitcherRowH;
+    }
+    y += PAD;
+  }
+
   // ---- Batting section ----
   ctx.textAlign = "left";
   ctx.fillStyle = "#0f172a";
@@ -163,6 +366,9 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   ctx.fillText("BATTING ORDER", PAD, y);
   y += sectionTitleH;
 
+  const photoR = hasAnyReason ? 14 : 12;
+  const photoCx = PAD + 50;
+  const nameStartX = PAD + 50 + photoR + 10;
   for (let i = 0; i < battingLineup.length; i++) {
     const player = battingLineup[i] as
       | (SlimPlayer & { battingReason?: { role?: string; note?: string } })
@@ -176,10 +382,22 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
     ctx.textAlign = "center";
     const nameY = hasAnyReason ? y + 13 : y + battingRowH / 2 - 5;
     ctx.fillText(`${i + 1}`, PAD + 18, nameY);
+    // Avatar: photo if available, otherwise initials-on-primary medallion.
+    if (player) {
+      drawAvatar(
+        ctx,
+        photoCx,
+        y + battingRowH / 2,
+        photoR,
+        player,
+        photos.get(player.id),
+        primary
+      );
+    }
     ctx.fillStyle = "#0f172a";
     ctx.font = "700 13px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(player?.name || "—", PAD + 50, nameY);
+    ctx.fillText(player?.name || "—", nameStartX, nameY);
     if (player?.number) {
       ctx.fillStyle = "#94a3b8";
       ctx.font = "700 11px system-ui, -apple-system, Segoe UI, sans-serif";
@@ -195,7 +413,7 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
         ctx.font = "italic 600 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
         ctx.textAlign = "left";
         const why = [reason.role, reason.note].filter(Boolean).join(" — ");
-        const maxW = W - PAD * 2 - 50 - 60; // leave room for jersey number
+        const maxW = W - PAD - nameStartX - 60; // leave room for jersey number
         let trimmed = why;
         if (ctx.measureText(trimmed).width > maxW) {
           while (
@@ -206,7 +424,7 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
           }
           trimmed = trimmed + "…";
         }
-        ctx.fillText(trimmed, PAD + 50, y + 30);
+        ctx.fillText(trimmed, nameStartX, y + 30);
       }
     }
     y += battingRowH;
@@ -222,9 +440,21 @@ export const buildLineupCanvas = ({ game, team, formatDate }: RenderArgs): HTMLC
   return canvas;
 };
 
+// Public-facing canvas builder. Preloads any player photos (best effort)
+// then renders. Async because Image() loads are async; falls back to
+// initials on any photo load failure.
+export const buildLineupCanvas = async ({
+  game,
+  team,
+  formatDate,
+}: RenderArgs): Promise<HTMLCanvasElement> => {
+  const photos = await preloadPhotos(game, team);
+  return buildLineupCanvasInternal({ game, team, formatDate, photos });
+};
+
 // PNG blob wrapper — canonical "render" for image-share flows.
-export const renderLineupCard = ({ game, team, formatDate }: RenderArgs): Promise<Blob | null> => {
-  const canvas = buildLineupCanvas({ game, team, formatDate });
+export const renderLineupCard = async ({ game, team, formatDate }: RenderArgs): Promise<Blob | null> => {
+  const canvas = await buildLineupCanvas({ game, team, formatDate });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
   });
@@ -236,7 +466,7 @@ export const renderLineupCard = ({ game, team, formatDate }: RenderArgs): Promis
 // lazily so it only enters the bundle when a coach actually downloads a PDF.
 export const renderLineupPdf = async ({ game, team, formatDate }: RenderArgs): Promise<Blob> => {
   const { jsPDF } = await import("jspdf");
-  const canvas = buildLineupCanvas({ game, team, formatDate });
+  const canvas = await buildLineupCanvas({ game, team, formatDate });
   const wPt = parseFloat(canvas.style.width) || canvas.width;
   const hPt = parseFloat(canvas.style.height) || canvas.height;
   const pdf = new jsPDF({
