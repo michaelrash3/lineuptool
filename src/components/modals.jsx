@@ -1929,6 +1929,114 @@ export const PlayerProfileModal = memo(() => {
                   </div>
                 );
               })}
+
+              {/* Recent Movement — game-to-game stat trends derived from
+                  consecutive CSV import snapshots. */}
+              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 mb-3 flex items-center gap-2">
+                  <Icons.Forward className="w-4 h-4" /> Recent Movement
+                </h4>
+                {(() => {
+                  const history = Array.isArray(player.statsHistory)
+                    ? player.statsHistory
+                    : [];
+                  // Build transitions: each consecutive (prior, next) pair.
+                  // `next` for the final transition is the current live stats.
+                  if (history.length === 0) {
+                    return (
+                      <p className="text-[11px] text-slate-500 font-medium italic">
+                        No trend data yet — upload another CSV to start tracking.
+                      </p>
+                    );
+                  }
+                  const liveStats = player.stats || {};
+                  const series = [...history.map((h) => h.stats), liveStats];
+                  const dates = [
+                    ...history.map((h) => h.importedAt),
+                    new Date().toISOString(),
+                  ];
+                  const fmtDate = (iso) => {
+                    const d = new Date(iso);
+                    if (Number.isNaN(d.getTime())) return "—";
+                    return d.toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    });
+                  };
+                  const TRACKED = [
+                    { key: "avg", label: "AVG", decimals: 3 },
+                    { key: "ops", label: "OPS", decimals: 3 },
+                    { key: "obp", label: "OBP", decimals: 3 },
+                    { key: "h", label: "H", decimals: 0 },
+                    { key: "rbi", label: "RBI", decimals: 0 },
+                    { key: "hr", label: "HR", decimals: 0 },
+                  ];
+                  // Render newest transition first, max 5 transitions.
+                  const transitions = [];
+                  for (let i = series.length - 1; i > 0 && transitions.length < 5; i--) {
+                    transitions.push({ prior: series[i - 1], next: series[i], date: dates[i] });
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {transitions.map((t, idx) => {
+                        const changes = TRACKED.map(({ key, label, decimals }) => {
+                          const p = Number(t.prior?.[key]) || 0;
+                          const n = Number(t.next?.[key]) || 0;
+                          if (p === n) return null;
+                          const delta = n - p;
+                          const fmtVal = (v) =>
+                            decimals > 0
+                              ? v.toFixed(decimals).replace(/^0\./, ".")
+                              : String(Math.round(v));
+                          return {
+                            label,
+                            delta,
+                            display: `${fmtVal(p)} → ${fmtVal(n)}`,
+                            deltaStr:
+                              decimals > 0
+                                ? `${delta >= 0 ? "+" : ""}${delta.toFixed(decimals).replace(/^([-+]?)0\./, "$1.")}`
+                                : `${delta >= 0 ? "+" : ""}${Math.round(delta)}`,
+                          };
+                        }).filter(Boolean);
+                        if (changes.length === 0) return null;
+                        return (
+                          <div
+                            key={`mvmt-${idx}`}
+                            className="rounded-lg border border-slate-200 bg-slate-50/60 p-3"
+                          >
+                            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">
+                              {fmtDate(t.date)}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {changes.map((c, ci) => (
+                                <div
+                                  key={`mvmt-${idx}-${ci}`}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black tabular-nums border ${
+                                    c.delta > 0
+                                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                      : c.delta < 0
+                                      ? "bg-rose-50 border-rose-200 text-rose-700"
+                                      : "bg-slate-50 border-slate-200 text-slate-600"
+                                  }`}
+                                >
+                                  <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-80">
+                                    {c.label}
+                                  </span>
+                                  <span>{c.display}</span>
+                                  <span className="font-black">
+                                    {c.delta > 0 ? "↑" : c.delta < 0 ? "↓" : "—"}
+                                    {c.deltaStr}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
           <div

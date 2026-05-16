@@ -1740,13 +1740,35 @@ const TeamProvider = ({ children }) => {
             if (Object.keys(statsPatch).length === 0) continue;
 
             if (existingIndex >= 0) {
+              // Snapshot the PRIOR stats into statsHistory before merging.
+              // Skip the snapshot if every field in the incoming patch already
+              // matches the existing stats — same CSV re-uploaded, no movement
+              // to record. Cap history at 20 entries to stay under Firestore's
+              // 1 MB doc limit (~50 numeric stats × 8 bytes × 20 = ~8 KB).
+              const priorStats =
+                next[existingIndex].stats || blankStats();
+              const changedFields = Object.keys(statsPatch).filter(
+                (k) => Number(priorStats[k]) !== Number(statsPatch[k])
+              );
+              let nextHistory = next[existingIndex].statsHistory || [];
+              if (changedFields.length > 0) {
+                nextHistory = [
+                  ...nextHistory,
+                  {
+                    importedAt: new Date().toISOString(),
+                    source: "csv",
+                    stats: { ...priorStats },
+                  },
+                ].slice(-20);
+              }
               // Merge stats over existing — preserves any field not in this CSV
               next[existingIndex] = {
                 ...next[existingIndex],
                 stats: {
-                  ...(next[existingIndex].stats || blankStats()),
+                  ...priorStats,
                   ...statsPatch,
                 },
+                statsHistory: nextHistory,
                 // pitching state (recentPitches / lastPitchDate) is intentionally untouched
               };
               updated++;
