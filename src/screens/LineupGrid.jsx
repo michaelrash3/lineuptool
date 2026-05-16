@@ -45,24 +45,35 @@ export const LineupGrid = memo(
           {/* Inning tab strip */}
           <div className="px-3 pt-3 pb-2 bg-white/40 border-b border-slate-200/50">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mr-1 shrink-0">
-                Inning
-              </span>
-              {lineup.map((_, idx) => (
-                <button
-                  key={`m-inn-${idx}`}
-                  type="button"
-                  onClick={() => setMobileInning(idx)}
-                  aria-pressed={idx === safeMobileInning}
-                  className={`px-3.5 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all shrink-0 ${
-                    idx === safeMobileInning
-                      ? "bg-slate-900 text-white shadow-md"
-                      : "bg-white/70 text-slate-600 hover:bg-white border border-slate-200"
-                  }`}
-                >
-                  {idx + 1}
-                </button>
-              ))}
+              <span className="t-eyebrow mr-1 shrink-0">Inning</span>
+              {lineup.map((_, idx) => {
+                const isActive = idx === safeMobileInning;
+                return (
+                  <button
+                    key={`m-inn-${idx}`}
+                    type="button"
+                    onClick={() => setMobileInning(idx)}
+                    aria-pressed={isActive}
+                    className="px-3.5 py-2 t-button rounded-lg transition-all shrink-0 border"
+                    style={
+                      isActive
+                        ? {
+                            backgroundColor: "var(--team-primary)",
+                            color: "var(--team-tertiary)",
+                            borderColor: "var(--team-primary)",
+                            boxShadow: "var(--shadow-md)",
+                          }
+                        : {
+                            backgroundColor: "rgba(255,255,255,0.7)",
+                            color: "#475569",
+                            borderColor: "#e2e8f0",
+                          }
+                    }
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -89,7 +100,13 @@ export const LineupGrid = memo(
                         : "bg-white/30 border-dashed border-slate-300 text-slate-400 active:bg-white/60"
                     }`}
                   >
-                    <span className="inline-flex items-center justify-center w-12 h-9 rounded-lg bg-slate-100 text-slate-700 font-black text-sm tracking-tight shrink-0">
+                    <span
+                      className="inline-flex items-center justify-center w-12 h-9 rounded-lg font-black text-sm tracking-tight shrink-0"
+                      style={{
+                        backgroundColor: "var(--team-primary-15)",
+                        color: "var(--team-primary)",
+                      }}
+                    >
                       {pos}
                     </span>
                     <span className="text-base font-bold truncate flex-1">

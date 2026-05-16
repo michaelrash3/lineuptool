@@ -345,10 +345,8 @@ export const InGameView = memo(() => {
             <Icons.X className="w-5 h-5" />
           </button>
           <div className="flex-1 text-center min-w-0">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 truncate">
-              vs. {game.opponent}
-            </div>
-            <div className="text-base font-black uppercase tracking-tight text-slate-900 truncate">
+            <div className="t-eyebrow truncate">vs. {game.opponent}</div>
+            <div className="t-h3 truncate" style={{ letterSpacing: "0.05em" }}>
               In-Game Mode
             </div>
           </div>
@@ -385,12 +383,13 @@ export const InGameView = memo(() => {
             <Icons.ChevronLeft className="w-5 h-5" />
           </button>
           <div className="text-center flex-1">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
-              Inning
-            </div>
-            <div className="text-3xl font-black text-slate-900 tabular-nums">
+            <div className="t-eyebrow">Inning</div>
+            <div className="t-stat-num">
               {currentInning + 1}
-              <span className="text-slate-300 text-lg"> / {totalInnings}</span>
+              <span className="text-slate-300 text-lg font-black">
+                {" "}
+                / {totalInnings}
+              </span>
             </div>
           </div>
           <button

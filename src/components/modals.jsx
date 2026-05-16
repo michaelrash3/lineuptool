@@ -284,14 +284,15 @@ export const PastSeasonImportModal = memo(() => {
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+        <div
+          className="p-1.5"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
 
         <div className="p-6 sm:p-7 border-b border-slate-200">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
-                Import Past Season Stats
-              </h3>
+              <h3 className="t-card-title">Import Past Season Stats</h3>
               <p className="text-xs text-slate-500 font-medium mt-1">
                 Review and confirm which player each row belongs to.
               </p>
@@ -701,15 +702,14 @@ export const StatTrendModal = memo(
           className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+          <div
+            className="p-1.5"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          />
           <div className="p-5 sm:p-6 border-b border-slate-200 flex items-start justify-between gap-4">
             <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-0.5">
-                {player.name}
-              </div>
-              <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900">
-                {meta.label}
-              </h3>
+              <div className="t-eyebrow mb-1">{player.name}</div>
+              <h3 className="t-card-title">{meta.label}</h3>
               {trend && (
                 <div
                   className={`mt-2 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border tabular-nums ${
@@ -1097,13 +1097,16 @@ export const PlayerProfileModal = memo(() => {
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
       >
-        <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+        <div
+          className="p-1.5"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
         <div className="p-6 sm:p-7 flex flex-col sm:flex-row items-start gap-5 border-b border-slate-100">
           <div
             className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center font-black text-3xl sm:text-4xl shadow-inner shrink-0"
             style={{
-              backgroundColor: `${primaryColor}15`,
-              color: primaryColor,
+              backgroundColor: "var(--team-primary-15)",
+              color: "var(--team-primary)",
             }}
           >
             {player.number || "?"}
@@ -2103,11 +2106,12 @@ export const AddPlayerModal = memo(() => {
         onClick={(e) => e.stopPropagation()}
         className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-white/50"
       >
-        <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+        <div
+          className="p-1.5"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
         <form onSubmit={submit} className="p-6 sm:p-7 space-y-4">
-          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">
-            Add Player
-          </h3>
+          <h3 className="t-card-title mb-2">Add Player</h3>
           <div>
             <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
               Name *
