@@ -64,6 +64,7 @@ import {
   bumpAgeTier,
   computeNextSeason,
   DEFAULT_TEAM_DATA,
+  EVAL_SCHEMA_VERSION,
 } from "./constants/ui";
 
 // Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
@@ -279,6 +280,7 @@ const TeamProvider = ({ children }) => {
   const [genError, setGenError] = useState(""); // login screen only
 
   const previousLineupRef = useRef(null);
+  const persistTeamRef = useRef(null);
 
   // Auth subscription
   useEffect(() => {
@@ -396,7 +398,25 @@ const TeamProvider = ({ children }) => {
       ref,
       (snap) => {
         if (snap.exists()) {
-          setTeamData({ ...DEFAULT_TEAM_DATA, ...snap.data() });
+          const raw = snap.data();
+          // Eval schema migration: v1 (6-category) rounds get wiped on first
+          // load with version < 2. The fresh schema and the carry-forward
+          // baseline kicks in on the next saved round.
+          const stored = raw.evalSchemaVersion ?? 1;
+          if (stored < EVAL_SCHEMA_VERSION) {
+            persistTeamRef.current?.({
+              evaluationEvents: [],
+              evalSchemaVersion: EVAL_SCHEMA_VERSION,
+            });
+            setTeamData({
+              ...DEFAULT_TEAM_DATA,
+              ...raw,
+              evaluationEvents: [],
+              evalSchemaVersion: EVAL_SCHEMA_VERSION,
+            });
+          } else {
+            setTeamData({ ...DEFAULT_TEAM_DATA, ...raw });
+          }
         }
         setLoadingActive(false);
       },
@@ -445,6 +465,12 @@ const TeamProvider = ({ children }) => {
     },
     [activeTeamId, toast]
   );
+
+  // Expose persistTeam to the onSnapshot above so the eval schema migration
+  // can write the cleared evaluationEvents back to Firestore.
+  useEffect(() => {
+    persistTeamRef.current = persistTeam;
+  }, [persistTeam]);
 
   const updateTeam = useCallback(
     (updates) => {

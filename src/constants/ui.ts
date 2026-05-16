@@ -1,15 +1,75 @@
 // UI-only constants extracted from App.jsx Section 4.
 
-// EVAL_CATEGORIES is duplicated here with labels for the Evaluation table UI.
-// The engine has its own labelless internal copy.
-export const EVAL_CATEGORIES = [
-  { id: "fielding", label: "Fielding", weight: 2.5 },
-  { id: "baseballIQ", label: "Baseball IQ", weight: 2.0 },
-  { id: "armStrength", label: "Arm Strength", weight: 1.5 },
-  { id: "armAccuracy", label: "Arm Accuracy", weight: 1.5 },
-  { id: "speedAgility", label: "Speed & Agility", weight: 1.5 },
-  { id: "coachability", label: "Coachability", weight: 1.0 },
+// Coach's Card v2 eval taxonomy.
+// 11 universal categories grouped into 4 buckets; pitching + catching are
+// Kid-Pitch add-ons (every player on Kid Pitch teams gets graded on them).
+// The lineup engine has its own labelless internal copy that mirrors this.
+
+export type EvalGroup =
+  | "Hitting"
+  | "Fielding"
+  | "Baserunning"
+  | "Intangibles"
+  | "Pitching"
+  | "Catching";
+
+export interface EvalCategory {
+  id: string;
+  label: string;
+  group: EvalGroup;
+  weight: number;
+  addOn?: "kidPitch"; // gating: only shown when pitchingFormat === "Kid Pitch"
+}
+
+export const EVAL_CATEGORIES: EvalCategory[] = [
+  // Hitting
+  { id: "contact", label: "Contact", group: "Hitting", weight: 1.5 },
+  { id: "power", label: "Power", group: "Hitting", weight: 1.0 },
+  { id: "plateDiscipline", label: "Plate Discipline", group: "Hitting", weight: 1.0 },
+  { id: "approach", label: "Approach", group: "Hitting", weight: 1.5 },
+  // Fielding
+  { id: "glove", label: "Glove", group: "Fielding", weight: 2.5 },
+  { id: "range", label: "Range", group: "Fielding", weight: 2.0 },
+  { id: "armStrength", label: "Arm Strength", group: "Fielding", weight: 1.5 },
+  { id: "armAccuracy", label: "Arm Accuracy", group: "Fielding", weight: 1.5 },
+  // Baserunning
+  { id: "baserunning", label: "Baserunning", group: "Baserunning", weight: 1.5 },
+  // Intangibles
+  { id: "baseballIQ", label: "Baseball IQ", group: "Intangibles", weight: 2.0 },
+  { id: "coachability", label: "Coachability", group: "Intangibles", weight: 1.0 },
+  // Kid-Pitch add-ons: Pitching
+  { id: "velocity", label: "Velocity", group: "Pitching", weight: 1.0, addOn: "kidPitch" },
+  { id: "control", label: "Control", group: "Pitching", weight: 1.5, addOn: "kidPitch" },
+  { id: "command", label: "Command", group: "Pitching", weight: 1.0, addOn: "kidPitch" },
+  { id: "offSpeed", label: "Off-Speed", group: "Pitching", weight: 0.5, addOn: "kidPitch" },
+  { id: "composure", label: "Composure", group: "Pitching", weight: 1.0, addOn: "kidPitch" },
+  // Kid-Pitch add-ons: Catching
+  { id: "receiving", label: "Receiving", group: "Catching", weight: 1.0, addOn: "kidPitch" },
+  { id: "blocking", label: "Blocking", group: "Catching", weight: 1.0, addOn: "kidPitch" },
+  { id: "popTime", label: "Pop Time", group: "Catching", weight: 1.0, addOn: "kidPitch" },
+  { id: "gameCalling", label: "Game Calling", group: "Catching", weight: 1.0, addOn: "kidPitch" },
 ];
+
+export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
+  "Hitting",
+  "Fielding",
+  "Baserunning",
+  "Intangibles",
+];
+
+export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = ["Pitching", "Catching"];
+
+export const isKidPitchFormat = (pitchingFormat?: string): boolean =>
+  (pitchingFormat || "").toLowerCase().includes("kid");
+
+export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[] => {
+  const includeAddOns = isKidPitchFormat(pitchingFormat);
+  return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
+};
+
+// Current eval schema version. Used to migrate teams off the v1 6-category
+// shape — v1 evaluationEvents get wiped on first load with version < 2.
+export const EVAL_SCHEMA_VERSION = 2;
 
 export const getLocalDateString = () => {
   const d = new Date();
@@ -61,6 +121,7 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   coaches: [],
   games: [],
   evaluationEvents: [],
+  evalSchemaVersion: EVAL_SCHEMA_VERSION,
   leagueRuleSet: "USSSA",
   currentSeason: "Spring 2026",
   pitchingFormat: "Kid Pitch",
