@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState, useRef } from "react";
+import React, { memo, useMemo, useState, useRef, useEffect } from "react";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Icons } from "../icons";
 import {
@@ -13,11 +13,11 @@ import { storage, appId } from "../firebase";
 import { PlayerAvatar, cropImageTo256 } from "./shared.jsx";
 
 
-const PROFILE_TABS = [
-  { id: "general", label: "General Info" },
-  { id: "report", label: "Season Report" },
-  { id: "stats", label: "Season Stats" },
-  { id: "innings", label: "Innings Played" },
+const PROFILE_SECTIONS = [
+  { id: "general", label: "General" },
+  { id: "report", label: "Report" },
+  { id: "stats", label: "Stats" },
+  { id: "innings", label: "Innings" },
   { id: "contact", label: "Contact" },
 ];
 
@@ -962,7 +962,42 @@ export const PlayerProfileModal = memo(() => {
     pitchingFormat,
     defenseSize,
   } = team;
-  const [activeProfileTab, setActiveProfileTab] = useState("general");
+  const [activeSection, setActiveSection] = useState("general");
+  const scrollContainerRef = useRef(null);
+
+  // Scroll-spy: as the user scrolls the modal body, highlight the section
+  // nav chip for whichever section is currently nearest the top.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return undefined;
+    const sections = Array.from(
+      container.querySelectorAll("[data-profile-section]")
+    );
+    if (sections.length === 0) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Pick the entry closest to the top of the container that's intersecting.
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort(
+            (a, b) =>
+              a.boundingClientRect.top - b.boundingClientRect.top
+          );
+        if (visible[0]) {
+          const id = visible[0].target.getAttribute("data-profile-section");
+          if (id) setActiveSection(id);
+        }
+      },
+      {
+        root: container,
+        rootMargin: "0px 0px -65% 0px",
+        threshold: [0, 0.25, 0.5],
+      }
+    );
+    sections.forEach((s) => observer.observe(s));
+    return () => observer.disconnect();
+  }, []);
+
   const [editingContact, setEditingContact] = useState(false);
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
@@ -1110,7 +1145,7 @@ export const PlayerProfileModal = memo(() => {
 
   const close = () => {
     setViewingPlayerId(null);
-    setActiveProfileTab("general");
+    setActiveSection("general");
     setEditingContact(false);
     setEditingPlayerName(false);
     setTrendStatKey(null);
@@ -1267,17 +1302,27 @@ export const PlayerProfileModal = memo(() => {
 
         <div className="bg-white border-b border-slate-200 flex-shrink-0">
           <div className="flex overflow-x-auto px-6 sm:px-7 scrollbar-hide">
-            {PROFILE_TABS.map((t) => (
+            {PROFILE_SECTIONS.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setActiveProfileTab(t.id)}
+                type="button"
+                onClick={() => {
+                  const el = scrollContainerRef.current?.querySelector(
+                    `[data-profile-section="${t.id}"]`
+                  );
+                  if (el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    setActiveSection(t.id);
+                  }
+                }}
+                aria-current={activeSection === t.id ? "true" : undefined}
                 className={`py-3.5 px-4 font-extrabold text-[10px] uppercase tracking-widest whitespace-nowrap relative transition-colors border-b-2 ${
-                  activeProfileTab === t.id
+                  activeSection === t.id
                     ? "text-slate-900"
                     : "text-slate-400 border-transparent hover:text-slate-700"
                 }`}
                 style={
-                  activeProfileTab === t.id ? { borderColor: primaryColor } : {}
+                  activeSection === t.id ? { borderColor: primaryColor } : {}
                 }
               >
                 {t.label}
@@ -1286,9 +1331,12 @@ export const PlayerProfileModal = memo(() => {
           </div>
         </div>
 
-        <div className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50">
-          {activeProfileTab === "general" && (
-            <div className="p-6 sm:p-7 space-y-6">
+        <div
+          ref={scrollContainerRef}
+          className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50"
+        >
+          <div data-profile-section="general" className="p-6 sm:p-7 space-y-6">
+            <h3 className="t-h3">General Info</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
@@ -1446,10 +1494,12 @@ export const PlayerProfileModal = memo(() => {
                 </div>
               )}
             </div>
-          )}
 
-          {activeProfileTab === "report" && (
-            <div className="p-6 sm:p-7 space-y-6">
+          <div
+            data-profile-section="report"
+            className="p-6 sm:p-7 space-y-6 border-t border-slate-200"
+          >
+            <h3 className="t-h3">Season Report</h3>
               {/* Lineup Settings — editable engine inputs */}
               <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
                 <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 mb-4 flex items-center gap-2">
@@ -1901,10 +1951,12 @@ export const PlayerProfileModal = memo(() => {
                   ))}
               </div>
             </div>
-          )}
 
-          {activeProfileTab === "stats" && (
-            <div className="p-6 sm:p-7 space-y-6">
+          <div
+            data-profile-section="stats"
+            className="p-6 sm:p-7 space-y-6 border-t border-slate-200"
+          >
+            <h3 className="t-h3">Season Stats</h3>
               <div className="flex items-center justify-between">
                 <h4 className="font-black text-xs uppercase tracking-widest text-slate-500 flex items-center gap-2">
                   <Icons.Bat className="w-4 h-4" /> Season Statistics
@@ -1954,10 +2006,12 @@ export const PlayerProfileModal = memo(() => {
                 );
               })}
             </div>
-          )}
 
-          {activeProfileTab === "innings" && (
-            <div className="p-6 sm:p-7 space-y-6">
+          <div
+            data-profile-section="innings"
+            className="p-6 sm:p-7 space-y-6 border-t border-slate-200"
+          >
+            <h3 className="t-h3">Innings Played</h3>
               <div className="flex items-center justify-between">
                 <h4 className="font-black text-xs uppercase tracking-widest text-slate-500 flex items-center gap-2">
                   <Icons.Glove className="w-4 h-4" /> Defensive Innings
@@ -2069,10 +2123,12 @@ export const PlayerProfileModal = memo(() => {
                 </>
               )}
             </div>
-          )}
 
-          {activeProfileTab === "contact" && (
-            <div className="p-6 sm:p-7 space-y-4">
+          <div
+            data-profile-section="contact"
+            className="p-6 sm:p-7 space-y-4 border-t border-slate-200"
+          >
+            <h3 className="t-h3">Contact</h3>
               <div className="flex justify-between items-center">
                 <h4 className="font-black text-xs uppercase tracking-widest text-slate-500 flex items-center gap-2">
                   <Icons.User className="w-4 h-4" /> Family Contact
@@ -2107,7 +2163,6 @@ export const PlayerProfileModal = memo(() => {
                 </div>
               ))}
             </div>
-          )}
         </div>
 
         <div className="bg-white border-t border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
