@@ -152,6 +152,9 @@ export const ScheduleTab = memo(() => {
     regenerateLineup,
     regenerateBatting,
     record,
+    saveLineupTemplate,
+    applyLineupTemplate,
+    deleteLineupTemplate,
   } = useTeam();
   const {
     selectedGameId,
@@ -316,6 +319,73 @@ export const ScheduleTab = memo(() => {
                     >
                       <Icons.Bat className="w-4 h-4" /> Re-roll Batting
                     </button>
+                  )}
+                  {lineup && (
+                    <button
+                      onClick={() => {
+                        const defaultName = currentGame?.opponent
+                          ? `vs ${currentGame.opponent} · ${
+                              currentGame.date || "—"
+                            }`
+                          : "Lineup Template";
+                        const name = window.prompt(
+                          "Save lineup as template — name?",
+                          defaultName
+                        );
+                        if (name === null) return;
+                        saveLineupTemplate?.(name);
+                      }}
+                      title="Save the current lineup + batting order as a reusable template"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                    >
+                      <Icons.Save className="w-4 h-4" /> Save as Template
+                    </button>
+                  )}
+                  {(team.lineupTemplates || []).length > 0 && (
+                    <div className="shrink-0 inline-flex">
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          e.target.value = "";
+                          if (!val) return;
+                          if (val.startsWith("apply:")) {
+                            applyLineupTemplate?.(val.slice(6));
+                          } else if (val.startsWith("delete:")) {
+                            const id = val.slice(7);
+                            const tpl = (team.lineupTemplates || []).find(
+                              (t) => t.id === id
+                            );
+                            if (
+                              window.confirm(
+                                `Delete template "${tpl?.name || id}"?`
+                              )
+                            ) {
+                              deleteLineupTemplate?.(id);
+                            }
+                          }
+                        }}
+                        title="Apply or delete a saved lineup template"
+                        aria-label="Lineup templates"
+                        className="py-3 px-4 font-black uppercase tracking-widest rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700 cursor-pointer"
+                      >
+                        <option value="">Templates…</option>
+                        <optgroup label="Apply">
+                          {(team.lineupTemplates || []).map((tpl) => (
+                            <option key={`a-${tpl.id}`} value={`apply:${tpl.id}`}>
+                              {tpl.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Delete">
+                          {(team.lineupTemplates || []).map((tpl) => (
+                            <option key={`d-${tpl.id}`} value={`delete:${tpl.id}`}>
+                              ✕ {tpl.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
                   )}
                   {lineup && (
                     <button

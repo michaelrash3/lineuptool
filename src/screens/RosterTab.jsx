@@ -1,8 +1,46 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
 import { PlayerAvatar } from "../components/shared.jsx";
+
+const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
+const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
+
+const FILTER_CHIPS = [
+  { id: "present", label: "Present" },
+  { id: "absent", label: "Absent" },
+  { id: "pitchers", label: "Pitchers" },
+  { id: "catchers", label: "Catchers" },
+  { id: "infield", label: "Infield" },
+  { id: "outfield", label: "Outfield" },
+  { id: "leftyBats", label: "Lefty Bats" },
+];
+
+// Returns true if the player matches the given filter id. Unknown ids match.
+const playerMatchesFilter = (player, filterId) => {
+  switch (filterId) {
+    case "present":
+      return player.present !== false;
+    case "absent":
+      return player.present === false;
+    case "pitchers":
+      return (
+        player.primaryPosition === "P" ||
+        !(player.restrictions || []).includes("P")
+      );
+    case "catchers":
+      return player.primaryPosition === "C";
+    case "infield":
+      return INFIELD_POSITIONS.has(player.primaryPosition);
+    case "outfield":
+      return OUTFIELD_POSITIONS.has(player.primaryPosition);
+    case "leftyBats":
+      return player.bats === "L" || player.bats === "S";
+    default:
+      return true;
+  }
+};
 
 const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
   const absent = player.present === false;
@@ -167,6 +205,23 @@ export const RosterTab = memo(() => {
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
 
+  // Gameday filter state — per-session, intentionally not persisted.
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilters, setActiveFilters] = useState(() => new Set());
+
+  const toggleFilter = (id) => {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearAll = () => {
+    setActiveFilters(new Set());
+    setSearchQuery("");
+  };
+
   const sortedRosterPlayers = useMemo(() => {
     return [...players].sort((a, b) => {
       const numA = parseInt(a.number, 10);
@@ -177,6 +232,20 @@ export const RosterTab = memo(() => {
       return numA - numB;
     });
   }, [players]);
+
+  // AND-combine: a player must match the search and every active filter chip.
+  const visiblePlayers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return sortedRosterPlayers.filter((p) => {
+      if (q && !(p.name || "").toLowerCase().includes(q)) return false;
+      for (const filterId of activeFilters) {
+        if (!playerMatchesFilter(p, filterId)) return false;
+      }
+      return true;
+    });
+  }, [sortedRosterPlayers, searchQuery, activeFilters]);
+
+  const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -222,6 +291,72 @@ export const RosterTab = memo(() => {
             <Icons.UserPlus className="w-4 h-4" /> Add Player
           </button>
         </div>
+        {players.length > 0 && (
+          <div className="px-4 sm:px-6 pt-4 pb-3 bg-white/20 border-b border-white/40 space-y-3">
+            <div className="relative">
+              <Icons.User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search players by name…"
+                aria-label="Search roster"
+                className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold text-slate-700 shadow-sm"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md"
+                >
+                  <Icons.X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {FILTER_CHIPS.map((chip) => {
+                const isActive = activeFilters.has(chip.id);
+                return (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => toggleFilter(chip.id)}
+                    aria-pressed={isActive}
+                    className="t-button px-3 py-1.5 rounded-full border transition-all"
+                    style={
+                      isActive
+                        ? {
+                            backgroundColor: "var(--team-secondary)",
+                            color: "var(--team-primary)",
+                            borderColor: "var(--team-primary)",
+                          }
+                        : {
+                            backgroundColor: "rgba(255,255,255,0.7)",
+                            color: "#475569",
+                            borderColor: "#e2e8f0",
+                          }
+                    }
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+              {filtersActive && (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="t-button px-3 py-1.5 rounded-full text-slate-500 hover:text-slate-800 hover:bg-white/60"
+                >
+                  Clear All
+                </button>
+              )}
+              <span className="ml-auto t-eyebrow text-slate-400 tabular-nums">
+                {visiblePlayers.length} / {players.length}
+              </span>
+            </div>
+          </div>
+        )}
         <div className="p-4 sm:p-6">
           {players.length === 0 ? (
             <div className="text-center py-20 bg-white/30 border border-white/50 shadow-sm rounded-2xl">
@@ -240,9 +375,24 @@ export const RosterTab = memo(() => {
                 import your stats file.
               </p>
             </div>
+          ) : visiblePlayers.length === 0 ? (
+            <div className="text-center py-12 bg-white/30 border border-white/50 shadow-sm rounded-2xl">
+              <Icons.Jersey className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+              <p className="t-body max-w-sm mx-auto">
+                No players match the current filter — clear to see the full
+                roster.
+              </p>
+              <button
+                type="button"
+                onClick={clearAll}
+                className="mt-3 t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white"
+              >
+                Clear Filters
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {sortedRosterPlayers.map((player) => (
+              {visiblePlayers.map((player) => (
                 <PlayerRow
                   key={player.id}
                   player={player}

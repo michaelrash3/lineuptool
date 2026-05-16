@@ -34,6 +34,7 @@ import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
 } from "./components/OnboardingTutorial.jsx";
+import { CommandPalette } from "./components/CommandPalette.jsx";
 import {
   LoginScreen,
   AppHeader,
@@ -1212,6 +1213,70 @@ const TeamProvider = ({ children }) => {
     uiBridge.current.markSaved?.();
   }, [updateGame, toast]);
 
+  // ----- Lineup templates -----
+  // Save the current lineup + batting order as a named template the coach
+  // can apply to future games (especially useful for tournaments with
+  // repeating opponents). Capped at 10 templates per team to keep the doc
+  // size in check.
+  const saveLineupTemplate = useCallback(
+    (name) => {
+      const inputs = uiBridge.current.getInputs();
+      const { lineup, battingLineup } = inputs || {};
+      if (!lineup) {
+        toast.push({ kind: "warn", title: "No lineup to save as template" });
+        return;
+      }
+      const trimmed = (name || "").trim() || "Untitled Template";
+      const tpl = {
+        id: "tpl-" + Math.random().toString(36).substring(2, 10),
+        name: trimmed,
+        lineup,
+        battingLineup,
+        createdAt: new Date().toISOString(),
+      };
+      const existing = Array.isArray(teamData.lineupTemplates)
+        ? teamData.lineupTemplates
+        : [];
+      const next = [...existing, tpl].slice(-10);
+      updateTeam({ lineupTemplates: next });
+      toast.push({
+        kind: "success",
+        title: "Template Saved",
+        message: `"${trimmed}" is now available to apply to other games.`,
+      });
+    },
+    [teamData.lineupTemplates, updateTeam, toast]
+  );
+
+  // Apply a template to the currently-selected game's in-flight editor.
+  // Stored lineups reference players by id; we leave them as-is and let
+  // the editor flag any roster-gone players visually.
+  const applyLineupTemplate = useCallback(
+    (templateId) => {
+      const tpl = (teamData.lineupTemplates || []).find(
+        (t) => t.id === templateId
+      );
+      if (!tpl) return;
+      uiBridge.current.applyTemplate?.(tpl);
+      toast.push({
+        kind: "info",
+        title: "Template Applied",
+        message: `Loaded "${tpl.name}". Tweak and save to keep the changes.`,
+      });
+    },
+    [teamData.lineupTemplates, toast]
+  );
+
+  const deleteLineupTemplate = useCallback(
+    (templateId) => {
+      const next = (teamData.lineupTemplates || []).filter(
+        (t) => t.id !== templateId
+      );
+      updateTeam({ lineupTemplates: next });
+    },
+    [teamData.lineupTemplates, updateTeam]
+  );
+
   // ----- Team management -----
   const switchTeam = useCallback(
     async (id) => {
@@ -2123,6 +2188,9 @@ const TeamProvider = ({ children }) => {
       leaveTeamCmd,
       copyTeamCode,
       saveTeamEvaluation,
+      saveLineupTemplate,
+      applyLineupTemplate,
+      deleteLineupTemplate,
     }),
     [
       teamData,
@@ -2169,6 +2237,9 @@ const TeamProvider = ({ children }) => {
       leaveTeamCmd,
       copyTeamCode,
       saveTeamEvaluation,
+      saveLineupTemplate,
+      applyLineupTemplate,
+      deleteLineupTemplate,
     ]
   );
 
@@ -2481,6 +2552,13 @@ const UIProvider = ({ children }) => {
         setSwapSelection(null);
         setGameSaved(false);
       },
+      applyTemplate: (tpl) => {
+        if (!tpl) return;
+        setLineup(tpl.lineup || null);
+        setBattingLineup(tpl.battingLineup || null);
+        setSwapSelection(null);
+        setGameSaved(false);
+      },
       markSaved: () => {
         setGameSaved(true);
         setTimeout(() => setGameSaved(false), 2000);
@@ -2622,6 +2700,7 @@ const MainShell = () => {
   } = useTeam();
   const { viewingPlayerId, activeTab, setActiveTab, selectedGameId } = useUI();
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     if (authReady && user && !onboardingHasBeenCompleted()) {
@@ -2639,17 +2718,24 @@ const MainShell = () => {
   useEffect(() => {
     if (!authReady || !user) return undefined;
     const onKey = (e) => {
-      // Bail in any form field or contentEditable region.
       const target = e.target;
-      if (
+      const inField =
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.tagName === "SELECT" ||
-          target.isContentEditable)
-      ) {
+          target.isContentEditable);
+
+      // Cmd+K / Ctrl+K opens the command palette from anywhere — even inside
+      // form fields, since that's the canonical Spotlight-style binding.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setPaletteOpen(true);
         return;
       }
+
+      // Bail in any form field or contentEditable region.
+      if (inField) return;
       // Don't intercept when a modifier is held (we're not stealing OS shortcuts).
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const k = e.key;
@@ -2760,6 +2846,10 @@ const MainShell = () => {
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
+      />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
       />
       <button
         type="button"
