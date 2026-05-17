@@ -1918,9 +1918,14 @@ const TeamProvider = ({ children }) => {
           }
 
           const next = [...teamData.players];
+          // Coach rows from TeamSnap are skipped from the roster but
+          // captured here so the InviteCoachesPanel has real coach
+          // emails (not parent emails) to draw from. Deduped by email.
+          const nextCoachContacts = [...(teamData.coachContacts || [])];
           let updated = 0,
             added = 0,
-            skipped = 0;
+            skipped = 0,
+            coachesCaptured = 0;
           const dataStartIndex = headerRowIndex + 1;
 
           for (let i = dataStartIndex; i < lines.length; i++) {
@@ -1945,10 +1950,31 @@ const TeamProvider = ({ children }) => {
               }
             }
 
-            // Skip TeamSnap coach rows
+            // TeamSnap coach rows: skipped from the roster (they aren't
+            // players), but captured into team.coachContacts so the
+            // invite panel can use their real coach email instead of a
+            // parent's. Dedupe by email so re-imports are idempotent.
             if (isTeamSnap && idx.position !== -1) {
               const role = (cols[idx.position] || "").toLowerCase();
               if (role.includes("coach") || role.includes("manager")) {
+                const coachEmail =
+                  idx.email !== -1 ? (cols[idx.email] || "").trim() : "";
+                if (coachEmail) {
+                  const lower = coachEmail.toLowerCase();
+                  const exists = nextCoachContacts.some(
+                    (c) => (c.email || "").toLowerCase() === lower
+                  );
+                  if (!exists) {
+                    nextCoachContacts.push({
+                      id:
+                        "cc-" + Math.random().toString(36).substring(2, 10),
+                      name,
+                      email: coachEmail,
+                      sourceRole: cols[idx.position],
+                    });
+                    coachesCaptured++;
+                  }
+                }
                 skipped++;
                 continue;
               }
@@ -2167,12 +2193,23 @@ const TeamProvider = ({ children }) => {
             }
           }
 
-          updateTeam({ players: next, lastCsvImportDate: todayIso });
+          const patch = {
+            players: next,
+            lastCsvImportDate: todayIso,
+          };
+          if (coachesCaptured > 0) patch.coachContacts = nextCoachContacts;
+          updateTeam(patch);
           const kind = isTeamSnap ? "Roster" : "Stats";
           let message = `${updated} updated, ${added} added.`;
           if (skipped > 0)
             message += ` (Skipped ${skipped} coach row${
               skipped === 1 ? "" : "s"
+            }${
+              coachesCaptured > 0
+                ? `; captured ${coachesCaptured} coach email${
+                    coachesCaptured === 1 ? "" : "s"
+                  } for invites`
+                : ""
             }.)`;
           toast.push({ kind: "success", title: `${kind} imported`, message });
           // Surface each pitch-count discrepancy as its own warning toast.
