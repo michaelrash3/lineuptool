@@ -7,9 +7,11 @@ import {
   getEvalCategoriesForTeam,
   isKidPitchFormat,
   getLocalDateString,
+  EVAL_SCALE_LABELS,
+  EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
 
-const DEFAULT_GRADE = 5;
+const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 
 const buildEmptyGrades = (players, categories) => {
   const out = {};
@@ -22,12 +24,13 @@ const buildEmptyGrades = (players, categories) => {
 
 const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
   <div
-    className="flex items-center gap-1 flex-wrap"
+    className="flex items-center gap-1.5 flex-wrap"
     role="radiogroup"
     aria-label={ariaLabel}
   >
-    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+    {[1, 2, 3, 4, 5].map((n) => {
       const isActive = n === value;
+      const label = EVAL_SCALE_LABELS[n - 1];
       return (
         <button
           key={n}
@@ -35,7 +38,9 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
           role="radio"
           aria-checked={isActive}
           onClick={() => onChange(n)}
-          className="min-w-[34px] h-9 px-2 text-xs font-black rounded-lg border transition-all tabular-nums"
+          title={`${n} — ${label}`}
+          aria-label={`${ariaLabel}: ${n} — ${label}`}
+          className="flex flex-col items-center justify-center min-w-[58px] h-12 px-2 rounded-lg border transition-all"
           style={
             isActive
               ? {
@@ -50,7 +55,12 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
                 }
           }
         >
-          {n}
+          <span className="text-sm font-black tabular-nums leading-none">
+            {n}
+          </span>
+          <span className="text-[9px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
+            {label}
+          </span>
         </button>
       );
     })}

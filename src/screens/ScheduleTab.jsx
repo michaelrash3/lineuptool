@@ -1312,9 +1312,56 @@ export const ScheduleTab = memo(() => {
                               Postponed
                             </span>
                           ) : game.lineup ? (
-                            <span className="t-chip bg-green-50 text-green-700 px-2 py-1 rounded-md border border-green-200">
-                              Lineup Ready
-                            </span>
+                            <>
+                              <span className="t-chip bg-green-50 text-green-700 px-2 py-1 rounded-md border border-green-200">
+                                Lineup Ready
+                              </span>
+                              {typeof game.qualityPenalty === "number" && (
+                                <span
+                                  className="t-chip px-2 py-1 rounded-md border"
+                                  style={(() => {
+                                    const q = Math.max(
+                                      0,
+                                      100 - Math.min(100, game.qualityPenalty)
+                                    );
+                                    const tone =
+                                      q >= 90
+                                        ? {
+                                            bg: "#ecfdf5",
+                                            fg: "#047857",
+                                            border: "#a7f3d0",
+                                          }
+                                        : q >= 70
+                                        ? {
+                                            bg: "#fefce8",
+                                            fg: "#854d0e",
+                                            border: "#fde68a",
+                                          }
+                                        : {
+                                            bg: "#fef2f2",
+                                            fg: "#b91c1c",
+                                            border: "#fecaca",
+                                          };
+                                    return {
+                                      backgroundColor: tone.bg,
+                                      color: tone.fg,
+                                      borderColor: tone.border,
+                                    };
+                                  })()}
+                                  title={`Lineup quality: ${Math.max(
+                                    0,
+                                    100 - Math.min(100, game.qualityPenalty)
+                                  )}/100. Lower penalty = fewer rotation conflicts + better fairness.`}
+                                >
+                                  Quality{" "}
+                                  {Math.max(
+                                    0,
+                                    100 - Math.min(100, game.qualityPenalty)
+                                  )}
+                                  /100
+                                </span>
+                              )}
+                            </>
                           ) : (
                             <span className="t-chip bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-200">
                               Lineup Needed
