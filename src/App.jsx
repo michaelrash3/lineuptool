@@ -415,9 +415,9 @@ const TeamProvider = ({ children }) => {
           //   change.
           const stored = raw.evalSchemaVersion ?? 1;
           if (stored < EVAL_SCHEMA_VERSION) {
-            let migratedEvents = [];
-            if (stored >= 2) {
-              migratedEvents = (raw.evaluationEvents || []).map((ev) => {
+            let migratedEvents = raw.evaluationEvents || [];
+            if (stored >= 2 && stored < 3) {
+              migratedEvents = migratedEvents.map((ev) => {
                 if (!ev?.grades) return ev;
                 const nextGrades = {};
                 for (const [pid, grade] of Object.entries(ev.grades)) {
@@ -438,14 +438,53 @@ const TeamProvider = ({ children }) => {
                 return { ...ev, grades: nextGrades };
               });
             }
+            // v3 → v4: flip the position model from negative (restrictions)
+            // to positive (comfortablePositions) + dedicated isCatcher flag.
+            // The engine still consults `restrictions` as a fallback for
+            // one release so this is safe to run incrementally.
+            let migratedPlayers = raw.players || [];
+            if (stored < 4) {
+              const ALL_POS = [
+                "P", "C", "1B", "2B", "3B", "SS",
+                "LF", "LCF", "CF", "RCF", "RF",
+              ];
+              migratedPlayers = migratedPlayers.map((p) => {
+                if (!p) return p;
+                if (
+                  Array.isArray(p.comfortablePositions) &&
+                  typeof p.isCatcher === "boolean"
+                ) {
+                  return p; // already migrated (likely a fresh team)
+                }
+                const restrictions = Array.isArray(p.restrictions)
+                  ? p.restrictions
+                  : [];
+                const comfortable = ALL_POS.filter(
+                  (pos) => !restrictions.includes(pos)
+                );
+                return {
+                  ...p,
+                  comfortablePositions:
+                    Array.isArray(p.comfortablePositions)
+                      ? p.comfortablePositions
+                      : comfortable,
+                  isCatcher:
+                    typeof p.isCatcher === "boolean"
+                      ? p.isCatcher
+                      : !restrictions.includes("C"),
+                };
+              });
+            }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
+              players: migratedPlayers,
               evalSchemaVersion: EVAL_SCHEMA_VERSION,
             });
             setTeamData({
               ...DEFAULT_TEAM_DATA,
               ...raw,
               evaluationEvents: migratedEvents,
+              players: migratedPlayers,
               evalSchemaVersion: EVAL_SCHEMA_VERSION,
             });
           } else {

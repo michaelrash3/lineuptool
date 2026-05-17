@@ -3,6 +3,7 @@ import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
 import { PlayerAvatar } from "../components/shared.jsx";
+import { PitcherRankingPanel } from "../components/PitcherRankingPanel.jsx";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
 const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
@@ -231,6 +232,7 @@ export const RosterTab = memo(() => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      <PitcherRankingPanel />
       <div className="glass-card">
         <div
           className="h-1.5 w-full"

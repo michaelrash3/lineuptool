@@ -72,7 +72,11 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
 //   v2: 11-category 1–10 scale (Coach's Card v2)
 //   v3: 11-category 1–5 labeled scale (current)
 // Teams stored at v2 get auto-converted to v3 by halving each grade value.
-export const EVAL_SCHEMA_VERSION = 3;
+// v4 (2026-05) — positive position model: players gain
+// `comfortablePositions: string[]` (positions the coach is happy with)
+// and `isCatcher: boolean`, derived once from the legacy `restrictions`
+// field on first load.
+export const EVAL_SCHEMA_VERSION = 4;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [
