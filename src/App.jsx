@@ -1221,8 +1221,13 @@ const TeamProvider = ({ children }) => {
   const saveCurrentGame = useCallback(() => {
     const inputs = uiBridge.current.getInputs();
     if (!inputs?.currentGame) return;
-    const { currentGame, currentGameAttendance, lineup, battingLineup } =
-      inputs;
+    const {
+      currentGame,
+      currentGameAttendance,
+      lineup,
+      battingLineup,
+      lineupQualityPenalty,
+    } = inputs;
     if (!lineup) {
       toast.push({ kind: "warn", title: "No lineup to save" });
       return;
@@ -1234,6 +1239,12 @@ const TeamProvider = ({ children }) => {
       lineup,
       battingLineup,
       attendance: currentGameAttendance,
+      // Persist quality penalty so the chip survives a reload. Cleared
+      // when the lineup is reset.
+      qualityPenalty:
+        typeof lineupQualityPenalty === "number"
+          ? lineupQualityPenalty
+          : null,
     });
     toast.push({ kind: "success", title: "Game saved" });
     uiBridge.current.markSaved?.();
@@ -2608,6 +2619,9 @@ const UIProvider = ({ children }) => {
   const [firstInningLineup, setFirstInningLineup] = useState({});
   const [lineup, setLineup] = useState(null);
   const [battingLineup, setBattingLineup] = useState(null);
+  // Penalty score emitted by the engine for the current in-editor lineup
+  // (null when no generated lineup is in scope). Lower = better.
+  const [lineupQualityPenalty, setLineupQualityPenalty] = useState(null);
   const [swapSelection, setSwapSelection] = useState(null);
   const [gameSaved, setGameSaved] = useState(false);
   const [opponentName, setOpponentName] = useState("");
@@ -2667,6 +2681,9 @@ const UIProvider = ({ children }) => {
     setOpponentName(game.opponent || "");
     setLineup(game.lineup || null);
     setBattingLineup(game.battingLineup || null);
+    setLineupQualityPenalty(
+      typeof game.qualityPenalty === "number" ? game.qualityPenalty : null
+    );
     setCurrentGameAttendance(game.attendance || {});
     setGameSaved(false);
   }, [selectedGameId]);
@@ -2858,14 +2875,22 @@ const UIProvider = ({ children }) => {
           previousBattingLineup: battingLineup,
           lineup,
           battingLineup,
+          lineupQualityPenalty,
           teamEvalGrades,
           selectedRoundId,
           newRoundLabel,
         };
       },
-      applyResult: ({ lineup: newLineup, battingLineup: newBatting }) => {
+      applyResult: ({
+        lineup: newLineup,
+        battingLineup: newBatting,
+        qualityPenalty,
+      }) => {
         setLineup(newLineup);
         setBattingLineup(newBatting);
+        setLineupQualityPenalty(
+          typeof qualityPenalty === "number" ? qualityPenalty : null
+        );
         setSwapSelection(null);
         setGameSaved(false);
       },
@@ -2873,6 +2898,9 @@ const UIProvider = ({ children }) => {
         if (!tpl) return;
         setLineup(tpl.lineup || null);
         setBattingLineup(tpl.battingLineup || null);
+        // Templates predate this field — clear it so the chip doesn't
+        // show a stale quality score from a different lineup.
+        setLineupQualityPenalty(null);
         setSwapSelection(null);
         setGameSaved(false);
       },
@@ -2915,6 +2943,7 @@ const UIProvider = ({ children }) => {
       setLineup,
       battingLineup,
       setBattingLineup,
+      lineupQualityPenalty,
       swapSelection,
       gameSaved,
       handleCellClick,
@@ -2965,6 +2994,7 @@ const UIProvider = ({ children }) => {
       firstInningLineup,
       lineup,
       battingLineup,
+      lineupQualityPenalty,
       swapSelection,
       gameSaved,
       handleCellClick,

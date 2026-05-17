@@ -1,8 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { Button, Eyebrow } from "./shared.jsx";
+import { useTeam, useUI } from "../contexts.js";
 
-const STORAGE_KEY = "lineuptool.onboardingComplete.v1";
+// Bumped from v1 → v2 when the tour switched from passive descriptions to
+// action-oriented walkthrough with per-step CTAs.
+const STORAGE_KEY = "lineuptool.onboardingComplete.v2";
 
 export const onboardingHasBeenCompleted = () => {
   try {
@@ -28,58 +31,124 @@ export const resetOnboarding = () => {
   }
 };
 
-const STEPS = [
-  {
-    eyebrow: "Welcome",
-    title: "Coach's Card",
-    body: "The advanced lineup, scoring, and stats dashboard for youth-baseball coaches. This quick tour walks you through every screen — about 60 seconds.",
-    icon: Icons.HomePlate,
-  },
-  {
-    eyebrow: "Step 1 of 7",
-    title: "Create or Join a Team",
-    body: "From Settings, create a new team or join an existing one with a team code. Set the age group, league rule set, and pitching format — these drive every recommendation downstream.",
-    icon: Icons.Users,
-  },
-  {
-    eyebrow: "Step 2 of 7",
-    title: "Build the Roster",
-    body: "Add each player with a jersey number, primary position, and any position restrictions. Mark batting/throwing hand. The roster is the foundation for every lineup the engine builds.",
-    icon: Icons.UserPlus,
-  },
-  {
-    eyebrow: "Step 3 of 7",
-    title: "Add Games",
-    body: "Use the Schedule tab to add games — date, opponent, home/away. Flag a game as a Big Game (⭐) when you want primary-position-only fielding, e.g. tournaments and rivalries.",
-    icon: Icons.Calendar,
-  },
-  {
-    eyebrow: "Step 4 of 7",
-    title: "Generate the Lineup",
-    body: "From a scheduled game, hit Generate. The engine fills positions inning-by-inning with fairness rules, the catcher 2-inning cap, scarcity-aware ordering, and Big Game rules when flagged.",
-    icon: Icons.Clipboard,
-  },
-  {
-    eyebrow: "Step 5 of 7",
-    title: "Run In-Game Mode",
-    body: "On gameday, open In-Game from the Home dashboard. Tap any cell to swap players. Mid-game injury or removal? Use the red Alert button — fairness math prorates automatically.",
-    icon: Icons.Forward,
-  },
-  {
-    eyebrow: "Step 6 of 7",
-    title: "Score & Track Stats",
-    body: "Save the final score and per-player stats. Hitting/Fielding/Pitching leaderboards on the Home tab refresh instantly. Evaluations tab lets you grade kids across rounds and see trends.",
-    icon: Icons.FileText,
-  },
-  {
-    eyebrow: "All Set",
-    title: "You're Ready",
-    body: "Click the ? button in the bottom corner at any time to replay this tour. Have a great season, Coach.",
-    icon: Icons.Check,
-  },
-];
+// Each step's `cta` returns a list of { label, action } buttons. The action
+// receives the ctx (useUI bag) and runs setters that navigate / open modals.
+// A null cta means there's no jump-into-the-app affordance for that step.
+const buildSteps = (ctx) => {
+  const { hasGameToday, hasPlayers, hasGames } = ctx;
+  return [
+    {
+      eyebrow: "Welcome",
+      title: "Coach's Card",
+      icon: Icons.HomePlate,
+      body: "Lineups, in-game swaps, eval rounds, season stats — all in one place. Each step below pushes you to actually do the thing.",
+    },
+    {
+      eyebrow: "Step 1 of 7",
+      title: "Set up your team",
+      icon: Icons.Settings,
+      body: "Open Settings to set the team name, age group, league rules, and pitching format. These drive every recommendation downstream.",
+      cta: [
+        {
+          label: "Go to Settings",
+          primary: true,
+          run: () => ctx.setActiveTab("settings"),
+        },
+      ],
+    },
+    {
+      eyebrow: "Step 2 of 7",
+      title: "Add your players",
+      icon: Icons.UserPlus,
+      body: hasPlayers
+        ? "Roster is started. You can keep adding players one at a time, or bulk-import from a CSV."
+        : "Two ways: add players one at a time on the Roster tab, or import a CSV from GameChanger / TeamSnap in Settings.",
+      cta: [
+        {
+          label: "Add a player",
+          primary: true,
+          run: () => {
+            ctx.setActiveTab("roster");
+            ctx.setIsAddingPlayer(true);
+          },
+        },
+        {
+          label: "Import a CSV",
+          run: () => ctx.setActiveTab("settings"),
+        },
+      ],
+    },
+    {
+      eyebrow: "Step 3 of 7",
+      title: "Add a game",
+      icon: Icons.Calendar,
+      body: "Schedule tab → Add Game. Pick the date and opponent. Flag a game as a Big Game ⭐ when you want primary-position-only fielding.",
+      cta: [
+        {
+          label: "Go to Schedule",
+          primary: true,
+          run: () => {
+            ctx.setActiveTab("schedule");
+            ctx.setIsAddingGame?.(true);
+          },
+        },
+      ],
+    },
+    {
+      eyebrow: "Step 4 of 7",
+      title: "Generate a lineup",
+      icon: Icons.Clipboard,
+      body: "Open a scheduled game and tap Generate. The engine fills positions inning-by-inning with fairness rules, the catcher 2-inning cap, scarcity-aware ordering, and Big Game rules when flagged.",
+      cta: hasGames
+        ? [
+            {
+              label: "Open Schedule",
+              primary: true,
+              run: () => ctx.setActiveTab("schedule"),
+            },
+          ]
+        : null,
+    },
+    {
+      eyebrow: "Step 5 of 7",
+      title: "Run In-Game mode",
+      icon: Icons.Forward,
+      body: "On gameday, open In-Game from the Home dashboard. Tap any cell to swap players; the red Alert button handles mid-game injuries and prorates fairness automatically.",
+      cta: hasGameToday
+        ? [
+            {
+              label: "Go to Home",
+              primary: true,
+              run: () => ctx.setActiveTab("home"),
+            },
+          ]
+        : null,
+    },
+    {
+      eyebrow: "Step 6 of 7",
+      title: "Save score & evaluate",
+      icon: Icons.FileText,
+      body: "After a game: enter the score (Home or Schedule), then open Evaluation to grade players on the 1–5 scale. Trends + leaderboards refresh instantly.",
+      cta: [
+        {
+          label: "Open Evaluation",
+          primary: true,
+          run: () => ctx.setActiveTab("evaluation"),
+        },
+      ],
+    },
+    {
+      eyebrow: "All Set",
+      title: "You're ready",
+      icon: Icons.Check,
+      body: "⌘K / Ctrl-K opens the command palette from anywhere. The ? button in the bottom corner replays this tour. Have a great season.",
+    },
+  ];
+};
 
 export const OnboardingTutorial = ({ open, onClose }) => {
+  const { team } = useTeam();
+  const ui = useUI();
   const [step, setStep] = useState(0);
 
   useEffect(() => {
@@ -91,6 +160,26 @@ export const OnboardingTutorial = ({ open, onClose }) => {
     onClose && onClose();
   }, [onClose]);
 
+  // Action ctx for CTAs — re-derived on each render so it picks up
+  // current player/game counts.
+  const ctaCtx = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const games = team?.games || [];
+    const players = team?.players || [];
+    return {
+      hasPlayers: players.length > 0,
+      hasGames: games.length > 0,
+      hasGameToday: games.some(
+        (g) => g.date === today && g.status !== "final" && g.status !== "postponed"
+      ),
+      setActiveTab: ui.setActiveTab,
+      setIsAddingPlayer: ui.setIsAddingPlayer,
+      setIsAddingGame: ui.setIsAddingGame,
+    };
+  }, [team, ui]);
+
+  const steps = useMemo(() => buildSteps(ctaCtx), [ctaCtx]);
+
   useEffect(() => {
     if (!open) return undefined;
     const handler = (e) => {
@@ -98,20 +187,26 @@ export const OnboardingTutorial = ({ open, onClose }) => {
         e.preventDefault();
         close();
       } else if (e.key === "ArrowRight") {
-        setStep((s) => Math.min(STEPS.length - 1, s + 1));
+        setStep((s) => Math.min(steps.length - 1, s + 1));
       } else if (e.key === "ArrowLeft") {
         setStep((s) => Math.max(0, s - 1));
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, close]);
+  }, [open, close, steps.length]);
 
   if (!open) return null;
 
-  const current = STEPS[step];
+  const current = steps[step];
   const Icon = current.icon;
-  const isLast = step === STEPS.length - 1;
+  const isLast = step === steps.length - 1;
+  const runCta = (cta) => {
+    cta.run();
+    // CTA navigates somewhere; close the tour so the user actually sees
+    // the destination rather than the modal scrim over it.
+    close();
+  };
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -141,9 +236,28 @@ export const OnboardingTutorial = ({ open, onClose }) => {
               <Icons.X className="w-5 h-5" />
             </button>
           </div>
-          <p className="t-body mb-7 leading-relaxed">{current.body}</p>
+          <p className="t-body mb-5 leading-relaxed">{current.body}</p>
+          {current.cta && current.cta.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-7">
+              {current.cta.map((c) =>
+                c.primary ? (
+                  <Button key={c.label} onClick={() => runCta(c)}>
+                    {c.label}
+                  </Button>
+                ) : (
+                  <Button
+                    key={c.label}
+                    variant="secondary"
+                    onClick={() => runCta(c)}
+                  >
+                    {c.label}
+                  </Button>
+                )
+              )}
+            </div>
+          )}
           <div className="flex items-center justify-center gap-1.5 mb-6">
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <span
                 key={i}
                 className="h-1.5 rounded-full transition-all"

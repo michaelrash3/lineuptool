@@ -1181,6 +1181,7 @@ export function generateLineup(input: EngineInput): EngineResult {
     lineup: attempt.lineup,
     battingLineup,
     fairnessRelaxed,
+    qualityPenalty: attempt.penalty,
   };
 }
 
