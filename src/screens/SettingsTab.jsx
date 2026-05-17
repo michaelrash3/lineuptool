@@ -722,6 +722,41 @@ export const SettingsTab = memo(() => {
 
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <Icons.Clipboard className="w-4 h-4" /> Eval Reminders
+              </h3>
+              <label className="flex items-start gap-3 bg-white border border-slate-200 p-3 rounded-xl shadow-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={team.emailEvalRemindersDisabled !== true}
+                  onChange={(e) =>
+                    updateTeam({
+                      emailEvalRemindersDisabled: !e.target.checked,
+                    })
+                  }
+                  className="mt-0.5 w-4 h-4 accent-blue-600"
+                />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-xs font-black uppercase tracking-widest text-slate-800">
+                    Email eval reminders to coaches
+                  </span>
+                  <span className="block text-[11px] text-slate-500 font-medium mt-0.5">
+                    When an eval round is due, send a single reminder
+                    email from your signed-in Gmail to every coach who
+                    hasn&apos;t submitted. Cool-off of 7 days between
+                    batches.
+                  </span>
+                </span>
+              </label>
+              {team.lastEvalEmailedAt && (
+                <p className="text-[10px] text-slate-400 font-medium mt-2 px-1">
+                  Last reminder batch sent{" "}
+                  {new Date(team.lastEvalEmailedAt).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
                 <Icons.Plus className="w-4 h-4" /> Invite Coaches
               </h3>
               <p className="text-[11px] text-slate-500 font-medium mb-3">
