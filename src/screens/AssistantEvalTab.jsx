@@ -10,6 +10,7 @@ import {
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
 import { EvalGradeCard } from "../components/EvalGradeCard.jsx";
+import { getActivePositionList } from "../lineupEngine";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 
@@ -29,7 +30,11 @@ const buildEmptyGrades = (players, categories) => {
 export const AssistantEvalTab = memo(() => {
   const { team, user, saveAssistantEvaluation } = useTeam();
   const toast = useToast();
-  const { players, pitchingFormat, evaluationEvents } = team;
+  const { players, pitchingFormat, evaluationEvents, defenseSize } = team;
+  const activePositions = useMemo(
+    () => getActivePositionList(defenseSize),
+    [defenseSize]
+  );
 
   const activeCategories = useMemo(
     () => getEvalCategoriesForTeam(pitchingFormat),
@@ -170,6 +175,7 @@ export const AssistantEvalTab = memo(() => {
               player={p}
               grades={viewingPastRound.grades?.[p.id]}
               activeCategories={activeCategories}
+              positions={activePositions}
               readOnly
             />
           ))}
@@ -271,6 +277,7 @@ export const AssistantEvalTab = memo(() => {
                   player={p}
                   grades={grades[p.id]}
                   activeCategories={groupCats}
+                  positions={activePositions}
                   onGradeChange={setPlayerGrade}
                   onPositionToggle={togglePlayerPosition}
                   onNotesChange={setPlayerNotes}

@@ -467,6 +467,22 @@ export function calcPitcherScore(grades: GradeMap | null | undefined): number {
   return score;
 }
 
+// Active position list by team defenseSize. Drives the position chip
+// rows on the eval form + the Comfortable Positions grid on the player
+// profile. The 11-position superset (P, C, 1B, 2B, 3B, SS, LF, LCF, CF,
+// RCF, RF) is wrong for younger divisions: at 8U a team plays either
+// 10 defenders (LCF + RCF, no CF) or 9 defenders (a single CF, no
+// LCF/RCF). The engine itself reads from positionsToFill which is
+// already computed correctly per defenseSize.
+export function getActivePositionList(
+  defenseSize: string | undefined
+): string[] {
+  if (defenseSize === "9")
+    return ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+  // Default + "10": LC + RC cover center together; no lone CF chip.
+  return ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
+}
+
 // Pool size by game type (9U+ Kid Pitch only). Pool = spread across the
 // staff so the aces can rest for bracket weekends. Bracket = win-now.
 // League = regular-season default.
