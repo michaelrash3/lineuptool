@@ -753,7 +753,8 @@ const RoundComparisonView = memo(
 // Shows each assistant's suggested-positions + notes per player. Skips
 // the per-category grade chips here — those already feed into the
 // combined grade rendered in the main grading area.
-const AssistantSubmissionsPanel = memo(({ evaluationEvents, players }) => {
+const AssistantSubmissionsPanel = memo(
+  ({ evaluationEvents, players, onDelete }) => {
   // Pick the most recent eval per assistant (by date).
   const latestByAssistant = useMemo(() => {
     const m = new Map();
@@ -798,8 +799,29 @@ const AssistantSubmissionsPanel = memo(({ evaluationEvents, players }) => {
                 <div className="text-[11px] font-extrabold uppercase tracking-widest text-slate-600 truncate">
                   Assistant · {ev.evaluatorId?.slice(0, 8) || "—"}
                 </div>
-                <div className="text-[10px] font-bold text-slate-500">
-                  {ev.date}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="text-[10px] font-bold text-slate-500">
+                    {ev.date}
+                  </div>
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          !window.confirm(
+                            `Delete this assistant's eval round (${ev.date})?`
+                          )
+                        )
+                          return;
+                        onDelete(ev.id);
+                      }}
+                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors"
+                      title="Delete this assistant's eval round"
+                      aria-label="Delete assistant eval round"
+                    >
+                      <Icons.Trash className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
               {playersWithSignal.length === 0 ? (
@@ -896,7 +918,7 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
 ));
 
 export const EvaluationTab = memo(() => {
-  const { team, user, saveTeamEvaluation } = useTeam();
+  const { team, user, saveTeamEvaluation, deleteEvaluation } = useTeam();
   const {
     teamEvalGrades,
     setTeamEvalGrades,
@@ -1009,24 +1031,23 @@ export const EvaluationTab = memo(() => {
     }
   }, [isNewRound, teamEvalGrades, newRoundLabel, teamId, userUid]);
 
-  // Auto-save existing rounds with a 1.5s debounce.
+  // Track unsaved changes against the last persisted snapshot so the
+  // header can show a "Unsaved changes" indicator. The auto-save effect
+  // that used to flush on a 1.5s debounce was removed — the HC owns
+  // when a round commits, and stray writes were getting blamed for
+  // rounds that the coach didn't intend to save.
   useEffect(() => {
     if (isNewRound) return;
     const snapshot = JSON.stringify(teamEvalGrades);
     if (snapshot === lastSavedRef.current) return;
     if (lastSavedRef.current === "") {
-      // First snapshot after switching to this round — initialize without saving.
+      // First snapshot after switching to this round — initialize
+      // without flagging as dirty.
       lastSavedRef.current = snapshot;
       return;
     }
-    setSaveState("saving");
-    const handle = setTimeout(() => {
-      saveTeamEvaluation();
-      lastSavedRef.current = snapshot;
-      setSaveState("saved");
-    }, 1500);
-    return () => clearTimeout(handle);
-  }, [isNewRound, teamEvalGrades, saveTeamEvaluation]);
+    setSaveState("dirty");
+  }, [isNewRound, teamEvalGrades]);
 
   // Reset save baseline when switching between rounds.
   useEffect(() => {
@@ -1161,10 +1182,10 @@ export const EvaluationTab = memo(() => {
               className="t-eyebrow flex items-center gap-1.5"
               aria-live="polite"
             >
-              {!isNewRound && saveState === "saving" && (
+              {!isNewRound && saveState === "dirty" && (
                 <>
-                  <Icons.Refresh className="w-3 h-3 animate-spin text-blue-500" />
-                  Saving…
+                  <Icons.Alert className="w-3 h-3 text-amber-600" />
+                  Unsaved changes
                 </>
               )}
               {!isNewRound && saveState === "saved" && (
@@ -1239,6 +1260,32 @@ export const EvaluationTab = memo(() => {
               ))}
             </select>
           </label>
+          {selectedRoundId && (
+            <button
+              type="button"
+              onClick={() => {
+                const r = myRounds.find((x) => x.id === selectedRoundId);
+                if (!r) return;
+                if (
+                  !window.confirm(
+                    `Delete this eval round (${
+                      r.label || r.date
+                    })? This can't be undone.`
+                  )
+                )
+                  return;
+                deleteEvaluation?.(selectedRoundId);
+                setSelectedRoundId(null);
+                lastSavedRef.current = "";
+                setSaveState("idle");
+              }}
+              className="shrink-0 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-lg transition-colors"
+              title="Delete this eval round"
+              aria-label="Delete selected eval round"
+            >
+              <Icons.Trash className="w-4 h-4" />
+            </button>
+          )}
           {isNewRound && (
             <label className="flex items-center gap-2 flex-1 min-w-0">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-600 shrink-0">
@@ -1284,6 +1331,7 @@ export const EvaluationTab = memo(() => {
         <AssistantSubmissionsPanel
           evaluationEvents={evaluationEvents}
           players={players}
+          onDelete={deleteEvaluation}
         />
 
         {/* Quick-set toolbar */}
