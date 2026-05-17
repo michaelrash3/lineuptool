@@ -306,6 +306,78 @@ const InviteCoachesPanel = memo(
   }
 );
 
+// Per-player Returning / Released chips for the head to mark up the
+// current roster before tapping Advance Season. Status sticks on the
+// player doc until advanceSeason consumes it.
+const MarkForNextSeasonPanel = memo(({ players, setPlayerStatus }) => {
+  if (!Array.isArray(players) || players.length === 0) return null;
+  return (
+    <div className="mt-6">
+      <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">
+        Mark for Next Season
+      </div>
+      <p className="text-[11px] text-slate-500 font-medium mb-3">
+        Pick who&apos;s coming back. Released players are dropped on
+        Advance Season; tryout accepts (status &quot;accepted&quot;)
+        ride in automatically.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {players.map((p) => {
+          const status = p.playerStatus || "returning";
+          const isReturning = status === "returning";
+          const isReleased = status === "released";
+          const isAccepted = status === "accepted";
+          return (
+            <div
+              key={p.id}
+              className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2.5"
+            >
+              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-tight truncate">
+                {p.name}
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {isAccepted && (
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                    Tryout
+                  </span>
+                )}
+                {!isAccepted && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPlayerStatus?.(p.id, "returning")
+                      }
+                      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
+                        isReturning
+                          ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                    >
+                      Returning
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPlayerStatus?.(p.id, "released")}
+                      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
+                        isReleased
+                          ? "bg-slate-200 border-slate-300 text-slate-700"
+                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                      }`}
+                    >
+                      Released
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -314,6 +386,9 @@ export const SettingsTab = memo(() => {
     activeTeamId,
     updateTeam,
     advanceSeason,
+    exportRosterCsv,
+    exportNewPlayersCsv,
+    setPlayerStatus,
     uploadLogo,
     uploadScheduleCsv,
     uploadStatsCsv,
@@ -852,6 +927,28 @@ export const SettingsTab = memo(() => {
                       <Icons.Forward className="w-4 h-4" /> Advance Season
                     </button>
                   </div>
+                </div>
+
+                <MarkForNextSeasonPanel
+                  players={team.players || []}
+                  setPlayerStatus={setPlayerStatus}
+                />
+
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={exportRosterCsv}
+                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <Icons.Forward className="w-3.5 h-3.5" /> Export Roster CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportNewPlayersCsv}
+                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <Icons.Forward className="w-3.5 h-3.5" /> Export New Players CSV
+                  </button>
                 </div>
                 <div>
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">

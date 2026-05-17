@@ -1696,12 +1696,32 @@ const TeamProvider = ({ children }) => {
     const archivedFormat = teamData.pitchingFormat;
     const playerCount = teamData.players.length;
 
+    // Split current roster by playerStatus. Returning + undefined keep
+    // their slot; released + declined are archived (stats keep flowing
+    // into pastSeasons) but dropped from the next roster.
+    const isDropped = (p) =>
+      p.playerStatus === "released" || p.playerStatus === "declined";
+    const droppedCount = teamData.players.filter(isDropped).length;
+    // Tryout accepts ride on the same `team.players` array with
+    // playerStatus === "accepted" — they join the new roster directly.
+    const acceptedCount = teamData.players.filter(
+      (p) => p.playerStatus === "accepted"
+    ).length;
+
     // Confirmation
     const confirmMsg =
       `Archive ${archivedSeason} (${archivedAge}, ${archivedFormat})?\n\n` +
       `• ${playerCount} player${
         playerCount === 1 ? "" : "s"
       } will have stats archived to history\n` +
+      (droppedCount > 0
+        ? `• ${droppedCount} marked Released/Declined will be dropped\n`
+        : "") +
+      (acceptedCount > 0
+        ? `• ${acceptedCount} tryout accept${
+            acceptedCount === 1 ? "" : "s"
+          } will join the new roster\n`
+        : "") +
       `• Record being archived: ${wins}-${losses}${
         ties > 0 ? "-" + ties : ""
       }` +
@@ -1717,29 +1737,37 @@ const TeamProvider = ({ children }) => {
 
     if (!window.confirm(confirmMsg)) return;
 
-    // Archive each player's current stats into pastSeasons[]. Keep all stat fields
-    // unconditionally; the display layer hides pitching when format isn't Kid Pitch.
-    const updatedPlayers = teamData.players.map((p) => {
-      const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
-      // Only archive if there's something meaningful (skip totally-empty stat objects)
-      const stats = p.stats || blankStats();
-      const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
-      if (hasAnyData) {
-        past.push({
-          season: archivedSeason,
-          ageGroup: archivedAge,
-          pitchingFormat: archivedFormat,
-          record: seasonRecord,
-          stats: { ...stats },
-        });
-      }
-      return {
-        ...p,
-        pastSeasons: past,
-        stats: blankStats(),
-        pitching: { recentPitches: 0, lastPitchDate: null },
-      };
-    });
+    const nowIso = new Date().toISOString();
+
+    // Archive each player's current stats into pastSeasons[]; drop the
+    // ones marked Released/Declined; reset surviving statuses to
+    // "returning" so the next cycle starts clean.
+    const updatedPlayers = teamData.players
+      .filter((p) => !isDropped(p))
+      .map((p) => {
+        const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
+        // Only archive if there's something meaningful (skip totally-empty stat objects)
+        const stats = p.stats || blankStats();
+        const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
+        if (hasAnyData) {
+          past.push({
+            season: archivedSeason,
+            ageGroup: archivedAge,
+            pitchingFormat: archivedFormat,
+            record: seasonRecord,
+            stats: { ...stats },
+          });
+        }
+        return {
+          ...p,
+          pastSeasons: past,
+          stats: blankStats(),
+          pitching: { recentPitches: 0, lastPitchDate: null },
+          // After advance, every surviving player is treated as
+          // returning for the new season.
+          playerStatus: "returning",
+        };
+      });
 
     updateTeam({
       currentSeason: nextSeason,
@@ -1747,6 +1775,7 @@ const TeamProvider = ({ children }) => {
       players: updatedPlayers,
       games: [],
       evaluationEvents: [],
+      lastSeasonAdvanceAt: nowIso,
     });
     toast.push({
       kind: "success",
@@ -2248,6 +2277,104 @@ const TeamProvider = ({ children }) => {
     a.click();
     URL.revokeObjectURL(url);
   }, [teamData, activeTeamId]);
+
+  // Roster CSV — TeamSnap-import-template column order so the file can
+  // be uploaded straight back into LineupTool or into a league portal.
+  // Column choices mirror buildCsvHeaderIndex's TeamSnap detection
+  // (Contact 1 Name / Jersey Number / Email / etc).
+  const csvEscape = (val) => {
+    if (val == null) return "";
+    const s = String(val);
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+  const playersToCsv = useCallback((players) => {
+    const headers = [
+      "First",
+      "Last",
+      "Jersey Number",
+      "Birthdate",
+      "Bats",
+      "Throws",
+      "Contact 1 Name",
+      "Contact 1 Phone",
+      "Contact 1 Email",
+      "Status",
+    ];
+    const rows = (players || []).map((p) => {
+      const parts = (p.name || "").trim().split(/\s+/);
+      const first = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] || "";
+      const last = parts.length > 1 ? parts[parts.length - 1] : "";
+      return [
+        csvEscape(first),
+        csvEscape(last),
+        csvEscape(p.number),
+        csvEscape(p.dob),
+        csvEscape(p.bats || "R"),
+        csvEscape(p.throws || "R"),
+        csvEscape(p.parentName),
+        csvEscape(p.phone),
+        csvEscape(p.email),
+        csvEscape(p.playerStatus || "returning"),
+      ].join(",");
+    });
+    return [headers.map(csvEscape).join(","), ...rows].join("\r\n");
+  }, []);
+
+  const downloadCsv = (filename, csvText) => {
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportRosterCsv = useCallback(() => {
+    const csv = playersToCsv(teamData.players || []);
+    downloadCsv(
+      `roster-${activeTeamId}-${getLocalDateString()}.csv`,
+      csv
+    );
+    toast.push({ kind: "success", title: "Roster CSV downloaded" });
+  }, [teamData.players, activeTeamId, toast, playersToCsv]);
+
+  const exportNewPlayersCsv = useCallback(() => {
+    const incoming = (teamData.players || []).filter(
+      (p) => p.playerStatus === "accepted"
+    );
+    if (incoming.length === 0) {
+      toast.push({
+        kind: "info",
+        title: "No new players to export",
+        message: "Players join via tryout accept; status === \"accepted\".",
+      });
+      return;
+    }
+    const csv = playersToCsv(incoming);
+    downloadCsv(
+      `new-players-${activeTeamId}-${getLocalDateString()}.csv`,
+      csv
+    );
+    toast.push({
+      kind: "success",
+      title: `Downloaded ${incoming.length} new player${
+        incoming.length === 1 ? "" : "s"
+      }`,
+    });
+  }, [teamData.players, activeTeamId, toast, playersToCsv]);
+
+  // Per-player status setter for the "Mark for Next Season" panel.
+  const setPlayerStatus = useCallback(
+    (playerId, status) => {
+      const next = (teamData.players || []).map((p) =>
+        p.id === playerId ? { ...p, playerStatus: status } : p
+      );
+      updateTeam({ players: next });
+    },
+    [teamData.players, updateTeam]
+  );
 
   const importBackup = useCallback(
     (e) => {
@@ -2908,6 +3035,9 @@ const TeamProvider = ({ children }) => {
       uploadScheduleCsv,
       uploadStatsCsv,
       exportBackup,
+      exportRosterCsv,
+      exportNewPlayersCsv,
+      setPlayerStatus,
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
@@ -2967,6 +3097,9 @@ const TeamProvider = ({ children }) => {
       uploadScheduleCsv,
       uploadStatsCsv,
       exportBackup,
+      exportRosterCsv,
+      exportNewPlayersCsv,
+      setPlayerStatus,
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
