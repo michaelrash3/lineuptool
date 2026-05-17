@@ -94,6 +94,24 @@ export interface Game {
   [key: string]: unknown;
 }
 
+export interface TryoutSignup {
+  id: string;
+  submittedAt: string;
+  firstName: string;
+  lastName: string;
+  dob?: string;
+  number?: string;
+  bats?: string;
+  throws?: string;
+  comfortablePositions?: string[];
+  isCatcher?: boolean;
+  parentName?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+  status?: "tryout" | "offered" | "accepted" | "declined";
+}
+
 export interface Team {
   name?: string;
   primaryColor?: string;
@@ -101,6 +119,11 @@ export interface Team {
   tertiaryColor?: string;
   players?: Player[];
   games?: Game[];
+  // Tryouts (PR M)
+  tryoutShareId?: string;
+  tryoutsOpen?: boolean;
+  rosterCap?: number;
+  tryoutSignups?: TryoutSignup[];
   [key: string]: unknown;
 }
 

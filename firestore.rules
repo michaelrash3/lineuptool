@@ -1,0 +1,62 @@
+// Lineuptool Firestore rules — proposal.
+//
+// This file documents the rules the app expects. The project's actual
+// rules live in Firebase Console; deploy these (or an equivalent) to
+// enable the public Tryouts Portal (PR M) + keep the existing auth
+// model working.
+//
+// Tryout portal needs:
+//   1. An anonymous (or any signed-in) caller to READ teams whose
+//      `tryoutShareId` matches the URL-provided share id (just enough
+//      metadata to render the themed form).
+//   2. The same caller to WRITE to `team.tryoutSignups` via an
+//      arrayUnion update. We restrict the write to only that field
+//      so a stray parent can't tamper with roster / games / etc.
+//
+// Existing app rules: authenticated users read/write the team docs
+// they own or are a member of. Listed below in simplified form; adjust
+// to match whatever the project already has.
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /artifacts/{appId}/public/data/teams/{teamId} {
+      // Authenticated users: full read/write on teams they belong to.
+      allow read: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid ||
+        request.auth.uid in (resource.data.members != null
+          ? resource.data.members
+          : [])
+      );
+      allow write: if request.auth != null && (
+        // Existing team: only owner/members write
+        (resource != null && (
+          resource.data.ownerId == request.auth.uid ||
+          request.auth.uid in (resource.data.members != null
+            ? resource.data.members
+            : [])
+        )) ||
+        // Brand-new team document: the creator owns it
+        (resource == null && request.resource.data.ownerId == request.auth.uid)
+      );
+
+      // Public Tryouts Portal: any signed-in caller (including
+      // anonymous) can do a *limited* read + a tryoutSignups-only
+      // arrayUnion update, provided `tryoutsOpen == true`.
+      //
+      // The read returns the whole doc — keep sensitive fields off the
+      // team doc if you don't want them visible to anonymous callers
+      // who guess a shareId.
+      allow read: if request.auth != null
+                  && resource.data.tryoutsOpen == true;
+
+      allow update: if request.auth != null
+                    && resource.data.tryoutsOpen == true
+                    // Only the tryoutSignups field may change.
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['tryoutSignups']);
+    }
+  }
+}

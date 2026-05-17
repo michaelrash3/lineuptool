@@ -378,6 +378,126 @@ const MarkForNextSeasonPanel = memo(({ players, setPlayerStatus }) => {
   );
 });
 
+// Tryouts settings panel — head-only. Generate the public share link,
+// toggle the public form open/closed, and configure roster cap for
+// impact analysis comparisons.
+const TryoutsSettingsPanel = memo(
+  ({
+    team,
+    generateTryoutShareId,
+    setTryoutsOpen,
+    setRosterCap,
+    toast,
+  }) => {
+    const shareId = team.tryoutShareId;
+    const open = team.tryoutsOpen === true;
+    const cap = team.rosterCap || 12;
+    const shareUrl =
+      shareId && typeof window !== "undefined"
+        ? `${window.location.origin}/tryouts-portal/${shareId}`
+        : null;
+    return (
+      <div>
+        <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
+          <Icons.Users className="w-4 h-4" /> Tryouts
+        </h3>
+        <p className="text-[11px] text-slate-500 font-medium mb-3">
+          Generate a public share link parents can fill out. Toggle off
+          when tryouts close to stop accepting new signups.
+        </p>
+        <div className="space-y-3">
+          {shareId ? (
+            <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                Public link
+              </div>
+              <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">
+                {shareUrl}
+              </code>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (navigator.clipboard && shareUrl) {
+                      navigator.clipboard.writeText(shareUrl);
+                      toast.push({ kind: "success", title: "Link copied" });
+                    }
+                  }}
+                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => generateTryoutShareId?.()}
+                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+                >
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => generateTryoutShareId?.()}
+              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+              style={{ backgroundColor: "var(--team-primary)" }}
+            >
+              Generate Tryout Share Link
+            </button>
+          )}
+
+          <label className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3 cursor-pointer">
+            <div>
+              <div className="text-xs font-black uppercase tracking-widest text-slate-800">
+                Tryouts Open
+              </div>
+              <div className="text-[11px] text-slate-500 font-medium">
+                {open
+                  ? "Public form is accepting signups."
+                  : "Public form is closed. Existing signups stay visible."}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTryoutsOpen?.(!open)}
+              className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                open ? "bg-emerald-500" : "bg-slate-300"
+              }`}
+              aria-label="Toggle tryouts open"
+            >
+              <span
+                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
+                  open ? "left-5" : "left-0.5"
+                }`}
+              />
+            </button>
+          </label>
+
+          <label className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-black uppercase tracking-widest text-slate-800">
+                Roster Cap
+              </div>
+              <div className="text-[11px] text-slate-500 font-medium">
+                Used by Impact Analysis to compute the cutoff returner.
+              </div>
+            </div>
+            <input
+              type="number"
+              min={5}
+              max={30}
+              value={cap}
+              onChange={(e) => setRosterCap?.(e.target.value)}
+              className="shrink-0 w-16 text-center px-2 py-1 text-sm font-black bg-white border border-slate-200 rounded-md"
+            />
+          </label>
+        </div>
+      </div>
+    );
+  }
+);
+
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -389,6 +509,9 @@ export const SettingsTab = memo(() => {
     exportRosterCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
+    generateTryoutShareId,
+    setTryoutsOpen,
+    setRosterCap,
     uploadLogo,
     uploadScheduleCsv,
     uploadStatsCsv,
@@ -742,6 +865,14 @@ export const SettingsTab = memo(() => {
                 </button>
               )}
             </div>
+
+            <TryoutsSettingsPanel
+              team={team}
+              generateTryoutShareId={generateTryoutShareId}
+              setTryoutsOpen={setTryoutsOpen}
+              setRosterCap={setRosterCap}
+              toast={toast}
+            />
 
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
