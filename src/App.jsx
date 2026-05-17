@@ -58,6 +58,8 @@ import {
   PastSeasonImportModal,
 } from "./components/modals.jsx";
 import { AssistantEvalTab } from "./screens/AssistantEvalTab.jsx";
+import { TryoutsTab } from "./screens/TryoutsTab.jsx";
+import { TryoutsPortal } from "./screens/TryoutsPortal.jsx";
 import { InGameView } from "./screens/InGameView.jsx";
 import {
   normalizeDateToIso,
@@ -2577,6 +2579,145 @@ const TeamProvider = ({ children }) => {
     [teamData.evaluationEvents, updateTeam, toast]
   );
 
+  // ─── Tryouts (PR M) ───────────────────────────────────────────────
+  // Public sign-up flow lives at /tryouts/:shareId and writes to
+  // team.tryoutSignups[]. Coach side reads from the same array; impact
+  // analysis compares against returning roster.
+
+  const generateTryoutShareId = useCallback(() => {
+    const id =
+      Math.random().toString(36).slice(2, 8) +
+      Math.random().toString(36).slice(2, 8);
+    updateTeam({ tryoutShareId: id, tryoutsOpen: true });
+    return id;
+  }, [updateTeam]);
+
+  const setTryoutsOpen = useCallback(
+    (open) => {
+      updateTeam({ tryoutsOpen: !!open });
+    },
+    [updateTeam]
+  );
+
+  const setRosterCap = useCallback(
+    (cap) => {
+      const n = parseInt(cap, 10);
+      if (!Number.isFinite(n) || n <= 0) return;
+      updateTeam({ rosterCap: n });
+    },
+    [updateTeam]
+  );
+
+  const appendTryoutSignup = useCallback(
+    (signup) => {
+      const id =
+        signup.id || "ts-" + Math.random().toString(36).slice(2, 10);
+      const entry = {
+        id,
+        submittedAt: signup.submittedAt || new Date().toISOString(),
+        status: signup.status || "tryout",
+        ...signup,
+      };
+      const next = [...(teamData.tryoutSignups || []), entry];
+      updateTeam({ tryoutSignups: next });
+      return entry;
+    },
+    [teamData.tryoutSignups, updateTeam]
+  );
+
+  const updateTryoutSignup = useCallback(
+    (id, patch) => {
+      const next = (teamData.tryoutSignups || []).map((s) =>
+        s.id === id ? { ...s, ...patch } : s
+      );
+      updateTeam({ tryoutSignups: next });
+    },
+    [teamData.tryoutSignups, updateTeam]
+  );
+
+  const deleteTryoutSignup = useCallback(
+    (id) => {
+      if (!id) return;
+      if (!window.confirm("Delete this tryout signup?")) return;
+      const next = (teamData.tryoutSignups || []).filter((s) => s.id !== id);
+      updateTeam({ tryoutSignups: next });
+    },
+    [teamData.tryoutSignups, updateTeam]
+  );
+
+  // Tryout grades live in team.evaluationEvents alongside roster
+  // evals but carry `tryoutSignupId` so getCombinedGrades ignores them
+  // when scoring the roster. One event per (evaluator, signup).
+  const saveTryoutEvaluation = useCallback(
+    (signupId, grades, coachRole) => {
+      if (!user || !signupId) return;
+      const date = new Date().toISOString().slice(0, 10);
+      const existing = (teamData.evaluationEvents || []).find(
+        (e) =>
+          e.tryoutSignupId === signupId && e.evaluatorId === user.uid
+      );
+      const event = {
+        id:
+          existing?.id || "ev-" + Math.random().toString(36).slice(2, 10),
+        date,
+        coachRole: coachRole || "Assistant",
+        evaluatorId: user.uid,
+        label: `Tryout · ${signupId}`,
+        tryoutSignupId: signupId,
+        grades: { __signup__: { ...grades } },
+      };
+      const next = existing
+        ? teamData.evaluationEvents.map((e) =>
+            e.id === existing.id ? event : e
+          )
+        : [...(teamData.evaluationEvents || []), event];
+      updateTeam({ evaluationEvents: next });
+    },
+    [user, teamData.evaluationEvents, updateTeam]
+  );
+
+  // Accept-offer flow. Flips signup.status to "accepted" AND creates
+  // a corresponding entry in team.players with playerStatus = "accepted"
+  // so PR L's advanceSeason picks them up automatically.
+  const acceptTryout = useCallback(
+    (id) => {
+      const signup = (teamData.tryoutSignups || []).find((s) => s.id === id);
+      if (!signup) return;
+      const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim();
+      const player = {
+        id: "p-" + Math.random().toString(36).slice(2, 10),
+        name,
+        number: signup.number || "",
+        dob: signup.dob || "",
+        bats: signup.bats || "R",
+        throws: signup.throws || "R",
+        comfortablePositions: signup.comfortablePositions || [],
+        isCatcher: signup.isCatcher === true,
+        parentName: signup.parentName || "",
+        email: signup.email || "",
+        phone: signup.phone || "",
+        present: true,
+        playerStatus: "accepted",
+        stats: blankStats(),
+        pitching: { recentPitches: 0, lastPitchDate: null },
+      };
+      const nextSignups = (teamData.tryoutSignups || []).map((s) =>
+        s.id === id ? { ...s, status: "accepted" } : s
+      );
+      const nextPlayers = [...(teamData.players || []), player];
+      updateTeam({
+        tryoutSignups: nextSignups,
+        players: nextPlayers,
+      });
+      toast.push({
+        kind: "success",
+        title: `${name} accepted`,
+        message: "Added to roster with status “accepted”. They join on Advance Season.",
+      });
+    },
+    [teamData.tryoutSignups, teamData.players, updateTeam, toast]
+  );
+
   // Promote / demote a non-owner team member. Owner is implicitly head and
   // cannot be demoted from here.
   const setCoachRole = useCallback(
@@ -3044,6 +3185,14 @@ const TeamProvider = ({ children }) => {
       saveTeamEvaluation,
       saveAssistantEvaluation,
       deleteEvaluation,
+      generateTryoutShareId,
+      setTryoutsOpen,
+      setRosterCap,
+      appendTryoutSignup,
+      updateTryoutSignup,
+      deleteTryoutSignup,
+      acceptTryout,
+      saveTryoutEvaluation,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
@@ -3106,6 +3255,14 @@ const TeamProvider = ({ children }) => {
       saveTeamEvaluation,
       saveAssistantEvaluation,
       deleteEvaluation,
+      generateTryoutShareId,
+      setTryoutsOpen,
+      setRosterCap,
+      appendTryoutSignup,
+      updateTryoutSignup,
+      deleteTryoutSignup,
+      acceptTryout,
+      saveTryoutEvaluation,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
@@ -3566,18 +3723,14 @@ const UIProvider = ({ children }) => {
 /* ============================================================================
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
-const TAB_ORDER_HEAD = ["home", "roster", "schedule", "evaluation", "settings"];
-const TAB_ORDER_ASSISTANT = ["home", "roster", "schedule", "evaluation"];
-
-// Map activeTab id → URL path and back. "home" is the root path so the
-// app feels right at https://host/ without an explicit /home segment.
-// `evaluation` resolves to the head EvaluationTab for heads and the
-// AssistantEvalTab for assistants; same URL, role-dispatched view.
+// Tab order is computed below from team.tryoutsOpen so the Tryouts
+// tab only appears when tryouts are actively open.
 const TAB_TO_PATH = {
   home: "/",
   roster: "/roster",
   schedule: "/schedule",
   evaluation: "/evaluation",
+  tryouts: "/tryouts",
   settings: "/settings",
 };
 const pathToTab = (pathname) => {
@@ -3613,7 +3766,18 @@ const MainShell = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
-  const TAB_ORDER = isAssistant ? TAB_ORDER_ASSISTANT : TAB_ORDER_HEAD;
+  const tryoutsOpen = team?.tryoutsOpen === true;
+  const TAB_ORDER = useMemo(
+    () =>
+      isAssistant
+        ? tryoutsOpen
+          ? ["home", "roster", "schedule", "tryouts", "evaluation"]
+          : ["home", "roster", "schedule", "evaluation"]
+        : tryoutsOpen
+        ? ["home", "roster", "schedule", "tryouts", "evaluation", "settings"]
+        : ["home", "roster", "schedule", "evaluation", "settings"],
+    [isAssistant, tryoutsOpen]
+  );
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -3797,17 +3961,24 @@ const MainShell = () => {
     );
   }
 
+  const tryoutsButton = {
+    id: "tryouts",
+    icon: Icons.Users,
+    label: "Tryouts",
+  };
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        ...(tryoutsOpen ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
       ]
     : [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        ...(tryoutsOpen ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         { id: "settings", icon: Icons.Settings, label: "Settings" },
       ];
@@ -3829,6 +4000,12 @@ const MainShell = () => {
           <Route
             path="/evaluation"
             element={isAssistant ? <AssistantEvalTab /> : <EvaluationTab />}
+          />
+          <Route
+            path="/tryouts"
+            element={
+              tryoutsOpen ? <TryoutsTab /> : <Navigate to="/" replace />
+            }
           />
           <Route
             path="/settings"
@@ -3872,6 +4049,23 @@ const MainShell = () => {
 };
 
 const App = () => {
+  // Public Tryouts Portal route bypasses the auth-gated TeamProvider so
+  // parents can submit signups without signing in. The portal handles
+  // its own (optional) anonymous Firebase auth and writes to the team
+  // document via a shareId-scoped read.
+  if (
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/tryouts-portal/")
+  ) {
+    return (
+      <ToastProvider>
+        <Routes>
+          <Route path="/tryouts-portal/:shareId" element={<TryoutsPortal />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ToastProvider>
+    );
+  }
   return (
     <ToastProvider>
       <TeamProvider>
