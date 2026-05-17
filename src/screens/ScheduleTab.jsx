@@ -151,6 +151,7 @@ export const ScheduleTab = memo(() => {
     generateLineup,
     regenerateLineup,
     regenerateBatting,
+    regenerateDefense,
     record,
     saveLineupTemplate,
     applyLineupTemplate,
@@ -320,6 +321,15 @@ export const ScheduleTab = memo(() => {
                       className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
                     >
                       <Icons.Bat className="w-4 h-4" /> Re-roll Batting
+                    </button>
+                  )}
+                  {lineup && (
+                    <button
+                      onClick={regenerateDefense}
+                      title="Re-roll just the defensive schedule — batting order stays the same"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                    >
+                      <Icons.Glove className="w-4 h-4" /> Re-roll Defense
                     </button>
                   )}
                   {lineup && (
