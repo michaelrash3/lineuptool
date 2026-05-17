@@ -125,15 +125,6 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
             )}
           </div>
         </div>
-        <div className="flex sm:hidden">
-          <button
-            type="button"
-            onClick={() => onOpenProfile(player.id)}
-            className="t-button text-slate-500 hover:text-slate-800 flex items-center gap-1.5"
-          >
-            <Icons.FileText className="w-3.5 h-3.5" /> Profile
-          </button>
-        </div>
       </div>
 
       <div className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-slate-200 bg-gradient-to-b from-slate-50 to-blue-50/50">
@@ -186,16 +177,6 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
         )}
       </div>
 
-      <div className="hidden sm:flex col-span-3 sm:col-auto items-center justify-end pr-3">
-        <button
-          type="button"
-          onClick={() => onOpenProfile(player.id)}
-          className="px-3 py-2 t-button text-slate-500 hover:text-slate-800 hover:bg-white/60 rounded-lg flex items-center gap-1.5"
-          aria-label={`Open ${player.name}'s profile`}
-        >
-          <Icons.FileText className="w-3.5 h-3.5" /> Profile
-        </button>
-      </div>
     </div>
   );
 });

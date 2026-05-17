@@ -39,39 +39,33 @@ export const LeaderboardCard = memo(
     }, [players, statKey, asc]);
 
     return (
-      <div className="bg-white/30 rounded-xl shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-white/50 overflow-hidden hover:-translate-y-0.5 transition-transform duration-300">
-        <div className="p-3 border-b border-white/40 flex items-center gap-2.5 bg-white/20">
-          <div
-            className="p-1.5 rounded-lg"
-            style={{ backgroundColor: `${primaryColor}15` }}
-          >
-            <Icon className="w-4 h-4" style={{ color: primaryColor }} />
-          </div>
-          <h4 className="font-extrabold text-[10px] uppercase tracking-widest text-slate-700 truncate">
+      <div className="bg-white/30 rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-white/50 overflow-hidden">
+        <div className="px-2.5 py-1.5 border-b border-white/40">
+          <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-slate-600 truncate">
             {title}
           </h4>
         </div>
-        <div className="p-3 space-y-1.5">
+        <div className="p-2 space-y-1">
           {sorted.length > 0 ? (
             sorted.map((p, i) => (
               <div
                 key={p.id}
-                className="flex justify-between items-center gap-2"
+                className="flex justify-between items-center gap-1.5"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[11px] font-black text-slate-500 w-3 shrink-0 tabular-nums">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[10px] font-black text-slate-400 w-2 shrink-0 tabular-nums">
                     {i + 1}
                   </span>
                   <button
                     type="button"
                     onClick={() => onPlayerClick && onPlayerClick(p.id)}
-                    className="text-[13px] font-extrabold text-slate-800 truncate text-left hover:text-blue-600 transition-colors cursor-pointer leading-tight"
+                    className="text-[11px] font-extrabold text-slate-800 truncate text-left hover:text-blue-600 transition-colors cursor-pointer leading-tight"
                   >
                     {p.name}
                   </button>
                 </div>
                 <span
-                  className="text-[12px] font-black tabular-nums px-2 py-0.5 rounded-md shadow-sm border border-white/50 shrink-0"
+                  className="text-[11px] font-black tabular-nums px-1.5 py-0 rounded-md shrink-0"
                   style={{
                     backgroundColor: primaryColor,
                     color: tertiaryColor,
@@ -84,7 +78,7 @@ export const LeaderboardCard = memo(
               </div>
             ))
           ) : (
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center py-3 italic">
+            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center py-2 italic">
               No data
             </div>
           )}

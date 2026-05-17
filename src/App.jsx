@@ -1889,6 +1889,8 @@ const TeamProvider = ({ children }) => {
             setInt("triples", idx.triples);
             setInt("hr", idx.hr);
             setInt("rbi", idx.rbi);
+            setInt("sb", idx.sb);
+            setInt("k", idx.k);
             setNum("fpct", idx.fpct);
             setInt("tc", idx.tc);
             setInt("a", idx.a);

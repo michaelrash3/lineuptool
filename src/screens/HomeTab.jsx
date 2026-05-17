@@ -76,6 +76,8 @@ const HITTING_STATS = [
   { title: "Triples", statKey: "triples", formatStr: false, asc: false },
   { title: "Home Runs", statKey: "hr", formatStr: false, asc: false },
   { title: "RBI", statKey: "rbi", formatStr: false, asc: false },
+  { title: "Stolen Bases", statKey: "sb", formatStr: false, asc: false },
+  { title: "Strikeouts", statKey: "k", formatStr: false, asc: true },
 ];
 
 const FIELDING_STATS = [
@@ -872,82 +874,101 @@ export const HomeTab = memo(() => {
           }}
         />
       ) : (
-        <>
-          <div>
-            <div className="flex items-center gap-3 mb-5 px-2">
-              <div className="p-2 rounded-full bg-white/40 shadow-sm border border-white/50">
-                <Icons.Bat className="w-5 h-5 text-slate-600" />
-              </div>
-              <h3 className="text-lg font-black uppercase tracking-widest text-slate-800">
-                Hitting Leaders
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {HITTING_STATS.map((stat, i) => (
-                <LeaderboardCard
-                  key={`${stat.statKey}-${i}`}
-                  {...stat}
-                  icon={Icons.Bat}
-                  players={players}
-                  primaryColor={primaryColor}
-                  tertiaryColor={tertiaryColor}
-                  onPlayerClick={openPlayerProfile}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-3 mb-5 px-2 mt-8">
-              <div className="p-2 rounded-full bg-white/40 shadow-sm border border-white/50">
-                <Icons.Glove className="w-5 h-5 text-slate-600" />
-              </div>
-              <h3 className="text-lg font-black uppercase tracking-widest text-slate-800">
-                Fielding Leaders
-              </h3>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {FIELDING_STATS.map((stat, i) => (
-                <LeaderboardCard
-                  key={`${stat.statKey}-${i}`}
-                  {...stat}
-                  icon={Icons.Glove}
-                  players={players}
-                  primaryColor={primaryColor}
-                  tertiaryColor={tertiaryColor}
-                  onPlayerClick={openPlayerProfile}
-                />
-              ))}
-            </div>
-          </div>
-
-          {isKidPitch && (
-            <div>
-              <div className="flex items-center gap-3 mb-5 px-2 mt-8">
-                <div className="p-2 rounded-full bg-red-50/80 border border-red-100 shadow-sm">
-                  <Icons.Pitch className="w-5 h-5 text-red-600" />
-                </div>
-                <h3 className="text-lg font-black uppercase tracking-widest text-slate-800">
-                  Pitching Leaders
-                </h3>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {PITCHING_STATS.map((stat, i) => (
-                  <LeaderboardCard
-                    key={`${stat.statKey}-${i}`}
-                    {...stat}
-                    icon={Icons.Pitch}
-                    players={players}
-                    primaryColor={primaryColor}
-                    tertiaryColor={tertiaryColor}
-                    onPlayerClick={openPlayerProfile}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+        <LeaderboardsSection
+          players={players}
+          isKidPitch={isKidPitch}
+          primaryColor={primaryColor}
+          tertiaryColor={tertiaryColor}
+          onPlayerClick={openPlayerProfile}
+        />
       )}
     </div>
   );
 });
+
+// Tabbed leaderboard section. All stats render within each tab (no
+// hidden subsets) but the card density is tight so the whole section
+// stays compact.
+const LeaderboardsSection = memo(
+  ({ players, isKidPitch, primaryColor, tertiaryColor, onPlayerClick }) => {
+    const tabs = useMemo(() => {
+      const out = [
+        { id: "offense", label: "Offensive", icon: Icons.Bat, stats: HITTING_STATS },
+        {
+          id: "defense",
+          label: "Defensive",
+          icon: Icons.Glove,
+          stats: FIELDING_STATS,
+        },
+      ];
+      // Only show Pitching tab when at least one player has pitched (any IP).
+      const anyPitches = (players || []).some(
+        (p) => Number(p.stats?.ip) > 0 || Number(p.stats?.totalPitches) > 0
+      );
+      if (isKidPitch && anyPitches) {
+        out.push({
+          id: "pitching",
+          label: "Pitching",
+          icon: Icons.Pitch,
+          stats: PITCHING_STATS,
+        });
+      }
+      return out;
+    }, [players, isKidPitch]);
+
+    const [activeTab, setActiveTab] = useState(tabs[0]?.id || "offense");
+    // Reset when tabs reshape (e.g., a pitcher gets innings).
+    const visibleTab = tabs.find((t) => t.id === activeTab) || tabs[0];
+
+    return (
+      <div className="bg-white/30 rounded-xl shadow-card border border-white/50 p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-3 mb-3 px-1">
+          <h2 className="text-sm font-black uppercase tracking-tight text-slate-800">
+            Leaderboards
+          </h2>
+          <div className="flex gap-1.5">
+            {tabs.map((t) => {
+              const isActive = t.id === visibleTab?.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setActiveTab(t.id)}
+                  className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
+                    isActive
+                      ? "shadow-sm"
+                      : "text-slate-500 hover:bg-white/60"
+                  }`}
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: "var(--team-secondary)",
+                          color: "var(--team-primary)",
+                          border: "1px solid var(--team-primary)",
+                        }
+                      : {}
+                  }
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {visibleTab?.stats.map((stat, i) => (
+            <LeaderboardCard
+              key={`${visibleTab.id}-${stat.statKey}-${i}`}
+              {...stat}
+              icon={visibleTab.icon}
+              players={players}
+              primaryColor={primaryColor}
+              tertiaryColor={tertiaryColor}
+              onPlayerClick={onPlayerClick}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+);
