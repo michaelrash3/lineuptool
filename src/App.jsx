@@ -400,19 +400,44 @@ const TeamProvider = ({ children }) => {
       (snap) => {
         if (snap.exists()) {
           const raw = snap.data();
-          // Eval schema migration: v1 (6-category) rounds get wiped on first
-          // load with version < 2. The fresh schema and the carry-forward
-          // baseline kicks in on the next saved round.
+          // Eval schema migration:
+          //   v1 (6-category) rounds get wiped — no straightforward mapping.
+          //   v2 (1–10 11-category) rounds convert to v3 (1–5) by halving
+          //   every numeric grade so prior trend history survives the scale
+          //   change.
           const stored = raw.evalSchemaVersion ?? 1;
           if (stored < EVAL_SCHEMA_VERSION) {
+            let migratedEvents = [];
+            if (stored >= 2) {
+              migratedEvents = (raw.evaluationEvents || []).map((ev) => {
+                if (!ev?.grades) return ev;
+                const nextGrades = {};
+                for (const [pid, grade] of Object.entries(ev.grades)) {
+                  if (!grade || typeof grade !== "object") {
+                    nextGrades[pid] = grade;
+                    continue;
+                  }
+                  const out = {};
+                  for (const [k, v] of Object.entries(grade)) {
+                    if (typeof v === "number" && Number.isFinite(v)) {
+                      out[k] = Math.max(1, Math.min(5, Math.round(v / 2)));
+                    } else {
+                      out[k] = v; // notes + any non-numeric fields untouched
+                    }
+                  }
+                  nextGrades[pid] = out;
+                }
+                return { ...ev, grades: nextGrades };
+              });
+            }
             persistTeamRef.current?.({
-              evaluationEvents: [],
+              evaluationEvents: migratedEvents,
               evalSchemaVersion: EVAL_SCHEMA_VERSION,
             });
             setTeamData({
               ...DEFAULT_TEAM_DATA,
               ...raw,
-              evaluationEvents: [],
+              evaluationEvents: migratedEvents,
               evalSchemaVersion: EVAL_SCHEMA_VERSION,
             });
           } else {

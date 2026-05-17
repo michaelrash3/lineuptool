@@ -81,30 +81,29 @@ const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
 ];
 
 const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
-  contact: 5,
-  power: 5,
-  plateDiscipline: 5,
-  approach: 5,
-  glove: 5,
-  range: 5,
-  armStrength: 5,
-  armAccuracy: 5,
-  baserunning: 5,
-  baseballIQ: 5,
-  coachability: 5,
+  contact: 3,
+  power: 3,
+  plateDiscipline: 3,
+  approach: 3,
+  glove: 3,
+  range: 3,
+  armStrength: 3,
+  armAccuracy: 3,
+  baserunning: 3,
+  baseballIQ: 3,
+  coachability: 3,
 });
 
-// Backwards-compat aliases — reads the v2 field if present, else falls back
-// to the v1 field (e.g. `glove` ← `fielding`, `baserunning` ← `speedAgility`).
-// Lets the engine consume v1-shaped objects until they're migrated.
-// Each takes a possibly-undefined grade record (legacy callers pass {} or null).
-const gloveOf = (g: any): number => g?.glove ?? g?.fielding ?? 5;
-const rangeOf = (g: any): number => g?.range ?? g?.fielding ?? 5;
-const baserunningOf = (g: any): number => g?.baserunning ?? g?.speedAgility ?? 5;
-const contactOf = (g: any): number => g?.contact ?? 5;
-const approachOf = (g: any): number => g?.approach ?? 5;
-const powerOf = (g: any): number => g?.power ?? 5;
-const plateDisciplineOf = (g: any): number => g?.plateDiscipline ?? 5;
+// Backwards-compat aliases — read the v3 field if present, fall back to the
+// v1 alias (e.g. `glove` ← `fielding`), defaulting to the mid-grade. Each
+// takes a possibly-undefined grade record (legacy callers pass {} or null).
+const gloveOf = (g: any): number => g?.glove ?? g?.fielding ?? 3;
+const rangeOf = (g: any): number => g?.range ?? g?.fielding ?? 3;
+const baserunningOf = (g: any): number => g?.baserunning ?? g?.speedAgility ?? 3;
+const contactOf = (g: any): number => g?.contact ?? 3;
+const approachOf = (g: any): number => g?.approach ?? 3;
+const powerOf = (g: any): number => g?.power ?? 3;
+const plateDisciplineOf = (g: any): number => g?.plateDiscipline ?? 3;
 
 // ---------- Public helpers (re exported for the UI) ----------
 
@@ -169,7 +168,7 @@ export function getCombinedGrades(
         const g = ev.grades?.[p.id];
         if (!g) continue;
         for (const cat of EVAL_CATEGORIES)
-          astSum[cat.id] += readCat(g, cat.id) ?? 5;
+          astSum[cat.id] += readCat(g, cat.id) ?? 3;
         participating++;
       }
       if (participating > 0) {
@@ -304,29 +303,39 @@ export function getOffensiveScore(stats?: PlayerStats | null): number {
   return Math.min(10, Math.max(1, Math.round(weighted + xbBonus + unlucky)));
 }
 
+// Sum of universal-category weights, used to derive the normalized 0–100
+// total. Lives next to calculateTotalScore so a weight change here picks up
+// the matching divisor automatically.
+const TOTAL_SCORE_CATEGORY_WEIGHTS =
+  2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 1.0 + 1.5 + 1.0 + 1.0 + 1.5;
+// Max possible raw total = 5 × sum(category weights) + 10 (max offensive) × 2.
+const TOTAL_SCORE_MAX =
+  5 * TOTAL_SCORE_CATEGORY_WEIGHTS + 10 * 2.0; // = 105
+
 export function calculateTotalScore(
   grades: GradeMap | null | undefined,
   stats?: PlayerStats | null
 ): number {
   if (!grades) return 0;
   const off = getOffensiveScore(stats);
-  // Mix of v2 + v1-compat: glove and range BOTH read from v1.fielding when
+  // Mix of v3 + v1-compat: glove and range BOTH read from v1.fielding when
   // a legacy round is the only data we have, so legacy totals stay in the
   // same ballpark while new rounds use the more granular split.
-  return Math.round(
+  const raw =
     gloveOf(grades) * 2.5 +
-      rangeOf(grades) * 2.0 +
-      (grades.armStrength || 5) * 1.5 +
-      (grades.armAccuracy || 5) * 1.5 +
-      baserunningOf(grades) * 1.5 +
-      (grades.baseballIQ || 5) * 2.0 +
-      (grades.coachability || 5) * 1.0 +
-      contactOf(grades) * 1.5 +
-      powerOf(grades) * 1.0 +
-      plateDisciplineOf(grades) * 1.0 +
-      approachOf(grades) * 1.5 +
-      off * 2.0
-  );
+    rangeOf(grades) * 2.0 +
+    (grades.armStrength || 3) * 1.5 +
+    (grades.armAccuracy || 3) * 1.5 +
+    baserunningOf(grades) * 1.5 +
+    (grades.baseballIQ || 3) * 2.0 +
+    (grades.coachability || 3) * 1.0 +
+    contactOf(grades) * 1.5 +
+    powerOf(grades) * 1.0 +
+    plateDisciplineOf(grades) * 1.0 +
+    approachOf(grades) * 1.5 +
+    off * 2.0;
+  // Normalize to 0–100 so the surfaced Total Score is intuitive.
+  return Math.min(100, Math.max(0, Math.round((raw / TOTAL_SCORE_MAX) * 100)));
 }
 
 // ---------- Pitch count eligibility ----------

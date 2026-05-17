@@ -14,12 +14,15 @@ import {
   EVAL_GROUPS_KID_PITCH_ADDONS,
   getEvalCategoriesForTeam,
   isKidPitchFormat,
+  EVAL_SCALE_LABELS,
+  EVAL_SCALE_MAX,
+  EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
 import { getOffensiveScore, calculateTotalScore } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts.js";
 
 const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
-  (acc, c) => ({ ...acc, [c.id]: 5 }),
+  (acc, c) => ({ ...acc, [c.id]: EVAL_SCALE_DEFAULT }),
   {}
 );
 
@@ -30,7 +33,7 @@ const sanitizeGrades = (g) => {
   const out = { ...DEFAULT_GRADES };
   EVAL_CATEGORIES.forEach((c) => {
     const v = parseInt(g?.[c.id], 10);
-    if (Number.isFinite(v)) out[c.id] = Math.max(1, Math.min(10, v));
+    if (Number.isFinite(v)) out[c.id] = Math.max(1, Math.min(EVAL_SCALE_MAX, v));
   });
   if (typeof g?.notes === "string" && g.notes.trim()) out.notes = g.notes;
   return out;
@@ -123,7 +126,8 @@ export const RosterDecisionsPanel = memo(() => {
         const first = evalsForPlayer[0].avg;
         const last = evalsForPlayer[evalsForPlayer.length - 1].avg;
         evalDelta = last - first;
-        if (Math.abs(evalDelta) < 0.4) evalTrend = "flat";
+        // Halved from the 1–10 era; 0.2 ≈ small change in a 1–5 scale.
+        if (Math.abs(evalDelta) < 0.2) evalTrend = "flat";
         else if (evalDelta > 0) evalTrend = "improving";
         else evalTrend = "declining";
       }
@@ -167,11 +171,11 @@ export const RosterDecisionsPanel = memo(() => {
         );
       }
 
-      // Notable struggle at this level
-      if (latestEvalAvg != null && latestEvalAvg < 5) {
+      // Notable struggle at this level (1–5 scale: < 2.5 = below mid)
+      if (latestEvalAvg != null && latestEvalAvg < 2.5) {
         // Strongly improving = give them another eval before flagging
         const stronglyImproving =
-          evalTrend === "improving" && evalDelta != null && evalDelta >= 1.0;
+          evalTrend === "improving" && evalDelta != null && evalDelta >= 0.5;
         if (playingUp && !stronglyImproving) {
           bucket = "younger";
           rationale.length = 0; // override
@@ -185,11 +189,11 @@ export const RosterDecisionsPanel = memo(() => {
             !rationale.some((r) => r.startsWith("Eval trend"))
           ) {
             rationale.push(
-              `Eval avg ${latestEvalAvg.toFixed(1)} below the level's baseline (avg ~6-7)`
+              `Eval avg ${latestEvalAvg.toFixed(1)} below the level's baseline (avg ~3)`
             );
           }
         } else if (stronglyImproving) {
-          // Strongly improving but still <5 — still watch, but with positive note
+          // Strongly improving but still <2.5 — still watch, but with positive note
           bucket = "watch";
           rationale.push(
             `Eval avg ${latestEvalAvg.toFixed(1)} but improving fast (+${evalDelta.toFixed(1)})`
@@ -214,7 +218,7 @@ export const RosterDecisionsPanel = memo(() => {
 
       // Strong Fit positive notes (only if currently default-strong)
       if (bucket === "strong") {
-        if (latestEvalAvg != null && latestEvalAvg >= 7.5) {
+        if (latestEvalAvg != null && latestEvalAvg >= 3.75) {
           rationale.push(`Eval ${latestEvalAvg.toFixed(1)} — above average`);
         } else if (latestEvalAvg != null) {
           rationale.push(`Eval ${latestEvalAvg.toFixed(1)} — at level`);
@@ -728,12 +732,13 @@ const RoundComparisonView = memo(
 
 const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
   <div
-    className="flex items-center gap-1 flex-wrap"
+    className="flex items-center gap-1.5 flex-wrap"
     role="radiogroup"
     aria-label={ariaLabel}
   >
-    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+    {[1, 2, 3, 4, 5].map((n) => {
       const isActive = n === value;
+      const label = EVAL_SCALE_LABELS[n - 1];
       return (
         <button
           key={n}
@@ -741,7 +746,9 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
           role="radio"
           aria-checked={isActive}
           onClick={() => onChange(n)}
-          className="min-w-[36px] h-9 px-2.5 t-button rounded-lg border transition-all tabular-nums"
+          title={`${n} — ${label}`}
+          aria-label={`${ariaLabel}: ${n} — ${label}`}
+          className="flex flex-col items-center justify-center min-w-[58px] h-12 px-2 rounded-lg border transition-all"
           style={
             isActive
               ? {
@@ -757,7 +764,12 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
                 }
           }
         >
-          {n}
+          <span className="text-sm font-black tabular-nums leading-none">
+            {n}
+          </span>
+          <span className="text-[9px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
+            {label}
+          </span>
         </button>
       );
     })}
@@ -1184,9 +1196,12 @@ export const EvaluationTab = memo(() => {
                         backgroundColor: "var(--team-primary)",
                         color: "var(--team-tertiary)",
                       }}
-                      title="Total Score"
+                      title="Total Score (out of 100)"
                     >
                       {totalScore}
+                      <span className="opacity-70 text-[10px] font-bold">
+                        /100
+                      </span>
                     </span>
                   </div>
                   <div className="px-4 py-3 space-y-4">
@@ -1300,9 +1315,9 @@ export const EvaluationTab = memo(() => {
                         aria-label={`Bulk set ${cat.label}`}
                       >
                         <option value="">Set all…</option>
-                        {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((n) => (
+                        {[5, 4, 3, 2, 1].map((n) => (
                           <option key={n} value={n}>
-                            {n}
+                            {n} — {EVAL_SCALE_LABELS[n - 1]}
                           </option>
                         ))}
                       </select>
@@ -1386,8 +1401,14 @@ export const EvaluationTab = memo(() => {
                       <td className="p-4 font-black text-lg text-center text-slate-800 bg-white/40 border-l border-slate-200/50">
                         {offScore}
                       </td>
-                      <td className="p-4 font-black text-xl text-center bg-white/60 border-l border-slate-200/50 text-slate-900 shadow-inner">
+                      <td
+                        className="p-4 font-black text-xl text-center bg-white/60 border-l border-slate-200/50 text-slate-900 shadow-inner"
+                        title="Total Score (out of 100)"
+                      >
                         {totalScore}
+                        <span className="text-[10px] font-bold text-slate-500 ml-0.5">
+                          /100
+                        </span>
                       </td>
                     </tr>
                     {notesOpen && (

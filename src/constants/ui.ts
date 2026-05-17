@@ -67,9 +67,23 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
   return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
 };
 
-// Current eval schema version. Used to migrate teams off the v1 6-category
-// shape — v1 evaluationEvents get wiped on first load with version < 2.
-export const EVAL_SCHEMA_VERSION = 2;
+// Current eval schema version. Used to migrate teams off older shapes.
+//   v1: 6-category grades (legacy, wiped)
+//   v2: 11-category 1–10 scale (Coach's Card v2)
+//   v3: 11-category 1–5 labeled scale (current)
+// Teams stored at v2 get auto-converted to v3 by halving each grade value.
+export const EVAL_SCHEMA_VERSION = 3;
+
+// Display labels for the 1–5 grading scale (index 0 maps to 1).
+export const EVAL_SCALE_LABELS = [
+  "Needs Work",
+  "Below Avg",
+  "Avg",
+  "Above Avg",
+  "Strong",
+];
+export const EVAL_SCALE_MAX = 5;
+export const EVAL_SCALE_DEFAULT = 3;
 
 export const getLocalDateString = () => {
   const d = new Date();
