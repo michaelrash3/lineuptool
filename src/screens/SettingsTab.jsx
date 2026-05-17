@@ -6,6 +6,58 @@ import {
 } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts.js";
 
+// One row per team color: swatch (native color picker) + hex text input.
+// Typing a valid #rrggbb commits on every keystroke; invalid input is
+// ignored, and the field snaps back to the stored value on blur.
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
+const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
+  const [draft, setDraft] = useState(val);
+  // Keep draft in sync when the underlying team value changes externally
+  // (e.g. another tab edits the team or the user picks via the swatch).
+  React.useEffect(() => {
+    setDraft(val);
+  }, [val]);
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-full shadow-inner border-2 border-white overflow-hidden relative shrink-0">
+        <input
+          type="color"
+          value={val}
+          onChange={(e) => updateTeam({ [colorKey]: e.target.value })}
+          className="absolute -inset-2 w-16 h-16 cursor-pointer opacity-0"
+          aria-label={`${label} color picker`}
+        />
+        <div
+          className="w-full h-full"
+          style={{ backgroundColor: val }}
+        />
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="block text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+          {label}
+        </span>
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => {
+            const next = e.target.value;
+            setDraft(next);
+            if (HEX_RE.test(next)) updateTeam({ [colorKey]: next.toLowerCase() });
+          }}
+          onBlur={() => {
+            if (!HEX_RE.test(draft)) setDraft(val);
+          }}
+          spellCheck={false}
+          placeholder="#000000"
+          maxLength={7}
+          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+        />
+      </div>
+    </div>
+  );
+});
+
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -26,6 +78,9 @@ export const SettingsTab = memo(() => {
     setCoachRole,
     createInviteToken,
     revokeInviteToken,
+    realRole,
+    viewAsRole,
+    setViewAsRole,
   } = useTeam();
   const {
     isAddingCoach,
@@ -533,7 +588,7 @@ export const SettingsTab = memo(() => {
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">
                     Team Colors
                   </label>
-                  <div className="flex gap-8 bg-white/80 p-4 border border-slate-200 rounded-xl shadow-sm">
+                  <div className="bg-white/80 p-4 border border-slate-200 rounded-xl shadow-sm space-y-3">
                     {[
                       {
                         key: "primaryColor",
@@ -551,28 +606,13 @@ export const SettingsTab = memo(() => {
                         label: "Tertiary",
                       },
                     ].map(({ key, val, label }) => (
-                      <div
+                      <TeamColorPicker
                         key={key}
-                        className="flex flex-col items-center gap-2"
-                      >
-                        <div className="w-10 h-10 rounded-full shadow-inner border-2 border-white overflow-hidden relative">
-                          <input
-                            type="color"
-                            value={val}
-                            onChange={(e) =>
-                              updateTeam({ [key]: e.target.value })
-                            }
-                            className="absolute -inset-2 w-16 h-16 cursor-pointer opacity-0"
-                          />
-                          <div
-                            className="w-full h-full"
-                            style={{ backgroundColor: val }}
-                          />
-                        </div>
-                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-                          {label}
-                        </span>
-                      </div>
+                        colorKey={key}
+                        val={val}
+                        label={label}
+                        updateTeam={updateTeam}
+                      />
                     ))}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-3 bg-white/80 p-3 border border-slate-200 rounded-xl shadow-sm">
@@ -635,12 +675,16 @@ export const SettingsTab = memo(() => {
                         <Icons.Upload className="w-6 h-6 text-slate-300" />
                       </div>
                     )}
-                    <label className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl p-3.5 text-xs text-center cursor-pointer font-black text-slate-700 uppercase tracking-widest transition-colors shadow-sm">
+                    <label
+                      htmlFor="settings-logo-upload"
+                      className="flex-1 bg-white border border-slate-300 hover:bg-slate-50 rounded-xl p-3.5 text-xs text-center cursor-pointer font-black text-slate-700 uppercase tracking-widest transition-colors shadow-sm"
+                    >
                       Choose File{" "}
                       <input
+                        id="settings-logo-upload"
                         type="file"
                         accept="image/*"
-                        className="hidden"
+                        className="sr-only"
                         onChange={uploadLogo}
                       />
                     </label>
@@ -657,7 +701,10 @@ export const SettingsTab = memo(() => {
               </h3>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <label className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer bg-white/60 hover:bg-white hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md">
+                  <label
+                    htmlFor="settings-import-schedule-csv"
+                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer bg-white/60 hover:bg-white hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md"
+                  >
                     <Icons.Upload className="w-6 h-6 text-slate-300 group-hover:text-blue-500 mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 text-center leading-snug">
                       Import
@@ -665,13 +712,17 @@ export const SettingsTab = memo(() => {
                       Schedule CSV
                     </span>
                     <input
+                      id="settings-import-schedule-csv"
                       type="file"
-                      className="hidden"
+                      className="sr-only"
                       accept=".csv"
                       onChange={uploadScheduleCsv}
                     />
                   </label>
-                  <label className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer bg-white/60 hover:bg-white hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md">
+                  <label
+                    htmlFor="settings-import-roster-csv"
+                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer bg-white/60 hover:bg-white hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md"
+                  >
                     <Icons.Upload className="w-6 h-6 text-slate-300 group-hover:text-blue-500 mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 text-center leading-snug">
                       Import
@@ -679,13 +730,17 @@ export const SettingsTab = memo(() => {
                       Roster / Stats CSV
                     </span>
                     <input
+                      id="settings-import-roster-csv"
                       type="file"
-                      className="hidden"
+                      className="sr-only"
                       accept=".csv"
                       onChange={uploadStatsCsv}
                     />
                   </label>
-                  <label className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer bg-white/60 hover:bg-white hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1">
+                  <label
+                    htmlFor="settings-import-past-season-csv"
+                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-300 rounded-2xl cursor-pointer bg-white/60 hover:bg-white hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
+                  >
                     <Icons.Upload className="w-6 h-6 text-slate-300 group-hover:text-amber-500 mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 text-center leading-snug">
                       Import
@@ -693,8 +748,9 @@ export const SettingsTab = memo(() => {
                       Past Season CSV
                     </span>
                     <input
+                      id="settings-import-past-season-csv"
                       type="file"
-                      className="hidden"
+                      className="sr-only"
                       accept=".csv"
                       onChange={startPastSeasonImport}
                     />
@@ -707,12 +763,16 @@ export const SettingsTab = memo(() => {
                   >
                     <Icons.Download className="w-4 h-4" /> Backup
                   </button>
-                  <label className="flex-1 bg-white border border-slate-300 rounded-xl py-3.5 text-[10px] sm:text-xs text-center cursor-pointer font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors shadow-sm flex items-center justify-center gap-2">
+                  <label
+                    htmlFor="settings-restore-backup"
+                    className="flex-1 bg-white border border-slate-300 rounded-xl py-3.5 text-[10px] sm:text-xs text-center cursor-pointer font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 transition-colors shadow-sm flex items-center justify-center gap-2"
+                  >
                     <Icons.Upload className="w-4 h-4" /> Restore{" "}
                     <input
+                      id="settings-restore-backup"
                       type="file"
                       accept=".json"
-                      className="hidden"
+                      className="sr-only"
                       onChange={importBackup}
                     />
                   </label>
@@ -797,6 +857,39 @@ export const SettingsTab = memo(() => {
                 </button>
               </div>
             </div>
+            {realRole === "head" && (
+              <div className="pt-6 border-t border-slate-200/50">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                  Testing
+                </div>
+                <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      View as Assistant Coach
+                    </h4>
+                    <p className="text-[11px] text-slate-600 mt-1 font-medium leading-snug max-w-md">
+                      Preview the assistant experience. Revert anytime from
+                      the header chip or this toggle.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setViewAsRole?.(
+                        viewAsRole === "assistant" ? null : "assistant"
+                      )
+                    }
+                    className={`shrink-0 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
+                      viewAsRole === "assistant"
+                        ? "bg-amber-600 text-white hover:bg-amber-700"
+                        : "bg-white border border-amber-300 text-amber-800 hover:bg-amber-50"
+                    }`}
+                  >
+                    {viewAsRole === "assistant" ? "Revert to Head" : "View as Assistant"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

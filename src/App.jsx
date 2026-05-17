@@ -2415,19 +2415,83 @@ const TeamProvider = ({ children }) => {
     [user, teams, toast]
   );
 
-  // Derive the current user's role on the active team.
-  // Owner is always head; coachRoles[uid] takes precedence otherwise;
-  // anyone else (legacy members) defaults to assistant.
-  const currentRole = useMemo(() => {
+  // Session-only role override for the head coach to preview the assistant
+  // view. Stored in sessionStorage so refreshes keep the preview but it
+  // never persists to Firestore or other tabs. Reset to null on a fresh
+  // browser session by design.
+  const [viewAsRole, setViewAsRoleState] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const v = window.sessionStorage.getItem("lineuptool.viewAsRole");
+      return v === "assistant" ? "assistant" : null;
+    } catch {
+      return null;
+    }
+  });
+  const setViewAsRole = useCallback((next) => {
+    setViewAsRoleState(next);
+    try {
+      if (next) window.sessionStorage.setItem("lineuptool.viewAsRole", next);
+      else window.sessionStorage.removeItem("lineuptool.viewAsRole");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // Derive the current user's REAL role on the active team — separate from
+  // currentRole so the override toggle UI can render even when the visible
+  // role has been flipped to "assistant".
+  // Owner is always head; coachRoles[uid] takes precedence otherwise; a
+  // legacy team without an ownerId treats the current user as head (the
+  // auto-claim effect below writes ownerId so this fallback is one-time).
+  const realRole = useMemo(() => {
     if (!user) return "head";
+    if (!teamData.ownerId) return "head";
     if (user.uid === teamData.ownerId) return "head";
     const explicit = teamData.coachRoles?.[user.uid];
     if (explicit === "head") return "head";
     if (explicit === "assistant") return "assistant";
-    // Legacy teams have no coachRoles map. Treat the owner as head and
-    // everyone else as assistant — the head coach can promote via Settings.
+    // Other legacy members fall through to assistant; the head coach can
+    // promote them via Settings → Coach Roles.
     return "assistant";
   }, [user, teamData.ownerId, teamData.coachRoles]);
+
+  // Visible role for the rest of the app. Only the head coach can flip
+  // themselves to assistant; assistants can never escalate.
+  const currentRole = useMemo(() => {
+    if (realRole === "head" && viewAsRole === "assistant") return "assistant";
+    return realRole;
+  }, [realRole, viewAsRole]);
+
+  // Auto-claim + persist legacy teams. Runs once per team load when ownerId
+  // is missing — after it runs, the team document carries ownerId on every
+  // subsequent load and this effect is a no-op.
+  useEffect(() => {
+    if (!authReady || !user || !activeTeamId) return;
+    if (loadingActive) return;
+    if (teamData.ownerId) return;
+    const members = Array.isArray(teamData.members) ? teamData.members : [];
+    const nextMembers = members.includes(user.uid)
+      ? members
+      : [...members, user.uid];
+    persistTeamRef.current?.({
+      ownerId: user.uid,
+      members: nextMembers,
+    });
+    toast.push({
+      kind: "info",
+      title: "Team migrated",
+      message: "You're set as the head coach on this team.",
+    });
+  }, [
+    authReady,
+    user,
+    activeTeamId,
+    teamData.ownerId,
+    teamData.members,
+    loadingActive,
+    toast,
+  ]);
 
   // Auto-redeem ?invite= URL params once auth + team list are ready.
   useEffect(() => {
@@ -2486,6 +2550,9 @@ const TeamProvider = ({ children }) => {
       setGenError,
       record,
       currentRole,
+      realRole,
+      viewAsRole,
+      setViewAsRole,
       uiBridge, // private — used by UIProvider
       // actions
       updateTeam,
@@ -2542,6 +2609,9 @@ const TeamProvider = ({ children }) => {
       genError,
       record,
       currentRole,
+      realRole,
+      viewAsRole,
+      setViewAsRole,
       updateTeam,
       addPlayer,
       updatePlayer,
