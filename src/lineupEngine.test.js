@@ -1,4 +1,9 @@
-import { generateLineup, generateBattingOnly } from "./lineupEngine";
+import {
+  generateLineup,
+  generateBattingOnly,
+  calcPitcherScore,
+  getPitcherPoolSize,
+} from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -1046,4 +1051,34 @@ describe("8U fuzz / soak — engine never fails or violates invariants", () => {
       expect(v).toEqual([]);
     });
   }
+});
+
+describe("D4 — pitcher scoring + pool sizing", () => {
+  test("calcPitcherScore weights control highest, returns 0 for empty grades", () => {
+    expect(calcPitcherScore(null)).toBe(0);
+    expect(calcPitcherScore({})).toBe(0);
+    // velocity*1.5 + control*2 + command*1.5 + offSpeed*0.5 + composure*1
+    // = 5*1.5 + 5*2 + 5*1.5 + 5*0.5 + 5*1 = 7.5 + 10 + 7.5 + 2.5 + 5 = 32.5
+    expect(
+      calcPitcherScore({
+        velocity: 5,
+        control: 5,
+        command: 5,
+        offSpeed: 5,
+        composure: 5,
+      })
+    ).toBe(32.5);
+    // Control is highest weight (2.0). 5 control alone outranks 5 of any other.
+    const onlyControl = calcPitcherScore({ control: 5 });
+    const onlyVelocity = calcPitcherScore({ velocity: 5 });
+    expect(onlyControl).toBeGreaterThan(onlyVelocity);
+  });
+
+  test("getPitcherPoolSize maps gameType to pool size", () => {
+    expect(getPitcherPoolSize("pool")).toBe(5);
+    expect(getPitcherPoolSize("bracket")).toBe(3);
+    expect(getPitcherPoolSize("league")).toBe(3);
+    expect(getPitcherPoolSize(undefined)).toBe(3);
+    expect(getPitcherPoolSize(null)).toBe(3);
+  });
 });

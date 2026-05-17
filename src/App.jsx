@@ -1094,6 +1094,7 @@ const TeamProvider = ({ children }) => {
         defenseSize: currentGame.defenseSize || teamData.defenseSize,
         positionLock: currentGame.positionLock || teamData.positionLock,
         battingSize: currentGame.battingSize || teamData.battingSize,
+        pitchingFormat: currentGame.pitchingFormat || teamData.pitchingFormat,
         seed,
         relaxFairness,
         isBigGame: currentGame.isBigGame === true,
@@ -1165,6 +1166,7 @@ const TeamProvider = ({ children }) => {
       teamData.defenseSize,
       teamData.positionLock,
       teamData.battingSize,
+      teamData.pitchingFormat,
       toast,
     ]
   );

@@ -236,6 +236,10 @@ export const ScheduleTab = memo(() => {
     // defensive positions (P/SS/3B/C/1B for kid-pitch ages, C/1B/SS for 8U).
     // Implies seasonal fairness is off.
     const isBigGame = currentGame.isBigGame === true;
+    // Tournament classification. Drives engine pitcher pool size for
+    // 9U+ Kid Pitch — Pool spreads across the staff (top 5); Bracket
+    // narrows to your aces (top 3); League is the regular-season default.
+    const gameType = currentGame.gameType || "league";
 
     const presentPlayers = players.filter(
       (p) => currentGameAttendance[p.id] !== false
@@ -549,6 +553,30 @@ export const ScheduleTab = memo(() => {
 
             {canEdit && (
             <>
+            {/* Game type dropdown — League / Pool / Bracket. Drives
+                engine pitcher pool sizes for 9U+ Kid Pitch (D4). */}
+            <div className="bg-white/80 border border-slate-200 rounded-xl p-3 mt-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-black uppercase tracking-widest text-slate-800">
+                  Game Type
+                </div>
+                <div className="text-[10px] text-slate-600 font-medium leading-tight mt-0.5">
+                  Pool = spread pitchers across the staff. Bracket = your aces.
+                </div>
+              </div>
+              <select
+                value={gameType}
+                onChange={(e) =>
+                  updateGame(selectedGameId, { gameType: e.target.value })
+                }
+                className="shrink-0 p-2 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="league">League</option>
+                <option value="pool">Pool</option>
+                <option value="bracket">Bracket</option>
+              </select>
+            </div>
+
             {/* Big Game toggle — when ON, the engine builds the strongest
                 possible defense (premium positions get strong players) and
                 automatically ignores seasonal fairness. */}
