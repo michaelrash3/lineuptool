@@ -47,6 +47,17 @@ export interface Player {
   // position list because C is special (equipment, continuity, smaller
   // group of trained kids).
   isCatcher?: boolean;
+  // Season-advancement workflow status. "returning" (or undefined) =
+  // keep on the roster across advanceSeason; "released" = drop on
+  // advance; "accepted" = came in from tryouts and joins next season;
+  // "tryout" / "offered" / "declined" = in-flight tryout states.
+  playerStatus?:
+    | "returning"
+    | "released"
+    | "tryout"
+    | "offered"
+    | "accepted"
+    | "declined";
   [key: string]: unknown;
 }
 
