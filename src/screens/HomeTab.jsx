@@ -1,9 +1,60 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { formatGameDateDisplay } from "../utils/helpers";
+import { formatGameDateDisplay, evalPromptStatus } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
 import { LeaderboardCard, RecordBadge } from "../components/shared.jsx";
 import { checkPitchEligibility } from "../lineupEngine";
+
+// Dismissible banner that nudges the current coach to submit an eval round
+// when the cadence (preseason or biweekly) is active.
+const EvalPromptBanner = memo(
+  ({ kind, isHead, primaryColor, onStart }) => {
+    const [dismissed, setDismissed] = useState(false);
+    if (dismissed) return null;
+    const headline =
+      kind === "preseason"
+        ? "Preseason evaluation due"
+        : "Biweekly evaluation due";
+    const sub = isHead
+      ? "Open Evaluation and start a fresh round."
+      : "Send your grades to the head coach.";
+    return (
+      <div
+        className="rounded-2xl border border-white/50 shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+        style={{ backgroundColor: "var(--team-primary-15)" }}
+      >
+        <div
+          className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
+          style={{ backgroundColor: primaryColor, color: "white" }}
+        >
+          <Icons.Clipboard className="w-6 h-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="t-eyebrow text-slate-600">{kind}</div>
+          <div className="t-card-title text-slate-900 mt-0.5">{headline}</div>
+          <p className="text-xs text-slate-600 font-medium mt-1">{sub}</p>
+        </div>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={onStart}
+            className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg shadow-md text-white"
+            style={{ backgroundColor: primaryColor }}
+          >
+            Start Now
+          </button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="px-3 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-lg"
+          >
+            Snooze
+          </button>
+        </div>
+      </div>
+    );
+  }
+);
 
 /* ============================================================================
    Dashboard overhaul — info-rich, intuitive command center.
@@ -625,9 +676,24 @@ const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) =>
 ));
 
 export const HomeTab = memo(() => {
-  const { team, teams, activeTeamId, record } = useTeam();
-  const { openPlayerProfile, setActiveTab, setIsAddingGame, setIsAddingPlayer } =
-    useUI();
+  const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
+  const {
+    openPlayerProfile,
+    setActiveTab,
+    setIsAddingGame,
+    setIsAddingPlayer,
+    setAssistantEvalOpen,
+  } = useUI();
+  const isHead = currentRole !== "assistant";
+  const promptStatus = useMemo(
+    () =>
+      evalPromptStatus(
+        team,
+        user?.uid,
+        isHead ? "Head" : "Assistant"
+      ),
+    [team, user, isHead]
+  );
   const {
     players,
     coaches,
@@ -660,6 +726,20 @@ export const HomeTab = memo(() => {
 
   return (
     <div className="space-y-8">
+      {promptStatus.active && (
+        <EvalPromptBanner
+          kind={promptStatus.kind}
+          isHead={isHead}
+          primaryColor={primaryColor}
+          onStart={() => {
+            if (isHead) {
+              setActiveTab("evaluation");
+            } else {
+              setAssistantEvalOpen?.(true);
+            }
+          }}
+        />
+      )}
       {hasGames ? (
         <UpcomingGameCard
           primaryColor={primaryColor}

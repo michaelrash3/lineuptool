@@ -498,3 +498,98 @@ export const blankStats = (): PlayerStats => ({
   qab: 0,
   babip: 0,
 });
+
+// ============================================================================
+// Eval prompt cadence — preseason + biweekly for both head and assistant.
+// Coaches submit a fresh evaluation round once when the season starts, then
+// every 14 days. The submission UI is gated to active prompts; outside an
+// active window the assistant's Submit Eval button is disabled and the head's
+// "Start New Round" affordance is hidden.
+// ============================================================================
+
+const BIWEEKLY_DAYS = 14;
+const MS_PER_DAY = 86_400_000;
+
+// Parse a "Spring 2026" / "Fall 2026" label into a season start date that we
+// use as the cutoff for "this season's evals". Spring → March 1, Fall →
+// August 1. Returns null when the label can't be parsed.
+export const seasonStartDate = (currentSeasonStr: string | undefined): Date | null => {
+  const parts = (currentSeasonStr || "").trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const season = parts[0].toLowerCase();
+  const year = parseInt(parts[parts.length - 1], 10);
+  if (Number.isNaN(year)) return null;
+  if (season === "spring") return new Date(`${year}-03-01T00:00:00`);
+  if (season === "fall" || season === "autumn")
+    return new Date(`${year}-08-01T00:00:00`);
+  return null;
+};
+
+export type EvalPromptKind = "preseason" | "biweekly";
+
+export interface EvalPromptStatus {
+  active: boolean;
+  kind: EvalPromptKind | null;
+  lastSubmittedDate: string | null;
+  // ISO date string of next due window when not currently active.
+  nextDueDate: string | null;
+  // Days until next eval is due (null when active). Negative when overdue.
+  daysUntilDue: number | null;
+}
+
+// Pure: decides whether the given coach owes an eval right now.
+export const evalPromptStatus = (
+  team: { currentSeason?: string; evaluationEvents?: any[] } | null | undefined,
+  userUid: string | null | undefined,
+  coachRole: "Head" | "Assistant",
+  now: Date = new Date()
+): EvalPromptStatus => {
+  if (!team || !userUid) {
+    return {
+      active: false,
+      kind: null,
+      lastSubmittedDate: null,
+      nextDueDate: null,
+      daysUntilDue: null,
+    };
+  }
+  const start = seasonStartDate(team.currentSeason);
+  const startMs = start ? start.getTime() : 0;
+  const mine = (team.evaluationEvents || [])
+    .filter(
+      (e) =>
+        e.coachRole === coachRole &&
+        e.evaluatorId === userUid &&
+        (!start || new Date(e.date).getTime() >= startMs)
+    )
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  if (mine.length === 0) {
+    return {
+      active: true,
+      kind: "preseason",
+      lastSubmittedDate: null,
+      nextDueDate: null,
+      daysUntilDue: null,
+    };
+  }
+  const lastDate = mine[0].date;
+  const lastMs = new Date(lastDate).getTime();
+  const elapsedDays = Math.floor((now.getTime() - lastMs) / MS_PER_DAY);
+  if (elapsedDays >= BIWEEKLY_DAYS) {
+    return {
+      active: true,
+      kind: "biweekly",
+      lastSubmittedDate: lastDate,
+      nextDueDate: null,
+      daysUntilDue: null,
+    };
+  }
+  const nextDueMs = lastMs + BIWEEKLY_DAYS * MS_PER_DAY;
+  return {
+    active: false,
+    kind: null,
+    lastSubmittedDate: lastDate,
+    nextDueDate: new Date(nextDueMs).toISOString().slice(0, 10),
+    daysUntilDue: BIWEEKLY_DAYS - elapsedDays,
+  };
+};
