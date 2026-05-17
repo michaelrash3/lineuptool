@@ -34,6 +34,13 @@ import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
 } from "./components/OnboardingTutorial.jsx";
+import {
+  useLocation,
+  useNavigate,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette.jsx";
 import {
   LoginScreen,
@@ -3031,6 +3038,28 @@ const UIProvider = ({ children }) => {
 const TAB_ORDER_HEAD = ["home", "roster", "schedule", "evaluation", "settings"];
 const TAB_ORDER_ASSISTANT = ["home", "roster", "schedule", "submit-eval"];
 
+// Map activeTab id → URL path and back. "home" is the root path so the app
+// feels right at https://host/ without an explicit /home segment. The
+// "submit-eval" pseudo-tab opens the modal and snaps back to home, so it
+// shouldn't push its own URL.
+const TAB_TO_PATH = {
+  home: "/",
+  roster: "/roster",
+  schedule: "/schedule",
+  evaluation: "/evaluation",
+  settings: "/settings",
+  "submit-eval": null,
+};
+const pathToTab = (pathname) => {
+  if (!pathname || pathname === "/") return "home";
+  // Match leading segment so deeper routes (e.g. /schedule/:id) still map
+  // back to the right tab.
+  const first = pathname.split("/").filter(Boolean)[0];
+  if (first === "in-game") return "schedule";
+  if (first === "submit-eval") return "submit-eval";
+  return first || "home";
+};
+
 const MainShell = () => {
   const {
     team,
@@ -3052,6 +3081,8 @@ const MainShell = () => {
     setInGameId,
     setAssistantEvalOpen,
   } = useUI();
+  const location = useLocation();
+  const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
   const TAB_ORDER = isAssistant ? TAB_ORDER_ASSISTANT : TAB_ORDER_HEAD;
   const [tutorialOpen, setTutorialOpen] = useState(false);
@@ -3161,6 +3192,59 @@ const MainShell = () => {
     setActiveTab("home");
   }, [activeTab, setActiveTab, setAssistantEvalOpen]);
 
+  // URL ↔ activeTab sync. The tab id stays the source of truth for legacy
+  // code; the URL just mirrors it so browser back/forward, deep links, and
+  // shared URLs work.
+  useEffect(() => {
+    const tabFromUrl = pathToTab(location.pathname);
+    if (tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  useEffect(() => {
+    // Don't push when In-Game is active — that route owns the URL.
+    if (location.pathname.startsWith("/in-game/")) return;
+    const target = TAB_TO_PATH[activeTab];
+    if (target === null) return; // pseudo-tabs (e.g. submit-eval) don't push
+    const path = target || "/";
+    // Only navigate if it's a top-level tab change (don't clobber deeper
+    // routes like /schedule/:id).
+    const currentTopLevel = "/" + (location.pathname.split("/")[1] || "");
+    const targetTopLevel = "/" + (path.split("/")[1] || "");
+    if (currentTopLevel !== targetTopLevel) {
+      navigate(path);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Drive In-Game routing from the inGameId state — when set, push the URL
+  // to /in-game/:id; when cleared, pop back to /schedule.
+  useEffect(() => {
+    if (inGameId) {
+      if (!location.pathname.startsWith(`/in-game/${inGameId}`)) {
+        navigate(`/in-game/${inGameId}`);
+      }
+    } else if (location.pathname.startsWith("/in-game/")) {
+      navigate("/schedule");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inGameId]);
+
+  // And the reverse — if the user lands on /in-game/:id directly (refresh,
+  // back button, shared link), seed the inGameId state to match.
+  useEffect(() => {
+    const match = location.pathname.match(/^\/in-game\/([^/]+)/);
+    if (match && match[1] !== inGameId) {
+      setInGameId(match[1]);
+    } else if (!match && inGameId) {
+      // URL no longer pointing at in-game — clear the state.
+      setInGameId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
   if (!authReady || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -3213,11 +3297,24 @@ const MainShell = () => {
         navButtons={navButtons}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
-        {activeTab === "home" && <HomeTab />}
-        {activeTab === "roster" && <RosterTab />}
-        {activeTab === "schedule" && <ScheduleTab />}
-        {activeTab === "evaluation" && !isAssistant && <EvaluationTab />}
-        {activeTab === "settings" && !isAssistant && <SettingsTab />}
+        <Routes>
+          <Route path="/" element={<HomeTab />} />
+          <Route path="/roster" element={<RosterTab />} />
+          <Route path="/schedule" element={<ScheduleTab />} />
+          <Route path="/schedule/*" element={<ScheduleTab />} />
+          <Route
+            path="/evaluation"
+            element={isAssistant ? <Navigate to="/" replace /> : <EvaluationTab />}
+          />
+          <Route
+            path="/settings"
+            element={isAssistant ? <Navigate to="/" replace /> : <SettingsTab />}
+          />
+          {/* In-Game renders standalone (no SharedModals scrim) below; the
+              route just hides the main tab content while In-Game is active. */}
+          <Route path="/in-game/:gameId" element={<div className="hidden" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
       <SharedModals />
       {viewingPlayerId && <PlayerProfileModal />}
