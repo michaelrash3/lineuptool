@@ -404,8 +404,9 @@ export const InGameView = memo(() => {
         </div>
 
         {/* Available Pitchers — eligibility status + who's been used this game.
-            Only shown for kid-pitch divisions (machine pitch has no pitch counts). */}
-        {(() => {
+            Only shown for kid-pitch divisions (machine pitch has no pitch counts).
+            Hidden for assistants — they don't manage the pitching staff. */}
+        {canEdit && (() => {
           const fmt = game.pitchingFormat || team.pitchingFormat || "";
           if (fmt.toLowerCase().includes("machine")) return null;
           const ageGroup = game.teamAge || team.teamAge;

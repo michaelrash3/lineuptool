@@ -1323,9 +1323,9 @@ export const EvaluationTab = memo(() => {
             type="button"
             onClick={applyAllAverage}
             className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white flex items-center gap-1.5"
-            title="Set every category for every player to 5"
+            title="Set every category for every player to 3"
           >
-            <Icons.Refresh className="w-3.5 h-3.5" /> All Average (5)
+            <Icons.Refresh className="w-3.5 h-3.5" /> All Average (3)
           </button>
           <button
             type="button"
@@ -1592,7 +1592,7 @@ export const EvaluationTab = memo(() => {
                             }
                             className="text-sm font-black border rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 w-20 text-center shadow-sm transition-colors bg-white/80 border-slate-200 text-slate-700 cursor-pointer hover:bg-white"
                           >
-                            {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map((num) => (
+                            {[5, 4, 3, 2, 1].map((num) => (
                               <option key={num} value={num}>
                                 {num}
                               </option>
@@ -1729,13 +1729,13 @@ export const EvalTrendModal = memo(
       MB = 64;
     const innerW = W - ML - MR;
     const innerH = H - MT - MB;
-    // Y range is fixed: 1-10 (the grade scale)
+    // Y range is fixed: 1-5 (the grade scale)
     const yMin = 1,
-      yMax = 10;
+      yMax = 5;
     const xPos = (i) =>
       evalCount === 1 ? ML + innerW / 2 : ML + (i / (evalCount - 1)) * innerW;
     const yPos = (v) => MT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
-    const yTicks = [1, 3, 5, 7, 10];
+    const yTicks = [1, 2, 3, 4, 5];
 
     // Color palette for the 6 categories — distinct, accessible
     const palette = [

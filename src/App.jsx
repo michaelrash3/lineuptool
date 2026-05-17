@@ -290,6 +290,10 @@ const TeamProvider = ({ children }) => {
 
   const previousLineupRef = useRef(null);
   const persistTeamRef = useRef(null);
+  // Per-session set of team ids we've already attempted to auto-claim.
+  // Prevents the legacy-owner migration effect from re-firing every time
+  // Firestore emits a fresh snapshot before ownerId is reflected back.
+  const migrationAttemptedRef = useRef(new Set());
 
   // Auth subscription
   useEffect(() => {
@@ -2504,13 +2508,18 @@ const TeamProvider = ({ children }) => {
     return realRole;
   }, [realRole, viewAsRole]);
 
-  // Auto-claim + persist legacy teams. Runs once per team load when ownerId
-  // is missing — after it runs, the team document carries ownerId on every
-  // subsequent load and this effect is a no-op.
+  // Auto-claim + persist legacy teams. Runs once per session per team
+  // when ownerId is missing. After Firestore acknowledges the write,
+  // subsequent loads see ownerId populated and this effect is a no-op.
+  // The session-level ref guards against re-firing during the brief
+  // window between the write and the next snapshot — the user shouldn't
+  // see a toast about it on every page reload.
   useEffect(() => {
     if (!authReady || !user || !activeTeamId) return;
     if (loadingActive) return;
     if (teamData.ownerId) return;
+    if (migrationAttemptedRef.current.has(activeTeamId)) return;
+    migrationAttemptedRef.current.add(activeTeamId);
     const members = Array.isArray(teamData.members) ? teamData.members : [];
     const nextMembers = members.includes(user.uid)
       ? members
@@ -2519,11 +2528,6 @@ const TeamProvider = ({ children }) => {
       ownerId: user.uid,
       members: nextMembers,
     });
-    toast.push({
-      kind: "info",
-      title: "Team migrated",
-      message: "You're set as the head coach on this team.",
-    });
   }, [
     authReady,
     user,
@@ -2531,7 +2535,6 @@ const TeamProvider = ({ children }) => {
     teamData.ownerId,
     teamData.members,
     loadingActive,
-    toast,
   ]);
 
   // Auto-redeem ?invite= URL params once auth + team list are ready.
