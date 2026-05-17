@@ -1,10 +1,15 @@
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
 } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts.js";
+import { auth } from "../firebase";
+import {
+  sendGmailMessage,
+  buildMailtoUrl,
+} from "../integrations/gmailSend";
 
 // One row per team color: swatch (native color picker) + hex text input.
 // Typing a valid #rrggbb commits on every keystroke; invalid input is
@@ -58,6 +63,238 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
   );
 });
 
+// Invite-by-email panel. Reads the roster for any player with an email
+// on file, lets the head pick which ones to invite + at which role,
+// then either sends via the head's signed-in Gmail account or opens a
+// mailto: composer per row. Tokens are generated on-the-fly via
+// `createInviteToken(role)` so each recipient gets a unique one-time
+// invite URL.
+const InviteCoachesPanel = memo(
+  ({ activeTeamId, team, createInviteToken, user, primaryColor, toast }) => {
+    const candidates = useMemo(() => {
+      return (team.players || [])
+        .filter((p) => p.email && p.email.trim())
+        .map((p) => ({
+          id: p.id,
+          name: p.parentName || p.name,
+          playerName: p.name,
+          email: p.email.trim(),
+        }))
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    }, [team.players]);
+
+    // Per-row state: { selected: boolean, role: "head"|"assistant", status }
+    const [rows, setRows] = useState(() => ({}));
+    const [bulkSending, setBulkSending] = useState(false);
+
+    const getRow = (id) => rows[id] || { selected: false, role: "assistant", status: null };
+    const setRow = (id, patch) =>
+      setRows((prev) => ({ ...prev, [id]: { ...getRow(id), ...patch } }));
+
+    const buildInviteUrl = (token) =>
+      typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}?invite=${activeTeamId || ""}.${token}`
+        : `?invite=${activeTeamId || ""}.${token}`;
+
+    const buildEmailBody = (name, url) => {
+      const teamName = team.name || "the team";
+      const fromName = user?.displayName || "Your coach";
+      return [
+        `Hi ${name || "there"},`,
+        "",
+        `${fromName} has invited you to help coach ${teamName} on LineupTool.`,
+        "",
+        "Click the link below to accept (one-time use):",
+        url,
+        "",
+        "LineupTool keeps the roster, schedule, lineups, and player evaluations in one place. Once you accept you'll be able to view games and submit your own evaluations.",
+      ].join("\n");
+    };
+
+    const sendOne = async (candidate, role) => {
+      const token = createInviteToken?.(role);
+      if (!token) {
+        toast.push({ kind: "error", title: "Couldn't create invite token" });
+        return false;
+      }
+      const url = buildInviteUrl(token);
+      const subject = `Coach invite — ${team.name || "your team"}`;
+      const body = buildEmailBody(candidate.name, url);
+      const fromEmail = user?.email;
+      if (!fromEmail) {
+        toast.push({
+          kind: "error",
+          title: "No sender email",
+          message: "Sign in with Google to send invites.",
+        });
+        return false;
+      }
+      try {
+        await sendGmailMessage({
+          auth,
+          to: candidate.email,
+          subject,
+          body,
+          fromEmail,
+          fromName: user?.displayName || undefined,
+        });
+        return true;
+      } catch (err) {
+        // Fallback: open mailto so the user can still get the invite out.
+        const reason =
+          err?.message === "consent_declined"
+            ? "Gmail access wasn't granted."
+            : err?.message === "not_google_user"
+            ? "Only Google sign-in supports auto-send."
+            : "Send failed — using your mail app instead.";
+        toast.push({
+          kind: "warn",
+          title: `${candidate.email} — ${reason}`,
+          message: "Opening your mail app with the invite drafted.",
+        });
+        if (typeof window !== "undefined") {
+          window.open(buildMailtoUrl(candidate.email, subject, body), "_blank");
+        }
+        return false;
+      }
+    };
+
+    const handleSendOne = async (candidate) => {
+      const row = getRow(candidate.id);
+      setRow(candidate.id, { status: "sending" });
+      const ok = await sendOne(candidate, row.role);
+      setRow(candidate.id, { status: ok ? "sent" : "failed" });
+    };
+
+    const handleMailtoOne = (candidate) => {
+      const row = getRow(candidate.id);
+      const token = createInviteToken?.(row.role);
+      if (!token) return;
+      const url = buildInviteUrl(token);
+      const subject = `Coach invite — ${team.name || "your team"}`;
+      const body = buildEmailBody(candidate.name, url);
+      window.open(buildMailtoUrl(candidate.email, subject, body), "_blank");
+      setRow(candidate.id, { status: "queued" });
+    };
+
+    const handleBulkSend = async () => {
+      const selected = candidates.filter((c) => getRow(c.id).selected);
+      if (selected.length === 0) {
+        toast.push({ kind: "info", title: "Pick at least one row" });
+        return;
+      }
+      setBulkSending(true);
+      let sent = 0;
+      for (const c of selected) {
+        setRow(c.id, { status: "sending" });
+        // eslint-disable-next-line no-await-in-loop
+        const ok = await sendOne(c, getRow(c.id).role);
+        setRow(c.id, { status: ok ? "sent" : "failed" });
+        if (ok) sent++;
+      }
+      setBulkSending(false);
+      toast.push({
+        kind: sent === selected.length ? "success" : "warn",
+        title: `Sent ${sent} of ${selected.length}`,
+      });
+    };
+
+    if (candidates.length === 0) {
+      return (
+        <div className="bg-white/60 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-500 font-medium italic">
+          No emails on file. Import a roster CSV with an &quot;Email&quot; or
+          &quot;Contact 1 Email&quot; column to populate this list.
+        </div>
+      );
+    }
+
+    const selectedCount = candidates.filter((c) => getRow(c.id).selected).length;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3 px-1">
+          <span className="text-[11px] font-bold text-slate-500">
+            {selectedCount > 0
+              ? `${selectedCount} of ${candidates.length} selected`
+              : `${candidates.length} candidate${candidates.length === 1 ? "" : "s"}`}
+          </span>
+          <button
+            type="button"
+            disabled={selectedCount === 0 || bulkSending}
+            onClick={handleBulkSend}
+            className="px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: primaryColor }}
+          >
+            {bulkSending ? "Sending…" : "Send Selected"}
+          </button>
+        </div>
+        <div className="space-y-1.5">
+          {candidates.map((c) => {
+            const row = getRow(c.id);
+            return (
+              <div
+                key={c.id}
+                className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3"
+              >
+                <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={row.selected}
+                    onChange={(e) =>
+                      setRow(c.id, { selected: e.target.checked })
+                    }
+                    className="w-4 h-4 accent-blue-600 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-black uppercase tracking-tight text-slate-800 truncate">
+                      {c.name || c.playerName}
+                    </div>
+                    <div className="text-[11px] text-slate-500 font-mono truncate">
+                      {c.email}
+                    </div>
+                  </div>
+                </label>
+                <select
+                  value={row.role}
+                  onChange={(e) => setRow(c.id, { role: e.target.value })}
+                  className="p-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="assistant">Assistant</option>
+                  <option value="head">Head</option>
+                </select>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    disabled={row.status === "sending" || bulkSending}
+                    onClick={() => handleSendOne(c)}
+                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {row.status === "sending"
+                      ? "Sending…"
+                      : row.status === "sent"
+                      ? "Sent ✓"
+                      : row.status === "failed"
+                      ? "Retry"
+                      : "Send"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMailtoOne(c)}
+                    title="Open in your mail app instead"
+                    className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                  >
+                    Mail
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+);
+
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -92,16 +329,6 @@ export const SettingsTab = memo(() => {
     setInviteModal,
   } = useUI();
   const toast = useToast();
-  const [inviteRoleDraft, setInviteRoleDraft] = useState("assistant");
-  const handleGenerateInvite = useCallback(() => {
-    const token = createInviteToken?.(inviteRoleDraft);
-    if (!token) return;
-    const url =
-      typeof window !== "undefined"
-        ? `${window.location.origin}${window.location.pathname}?invite=${activeTeamId || ""}.${token}`
-        : `?invite=${activeTeamId || ""}.${token}`;
-    setInviteModal({ token, url, role: inviteRoleDraft });
-  }, [createInviteToken, inviteRoleDraft, activeTeamId, setInviteModal]);
   const copyToClipboard = useCallback(
     (text) => {
       if (navigator.clipboard) navigator.clipboard.writeText(text);
@@ -484,30 +711,25 @@ export const SettingsTab = memo(() => {
 
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <Icons.Plus className="w-4 h-4" /> Invite a Coach
+                <Icons.Plus className="w-4 h-4" /> Invite Coaches
               </h3>
               <p className="text-[11px] text-slate-500 font-medium mb-3">
-                Generate a one-time link with a role baked in. Send it to the
-                coach you want to add.
+                Pulls emails from the roster you imported. Pick the coaches
+                to invite, hit Send Selected, and we&apos;ll email each a
+                one-time invite link from your signed-in Gmail. Tap &quot;Open
+                in Mail&quot; on a row to compose manually instead.
               </p>
-              <div className="flex gap-2 mb-4">
-                <select
-                  value={inviteRoleDraft}
-                  onChange={(e) => setInviteRoleDraft(e.target.value)}
-                  className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="assistant">Assistant Coach</option>
-                  <option value="head">Head Coach</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={handleGenerateInvite}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Generate Link
-                </button>
-              </div>
+              <InviteCoachesPanel
+                activeTeamId={activeTeamId}
+                team={team}
+                createInviteToken={createInviteToken}
+                user={user}
+                primaryColor={primaryColor}
+                toast={toast}
+              />
+              <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mt-6 mb-2">
+                Pending &amp; Used Invites
+              </h4>
               <div className="space-y-2">
                 {(team.invites || []).map((inv) => (
                   <div
