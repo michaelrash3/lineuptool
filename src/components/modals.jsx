@@ -1415,12 +1415,14 @@ export const PlayerProfileModal = memo(() => {
               Athlete Profile
             </p>
             <div className="flex gap-2 flex-wrap">
-              <span
-                className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg"
-                style={{ backgroundColor: secondaryColor, color: primaryColor }}
-              >
-                P: {player.primaryPosition || "N/A"}
-              </span>
+              {canEdit && (
+                <span
+                  className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg"
+                  style={{ backgroundColor: secondaryColor, color: primaryColor }}
+                >
+                  P: {player.primaryPosition || "N/A"}
+                </span>
+              )}
               <span className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg bg-slate-100 text-slate-700">
                 B/T: {player.bats || "R"}/{player.throws || "R"}
               </span>

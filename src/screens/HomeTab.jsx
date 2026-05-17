@@ -98,7 +98,13 @@ const PITCHING_STATS = [
    - Bigger date+opponent line, clearer day-state chip
 =========================================================================== */
 const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
-  const { team } = useTeam();
+  const { team, currentRole } = useTeam();
+  // Assistants can't author a lineup, so swap the dual-state CTA for a
+  // single read-only "Gameplan" view-button that only appears once the
+  // head has set the lineup. When no lineup exists yet, hide the CTA
+  // entirely — pointing them at a Schedule screen they can't act on
+  // would be misleading.
+  const isAssistant = currentRole === "assistant";
   const {
     setActiveTab,
     setSelectedGameId,
@@ -267,21 +273,33 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
               <Icons.Refresh className="w-4 h-4" /> In-Game
             </button>
           )}
-          <button
-            onClick={openInSchedule}
-            className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
-            style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-          >
-            {game.lineup ? (
-              <>
-                <Icons.Edit className="w-4 h-4" /> Edit Lineup
-              </>
-            ) : (
-              <>
-                <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
-              </>
-            )}
-          </button>
+          {isAssistant ? (
+            game.lineup && (
+              <button
+                onClick={openInSchedule}
+                className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+              >
+                <Icons.Clipboard className="w-4 h-4" /> Gameplan
+              </button>
+            )
+          ) : (
+            <button
+              onClick={openInSchedule}
+              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+            >
+              {game.lineup ? (
+                <>
+                  <Icons.Edit className="w-4 h-4" /> Edit Lineup
+                </>
+              ) : (
+                <>
+                  <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
+                </>
+              )}
+            </button>
+          )}
           {dayDiff === 0 && !isFinal && (
             <button
               onClick={openScoreEditor}

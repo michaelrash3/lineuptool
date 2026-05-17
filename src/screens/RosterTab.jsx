@@ -43,7 +43,7 @@ const playerMatchesFilter = (player, filterId) => {
   }
 };
 
-const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
+const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag }) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
   const positionTag = player.primaryPosition || "—";
@@ -64,16 +64,18 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile }) => {
             : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
         }}
       >
-        <span
-          className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded text-white/80 z-10"
-          style={{
-            backgroundColor: "rgba(0,0,0,0.3)",
-            fontSize: "8px",
-            letterSpacing: "0.18em",
-          }}
-        >
-          {positionTag}
-        </span>
+        {showPositionTag && (
+          <span
+            className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded text-white/80 z-10"
+            style={{
+              backgroundColor: "rgba(0,0,0,0.3)",
+              fontSize: "8px",
+              letterSpacing: "0.18em",
+            }}
+          >
+            {positionTag}
+          </span>
+        )}
         <PlayerAvatar player={player} size={54} className="shadow-inner" />
         <span
           className="absolute bottom-1.5 right-2 font-black text-2xl text-white/95 tabular-nums z-10"
@@ -384,6 +386,7 @@ export const RosterTab = memo(() => {
                   player={player}
                   currentSeason={currentSeason}
                   onOpenProfile={openPlayerProfile}
+                  showPositionTag={canEdit}
                 />
               ))}
             </div>
