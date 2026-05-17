@@ -56,6 +56,9 @@ export const AppHeader = memo(() => {
     createTeam,
     record,
     currentRole,
+    realRole,
+    viewAsRole,
+    setViewAsRole,
   } = useTeam();
   const {
     isAddingTeam,
@@ -69,6 +72,9 @@ export const AppHeader = memo(() => {
     currentRole === "assistant"
       ? "Assistant Coach View"
       : "Head Coach Dashboard";
+  // Persistent chip when the head coach is previewing the assistant view.
+  // Only the real head sees this — assistants can never toggle it on.
+  const showViewAsChip = realRole === "head" && viewAsRole === "assistant";
 
   return (
     <header className="print:hidden w-full relative z-20 bg-white/40 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
@@ -110,6 +116,20 @@ export const AppHeader = memo(() => {
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+          {showViewAsChip && (
+            <div className="flex items-center gap-2 bg-amber-100 border border-amber-300 rounded-xl px-3 py-2 shadow-sm">
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 whitespace-nowrap">
+                Viewing as Assistant
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewAsRole?.(null)}
+                className="text-[10px] font-black uppercase tracking-widest text-amber-900 underline hover:no-underline"
+              >
+                Revert
+              </button>
+            </div>
+          )}
           <select
             value={activeTeamId}
             onChange={(e) => switchTeam(e.target.value)}
