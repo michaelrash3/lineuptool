@@ -741,7 +741,7 @@ export const ScheduleTab = memo(() => {
               coach trim down (e.g., game ended in 4 innings) or restore (if
               they trimmed too aggressively). Restore is only possible up to
               the longest version of the lineup the engine has produced. */}
-          {currentGame.status === "final" &&
+          {canEdit && currentGame.status === "final" &&
             currentGame.lineup?.length > 0 && (() => {
               const longest = currentGame.originalLineup?.length > currentGame.lineup.length
                 ? currentGame.originalLineup
@@ -1507,7 +1507,7 @@ export const ScheduleTab = memo(() => {
                             <Icons.Refresh className="w-4 h-4" /> In-Game
                           </button>
                         )}
-                        {!isPostponed && (
+                        {!isPostponed && canEdit && (
                           <button
                             onClick={() =>
                               setScoringGameId(isEnteringScore ? null : game.id)
