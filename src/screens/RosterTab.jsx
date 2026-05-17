@@ -19,6 +19,21 @@ const FILTER_CHIPS = [
 ];
 
 // Returns true if the player matches the given filter id. Unknown ids match.
+// Position filters consult the v4 position model — `isCatcher` for C and
+// `comfortablePositions` for the field — with legacy `primaryPosition`
+// kept as a last-resort fallback so teams that haven't been migrated
+// still see something useful in the filter.
+const playerComfortable = (player, pos) => {
+  const list = Array.isArray(player.comfortablePositions)
+    ? player.comfortablePositions
+    : null;
+  if (list && list.length > 0) return list.includes(pos);
+  // Legacy fallback: not in restrictions → "comfortable"
+  const restr = Array.isArray(player.restrictions) ? player.restrictions : [];
+  if (restr.length > 0) return !restr.includes(pos);
+  return player.primaryPosition === pos;
+};
+
 const playerMatchesFilter = (player, filterId) => {
   switch (filterId) {
     case "present":
@@ -26,16 +41,13 @@ const playerMatchesFilter = (player, filterId) => {
     case "absent":
       return player.present === false;
     case "pitchers":
-      return (
-        player.primaryPosition === "P" ||
-        !(player.restrictions || []).includes("P")
-      );
+      return playerComfortable(player, "P");
     case "catchers":
-      return player.primaryPosition === "C";
+      return player.isCatcher === true;
     case "infield":
-      return INFIELD_POSITIONS.has(player.primaryPosition);
+      return [...INFIELD_POSITIONS].some((p) => playerComfortable(player, p));
     case "outfield":
-      return OUTFIELD_POSITIONS.has(player.primaryPosition);
+      return [...OUTFIELD_POSITIONS].some((p) => playerComfortable(player, p));
     case "leftyBats":
       return player.bats === "L" || player.bats === "S";
     default:

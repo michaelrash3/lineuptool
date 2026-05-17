@@ -8,6 +8,7 @@ import {
   blankStats,
 } from "../utils/helpers";
 import { AGE_TIERS } from "../constants/ui";
+import { getActivePositionList } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { storage, appId } from "../firebase";
 import { PlayerAvatar, cropImageTo256 } from "./shared.jsx";
@@ -206,20 +207,6 @@ export const formatStatValue = (key, value) => {
       return String(n);
   }
 };
-const ALL_POSITIONS = [
-  "P",
-  "C",
-  "1B",
-  "2B",
-  "3B",
-  "SS",
-  "LF",
-  "LCF",
-  "CF",
-  "RCF",
-  "RF",
-];
-
 /* ============================================================================
    SECTION X · Lineup Card generator — see ./lineup/lineupCard.js
 ============================================================================ */
@@ -1275,12 +1262,10 @@ export const PlayerProfileModal = memo(() => {
   const player = players.find((p) => p.id === viewingPlayerId);
   if (!player) return null;
 
-  const positions =
-    defenseSize === "10"
-      ? ALL_POSITIONS
-      : ALL_POSITIONS.filter((p) => p !== "LCF" && p !== "RCF")
-          .concat(["CF"])
-          .filter((v, i, a) => a.indexOf(v) === i);
+  // Defense-size-aware active position list. 10-defender setups use
+  // LCF + RCF (no lone CF — those two cover center together); 9-defender
+  // setups use CF alone. Matches `getActivePositionList` in lineupEngine.
+  const positions = getActivePositionList(defenseSize);
 
   const close = () => {
     setViewingPlayerId(null);
@@ -1540,27 +1525,6 @@ export const PlayerProfileModal = memo(() => {
                     }
                     className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
                   />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
-                    Primary Pos
-                  </label>
-                  <select
-                    value={player.primaryPosition || ""}
-                    onChange={(e) =>
-                      updatePlayer(player.id, {
-                        primaryPosition: e.target.value,
-                      })
-                    }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
-                  >
-                    <option value="">N/A</option>
-                    {positions.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -2328,7 +2292,6 @@ export const AddPlayerModal = memo(() => {
     number: "",
     bats: "R",
     throws: "R",
-    primaryPosition: "",
   });
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
@@ -2466,25 +2429,6 @@ export const AddPlayerModal = memo(() => {
                 <option>L</option>
               </select>
             </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
-              Primary Position
-            </label>
-            <select
-              value={form.primaryPosition}
-              onChange={(e) =>
-                setForm({ ...form, primaryPosition: e.target.value })
-              }
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold shadow-sm"
-            >
-              <option value="">N/A</option>
-              {ALL_POSITIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
           </div>
           <div className="flex gap-3 pt-3 justify-end">
             <button

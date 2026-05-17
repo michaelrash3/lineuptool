@@ -79,6 +79,10 @@ export const EvalGradeCard = memo(
     onNotesChange,
     readOnly = false,
     rightSlot = null,
+    // Defense-size-aware position list. Defaults to the legacy 11-position
+    // superset for back-compat; callers that know team.defenseSize should
+    // pass `getActivePositionList(team.defenseSize)` from lineupEngine.
+    positions = EVAL_SUGGESTED_POSITIONS,
   }) => {
     const playerGrades = grades || {};
     return (
@@ -126,7 +130,7 @@ export const EvalGradeCard = memo(
               Suggested Positions
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {EVAL_SUGGESTED_POSITIONS.map((pos) => {
+              {positions.map((pos) => {
                 const active = (
                   playerGrades.suggestedPositions || []
                 ).includes(pos);
