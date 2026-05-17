@@ -1178,6 +1178,111 @@ const TeamProvider = ({ children }) => {
     [_runGenerate]
   );
 
+  // Re-roll just the defensive schedule, preserving the current batting
+  // order. The engine still computes both halves, but we throw away its
+  // batting output and reapply the existing one. Mirror of
+  // `regenerateBatting` from the other direction.
+  const regenerateDefense = useCallback(() => {
+    const inputs = uiBridge.current.getInputs();
+    if (!inputs) return;
+    const {
+      currentGame,
+      currentGameAttendance,
+      firstInningLineup,
+      lineup,
+      battingLineup,
+    } = inputs;
+    if (!currentGame) {
+      toast.push({ kind: "error", title: "No game selected" });
+      return;
+    }
+    if (!lineup) {
+      toast.push({
+        kind: "error",
+        title: "Generate a lineup first",
+        message: "Re-roll defense works on top of an existing lineup.",
+      });
+      return;
+    }
+    const presentPlayers = teamData.players.filter(
+      (p) => currentGameAttendance[p.id] !== false
+    );
+    if (presentPlayers.length < 7) {
+      toast.push({
+        kind: "error",
+        title: "Not enough players",
+        message: "Need at least 7 present.",
+      });
+      return;
+    }
+
+    const result = engineGenerateLineup({
+      activePlayers: presentPlayers,
+      allPlayers: teamData.players,
+      games: teamData.games,
+      evaluationEvents: teamData.evaluationEvents,
+      currentGame,
+      firstInningOverridesById: firstInningLineup,
+      totalInnings:
+        parseInt(currentGame.inningsCount || teamData.inningsCount, 10) || 6,
+      leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+      teamAge: teamData.teamAge,
+      defenseSize: currentGame.defenseSize || teamData.defenseSize,
+      positionLock: currentGame.positionLock || teamData.positionLock,
+      battingSize: currentGame.battingSize || teamData.battingSize,
+      seed: Date.now() + Math.floor(Math.random() * 1e6),
+      relaxFairness: currentGame.applySeasonalFairness === false,
+      isBigGame: currentGame.isBigGame === true,
+    });
+
+    if (result.error) {
+      toast.push({
+        kind: "error",
+        title: "Couldn't re-roll defense",
+        message: result.error,
+        duration: 0,
+      });
+      return;
+    }
+
+    previousLineupRef.current = { lineup, battingLineup };
+    uiBridge.current.applyResult({
+      lineup: result.lineup,
+      // Preserve the existing batting order — re-roll only touched defense.
+      battingLineup,
+    });
+    toast.push({
+      kind: "success",
+      title: "Defense re-rolled",
+      message: lineup ? "Tap Undo to restore the previous defense." : "",
+      duration: 6000,
+      action: lineup
+        ? {
+            label: "Undo",
+            onClick: () => {
+              const snap = previousLineupRef.current;
+              if (snap)
+                uiBridge.current.applyResult({
+                  lineup: snap.lineup,
+                  battingLineup: snap.battingLineup,
+                });
+            },
+          }
+        : undefined,
+    });
+  }, [
+    teamData.players,
+    teamData.games,
+    teamData.evaluationEvents,
+    teamData.inningsCount,
+    teamData.leagueRuleSet,
+    teamData.teamAge,
+    teamData.defenseSize,
+    teamData.positionLock,
+    teamData.battingSize,
+    toast,
+  ]);
+
   // Re-roll JUST the batting order. Defensive lineup, attendance, and
   // first-inning overrides are all left alone. Useful when the defense
   // looks right but the order doesn't, or when the coach wants to try a
@@ -2618,6 +2723,7 @@ const TeamProvider = ({ children }) => {
       generateLineup,
       regenerateLineup,
       regenerateBatting,
+      regenerateDefense,
       undoLineup,
       saveCurrentGame,
       switchTeam,
@@ -2675,6 +2781,7 @@ const TeamProvider = ({ children }) => {
       generateLineup,
       regenerateLineup,
       regenerateBatting,
+      regenerateDefense,
       undoLineup,
       saveCurrentGame,
       switchTeam,
@@ -3182,6 +3289,7 @@ const MainShell = () => {
     setGenError,
     regenerateLineup,
     regenerateBatting,
+    regenerateDefense,
     currentRole,
   } = useTeam();
   const {
@@ -3269,6 +3377,7 @@ const MainShell = () => {
     selectedGameId,
     regenerateLineup,
     regenerateBatting,
+    regenerateDefense,
     TAB_ORDER,
   ]);
 
