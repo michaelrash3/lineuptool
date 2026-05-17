@@ -20,6 +20,7 @@ import {
 } from "../constants/ui";
 import { getOffensiveScore, calculateTotalScore } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts.js";
+import { evalPromptStatus } from "../utils/helpers";
 
 const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
   (acc, c) => ({ ...acc, [c.id]: EVAL_SCALE_DEFAULT }),
@@ -790,6 +791,13 @@ export const EvaluationTab = memo(() => {
   } = useUI();
   const { players, primaryColor, evaluationEvents } = team;
 
+  // Eval cadence: "Start new Eval" is gated until a preseason / biweekly
+  // window opens for this head coach. Past rounds stay viewable + editable.
+  const promptStatus = useMemo(
+    () => evalPromptStatus(team, user?.uid, "Head"),
+    [team, user]
+  );
+
   const [openNotesPlayerId, setOpenNotesPlayerId] = useState(null);
   const [saveState, setSaveState] = useState("idle");
   const [activeGroup, setActiveGroup] = useState("Hitting");
@@ -834,9 +842,13 @@ export const EvaluationTab = memo(() => {
       .sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [evaluationEvents, user]);
 
-  const isNewRound = !selectedRoundId;
+  // "New round" mode is gated to active prompt windows. Outside them we
+  // default to viewing the most recent existing round.
+  const isNewRound = !selectedRoundId && promptStatus.active;
   const activeRound = selectedRoundId
     ? myRounds.find((r) => r.id === selectedRoundId)
+    : !promptStatus.active && myRounds.length > 0
+    ? myRounds[0]
     : null;
 
   const teamId = team?.id;
@@ -1074,14 +1086,30 @@ export const EvaluationTab = memo(() => {
               Eval:
             </span>
             <select
-              value={selectedRoundId || "__new"}
+              value={
+                selectedRoundId || (promptStatus.active ? "__new" : "")
+              }
               onChange={(e) => {
                 const v = e.target.value;
-                setSelectedRoundId(v === "__new" ? null : v);
+                setSelectedRoundId(v === "__new" || v === "" ? null : v);
               }}
               className="flex-1 min-w-0 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg cursor-pointer hover:bg-white/90 transition-colors"
             >
-              <option value="__new">+ Start a new Eval</option>
+              {promptStatus.active ? (
+                <option value="__new">
+                  + Start a new Eval
+                  {promptStatus.kind === "preseason"
+                    ? " (preseason due)"
+                    : " (biweekly due)"}
+                </option>
+              ) : (
+                <option value="" disabled>
+                  No new eval due
+                  {promptStatus.daysUntilDue != null
+                    ? ` — ${promptStatus.daysUntilDue}d`
+                    : ""}
+                </option>
+              )}
               {myRounds.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.label || `Eval (${r.date})`} — {r.date}

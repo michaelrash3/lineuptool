@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI, useToast } from "../contexts.js";
 import {
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
@@ -10,6 +10,7 @@ import {
   EVAL_SCALE_LABELS,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
+import { evalPromptStatus } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 
@@ -70,7 +71,34 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
 export const AssistantEvalModal = memo(() => {
   const { team, user, saveAssistantEvaluation, currentRole } = useTeam();
   const { assistantEvalOpen, setAssistantEvalOpen } = useUI();
+  const toast = useToast();
   const { players, pitchingFormat, evaluationEvents } = team;
+
+  // Gate: outside an active prompt window the assistant can't submit. Close
+  // back out with a toast if something opens us when no prompt is active.
+  const promptStatus = useMemo(
+    () => evalPromptStatus(team, user?.uid, "Assistant"),
+    [team, user]
+  );
+  useEffect(() => {
+    if (!assistantEvalOpen) return;
+    if (currentRole !== "assistant") return;
+    if (promptStatus.active) return;
+    setAssistantEvalOpen(false);
+    toast.push({
+      kind: "info",
+      title: "No evaluation due right now",
+      message: promptStatus.daysUntilDue
+        ? `Next eval due in ${promptStatus.daysUntilDue} day${promptStatus.daysUntilDue === 1 ? "" : "s"}.`
+        : "We'll prompt you when the next window opens.",
+    });
+  }, [
+    assistantEvalOpen,
+    currentRole,
+    promptStatus,
+    setAssistantEvalOpen,
+    toast,
+  ]);
 
   const activeCategories = useMemo(
     () => getEvalCategoriesForTeam(pitchingFormat),
