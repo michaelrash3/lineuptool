@@ -182,6 +182,32 @@ const InviteCoachesPanel = memo(
       setRow(candidate.id, { status: "queued" });
     };
 
+    // Generate an invite token + copy ONLY the URL to the clipboard so
+    // the head coach can paste it into whatever channel they want
+    // (text, Slack, manually-composed email, etc.) without dealing
+    // with mailto draft quirks.
+    const handleCopyLinkOne = async (candidate) => {
+      const row = getRow(candidate.id);
+      const token = createInviteToken?.(row.role);
+      if (!token) return;
+      const url = buildInviteUrl(token);
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.push({
+          kind: "success",
+          title: "Invite link copied",
+          message: `Paste it to ${candidate.name}.`,
+        });
+        setRow(candidate.id, { status: "copied" });
+      } catch {
+        toast.push({
+          kind: "warn",
+          title: "Couldn't access clipboard",
+          message: url,
+        });
+      }
+    };
+
     const handleBulkSend = async () => {
       const selected = candidates.filter((c) => getRow(c.id).selected);
       if (selected.length === 0) {
@@ -276,8 +302,21 @@ const InviteCoachesPanel = memo(
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     type="button"
+                    onClick={() => handleCopyLinkOne(c)}
+                    title="Generate the invite link and copy it"
+                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white rounded-md shadow-sm hover:opacity-90"
+                    style={{
+                      backgroundColor: "var(--team-primary)",
+                      color: "var(--team-tertiary)",
+                    }}
+                  >
+                    {row.status === "copied" ? "Copied ✓" : "Copy Link"}
+                  </button>
+                  <button
+                    type="button"
                     disabled={row.status === "sending" || bulkSending}
                     onClick={() => handleSendOne(c)}
+                    title="Send via your signed-in Gmail"
                     className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {row.status === "sending"

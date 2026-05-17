@@ -152,6 +152,13 @@ export const buildMailtoUrl = (
   subject: string,
   body: string
 ): string => {
-  const params = new URLSearchParams({ subject, body });
-  return `mailto:${encodeURIComponent(to)}?${params.toString()}`;
+  // mailto: clients expect RFC 3986 percent-encoding for the query
+  // string. URLSearchParams uses application/x-www-form-urlencoded
+  // which encodes spaces as `+` — that shows up as literal `+` in
+  // Gmail's compose pane (since mailto doesn't apply form decoding).
+  // encodeURIComponent emits %20 for spaces, which mailto handlers
+  // decode correctly.
+  return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(
+    subject
+  )}&body=${encodeURIComponent(body)}`;
 };
