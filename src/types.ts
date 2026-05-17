@@ -18,6 +18,8 @@ export interface PlayerStats {
   triples?: number;
   hr?: number;
   rbi?: number;
+  sb?: number;
+  k?: number;
   fpct?: number;
   tc?: number;
   a?: number;

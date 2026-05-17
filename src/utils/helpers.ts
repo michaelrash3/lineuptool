@@ -258,6 +258,8 @@ export interface CsvHeaderIndex {
   triples: number;
   hr: number;
   rbi: number;
+  sb: number;
+  k: number;
   fpct: number;
   tc: number;
   a: number;
@@ -304,6 +306,8 @@ export const buildCsvHeaderIndex = (headers: string[]): CsvHeaderIndex => {
     triples: find("3b"),
     hr: find("hr"),
     rbi: find("rbi"),
+    sb: find("sb", "stolen bases", "stolen"),
+    k: find("so", "k", "strikeouts"),
     fpct: find("fpct", "fpct%"),
     tc: find("tc", "total", "total chances"),
     a: find("a", "assists"),
@@ -423,6 +427,8 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
     setInt("triples", idx.triples);
     setInt("hr", idx.hr);
     setInt("rbi", idx.rbi);
+    setInt("sb", idx.sb);
+    setInt("k", idx.k);
     setNum("fpct", idx.fpct);
     setInt("tc", idx.tc);
     setInt("a", idx.a);
@@ -487,6 +493,8 @@ export const blankStats = (): PlayerStats => ({
   triples: 0,
   hr: 0,
   rbi: 0,
+  sb: 0,
+  k: 0,
   fpct: 0,
   tc: 0,
   a: 0,
