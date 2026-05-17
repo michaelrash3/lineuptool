@@ -59,6 +59,7 @@ export const AppHeader = memo(() => {
     realRole,
     viewAsRole,
     setViewAsRole,
+    joinTeamByCode,
   } = useTeam();
   const {
     isAddingTeam,
@@ -66,6 +67,8 @@ export const AppHeader = memo(() => {
     newTeamName,
     setNewTeamName,
   } = useUI();
+  const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
+  const [joinCodeInput, setJoinCodeInput] = React.useState("");
   const activeTeamName =
     teams.find((t) => t.id === activeTeamId)?.name || "TEAM";
   const subtitle =
@@ -147,7 +150,52 @@ export const AppHeader = memo(() => {
       <div className="bg-slate-900/80 text-white print:hidden relative z-10 border-b border-slate-900 shadow-inner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full sm:max-w-md">
-            {isAddingTeam ? (
+            {isJoiningTeam ? (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const ok = await joinTeamByCode?.(joinCodeInput);
+                  if (ok) {
+                    setJoinCodeInput("");
+                    setIsJoiningTeam(false);
+                  }
+                }}
+                className="flex items-center gap-2 w-full"
+              >
+                <input
+                  autoFocus
+                  type="text"
+                  value={joinCodeInput}
+                  onChange={(e) =>
+                    setJoinCodeInput(e.target.value.toUpperCase())
+                  }
+                  placeholder="TEAM CODE"
+                  maxLength={8}
+                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 flex-1 uppercase tracking-widest font-mono bg-slate-900/50 text-white rounded-lg shadow-inner"
+                />
+                <button
+                  type="submit"
+                  className="p-2 text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+                  style={{
+                    backgroundColor: "var(--team-primary)",
+                    color: "var(--team-tertiary)",
+                  }}
+                  title="Join team"
+                >
+                  <Icons.Check className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsJoiningTeam(false);
+                    setJoinCodeInput("");
+                  }}
+                  className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </form>
+            ) : isAddingTeam ? (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -165,7 +213,11 @@ export const AppHeader = memo(() => {
                 />
                 <button
                   type="submit"
-                  className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-sm"
+                  className="p-2 text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+                  style={{
+                    backgroundColor: "var(--team-primary)",
+                    color: "var(--team-tertiary)",
+                  }}
                 >
                   <Icons.Check className="w-4 h-4" />
                 </button>
@@ -178,12 +230,20 @@ export const AppHeader = memo(() => {
                 </button>
               </form>
             ) : (
-              <button
-                onClick={() => setIsAddingTeam(true)}
-                className="text-xs bg-slate-700/80 hover:bg-slate-600 py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm"
-              >
-                <Icons.Plus className="w-3.5 h-3.5" /> New Team
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAddingTeam(true)}
+                  className="text-xs bg-slate-700/80 hover:bg-slate-600 py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm"
+                >
+                  <Icons.Plus className="w-3.5 h-3.5" /> New Team
+                </button>
+                <button
+                  onClick={() => setIsJoiningTeam(true)}
+                  className="text-xs bg-slate-700/80 hover:bg-slate-600 py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm"
+                >
+                  <Icons.Users className="w-3.5 h-3.5" /> Join Team
+                </button>
+              </div>
             )}
           </div>
           {syncStatus && (

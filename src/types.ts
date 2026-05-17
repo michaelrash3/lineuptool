@@ -124,6 +124,10 @@ export interface Team {
   tryoutsOpen?: boolean;
   rosterCap?: number;
   tryoutSignups?: TryoutSignup[];
+  // Persistent team join code. 6-char uppercase alphanumeric. Anyone
+  // who has the code can join the team as an assistant coach. The HC
+  // can regenerate it (rotating all existing codes) from Settings.
+  joinCode?: string;
   [key: string]: unknown;
 }
 

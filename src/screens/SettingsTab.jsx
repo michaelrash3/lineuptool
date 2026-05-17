@@ -537,6 +537,99 @@ const TryoutsSettingsPanel = memo(
   }
 );
 
+// Team Join Code panel. Shows the persistent 6-char code anyone can
+// use to join the team as an assistant. HC regenerates to rotate.
+const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
+  const code = team.joinCode || "";
+  const url =
+    code && typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}?join=${code}`
+      : "";
+  const copy = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.push({ kind: "success", title: `${label} copied` });
+    } catch {
+      toast.push({ kind: "warn", title: "Couldn't access clipboard" });
+    }
+  };
+  return (
+    <div>
+      <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
+        <Icons.Users className="w-4 h-4" /> Team Code
+      </h3>
+      <p className="text-[11px] text-slate-500 font-medium mb-3">
+        Share this 6-character code with anyone you want to invite as
+        an assistant coach. They tap <strong>Join Team</strong> in the
+        header and enter it. Head coaches can promote them later via
+        Coach Roles below. Regenerate any time to rotate the code.
+      </p>
+      {code ? (
+        <div className="space-y-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+            <code
+              className="text-2xl font-black tracking-[0.25em] font-mono px-3 py-2 rounded-lg"
+              style={{
+                backgroundColor: "var(--team-primary)",
+                color: "var(--team-tertiary)",
+              }}
+            >
+              {code}
+            </code>
+            <div className="flex gap-2 ml-auto">
+              <button
+                type="button"
+                onClick={() => copy(code, "Team code")}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+              >
+                Copy Code
+              </button>
+              <button
+                type="button"
+                onClick={() => copy(url, "Join link")}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+              >
+                Copy Link
+              </button>
+            </div>
+          </div>
+          <div className="flex justify-between items-center gap-3">
+            <code className="text-[10px] text-slate-500 font-mono truncate flex-1 min-w-0">
+              {url}
+            </code>
+            <button
+              type="button"
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Regenerate the team code? The old one will stop working."
+                  )
+                )
+                  regenerateJoinCode?.();
+              }}
+              className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+            >
+              Regenerate
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => regenerateJoinCode?.()}
+          className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+          style={{
+            backgroundColor: "var(--team-primary)",
+            color: "var(--team-tertiary)",
+          }}
+        >
+          Generate Team Code
+        </button>
+      )}
+    </div>
+  );
+});
+
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -551,6 +644,7 @@ export const SettingsTab = memo(() => {
     generateTryoutShareId,
     setTryoutsOpen,
     setRosterCap,
+    regenerateJoinCode,
     uploadLogo,
     uploadScheduleCsv,
     uploadStatsCsv,
@@ -910,6 +1004,12 @@ export const SettingsTab = memo(() => {
               generateTryoutShareId={generateTryoutShareId}
               setTryoutsOpen={setTryoutsOpen}
               setRosterCap={setRosterCap}
+              toast={toast}
+            />
+
+            <JoinCodePanel
+              team={team}
+              regenerateJoinCode={regenerateJoinCode}
               toast={toast}
             />
 
