@@ -57,7 +57,7 @@ import {
   AddPlayerModal,
   PastSeasonImportModal,
 } from "./components/modals.jsx";
-import { AssistantEvalModal } from "./components/AssistantEvalModal.jsx";
+import { AssistantEvalTab } from "./screens/AssistantEvalTab.jsx";
 import { InGameView } from "./screens/InGameView.jsx";
 import {
   normalizeDateToIso,
@@ -3150,19 +3150,18 @@ const UIProvider = ({ children }) => {
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
 const TAB_ORDER_HEAD = ["home", "roster", "schedule", "evaluation", "settings"];
-const TAB_ORDER_ASSISTANT = ["home", "roster", "schedule", "submit-eval"];
+const TAB_ORDER_ASSISTANT = ["home", "roster", "schedule", "evaluation"];
 
-// Map activeTab id → URL path and back. "home" is the root path so the app
-// feels right at https://host/ without an explicit /home segment. The
-// "submit-eval" pseudo-tab opens the modal and snaps back to home, so it
-// shouldn't push its own URL.
+// Map activeTab id → URL path and back. "home" is the root path so the
+// app feels right at https://host/ without an explicit /home segment.
+// `evaluation` resolves to the head EvaluationTab for heads and the
+// AssistantEvalTab for assistants; same URL, role-dispatched view.
 const TAB_TO_PATH = {
   home: "/",
   roster: "/roster",
   schedule: "/schedule",
   evaluation: "/evaluation",
   settings: "/settings",
-  "submit-eval": null,
 };
 const pathToTab = (pathname) => {
   if (!pathname || pathname === "/") return "home";
@@ -3170,7 +3169,6 @@ const pathToTab = (pathname) => {
   // back to the right tab.
   const first = pathname.split("/").filter(Boolean)[0];
   if (first === "in-game") return "schedule";
-  if (first === "submit-eval") return "submit-eval";
   return first || "home";
 };
 
@@ -3193,7 +3191,6 @@ const MainShell = () => {
     selectedGameId,
     inGameId,
     setInGameId,
-    setAssistantEvalOpen,
   } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
@@ -3298,14 +3295,6 @@ const MainShell = () => {
     if (inGameId) setInGameId(null);
   }, [isAssistant, activeTab, setActiveTab, inGameId, setInGameId]);
 
-  // The "submit-eval" tab isn't a real screen — it opens the assistant
-  // submission modal and snaps the tab back to home.
-  useEffect(() => {
-    if (activeTab !== "submit-eval") return;
-    setAssistantEvalOpen(true);
-    setActiveTab("home");
-  }, [activeTab, setActiveTab, setAssistantEvalOpen]);
-
   // URL ↔ activeTab sync. The tab id stays the source of truth for legacy
   // code; the URL just mirrors it so browser back/forward, deep links, and
   // shared URLs work.
@@ -3321,7 +3310,7 @@ const MainShell = () => {
     // Don't push when In-Game is active — that route owns the URL.
     if (location.pathname.startsWith("/in-game/")) return;
     const target = TAB_TO_PATH[activeTab];
-    if (target === null) return; // pseudo-tabs (e.g. submit-eval) don't push
+    if (target == null) return; // unknown tab — don't push
     const path = target || "/";
     // Only navigate if it's a top-level tab change (don't clobber deeper
     // routes like /schedule/:id).
@@ -3392,7 +3381,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
-        { id: "submit-eval", icon: Icons.Clipboard, label: "Submit Eval" },
+        { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
       ]
     : [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
@@ -3418,7 +3407,7 @@ const MainShell = () => {
           <Route path="/schedule/*" element={<ScheduleTab />} />
           <Route
             path="/evaluation"
-            element={isAssistant ? <Navigate to="/" replace /> : <EvaluationTab />}
+            element={isAssistant ? <AssistantEvalTab /> : <EvaluationTab />}
           />
           <Route
             path="/settings"
@@ -3435,7 +3424,6 @@ const MainShell = () => {
       <AddPlayerModal />
       <PastSeasonImportModal />
       {!isAssistant && <InGameView />}
-      <AssistantEvalModal />
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}

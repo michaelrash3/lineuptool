@@ -702,7 +702,6 @@ export const HomeTab = memo(() => {
     setActiveTab,
     setIsAddingGame,
     setIsAddingPlayer,
-    setAssistantEvalOpen,
   } = useUI();
   const isHead = currentRole !== "assistant";
   const promptStatus = useMemo(
@@ -752,11 +751,7 @@ export const HomeTab = memo(() => {
           isHead={isHead}
           primaryColor={primaryColor}
           onStart={() => {
-            if (isHead) {
-              setActiveTab("evaluation");
-            } else {
-              setAssistantEvalOpen?.(true);
-            }
+            setActiveTab("evaluation");
           }}
         />
       )}
