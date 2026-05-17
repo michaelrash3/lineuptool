@@ -601,3 +601,128 @@ export const evalPromptStatus = (
     daysUntilDue: BIWEEKLY_DAYS - elapsedDays,
   };
 };
+
+// Cool-off between automated reminder batches. The cadence prompt
+// (preseason / biweekly) can stay active for days as coaches catch up;
+// without this guard the email fires every time the HC opens the app.
+const EMAIL_PROMPT_COOLOFF_DAYS = 7;
+
+export interface EmailPromptStatus {
+  active: boolean;
+  kind: EvalPromptKind | null;
+  // The head's own status (so we know to nudge them too if they haven't
+  // submitted this round).
+  headDue: boolean;
+  // Per-assistant due flags: { [evaluatorId]: boolean }. Only entries
+  // where the assistant has NOT submitted this round are emitted.
+  assistantsDue: Record<string, boolean>;
+  // Reason string when inactive — useful for surfacing a "sent X days
+  // ago" hint in Settings.
+  reason: string | null;
+}
+
+// Whether the team should fire automated reminder emails right now.
+// Conditions:
+//   1. Eval cadence is active for ANY coach (preseason or biweekly).
+//   2. team.emailEvalRemindersDisabled !== true.
+//   3. team.lastEvalEmailedAt is missing OR > EMAIL_PROMPT_COOLOFF_DAYS old.
+// Recipients = head's email + every coachContacts[].email whose
+// assistant hasn't submitted in the current round.
+export const emailPromptStatus = (
+  team:
+    | {
+        currentSeason?: string;
+        evaluationEvents?: any[];
+        ownerId?: string;
+        coachContacts?: Array<{ id?: string; name?: string; email?: string }>;
+        coachRoles?: Record<string, string>;
+        members?: string[];
+        lastEvalEmailedAt?: string;
+        emailEvalRemindersDisabled?: boolean;
+      }
+    | null
+    | undefined,
+  now: Date = new Date()
+): EmailPromptStatus => {
+  if (!team) {
+    return {
+      active: false,
+      kind: null,
+      headDue: false,
+      assistantsDue: {},
+      reason: "no team",
+    };
+  }
+  if (team.emailEvalRemindersDisabled === true) {
+    return {
+      active: false,
+      kind: null,
+      headDue: false,
+      assistantsDue: {},
+      reason: "reminders disabled",
+    };
+  }
+  // Cool-off guard: skip if we sent recently.
+  if (team.lastEvalEmailedAt) {
+    const lastMs = new Date(team.lastEvalEmailedAt).getTime();
+    if (Number.isFinite(lastMs)) {
+      const elapsedDays = Math.floor((now.getTime() - lastMs) / MS_PER_DAY);
+      if (elapsedDays < EMAIL_PROMPT_COOLOFF_DAYS) {
+        return {
+          active: false,
+          kind: null,
+          headDue: false,
+          assistantsDue: {},
+          reason: `cool-off (${EMAIL_PROMPT_COOLOFF_DAYS - elapsedDays} day(s) remaining)`,
+        };
+      }
+    }
+  }
+
+  // Head status.
+  const headStatus = team.ownerId
+    ? evalPromptStatus(team, team.ownerId, "Head", now)
+    : { active: false, kind: null };
+
+  // Assistant statuses — anyone in coachRoles marked "assistant", or
+  // members other than the owner if coachRoles is absent.
+  const assistantUids = new Set<string>();
+  const coachRoles = team.coachRoles || {};
+  for (const [uid, role] of Object.entries(coachRoles)) {
+    if (role === "assistant") assistantUids.add(uid);
+  }
+  if (assistantUids.size === 0 && Array.isArray(team.members)) {
+    for (const uid of team.members) {
+      if (uid !== team.ownerId) assistantUids.add(uid);
+    }
+  }
+  const assistantsDue: Record<string, boolean> = {};
+  let anyAssistantDue = false;
+  let firstActiveKind: EvalPromptKind | null = null;
+  for (const uid of assistantUids) {
+    const s = evalPromptStatus(team, uid, "Assistant", now);
+    if (s.active) {
+      assistantsDue[uid] = true;
+      anyAssistantDue = true;
+      if (!firstActiveKind) firstActiveKind = s.kind;
+    }
+  }
+
+  const anyDue = headStatus.active || anyAssistantDue;
+  if (!anyDue) {
+    return {
+      active: false,
+      kind: null,
+      headDue: false,
+      assistantsDue: {},
+      reason: "no cadence active",
+    };
+  }
+  return {
+    active: true,
+    kind: headStatus.kind || firstActiveKind || "biweekly",
+    headDue: !!headStatus.active,
+    assistantsDue,
+    reason: null,
+  };
+};

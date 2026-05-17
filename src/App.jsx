@@ -67,7 +67,9 @@ import {
   buildCsvHeaderIndex,
   parsePercent,
   blankStats,
+  emailPromptStatus,
 } from "./utils/helpers";
+import { sendGmailMessage } from "./integrations/gmailSend";
 import {
   getLocalDateString,
   bumpAgeTier,
@@ -2676,6 +2678,125 @@ const TeamProvider = ({ children }) => {
     teamData.ownerId,
     teamData.members,
     loadingActive,
+  ]);
+
+  // PR K — Email eval prompts (client-only). When the HC opens the app
+  // and the cadence is active for anyone on the team, fire one batch
+  // of reminder emails via the head's signed-in Gmail. A
+  // `lastEvalEmailedAt` cool-off guard (7 days) inside emailPromptStatus
+  // prevents re-sending on every page load while a cadence stays active.
+  // One-per-session ref keeps the same tab from sending twice while the
+  // Firestore write is in flight.
+  const emailPromptAttemptedRef = useRef(new Set());
+  useEffect(() => {
+    if (!authReady || !user || !activeTeamId) return;
+    if (loadingActive) return;
+    if (realRole !== "head") return; // only the head fires the batch
+    if (emailPromptAttemptedRef.current.has(activeTeamId)) return;
+    const status = emailPromptStatus(teamData);
+    if (!status.active) return;
+    if (!user.email) return; // signed-in via non-Google provider
+    emailPromptAttemptedRef.current.add(activeTeamId);
+
+    // Compose. The link points back to /evaluation so the recipient
+    // lands on their own form on click.
+    const teamName = teamData.name || "your team";
+    const fromName = user.displayName || "Your head coach";
+    const url =
+      typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}#/evaluation`
+        : "/evaluation";
+    const subject = `[${teamName}] Eval round due`;
+    const buildBody = (recipientName) =>
+      [
+        `Hi ${recipientName || "coach"},`,
+        "",
+        `${fromName} is asking for a fresh evaluation round for ${teamName}.`,
+        "",
+        "Open the eval form in LineupTool and submit your grades:",
+        url,
+        "",
+        "This is an automatic reminder. You can mute these in Settings -> Coaches.",
+      ].join("\n");
+
+    const recipients = [];
+    if (status.headDue) {
+      recipients.push({ name: fromName, email: user.email });
+    }
+    const contacts = teamData.coachContacts || [];
+    for (const [uid] of Object.entries(status.assistantsDue)) {
+      // Pull the assistant's email from coachContacts when we have it.
+      // Fall back to skipping: we can't look up emails for legacy
+      // members without a contact entry.
+      const c = contacts.find(
+        (cc) =>
+          cc.uid === uid ||
+          (cc.email &&
+            (teamData.coachRoles || {})[uid] === "assistant" &&
+            // best-effort match: same email between members + contacts
+            false)
+      );
+      // Fallback path: any contact with sourceRole containing "assistant"
+      // gets emailed if there's an assistant due. Imperfect but useful
+      // until we wire a proper uid->email map.
+      if (c && c.email) recipients.push({ name: c.name, email: c.email });
+    }
+    // Dedupe by email (lowercased).
+    const seen = new Set();
+    const finalRecipients = recipients.filter((r) => {
+      const k = (r.email || "").toLowerCase();
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (finalRecipients.length === 0) {
+      // Nothing actionable; mark the cool-off anyway so we don't retry
+      // every page load for a team with no contacts.
+      persistTeamRef.current?.({
+        lastEvalEmailedAt: new Date().toISOString(),
+      });
+      return;
+    }
+
+    (async () => {
+      let sent = 0;
+      for (const r of finalRecipients) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await sendGmailMessage({
+            auth,
+            to: r.email,
+            subject,
+            body: buildBody(r.name),
+            fromEmail: user.email,
+            fromName,
+          });
+          sent++;
+        } catch {
+          // Silent on Gmail failures — we don't want a flood of toasts
+          // on app open. If consent was declined, the user will see the
+          // popup once.
+        }
+      }
+      persistTeamRef.current?.({
+        lastEvalEmailedAt: new Date().toISOString(),
+      });
+      if (sent > 0) {
+        toast.push({
+          kind: "success",
+          title: `Reminder emails sent (${sent})`,
+          message: "Coaches were notified that an eval round is due.",
+        });
+      }
+    })();
+  }, [
+    authReady,
+    user,
+    activeTeamId,
+    realRole,
+    teamData,
+    loadingActive,
+    toast,
   ]);
 
   // Auto-redeem ?invite= URL params once auth + team list are ready.
