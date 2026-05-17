@@ -984,7 +984,7 @@ export const SettingsTab = memo(() => {
                       id="settings-import-schedule-csv"
                       type="file"
                       className="sr-only"
-                      accept=".csv"
+                      accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
                       onChange={uploadScheduleCsv}
                     />
                   </label>
@@ -1002,7 +1002,7 @@ export const SettingsTab = memo(() => {
                       id="settings-import-roster-csv"
                       type="file"
                       className="sr-only"
-                      accept=".csv"
+                      accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
                       onChange={uploadStatsCsv}
                     />
                   </label>
@@ -1020,7 +1020,7 @@ export const SettingsTab = memo(() => {
                       id="settings-import-past-season-csv"
                       type="file"
                       className="sr-only"
-                      accept=".csv"
+                      accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
                       onChange={startPastSeasonImport}
                     />
                   </label>

@@ -2432,6 +2432,24 @@ const TeamProvider = ({ children }) => {
     [user, teamData.evaluationEvents, updateTeam, toast]
   );
 
+  // Drop an evaluation round (any role). HC-callable so the head coach
+  // can clean up rounds entered in error — their own, or any assistant's
+  // submission. Splices from team.evaluationEvents by id.
+  const deleteEvaluation = useCallback(
+    (roundId) => {
+      if (!roundId) return;
+      const next = (teamData.evaluationEvents || []).filter(
+        (e) => e.id !== roundId
+      );
+      updateTeam({ evaluationEvents: next });
+      toast.push({
+        kind: "success",
+        title: "Eval round deleted",
+      });
+    },
+    [teamData.evaluationEvents, updateTeam, toast]
+  );
+
   // Promote / demote a non-owner team member. Owner is implicitly head and
   // cannot be demoted from here.
   const setCoachRole = useCallback(
@@ -2895,6 +2913,7 @@ const TeamProvider = ({ children }) => {
       leaveTeamCmd,
       saveTeamEvaluation,
       saveAssistantEvaluation,
+      deleteEvaluation,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
@@ -2953,6 +2972,7 @@ const TeamProvider = ({ children }) => {
       leaveTeamCmd,
       saveTeamEvaluation,
       saveAssistantEvaluation,
+      deleteEvaluation,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
