@@ -71,17 +71,22 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
 // invite URL.
 const InviteCoachesPanel = memo(
   ({ activeTeamId, team, createInviteToken, user, primaryColor, toast }) => {
+    // Candidates come exclusively from team.coachContacts — the list
+    // the TeamSnap CSV import populates from rows whose Position column
+    // says "coach"/"manager". Parent emails on player rows stay out of
+    // this flow on purpose so the invite UI only ever proposes actual
+    // coaches.
     const candidates = useMemo(() => {
-      return (team.players || [])
-        .filter((p) => p.email && p.email.trim())
-        .map((p) => ({
-          id: p.id,
-          name: p.parentName || p.name,
-          playerName: p.name,
-          email: p.email.trim(),
+      return (team.coachContacts || [])
+        .filter((c) => c.email && c.email.trim())
+        .map((c) => ({
+          id: c.id,
+          name: c.name || c.email,
+          email: c.email.trim(),
+          sourceRole: c.sourceRole,
         }))
         .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    }, [team.players]);
+    }, [team.coachContacts]);
 
     // Per-row state: { selected: boolean, role: "head"|"assistant", status }
     const [rows, setRows] = useState(() => ({}));
@@ -202,8 +207,9 @@ const InviteCoachesPanel = memo(
     if (candidates.length === 0) {
       return (
         <div className="bg-white/60 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-500 font-medium italic">
-          No emails on file. Import a roster CSV with an &quot;Email&quot; or
-          &quot;Contact 1 Email&quot; column to populate this list.
+          No coach contacts yet. Import a TeamSnap roster CSV — rows
+          with a &quot;Position&quot; of Coach or Manager will be
+          captured here automatically.
         </div>
       );
     }
@@ -247,7 +253,12 @@ const InviteCoachesPanel = memo(
                   />
                   <div className="min-w-0">
                     <div className="text-xs font-black uppercase tracking-tight text-slate-800 truncate">
-                      {c.name || c.playerName}
+                      {c.name}
+                      {c.sourceRole && (
+                        <span className="ml-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          · {c.sourceRole}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-500 font-mono truncate">
                       {c.email}
@@ -714,10 +725,11 @@ export const SettingsTab = memo(() => {
                 <Icons.Plus className="w-4 h-4" /> Invite Coaches
               </h3>
               <p className="text-[11px] text-slate-500 font-medium mb-3">
-                Pulls emails from the roster you imported. Pick the coaches
-                to invite, hit Send Selected, and we&apos;ll email each a
-                one-time invite link from your signed-in Gmail. Tap &quot;Open
-                in Mail&quot; on a row to compose manually instead.
+                Pulls coach emails from your TeamSnap roster CSV (rows
+                marked Coach or Manager). Pick who to invite, hit Send
+                Selected, and we&apos;ll email each a one-time invite link
+                from your signed-in Gmail. Tap &quot;Mail&quot; on a row
+                to compose manually instead.
               </p>
               <InviteCoachesPanel
                 activeTeamId={activeTeamId}
