@@ -547,6 +547,8 @@ export const ScheduleTab = memo(() => {
               </div>
             </div>
 
+            {canEdit && (
+            <>
             {/* Big Game toggle — when ON, the engine builds the strongest
                 possible defense (premium positions get strong players) and
                 automatically ignores seasonal fairness. */}
@@ -630,6 +632,8 @@ export const ScheduleTab = memo(() => {
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             {/* Season Defense Balance — attendance-aware. For each present
                 player, compares their actual defensive innings to the fair-
@@ -770,7 +774,7 @@ export const ScheduleTab = memo(() => {
             })()}
 
           
-            <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/40 bg-transparent">
+            <div className={`grid grid-cols-1 ${canEdit ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-white/40 bg-transparent`}>
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="p-1.5 rounded bg-white/60 border border-white/50 shadow-sm">
@@ -812,6 +816,7 @@ export const ScheduleTab = memo(() => {
                   ))}
                 </div>
               </div>
+              {canEdit && (
               <div className="p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -896,8 +901,9 @@ export const ScheduleTab = memo(() => {
                   </div>
                 )}
               </div>
+              )}
             </div>
-          
+
         </div>
 
         {lineup && (
@@ -1435,23 +1441,31 @@ export const ScheduleTab = memo(() => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap justify-end">
-                        <button
-                          onClick={() => {
-                            setSelectedGameId(game.id);
-                            setOpponentName(game.opponent);
-                            setLineup(game.lineup || null);
-                            setBattingLineup(game.battingLineup || null);
-                            setCurrentGameAttendance(game.attendance || {});
-                          }}
-                          className="flex-1 sm:flex-none text-xs px-5 py-3 bg-white/80 text-slate-800 border border-slate-200 font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-white transition-colors rounded-xl shadow-sm"
-                        >
-                          {game.lineup ? (
-                            <Icons.Edit className="w-4 h-4" />
-                          ) : (
-                            <Icons.Clipboard className="w-4 h-4" />
-                          )}{" "}
-                          {game.lineup ? "Edit Game" : "Plan Game"}
-                        </button>
+                        {(canEdit || game.lineup) && (
+                          <button
+                            onClick={() => {
+                              setSelectedGameId(game.id);
+                              setOpponentName(game.opponent);
+                              setLineup(game.lineup || null);
+                              setBattingLineup(game.battingLineup || null);
+                              setCurrentGameAttendance(game.attendance || {});
+                            }}
+                            className="flex-1 sm:flex-none text-xs px-5 py-3 bg-white/80 text-slate-800 border border-slate-200 font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-white transition-colors rounded-xl shadow-sm"
+                          >
+                            {!canEdit ? (
+                              <Icons.Clipboard className="w-4 h-4" />
+                            ) : game.lineup ? (
+                              <Icons.Edit className="w-4 h-4" />
+                            ) : (
+                              <Icons.Clipboard className="w-4 h-4" />
+                            )}{" "}
+                            {!canEdit
+                              ? "Gameplan"
+                              : game.lineup
+                              ? "Edit Game"
+                              : "Plan Game"}
+                          </button>
+                        )}
                         {canStartInGame && (
                           <button
                             onClick={() => {
@@ -1488,14 +1502,14 @@ export const ScheduleTab = memo(() => {
                             {isFinal ? "Edit Score" : "Final Score"}
                           </button>
                         )}
-                        
+                        {canEdit && (
                           <button
                             onClick={() => deleteSavedGame(game.id)}
                             className="text-slate-400 hover:text-red-600 bg-white/80 border border-slate-200 hover:border-red-200 hover:bg-red-50 p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
                           </button>
-                        
+                        )}
                       </div>
                     </div>
                     {isEnteringScore && !isPostponed && (

@@ -3431,15 +3431,17 @@ const MainShell = () => {
     }
   }, [team?.primaryColor, team?.secondaryColor, team?.tertiaryColor]);
 
-  // Guard: assistants can't land on head-only tabs or open the in-game view.
-  // Snap back to home if they somehow do.
+  // Guard: assistants can't land on head-only tabs. Snap back to home
+  // if they somehow do. (`evaluation` is role-dispatched now —
+  // assistants get the AssistantEvalTab — so it's NOT in this list.
+  // In-game is read-only-accessible to assistants per PR C, so we
+  // also don't clear `inGameId` here anymore.)
   useEffect(() => {
     if (!isAssistant) return;
-    if (activeTab === "evaluation" || activeTab === "settings") {
+    if (activeTab === "settings") {
       setActiveTab("home");
     }
-    if (inGameId) setInGameId(null);
-  }, [isAssistant, activeTab, setActiveTab, inGameId, setInGameId]);
+  }, [isAssistant, activeTab, setActiveTab]);
 
   // URL ↔ activeTab sync. The tab id stays the source of truth for legacy
   // code; the URL just mirrors it so browser back/forward, deep links, and
@@ -3569,7 +3571,7 @@ const MainShell = () => {
       {viewingPlayerId && <PlayerProfileModal />}
       <AddPlayerModal />
       <PastSeasonImportModal />
-      {!isAssistant && <InGameView />}
+      <InGameView />
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
