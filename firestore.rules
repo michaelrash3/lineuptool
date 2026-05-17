@@ -41,6 +41,21 @@ service cloud.firestore {
         (resource == null && request.resource.data.ownerId == request.auth.uid)
       );
 
+      // Team Join Code lookup. Any signed-in caller can read a team
+      // doc that has a joinCode set — needed for the cross-team
+      // `where("joinCode", "==", X)` query when a coach pastes a code
+      // they don't yet belong to.
+      allow read: if request.auth != null
+                  && resource.data.joinCode != null;
+
+      // Same caller can update only `members` + `coachRoles` to add
+      // themselves as an assistant — no other field touched.
+      allow update: if request.auth != null
+                    && resource.data.joinCode != null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['members', 'coachRoles']);
+
       // Public Tryouts Portal: any signed-in caller (including
       // anonymous) can do a *limited* read + a tryoutSignups-only
       // arrayUnion update, provided `tryoutsOpen == true`.

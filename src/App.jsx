@@ -18,6 +18,10 @@ import {
   getDoc,
   onSnapshot,
   deleteDoc,
+  collection,
+  query,
+  where,
+  getDocs,
 } from "firebase/firestore";
 import { Icons } from "./icons";
 import { auth, db, appId } from "./firebase";
@@ -2766,6 +2770,107 @@ const TeamProvider = ({ children }) => {
   // user to its members + coachRoles, mark the invite used, switch the
   // active team to it. Mirrors the legacy joinTeam flow but gated on the
   // token + carries the encoded role.
+  // ── Team join code (simpler invite path) ─────────────────────────
+  // The team has ONE persistent code (6 uppercase chars). Anyone with
+  // the code joins as assistant; HC can promote later via Coach Roles.
+  // Generated on demand; if missing, the Settings panel surfaces a
+  // "Generate Join Code" button instead of the code.
+  const regenerateJoinCode = useCallback(() => {
+    // Skip ambiguous chars (0/O, 1/I). 6 chars from a 30-char alphabet
+    // = 729M combinations — plenty for a per-team code.
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let code = "";
+    for (let i = 0; i < 6; i++) {
+      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    updateTeam({ joinCode: code });
+    return code;
+  }, [updateTeam]);
+
+  // Join a team by code. Queries the teams collection by joinCode —
+  // when the rule is permissive enough (see firestore.rules), this
+  // surfaces a single team. Adds the caller to members + coachRoles
+  // as an assistant. Existing members get a switch-to instead.
+  const joinTeamByCode = useCallback(
+    async (rawCode) => {
+      if (!user || !rawCode) return false;
+      const code = String(rawCode).trim().toUpperCase();
+      if (code.length < 4) {
+        toast.push({ kind: "error", title: "Code too short" });
+        return false;
+      }
+      try {
+        // First scan teams the user already belongs to so the
+        // happy-path doesn't even need cross-team query permission.
+        for (const t of teams) {
+          const snap = await getDoc(
+            doc(db, "artifacts", appId, "public", "data", "teams", t.id)
+          );
+          if (snap.exists() && (snap.data().joinCode || "") === code) {
+            switchTeam(t.id);
+            toast.push({
+              kind: "success",
+              title: `Already a member of ${snap.data().name || "this team"}`,
+            });
+            return true;
+          }
+        }
+        // Cross-team lookup — needs Firestore rules permitting reads
+        // by joinCode (see firestore.rules proposal).
+        const q = query(
+          collection(db, "artifacts", appId, "public", "data", "teams"),
+          where("joinCode", "==", code)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          toast.push({ kind: "error", title: "Code not recognized" });
+          return false;
+        }
+        const teamDoc = snap.docs[0];
+        const data = teamDoc.data();
+        const members = Array.isArray(data.members) ? data.members : [];
+        const nextMembers = members.includes(user.uid)
+          ? members
+          : [...members, user.uid];
+        const nextCoachRoles = {
+          ...(data.coachRoles || {}),
+          // Don't downgrade an existing head; otherwise default to assistant.
+          [user.uid]:
+            data.coachRoles?.[user.uid] === "head" ? "head" : "assistant",
+        };
+        await setDoc(
+          doc(
+            db,
+            "artifacts",
+            appId,
+            "public",
+            "data",
+            "teams",
+            teamDoc.id
+          ),
+          { members: nextMembers, coachRoles: nextCoachRoles },
+          { merge: true }
+        );
+        switchTeam(teamDoc.id);
+        toast.push({
+          kind: "success",
+          title: `Joined ${data.name || "team"}`,
+          message: "You're set as an assistant coach. The head can promote you from Settings.",
+        });
+        return true;
+      } catch (err) {
+        toast.push({
+          kind: "error",
+          title: "Couldn't join",
+          message:
+            "Your account may not have read access to this team. Ask the head coach to confirm the code or share an invite link.",
+        });
+        return false;
+      }
+    },
+    [user, teams, toast, switchTeam]
+  );
+
   const redeemInviteToken = useCallback(
     async (token) => {
       if (!user || !token) return false;
@@ -3085,27 +3190,39 @@ const TeamProvider = ({ children }) => {
     toast,
   ]);
 
-  // Auto-redeem ?invite= URL params once auth + team list are ready.
+  // Auto-redeem ?invite= and ?join= URL params once auth + team list
+  // are ready. `?invite=<teamId>.<token>` is the legacy per-coach link
+  // flow; `?join=<code>` is the new persistent team-code flow.
   useEffect(() => {
     if (!authReady || !user || loadingTeams) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const invite = params.get("invite");
-    if (!invite) return;
-    // Stash the token in sessionStorage if we somehow don't have teams yet.
-    sessionStorage.setItem("pendingInvite", invite);
-    // Strip the query param so a refresh doesn't re-trigger.
-    params.delete("invite");
-    const newSearch = params.toString();
-    const newUrl =
-      window.location.pathname +
-      (newSearch ? `?${newSearch}` : "") +
-      window.location.hash;
-    window.history.replaceState({}, "", newUrl);
-    redeemInviteToken(invite).then((ok) => {
-      if (ok) sessionStorage.removeItem("pendingInvite");
-    });
-  }, [authReady, user, loadingTeams, redeemInviteToken]);
+    const join = params.get("join");
+    if (!invite && !join) return;
+    const stripParams = () => {
+      params.delete("invite");
+      params.delete("join");
+      const newSearch = params.toString();
+      const newUrl =
+        window.location.pathname +
+        (newSearch ? `?${newSearch}` : "") +
+        window.location.hash;
+      window.history.replaceState({}, "", newUrl);
+    };
+    if (invite) {
+      sessionStorage.setItem("pendingInvite", invite);
+      stripParams();
+      redeemInviteToken(invite).then((ok) => {
+        if (ok) sessionStorage.removeItem("pendingInvite");
+      });
+      return;
+    }
+    if (join) {
+      stripParams();
+      joinTeamByCode(join);
+    }
+  }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode]);
 
   // Win-loss record derived from final games only.
   const record = useMemo(() => {
@@ -3201,6 +3318,8 @@ const TeamProvider = ({ children }) => {
       createInviteToken,
       revokeInviteToken,
       redeemInviteToken,
+      regenerateJoinCode,
+      joinTeamByCode,
     }),
     [
       teamData,
@@ -3271,6 +3390,8 @@ const TeamProvider = ({ children }) => {
       createInviteToken,
       revokeInviteToken,
       redeemInviteToken,
+      regenerateJoinCode,
+      joinTeamByCode,
     ]
   );
 
