@@ -1084,7 +1084,11 @@ export const PlayerProfileModal = memo(() => {
     addPastSeason,
     updatePastSeason,
     removePastSeason,
+    currentRole,
   } = useTeam();
+  // Assistants only see this profile in view-only mode: edits, position
+  // restrictions, and private contact info are head-only.
+  const canEdit = currentRole !== "assistant";
   const { viewingPlayerId, setViewingPlayerId } = useUI();
   const toast = useToast();
   const {
@@ -1437,7 +1441,9 @@ export const PlayerProfileModal = memo(() => {
 
         <div className="bg-white border-b border-slate-200 flex-shrink-0">
           <div className="flex overflow-x-auto px-6 sm:px-7 scrollbar-hide">
-            {PROFILE_SECTIONS.map((t) => (
+            {PROFILE_SECTIONS.filter(
+              (t) => canEdit || (t.id !== "general" && t.id !== "contact")
+            ).map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -1470,7 +1476,10 @@ export const PlayerProfileModal = memo(() => {
           ref={scrollContainerRef}
           className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50"
         >
-          <div data-profile-section="general" className="p-6 sm:p-7 space-y-6">
+          <div
+            data-profile-section="general"
+            className={`p-6 sm:p-7 space-y-6 ${canEdit ? "" : "hidden"}`}
+          >
             <h3 className="t-h3">General Info</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div>
@@ -2193,7 +2202,9 @@ export const PlayerProfileModal = memo(() => {
 
           <div
             data-profile-section="contact"
-            className="p-6 sm:p-7 space-y-4 border-t border-slate-200"
+            className={`p-6 sm:p-7 space-y-4 border-t border-slate-200 ${
+              canEdit ? "" : "hidden"
+            }`}
           >
             <h3 className="t-h3">Contact</h3>
               <div className="flex justify-between items-center">

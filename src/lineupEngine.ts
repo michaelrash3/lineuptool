@@ -172,11 +172,14 @@ export function getCombinedGrades(
         participating++;
       }
       if (participating > 0) {
+        // 50/50 weighting: head's grade counts equally with the average
+        // of every assistant who graded this player. If one side hasn't
+        // graded (just head or just assistants), that side is 100%.
         for (const cat of EVAL_CATEGORIES) {
           const astAvg = astSum[cat.id] / participating;
           const headVal = readCat(headG, cat.id);
           if (headVal != null)
-            grades[cat.id] = Math.round((headVal * 2 + astAvg) / 3);
+            grades[cat.id] = Math.round((headVal + astAvg) / 2);
           else grades[cat.id] = Math.round(astAvg);
         }
         out[p.id] = grades;

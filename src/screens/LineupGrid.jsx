@@ -21,6 +21,9 @@ import { Icons } from "../icons";
  */
 export const LineupGrid = memo(
   ({ lineup, positions, swapSelection, onCellClick }) => {
+    // When onCellClick is omitted (assistant role), cells become no-op
+    // taps — visuals unchanged, swaps short-circuit.
+    const safeCellClick = onCellClick || (() => {});
     const totalInnings = lineup.length;
     const [mobileInning, setMobileInning] = useState(0);
     const safeMobileInning = Math.min(mobileInning, totalInnings - 1);
@@ -87,7 +90,7 @@ export const LineupGrid = memo(
                   <button
                     key={`m-${pos}`}
                     type="button"
-                    onClick={() => onCellClick(safeMobileInning, pos, pAtPos)}
+                    onClick={() => safeCellClick(safeMobileInning, pos, pAtPos)}
                     aria-pressed={sel}
                     aria-label={`Inning ${safeMobileInning + 1}, ${pos}: ${
                       pAtPos ? pAtPos.name : "unassigned"
@@ -140,7 +143,7 @@ export const LineupGrid = memo(
                         key={`m-bench-${p.id}`}
                         type="button"
                         onClick={() =>
-                          onCellClick(safeMobileInning, "BENCH", p)
+                          safeCellClick(safeMobileInning, "BENCH", p)
                         }
                         aria-pressed={sel}
                         className={`px-3 py-2 text-sm font-bold border rounded-lg transition-all min-h-[40px] ${
@@ -200,7 +203,7 @@ export const LineupGrid = memo(
                       >
                         <button
                           type="button"
-                          onClick={() => onCellClick(idx, pos, pAtPos)}
+                          onClick={() => safeCellClick(idx, pos, pAtPos)}
                           aria-pressed={isSelected}
                           aria-label={`Inning ${idx + 1}, ${pos}: ${
                             pAtPos ? pAtPos.name : "unassigned"
@@ -240,7 +243,7 @@ export const LineupGrid = memo(
                           <button
                             key={p.id}
                             type="button"
-                            onClick={() => onCellClick(idx, "BENCH", p)}
+                            onClick={() => safeCellClick(idx, "BENCH", p)}
                             aria-pressed={isSelected}
                             className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
                               isSelected

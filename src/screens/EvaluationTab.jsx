@@ -22,6 +22,24 @@ import { getOffensiveScore, calculateTotalScore } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts.js";
 import { evalPromptStatus } from "../utils/helpers";
 
+// 11 standard positions surfaced as a per-player chip row so the coach
+// can flag spots they think this kid should play. Stored on the eval
+// round as `grades[playerId].suggestedPositions`. Same vocabulary as
+// AssistantEvalModal so head + assistant inputs share a shape.
+const SUGGESTED_POSITIONS = [
+  "P",
+  "C",
+  "1B",
+  "2B",
+  "3B",
+  "SS",
+  "LF",
+  "LCF",
+  "CF",
+  "RCF",
+  "RF",
+];
+
 const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
   (acc, c) => ({ ...acc, [c.id]: EVAL_SCALE_DEFAULT }),
   {}
@@ -731,6 +749,106 @@ const RoundComparisonView = memo(
   }
 );
 
+// Head-only read-only view of every assistant's most recent submission.
+// Shows each assistant's suggested-positions + notes per player. Skips
+// the per-category grade chips here — those already feed into the
+// combined grade rendered in the main grading area.
+const AssistantSubmissionsPanel = memo(({ evaluationEvents, players }) => {
+  // Pick the most recent eval per assistant (by date).
+  const latestByAssistant = useMemo(() => {
+    const m = new Map();
+    for (const e of evaluationEvents || []) {
+      if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
+      const cur = m.get(e.evaluatorId);
+      if (!cur || new Date(e.date) > new Date(cur.date)) {
+        m.set(e.evaluatorId, e);
+      }
+    }
+    return [...m.values()].sort((a, b) => new Date(b.date) - new Date(a.date));
+  }, [evaluationEvents]);
+
+  if (latestByAssistant.length === 0) return null;
+
+  return (
+    <div className="px-5 py-4 bg-amber-50/40 border-b border-amber-100">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="t-h3">Assistant Submissions</h3>
+        <span className="t-eyebrow text-slate-500">
+          {latestByAssistant.length} assistant
+          {latestByAssistant.length === 1 ? "" : "s"} ·{" "}
+          {Math.round(50)}% weight (split equally with your eval)
+        </span>
+      </div>
+      <div className="space-y-3">
+        {latestByAssistant.map((ev) => {
+          const playersWithSignal = (players || []).filter((p) => {
+            const g = ev.grades?.[p.id] || {};
+            const hasPositions =
+              Array.isArray(g.suggestedPositions) &&
+              g.suggestedPositions.length > 0;
+            const hasNotes = !!(g.notes && g.notes.trim());
+            return hasPositions || hasNotes;
+          });
+          return (
+            <div
+              key={ev.id}
+              className="bg-white border border-amber-200 rounded-xl p-3 shadow-sm"
+            >
+              <div className="flex items-baseline justify-between gap-3 mb-2">
+                <div className="text-[11px] font-extrabold uppercase tracking-widest text-slate-600 truncate">
+                  Assistant · {ev.evaluatorId?.slice(0, 8) || "—"}
+                </div>
+                <div className="text-[10px] font-bold text-slate-500">
+                  {ev.date}
+                </div>
+              </div>
+              {playersWithSignal.length === 0 ? (
+                <p className="text-[11px] text-slate-500 font-medium italic">
+                  Grades submitted — no positions or notes flagged.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {playersWithSignal.map((p) => {
+                    const g = ev.grades?.[p.id] || {};
+                    return (
+                      <div
+                        key={p.id}
+                        className="border-t border-amber-100 pt-2 first:border-t-0 first:pt-0"
+                      >
+                        <div className="text-[12px] font-black uppercase tracking-tight text-slate-800 mb-1">
+                          {p.name}
+                        </div>
+                        {Array.isArray(g.suggestedPositions) &&
+                          g.suggestedPositions.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-1">
+                              {g.suggestedPositions.map((pos) => (
+                                <span
+                                  key={pos}
+                                  className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-amber-100 border-amber-200 text-amber-900"
+                                >
+                                  {pos}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        {g.notes && g.notes.trim() && (
+                          <p className="text-[11px] text-slate-700 italic leading-snug">
+                            {g.notes}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
   <div
     className="flex items-center gap-1.5 flex-wrap"
@@ -967,6 +1085,27 @@ export const EvaluationTab = memo(() => {
     [teamEvalGrades, setTeamEvalGrades]
   );
 
+  const toggleSuggestedPosition = useCallback(
+    (playerId, pos) => {
+      const cur = teamEvalGrades[playerId] || {};
+      const list = Array.isArray(cur.suggestedPositions)
+        ? cur.suggestedPositions
+        : [];
+      const next = list.includes(pos)
+        ? list.filter((p) => p !== pos)
+        : [...list, pos];
+      setTeamEvalGrades({
+        ...teamEvalGrades,
+        [playerId]: {
+          ...DEFAULT_GRADES,
+          ...cur,
+          suggestedPositions: next,
+        },
+      });
+    },
+    [teamEvalGrades, setTeamEvalGrades]
+  );
+
   const applyAllAverage = useCallback(() => {
     const next = {};
     players.forEach((p) => {
@@ -1156,6 +1295,14 @@ export const EvaluationTab = memo(() => {
           onPlayerClick={setEvalTrendPlayerId}
         />
 
+        {/* Head-only: read-only view of every assistant's most recent eval
+            submission so the head can see their suggested positions + notes
+            alongside the combined grade. */}
+        <AssistantSubmissionsPanel
+          evaluationEvents={evaluationEvents}
+          players={players}
+        />
+
         {/* Quick-set toolbar */}
         <div className="px-5 py-3 bg-white/40 border-b border-white/40 flex flex-wrap items-center gap-2">
           <span className="t-eyebrow mr-1">Quick Set:</span>
@@ -1203,7 +1350,6 @@ export const EvaluationTab = memo(() => {
                 ...(teamEvalGrades[player.id] || {}),
               };
               const totalScore = calculateTotalScore(grades, player.stats);
-              const notesOpen = openNotesPlayerId === player.id;
               return (
                 <div
                   key={`mc-${player.id}`}
@@ -1258,25 +1404,53 @@ export const EvaluationTab = memo(() => {
                         </div>
                       );
                     })}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setOpenNotesPlayerId(notesOpen ? null : player.id)
-                      }
-                      className="t-button text-slate-500 hover:text-slate-800 flex items-center gap-1.5 pt-1"
-                    >
-                      <Icons.FileText className="w-3.5 h-3.5" />
-                      {notesOpen ? "Hide Notes" : grades.notes ? "Edit Notes" : "Add Notes"}
-                    </button>
-                    {notesOpen && (
+                    <div>
+                      <div className="t-eyebrow mb-1.5">
+                        Suggested Positions
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {SUGGESTED_POSITIONS.map((pos) => {
+                          const active = (
+                            grades.suggestedPositions || []
+                          ).includes(pos);
+                          return (
+                            <button
+                              key={pos}
+                              type="button"
+                              onClick={() =>
+                                toggleSuggestedPosition(player.id, pos)
+                              }
+                              className="px-2 py-1 text-[11px] font-black rounded-md border transition-all"
+                              style={
+                                active
+                                  ? {
+                                      backgroundColor: "var(--team-primary)",
+                                      color: "var(--team-tertiary)",
+                                      borderColor: "var(--team-primary)",
+                                    }
+                                  : {
+                                      backgroundColor: "white",
+                                      color: "#475569",
+                                      borderColor: "#e2e8f0",
+                                    }
+                              }
+                            >
+                              {pos}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="t-eyebrow mb-1.5">Notes</div>
                       <textarea
                         value={grades.notes || ""}
                         onChange={(e) => setNotes(player.id, e.target.value)}
                         placeholder="What stood out this round?"
-                        rows={3}
+                        rows={2}
                         className="w-full text-sm font-medium border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
-                    )}
+                    </div>
                   </div>
                 </div>
               );
