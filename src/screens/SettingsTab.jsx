@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { Icons } from "../icons";
 import {
   parseGameChangerPastSeasonCsv,
@@ -10,6 +10,8 @@ export const SettingsTab = memo(() => {
   const {
     team,
     teams,
+    user,
+    activeTeamId,
     updateTeam,
     advanceSeason,
     uploadLogo,
@@ -21,6 +23,9 @@ export const SettingsTab = memo(() => {
     leaveTeamCmd,
     addCoach,
     removeCoach,
+    setCoachRole,
+    createInviteToken,
+    revokeInviteToken,
   } = useTeam();
   const {
     isAddingCoach,
@@ -28,8 +33,27 @@ export const SettingsTab = memo(() => {
     newCoachForm,
     setNewCoachForm,
     setPastSeasonImport,
+    inviteModal,
+    setInviteModal,
   } = useUI();
   const toast = useToast();
+  const [inviteRoleDraft, setInviteRoleDraft] = useState("assistant");
+  const handleGenerateInvite = useCallback(() => {
+    const token = createInviteToken?.(inviteRoleDraft);
+    if (!token) return;
+    const url =
+      typeof window !== "undefined"
+        ? `${window.location.origin}${window.location.pathname}?invite=${activeTeamId || ""}.${token}`
+        : `?invite=${activeTeamId || ""}.${token}`;
+    setInviteModal({ token, url, role: inviteRoleDraft });
+  }, [createInviteToken, inviteRoleDraft, activeTeamId, setInviteModal]);
+  const copyToClipboard = useCallback(
+    (text) => {
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+      toast.push({ kind: "success", title: "Link copied" });
+    },
+    [toast]
+  );
   const {
     leagueRuleSet,
     pitchingFormat,
@@ -350,6 +374,129 @@ export const SettingsTab = memo(() => {
                 </button>
               )}
             </div>
+
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <Icons.Users className="w-4 h-4" /> Coach Roles
+              </h3>
+              <p className="text-[11px] text-slate-500 font-medium mb-3">
+                Head coaches can edit lineups, evals, and settings. Assistants
+                submit eval grades and view today&apos;s lineup.
+              </p>
+              <div className="space-y-2 mb-2">
+                {(team.members || [])
+                  .filter((uid) => uid !== team.ownerId)
+                  .map((uid) => {
+                    const role =
+                      team.coachRoles?.[uid] === "head" ? "head" : "assistant";
+                    const isMe = user && uid === user.uid;
+                    return (
+                      <div
+                        key={uid}
+                        className="flex justify-between items-center bg-white/80 p-3 border border-slate-200 rounded-xl shadow-sm gap-3"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-slate-800 truncate">
+                            {isMe ? "You" : uid.slice(0, 12) + "…"}
+                          </div>
+                          <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+                            {role === "head" ? "Head Coach" : "Assistant Coach"}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCoachRole?.(
+                              uid,
+                              role === "head" ? "assistant" : "head"
+                            )
+                          }
+                          className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 whitespace-nowrap"
+                        >
+                          {role === "head" ? "Make Assistant" : "Make Head"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                {(team.members || []).filter((uid) => uid !== team.ownerId)
+                  .length === 0 && (
+                  <p className="text-[11px] text-slate-400 font-medium italic">
+                    No other coaches have joined yet.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
+                <Icons.Plus className="w-4 h-4" /> Invite a Coach
+              </h3>
+              <p className="text-[11px] text-slate-500 font-medium mb-3">
+                Generate a one-time link with a role baked in. Send it to the
+                coach you want to add.
+              </p>
+              <div className="flex gap-2 mb-4">
+                <select
+                  value={inviteRoleDraft}
+                  onChange={(e) => setInviteRoleDraft(e.target.value)}
+                  className="flex-1 p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="assistant">Assistant Coach</option>
+                  <option value="head">Head Coach</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={handleGenerateInvite}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  Generate Link
+                </button>
+              </div>
+              <div className="space-y-2">
+                {(team.invites || []).map((inv) => (
+                  <div
+                    key={inv.token}
+                    className="bg-white/80 p-3 border border-slate-200 rounded-xl shadow-sm flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
+                        {inv.role === "head" ? "Head" : "Assistant"} ·{" "}
+                        {inv.usedBy
+                          ? `Used ${new Date(inv.usedAt || inv.createdAt).toLocaleDateString()}`
+                          : `Created ${new Date(inv.createdAt).toLocaleDateString()}`}
+                      </div>
+                      {!inv.usedBy && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            copyToClipboard(
+                              `${window.location.origin}${window.location.pathname}?invite=${activeTeamId}.${inv.token}`
+                            )
+                          }
+                          className="text-[11px] font-bold text-blue-600 hover:underline truncate block max-w-full"
+                        >
+                          Copy invite link
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => revokeInviteToken?.(inv.token)}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                      aria-label="Revoke invite"
+                    >
+                      <Icons.Trash className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                {(team.invites || []).length === 0 && (
+                  <p className="text-[11px] text-slate-400 font-medium italic">
+                    No invites yet.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-10">
@@ -653,6 +800,54 @@ export const SettingsTab = memo(() => {
           </div>
         </div>
       </div>
+
+      {inviteModal && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 print:hidden"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-black uppercase tracking-tight text-slate-900">
+                Invite Link Ready
+              </h3>
+              <button
+                type="button"
+                onClick={() => setInviteModal(null)}
+                className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
+                aria-label="Close"
+              >
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-xs text-slate-600 font-medium">
+                Send this link to your{" "}
+                <strong>
+                  {inviteModal.role === "head"
+                    ? "head coach"
+                    : "assistant coach"}
+                </strong>
+                . They&apos;ll be added to the team when they open it.
+              </p>
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] font-mono break-all text-slate-800">
+                {inviteModal.url}
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(inviteModal.url)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  Copy Link
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

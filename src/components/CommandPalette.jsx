@@ -25,12 +25,14 @@ const fuzzyScore = (haystack, needle) => {
 };
 
 export const CommandPalette = ({ open, onClose }) => {
-  const { team } = useTeam();
+  const { team, currentRole } = useTeam();
+  const isAssistant = currentRole === "assistant";
   const {
     setActiveTab,
     openPlayerProfile,
     setSelectedGameId,
     setIsAddingPlayer,
+    setAssistantEvalOpen,
   } = useUI();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
@@ -108,38 +110,59 @@ export const CommandPalette = ({ open, onClose }) => {
         sublabel: "Games",
         searchKey: "schedule games",
         action: () => setActiveTab("schedule"),
-      },
-      {
-        kind: "nav",
-        id: "nav:evaluation",
-        label: "Evaluation",
-        sublabel: "Player evals",
-        searchKey: "evaluation grades trends",
-        action: () => setActiveTab("evaluation"),
-      },
-      {
-        kind: "nav",
-        id: "nav:settings",
-        label: "Settings",
-        sublabel: "Team settings",
-        searchKey: "settings preferences",
-        action: () => setActiveTab("settings"),
-      },
-      {
-        kind: "action",
-        id: "action:add-player",
-        label: "Add Player",
-        sublabel: "Create a new roster entry",
-        searchKey: "add player new roster",
-        action: () => {
-          setActiveTab("roster");
-          setIsAddingPlayer(true);
-        },
       }
     );
+    if (!isAssistant) {
+      items.push(
+        {
+          kind: "nav",
+          id: "nav:evaluation",
+          label: "Evaluation",
+          sublabel: "Player evals",
+          searchKey: "evaluation grades trends",
+          action: () => setActiveTab("evaluation"),
+        },
+        {
+          kind: "nav",
+          id: "nav:settings",
+          label: "Settings",
+          sublabel: "Team settings",
+          searchKey: "settings preferences",
+          action: () => setActiveTab("settings"),
+        },
+        {
+          kind: "action",
+          id: "action:add-player",
+          label: "Add Player",
+          sublabel: "Create a new roster entry",
+          searchKey: "add player new roster",
+          action: () => {
+            setActiveTab("roster");
+            setIsAddingPlayer(true);
+          },
+        }
+      );
+    } else {
+      items.push({
+        kind: "action",
+        id: "action:submit-eval",
+        label: "Submit Evaluation",
+        sublabel: "Send your grades to the head coach",
+        searchKey: "submit eval evaluation grades",
+        action: () => setAssistantEvalOpen(true),
+      });
+    }
 
     return items;
-  }, [team, openPlayerProfile, setActiveTab, setSelectedGameId, setIsAddingPlayer]);
+  }, [
+    team,
+    isAssistant,
+    openPlayerProfile,
+    setActiveTab,
+    setSelectedGameId,
+    setIsAddingPlayer,
+    setAssistantEvalOpen,
+  ]);
 
   const results = useMemo(() => {
     if (!query.trim()) {

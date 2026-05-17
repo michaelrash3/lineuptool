@@ -53,24 +53,22 @@ export const AppHeader = memo(() => {
     activeTeamId,
     syncStatus,
     switchTeam,
-    copyTeamCode,
     createTeam,
-    joinTeam,
     record,
+    currentRole,
   } = useTeam();
   const {
     isAddingTeam,
     setIsAddingTeam,
     newTeamName,
     setNewTeamName,
-    isJoiningTeam,
-    setIsJoiningTeam,
-    joinTeamId,
-    setJoinTeamId,
-    linkCopied,
   } = useUI();
   const activeTeamName =
     teams.find((t) => t.id === activeTeamId)?.name || "TEAM";
+  const subtitle =
+    currentRole === "assistant"
+      ? "Assistant Coach View"
+      : "Head Coach Dashboard";
 
   return (
     <header className="print:hidden w-full relative z-20 bg-white/40 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
@@ -107,7 +105,7 @@ export const AppHeader = memo(() => {
               />
             </div>
             <p className="text-xs uppercase tracking-widest font-extrabold mt-1 text-slate-500">
-              Head Coach Dashboard
+              {subtitle}
             </p>
           </div>
         </div>
@@ -123,23 +121,6 @@ export const AppHeader = memo(() => {
               </option>
             ))}
           </select>
-
-          <button
-            onClick={copyTeamCode}
-            title="Copy this team's join code so another coach can join via Join Team"
-            className={`flex-1 sm:flex-none text-xs py-3 px-5 transition-colors flex items-center justify-center gap-2 font-black uppercase tracking-wider rounded-xl border-2 shadow-sm ${
-              linkCopied
-                ? "bg-green-50 border-green-500 text-green-700"
-                : "bg-white/20 hover:bg-white border-slate-200 hover:border-slate-300 text-slate-700"
-            }`}
-          >
-            {linkCopied ? (
-              <Icons.Check className="w-4 h-4" />
-            ) : (
-              <Icons.Clipboard className="w-4 h-4" />
-            )}{" "}
-            {linkCopied ? "Code Copied" : "Team Code"}
-          </button>
         </div>
       </div>
 
@@ -176,51 +157,13 @@ export const AppHeader = memo(() => {
                   <Icons.X className="w-4 h-4" />
                 </button>
               </form>
-            ) : isJoiningTeam ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  joinTeam(joinTeamId);
-                }}
-                className="flex items-center gap-2 w-full"
-              >
-                <input
-                  autoFocus
-                  type="text"
-                  value={joinTeamId}
-                  onChange={(e) => setJoinTeamId(e.target.value)}
-                  placeholder="ENTER TEAM CODE"
-                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 flex-1 uppercase bg-slate-900/50 text-white rounded-lg shadow-inner"
-                />
-                <button
-                  type="submit"
-                  className="p-2 bg-green-600 hover:bg-green-500 text-white rounded-lg shadow-sm"
-                >
-                  <Icons.Check className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsJoiningTeam(false)}
-                  className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
-                >
-                  <Icons.X className="w-4 h-4" />
-                </button>
-              </form>
             ) : (
-              <div className="flex gap-2 w-full sm:w-auto">
-                <button
-                  onClick={() => setIsAddingTeam(true)}
-                  className="text-xs bg-slate-700/80 hover:bg-slate-600 py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm flex-1 sm:flex-none"
-                >
-                  <Icons.Plus className="w-3.5 h-3.5" /> New Team
-                </button>
-                <button
-                  onClick={() => setIsJoiningTeam(true)}
-                  className="text-xs bg-slate-700/80 hover:bg-slate-600 py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm flex-1 sm:flex-none"
-                >
-                  <Icons.Users className="w-3.5 h-3.5" /> Join Team
-                </button>
-              </div>
+              <button
+                onClick={() => setIsAddingTeam(true)}
+                className="text-xs bg-slate-700/80 hover:bg-slate-600 py-2 px-4 transition-colors flex items-center gap-2 justify-center font-extrabold uppercase tracking-wider rounded-lg shadow-sm"
+              >
+                <Icons.Plus className="w-3.5 h-3.5" /> New Team
+              </button>
             )}
           </div>
           {syncStatus && (
@@ -256,7 +199,7 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }) => {
                   isActive
                     ? "shadow-sm border border-transparent"
                     : "text-slate-600 hover:bg-white/80 hover:text-slate-900 border border-transparent"
-                } ${btn.id === "settings" ? "ml-auto" : ""}`}
+                } ${btn.id === "settings" || btn.id === "submit-eval" ? "ml-auto" : ""}`}
                 style={
                   isActive
                     ? {

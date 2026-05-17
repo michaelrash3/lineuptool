@@ -155,7 +155,9 @@ export const ScheduleTab = memo(() => {
     saveLineupTemplate,
     applyLineupTemplate,
     deleteLineupTemplate,
+    currentRole,
   } = useTeam();
+  const canEdit = currentRole !== "assistant";
   const {
     selectedGameId,
     setSelectedGameId,
@@ -1099,7 +1101,7 @@ export const ScheduleTab = memo(() => {
           {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
             <RecordBadge record={record} variant="full" />
           )}
-          
+          {canEdit && (
             <button
               onClick={() => setIsAddingGame(true)}
               className="flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
@@ -1107,7 +1109,7 @@ export const ScheduleTab = memo(() => {
             >
               <Icons.Plus className="w-4 h-4" /> Add Game
             </button>
-          
+          )}
         </div>
       </div>
       {isAddingGame && (
