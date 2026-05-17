@@ -39,6 +39,14 @@ export interface Player {
   number?: string | number;
   dob?: string;
   stats?: PlayerStats;
+  // Positive position model (v4+): positions the coach is comfortable with
+  // this player playing. Empty/missing = "any". Replaces the v3 negative
+  // `restrictions` field, which the engine still falls back to.
+  comfortablePositions?: string[];
+  // Whether this player is in the catching rotation. Pulled out of the
+  // position list because C is special (equipment, continuity, smaller
+  // group of trained kids).
+  isCatcher?: boolean;
   [key: string]: unknown;
 }
 

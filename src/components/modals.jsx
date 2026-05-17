@@ -1564,37 +1564,61 @@ export const PlayerProfileModal = memo(() => {
 
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">
-                  Position Restrictions
+                  Comfortable Positions
                 </label>
                 <p className="text-[11px] text-slate-500 font-medium mb-3">
-                  Click positions this player should NOT play.
+                  Tap positions you&apos;re comfortable with this player playing.
+                  Leave empty to let the engine consider them anywhere.
                 </p>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
-                  {positions.map((pos) => {
-                    const isRestricted =
-                      player.restrictions && player.restrictions.includes(pos);
-                    return (
-                      <button
-                        key={pos}
-                        onClick={() => {
-                          const next = isRestricted
-                            ? (player.restrictions || []).filter(
-                                (p) => p !== pos
-                              )
-                            : [...(player.restrictions || []), pos];
-                          updatePlayer(player.id, { restrictions: next });
-                        }}
-                        className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
-                          isRestricted
-                            ? "bg-red-50 border-red-200 text-red-700 line-through shadow-sm"
-                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                      >
-                        {pos}
-                      </button>
-                    );
-                  })}
+                  {positions
+                    .filter((pos) => pos !== "C")
+                    .map((pos) => {
+                      const list = Array.isArray(player.comfortablePositions)
+                        ? player.comfortablePositions
+                        : [];
+                      const active = list.includes(pos);
+                      return (
+                        <button
+                          key={pos}
+                          onClick={() => {
+                            const next = active
+                              ? list.filter((p) => p !== pos)
+                              : [...list, pos];
+                            updatePlayer(player.id, {
+                              comfortablePositions: next,
+                            });
+                          }}
+                          className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
+                            active
+                              ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                          }`}
+                        >
+                          {pos}
+                        </button>
+                      );
+                    })}
                 </div>
+                <label className="mt-4 flex items-start gap-3 bg-white border border-slate-200 p-3 rounded-xl shadow-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={player.isCatcher === true}
+                    onChange={(e) =>
+                      updatePlayer(player.id, { isCatcher: e.target.checked })
+                    }
+                    className="mt-0.5 w-4 h-4 accent-emerald-600"
+                  />
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-xs font-black uppercase tracking-widest text-slate-800">
+                      Catcher
+                    </span>
+                    <span className="block text-[11px] text-slate-500 font-medium mt-0.5">
+                      This player is part of the catching rotation. The engine
+                      will only consider checked players for C.
+                    </span>
+                  </span>
+                </label>
               </div>
 
               {pitchingFormat === "Kid Pitch" && (

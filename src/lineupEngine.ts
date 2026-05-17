@@ -63,6 +63,64 @@ const POS_DIFFICULTY: Record<string, number> = {
   RF: 1,
 };
 
+// Resolve whether a player is blocked from a position. v4 teams store
+// the positive list (comfortablePositions); legacy teams store the
+// negative list (restrictions). Empty/missing comfortablePositions =
+// "no preference, consider anywhere", matching the UI's "leave empty"
+// helper text.
+export function isPositionBlocked(
+  p: { comfortablePositions?: string[]; restrictions?: string[] },
+  pos: string
+): boolean {
+  const comfort = Array.isArray(p.comfortablePositions)
+    ? p.comfortablePositions
+    : null;
+  if (comfort && comfort.length > 0) return !comfort.includes(pos);
+  const restr = Array.isArray(p.restrictions) ? p.restrictions : null;
+  if (restr && restr.length > 0) return restr.includes(pos);
+  return false;
+}
+
+// Age- and format-aware position importance. Used in addition to
+// POS_DIFFICULTY so the scarcity ordering can reflect what actually
+// matters at each level. P is intentionally low at 9U+ because P
+// selection short-circuits through the pitcher-ranking pipeline rather
+// than the generic defensive score.
+export function getPositionImportance(
+  age: string | undefined,
+  format: string | undefined
+): Record<string, number> {
+  const isMachine = /machine|coach/i.test(format || "");
+  const isKid = /kid/i.test(format || "");
+  const ageNum = (() => {
+    const nums = (age || "").match(/\d+/g);
+    if (!nums || nums.length === 0) return 8;
+    return parseInt(nums[nums.length - 1], 10);
+  })();
+  // Coach Pitch / Machine Pitch — no real pitcher; catcher ceremonial.
+  if (isMachine)
+    return {
+      SS: 5, "3B": 4, "1B": 4, "2B": 3,
+      CF: 3, LCF: 2, RCF: 2, LF: 2, RF: 2,
+      P: 1, C: 1,
+    };
+  // 8U Kid Pitch — pitcher matters; catcher relatively low (no
+  // dropped-3rd-strike force-outs).
+  if (isKid && ageNum <= 8)
+    return {
+      P: 4, SS: 5, "3B": 4, "1B": 4, "2B": 3,
+      CF: 3, LCF: 2, RCF: 2, LF: 2, RF: 2,
+      C: 2,
+    };
+  // 9U+ Kid Pitch — strongest defenders go to SS / 1B / C. P picked
+  // separately via the pitcher ranking + pitch eligibility.
+  return {
+    SS: 5, "1B": 5, C: 5, "3B": 4, "2B": 3,
+    CF: 3, LCF: 2, RCF: 2, LF: 2, RF: 2,
+    P: 1,
+  };
+}
+
 // Coach's Card v2 universal categories — the 11 that drive total-score and
 // position scoring. Pitching/Catching add-ons live in src/constants/ui.ts and
 // influence specialty position decisions, not the universal total.
@@ -1158,7 +1216,7 @@ export function generateLineup(input: EngineInput): EngineResult {
       if (top.type === "no-candidate-for-position") {
         // Find which kids COULD play this position but were unavailable
         const candidates = activePlayers.filter(
-          (p) => !p.restrictions?.includes(top.position)
+          (p) => !isPositionBlocked(p, top.position)
         );
         const restrictedCount = activePlayers.length - candidates.length;
         errorMsg = `No eligible player for ${top.position} in inning ${top.inning}.`;
@@ -1437,7 +1495,14 @@ function precomputeBenchSchedule(opts: any): any {
     // primary-infield kids are not auto-excluded (real rosters have
     // catchers whose primary is 2B/SS/3B).
     const allEligibleC = sortedForExtra
-      .filter(({ p }) => !p.restrictions?.includes("C"))
+      // v4 model: prefer the explicit isCatcher flag. Legacy teams that
+      // never migrated fall back to !restrictions.includes("C") so the
+      // engine keeps working before the user opens a player profile.
+      .filter(({ p }) =>
+        typeof (p as any).isCatcher === "boolean"
+          ? (p as any).isCatcher
+          : !p.restrictions?.includes("C")
+      )
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher
@@ -1881,7 +1946,7 @@ function tryBuildLineup(ctx: any): any {
               position: pos,
             },
           };
-        if (player.restrictions?.includes(pos)) continue;
+        if (isPositionBlocked(player, pos)) continue;
         inningSlots[pos] = player;
       }
     }
@@ -1903,7 +1968,9 @@ function tryBuildLineup(ctx: any): any {
           catcher &&
           !benchedSet.has(catcherId) &&
           !used.has(catcherId) &&
-          !catcher.restrictions?.includes("C")
+          (typeof (catcher as any).isCatcher === "boolean"
+            ? (catcher as any).isCatcher
+            : !catcher.restrictions?.includes("C"))
         ) {
           inningSlots["C"] = catcher;
           used.add(catcherId);
@@ -1940,7 +2007,7 @@ function tryBuildLineup(ctx: any): any {
         if (!remainingPositions.includes(pos)) continue;
         if (benchedSet.has(p.id)) continue;
         if (used.has(p.id)) continue;
-        if (p.restrictions?.includes(pos)) continue;
+        if (isPositionBlocked(p, pos)) continue;
         // Mirror pickBestForPosition's per position eligibility checks so we
         // don't pre pin into an illegal slot.
         const st = state.get(p.id);
@@ -1979,7 +2046,7 @@ function tryBuildLineup(ctx: any): any {
         if (!prevPlayer) continue;
         if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
         if (used.has(prevPlayer.id)) continue; // already placed
-        if (prevPlayer.restrictions?.includes(pos)) continue;
+        if (isPositionBlocked(prevPlayer, pos)) continue;
         // Pitcher carry over rule for 9 fielder games is handled in pickBest;
         // for lock innings we trust the prior assignment.
         inningSlots[pos] = prevPlayer;
@@ -2001,7 +2068,7 @@ function tryBuildLineup(ctx: any): any {
       let count = 0;
       for (const p of profiled) {
         if (used.has(p.id) || benchedSet.has(p.id)) continue;
-        if (p.restrictions?.includes(pos)) continue;
+        if (isPositionBlocked(p, pos)) continue;
 
         const st = state.get(p.id);
         const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
@@ -2206,7 +2273,7 @@ function pickBestForPosition(opts: any): any {
 
   for (const p of profiled) {
     if (used.has(p.id) || benchedSet.has(p.id)) continue;
-    if (p.restrictions?.includes(pos)) continue;
+    if (isPositionBlocked(p, pos)) continue;
 
     const st = state.get(p.id);
     const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
