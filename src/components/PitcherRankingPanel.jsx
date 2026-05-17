@@ -4,18 +4,8 @@ import { useTeam, useUI } from "../contexts.js";
 import {
   checkPitchEligibility,
   getCombinedGrades,
+  calcPitcherScore,
 } from "../lineupEngine";
-
-// Score weights — mirror the Round 2 plan. Eval-driven, with control
-// weighted highest because dropped-3rd-strike and walk damage are the
-// usual differentiators at 9U+ Kid Pitch.
-const PITCH_SCORE_WEIGHTS = {
-  velocity: 1.5,
-  control: 2.0,
-  command: 1.5,
-  offSpeed: 0.5,
-  composure: 1.0,
-};
 
 const ageNumOf = (age) => {
   const nums = (age || "").match(/\d+/g);
@@ -69,10 +59,7 @@ export const PitcherRankingPanel = memo(() => {
     return (players || [])
       .map((p) => {
         const g = combinedGrades[p.id] || {};
-        let score = 0;
-        for (const [k, w] of Object.entries(PITCH_SCORE_WEIGHTS)) {
-          score += (Number(g[k]) || 0) * w;
-        }
+        const score = calcPitcherScore(g);
         const eligibleToday = checkPitchEligibility(p, todayStr, teamAge);
         const daysUntil = eligibleToday ? 0 : daysUntilEligible(p, teamAge);
         return {

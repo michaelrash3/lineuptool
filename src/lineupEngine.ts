@@ -443,6 +443,39 @@ export function checkPitchEligibility(
   return diffDays > requiredRestDays(recent);
 }
 
+// ---------- Pitcher scoring (Round 2 spec) ----------
+// Eval-driven, with control weighted highest because dropped-3rd-strike
+// and walk damage are the usual differentiators at 9U+ Kid Pitch.
+// Single source of truth — consumed by both the engine's P-slot picker
+// (D4) and the Roster-tab `PitcherRankingPanel` so the UI rank and the
+// engine pick never drift.
+export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
+  velocity: 1.5,
+  control: 2.0,
+  command: 1.5,
+  offSpeed: 0.5,
+  composure: 1.0,
+};
+
+export function calcPitcherScore(grades: GradeMap | null | undefined): number {
+  if (!grades) return 0;
+  let score = 0;
+  for (const [k, w] of Object.entries(PITCHER_SCORE_WEIGHTS)) {
+    const v = (grades as any)[k];
+    if (typeof v === "number" && Number.isFinite(v)) score += v * w;
+  }
+  return score;
+}
+
+// Pool size by game type (9U+ Kid Pitch only). Pool = spread across the
+// staff so the aces can rest for bracket weekends. Bracket = win-now.
+// League = regular-season default.
+export function getPitcherPoolSize(gameType: string | undefined): number {
+  if (gameType === "pool") return 5;
+  if (gameType === "bracket") return 3;
+  return 3; // "league" or unset
+}
+
 // ---------- Lefty infield penalty (precomputed table) ----------
 
 const LEFTY_PENALTY: Record<string, number> = {
@@ -1036,7 +1069,16 @@ export function generateLineup(input: EngineInput): EngineResult {
     // innings so all rotation rules carry across the rebuild.
     fromInning = 0,
     currentLineup = null,
+    // D4: drives pitcher pool selection for 9U+ Kid Pitch. Pool = top 5,
+    // Bracket = top 3, League/unset = top 3. Read from currentGame if not
+    // explicitly passed.
+    gameType: gameTypeInput,
+    pitchingFormat,
   } = input;
+  const gameType =
+    gameTypeInput ||
+    (input as any).currentGame?.gameType ||
+    "league";
 
   if (!Array.isArray(activePlayers) || activePlayers.length < 7) {
     return {
@@ -1049,6 +1091,33 @@ export function generateLineup(input: EngineInput): EngineResult {
     currentGame?.date || new Date().toISOString().split("T")[0];
 
   const combinedGrades = getCombinedGrades(evaluationEvents, allPlayers);
+
+  // D4 — pitcher pool. For 9U+ Kid Pitch we rank the staff by
+  // `calcPitcherScore` (eval-driven), filter to those eligible to pitch
+  // on the target date, and slice down to the top-N where N is set by
+  // `gameType` (Pool 5, Bracket 3, League 3). The engine's P-slot
+  // picker draws exclusively from this pool, preferring the lowest
+  // `recentPitches` count within it (fairness across the staff).
+  const teamAgeNumForPool = (() => {
+    const m = String(teamAge || "").match(/(\d+)/g);
+    if (!m) return 99;
+    return parseInt(m[m.length - 1], 10);
+  })();
+  const isKidPitchFormat = /kid/i.test(String(pitchingFormat || ""));
+  const usePitcherPool = isKidPitchFormat && teamAgeNumForPool >= 9;
+  let pitcherPoolIds: Set<string> = new Set();
+  if (usePitcherPool) {
+    const ranked = (activePlayers as any[])
+      .map((p) => ({
+        p,
+        score: calcPitcherScore(combinedGrades[p.id]),
+      }))
+      .filter((row) => row.score > 0)
+      .filter((row) => checkPitchEligibility(row.p, targetDateStr, teamAge))
+      .sort((a, b) => b.score - a.score);
+    const n = getPitcherPoolSize(gameType);
+    pitcherPoolIds = new Set(ranked.slice(0, n).map((row) => row.p.id));
+  }
 
   const profiled = activePlayers.map((p) => ({
     ...p,
@@ -1152,6 +1221,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         targetDateStr,
         leftyPenalty,
         isBigGame,
+        pitcherPoolIds,
         rand,
         fromInning,
         currentLineup,
@@ -1790,6 +1860,7 @@ function tryBuildLineup(ctx: any): any {
     targetDateStr,
     leftyPenalty,
     isBigGame,
+    pitcherPoolIds,
     rand,
     fromInning = 0,
     currentLineup = null,
@@ -2126,6 +2197,7 @@ function tryBuildLineup(ctx: any): any {
         leftyPenalty,
         isLockInning,
         isBigGame,
+        pitcherPoolIds,
         rand,
         premiumPositions: PREMIUM_POSITIONS,
       });
@@ -2259,6 +2331,7 @@ function pickBestForPosition(opts: any): any {
     leftyPenalty,
     isLockInning,
     isBigGame,
+    pitcherPoolIds,
     rand,
     premiumPositions,
   } = opts;
@@ -2267,6 +2340,47 @@ function pickBestForPosition(opts: any): any {
   // For Big Games, strong players are pulled toward these spots and weak
   // players are pushed to the OF.
   const isPremium = premiumPositions.has(pos);
+
+  // D4 — P-slot short-circuit. When we have a pre-computed pitcher pool
+  // (9U+ Kid Pitch, top N by gameType), pick exclusively from it. Prefer
+  // the candidate with the lowest `recentPitches` for fairness across
+  // the staff; ties break by pitcher score (already implicit in the pool
+  // ordering). Respect every other per-player gate: not used this
+  // inning, not benched, not blocked from P by `comfortablePositions`,
+  // and the existing "can't pitch non-adjacent innings" rule.
+  if (
+    pos === "P" &&
+    defenseSize === "9" &&
+    pitcherPoolIds &&
+    pitcherPoolIds.size > 0
+  ) {
+    const poolCandidates: any[] = [];
+    for (const p of profiled) {
+      if (!pitcherPoolIds.has(p.id)) continue;
+      if (used.has(p.id) || benchedSet.has(p.id)) continue;
+      if (isPositionBlocked(p, "P")) continue;
+      const st = state.get(p.id);
+      const playedHereLast = inn > 0 && st.history[inn - 1] === "P";
+      const pCount = st.positions["P"] || 0;
+      // Mirror the existing rule: a kid can pitch consecutively but not
+      // resume after a gap. NKB further requires daily pitch eligibility,
+      // but that filter was already applied when building the pool.
+      if (inn > 0 && pCount > 0 && !playedHereLast) continue;
+      poolCandidates.push({ p, st, recent: (p.pitching?.recentPitches || 0) });
+    }
+    if (poolCandidates.length > 0) {
+      // Sort: lowest recentPitches first (fairness). The pool is already
+      // top-N by score so ordering inside ties doesn't matter much, but
+      // we keep it deterministic via id.
+      poolCandidates.sort((a, b) => {
+        if (a.recent !== b.recent) return a.recent - b.recent;
+        return a.p.id < b.p.id ? -1 : 1;
+      });
+      return poolCandidates[0].p;
+    }
+    // If the pool is empty (everyone rested out / blocked), fall through
+    // to the generic picker so the engine doesn't crash on edge cases.
+  }
 
   let bestPlayer = null;
   let bestScore = Infinity;

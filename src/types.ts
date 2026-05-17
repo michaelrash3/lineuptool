@@ -63,6 +63,12 @@ export interface Inning {
 
 export type GameStatus = "draft" | "final" | "in_progress" | string;
 
+// Tournament classification — drives engine pitcher pool sizes for 9U+
+// Kid Pitch. Pool = spread across the staff (top 5); Bracket = your aces
+// (top 3); League = regular season default (top 3). Independent of
+// `isBigGame` (a Bracket game is often also a Big Game).
+export type GameType = "league" | "pool" | "bracket";
+
 export interface Game {
   id: string;
   date?: string;
@@ -73,6 +79,7 @@ export interface Game {
   battingLineup?: SlimPlayer[];
   originalLineup?: Inning[];
   attendance?: Record<PlayerId, boolean>;
+  gameType?: GameType;
   [key: string]: unknown;
 }
 
