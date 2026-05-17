@@ -292,7 +292,7 @@ export const ScheduleTab = memo(() => {
                   {gameBattingSize === "roster" ? "Roster" : gameBattingSize}
                 </span>
               </div>
-              {presentCount >= 7 && (
+              {presentCount >= 7 && canEdit && (
                 <>
                   <button
                     onClick={() => generateLineup()}
@@ -908,7 +908,7 @@ export const ScheduleTab = memo(() => {
                 </h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
-                
+                {canEdit && (
                   <div className="flex items-center bg-white/80 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     <button
                       onClick={removeInning}
@@ -927,7 +927,7 @@ export const ScheduleTab = memo(() => {
                       <Icons.Plus className="w-4 h-4" />
                     </button>
                   </div>
-                
+                )}
                 <button
                   onClick={() =>
                     downloadLineupPdf({
@@ -948,7 +948,7 @@ export const ScheduleTab = memo(() => {
                 >
                   <Icons.Printer className="w-4 h-4" /> Print
                 </button>
-                
+                {canEdit && (
                   <button
                     onClick={saveCurrentGame}
                     className="text-xs py-2.5 px-6 font-black uppercase tracking-wider flex items-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md text-white"
@@ -964,7 +964,7 @@ export const ScheduleTab = memo(() => {
                       </>
                     )}
                   </button>
-                
+                )}
               </div>
             </div>
 
@@ -984,8 +984,8 @@ export const ScheduleTab = memo(() => {
             <LineupGrid
               lineup={lineup}
               positions={getPositionsForInning(presentCount, gameDefenseSize)}
-              swapSelection={swapSelection}
-              onCellClick={handleCellClick}
+              swapSelection={canEdit ? swapSelection : null}
+              onCellClick={canEdit ? handleCellClick : undefined}
             />
 
             {battingLineup && (

@@ -11,7 +11,11 @@ export const InGameView = memo(() => {
     updateGame,
     finalizeGame,
     removePlayerMidGame: removePlayerMidGameAction,
+    currentRole,
   } = useTeam();
+  // Assistants can view the running game (so they can shadow the coach
+  // from the dugout) but can't swap players or take destructive actions.
+  const canEdit = currentRole !== "assistant";
   const toast = useToast();
   const {
     inGameId,
@@ -248,6 +252,8 @@ export const InGameView = memo(() => {
   };
 
   const handleTap = (sel) => {
+    // Assistants can't move players around — short-circuit any tap.
+    if (!canEdit) return;
     // If nothing selected → select this one
     if (!inGameSelection) {
       setInGameSelection(sel);
@@ -335,24 +341,33 @@ export const InGameView = memo(() => {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowRemoveModal(true)}
-              className="p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
-              aria-label="Remove a player (injured / ill / left)"
-              title="Mark a player out for the rest of the game"
-            >
-              <Icons.Alert className="w-5 h-5" />
-            </button>
-            <button
-              onClick={undo}
-              disabled={inGameUndoStack.length === 0}
-              className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              aria-label="Undo last swap"
-            >
-              <Icons.Refresh className="w-5 h-5" />
-            </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => setShowRemoveModal(true)}
+                  className="p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
+                  aria-label="Remove a player (injured / ill / left)"
+                  title="Mark a player out for the rest of the game"
+                >
+                  <Icons.Alert className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={undo}
+                  disabled={inGameUndoStack.length === 0}
+                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  aria-label="Undo last swap"
+                >
+                  <Icons.Refresh className="w-5 h-5" />
+                </button>
+              </>
+            )}
           </div>
         </div>
+        {!canEdit && (
+          <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-center text-[11px] font-black uppercase tracking-widest text-amber-800">
+            View only — head coach controls lineup changes
+          </div>
+        )}
       </div>
 
       {/* Inning navigator + score */}
@@ -531,13 +546,15 @@ export const InGameView = memo(() => {
           >
             <Icons.Link className="w-4 h-4" /> Share
           </button>
-          <button
-            onClick={() => setShowEndGameScore(true)}
-            className="flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
-            style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-          >
-            <Icons.FileText className="w-4 h-4" /> End Game / Enter Final Score
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => setShowEndGameScore(true)}
+              className="flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+            >
+              <Icons.FileText className="w-4 h-4" /> End Game / Enter Final Score
+            </button>
+          )}
         </div>
       </div>
 

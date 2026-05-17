@@ -13,6 +13,22 @@ import {
 import { evalPromptStatus } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
+// 11 standard positions, surfaced as a chip row per player so a coach can
+// flag any spots they think this kid should play. Stored on the eval round
+// as `grades[playerId].suggestedPositions`.
+const SUGGESTED_POSITIONS = [
+  "P",
+  "C",
+  "1B",
+  "2B",
+  "3B",
+  "SS",
+  "LF",
+  "LCF",
+  "CF",
+  "RCF",
+  "RF",
+];
 
 const buildEmptyGrades = (players, categories) => {
   const out = {};
@@ -124,7 +140,6 @@ export const AssistantEvalModal = memo(() => {
 
   const [grades, setGrades] = useState({});
   const [activeGroup, setActiveGroup] = useState("Hitting");
-  const [expandedPlayerId, setExpandedPlayerId] = useState(null);
 
   // When opening, seed from this assistant's most recent round (or defaults).
   useEffect(() => {
@@ -147,6 +162,9 @@ export const AssistantEvalModal = memo(() => {
           if (next[p.id][c.id] == null) next[p.id][c.id] = DEFAULT_GRADE;
         }
         if (seed[p.id]?.notes) next[p.id].notes = seed[p.id].notes;
+        if (Array.isArray(seed[p.id]?.suggestedPositions)) {
+          next[p.id].suggestedPositions = [...seed[p.id].suggestedPositions];
+        }
       }
       setGrades(next);
     } else {
@@ -166,6 +184,22 @@ export const AssistantEvalModal = memo(() => {
       ...prev,
       [playerId]: { ...(prev[playerId] || {}), notes },
     }));
+  }, []);
+
+  const togglePlayerPosition = useCallback((playerId, pos) => {
+    setGrades((prev) => {
+      const cur = prev[playerId] || {};
+      const list = Array.isArray(cur.suggestedPositions)
+        ? cur.suggestedPositions
+        : [];
+      const next = list.includes(pos)
+        ? list.filter((p) => p !== pos)
+        : [...list, pos];
+      return {
+        ...prev,
+        [playerId]: { ...cur, suggestedPositions: next },
+      };
+    });
   }, []);
 
   const handleSave = useCallback(() => {
@@ -248,7 +282,6 @@ export const AssistantEvalModal = memo(() => {
           ) : (
             orderedPlayers.map((p) => {
               const playerGrades = grades[p.id] || {};
-              const expanded = expandedPlayerId === p.id;
               return (
                 <div
                   key={p.id}
@@ -265,15 +298,6 @@ export const AssistantEvalModal = memo(() => {
                         </div>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedPlayerId(expanded ? null : p.id)
-                      }
-                      className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 px-2 py-1 rounded"
-                    >
-                      {expanded ? "Hide Notes" : "Notes"}
-                    </button>
                   </div>
                   <div className="px-4 py-3 space-y-3">
                     {activeCats.map((cat) => (
@@ -288,20 +312,53 @@ export const AssistantEvalModal = memo(() => {
                         />
                       </div>
                     ))}
-                    {expanded && (
-                      <div>
-                        <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
-                          Notes
-                        </div>
-                        <textarea
-                          value={playerGrades.notes || ""}
-                          onChange={(e) => setPlayerNotes(p.id, e.target.value)}
-                          rows={3}
-                          placeholder="What stood out this round?"
-                          className="w-full p-2.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-                        />
+                    <div>
+                      <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                        Suggested Positions
                       </div>
-                    )}
+                      <div className="flex flex-wrap gap-1.5">
+                        {SUGGESTED_POSITIONS.map((pos) => {
+                          const active = (
+                            playerGrades.suggestedPositions || []
+                          ).includes(pos);
+                          return (
+                            <button
+                              key={pos}
+                              type="button"
+                              onClick={() => togglePlayerPosition(p.id, pos)}
+                              className="px-2 py-1 text-[11px] font-black rounded-md border transition-all"
+                              style={
+                                active
+                                  ? {
+                                      backgroundColor: "var(--team-primary)",
+                                      color: "var(--team-tertiary)",
+                                      borderColor: "var(--team-primary)",
+                                    }
+                                  : {
+                                      backgroundColor: "white",
+                                      color: "#475569",
+                                      borderColor: "#e2e8f0",
+                                    }
+                              }
+                            >
+                              {pos}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                        Notes to Head Coach
+                      </div>
+                      <textarea
+                        value={playerGrades.notes || ""}
+                        onChange={(e) => setPlayerNotes(p.id, e.target.value)}
+                        rows={2}
+                        placeholder="Anything the head coach should know about this player?"
+                        className="w-full p-2.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                      />
+                    </div>
                   </div>
                 </div>
               );
