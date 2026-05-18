@@ -6,6 +6,7 @@ import {
 } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { auth } from "../firebase";
+import { signOut } from "firebase/auth";
 import {
   sendGmailMessage,
   buildMailtoUrl,
@@ -629,6 +630,135 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
     </div>
   );
 });
+
+// Diagnostics — head-only triage tool. Surfaces the Firestore truth
+// for the active team alongside the current Auth UID so account /
+// data-linkage problems are visible without DevTools.
+const DiagnosticsPanel = memo(({ team, user, activeTeamId }) => {
+  const [open, setOpen] = React.useState(false);
+  const uid = user?.uid || "(not signed in)";
+  const ownerId = team?.ownerId || "(none)";
+  const members = Array.isArray(team?.members) ? team.members : [];
+  const isOwner = uid === ownerId;
+  const isMember = members.includes(uid);
+  return (
+    <div className="pt-6 border-t border-slate-200/50">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900"
+      >
+        <Icons.Info className="w-3.5 h-3.5" />
+        {open ? "Hide" : "Show"} Diagnostics
+      </button>
+      {open && (
+        <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-4 text-[11px] font-mono space-y-2">
+          <Row
+            label="Your Auth UID"
+            value={uid}
+            badge={isOwner ? "OWNER" : isMember ? "MEMBER" : "NOT IN MEMBERS"}
+            badgeKind={isOwner ? "ok" : isMember ? "ok" : "warn"}
+          />
+          <Row label="Active Team ID" value={activeTeamId || "(none)"} />
+          <Row label="Team ownerId" value={ownerId} />
+          <Row
+            label={`Members (${members.length})`}
+            value={
+              members.length
+                ? members.join(", ")
+                : "(empty — engine writes will be rejected by rules)"
+            }
+          />
+          <Row
+            label="Players"
+            value={`${(team?.players || []).length} entries`}
+          />
+          <Row
+            label="Evaluation events"
+            value={`${(team?.evaluationEvents || []).length} entries`}
+          />
+          <Row
+            label="Games"
+            value={`${(team?.games || []).length} entries`}
+          />
+          {!isOwner && !isMember && (
+            <p className="pt-2 text-[10px] text-rose-700 font-bold not-italic font-sans">
+              ⚠ Your UID isn&apos;t in this team&apos;s members[]. Ask the
+              owner to add it via Firestore Console, or sign in with the
+              account whose UID matches ownerId.
+            </p>
+          )}
+          <div className="pt-3 border-t border-slate-200 flex flex-wrap gap-2 not-italic font-sans">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  // Best-effort local-state flush — clears the active-team
+                  // pointer + any cached offline writes so the next sign-in
+                  // is a clean read.
+                  if (typeof window !== "undefined") {
+                    try {
+                      window.sessionStorage.clear();
+                    } catch {}
+                  }
+                  await signOut(auth);
+                  if (typeof window !== "undefined") {
+                    window.location.reload();
+                  }
+                } catch (err) {
+                  // Surface but don't crash — user can hard-refresh if needed.
+                  // eslint-disable-next-line no-alert
+                  alert(
+                    "Sign-out failed: " +
+                      (err?.message || "unknown error") +
+                      ". Try reloading the page."
+                  );
+                }
+              }}
+              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Sign Out + Reload
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window === "undefined") return;
+                try {
+                  window.localStorage.clear();
+                  window.sessionStorage.clear();
+                } catch {}
+                window.location.reload();
+              }}
+              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-white border border-amber-300 text-amber-800 hover:bg-amber-50"
+            >
+              Reset Local Cache + Reload
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+const Row = ({ label, value, badge, badgeKind }) => (
+  <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
+    <span className="text-slate-500 shrink-0 font-bold uppercase tracking-widest text-[10px]">
+      {label}
+    </span>
+    <span className="text-slate-800 break-all flex-1 min-w-0">{value}</span>
+    {badge && (
+      <span
+        className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0 ${
+          badgeKind === "ok"
+            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+            : "bg-rose-50 border-rose-200 text-rose-700"
+        }`}
+      >
+        {badge}
+      </span>
+    )}
+  </div>
+);
 
 export const SettingsTab = memo(() => {
   const {
@@ -1467,6 +1597,7 @@ export const SettingsTab = memo(() => {
                 </div>
               );
             })()}
+            <DiagnosticsPanel team={team} user={user} activeTeamId={activeTeamId} />
             <div className="pt-6 border-t border-slate-200/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">
