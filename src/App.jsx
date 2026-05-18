@@ -302,9 +302,6 @@ const TeamProvider = ({ children }) => {
   // Prevents the legacy-owner migration effect from re-firing every time
   // Firestore emits a fresh snapshot before ownerId is reflected back.
   const migrationAttemptedRef = useRef(new Set());
-  const queuedInviteTokensRef = useRef(new Set());
-  const pendingInviteAttemptedRef = useRef(new Set());
-  const pendingInviteRetryRef = useRef(new Set());
 
   // Auth subscription
   useEffect(() => {
@@ -3214,52 +3211,18 @@ const TeamProvider = ({ children }) => {
       window.history.replaceState({}, "", newUrl);
     };
     if (invite) {
-      if (!queuedInviteTokensRef.current.has(invite)) {
-        queuedInviteTokensRef.current.add(invite);
-        sessionStorage.setItem("pendingInvite", invite);
-      }
+      sessionStorage.setItem("pendingInvite", invite);
       stripParams();
+      redeemInviteToken(invite).then((ok) => {
+        if (ok) sessionStorage.removeItem("pendingInvite");
+      });
       return;
     }
     if (join) {
       stripParams();
       joinTeamByCode(join);
     }
-  }, [authReady, user, loadingTeams, joinTeamByCode]);
-
-  useEffect(() => {
-    if (!authReady || !user || loadingTeams) return;
-    if (typeof window === "undefined") return;
-
-    const pendingInvite = sessionStorage.getItem("pendingInvite");
-    if (!pendingInvite) return;
-    if (pendingInviteAttemptedRef.current.has(pendingInvite)) return;
-
-    pendingInviteAttemptedRef.current.add(pendingInvite);
-
-    redeemInviteToken(pendingInvite).then((ok) => {
-      if (ok) {
-        sessionStorage.removeItem("pendingInvite");
-        pendingInviteRetryRef.current.delete(pendingInvite);
-        return;
-      }
-
-      if (!pendingInviteRetryRef.current.has(pendingInvite)) {
-        pendingInviteRetryRef.current.add(pendingInvite);
-        pendingInviteAttemptedRef.current.delete(pendingInvite);
-        return;
-      }
-
-      sessionStorage.removeItem("pendingInvite");
-      pendingInviteRetryRef.current.delete(pendingInvite);
-      toast.push({
-        kind: "error",
-        title: "Invite link expired or unavailable",
-        message:
-          "Ask the head coach for a fresh invite link, then open it while signed into the account that should join.",
-      });
-    });
-  }, [authReady, user, loadingTeams, redeemInviteToken, toast]);
+  }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode]);
 
   // Win-loss record derived from final games only.
   const record = useMemo(() => {
