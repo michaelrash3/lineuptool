@@ -1,0 +1,319 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .wrap { padding: 18px 22px; display: grid; gap: 14px; }
+
+  .head { display: flex; align-items: end; justify-content: space-between; gap: 16px; }
+  .head .l .eyebrow {
+    font: 900 9px/1 var(--font-sans); letter-spacing: 0.20em; text-transform: uppercase;
+    color: var(--team-primary, #2563eb);
+  }
+  .head .l h3 {
+    margin: 8px 0 4px;
+    font: 900 22px/1 var(--font-sans); letter-spacing: -0.02em;
+    text-transform: uppercase;
+    color: var(--fg-1);
+  }
+  .head .l p {
+    margin: 0;
+    font: 500 12px/1.5 var(--font-sans);
+    color: var(--fg-3);
+    max-width: 460px;
+  }
+  .badge-live {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 9px;
+    background: #ecfdf5; border: 1px solid #6ee7b7;
+    border-radius: 9999px;
+    font: 800 10px/1 var(--font-sans); letter-spacing: 0.12em; text-transform: uppercase;
+    color: #047857;
+  }
+  .badge-live::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.6);
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  /* ── Panel shell ────────────────────────────────────────────────── */
+  .panel {
+    background: linear-gradient(180deg, #fff, #fafbfc);
+    border: 1px solid var(--slate-200);
+    border-radius: 14px;
+    padding: 14px 16px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 6px 18px -14px rgba(15,23,42,0.18);
+  }
+  .panel h4 {
+    margin: 0 0 10px;
+    font: 900 10px/1 var(--font-sans); letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--fg-3);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel h4 .hint { font: 700 10px/1 var(--font-sans); letter-spacing: 0; color: var(--fg-4); text-transform: none; }
+
+  /* ── Color picker row ───────────────────────────────────────────── */
+  .col-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; }
+  .col-row + .col-row { border-top: 1px dashed var(--slate-200); }
+  .col-row .sw {
+    width: 56px; height: 56px;
+    border-radius: 12px;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--slate-200), 0 6px 14px -10px rgba(15,23,42,0.4);
+    position: relative;
+  }
+  .col-row .sw::after {
+    content: ""; position: absolute; right: -4px; bottom: -4px;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M12 20h9'/><path d='M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z'/></svg>") center/12px no-repeat;
+    border: 1px solid var(--slate-200);
+    box-shadow: 0 2px 4px rgba(15,23,42,0.15);
+  }
+  .col-row .meta .role {
+    font: 900 10px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--fg-1);
+  }
+  .col-row .meta .desc {
+    margin-top: 4px;
+    font: 600 11px/1.4 var(--font-sans);
+    color: var(--fg-3);
+  }
+  .col-row .hex {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 10px;
+    background: #fff;
+    border: 1px solid var(--slate-200);
+    border-radius: 8px;
+    font: 700 12px/1 var(--font-mono);
+    color: var(--fg-1);
+    font-variant-numeric: tabular-nums;
+  }
+  .col-row .hex .pound { color: var(--fg-4); }
+
+  /* ── Logo upload ────────────────────────────────────────────────── */
+  .logo-zone {
+    display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center;
+    padding: 4px 0;
+  }
+  .logo-thumb {
+    width: 96px; height: 96px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff, #f1f5f9);
+    border: 1px solid var(--slate-200);
+    display: grid; place-items: center;
+    padding: 10px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 6px 14px -10px rgba(15,23,42,0.2);
+  }
+  .logo-thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .logo-actions { display: flex; flex-direction: column; gap: 6px; }
+  .logo-actions .filename {
+    font: 700 12px/1.2 var(--font-mono);
+    color: var(--fg-1);
+  }
+  .logo-actions .filesize {
+    font: 600 11px/1.2 var(--font-sans);
+    color: var(--fg-4);
+  }
+  .logo-actions .btn-row { display: flex; gap: 6px; margin-top: 4px; }
+  .b-sm {
+    padding: 6px 10px;
+    border-radius: 8px;
+    font: 800 11px/1 var(--font-sans);
+    border: 1px solid var(--slate-300);
+    background: #fff;
+    color: var(--fg-1);
+    cursor: pointer;
+  }
+  .b-sm.danger { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+
+  /* ── Live preview pane ──────────────────────────────────────────── */
+  .preview-strip {
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    border: 1px solid var(--slate-200);
+    border-radius: 14px;
+    padding: 14px;
+    display: grid; gap: 10px;
+  }
+  .pv-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pv-row .tag {
+    padding: 4px 9px;
+    border-radius: 9999px;
+    font: 900 9px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: uppercase;
+    background: var(--team-primary, #2563eb);
+    color: #fff;
+  }
+  .pv-btn {
+    padding: 9px 14px;
+    border-radius: 10px;
+    font: 800 12px/1 var(--font-sans);
+    background: var(--team-primary, #2563eb);
+    color: #fff;
+    border: none;
+  }
+  .pv-btn.outline {
+    background: #fff;
+    color: var(--team-primary, #2563eb);
+    border: 1.5px solid var(--team-primary, #2563eb);
+  }
+  .pv-bar {
+    height: 8px; border-radius: 9999px;
+    background: linear-gradient(90deg,
+      var(--team-primary, #2563eb) 0% 60%,
+      var(--team-secondary, #f8fafc) 60% 78%,
+      var(--team-tertiary, #fff) 78% 100%);
+    border: 1px solid var(--slate-200);
+  }
+  .pv-card {
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid var(--slate-200);
+    border-left: 4px solid var(--team-primary, #2563eb);
+    display: flex; align-items: center; gap: 8px;
+    font: 700 12px/1 var(--font-sans);
+    color: var(--fg-1);
+  }
+  .pv-mini-logo {
+    width: 24px; height: 24px; border-radius: 6px;
+    background: linear-gradient(180deg, #fff, #f1f5f9);
+    border: 1px solid var(--slate-200);
+    padding: 2px;
+    display: grid; place-items: center;
+  }
+  .pv-mini-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+  /* ── Save bar ───────────────────────────────────────────────────── */
+  .save-bar {
+    grid-column: 1 / -1;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+    border: 1px solid var(--slate-200);
+    border-radius: 12px;
+  }
+  .save-bar .note {
+    font: 700 11px/1.4 var(--font-sans);
+    color: var(--fg-3);
+  }
+  .save-bar .note strong { color: var(--fg-1); }
+  .save-bar .actions { display: flex; gap: 8px; }
+  .b-primary {
+    padding: 9px 14px;
+    border-radius: 10px;
+    font: 900 12px/1 var(--font-sans); letter-spacing: 0.04em;
+    background: linear-gradient(180deg, var(--team-primary, #2563eb), color-mix(in srgb, var(--team-primary, #2563eb) 80%, #000));
+    color: #fff;
+    border: none;
+    box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--team-primary, #2563eb) 55%, transparent);
+  }
+  .b-ghost {
+    padding: 9px 14px;
+    border-radius: 10px;
+    font: 800 12px/1 var(--font-sans);
+    background: #fff;
+    color: var(--fg-1);
+    border: 1px solid var(--slate-300);
+  }
+</style></head>
+<body><div class="card-stage">
+  <div class="wrap">
+
+    <div class="head">
+      <div class="l">
+        <div class="eyebrow">Settings → Team Theme</div>
+        <h3>Brand Your Team</h3>
+        <p>Drop in your logo and three colors — every screen in Coach's Card re-tints to match. Primary drives buttons + accent strips, secondary carries energy moments, tertiary anchors deep text and dark heroes.</p>
+      </div>
+      <span class="badge-live">Live preview</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- LEFT: 3 color pickers -->
+      <div class="panel">
+        <h4><span>Team Colors</span><span class="hint">3 required</span></h4>
+
+        <div class="col-row">
+          <div class="sw" style="background:#9BCBEB"></div>
+          <div class="meta">
+            <div class="role">Primary</div>
+            <div class="desc">Buttons, accents, active tabs, brand surfaces</div>
+          </div>
+          <div class="hex"><span class="pound">#</span>9BCBEB</div>
+        </div>
+
+        <div class="col-row">
+          <div class="sw" style="background:#BA0C2F"></div>
+          <div class="meta">
+            <div class="role">Secondary</div>
+            <div class="desc">Energy moments — streaks, alerts, key actions</div>
+          </div>
+          <div class="hex"><span class="pound">#</span>BA0C2F</div>
+        </div>
+
+        <div class="col-row">
+          <div class="sw" style="background:#14213D"></div>
+          <div class="meta">
+            <div class="role">Tertiary</div>
+            <div class="desc">Headings, dark hero panels, deep text</div>
+          </div>
+          <div class="hex"><span class="pound">#</span>14213D</div>
+        </div>
+      </div>
+
+      <!-- RIGHT: logo + live preview -->
+      <div class="panel">
+        <h4><span>Team Logo</span><span class="hint">SVG / PNG · 1MB</span></h4>
+        <div class="logo-zone">
+          <div class="logo-thumb">
+            <img src="../assets/team-logos/trash-pandas.png" alt="Team mark" />
+          </div>
+          <div class="logo-actions">
+            <span class="filename">trash-pandas.png</span>
+            <span class="filesize">312 KB · 800 × 800</span>
+            <div class="btn-row">
+              <button class="b-sm">Replace</button>
+              <button class="b-sm danger">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <h4 style="margin-top:14px"><span>Live Preview</span><span class="hint">Theme applied</span></h4>
+        <div class="preview-strip">
+          <div class="pv-row">
+            <span class="tag">Home</span>
+            <span class="tag" style="background:var(--team-secondary,#f8fafc); color:#fff;">Live</span>
+            <button class="pv-btn">Confirm Lineup</button>
+            <button class="pv-btn outline">Edit</button>
+          </div>
+          <div class="pv-bar"></div>
+          <div class="pv-card">
+            <div class="pv-mini-logo"><img src="../assets/team-logos/trash-pandas.png" alt="" /></div>
+            <span>Trash Pandas · vs. Renegades</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAVE BAR -->
+      <div class="save-bar">
+        <div class="note"><strong>Heads up:</strong> changes apply to every coach and parent on this team instantly.</div>
+        <div class="actions">
+          <button class="b-ghost">Reset to default</button>
+          <button class="b-primary">Save Theme</button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<style>
+  /* Local theme so the card looks Trash-Pandas-themed in standalone view too;
+     the Trash Pandas Theme Preview iframe override still wins via !important. */
+  :root {
+    --team-primary: #9BCBEB;
+    --team-secondary: #BA0C2F;
+    --team-tertiary: #14213D;
+  }
+</style>
+</body></html>

@@ -1,0 +1,295 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .wrap { padding: 16px 22px; display: grid; gap: 14px; }
+
+  /* ── Variant pill row ───────────────────────────────────────────── */
+  .variant-row {
+    display: flex; align-items: center; gap: 8px;
+    font: 900 9px/1 var(--font-sans); letter-spacing: 0.16em; text-transform: uppercase;
+    color: #64748b;
+  }
+  .variant-row .pill {
+    padding: 5px 9px; border-radius: 9999px;
+    background: #fff; border: 1px solid #e2e8f0; color: #0f172a;
+    font: 900 9px/1 var(--font-sans); letter-spacing: 0.14em;
+  }
+  .variant-row .pill.on { background: #0f172a; color: #fff; border-color: #0f172a; }
+
+  /* ── RECORD HERO (rich) ────────────────────────────────────────── */
+  .record {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 100% 0%, rgba(96,165,250,0.25), transparent 50%),
+      linear-gradient(135deg, #0b1220 0%, #0f172a 60%, #1e3a8a 100%);
+    color: #fff;
+    padding: 16px 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08) inset, 0 16px 40px -16px rgba(15,23,42,0.55);
+    display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center;
+  }
+  .record::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1.6px);
+    background-size: 14px 14px;
+    mask-image: linear-gradient(135deg, black 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .record .big {
+    font: 900 56px/1 var(--font-sans);
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    z-index: 1;
+    text-shadow: 0 4px 24px rgba(96,165,250,0.4);
+  }
+  .record .big .sep { color: #475569; margin: 0 4px; font-weight: 800; }
+  .record .big .losses { color: #f87171; }
+  .record .meta { z-index: 1; }
+  .record .meta .l { font: 900 9px/1 var(--font-sans); letter-spacing: 0.16em; text-transform: uppercase; color: #94a3b8; margin-bottom: 8px; }
+  .record .meta h2 { margin: 0; font: 900 18px/1.05 var(--font-sans); letter-spacing: -0.02em; text-transform: uppercase; }
+  .record .meta h2 em { font-style: normal; color: #fbbf24; }
+
+  /* Run boxes (replaces the old run-differential bar) */
+  .rd { z-index: 1; min-width: 220px; }
+  .rd .split { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .rd .box {
+    text-align: center;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .rd .box-l {
+    display: block;
+    font: 900 8px/1 var(--font-sans); letter-spacing: 0.18em; text-transform: uppercase;
+    color: #94a3b8; margin-bottom: 4px;
+  }
+  .rd .box-v {
+    font: 900 18px/1 var(--font-sans); letter-spacing: -0.02em;
+    color: #fff;
+  }
+  .rd .box.rs .box-v { color: #4ade80; }
+  .rd .box.ra .box-v { color: #fda4af; }
+  .rd .box.diff .box-v { color: #fbbf24; }
+
+  /* ── STAT TILE GRID (rich) ─────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .sc {
+    position: relative;
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 6px 14px -10px rgba(15,23,42,0.18);
+    overflow: hidden;
+  }
+  .sc.lead { background: linear-gradient(180deg, #eff6ff, #dbeafe); border-color: #93c5fd; }
+  .sc.gold { background: linear-gradient(180deg, #fffbeb, #fef3c7); border-color: #fcd34d; }
+  .sc::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, #3b82f6, #1d4ed8);
+  }
+  .sc.gold::before { background: linear-gradient(180deg, #fbbf24, #d97706); }
+
+  .sc .lbl { font: 900 9px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: uppercase; color: #64748b; }
+  .sc.lead .lbl { color: #1d4ed8; }
+  .sc.gold .lbl { color: #b45309; }
+  .sc .val { font: 900 30px/1 var(--font-sans); letter-spacing: -0.03em; color: #0f172a; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .sc.lead .val { color: #1d4ed8; }
+  .sc.gold .val { color: #b45309; }
+  .sc .sub { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font: 800 9px/1 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: #047857; }
+  .sc .sub.dn { color: #b91c1c; }
+  .sc .sub svg { width: 10px; height: 10px; }
+
+  /* Sparkline + baseline */
+  .sc svg.spark { position: absolute; right: 6px; bottom: 6px; width: 80px; height: 30px; }
+  .sc .spark-base {
+    stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.55;
+  }
+  .sc .spark-line { fill: none; stroke-width: 1.6; }
+  .sc .spark-label {
+    position: absolute; right: 7px; bottom: 30px;
+    font: 800 7px/1 var(--font-sans); letter-spacing: 0.12em; text-transform: uppercase;
+    color: #94a3b8;
+  }
+
+  /* Ring stat */
+  .ring-card {
+    background: linear-gradient(180deg, #fff, #f1f5f9);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px;
+    display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 6px 14px -10px rgba(15,23,42,0.18);
+  }
+  .ring-card .ring { width: 56px; height: 56px; flex-shrink: 0; }
+  .ring-card .lbl { font: 900 9px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: uppercase; color: #64748b; }
+  .ring-card .val { font: 900 22px/1 var(--font-sans); letter-spacing: -0.02em; color: #0f172a; margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  /* ── STRIPPED VARIANT ─────────────────────────────────────────── */
+  .stripped-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr) auto;
+    gap: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px -8px rgba(15,23,42,0.1);
+  }
+  .stripped-cell {
+    padding: 14px 16px;
+    text-align: left;
+    border-right: 1px solid #f1f5f9;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .stripped-cell:last-child { border-right: 0; }
+  .stripped-cell .l {
+    font: 900 8px/1 var(--font-sans); letter-spacing: 0.18em; text-transform: uppercase;
+    color: #94a3b8;
+  }
+  .stripped-cell .v {
+    font: 900 22px/1 var(--font-sans); letter-spacing: -0.02em; color: #0f172a;
+    font-variant-numeric: tabular-nums;
+  }
+  .stripped-cell.record-cell { background: linear-gradient(180deg, #f8fafc, #fff); }
+  .stripped-cell.record-cell .v { color: #0f172a; }
+  .stripped-cell.record-cell .v .w { color: #047857; }
+  .stripped-cell.record-cell .v .l { color: #b91c1c; font-size: 22px; letter-spacing: -0.02em; margin: 0; }
+  .stripped-cell .delta { font: 800 9px/1 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; }
+  .stripped-cell .delta.up { color: #047857; }
+  .stripped-cell .delta.dn { color: #b91c1c; }
+  .stripped-cell.glance {
+    background: #0f172a; color: #fff;
+    border-right: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-width: 90px;
+  }
+  .stripped-cell.glance .l { color: #94a3b8; }
+  .stripped-cell.glance .big {
+    font: 900 30px/1 var(--font-sans); letter-spacing: -0.04em;
+    color: #fff; font-variant-numeric: tabular-nums;
+  }
+  .stripped-cell.glance .big .sep { color: #475569; margin: 0 2px; }
+  .stripped-cell.glance .big .losses { color: #f87171; }
+
+  /* Section label */
+  .section-label {
+    font: 900 9px/1 var(--font-sans); letter-spacing: 0.18em; text-transform: uppercase;
+    color: #64748b;
+    margin: 6px 0 -2px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-label::after {
+    content: ""; flex: 1; height: 1px; background: #e2e8f0;
+  }
+</style></head>
+<body><div class="card-stage">
+  <div class="wrap">
+
+    <div class="variant-row">
+      <span>Variants</span>
+      <span class="pill on">Rich</span>
+      <span class="pill">Stripped</span>
+      <span style="margin-left:auto;color:#94a3b8;text-transform:none;letter-spacing:0;font-weight:700;font-size:11px">Coach picks per surface in Settings</span>
+    </div>
+
+    <div class="record">
+      <div class="big">9<span class="sep">–</span><span class="losses">5</span></div>
+      <div class="meta">
+        <div class="l">Season Record</div>
+        <h2>Spring <em>2026</em><br/>10U · USSSA</h2>
+      </div>
+      <div class="rd">
+        <div class="split">
+          <div class="box rs">
+            <span class="box-l">RS</span>
+            <span class="box-v">112</span>
+          </div>
+          <div class="box ra">
+            <span class="box-l">RA</span>
+            <span class="box-v">78</span>
+          </div>
+          <div class="box diff">
+            <span class="box-l">DIFF</span>
+            <span class="box-v">+34</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="sc lead">
+        <div class="lbl">Team AVG</div>
+        <div class="val">.412</div>
+        <span class="sub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>+.034 vs L5</span>
+        <span class="spark-label">League .276</span>
+        <svg class="spark" viewBox="0 0 80 30" preserveAspectRatio="none">
+          <!-- league baseline: 0.276 -> y mapped to 22 of 30 -->
+          <line class="spark-base" x1="0" y1="22" x2="80" y2="22"/>
+          <path class="spark-line" stroke="#1d4ed8" d="M0 24 L11 20 L22 16 L33 18 L44 12 L55 14 L66 8 L80 5"/>
+        </svg>
+      </div>
+      <div class="sc">
+        <div class="lbl">Team OPS</div>
+        <div class="val">.948</div>
+        <span class="sub"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>+.062</span>
+        <span class="spark-label">League .642</span>
+        <svg class="spark" viewBox="0 0 80 30" preserveAspectRatio="none">
+          <line class="spark-base" x1="0" y1="20" x2="80" y2="20"/>
+          <path class="spark-line" stroke="#0f172a" d="M0 22 L11 18 L22 19 L33 14 L44 12 L55 9 L66 11 L80 6"/>
+        </svg>
+      </div>
+      <div class="sc gold">
+        <div class="lbl">Hot Streak</div>
+        <div class="val">4<small style="font-size:14px;font-weight:800;margin-left:4px;letter-spacing:0.04em">games</small></div>
+        <span class="sub" style="color:#dc2626">🔥 Hits in every appearance</span>
+      </div>
+      <div class="ring-card">
+        <svg class="ring" viewBox="0 0 56 56">
+          <circle cx="28" cy="28" r="22" stroke="#e2e8f0" stroke-width="6" fill="none"/>
+          <circle cx="28" cy="28" r="22" stroke="url(#rg)" stroke-width="6" fill="none" stroke-dasharray="138.2 138.2" stroke-dashoffset="5.5" stroke-linecap="round" transform="rotate(-90 28 28)"/>
+          <text x="28" y="32" text-anchor="middle" font-family="ui-sans-serif,system-ui" font-weight="900" font-size="13" fill="#0f172a">96%</text>
+          <defs><linearGradient id="rg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#10b981"/><stop offset="1" stop-color="#047857"/></linearGradient></defs>
+        </svg>
+        <div>
+          <div class="lbl">Fielding</div>
+          <div class="val">.962</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label">Stripped variant — one row, no chrome</div>
+
+    <div class="stripped-row">
+      <div class="stripped-cell glance">
+        <div class="l">Record</div>
+        <div class="big">9<span class="sep">–</span><span class="losses">5</span></div>
+      </div>
+      <div class="stripped-cell">
+        <div class="l">Team AVG</div>
+        <div class="v">.412</div>
+        <div class="delta up">↑ .034 · league .276</div>
+      </div>
+      <div class="stripped-cell">
+        <div class="l">Team OPS</div>
+        <div class="v">.948</div>
+        <div class="delta up">↑ .062 · league .642</div>
+      </div>
+      <div class="stripped-cell">
+        <div class="l">Fielding</div>
+        <div class="v">.962</div>
+        <div class="delta up">↑ .008 vs L5</div>
+      </div>
+      <div class="stripped-cell">
+        <div class="l">Run Diff</div>
+        <div class="v">+34</div>
+        <div class="delta up">112 RS · 78 RA</div>
+      </div>
+    </div>
+
+  </div>
+</div></body></html>
