@@ -928,6 +928,21 @@ export const SettingsTab = memo(() => {
     currentSeason,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
+  const [settingsMenu, setSettingsMenu] = useState("team");
+  const settingsMenuItems = [
+    { id: "team", label: "Team" },
+    { id: "tryouts", label: "Tryouts" },
+    { id: "staff", label: "Staff" },
+    { id: "imports", label: "Imports" },
+    { id: "advanced", label: "Advanced" },
+  ];
+  const settingsMenuDescriptions = {
+    team: "Core game defaults, season identity, and visual branding.",
+    tryouts: "Tryout portal controls, share links, and roster cap behavior.",
+    staff: "Coaching roster, roles, invite links, and join code controls.",
+    imports: "CSV imports plus backup/export/restore operations.",
+    advanced: "Diagnostics, storage details, team leave/delete, and test mode.",
+  };
 
   // Past-season CSV import: parse the file, open the review modal.
   const startPastSeasonImport = useCallback(
@@ -988,8 +1003,30 @@ export const SettingsTab = memo(() => {
             Team Settings
           </h2>
         </div>
+        <div className="px-8 pt-6">
+          <div className="flex flex-wrap gap-2">
+            {settingsMenuItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSettingsMenu(item.id)}
+                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                  settingsMenu === item.id
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-white/80 text-slate-600 border-slate-200 hover:bg-white"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-slate-500 font-medium">
+            {settingsMenuDescriptions[settingsMenu]}
+          </p>
+        </div>
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="space-y-10">
+            {settingsMenu === "team" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-5 border-b border-slate-200/50 pb-3 flex items-center gap-2">
                 <Icons.Settings className="w-4 h-4" /> Game Default
@@ -1158,6 +1195,8 @@ export const SettingsTab = memo(() => {
                 </div>
               </div>
             </div>
+            )}
+            {settingsMenu === "staff" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
                 <Icons.Users className="w-4 h-4" /> Coaching Staff
@@ -1231,7 +1270,9 @@ export const SettingsTab = memo(() => {
                 </button>
               )}
             </div>
+            )}
 
+            {settingsMenu === "tryouts" && (
             <TryoutsSettingsPanel
               team={team}
               generateTryoutShareId={generateTryoutShareId}
@@ -1241,13 +1282,17 @@ export const SettingsTab = memo(() => {
               setRosterCap={setRosterCap}
               toast={toast}
             />
+            )}
 
+            {settingsMenu === "staff" && (
             <JoinCodePanel
               team={team}
               regenerateJoinCode={regenerateJoinCode}
               toast={toast}
             />
+            )}
 
+            {settingsMenu === "staff" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
                 <Icons.Users className="w-4 h-4" /> Coach Roles
@@ -1299,7 +1344,9 @@ export const SettingsTab = memo(() => {
                 )}
               </div>
             </div>
+            )}
 
+            {settingsMenu === "staff" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
                 <Icons.Clipboard className="w-4 h-4" /> Eval Reminders
@@ -1334,7 +1381,9 @@ export const SettingsTab = memo(() => {
                 </p>
               )}
             </div>
+            )}
 
+            {settingsMenu === "staff" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
                 <Icons.Plus className="w-4 h-4" /> Invite Coaches
@@ -1401,9 +1450,11 @@ export const SettingsTab = memo(() => {
                 )}
               </div>
             </div>
+            )}
           </div>
 
           <div className="space-y-10">
+            {settingsMenu === "team" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-200/50 pb-3 flex items-center gap-2">
                 <Icons.MapPin className="w-4 h-4" /> Team Identity & Season
@@ -1576,6 +1627,8 @@ export const SettingsTab = memo(() => {
                 </div>
               </div>
             </div>
+            )}
+            {settingsMenu === "imports" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
                 <Icons.Cloud className="w-4 h-4" /> Data Management
@@ -1660,11 +1713,12 @@ export const SettingsTab = memo(() => {
                 </div>
               </div>
             </div>
+            )}
             {/* Storage usage indicator — shows how close the team document is
                 to Firestore's 1MB hard limit. Mostly useful as an early warning
                 if the document starts approaching the cap. Slim lineup data
                 keeps this well under control during normal use. */}
-            {(() => {
+            {settingsMenu === "advanced" && (() => {
               const FIRESTORE_LIMIT = 1048576; // 1 MB in bytes
               let docSize = 0;
               try {
@@ -1712,7 +1766,10 @@ export const SettingsTab = memo(() => {
                 </div>
               );
             })()}
+            {settingsMenu === "advanced" && (
             <DiagnosticsPanel team={team} user={user} activeTeamId={activeTeamId} />
+            )}
+            {settingsMenu === "advanced" && (
             <div className="pt-6 border-t border-slate-200/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h4 className="font-bold text-slate-800 text-sm">
@@ -1739,7 +1796,8 @@ export const SettingsTab = memo(() => {
                 </button>
               </div>
             </div>
-            {realRole === "head" && (
+            )}
+            {settingsMenu === "advanced" && realRole === "head" && (
               <div className="pt-6 border-t border-slate-200/50">
                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
                   Testing

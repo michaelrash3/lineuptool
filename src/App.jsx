@@ -20,10 +20,6 @@ import {
   getDoc,
   onSnapshot,
   deleteDoc,
-  collection,
-  query,
-  where,
-  getDocs,
 } from "firebase/firestore";
 import { Icons } from "./icons";
 import { auth, db, appId } from "./firebase";
@@ -79,6 +75,8 @@ import {
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
+import { useTeamMembership } from "./hooks/useTeamMembership";
+import { useInviteFlows } from "./hooks/useInviteFlows";
 import {
   getLocalDateString,
   bumpAgeTier,
@@ -2753,282 +2751,21 @@ const TeamProvider = ({ children }) => {
     [teamData.tryoutSignups, teamData.players, updateTeam, toast]
   );
 
-  // Promote / demote a non-owner team member. Owner is implicitly head and
-  // cannot be demoted from here.
-  const setCoachRole = useCallback(
-    (uid, role) => {
-      if (!uid || uid === teamData.ownerId) return;
-      if (role !== "head" && role !== "assistant") return;
-      const next = { ...(teamData.coachRoles || {}), [uid]: role };
-      updateTeam({ coachRoles: next });
-    },
-    [teamData.coachRoles, teamData.ownerId, updateTeam]
-  );
-
-  // Generate a one-time invite token. Head coach copies the resulting URL and
-  // shares it with the invitee. Token survives reloads because it lives on
-  // the team document.
-  const createInviteToken = useCallback(
-    (role) => {
-      if (!user) return null;
-      if (role !== "head" && role !== "assistant") role = "assistant";
-      const token =
-        Math.random().toString(36).substring(2, 10) +
-        Math.random().toString(36).substring(2, 10);
-      const entry = {
-        token,
-        role,
-        createdAt: new Date().toISOString(),
-        createdBy: user.uid,
-      };
-      const next = [...(teamData.invites || []), entry];
-      updateTeam({ invites: next });
-      return token;
-    },
-    [user, teamData.invites, updateTeam]
-  );
-
-  // Drop an invite (used or unused) from the team's invite list.
-  const revokeInviteToken = useCallback(
-    (token) => {
-      const next = (teamData.invites || []).filter((i) => i.token !== token);
-      updateTeam({ invites: next });
-    },
-    [teamData.invites, updateTeam]
-  );
-
-  // Consume an invite token: find the team that issued it, add the current
-  // user to its members + coachRoles, mark the invite used, switch the
-  // active team to it. Mirrors the legacy joinTeam flow but gated on the
-  // token + carries the encoded role.
-  // ── Team join code (simpler invite path) ─────────────────────────
-  // The team has ONE persistent code (6 uppercase chars). Anyone with
-  // the code joins as assistant; HC can promote later via Coach Roles.
-  // Generated on demand; if missing, the Settings panel surfaces a
-  // "Generate Join Code" button instead of the code.
-  const regenerateJoinCode = useCallback(() => {
-    // Skip ambiguous chars (0/O, 1/I). 6 chars from a 30-char alphabet
-    // = 729M combinations — plenty for a per-team code.
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < 6; i++) {
-      code += alphabet[Math.floor(Math.random() * alphabet.length)];
-    }
-    updateTeam({ joinCode: code });
-    return code;
-  }, [updateTeam]);
-
-  // Join a team by code. Queries the teams collection by joinCode —
-  // when the rule is permissive enough (see firestore.rules), this
-  // surfaces a single team. Adds the caller to members + coachRoles
-  // as an assistant. Existing members get a switch-to instead.
-  const joinTeamByCode = useCallback(
-    async (rawCode) => {
-      if (!user || !rawCode) return false;
-      const code = String(rawCode).trim().toUpperCase();
-      const codeRe = /^[A-HJ-NP-Z2-9]{6}$/;
-      if (!codeRe.test(code)) {
-        toast.push({
-          kind: "error",
-          title: "Invalid code",
-          message: "Team codes are 6 characters using A-Z and 2-9.",
-        });
-        return false;
-      }
-      try {
-        // First scan teams the user already belongs to so the
-        // happy-path doesn't even need cross-team query permission.
-        for (const t of teams) {
-          const snap = await getDoc(
-            doc(db, "artifacts", appId, "public", "data", "teams", t.id)
-          );
-          if (snap.exists() && (snap.data().joinCode || "") === code) {
-            switchTeam(t.id);
-            toast.push({
-              kind: "success",
-              title: `Already a member of ${snap.data().name || "this team"}`,
-            });
-            return true;
-          }
-        }
-        // Cross-team lookup — needs Firestore rules permitting reads
-        // by joinCode (see firestore.rules proposal).
-        const q = query(
-          collection(db, "artifacts", appId, "public", "data", "teams"),
-          where("joinCode", "==", code)
-        );
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          toast.push({ kind: "error", title: "Code not recognized" });
-          return false;
-        }
-        const teamDoc = snap.docs[0];
-        const data = teamDoc.data();
-        const members = Array.isArray(data.members) ? data.members : [];
-        const nextMembers = members.includes(user.uid)
-          ? members
-          : [...members, user.uid];
-        const nextCoachRoles = {
-          ...(data.coachRoles || {}),
-          // Don't downgrade an existing head; otherwise default to assistant.
-          [user.uid]:
-            data.coachRoles?.[user.uid] === "head" ? "head" : "assistant",
-        };
-        await setDoc(
-          doc(
-            db,
-            "artifacts",
-            appId,
-            "public",
-            "data",
-            "teams",
-            teamDoc.id
-          ),
-          { members: nextMembers, coachRoles: nextCoachRoles },
-          { merge: true }
-        );
-        switchTeam(teamDoc.id);
-        toast.push({
-          kind: "success",
-          title: `Joined ${data.name || "team"}`,
-          message: "You're set as an assistant coach. The head can promote you from Settings.",
-        });
-        return true;
-      } catch (err) {
-        toast.push({
-          kind: "error",
-          title: "Couldn't join",
-          message:
-            "Your account may not have read access to this team. Ask the head coach to confirm the code or share an invite link.",
-        });
-        return false;
-      }
-    },
-    [user, teams, toast, switchTeam]
-  );
-
-  const redeemInviteToken = useCallback(
-    async (token) => {
-      if (!user || !token) return false;
-      // Search every team this user already belongs to first (covers the
-      // case where they're already a member but want to re-trigger).
-      // Otherwise we need to locate the team via the invite — since the
-      // token is per-team, callers should pass the team id alongside; here
-      // we scan known teams. For a fresh invitee who isn't a member yet,
-      // the URL needs to embed the team id as well, so we accept either
-      // "teamId.token" or a plain token (scanned against known teams).
-      let teamId = null;
-      let plainToken = token;
-      if (token.includes(".")) {
-        const [tId, t] = token.split(".");
-        teamId = tId;
-        plainToken = t;
-      }
-      try {
-        if (!teamId) {
-          // Plain-token path: scan the user's known teams (no read access
-          // to other teams here without an explicit id, so plain tokens
-          // only work if you're already a member).
-          for (const t of teams) {
-            const snap = await getDoc(
-              doc(db, "artifacts", appId, "public", "data", "teams", t.id)
-            );
-            if (!snap.exists()) continue;
-            const data = snap.data();
-            if ((data.invites || []).some((i) => i.token === plainToken)) {
-              teamId = t.id;
-              break;
-            }
-          }
-        }
-        if (!teamId) {
-          toast.push({ kind: "error", title: "Invite not recognized" });
-          return false;
-        }
-        const teamRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "public",
-          "data",
-          "teams",
-          teamId
-        );
-        const snap = await getDoc(teamRef);
-        if (!snap.exists()) {
-          toast.push({ kind: "error", title: "Team not found" });
-          return false;
-        }
-        const data = snap.data();
-        const invites = Array.isArray(data.invites) ? data.invites : [];
-        const invite = invites.find((i) => i.token === plainToken);
-        if (!invite) {
-          toast.push({ kind: "error", title: "Invite not recognized" });
-          return false;
-        }
-        if (invite.usedBy) {
-          toast.push({ kind: "error", title: "Invite already used" });
-          return false;
-        }
-        const members = Array.isArray(data.members) ? data.members : [];
-        const nextMembers = members.includes(user.uid)
-          ? members
-          : [...members, user.uid];
-        const nextCoachRoles = {
-          ...(data.coachRoles || {}),
-          [user.uid]: invite.role,
-        };
-        const nextInvites = invites.map((i) =>
-          i.token === plainToken
-            ? { ...i, usedBy: user.uid, usedAt: new Date().toISOString() }
-            : i
-        );
-        await setDoc(
-          teamRef,
-          {
-            members: nextMembers,
-            coachRoles: nextCoachRoles,
-            invites: nextInvites,
-          },
-          { merge: true }
-        );
-        const userRef = doc(
-          db,
-          "artifacts",
-          appId,
-          "users",
-          user.uid,
-          "settings",
-          "teams"
-        );
-        const newEntry = { id: teamId, name: data.name || "Joined Team" };
-        const exists = teams.some((t) => t.id === teamId);
-        const nextTeams = exists ? teams : [...teams, newEntry];
-        await setDoc(
-          userRef,
-          { teams: nextTeams, activeTeamId: teamId },
-          { merge: true }
-        );
-        toast.push({
-          kind: "success",
-          title: "Joined team",
-          message:
-            invite.role === "head"
-              ? "You're a head coach on this team."
-              : "You're an assistant coach on this team.",
-        });
-        return true;
-      } catch (e) {
-        toast.push({
-          kind: "error",
-          title: "Could not redeem invite",
-          message: e.message,
-        });
-        return false;
-      }
-    },
-    [user, teams, toast]
-  );
+  const { setCoachRole } = useTeamMembership({ teamData, updateTeam, user });
+  const {
+    createInviteToken,
+    revokeInviteToken,
+    regenerateJoinCode,
+    joinTeamByCode,
+    redeemInviteToken,
+  } = useInviteFlows({
+    user,
+    teams,
+    teamData,
+    updateTeam,
+    switchTeam,
+    toast,
+  });
 
   // Session-only role override for the head coach to preview the assistant
   // view. Stored in sessionStorage so refreshes keep the preview but it
@@ -3278,7 +3015,11 @@ const TeamProvider = ({ children }) => {
       sessionStorage.setItem("pendingInvite", invite);
       stripParams();
       redeemInviteToken(invite).then((ok) => {
-        if (ok) sessionStorage.removeItem("pendingInvite");
+        if (ok) {
+          sessionStorage.removeItem("pendingInvite");
+        } else {
+          sessionStorage.removeItem("pendingInvite");
+        }
       });
       return;
     }
