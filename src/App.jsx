@@ -11,9 +11,6 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
 } from "firebase/auth";
 import {
   doc,
@@ -3917,7 +3914,6 @@ const pathToTab = (pathname) => {
 };
 
 const MainShell = () => {
-  const EMAIL_LINK_STORAGE_KEY = "lineup_email_link_signin";
   const {
     team,
     user,
@@ -3955,29 +3951,6 @@ const MainShell = () => {
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [emailSignInStatus, setEmailSignInStatus] = useState("");
-
-  useEffect(() => {
-    if (!isSignInWithEmailLink(auth, window.location.href)) return;
-    const finishEmailSignIn = async () => {
-      const savedEmail =
-        window.localStorage.getItem(EMAIL_LINK_STORAGE_KEY) || "";
-      if (!savedEmail) {
-        setEmailSignInStatus(
-          "Open this sign-in link on the same device where it was requested."
-        );
-        return;
-      }
-      try {
-        await signInWithEmailLink(auth, savedEmail, window.location.href);
-        window.localStorage.removeItem(EMAIL_LINK_STORAGE_KEY);
-        setEmailSignInStatus("Signed in with your email link.");
-      } catch (e) {
-        setEmailSignInStatus(e.message || "Email sign-in failed.");
-      }
-    };
-    finishEmailSignIn();
-  }, [EMAIL_LINK_STORAGE_KEY]);
 
   useEffect(() => {
     if (authReady && user && !onboardingHasBeenCompleted()) {
@@ -4155,20 +4128,6 @@ const MainShell = () => {
             setGenError(e.message);
           }
         }}
-        onEmailSignIn={async (email) => {
-          try {
-            const actionCodeSettings = {
-              url: window.location.href.split("?")[0],
-              handleCodeInApp: true,
-            };
-            await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-            window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, email);
-            setEmailSignInStatus(`Email link sent to ${email}.`);
-          } catch (e) {
-            setEmailSignInStatus(e.message || "Could not send email link.");
-          }
-        }}
-        emailSignInStatus={emailSignInStatus}
       />
     );
   }

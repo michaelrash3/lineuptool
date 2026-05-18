@@ -3,20 +3,11 @@ import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts.js";
 import { RecordBadge } from "./shared.jsx";
 
-export const LoginScreen = ({
-  logoUrl,
-  primaryColor,
-  tertiaryColor,
-  onSignIn,
-  onEmailSignIn,
-  emailSignInStatus,
-}) => {
-  const [email, setEmail] = React.useState("");
-  return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center p-6 border-t-8 bg-slate-50 relative"
-      style={{ borderColor: primaryColor }}
-    >
+export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn }) => (
+  <div
+    className="min-h-screen flex flex-col items-center justify-center p-6 border-t-8 bg-slate-50 relative"
+    style={{ borderColor: primaryColor }}
+  >
     {logoUrl && (
       <div
         className="fixed inset-0 z-0 pointer-events-none"
@@ -51,43 +42,9 @@ export const LoginScreen = ({
       >
         <Icons.Users className="w-5 h-5" /> Sign In with Google
       </button>
-      <div className="mt-5">
-        <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
-          Or sign in with email
-        </p>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!email.trim()) return;
-            await onEmailSignIn?.(email.trim());
-          }}
-          className="flex gap-2"
-        >
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="coach@email.com"
-            className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold"
-            required
-          />
-          <button
-            type="submit"
-            className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wider border border-slate-900 text-slate-900"
-          >
-            Send Link
-          </button>
-        </form>
-        {emailSignInStatus ? (
-          <p className="mt-2 text-xs text-slate-600 font-semibold">
-            {emailSignInStatus}
-          </p>
-        ) : null}
-      </div>
     </div>
-    </div>
-  );
-};
+  </div>
+);
 
 export const AppHeader = memo(() => {
   const {
