@@ -1,0 +1,79 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .wrap { padding: 16px 22px; display:grid; gap: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .label { font: 900 9px/1 var(--font-sans); letter-spacing: 0.14em; text-transform: uppercase; color: #64748b; width: 84px; flex-shrink: 0; }
+
+  /* Status chips — gradient with pulsing dot */
+  .chip { font: 900 10px/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 11px 6px 9px; border-radius: 8px; display: inline-flex; align-items: center; gap: 7px; box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 1px 2px rgba(15,23,42,0.06); border: 1px solid; }
+  .chip .dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; box-shadow: 0 0 0 3px currentColor; opacity: 0.95; }
+  .chip .dot.pulse { animation: pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; } 50% { box-shadow: 0 0 0 4px transparent; opacity: 0.6; } }
+
+  .c-live   { background: linear-gradient(180deg,#fff,#fee2e2); color: #b91c1c; border-color: #fca5a5; }
+  .c-today  { background: linear-gradient(180deg,#fff,#dbeafe); color: #1d4ed8; border-color: #93c5fd; }
+  .c-ready  { background: linear-gradient(180deg,#fff,#d1fae5); color: #047857; border-color: #6ee7b7; }
+  .c-needed { background: linear-gradient(180deg,#fff,#fef3c7); color: #a16207; border-color: #fcd34d; }
+  .c-out    { background: linear-gradient(180deg,#fff,#fce7f3); color: #be185d; border-color: #f9a8d4; }
+
+  /* Result chips */
+  .pill { font: 900 11px/1 var(--font-sans); letter-spacing: 0.04em; padding: 7px 12px; border-radius: 9999px; display:inline-flex; align-items:center; gap: 6px; font-variant-numeric: tabular-nums; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 2px 6px rgba(15,23,42,0.12); }
+  .pill .delta { font-size: 9px; letter-spacing: 0.06em; opacity: 0.85; }
+  .p-win  { background: linear-gradient(180deg,#10b981,#047857); color:#fff; }
+  .p-loss { background: linear-gradient(180deg,#f43f5e,#be123c); color:#fff; }
+  .p-tie  { background: linear-gradient(180deg,#fbbf24,#d97706); color:#78350f; }
+
+  /* Hero stat pills */
+  .stat-pill { font: 900 12px/1 var(--font-sans); padding: 8px 14px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+  .sp-pri { background: linear-gradient(180deg,#3b82f6,#1d4ed8); color:#fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 12px rgba(37,99,235,0.35); }
+  .sp-pri b { font-size: 14px; letter-spacing: -0.02em; }
+  .sp-pri small { font: 800 9px/1 var(--font-sans); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.8; }
+  .sp-dark { background: linear-gradient(180deg,#1e293b,#0f172a); color:#fff; box-shadow: 0 4px 12px rgba(15,23,42,0.3); }
+  .sp-dark b { font-size: 14px; }
+  .sp-dark small { font: 800 9px/1 var(--font-sans); letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; }
+  .sp-gold { background: linear-gradient(180deg,#fde68a,#f59e0b); color:#78350f; box-shadow: 0 1px 0 rgba(255,255,255,0.45) inset, 0 3px 10px rgba(245,158,11,0.4); }
+  .sp-fire { background: linear-gradient(180deg,#fb923c,#dc2626); color:#fff; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 12px rgba(220,38,38,0.4); }
+
+  /* Meta chips */
+  .meta { font: 800 10px/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: #334155; background: linear-gradient(180deg,#fff,#f1f5f9); border: 1px solid #e2e8f0; padding: 6px 10px; border-radius: 8px; }
+  .meta.accent { color: #1d4ed8; background: linear-gradient(180deg,#eff6ff,#dbeafe); border-color: #bfdbfe; }
+</style></head>
+<body><div class="card-stage">
+  <div class="wrap">
+
+    <div class="row">
+      <span class="label">Status</span>
+      <span class="chip c-live"><span class="dot pulse"></span>Live · T 4</span>
+      <span class="chip c-today"><span class="dot"></span>Today</span>
+      <span class="chip c-ready"><span class="dot"></span>Lineup Ready</span>
+      <span class="chip c-needed"><span class="dot pulse"></span>Lineup Needed</span>
+      <span class="chip c-out"><span class="dot"></span>Out</span>
+    </div>
+
+    <div class="row">
+      <span class="label">Result</span>
+      <span class="pill p-win">W <b>9–6</b><span class="delta">+3 RD</span></span>
+      <span class="pill p-loss">L <b>4–9</b><span class="delta">−5 RD</span></span>
+      <span class="pill p-tie">T <b>4–4</b><span class="delta">±0</span></span>
+    </div>
+
+    <div class="row">
+      <span class="label">Stats</span>
+      <span class="stat-pill sp-pri"><small>AVG</small><b>.412</b></span>
+      <span class="stat-pill sp-dark"><small>OPS</small><b>1.124</b></span>
+      <span class="stat-pill sp-fire">🔥 Hot Streak · 4 G</span>
+      <span class="stat-pill sp-gold">⭐ Big Game</span>
+    </div>
+
+    <div class="row">
+      <span class="label">Meta</span>
+      <span class="meta">Spring 2026</span>
+      <span class="meta">10U</span>
+      <span class="meta">USSSA</span>
+      <span class="meta">Kid Pitch</span>
+      <span class="meta accent">SS · Rodriguez</span>
+    </div>
+
+  </div>
+</div></body></html>

@@ -1,0 +1,169 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .wrap { padding: 18px 22px; display: grid; gap: 14px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row.full { grid-template-columns: 1fr; }
+
+  .state {
+    position: relative;
+    border-radius: 14px;
+    border: 1px dashed rgba(15,23,42,0.18);
+    background: rgba(255,255,255,0.6);
+    padding: 18px;
+    display: grid; gap: 10px; align-content: start;
+    overflow: hidden;
+  }
+  .state .glyph {
+    position: absolute; right: -12px; bottom: -16px;
+    font-size: 96px; line-height: 1;
+    opacity: 0.10; filter: grayscale(0.3);
+    pointer-events: none;
+  }
+  .state .eyebrow {
+    font: 900 9px/1 var(--font-sans); letter-spacing: 0.18em; text-transform: uppercase;
+    color: #94a3b8; position: relative; z-index: 1;
+  }
+  .state h4 {
+    margin: 0; position: relative; z-index: 1;
+    font: 900 18px/1.1 var(--font-sans); letter-spacing: -0.02em; text-transform: uppercase;
+    color: #0f172a;
+  }
+  .state p {
+    margin: 0; position: relative; z-index: 1;
+    font: 600 12px/1.5 var(--font-sans); color: #475569;
+    max-width: 380px;
+  }
+  .state .ctas {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px;
+    position: relative; z-index: 1;
+  }
+  .state .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 13px;
+    border-radius: 10px;
+    font: 900 10px/1 var(--font-sans); letter-spacing: 0.12em; text-transform: uppercase;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .state .btn.primary {
+    background: var(--team-primary, #2563eb);
+    color: var(--team-tertiary, #fff);
+    box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--team-primary, #2563eb) 55%, transparent);
+  }
+  .state .btn.ghost { background: #fff; color: #0f172a; border-color: #cbd5e1; }
+  .state .btn svg { width: 12px; height: 12px; }
+
+  .tag {
+    position: absolute;
+    top: 12px; right: 12px;
+    z-index: 2;
+    font: 800 9px/1 var(--font-mono); letter-spacing: 0.06em;
+    color: #64748b;
+    background: #fff; border: 1px solid #e2e8f0;
+    padding: 4px 7px; border-radius: 6px;
+  }
+
+  .compact {
+    border-radius: 10px;
+    border: 1px dashed rgba(15,23,42,0.15);
+    background: rgba(255,255,255,0.55);
+    padding: 22px 16px;
+    text-align: center;
+    display: grid; gap: 6px; place-items: center;
+  }
+  .compact .glyph-c { font-size: 28px; line-height: 1; opacity: 0.55; }
+  .compact h5 {
+    margin: 0;
+    font: 900 11px/1 var(--font-sans); letter-spacing: 0.22em; text-transform: uppercase;
+    color: #64748b;
+  }
+  .compact p { margin: 0; font: 700 11px/1.4 var(--font-sans); color: #94a3b8; }
+</style></head>
+<body><div class="card-stage">
+  <div class="wrap">
+
+    <!-- FULL: NO ROSTER FOUND -->
+    <div class="row full">
+      <div class="state" style="padding: 26px 28px;">
+        <span class="tag">page</span>
+        <span class="glyph">🧢</span>
+        <div class="eyebrow">Roster</div>
+        <h4>No Roster Found</h4>
+        <p>Manually add players to build your team, or head to Settings to import your stats file from GameChanger.</p>
+        <div class="ctas">
+          <button class="btn primary">＋ Add Player</button>
+          <button class="btn ghost">Import CSV</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HALF: SCHEDULE EMPTY  |  HALF: NO GAMES TODAY -->
+    <div class="row">
+      <div class="state">
+        <span class="tag">page</span>
+        <span class="glyph">📅</span>
+        <div class="eyebrow">Schedule</div>
+        <h4>No Games Scheduled</h4>
+        <p>Add your first game to start planning lineups and tracking results.</p>
+        <div class="ctas">
+          <button class="btn primary">＋ Add Game</button>
+        </div>
+      </div>
+      <div class="state">
+        <span class="tag">section</span>
+        <span class="glyph">⚾</span>
+        <div class="eyebrow">Home dashboard</div>
+        <h4>No Games This Week</h4>
+        <p>Your next scheduled game is more than 7 days out. Take a breath.</p>
+        <div class="ctas">
+          <button class="btn ghost">View Schedule →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HALF: EVALUATIONS NOT STARTED  |  HALF: NO BIG GAMES -->
+    <div class="row">
+      <div class="state">
+        <span class="tag">page</span>
+        <span class="glyph">📋</span>
+        <div class="eyebrow">Evaluation</div>
+        <h4>No Evaluations Yet</h4>
+        <p>Score each player across 6 axes so the lineup engine can do its job.</p>
+        <div class="ctas">
+          <button class="btn primary">Start Evaluation</button>
+        </div>
+      </div>
+      <div class="state">
+        <span class="tag">filter</span>
+        <span class="glyph">⭐</span>
+        <div class="eyebrow">Big Game filter</div>
+        <h4>No Big Games Flagged</h4>
+        <p>Mark rivalry or playoff games as Big Games to surface extra prep CTAs.</p>
+        <div class="ctas">
+          <button class="btn ghost">Clear Filter</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPACT: DATA VOID  |  PERMISSIONS  |  ERROR -->
+    <div class="row" style="grid-template-columns: 1fr 1fr 1fr;">
+      <div class="compact">
+        <span class="glyph-c">📊</span>
+        <h5>Data Void</h5>
+        <p>No stats logged yet</p>
+      </div>
+      <div class="compact" style="border-style:solid;border-color:#fde68a;background:#fffbeb;">
+        <span class="glyph-c">🔒</span>
+        <h5 style="color:#92400e;">View Only</h5>
+        <p style="color:#b45309;">Assistant coaches can't edit</p>
+      </div>
+      <div class="compact" style="border-style:solid;border-color:#fecaca;background:#fef2f2;">
+        <span class="glyph-c">⚠️</span>
+        <h5 style="color:#991b1b;">Could Not Load</h5>
+        <p style="color:#dc2626;">Tap to retry</p>
+      </div>
+    </div>
+
+  </div>
+</div></body></html>

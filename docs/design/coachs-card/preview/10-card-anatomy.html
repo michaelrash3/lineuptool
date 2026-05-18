@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="_card.css">
+<style>
+  .stack { padding: 20px 24px; display:flex; flex-direction:column; gap: 14px; }
+  .card-row { display:flex; gap: 14px; }
+  .demo {
+    flex:1;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.35);
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow: 0 4px 20px rgb(0 0 0 / 0.04);
+    overflow: hidden;
+  }
+  .strip { height: 6px; background:#2563eb; }
+  .demo-body { padding: 16px; }
+  .demo h4 { font: 900 14px/1 var(--font-sans); letter-spacing: -0.025em; text-transform: uppercase; color:#0f172a; margin: 0 0 6px;}
+  .demo p { font: 700 11px/1.4 var(--font-sans); color:#64748b; margin:0; letter-spacing:0.05em; text-transform:uppercase;}
+  .anatomy { display:flex; flex-wrap:wrap; gap:6px; padding: 8px 24px 20px; }
+</style></head>
+<body><div class="card-stage">
+  <div class="stack">
+    <div class="card-row">
+      <div class="demo">
+        <div class="strip"></div>
+        <div class="demo-body">
+          <h4>VS. Raptors</h4>
+          <p>Sat · Apr 13 · USSSA</p>
+        </div>
+      </div>
+      <div class="demo" style="background:rgba(255,255,255,0.6);">
+        <div class="demo-body">
+          <h4>Roster Size</h4>
+          <p style="font:900 28px/1 var(--font-sans);color:#0f172a;letter-spacing:0;text-transform:none">12</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="anatomy">
+    <span class="tag">bg-white/30</span>
+    <span class="tag">border-white/50</span>
+    <span class="tag">shadow 0 4 20 black/4</span>
+    <span class="tag">radius 16</span>
+    <span class="tag" style="background:#2563eb;color:#fff;border-color:#2563eb">accent-strip 6px</span>
+  </div>
+</div></body></html>

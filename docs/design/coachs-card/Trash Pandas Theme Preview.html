@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Trash Pandas — Themed Preview</title>
+<link rel="stylesheet" href="colors_and_type.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    /* —— Trash Pandas team triplet —— */
+    --tp-columbia: #9BCBEB;
+    --tp-scarlet:  #BA0C2F;
+    --tp-navy:     #14213D;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: var(--font-sans);
+    color: var(--tp-navy);
+    background:
+      radial-gradient(ellipse 900px 500px at 0% 0%, rgba(155,203,235,0.55), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(186,12,47,0.10), transparent 60%),
+      #EAF4FB;
+    position: relative;
+    min-height: 100vh;
+  }
+  body::after {
+    content: "";
+    position: fixed; top: 50%; left: 50%;
+    width: min(88vmin, 1500px); height: min(88vmin, 1500px);
+    transform: translate(-50%, -50%);
+    background: url("assets/team-logos/trash-pandas.png") center/contain no-repeat;
+    opacity: 0.10; pointer-events: none; z-index: 0;
+  }
+  .hero, .triplet, .sect-head, .grid, footer { position: relative; z-index: 1; }
+
+  /* ── Hero ────────────────────────────────────────────────────────── */
+  .hero {
+    max-width: 1440px; margin: 0 auto;
+    padding: 36px 36px 24px;
+    display: grid; grid-template-columns: 1fr auto; gap: 32px; align-items: end;
+  }
+  .hero-title .eyebrow {
+    font: 800 11px/1 var(--font-sans);
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--fg-4);
+    margin-bottom: 12px;
+  }
+  .hero-title h1 {
+    margin: 0 0 6px;
+    font: 900 56px/0.92 var(--font-sans);
+    letter-spacing: -0.025em;
+    color: var(--tp-navy);
+    text-transform: uppercase;
+  }
+  .hero-title .sub {
+    font: 700 14px/1.45 var(--font-sans);
+    color: var(--fg-3);
+    max-width: 560px;
+  }
+  .hero-logo {
+    width: 168px; height: 168px;
+    display: grid; place-items: center;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+  }
+  .hero-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+  /* ── Color triplet bar ───────────────────────────────────────────── */
+  .triplet {
+    max-width: 1440px; margin: 0 auto;
+    padding: 0 36px 28px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .triplet .sw {
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--slate-200);
+    background: #fff;
+    display: grid; grid-template-rows: 80px auto;
+  }
+  .triplet .sw .chip {
+    border-bottom: 1px solid rgba(15,23,42,0.06);
+  }
+  .triplet .sw .meta { padding: 12px 14px; }
+  .triplet .role {
+    font: 900 10px/1 var(--font-sans);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--fg-4);
+  }
+  .triplet .name {
+    margin-top: 6px;
+    font: 900 16px/1 var(--font-sans);
+    letter-spacing: -0.01em;
+    color: var(--fg-1);
+  }
+  .triplet .hex {
+    margin-top: 6px;
+    font: 700 12px/1 var(--font-mono);
+    color: var(--fg-3);
+  }
+
+  /* ── Section header ──────────────────────────────────────────────── */
+  .sect-head {
+    max-width: 1440px; margin: 0 auto;
+    padding: 8px 36px 18px;
+  }
+  .sect-head .eyebrow {
+    font: 800 10px/1 var(--font-sans);
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--tp-scarlet);
+  }
+  .sect-head h2 {
+    margin: 8px 0 6px;
+    font: 900 28px/1 var(--font-sans);
+    letter-spacing: -0.02em;
+    color: var(--tp-navy);
+    text-transform: uppercase;
+  }
+  .sect-head p {
+    margin: 0;
+    font: 500 13px/1.5 var(--font-sans);
+    color: var(--fg-3);
+    max-width: 720px;
+  }
+  .note {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #fff7ed; border: 1px solid #fed7aa;
+    border-radius: 10px;
+    font: 700 12px/1.45 var(--font-sans);
+    color: #9a3412;
+  }
+
+  /* ── Grid ────────────────────────────────────────────────────────── */
+  .grid {
+    max-width: 1440px; margin: 0 auto;
+    padding: 4px 36px 60px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px;
+  }
+  .tile {
+    background: rgba(255,255,255,0.32);
+    backdrop-filter: blur(4px) saturate(120%);
+    -webkit-backdrop-filter: blur(4px) saturate(120%);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.5);
+    overflow: hidden;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.5) inset,
+      0 8px 24px -16px rgba(20,33,61,0.18);
+    position: relative;
+  }
+  .tile::before {
+    content: "";
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--tp-columbia) 0%, var(--tp-columbia) 70%, var(--tp-scarlet) 70%, var(--tp-scarlet) 85%, var(--tp-navy) 85%);
+    z-index: 5;
+  }
+  .tile .label {
+    padding: 14px 16px;
+    font: 900 11px/1 var(--font-sans);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--tp-navy);
+    border-bottom: 1px solid rgba(155,203,235,0.35);
+    background: linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.22));
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tile .label .num {
+    font: 700 10px/1 var(--font-mono);
+    color: var(--fg-4);
+    letter-spacing: 0;
+  }
+  .tile iframe {
+    width: 100%; border: 0; display: block;
+    background: transparent;
+  }
+  /* Full-width tiles for big cards */
+  .tile.wide { grid-column: 1 / -1; }
+
+  footer {
+    max-width: 1440px; margin: 0 auto;
+    padding: 20px 36px 60px;
+    font: 700 12px/1.5 var(--font-sans);
+    color: var(--fg-4);
+    border-top: 1px solid var(--slate-200);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-title">
+    <div class="eyebrow">Themed System Preview</div>
+    <h1>Trash Pandas</h1>
+    <div class="sub">
+      The Coach's Card design system rendered with the Trash Pandas color triplet
+      and team mark. Nothing in the underlying preview files was changed — the theme
+      is injected at runtime by overriding the three <code>--team-*</code> CSS variables.
+    </div>
+  </div>
+  <div class="hero-logo">
+    <img src="assets/team-logos/trash-pandas.png" alt="Trash Pandas mark" />
+  </div>
+</div>
+
+<div class="triplet">
+  <div class="sw">
+    <div class="chip" style="background:#9BCBEB"></div>
+    <div class="meta">
+      <div class="role">Primary · --team-primary</div>
+      <div class="name">Columbia Blue</div>
+      <div class="hex">#9BCBEB</div>
+    </div>
+  </div>
+  <div class="sw">
+    <div class="chip" style="background:#BA0C2F"></div>
+    <div class="meta">
+      <div class="role">Secondary · --team-secondary</div>
+      <div class="name">Scarlet Red</div>
+      <div class="hex">#BA0C2F</div>
+    </div>
+  </div>
+  <div class="sw">
+    <div class="chip" style="background:#14213D"></div>
+    <div class="meta">
+      <div class="role">Tertiary · --team-tertiary</div>
+      <div class="name">Navy Blue</div>
+      <div class="hex">#14213D</div>
+    </div>
+  </div>
+</div>
+
+<div class="sect-head">
+  <div class="eyebrow">01 — Foundations</div>
+  <h2>How the team triplet flows through tokens</h2>
+  <p>
+    Every preview below is the exact same HTML you've been reviewing. The themer injects
+    a <code>&lt;style&gt;</code> block into each frame on load that sets the team variables
+    and adjusts foregrounds so Columbia Blue (a light value) still meets contrast when used
+    as a button surface — navy text on Columbia, white text on Scarlet/Navy.
+  </p>
+  <span class="note">⚠ Heads-up: Columbia Blue as the dominant CTA color means buttons read with navy text instead of white. If that feels too quiet, we can swap the primary/tertiary roles (Navy primary, Columbia secondary) — try both and pick.</span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<footer>
+  Coach's Card Design System · Trash Pandas theme · Generated from <code>preview/*.html</code> + runtime variable override
+</footer>
+
+<script>
+  /* —— Theme override that gets injected into each iframe ——————————————
+     Aggressive: surfaces, type, accents, semantic info-lane, dividers,
+     focus rings — all biased to the team triplet. Slate stays as the
+     neutral scaffold but everything that can carry brand, does. */
+  /* —— Balanced theming —————————————————————————————————————————————
+     Goal: a coach uploads his colors and the app feels custom-made,
+     not painted. Neutral slate scaffolding stays. Team colors carry
+     the moments that matter:
+       • Primary  → accent strips, primary CTAs, active states, lead
+                    highlights, brand-mark surfaces.
+       • Secondary→ energy moments — confirm-destructive, hot streaks,
+                    "losses" digit, lead-stat indicators.
+       • Tertiary → headings, dark utility bands, deep text on white.
+     Everything else stays neutral so the brand colors actually pop. */
+  const TEAM_THEME_UNUSED = `
+    /* —— Aggressive theming — every surface touched by team color —— */
+    :root {
+      /* Core triplet */
+      --team-primary:   #9BCBEB;   /* Columbia */
+      --team-secondary: #BA0C2F;   /* Scarlet  */
+      --team-tertiary:  #14213D;   /* Navy     */
+
+      /* Derived team tints — replace neutral slate where the system
+         used it for chrome, dividers, surfaces, and headings. */
+      --slate-50:  #F2F8FC;   /* page bg → very faint Columbia */
+      --slate-100: #E4F0F8;
+      --slate-200: #C9DEEC;   /* dividers → soft columbia */
+      --slate-300: #9BCBEB;
+      --slate-400: #6FA8C8;
+      --slate-500: #3F5F80;
+      --slate-600: #2A4159;
+      --slate-700: #1E3252;
+      --slate-800: #14213D;   /* dark text → navy */
+      --slate-900: #0C1730;
+
+      /* Foregrounds re-bias to navy */
+      --fg-1: #14213D;
+      --fg-2: #1E3252;
+      --fg-3: #3F5F80;
+      --fg-4: #6FA8C8;
+
+      /* Hairlines / surfaces */
+      --hairline:        rgba(20,33,61,0.10);
+      --surface-glass-3: rgba(255,255,255,0.55);
+
+      /* Semantic info lane → Columbia, danger lane → Scarlet */
+      --info:        #14213D;
+      --info-bg:     #E4F0F8;
+      --info-border: #9BCBEB;
+      --danger:        #BA0C2F;
+      --danger-bg:     #FDECEF;
+      --danger-border: #F4B6C2;
+    }
+
+    /* Body bg → columbia gradient wash + scarlet accent */
+    body, .card-stage {
+      background:
+        radial-gradient(ellipse 600px 300px at 0% 0%, rgba(155,203,235,0.55), transparent 60%),
+        radial-gradient(ellipse 400px 300px at 100% 100%, rgba(186,12,47,0.06), transparent 60%),
+        #EAF4FB !important;
+    }
+
+    /* Every white card surface — tint with faintest columbia + columbia border */
+    .card, .glass-card, .item, .info-strip, .modal, .toast,
+    .tile, .panel, .row-card {
+      background: linear-gradient(180deg, #FBFDFF, #F2F8FC) !important;
+      border: 1px solid rgba(155,203,235,0.65) !important;
+      box-shadow:
+        0 1px 0 rgba(20,33,61,0.04),
+        0 8px 24px -16px rgba(20,33,61,0.18) !important;
+    }
+    /* Top accent strip on every card-like surface */
+    .glass-card, .card.glass, .swatch {
+      position: relative;
+    }
+
+    /* Headings → navy, body → navy-leaning */
+    h1, h2, h3, h4, h5, h6 { color: #14213D !important; }
+    p, span, div, td, th, li { color: #1E3252; }
+
+    /* Eyebrows → scarlet (system uses them sparingly, this gives spark) */
+    .eyebrow { color: #BA0C2F !important; }
+    .title-xs { color: #14213D !important; }
+
+    /* Tags / pill chrome → columbia-tinted */
+    .tag, .chip, .pill, .badge:not(.team .badge):not(.medal) {
+      background: #E4F0F8 !important;
+      color: #14213D !important;
+      border-color: #9BCBEB !important;
+    }
+    /* Status dots → scarlet for active/critical */
+    .dot, .status-dot { background: #BA0C2F !important; }
+
+    /* Every button gets touched by team color */
+    button, .btn, .b-primary, .b-secondary, .b-ghost {
+      color: #14213D !important;
+    }
+    .btn[class*="primary"], .b-primary, button[class*="primary"] {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+      border-color: transparent !important;
+      box-shadow: 0 4px 12px -2px rgba(155,203,235,0.65), inset 0 1px 0 rgba(255,255,255,0.5) !important;
+    }
+    .btn[class*="secondary"], .b-secondary {
+      background: #fff !important;
+      color: #14213D !important;
+      border: 1px solid #9BCBEB !important;
+    }
+    .btn[class*="danger"], .b-danger {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+      border-color: transparent !important;
+      box-shadow: 0 4px 12px -2px rgba(186,12,47,0.55) !important;
+    }
+    .btn[class*="ghost"], .b-ghost {
+      color: #14213D !important;
+      background: #E4F0F8 !important;
+      border: 1px solid #9BCBEB !important;
+    }
+
+    /* Accent strips → tri-color band so all three colors show */
+    .accent, .accent-strip {
+      background: linear-gradient(90deg,
+        #9BCBEB 0%,    #9BCBEB 70%,
+        #BA0C2F 70%,   #BA0C2F 85%,
+        #14213D 85%,   #14213D 100%) !important;
+    }
+
+    /* Stat numerals / mono numbers → navy with columbia plate */
+    .mono, .stat, .stat-num, .val, .number, .num { color: #14213D !important; }
+    .stat-card, .stat-block, .stat-tile {
+      background: linear-gradient(180deg, #FBFDFF, #E4F0F8) !important;
+      border: 1px solid #9BCBEB !important;
+      color: #14213D !important;
+    }
+
+    /* Form inputs → columbia border, navy text, scarlet focus accent */
+    input, select, textarea {
+      color: #14213D !important;
+      background: #FBFDFF !important;
+      border: 1px solid #9BCBEB !important;
+    }
+    input::placeholder, textarea::placeholder { color: #6FA8C8 !important; }
+    label { color: #14213D !important; }
+
+    /* Tab bar — dark band → navy, active pill → columbia, accent line → scarlet */
+    .util-band, .dark-band, .tab-strip-dark, .header-dark {
+      background: linear-gradient(180deg, #14213D, #0C1730) !important;
+      color: #9BCBEB !important;
+    }
+    [class*="tab"][class*="active"],
+    .tab.active, .tab-active, .nav-item.active {
+      color: #14213D !important;
+      background: #9BCBEB !important;
+      border-color: #9BCBEB !important;
+    }
+    .tab, .nav-item { color: #14213D; }
+    /* Header accent underline → scarlet */
+    .header-accent, .underline-accent { background: #BA0C2F !important; }
+
+    /* Roster row jersey number / position chips */
+    .jnum {
+      background: #14213D !important;
+      color: #9BCBEB !important;
+      border: 1px solid #14213D !important;
+    }
+    .item.lead {
+      background: linear-gradient(180deg, #E4F0F8, #fff) !important;
+      border-color: #9BCBEB !important;
+    }
+    .item.lead .name, .item.lead .val { color: #14213D !important; }
+
+    /* Leaderboard header halo → team logo on columbia plate */
+    .head .halo {
+      background: #9BCBEB !important;
+      box-shadow: 0 2px 6px rgba(155,203,235,0.55), inset 0 1px 0 rgba(255,255,255,0.4) !important;
+    }
+    .head .halo img { filter: brightness(0.12) !important; }
+    .head::after {
+      background: linear-gradient(90deg, #BA0C2F 0%, #9BCBEB 60%, transparent 100%) !important;
+    }
+    .medal.gold   { background: linear-gradient(180deg, #9BCBEB, #4A7FA0) !important; color: #14213D !important; }
+    .medal.silver { background: linear-gradient(180deg, #C9DEEC, #6FA8C8) !important; color: #14213D !important; }
+    .medal.bronze { background: linear-gradient(180deg, #BA0C2F, #7A0820) !important; color: #fff !important; }
+
+    /* Upcoming-game dark hero — re-bias the dark gradient to navy + scarlet */
+    .card {
+      /* Only the dark hero card has this shell rule */
+    }
+    .matchup .team.home .badge,
+    .matchup .team.away .badge {
+      position: relative;
+    }
+    .matchup .team.home .badge {
+      background: #fff !important;
+      color: transparent !important;
+      overflow: hidden;
+    }
+    .matchup .team.home .badge::before {
+      content: ""; position: absolute; inset: 4px;
+      background: url("../assets/team-logos/trash-pandas.png") center/contain no-repeat;
+      border-radius: 50%;
+    }
+    .matchup .team.away .badge {
+      background: linear-gradient(180deg, #BA0C2F, #7A0820) !important;
+      color: #fff !important;
+    }
+    .vs { color: #9BCBEB !important; text-shadow: 0 0 18px rgba(155,203,235,0.5) !important; }
+    .chip-today {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+      box-shadow: 0 2px 6px rgba(155,203,235,0.5) !important;
+    }
+    .b-go {
+      background: linear-gradient(180deg, #BA0C2F, #7A0820) !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, 0 6px 18px rgba(186,12,47,0.55) !important;
+      color: #fff !important;
+    }
+    .info-cell svg { color: #9BCBEB !important; }
+
+    /* Iconography & home-plate strokes → navy */
+    svg[stroke="currentColor"] { /* no-op, inherit from parent */ }
+    .iconography svg, .icon svg { color: #14213D !important; }
+
+    /* Modals — columbia headline strip + scarlet primary action */
+    .modal .modal-head, .modal-header {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+      border-bottom: 2px solid #BA0C2F !important;
+    }
+    .modal .btn-confirm, .modal .btn-danger {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+    }
+
+    /* Toasts — every lane gets a team color */
+    .toast { border-left: 4px solid #9BCBEB !important; }
+    .toast.info, .toast--info {
+      background: #E4F0F8 !important; color: #14213D !important; border-left-color: #9BCBEB !important;
+    }
+    .toast.success, .toast--success {
+      background: #FBFDFF !important; color: #14213D !important; border-left-color: #14213D !important;
+    }
+    .toast.danger, .toast--danger, .toast.error {
+      background: #FDECEF !important; color: #14213D !important; border-left-color: #BA0C2F !important;
+    }
+    .toast.warning, .toast--warning {
+      background: #FFF7E6 !important; color: #14213D !important; border-left-color: #BA0C2F !important;
+    }
+
+    /* Swatch grid name labels → navy */
+    .swatch .name, .swatch .value { color: #14213D !important; }
+    .swatch .chip { box-shadow: inset 0 0 0 1px rgba(155,203,235,0.5) !important; }
+
+    /* Icons — stroke navy, fill columbia at low opacity */
+    svg { color: #14213D; }
+    [class*="icon"] svg, .info-cell svg { color: #14213D !important; }
+
+    /* ════════════════════════════════════════════════════════════════
+       CARD-SPECIFIC SURGICAL OVERRIDES — replace every dark gradient
+       hero with team-colored equivalents and re-bias every accent.
+       ════════════════════════════════════════════════════════════════ */
+
+    /* ── #15 Roster Row ─────────────────────────────────────────── */
+    .row, .row.absent {
+      background: linear-gradient(180deg, #FBFDFF, #E4F0F8) !important;
+      border: 1px solid #9BCBEB !important;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.8) inset,
+        0 8px 22px -12px rgba(20,33,61,0.25),
+        0 1px 2px rgba(20,33,61,0.06) !important;
+    }
+    .avatar-panel {
+      background:
+        radial-gradient(circle at 30% 30%, rgba(155,203,235,0.45), transparent 60%),
+        linear-gradient(135deg, #14213D 0%, #1E3252 60%, #0C1730 100%) !important;
+    }
+    .row.absent .avatar-panel {
+      background:
+        radial-gradient(circle at 30% 30%, rgba(155,203,235,0.25), transparent 60%),
+        linear-gradient(135deg, #3F5F80 0%, #2A4159 60%, #14213D 100%) !important;
+    }
+    .avatar-panel::after {
+      background: repeating-linear-gradient(135deg, rgba(155,203,235,0.18) 0 4px, transparent 4px 10px) !important;
+    }
+    .avatar-panel .initials {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+    }
+    .avatar-panel .num {
+      color: #9BCBEB !important;
+      text-shadow: 0 2px 6px rgba(20,33,61,0.7) !important;
+    }
+    .avatar-panel .pos {
+      background: rgba(186,12,47,0.85) !important;
+      color: #fff !important;
+    }
+    .pres-dot {
+      background: #BA0C2F !important;
+      box-shadow: 0 0 0 3px rgba(186,12,47,0.18), 0 0 10px rgba(186,12,47,0.6) !important;
+    }
+    .row.absent .pres-dot {
+      background: #9BCBEB !important;
+      box-shadow: 0 0 0 3px rgba(155,203,235,0.4) !important;
+    }
+    .streak {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+      box-shadow: 0 2px 6px rgba(186,12,47,0.45) !important;
+    }
+    .tags .tag {
+      background: #E4F0F8 !important;
+      border: 1px solid #9BCBEB !important;
+      color: #14213D !important;
+    }
+    .tags .tag.out {
+      background: #FDECEF !important;
+      border-color: #BA0C2F !important;
+      color: #BA0C2F !important;
+    }
+    .last5 .lbl { color: #14213D !important; }
+    .last5 .d.w { background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important; color: #14213D !important; }
+    .last5 .d.l { background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important; color: #fff !important; }
+    .last5 .d.t { background: linear-gradient(180deg, #14213D, #0C1730) !important; color: #9BCBEB !important; }
+    .stats {
+      background: linear-gradient(180deg, #FBFDFF 0%, #E4F0F8 100%) !important;
+      border-left: 1px solid #9BCBEB !important;
+    }
+    .stat .l { color: #6FA8C8 !important; }
+    .stat .v { color: #14213D !important; }
+    .stat.lead { background: linear-gradient(180deg, #9BCBEB, #C9DEEC) !important; }
+    .stat.lead::after {
+      background: linear-gradient(90deg, #BA0C2F, #14213D) !important;
+      box-shadow: 0 0 10px rgba(186,12,47,0.4) !important;
+    }
+    .stat.lead .l, .stat.lead .v { color: #14213D !important; }
+    .stat .d { color: #14213D !important; }
+    .stat .d.dn { color: #BA0C2F !important; }
+
+    /* ── #16 Modal ──────────────────────────────────────────────── */
+    body { background: rgba(20,33,61,0.6) !important; }
+    .scrim {
+      background:
+        radial-gradient(ellipse at 30% 30%, rgba(155,203,235,0.28), transparent 60%),
+        radial-gradient(ellipse at 70% 80%, rgba(186,12,47,0.18), transparent 60%),
+        rgba(20,33,61,0.75) !important;
+    }
+    .modal {
+      background: linear-gradient(180deg, #fff 0%, #F2F8FC 100%) !important;
+      border: 1px solid #9BCBEB !important;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.8) inset,
+        0 30px 80px -20px rgba(20,33,61,0.55),
+        0 0 0 1px rgba(155,203,235,0.4) !important;
+    }
+    .modal .hero {
+      background:
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.4), transparent 55%),
+        linear-gradient(135deg, #BA0C2F 0%, #7A0820 60%, #14213D 100%) !important;
+      color: #fff !important;
+    }
+    .modal .hero::before {
+      background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.06) 0 6px, transparent 6px 22px) !important;
+    }
+    .modal .hero .glyph {
+      background: linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.15)) !important;
+      border: 1px solid rgba(255,255,255,0.45) !important;
+      box-shadow: 0 0 28px rgba(255,255,255,0.25), 0 1px 0 rgba(255,255,255,0.25) inset !important;
+    }
+    .modal .hero .glyph svg { color: #fff !important; }
+    .modal .hero .eyebrow { color: #9BCBEB !important; }
+    .modal .hero h3 { color: #fff !important; }
+    .modal .body { background: linear-gradient(180deg, #fff 0%, #F2F8FC 100%) !important; }
+    .modal .body p { color: #1E3252 !important; }
+    .modal .body p strong { color: #14213D !important; }
+    .modal .summary {
+      background: #E4F0F8 !important;
+      border: 1px solid #9BCBEB !important;
+    }
+    .modal .summary .av {
+      background: linear-gradient(180deg, #14213D, #0C1730) !important;
+      color: #9BCBEB !important;
+      box-shadow: 0 4px 10px rgba(20,33,61,0.45) !important;
+    }
+    .modal .summary .n { color: #14213D !important; }
+    .modal .summary .s { color: #3F5F80 !important; }
+    .modal .summary .st {
+      background: #fff !important;
+      border: 1px solid #9BCBEB !important;
+      color: #14213D !important;
+    }
+    .modal .b-cancel {
+      background: #fff !important;
+      border: 1px solid #9BCBEB !important;
+      color: #14213D !important;
+    }
+    .modal .b-confirm {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 6px 18px rgba(186,12,47,0.55) !important;
+    }
+
+    /* ── #18 Leaderboard Card ───────────────────────────────────── */
+    .card .head {
+      background: linear-gradient(180deg, #14213D 0%, #1E3252 100%) !important;
+      color: #fff !important;
+    }
+    .card .head h4 { color: #fff !important; }
+    .card .head .sub { color: #9BCBEB !important; }
+    .card .head .trend {
+      background: rgba(155,203,235,0.18) !important;
+      border: 1px solid #9BCBEB !important;
+      color: #9BCBEB !important;
+    }
+    .card .head .halo {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      box-shadow: 0 2px 6px rgba(155,203,235,0.55), inset 0 1px 0 rgba(255,255,255,0.4) !important;
+    }
+    .card .head .halo img { filter: brightness(0.1) !important; }
+    .card .head::after {
+      background: linear-gradient(90deg, #BA0C2F 0%, #9BCBEB 60%, transparent 100%) !important;
+      height: 3px !important;
+    }
+    .card .body .item {
+      background: #F2F8FC !important;
+      border: 1px solid #C9DEEC !important;
+    }
+    .card .body .item.lead {
+      background: linear-gradient(180deg, #E4F0F8, #fff) !important;
+      border-color: #9BCBEB !important;
+      box-shadow: 0 1px 0 rgba(155,203,235,0.5) !important;
+    }
+    .medal.gold {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+    }
+    .medal.silver {
+      background: linear-gradient(180deg, #C9DEEC, #9BCBEB) !important;
+      color: #14213D !important;
+    }
+    .medal.bronze {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+    }
+    .card .body .jnum {
+      background: #14213D !important;
+      color: #9BCBEB !important;
+      border: 1px solid #14213D !important;
+    }
+    .card .body .name { color: #14213D !important; }
+    .card .body .pos { color: #3F5F80 !important; }
+    .card .body .val { color: #14213D !important; }
+    .card .body .item.lead .val { color: #BA0C2F !important; }
+    .card .body .val small { color: #6FA8C8 !important; }
+    .card .foot {
+      background: #E4F0F8 !important;
+      border-top: 1px solid #9BCBEB !important;
+      color: #14213D !important;
+    }
+    .card .foot .tag {
+      background: #fff !important;
+      border: 1px solid #9BCBEB !important;
+      color: #14213D !important;
+    }
+    .card .foot a, .card .foot span[style*="color"] { color: #BA0C2F !important; }
+
+    /* ── #20 Stat Blocks ────────────────────────────────────────── */
+    .record {
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(155,203,235,0.35), transparent 50%),
+        linear-gradient(135deg, #14213D 0%, #1E3252 60%, #0C1730 100%) !important;
+      color: #fff !important;
+      border: 1px solid #9BCBEB !important;
+      box-shadow: 0 1px 0 rgba(155,203,235,0.18) inset, 0 16px 40px -16px rgba(20,33,61,0.55) !important;
+    }
+    .record::before {
+      background-image: radial-gradient(circle, rgba(155,203,235,0.15) 1px, transparent 1.6px) !important;
+    }
+    .record .big {
+      color: #9BCBEB !important;
+      text-shadow: 0 4px 24px rgba(155,203,235,0.5) !important;
+    }
+    .record .big .sep { color: #6FA8C8 !important; }
+    .record .big .losses { color: #DC1F40 !important; }
+    .record .meta .l { color: #9BCBEB !important; }
+    .record .meta h2 { color: #fff !important; }
+    .record .meta h2 em { color: #BA0C2F !important; font-style: normal !important; }
+    .record .rd .l { color: #9BCBEB !important; }
+    .record .rd .bar { background: rgba(155,203,235,0.15) !important; }
+    .record .rd .rs {
+      background: linear-gradient(90deg, #9BCBEB, #C9DEEC) !important;
+      box-shadow: 0 0 10px rgba(155,203,235,0.6) !important;
+    }
+    .record .rd .ra {
+      background: linear-gradient(90deg, #BA0C2F, #DC1F40) !important;
+      box-shadow: 0 0 10px rgba(186,12,47,0.6) !important;
+    }
+    .record .rd .vals .l { color: #9BCBEB !important; }
+    .record .rd .vals .r { color: #DC1F40 !important; }
+    .sc {
+      background: linear-gradient(180deg, #FBFDFF, #F2F8FC) !important;
+      border: 1px solid #9BCBEB !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 6px 14px -10px rgba(20,33,61,0.2) !important;
+    }
+    .sc::before { background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important; }
+    .sc.lead {
+      background: linear-gradient(180deg, #E4F0F8, #9BCBEB) !important;
+      border-color: #14213D !important;
+    }
+    .sc.lead::before { background: linear-gradient(180deg, #14213D, #0C1730) !important; }
+    .sc.gold {
+      background: linear-gradient(180deg, #FDECEF, #F4B6C2) !important;
+      border-color: #BA0C2F !important;
+    }
+    .sc.gold::before { background: linear-gradient(180deg, #BA0C2F, #7A0820) !important; }
+    .sc .lbl { color: #3F5F80 !important; }
+    .sc.lead .lbl { color: #14213D !important; }
+    .sc.gold .lbl { color: #BA0C2F !important; }
+    .sc .val { color: #14213D !important; }
+    .sc.lead .val { color: #14213D !important; }
+    .sc.gold .val { color: #BA0C2F !important; }
+    .sc .sub { color: #14213D !important; }
+    .sc .sub.dn { color: #BA0C2F !important; }
+    .sc svg.spark path { stroke: #14213D !important; }
+    .sc.lead svg.spark path { stroke: #14213D !important; }
+    .ring-card {
+      background: linear-gradient(180deg, #FBFDFF, #E4F0F8) !important;
+      border: 1px solid #9BCBEB !important;
+    }
+    .ring-card .lbl { color: #3F5F80 !important; }
+    .ring-card .val { color: #14213D !important; }
+    .ring-card .ring circle:first-of-type { stroke: #C9DEEC !important; }
+    .ring-card .ring text { fill: #14213D !important; }
+
+    /* ── #19 Upcoming Game — re-bias dark hero to navy ──────────── */
+    .matchup ~ * .b-go,
+    .card .b-go {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 6px 18px rgba(186,12,47,0.55) !important;
+    }
+
+    /* ── Spacing/radius reference blocks ────────────────────────── */
+    .demo-block, .ref-block, .spacing-block, .radius-block {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      border: 1px solid #14213D !important;
+    }
+  `;
+
+  /* —— 20 preview entries —————————————————————————————————————————————— */
+  const PREVIEWS = [
+    { n: 1,  file: "01-team-triplet.html",     label: "Team Triplet",       h: 340 },
+    { n: 2,  file: "02-slate-scale.html",      label: "Slate Scale",        h: 340 },
+    { n: 3,  file: "03-semantic-lanes.html",   label: "Semantic Lanes",     h: 360 },
+    { n: 4,  file: "04-type-display.html",     label: "Type — Display",     h: 540 },
+    { n: 5,  file: "05-type-body.html",        label: "Type — Body",        h: 520 },
+    { n: 6,  file: "06-iconography.html",      label: "Iconography",        h: 460 },
+    { n: 7,  file: "07-buttons.html",          label: "Buttons",            h: 380 },
+    { n: 8,  file: "08-form-inputs.html",      label: "Form Inputs",        h: 480 },
+    { n: 9,  file: "09-badges-chips.html",     label: "Badges & Chips",     h: 420 },
+    { n: 10, file: "10-card-anatomy.html",     label: "Card Anatomy",       h: 480 },
+    { n: 11, file: "11-radii.html",            label: "Radii",              h: 340 },
+    { n: 12, file: "12-shadows.html",          label: "Shadows",            h: 340 },
+    { n: 13, file: "13-spacing.html",          label: "Spacing",            h: 340 },
+    { n: 14, file: "14-tab-bar.html",          label: "Tab Bar / Chrome",   h: 320, wide: true },
+    { n: 15, file: "15-roster-row.html",       label: "Roster Row",         h: 380, wide: true },
+    { n: 16, file: "16-modal.html",            label: "Modal",              h: 420 },
+    { n: 17, file: "17-toasts.html",           label: "Toasts",             h: 380 },
+    { n: 18, file: "18-leaderboard-card.html", label: "Leaderboard Card",   h: 440 },
+    { n: 19, file: "19-upcoming-game.html",    label: "Upcoming Game",      h: 440 },
+    { n: 20, file: "20-stat-blocks.html",      label: "Stat Blocks",        h: 380, wide: true },
+    { n: 21, file: "21-theme-settings.html",   label: "Team Theme Settings", h: 520, wide: true },
+    { n: 22, file: "22-empty-states.html",     label: "Empty States",        h: 460, wide: true },
+    { n: 23, file: "23-game-day-mode.html",    label: "Game-Day Mode",       h: 700, wide: true },
+  ];
+
+  const TEAM_THEME = `
+    :root {
+      --team-primary:   #9BCBEB;
+      --team-secondary: #BA0C2F;
+      --team-tertiary:  #14213D;
+    }
+
+    /* ── Make the iframe transparent so the wallpaper logo shows through ── */
+    html, body { background: transparent !important; }
+    .card-stage {
+      background: transparent !important;
+      position: relative !important;
+    }
+    /* (Per-card watermark removed — page wallpaper handles it now.) */
+
+    /* ── Foundations: headings & accents only ───────────────────── */
+    h1, h2, h3, h4, h5, h6 { color: #14213D !important; }
+    .eyebrow { color: #BA0C2F !important; }
+
+    /* Every accent-strip / hairline-on-top uses primary */
+    .accent, .accent-strip { background: #9BCBEB !important; }
+
+    /* ── Buttons: primary CTAs adopt team color ─────────────────── */
+    .btn[class*="primary"], .b-primary, button[class*="primary"] {
+      background: #9BCBEB !important;
+      color: #14213D !important;
+      border-color: transparent !important;
+      box-shadow: 0 4px 12px -2px rgba(155,203,235,0.55), inset 0 1px 0 rgba(255,255,255,0.5) !important;
+    }
+    .btn[class*="danger"], .b-danger, .b-confirm {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+      border-color: transparent !important;
+      box-shadow: 0 6px 18px -4px rgba(186,12,47,0.50) !important;
+    }
+    .b-go {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+      box-shadow: 0 6px 18px -4px rgba(155,203,235,0.55), inset 0 1px 0 rgba(255,255,255,0.4) !important;
+    }
+
+    /* Active tab / nav state */
+    [class*="tab"][class*="active"], .tab.active, .nav-item.active {
+      color: #14213D !important;
+      background: #9BCBEB !important;
+    }
+
+    /* ── Card #14 tab bar / chrome — dark utility band → navy ───── */
+    .util-band, .dark-band, .tab-strip-dark { background: #14213D !important; color: #9BCBEB !important; }
+
+    /* ── Card #15 Roster Row ────────────────────────────────────── */
+    .avatar-panel {
+      background: linear-gradient(135deg, #14213D 0%, #1E3252 60%, #0C1730 100%) !important;
+    }
+    .row.absent .avatar-panel {
+      background: linear-gradient(135deg, #3F5F80 0%, #2A4159 60%, #14213D 100%) !important;
+    }
+    .avatar-panel .initials {
+      background: linear-gradient(180deg, #fff, #f1f5f9) !important;
+      color: #14213D !important;
+    }
+    .avatar-panel .num { color: rgba(255,255,255,0.95) !important; }
+    .avatar-panel .pos { background: rgba(186,12,47,0.78) !important; color: #fff !important; }
+    .pres-dot {
+      background: #BA0C2F !important;
+      box-shadow: 0 0 0 3px rgba(186,12,47,0.18), 0 0 10px rgba(186,12,47,0.6) !important;
+    }
+    .streak {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+      box-shadow: 0 2px 6px rgba(186,12,47,0.4) !important;
+    }
+    .last5 .d.w { background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important; color: #14213D !important; }
+    .last5 .d.l { background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important; color: #fff !important; }
+    .stats { background: linear-gradient(180deg, #f8fafc 0%, #E4F0F8 100%) !important; }
+    .stat.lead { background: linear-gradient(180deg, #E4F0F8, #9BCBEB) !important; }
+    .stat.lead::after {
+      background: linear-gradient(90deg, #14213D, #BA0C2F) !important;
+      box-shadow: 0 0 10px rgba(186,12,47,0.35) !important;
+    }
+    .stat.lead .l, .stat.lead .v { color: #14213D !important; }
+    .stat .d.dn { color: #BA0C2F !important; }
+
+    /* ── Card #16 Modal ─────────────────────────────────────────── */
+    .modal .hero {
+      background:
+        radial-gradient(circle at 20% 30%, rgba(255,255,255,0.18), transparent 55%),
+        linear-gradient(135deg, #14213D 0%, #1E3252 60%, #0C1730 100%) !important;
+    }
+    .modal .hero .glyph {
+      background: linear-gradient(180deg, rgba(186,12,47,0.4), rgba(186,12,47,0.18)) !important;
+      border: 1px solid rgba(220,31,64,0.5) !important;
+      box-shadow: 0 0 28px rgba(186,12,47,0.4), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+    }
+    .modal .hero .glyph svg { color: #fff !important; }
+    .modal .hero .eyebrow { color: #9BCBEB !important; }
+    .modal .hero h3 { color: #fff !important; }
+    .modal .body { background: #fff !important; }
+    .modal .body p { color: #1E3252 !important; }
+    .modal .body p strong { color: #14213D !important; }
+    .modal .summary { background: #F2F8FC !important; border: 1px solid #9BCBEB !important; }
+    .modal .summary .n { color: #14213D !important; }
+    .modal .summary .s { color: #3F5F80 !important; }
+    .modal .summary .st { background: #fff !important; border: 1px solid #9BCBEB !important; color: #14213D !important; }
+    .modal .b-cancel { background: #fff !important; border: 1px solid #9BCBEB !important; color: #14213D !important; }
+    .modal .hero { position: relative; overflow: hidden; }
+    .modal .hero::after {
+      content: ""; position: absolute; right: -30px; bottom: -30px;
+      width: 160px; height: 160px;
+      background: url("../assets/team-logos/trash-pandas.png") center/contain no-repeat;
+      opacity: 0.12; pointer-events: none;
+    }
+    .modal .hero > * { position: relative; z-index: 1; }
+    .modal .summary .av {
+      background: linear-gradient(180deg, #14213D, #0C1730) !important;
+      color: #9BCBEB !important;
+      box-shadow: 0 4px 10px rgba(20,33,61,0.4) !important;
+    }
+    .modal .b-confirm {
+      background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important;
+      color: #fff !important;
+    }
+
+    /* ── Card #17 Toasts ────────────────────────────────────────── */
+    .toast.info, .toast--info { border-left: 4px solid #9BCBEB !important; }
+
+    /* ── Card #18 Leaderboard ───────────────────────────────────── */
+    .card .head {
+      background: linear-gradient(180deg, #14213D 0%, #1E3252 100%) !important;
+    }
+    .card .head h4 { color: #fff !important; }
+    .card .head .sub { color: #9BCBEB !important; }
+    .card .head .halo {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      box-shadow: 0 2px 6px rgba(155,203,235,0.5), inset 0 1px 0 rgba(255,255,255,0.35) !important;
+    }
+    .card .head .halo img { filter: brightness(0.15) !important; }
+    .card .head::after {
+      background: linear-gradient(90deg, #BA0C2F 0%, #9BCBEB 60%, transparent 100%) !important;
+    }
+    .card .head .trend {
+      background: rgba(155,203,235,0.18) !important;
+      border: 1px solid #9BCBEB !important;
+      color: #9BCBEB !important;
+    }
+    .card .body .item.lead {
+      background: linear-gradient(180deg, #E4F0F8, #fff) !important;
+      border-color: #9BCBEB !important;
+    }
+    .card .body .item.lead .name,
+    .card .body .item.lead .val { color: #14213D !important; }
+    .card .body .jnum { color: #14213D !important; background: #fff !important; border: 1px solid #9BCBEB !important; }
+    .medal.gold   { background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important; color: #14213D !important; }
+    .medal.silver { background: linear-gradient(180deg, #C9DEEC, #9BCBEB) !important; color: #14213D !important; }
+    .medal.bronze { background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important; color: #fff !important; }
+
+    /* ── Card #19 Upcoming Game (dark hero) ─────────────────────── */
+    .matchup .team.home .badge {
+      background: #fff !important;
+      color: transparent !important;
+      position: relative;
+      overflow: hidden;
+    }
+    .matchup .team.home .badge::before {
+      content: ""; position: absolute; inset: 4px;
+      background: url("../assets/team-logos/trash-pandas.png") center/contain no-repeat;
+      border-radius: 50%;
+    }
+    .chip-today {
+      background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important;
+      color: #14213D !important;
+      box-shadow: 0 2px 6px rgba(155,203,235,0.5) !important;
+    }
+    .info-cell svg { color: #9BCBEB !important; }
+    .vs { color: #9BCBEB !important; text-shadow: 0 0 18px rgba(155,203,235,0.5) !important; }
+
+    /* ── Card #20 Stat Blocks ───────────────────────────────────── */
+    .record {
+      background:
+        radial-gradient(ellipse at 100% 0%, rgba(155,203,235,0.3), transparent 50%),
+        linear-gradient(135deg, #14213D 0%, #1E3252 60%, #0C1730 100%) !important;
+    }
+    /* Dark hero: every text token uses LIGHT values only.
+       Generic rule: when the hero background is dark (tertiary navy),
+       accents come from the LIGHTEST team color and a soft red for losses. */
+    .record, .record .meta h2 { color: #fff !important; }
+    .record .big { color: #fff !important; text-shadow: 0 4px 24px rgba(155,203,235,0.4) !important; }
+    .record .big .sep { color: rgba(255,255,255,0.45) !important; }
+    .record .big .losses { color: #FCA5A5 !important; }   /* light rose — visible on navy */
+    .record .meta .l { color: #9BCBEB !important; }
+    .record .meta h2 em { color: #9BCBEB !important; font-style: normal !important; }  /* Columbia, not scarlet — scarlet-on-navy fails contrast */
+    .record .rd .l { color: #9BCBEB !important; }
+    .record .rd .rs { background: linear-gradient(90deg, #9BCBEB, #C9DEEC) !important; box-shadow: 0 0 10px rgba(155,203,235,0.5) !important; }
+    .record .rd .ra { background: linear-gradient(90deg, #FB7185, #FCA5A5) !important; box-shadow: 0 0 10px rgba(251,113,133,0.45) !important; }
+    .record .rd .vals .l { color: #9BCBEB !important; }
+    .record .rd .vals .r { color: #FCA5A5 !important; }
+    .sc.lead { background: linear-gradient(180deg, #E4F0F8, #C9DEEC) !important; border-color: #9BCBEB !important; }
+    .sc.lead::before { background: linear-gradient(180deg, #9BCBEB, #6FA8C8) !important; }
+    .sc.lead .lbl, .sc.lead .val { color: #14213D !important; }
+    .sc.gold { background: linear-gradient(180deg, #FFF3F5, #FDECEF) !important; border-color: #F4B6C2 !important; }
+    .sc.gold::before { background: linear-gradient(180deg, #DC1F40, #BA0C2F) !important; }
+    .sc.gold .lbl, .sc.gold .val { color: #BA0C2F !important; }
+    .sc svg.spark path { stroke: #14213D !important; }
+    .ring-card .ring circle:first-of-type { stroke: #E4F0F8 !important; }
+  `;
+
+  const grid = document.getElementById("grid");
+  for (const p of PREVIEWS) {
+    const tile = document.createElement("div");
+    tile.className = "tile" + (p.wide ? " wide" : "");
+    tile.innerHTML = `
+      <div class="label">
+        <span>${p.label}</span>
+        <span class="num">${String(p.n).padStart(2, "0")} · preview/${p.file}</span>
+      </div>
+      <iframe src="preview/${p.file}" style="height:${p.h}px" loading="lazy"></iframe>
+    `;
+    grid.appendChild(tile);
+    const iframe = tile.querySelector("iframe");
+    iframe.addEventListener("load", () => {
+      try {
+        const doc = iframe.contentDocument;
+        const style = doc.createElement("style");
+        style.id = "__team-theme";
+        style.textContent = TEAM_THEME;
+        doc.head.appendChild(style);
+        /* Resize iframe to actual content */
+        requestAnimationFrame(() => {
+          const stage = doc.querySelector(".card-stage");
+          if (stage) {
+            const h = stage.getBoundingClientRect().height + 8;
+            if (h > 80) iframe.style.height = h + "px";
+          }
+        });
+      } catch (e) {
+        console.warn("theme inject failed for", p.file, e);
+      }
+    });
+  }
+</script>
+
+</body>
+</html>
