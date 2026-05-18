@@ -78,6 +78,7 @@ import {
   emailPromptStatus,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
+import { useMainShellRouting } from "./hooks/useMainShellRouting";
 import {
   getLocalDateString,
   bumpAgeTier,
@@ -2797,8 +2798,13 @@ const TeamProvider = ({ children }) => {
     async (rawCode) => {
       if (!user || !rawCode) return false;
       const code = String(rawCode).trim().toUpperCase();
-      if (code.length < 4) {
-        toast.push({ kind: "error", title: "Code too short" });
+      const codeRe = /^[A-HJ-NP-Z2-9]{6}$/;
+      if (!codeRe.test(code)) {
+        toast.push({
+          kind: "error",
+          title: "Invalid code",
+          message: "Team codes are 6 characters using A-Z and 2-9.",
+        });
         return false;
       }
       try {
@@ -3877,24 +3883,6 @@ const UIProvider = ({ children }) => {
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
 // Tab order is computed below from team.tryoutsOpen so the Tryouts
-// tab only appears when tryouts are actively open.
-const TAB_TO_PATH = {
-  home: "/",
-  roster: "/roster",
-  schedule: "/schedule",
-  evaluation: "/evaluation",
-  tryouts: "/tryouts",
-  settings: "/settings",
-};
-const pathToTab = (pathname) => {
-  if (!pathname || pathname === "/") return "home";
-  // Match leading segment so deeper routes (e.g. /schedule/:id) still map
-  // back to the right tab.
-  const first = pathname.split("/").filter(Boolean)[0];
-  if (first === "in-game") return "schedule";
-  return first || "home";
-};
-
 const MainShell = () => {
   const {
     team,
@@ -3920,17 +3908,17 @@ const MainShell = () => {
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
   const tryoutsOpen = team?.tryoutsOpen === true;
-  const TAB_ORDER = useMemo(
-    () =>
-      isAssistant
-        ? tryoutsOpen
-          ? ["home", "roster", "schedule", "tryouts", "evaluation"]
-          : ["home", "roster", "schedule", "evaluation"]
-        : tryoutsOpen
-        ? ["home", "roster", "schedule", "tryouts", "evaluation", "settings"]
-        : ["home", "roster", "schedule", "evaluation", "settings"],
-    [isAssistant, tryoutsOpen]
-  );
+  const { tabOrder } = useMainShellRouting({
+    activeTab,
+    setActiveTab,
+    inGameId,
+    setInGameId,
+    isAssistant,
+    tryoutsOpen,
+    location,
+    navigate,
+  });
+
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
 
@@ -3973,9 +3961,9 @@ const MainShell = () => {
       const k = e.key;
       if (k >= "1" && k <= "5") {
         const idx = parseInt(k, 10) - 1;
-        if (TAB_ORDER[idx]) {
+        if (tabOrder[idx]) {
           e.preventDefault();
-          setActiveTab(TAB_ORDER[idx]);
+          setActiveTab(tabOrder[idx]);
         }
         return;
       }
@@ -4005,7 +3993,7 @@ const MainShell = () => {
     regenerateLineup,
     regenerateBatting,
     regenerateDefense,
-    TAB_ORDER,
+    tabOrder,
   ]);
 
   useEffect(() => {
@@ -4021,70 +4009,6 @@ const MainShell = () => {
     }
   }, [team?.primaryColor, team?.secondaryColor, team?.tertiaryColor]);
 
-  // Guard: assistants can't land on head-only tabs. Snap back to home
-  // if they somehow do. (`evaluation` is role-dispatched now —
-  // assistants get the AssistantEvalTab — so it's NOT in this list.
-  // In-game is read-only-accessible to assistants per PR C, so we
-  // also don't clear `inGameId` here anymore.)
-  useEffect(() => {
-    if (!isAssistant) return;
-    if (activeTab === "settings") {
-      setActiveTab("home");
-    }
-  }, [isAssistant, activeTab, setActiveTab]);
-
-  // URL ↔ activeTab sync. The tab id stays the source of truth for legacy
-  // code; the URL just mirrors it so browser back/forward, deep links, and
-  // shared URLs work.
-  useEffect(() => {
-    const tabFromUrl = pathToTab(location.pathname);
-    if (tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
-
-  useEffect(() => {
-    // Don't push when In-Game is active — that route owns the URL.
-    if (location.pathname.startsWith("/in-game/")) return;
-    const target = TAB_TO_PATH[activeTab];
-    if (target == null) return; // unknown tab — don't push
-    const path = target || "/";
-    // Only navigate if it's a top-level tab change (don't clobber deeper
-    // routes like /schedule/:id).
-    const currentTopLevel = "/" + (location.pathname.split("/")[1] || "");
-    const targetTopLevel = "/" + (path.split("/")[1] || "");
-    if (currentTopLevel !== targetTopLevel) {
-      navigate(path);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
-
-  // Drive In-Game routing from the inGameId state — when set, push the URL
-  // to /in-game/:id; when cleared, pop back to /schedule.
-  useEffect(() => {
-    if (inGameId) {
-      if (!location.pathname.startsWith(`/in-game/${inGameId}`)) {
-        navigate(`/in-game/${inGameId}`);
-      }
-    } else if (location.pathname.startsWith("/in-game/")) {
-      navigate("/schedule");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inGameId]);
-
-  // And the reverse — if the user lands on /in-game/:id directly (refresh,
-  // back button, shared link), seed the inGameId state to match.
-  useEffect(() => {
-    const match = location.pathname.match(/^\/in-game\/([^/]+)/);
-    if (match && match[1] !== inGameId) {
-      setInGameId(match[1]);
-    } else if (!match && inGameId) {
-      // URL no longer pointing at in-game — clear the state.
-      setInGameId(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
 
   if (!authReady || loading) {
     return (
