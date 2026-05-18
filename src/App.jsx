@@ -2595,7 +2595,7 @@ const TeamProvider = ({ children }) => {
     const id =
       Math.random().toString(36).slice(2, 8) +
       Math.random().toString(36).slice(2, 8);
-    updateTeam({ tryoutShareId: id, tryoutsOpen: true });
+    updateTeam({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" });
     return id;
   }, [updateTeam]);
 
@@ -2607,7 +2607,12 @@ const TeamProvider = ({ children }) => {
       const slug = date;
       const dates = Array.isArray(teamData.tryoutDates) ? teamData.tryoutDates : [];
       const nextDates = dates.includes(date) ? dates : [...dates, date];
-      updateTeam({ tryoutDateSlug: slug, tryoutDates: nextDates, tryoutsOpen: true });
+      updateTeam({
+        tryoutDateSlug: slug,
+        tryoutDates: nextDates,
+        tryoutsOpen: true,
+        tryoutsPhase: "open",
+      });
       return slug;
     },
     [teamData.tryoutDates, updateTeam]
