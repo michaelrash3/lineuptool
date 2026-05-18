@@ -431,18 +431,16 @@ const MarkForNextSeasonPanel = memo(({ players, setPlayerStatus }) => {
 const TryoutsSettingsPanel = memo(
   ({
     team,
-    generateTryoutShareId,
+    generateTryoutDateLink,
     setTryoutsOpen,
+    completeTryouts,
     setRosterCap,
+    setTryoutDetails,
     toast,
   }) => {
-    const shareId = team.tryoutShareId;
     const open = team.tryoutsOpen === true;
+    const phase = team.tryoutsPhase || (open ? "open" : "intake_closed");
     const cap = team.rosterCap || 12;
-    const shareUrl =
-      shareId && typeof window !== "undefined"
-        ? `${window.location.origin}/tryouts-portal/${shareId}`
-        : null;
     return (
       <div>
         <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
@@ -453,46 +451,43 @@ const TryoutsSettingsPanel = memo(
           when tryouts close to stop accepting new signups.
         </p>
         <div className="space-y-3">
-          {shareId ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
-                Public link
-              </div>
-              <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">
-                {shareUrl}
-              </code>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (navigator.clipboard && shareUrl) {
-                      navigator.clipboard.writeText(shareUrl);
-                      toast.push({ kind: "success", title: "Link copied" });
-                    }
-                  }}
-                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => generateTryoutShareId?.()}
-                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
-                >
-                  Regenerate
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => generateTryoutShareId?.()}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
-              style={{ backgroundColor: "var(--team-primary)" }}
-            >
-              Generate Tryout Share Link
-            </button>
-          )}
+
+          <TryoutDateLinkPanel
+            team={team}
+            generateTryoutDateLink={generateTryoutDateLink}
+            toast={toast}
+          />
+
+
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Tryout Location
+              <input
+                type="text"
+                defaultValue={team.tryoutLocation || ""}
+                onBlur={(e) => setTryoutDetails?.({ tryoutLocation: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg"
+                placeholder="1300 Burmwood Rd. Hebron, KY"
+              />
+            </label>
+            <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Tryout Date
+              <input
+                type="date"
+                defaultValue={team.tryoutDate || ""}
+                onChange={(e) => setTryoutDetails?.({ tryoutDate: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg"
+              />
+            </label>
+            <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Tryout Time
+              <input
+                type="text"
+                defaultValue={team.tryoutTime || ""}
+                onBlur={(e) => setTryoutDetails?.({ tryoutTime: e.target.value })}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg"
+                placeholder="10am"
+              />
+            </label>
+          </div>
 
           <label className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3 cursor-pointer">
             <div>
@@ -521,6 +516,34 @@ const TryoutsSettingsPanel = memo(
             </button>
           </label>
 
+
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+              Tryout lifecycle
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setTryoutsOpen?.(false)}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+              >
+                Close Signups
+              </button>
+              <button
+                type="button"
+                onClick={() => completeTryouts?.()}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
+                style={{ backgroundColor: "#334155" }}
+              >
+                Complete Tryouts
+              </button>
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium">
+              Current phase: <strong>{phase}</strong>
+            </div>
+          </div>
+
           <label className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3">
             <div className="flex-1 min-w-0">
               <div className="text-xs font-black uppercase tracking-widest text-slate-800">
@@ -544,6 +567,62 @@ const TryoutsSettingsPanel = memo(
     );
   }
 );
+
+
+const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
+  const [date, setDate] = useState("");
+  const slug = team.tryoutDateSlug || "";
+  const url =
+    slug && typeof window !== "undefined"
+      ? `${window.location.origin}/tryouts-portal/${slug}`
+      : "";
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+      <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+        Tryout date link
+      </div>
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Tryout Date</label>
+          <input type="date" value={date} onChange={(e)=>setDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg" />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const made = generateTryoutDateLink?.(date);
+            if (!made) {
+              toast.push({ kind: "warn", title: "Enter a tryout date first" });
+              return;
+            }
+            toast.push({ kind: "success", title: "Date link generated" });
+          }}
+          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        >
+          Generate Link
+        </button>
+      </div>
+      {url ? (
+        <>
+          <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">{url}</code>
+          <button
+            type="button"
+            onClick={() => {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                toast.push({ kind: "success", title: "Date link copied" });
+              }
+            }}
+            className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+          >
+            Copy Date Link
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+});
 
 // Team Join Code panel. Shows the persistent 6-char code anyone can
 // use to join the team as an assistant. HC regenerates to rotate.
@@ -747,6 +826,23 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }) => {
   );
 });
 
+
+const SettingsSection = ({ id, title, icon: Icon, openSections, toggleSection, children }) => (
+  <section className="bg-white/40 border border-slate-200 rounded-2xl p-3 sm:p-4">
+    <button
+      type="button"
+      onClick={() => toggleSection(id)}
+      className="w-full flex items-center justify-between gap-3 text-left"
+    >
+      <span className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+        <Icon className="w-4 h-4" /> {title}
+      </span>
+      <Icons.ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${openSections[id] ? "rotate-180" : ""}`} />
+    </button>
+    {openSections[id] ? <div className="mt-3">{children}</div> : null}
+  </section>
+);
+
 const Row = ({ label, value, badge, badgeKind }) => (
   <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
     <span className="text-slate-500 shrink-0 font-bold uppercase tracking-widest text-[10px]">
@@ -778,9 +874,11 @@ export const SettingsTab = memo(() => {
     exportRosterCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
-    generateTryoutShareId,
+    generateTryoutDateLink,
     setTryoutsOpen,
+    completeTryouts,
     setRosterCap,
+    setTryoutDetails,
     regenerateJoinCode,
     uploadLogo,
     uploadScheduleCsv,
@@ -808,6 +906,15 @@ export const SettingsTab = memo(() => {
     setInviteModal,
   } = useUI();
   const toast = useToast();
+  const [openSections, setOpenSections] = useState({
+    team: true,
+    coaches: false,
+    roles: true,
+    reminders: false,
+    invites: false,
+  });
+  const toggleSection = (id) =>
+    setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
   const copyToClipboard = useCallback(
     (text) => {
       if (navigator.clipboard) navigator.clipboard.writeText(text);
@@ -815,6 +922,14 @@ export const SettingsTab = memo(() => {
     },
     [toast]
   );
+  const memberDisplay = useCallback((uid) => {
+    if (!uid) return "Unknown";
+    if (user?.uid === uid) return user?.displayName || user?.email || "You";
+    const byInvite = (team.invites || []).find((i) => i.usedBy === uid);
+    if (byInvite?.email) return byInvite.email;
+    return `${uid.slice(0, 12)}…`;
+  }, [team.invites, user]);
+
   const {
     leagueRuleSet,
     pitchingFormat,
@@ -1138,9 +1253,11 @@ export const SettingsTab = memo(() => {
 
             <TryoutsSettingsPanel
               team={team}
-              generateTryoutShareId={generateTryoutShareId}
+              generateTryoutDateLink={generateTryoutDateLink}
               setTryoutsOpen={setTryoutsOpen}
+              completeTryouts={completeTryouts}
               setRosterCap={setRosterCap}
+              setTryoutDetails={setTryoutDetails}
               toast={toast}
             />
 
@@ -1150,15 +1267,19 @@ export const SettingsTab = memo(() => {
               toast={toast}
             />
 
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <Icons.Users className="w-4 h-4" /> Coach Roles
-              </h3>
+            <SettingsSection id="roles" title="Coach Roles" icon={Icons.Users} openSections={openSections} toggleSection={toggleSection}>
               <p className="text-[11px] text-slate-500 font-medium mb-3">
                 Head coaches can edit lineups, evals, and settings. Assistants
                 submit eval grades and view today&apos;s lineup.
               </p>
               <div className="space-y-2 mb-2">
+                <div className="flex justify-between items-center bg-white/80 p-3 border border-slate-200 rounded-xl shadow-sm gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-slate-800 truncate">{team.ownerId === user?.uid ? "You" : memberDisplay(team.ownerId)}</div>
+                    <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Head Coach (Owner)</div>
+                  </div>
+                </div>
+
                 {(team.members || [])
                   .filter((uid) => uid !== team.ownerId)
                   .map((uid) => {
@@ -1172,7 +1293,7 @@ export const SettingsTab = memo(() => {
                       >
                         <div className="min-w-0">
                           <div className="text-xs font-black text-slate-800 truncate">
-                            {isMe ? "You" : uid.slice(0, 12) + "…"}
+                            {isMe ? "You" : memberDisplay(uid)}
                           </div>
                           <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
                             {role === "head" ? "Head Coach" : "Assistant Coach"}
@@ -1200,12 +1321,9 @@ export const SettingsTab = memo(() => {
                   </p>
                 )}
               </div>
-            </div>
+            </SettingsSection>
 
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <Icons.Clipboard className="w-4 h-4" /> Eval Reminders
-              </h3>
+            <SettingsSection id="reminders" title="Eval Reminders" icon={Icons.Clipboard} openSections={openSections} toggleSection={toggleSection}>
               <label className="flex items-start gap-3 bg-white border border-slate-200 p-3 rounded-xl shadow-sm cursor-pointer">
                 <input
                   type="checkbox"
@@ -1235,12 +1353,9 @@ export const SettingsTab = memo(() => {
                   {new Date(team.lastEvalEmailedAt).toLocaleDateString()}
                 </p>
               )}
-            </div>
+            </SettingsSection>
 
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <Icons.Plus className="w-4 h-4" /> Invite Coaches
-              </h3>
+            <SettingsSection id="invites" title="Invite Coaches" icon={Icons.Plus} openSections={openSections} toggleSection={toggleSection}>
               <p className="text-[11px] text-slate-500 font-medium mb-3">
                 Pulls coach emails from your TeamSnap roster CSV (rows
                 marked Coach or Manager). Pick who to invite, hit Send
@@ -1302,7 +1417,7 @@ export const SettingsTab = memo(() => {
                   </p>
                 )}
               </div>
-            </div>
+            </SettingsSection>
           </div>
 
           <div className="space-y-10">

@@ -122,8 +122,12 @@ export interface Team {
   // Tryouts (PR M)
   tryoutShareId?: string;
   tryoutsOpen?: boolean;
+  tryoutsPhase?: "open" | "intake_closed" | "completed";
   rosterCap?: number;
   tryoutSignups?: TryoutSignup[];
+  tryoutLocation?: string;
+  tryoutDate?: string;
+  tryoutTime?: string;
   // Persistent team join code. 6-char uppercase alphanumeric. Anyone
   // who has the code can join the team as an assistant coach. The HC
   // can regenerate it (rotating all existing codes) from Settings.
