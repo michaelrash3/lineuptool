@@ -2798,8 +2798,13 @@ const TeamProvider = ({ children }) => {
     async (rawCode) => {
       if (!user || !rawCode) return false;
       const code = String(rawCode).trim().toUpperCase();
-      if (code.length < 4) {
-        toast.push({ kind: "error", title: "Code too short" });
+      const codeRe = /^[A-HJ-NP-Z2-9]{6}$/;
+      if (!codeRe.test(code)) {
+        toast.push({
+          kind: "error",
+          title: "Invalid code",
+          message: "Team codes are 6 characters using A-Z and 2-9.",
+        });
         return false;
       }
       try {

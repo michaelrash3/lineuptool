@@ -31,6 +31,28 @@ const getOutfieldPositions = (tryoutAgeLabel) => {
     : ["LF", "LCF", "RCF", "RF"];
 };
 
+
+const normalizeForMatch = (v) =>
+  String(v || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const hasDuplicateSignup = (signups, form) => {
+  const fFirst = normalizeForMatch(form.firstName);
+  const fLast = normalizeForMatch(form.lastName);
+  const fEmail = String(form.email || "").trim().toLowerCase();
+  const fDate = String(form.tryoutDate || "").trim();
+  if (!fFirst || !fLast || !fEmail) return false;
+  return (Array.isArray(signups) ? signups : []).some((s) => {
+    const sFirst = normalizeForMatch(s?.firstName);
+    const sLast = normalizeForMatch(s?.lastName);
+    const sEmail = String(s?.email || "").trim().toLowerCase();
+    const sDate = String(s?.tryoutDate || "").trim();
+    return sFirst === fFirst && sLast === fLast && sEmail === fEmail && sDate === fDate;
+  });
+};
+
 export const TryoutsPortal = () => {
   const { slug } = useParams();
   const linkSlug = (slug || "").trim();
@@ -124,6 +146,9 @@ export const TryoutsPortal = () => {
     if (!form.currentTeam.trim()) return setError("Current team is required.");
     if (!form.email.trim()) return setError("Parent email is required so we can reach you with results.");
     if (!form.phone.trim()) return setError("Parent phone number is required.");
+    if (hasDuplicateSignup(team?.tryoutSignups, form)) {
+      return setError("Looks like this player is already registered for that date with this email.");
+    }
     setError(null);
 
     const signup = {
@@ -138,6 +163,10 @@ export const TryoutsPortal = () => {
       await updateDoc(doc(db, "artifacts", appId, "public", "data", "teams", teamDocId), {
         tryoutSignups: arrayUnion(signup),
       });
+      setTeam((prev) => ({
+        ...(prev || {}),
+        tryoutSignups: [...(Array.isArray(prev?.tryoutSignups) ? prev.tryoutSignups : []), signup],
+      }));
       setPhase("sent");
     } catch {
       setError("Submission failed — please retry, or contact the team's head coach directly.");
