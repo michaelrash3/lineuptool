@@ -354,6 +354,19 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
+          const params =
+            typeof window !== "undefined"
+              ? new URLSearchParams(window.location.search)
+              : null;
+          const inviteFlowActive =
+            (params && (params.has("invite") || params.has("join"))) ||
+            (typeof sessionStorage !== "undefined" &&
+              !!sessionStorage.getItem("pendingInvite"));
+          // During invite onboarding, don't auto-create "My Team" — wait for redeem/join to attach the user to the intended roster.
+          if (inviteFlowActive) {
+            setLoadingTeams(false);
+            return;
+          }
           // Bootstrap: create first team for this user
           const id = "team-" + Math.random().toString(36).substring(2, 10);
           const teamRef = doc(
