@@ -1422,6 +1422,16 @@ export const SettingsTab = memo(() => {
                     >
                       Primary Button
                     </button>
+                    <span
+                      className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full border cursor-default"
+                      style={{
+                        backgroundColor: secondaryColor,
+                        color: primaryColor,
+                        borderColor: primaryColor,
+                      }}
+                    >
+                      Active Tab
+                    </span>
                   </div>
                 </div>
                 <div>
