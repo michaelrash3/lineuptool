@@ -2604,7 +2604,9 @@ const TeamProvider = ({ children }) => {
     (rawDate) => {
       const date = String(rawDate || "").trim();
       if (!date) return null;
-      const slug = date;
+      const base = String(activeTeamId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+      const rand = Math.random().toString(36).slice(2, 8);
+      const slug = `${base || "team"}-${date}-${rand}`;
       const dates = Array.isArray(teamData.tryoutDates) ? teamData.tryoutDates : [];
       const nextDates = dates.includes(date) ? dates : [...dates, date];
       updateTeam({
@@ -2615,7 +2617,7 @@ const TeamProvider = ({ children }) => {
       });
       return slug;
     },
-    [teamData.tryoutDates, updateTeam]
+    [activeTeamId, teamData.tryoutDates, updateTeam]
   );
 
   const setTryoutsOpen = useCallback(
