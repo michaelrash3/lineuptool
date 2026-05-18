@@ -122,6 +122,7 @@ export interface Team {
   // Tryouts (PR M)
   tryoutShareId?: string;
   tryoutsOpen?: boolean;
+  tryoutsPhase?: "open" | "intake_closed" | "completed";
   rosterCap?: number;
   tryoutSignups?: TryoutSignup[];
   // Persistent team join code. 6-char uppercase alphanumeric. Anyone
