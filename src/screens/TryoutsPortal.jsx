@@ -29,8 +29,8 @@ const getOutfieldPositions = (tryoutAgeLabel) => {
 };
 
 export const TryoutsPortal = () => {
-  const { shareId, dateSlug } = useParams();
-  const slug = (dateSlug || shareId || "").trim();
+  const { slug } = useParams();
+  const linkSlug = (slug || "").trim();
   const [phase, setPhase] = useState("loading");
   const [team, setTeam] = useState(null);
   const [teamDocId, setTeamDocId] = useState(null);
@@ -66,8 +66,8 @@ export const TryoutsPortal = () => {
       try {
         const teamsRef = collection(db, "artifacts", appId, "public", "data", "teams");
         const [shareSnap, dateSnap] = await Promise.all([
-          getDocs(query(teamsRef, where("tryoutShareId", "==", slug))),
-          getDocs(query(teamsRef, where("tryoutDateSlug", "==", slug))),
+          getDocs(query(teamsRef, where("tryoutShareId", "==", linkSlug))),
+          getDocs(query(teamsRef, where("tryoutDateSlug", "==", linkSlug))),
         ]);
         if (cancelled) return;
         const hit = !shareSnap.empty ? shareSnap : dateSnap;
@@ -85,9 +85,11 @@ export const TryoutsPortal = () => {
         }
         setTeam(data);
         setTeamDocId(teamDoc.id);
+        const configuredDates = Array.isArray(data.tryoutDates) ? data.tryoutDates.filter(Boolean) : [];
+        const matchedDate = configuredDates.find((d) => String(d).trim() === linkSlug);
         setForm((prev) => ({
           ...prev,
-          tryoutDate: Array.isArray(data.tryoutDates) ? data.tryoutDates[0] || "" : "",
+          tryoutDate: matchedDate || configuredDates[0] || "",
         }));
         const root = document.documentElement;
         if (data.primaryColor) root.style.setProperty("--team-primary", data.primaryColor);
@@ -103,7 +105,7 @@ export const TryoutsPortal = () => {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [linkSlug]);
 
   const togglePos = (pos) =>
     setForm((prev) => ({
@@ -164,7 +166,7 @@ export const TryoutsPortal = () => {
             <Field label="Date of Birth"><input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
             <Field label="Current Team *"><input type="text" required value={form.currentTeam} onChange={(e) => setForm({ ...form, currentTeam: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
             <Field label="Jersey Number (preferred)"><input type="text" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Tryout Date"><input type="text" placeholder="e.g. 5-23-2026" value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
+            <Field label="Tryout Date">{Array.isArray(team?.tryoutDates) && team.tryoutDates.length > 0 ? (<select value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">{team.tryoutDates.filter(Boolean).map((d) => (<option key={d} value={d}>{d}</option>))}</select>) : (<input type="text" placeholder="e.g. 5-23-2026" value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />)}</Field>
             <Field label="Bats"><select value={form.bats} onChange={(e) => setForm({ ...form, bats: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="R">Right</option><option value="L">Left</option><option value="S">Switch</option></select></Field>
             <Field label="Throws"><select value={form.throws} onChange={(e) => setForm({ ...form, throws: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="R">Right</option><option value="L">Left</option></select></Field>
           </div>

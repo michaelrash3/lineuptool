@@ -4224,8 +4224,7 @@ const App = () => {
     return (
       <ToastProvider>
         <Routes>
-          <Route path="/tryouts-portal/:shareId/:dateSlug" element={<TryoutsPortal />} />
-          <Route path="/tryouts-portal/:shareId" element={<TryoutsPortal />} />
+          <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </ToastProvider>
