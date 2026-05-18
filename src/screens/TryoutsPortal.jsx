@@ -91,8 +91,8 @@ export const TryoutsPortal = () => {
       try {
         const teamsRef = collection(db, "artifacts", appId, "public", "data", "teams");
         const [shareSnap, dateSnap] = await Promise.all([
-          getDocs(query(teamsRef, where("tryoutShareId", "==", linkSlug))),
-          getDocs(query(teamsRef, where("tryoutDateSlug", "==", linkSlug))),
+          getDocs(query(teamsRef, where("tryoutsOpen", "==", true), where("tryoutShareId", "==", linkSlug))),
+          getDocs(query(teamsRef, where("tryoutsOpen", "==", true), where("tryoutDateSlug", "==", linkSlug))),
         ]);
         if (cancelled) return;
         const hit = !shareSnap.empty ? shareSnap : dateSnap;

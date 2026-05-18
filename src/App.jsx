@@ -2595,16 +2595,44 @@ const TeamProvider = ({ children }) => {
     const id =
       Math.random().toString(36).slice(2, 8) +
       Math.random().toString(36).slice(2, 8);
-    updateTeam({ tryoutShareId: id, tryoutsOpen: true });
+    updateTeam({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" });
     return id;
   }, [updateTeam]);
 
+
+  const generateTryoutDateLink = useCallback(
+    (rawDate) => {
+      const date = String(rawDate || "").trim();
+      if (!date) return null;
+      const base = String(activeTeamId || "").replace(/[^a-zA-Z0-9_-]/g, "");
+      const rand = Math.random().toString(36).slice(2, 8);
+      const slug = `${base || "team"}-${date}-${rand}`;
+      const dates = Array.isArray(teamData.tryoutDates) ? teamData.tryoutDates : [];
+      const nextDates = dates.includes(date) ? dates : [...dates, date];
+      updateTeam({
+        tryoutDateSlug: slug,
+        tryoutDates: nextDates,
+        tryoutsOpen: true,
+        tryoutsPhase: "open",
+      });
+      return slug;
+    },
+    [activeTeamId, teamData.tryoutDates, updateTeam]
+  );
+
   const setTryoutsOpen = useCallback(
     (open) => {
-      updateTeam({ tryoutsOpen: !!open });
+      updateTeam({
+        tryoutsOpen: !!open,
+        tryoutsPhase: open ? "open" : "intake_closed",
+      });
     },
     [updateTeam]
   );
+
+  const completeTryouts = useCallback(() => {
+    updateTeam({ tryoutsOpen: false, tryoutsPhase: "completed" });
+  }, [updateTeam]);
 
   const setRosterCap = useCallback(
     (cap) => {
@@ -3341,7 +3369,9 @@ const TeamProvider = ({ children }) => {
       saveAssistantEvaluation,
       deleteEvaluation,
       generateTryoutShareId,
+      generateTryoutDateLink,
       setTryoutsOpen,
+      completeTryouts,
       setRosterCap,
       appendTryoutSignup,
       updateTryoutSignup,
@@ -3413,7 +3443,9 @@ const TeamProvider = ({ children }) => {
       saveAssistantEvaluation,
       deleteEvaluation,
       generateTryoutShareId,
+      generateTryoutDateLink,
       setTryoutsOpen,
+      completeTryouts,
       setRosterCap,
       appendTryoutSignup,
       updateTryoutSignup,
@@ -3908,13 +3940,14 @@ const MainShell = () => {
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
   const tryoutsOpen = team?.tryoutsOpen === true;
+  const tryoutsVisible = tryoutsOpen || team?.tryoutsPhase === "intake_closed";
   const { tabOrder } = useMainShellRouting({
     activeTab,
     setActiveTab,
     inGameId,
     setInGameId,
     isAssistant,
-    tryoutsOpen,
+    tryoutsOpen: tryoutsVisible,
     location,
     navigate,
   });
@@ -4059,14 +4092,14 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
-        ...(tryoutsOpen ? [tryoutsButton] : []),
+        ...(tryoutsVisible ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
       ]
     : [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
-        ...(tryoutsOpen ? [tryoutsButton] : []),
+        ...(tryoutsVisible ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         { id: "settings", icon: Icons.Settings, label: "Settings" },
       ];
@@ -4092,7 +4125,7 @@ const MainShell = () => {
           <Route
             path="/tryouts"
             element={
-              tryoutsOpen ? <TryoutsTab /> : <Navigate to="/" replace />
+              tryoutsVisible ? <TryoutsTab /> : <Navigate to="/" replace />
             }
           />
           <Route
