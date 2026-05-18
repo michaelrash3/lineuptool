@@ -11,6 +11,10 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
 } from "firebase/auth";
 import {
   doc,
@@ -289,6 +293,7 @@ const TeamProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [teams, setTeams] = useState([]);
+  const [noTeamsHint, setNoTeamsHint] = useState("");
   const [activeTeamId, setActiveTeamId] = useState(null);
   const [teamData, setTeamData] = useState(DEFAULT_TEAM_DATA);
   const [loadingTeams, setLoadingTeams] = useState(true);
@@ -357,6 +362,9 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
+          const isEmailLinkUser = (user?.providerData || []).some(
+            (p) => p?.providerId === "password"
+          );
           const params =
             typeof window !== "undefined"
               ? new URLSearchParams(window.location.search)
@@ -367,6 +375,18 @@ const TeamProvider = ({ children }) => {
               !!sessionStorage.getItem("pendingInvite"));
           // During invite onboarding, don't auto-create "My Team" — wait for redeem/join to attach the user to the intended roster.
           if (inviteFlowActive) {
+            setLoadingTeams(false);
+            return;
+          }
+          // Guardrail: if this is an email-link auth session and the account
+          // has no teams yet, avoid auto-creating "My Team". Most often this
+          // means the coach signed in with a different account than the one
+          // that owns prior roster data.
+          if (isEmailLinkUser) {
+            setNoTeamsHint(
+              "No teams were found for this email-link account. Try signing in with your original Google account to restore saved data."
+            );
+            setTeams([]);
             setLoadingTeams(false);
             return;
           }
@@ -402,6 +422,7 @@ const TeamProvider = ({ children }) => {
           return;
         }
         setTeams(data.teams);
+        setNoTeamsHint("");
         if (data.activeTeamId) setActiveTeamId(data.activeTeamId);
         else if (data.teams[0]) setActiveTeamId(data.teams[0].id);
         setLoadingTeams(false);
@@ -3308,6 +3329,7 @@ const TeamProvider = ({ children }) => {
       genError,
       setGenError,
       record,
+      noTeamsHint,
       currentRole,
       realRole,
       viewAsRole,
@@ -3381,6 +3403,7 @@ const TeamProvider = ({ children }) => {
       loadingTeams,
       loadingActive,
       genError,
+      noTeamsHint,
       record,
       currentRole,
       realRole,
@@ -3914,8 +3937,10 @@ const pathToTab = (pathname) => {
 };
 
 const MainShell = () => {
+  const EMAIL_LINK_STORAGE_KEY = "lineup_email_link_signin";
   const {
     team,
+    teams,
     user,
     authReady,
     loading,
@@ -3925,6 +3950,7 @@ const MainShell = () => {
     regenerateBatting,
     regenerateDefense,
     currentRole,
+    noTeamsHint,
   } = useTeam();
   const {
     viewingPlayerId,
@@ -3951,6 +3977,29 @@ const MainShell = () => {
   );
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [emailSignInStatus, setEmailSignInStatus] = useState("");
+
+  useEffect(() => {
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+    const finishEmailSignIn = async () => {
+      const savedEmail =
+        window.localStorage.getItem(EMAIL_LINK_STORAGE_KEY) || "";
+      if (!savedEmail) {
+        setEmailSignInStatus(
+          "Open this sign-in link on the same device where it was requested."
+        );
+        return;
+      }
+      try {
+        await signInWithEmailLink(auth, savedEmail, window.location.href);
+        window.localStorage.removeItem(EMAIL_LINK_STORAGE_KEY);
+        setEmailSignInStatus("Signed in with your email link.");
+      } catch (e) {
+        setEmailSignInStatus(e.message || "Email sign-in failed.");
+      }
+    };
+    finishEmailSignIn();
+  }, [EMAIL_LINK_STORAGE_KEY]);
 
   useEffect(() => {
     if (authReady && user && !onboardingHasBeenCompleted()) {
@@ -4128,7 +4177,43 @@ const MainShell = () => {
             setGenError(e.message);
           }
         }}
+        onEmailSignIn={async (email) => {
+          try {
+            const actionCodeSettings = {
+              url: window.location.href.split("?")[0],
+              handleCodeInApp: true,
+            };
+            await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+            window.localStorage.setItem(EMAIL_LINK_STORAGE_KEY, email);
+            setEmailSignInStatus(`Email link sent to ${email}.`);
+          } catch (e) {
+            setEmailSignInStatus(e.message || "Could not send email link.");
+          }
+        }}
+        emailSignInStatus={emailSignInStatus}
       />
+    );
+  }
+
+  if (!loading && teams.length === 0 && noTeamsHint) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-6">
+        <div className="max-w-xl w-full bg-white border border-slate-200 rounded-2xl shadow-lg p-6">
+          <h2 className="text-lg font-black uppercase tracking-wider text-slate-900">
+            Team data not found
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">{noTeamsHint}</p>
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              onClick={() => signOut(auth)}
+              className="px-4 py-2 rounded-lg bg-slate-900 text-white text-xs font-black uppercase tracking-wider"
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
