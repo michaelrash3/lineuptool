@@ -59,7 +59,7 @@ export const LeaderboardCard = memo(
                   <button
                     type="button"
                     onClick={() => onPlayerClick && onPlayerClick(p.id)}
-                    className="text-[11px] font-extrabold text-slate-800 truncate text-left hover:text-blue-600 transition-colors cursor-pointer leading-tight"
+                    className="text-[11px] font-extrabold text-slate-800 truncate text-left hover:text-team-primary transition-colors cursor-pointer leading-tight"
                   >
                     {p.name}
                   </button>

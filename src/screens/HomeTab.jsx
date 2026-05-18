@@ -250,7 +250,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
               {sameDayCount > 1 && (
                 <>
                   <span className="text-slate-300">|</span>
-                  <span className="text-blue-700">
+                  <span className="text-team-primary">
                     +{sameDayCount - 1} more{" "}
                     {whenLabel.toLowerCase() === "today" ? "today" : "this day"}
                   </span>

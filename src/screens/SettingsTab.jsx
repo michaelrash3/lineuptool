@@ -377,7 +377,14 @@ const MarkForNextSeasonPanel = memo(({ players, setPlayerStatus }) => {
               </span>
               <div className="flex items-center gap-1 shrink-0">
                 {isAccepted && (
-                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                  <span
+                    className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border"
+                    style={{
+                      backgroundColor: "var(--team-primary-15)",
+                      borderColor: "var(--team-primary)",
+                      color: "var(--team-primary)",
+                    }}
+                  >
                     Tryout
                   </span>
                 )}
@@ -1273,7 +1280,7 @@ export const SettingsTab = memo(() => {
                               `${window.location.origin}${window.location.pathname}?invite=${activeTeamId}.${inv.token}`
                             )
                           }
-                          className="text-[11px] font-bold text-blue-600 hover:underline truncate block max-w-full"
+                          className="text-[11px] font-bold text-team-primary hover:underline truncate block max-w-full"
                         >
                           Copy invite link
                         </button>
