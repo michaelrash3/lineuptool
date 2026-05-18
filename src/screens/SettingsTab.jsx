@@ -432,12 +432,15 @@ const TryoutsSettingsPanel = memo(
   ({
     team,
     generateTryoutShareId,
+    generateTryoutDateLink,
     setTryoutsOpen,
+    completeTryouts,
     setRosterCap,
     toast,
   }) => {
     const shareId = team.tryoutShareId;
     const open = team.tryoutsOpen === true;
+    const phase = team.tryoutsPhase || (open ? "open" : "intake_closed");
     const cap = team.rosterCap || 12;
     const shareUrl =
       shareId && typeof window !== "undefined"
@@ -494,6 +497,13 @@ const TryoutsSettingsPanel = memo(
             </button>
           )}
 
+
+          <TryoutDateLinkPanel
+            team={team}
+            generateTryoutDateLink={generateTryoutDateLink}
+            toast={toast}
+          />
+
           <label className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3 cursor-pointer">
             <div>
               <div className="text-xs font-black uppercase tracking-widest text-slate-800">
@@ -521,6 +531,34 @@ const TryoutsSettingsPanel = memo(
             </button>
           </label>
 
+
+
+          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+              Tryout lifecycle
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setTryoutsOpen?.(false)}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+              >
+                Close Signups
+              </button>
+              <button
+                type="button"
+                onClick={() => completeTryouts?.()}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
+                style={{ backgroundColor: "#334155" }}
+              >
+                Complete Tryouts
+              </button>
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium">
+              Current phase: <strong>{phase}</strong>
+            </div>
+          </div>
+
           <label className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3">
             <div className="flex-1 min-w-0">
               <div className="text-xs font-black uppercase tracking-widest text-slate-800">
@@ -544,6 +582,62 @@ const TryoutsSettingsPanel = memo(
     );
   }
 );
+
+
+const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
+  const [date, setDate] = useState("");
+  const slug = team.tryoutDateSlug || "";
+  const url =
+    slug && typeof window !== "undefined"
+      ? `${window.location.origin}/tryouts-portal/${slug}`
+      : "";
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+      <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+        Tryout date link
+      </div>
+      <div className="flex gap-2 items-end">
+        <div className="flex-1">
+          <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Tryout Date</label>
+          <input type="date" value={date} onChange={(e)=>setDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg" />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            const made = generateTryoutDateLink?.(date);
+            if (!made) {
+              toast.push({ kind: "warn", title: "Enter a tryout date first" });
+              return;
+            }
+            toast.push({ kind: "success", title: "Date link generated" });
+          }}
+          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        >
+          Generate Link
+        </button>
+      </div>
+      {url ? (
+        <>
+          <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">{url}</code>
+          <button
+            type="button"
+            onClick={() => {
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                toast.push({ kind: "success", title: "Date link copied" });
+              }
+            }}
+            className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+          >
+            Copy Date Link
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+});
 
 // Team Join Code panel. Shows the persistent 6-char code anyone can
 // use to join the team as an assistant. HC regenerates to rotate.
@@ -779,7 +873,9 @@ export const SettingsTab = memo(() => {
     exportNewPlayersCsv,
     setPlayerStatus,
     generateTryoutShareId,
+    generateTryoutDateLink,
     setTryoutsOpen,
+    completeTryouts,
     setRosterCap,
     regenerateJoinCode,
     uploadLogo,
@@ -1139,7 +1235,9 @@ export const SettingsTab = memo(() => {
             <TryoutsSettingsPanel
               team={team}
               generateTryoutShareId={generateTryoutShareId}
+              generateTryoutDateLink={generateTryoutDateLink}
               setTryoutsOpen={setTryoutsOpen}
+              completeTryouts={completeTryouts}
               setRosterCap={setRosterCap}
               toast={toast}
             />
