@@ -11,6 +11,8 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from "firebase/auth";
 import {
   doc,
@@ -3190,6 +3192,34 @@ const TeamProvider = ({ children }) => {
     toast,
   ]);
 
+  // Capture invite/join params immediately on first load so iOS redirect
+  // auth can round-trip without losing the tokenized URL.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const invite = params.get("invite");
+    const join = params.get("join");
+    if (invite) sessionStorage.setItem("pendingInvite", invite);
+    if (join) sessionStorage.setItem("pendingJoin", join);
+  }, []);
+
+  // Resolve Firebase redirect auth results (used for iOS/in-app browsers
+  // where popups are blocked).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        await getRedirectResult(auth);
+      } catch (e) {
+        if (cancelled) return;
+        setGenError(e?.message || "Sign-in failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Auto-redeem ?invite= and ?join= URL params once auth + team list
   // are ready. `?invite=<teamId>.<token>` is the legacy per-coach link
   // flow; `?join=<code>` is the new persistent team-code flow.
@@ -3197,8 +3227,8 @@ const TeamProvider = ({ children }) => {
     if (!authReady || !user || loadingTeams) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const invite = params.get("invite");
-    const join = params.get("join");
+    const invite = params.get("invite") || sessionStorage.getItem("pendingInvite");
+    const join = params.get("join") || sessionStorage.getItem("pendingJoin");
     if (!invite && !join) return;
     const stripParams = () => {
       params.delete("invite");
@@ -3220,7 +3250,9 @@ const TeamProvider = ({ children }) => {
     }
     if (join) {
       stripParams();
-      joinTeamByCode(join);
+      joinTeamByCode(join).then((ok) => {
+        if (ok) sessionStorage.removeItem("pendingJoin");
+      });
     }
   }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode]);
 
@@ -4064,6 +4096,16 @@ const MainShell = () => {
     );
   }
 
+
+  const isLikelyIOSOrInAppBrowser =
+    typeof navigator !== "undefined" && (() => {
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const isInApp = /FBAN|FBAV|Instagram|Line\//i.test(ua);
+      return isIOS || isInApp;
+    })();
+
   if (!user) {
     return (
       <LoginScreen
@@ -4073,7 +4115,8 @@ const MainShell = () => {
         onSignIn={async () => {
           try {
             const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            if (isLikelyIOSOrInAppBrowser) await signInWithRedirect(auth, provider);
+            else await signInWithPopup(auth, provider);
           } catch (e) {
             setGenError(e.message);
           }
