@@ -648,7 +648,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }) => {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-500 hover:text-slate-900"
       >
-        <Icons.Info className="w-3.5 h-3.5" />
+        <Icons.Alert className="w-3.5 h-3.5" />
         {open ? "Hide" : "Show"} Diagnostics
       </button>
       {open && (
