@@ -3933,14 +3933,13 @@ const MainShell = () => {
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
   const tryoutsOpen = team?.tryoutsOpen === true;
-  const tryoutsVisible = tryoutsOpen || team?.tryoutsPhase === "intake_closed";
   const { tabOrder } = useMainShellRouting({
     activeTab,
     setActiveTab,
     inGameId,
     setInGameId,
     isAssistant,
-    tryoutsOpen: tryoutsVisible,
+    tryoutsOpen,
     location,
     navigate,
   });
