@@ -147,7 +147,7 @@ export const AppHeader = memo(() => {
         </div>
       </div>
 
-      <div className="bg-slate-900/80 text-white print:hidden relative z-10 border-b border-slate-900 shadow-inner">
+      <div className="bg-slate-900/85 text-white print:hidden relative z-10 border-b border-slate-900 shadow-inner">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full sm:max-w-md">
             {isJoiningTeam ? (
@@ -263,7 +263,6 @@ export const AppHeader = memo(() => {
 });
 
 export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }) => {
-  const { team } = useTeam();
   return (
     <div className="bg-white/30 border-b border-white/40 print:hidden relative z-10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
@@ -271,23 +270,28 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }) => {
           {navButtons.map((btn) => {
             const Icon = btn.icon;
             const isActive = activeTab === btn.id;
+            // Settings is the only right-pushed tab (per design spec).
+            // The retired `submit-eval` pseudo-tab gate was carried for a
+            // release; safe to drop now since PR F replaced it with a
+            // real `eval` tab.
+            const rightAlign = btn.id === "settings";
             return (
               <button
                 key={btn.id}
                 onClick={() => setActiveTab(btn.id)}
-                className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 ${
+                className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
                   isActive
-                    ? "shadow-sm border border-transparent"
-                    : "text-slate-600 hover:bg-white/80 hover:text-slate-900 border border-transparent"
-                } ${btn.id === "settings" || btn.id === "submit-eval" ? "ml-auto" : ""}`}
+                    ? "shadow-sm"
+                    : "text-slate-600 hover:bg-white/80 hover:text-slate-900 border-transparent"
+                } ${rightAlign ? "ml-auto" : ""}`}
                 style={
                   isActive
                     ? {
-                        backgroundColor: team.secondaryColor,
-                        color: team.primaryColor,
-                        borderColor: team.primaryColor,
+                        backgroundColor: "var(--team-secondary)",
+                        color: "var(--team-primary)",
+                        borderColor: "var(--team-primary)",
                       }
-                    : {}
+                    : undefined
                 }
               >
                 <Icon className="w-4 h-4" /> {btn.label}
