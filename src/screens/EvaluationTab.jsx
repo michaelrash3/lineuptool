@@ -929,7 +929,23 @@ export const EvaluationTab = memo(() => {
     evalTrendPlayerId,
     setEvalTrendPlayerId,
   } = useUI();
-  const { players, primaryColor, evaluationEvents } = team;
+  const { players: rawPlayers, primaryColor, evaluationEvents } = team;
+  // Sort eval cards by jersey number so the head can scan in the same
+  // order coaches call kids on the field. Numeric sort; unnumbered
+  // players sink to the bottom with name as the tie-break.
+  const players = useMemo(() => {
+    return (rawPlayers || []).slice().sort((a, b) => {
+      const na = parseInt(a.number, 10);
+      const nb = parseInt(b.number, 10);
+      const aValid = Number.isFinite(na);
+      const bValid = Number.isFinite(nb);
+      if (aValid && bValid) {
+        if (na !== nb) return na - nb;
+      } else if (aValid) return -1;
+      else if (bValid) return 1;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [rawPlayers]);
 
   // Eval cadence: "Start new Eval" is gated until a preseason / biweekly
   // window opens for this head coach. Past rounds stay viewable + editable.

@@ -1513,6 +1513,27 @@ export const PlayerProfileModal = memo(() => {
                     <option value="L">L</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    Primary Pos
+                  </label>
+                  <select
+                    value={player.primaryPosition || ""}
+                    onChange={(e) =>
+                      updatePlayer(player.id, {
+                        primaryPosition: e.target.value,
+                      })
+                    }
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                  >
+                    <option value="">N/A</option>
+                    {positions.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="col-span-2 sm:col-span-2">
                   <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
                     Date of Birth

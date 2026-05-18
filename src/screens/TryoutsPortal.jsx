@@ -18,6 +18,9 @@ const getTryoutAgeLabel = (teamAge) => {
   return `${n + 1}U`;
 };
 
+// 8U plays 10 defenders → LF, LCF, RCF, RF (LC + RC cover center, no
+// lone CF). 9U+ plays 9 defenders → LF, CF, RF. Anything younger than
+// 8U or unknown defaults to the 8U layout.
 const getOutfieldPositions = (tryoutAgeLabel) => {
   const n = Number.parseInt(
     String(tryoutAgeLabel || "").replace(/[^0-9]/g, ""),
@@ -25,7 +28,7 @@ const getOutfieldPositions = (tryoutAgeLabel) => {
   );
   return !Number.isNaN(n) && n >= 9
     ? ["LF", "CF", "RF"]
-    : ["LF", "LCF", "CF", "RCF"];
+    : ["LF", "LCF", "RCF", "RF"];
 };
 
 export const TryoutsPortal = () => {
@@ -148,7 +151,13 @@ export const TryoutsPortal = () => {
   return (
     <div className="min-h-screen bg-slate-50 relative overflow-hidden">
       {team?.logoUrl && (
-        <img src={team.logoUrl} alt="Team watermark" className="pointer-events-none absolute inset-0 m-auto w-[95vw] max-w-6xl opacity-[0.08]" />
+        <img
+          src={team.logoUrl}
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 m-auto w-[120vw] max-w-[1100px] opacity-[0.16]"
+          style={{ filter: "saturate(1.05)" }}
+        />
       )}
       <div className="h-2 w-full" style={{ backgroundColor: "var(--team-primary)" }} />
       <div className="max-w-2xl mx-auto p-5 sm:p-8 relative z-10">

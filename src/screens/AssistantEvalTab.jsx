@@ -138,9 +138,23 @@ export const AssistantEvalTab = memo(() => {
     });
   }, [saveAssistantEvaluation, grades, toast]);
 
+  // Eval rosters are easier to scan in jersey-number order — matches
+  // how coaches verbally call kids on the field. Numeric sort with name
+  // as a tiebreaker; unnumbered players sink to the bottom.
   const orderedPlayers = (players || [])
     .filter((p) => p.present !== false)
-    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    .slice()
+    .sort((a, b) => {
+      const na = parseInt(a.number, 10);
+      const nb = parseInt(b.number, 10);
+      const aValid = Number.isFinite(na);
+      const bValid = Number.isFinite(nb);
+      if (aValid && bValid) {
+        if (na !== nb) return na - nb;
+      } else if (aValid) return -1;
+      else if (bValid) return 1;
+      return (a.name || "").localeCompare(b.name || "");
+    });
 
   // Filter categories to only the active group when rendering. Cards
   // render every category by default — we slice the list per group tab
