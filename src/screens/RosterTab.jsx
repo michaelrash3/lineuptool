@@ -142,14 +142,26 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
         </div>
       </div>
 
-      <div className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-slate-200 bg-gradient-to-b from-slate-50 to-blue-50/50">
+      <div
+        className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-slate-200 bg-gradient-to-b from-slate-50"
+        style={{ backgroundImage: "linear-gradient(to bottom, var(--slate-50), var(--team-primary-soft))" }}
+      >
         {hasStats ? (
           <>
-            <div className="text-center px-2 py-2.5 border-r border-slate-900/5 bg-blue-100/60 relative">
-              <div className="t-eyebrow text-blue-700 mb-1" style={{ fontSize: "8px" }}>
+            <div
+              className="text-center px-2 py-2.5 border-r border-slate-900/5 relative"
+              style={{ backgroundColor: "var(--team-primary-15)" }}
+            >
+              <div
+                className="t-eyebrow mb-1"
+                style={{ fontSize: "8px", color: "var(--team-primary)" }}
+              >
                 AVG
               </div>
-              <div className="font-black text-base text-blue-700 tabular-nums">
+              <div
+                className="font-black text-base tabular-nums"
+                style={{ color: "var(--team-primary)" }}
+              >
                 {formatStat(player.stats?.avg)}
               </div>
               <span

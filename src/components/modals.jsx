@@ -1391,7 +1391,7 @@ export const PlayerProfileModal = memo(() => {
                   setTempPlayerName(player.name);
                   setEditingPlayerName(true);
                 }}
-                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 mb-1 truncate cursor-pointer hover:bg-blue-50 px-2 py-1 -ml-2 rounded-xl transition-colors"
+                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 mb-1 truncate cursor-pointer hover:bg-slate-100 px-2 py-1 -ml-2 rounded-xl transition-colors"
               >
                 {player.name}
               </h2>
@@ -1887,7 +1887,7 @@ export const PlayerProfileModal = memo(() => {
                               <button
                                 type="button"
                                 onClick={() => setEditingPastSeasonId(entry.id)}
-                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"
+                                className="p-2 text-slate-400 hover:text-team-primary hover:bg-white rounded-lg transition-colors"
                               >
                                 <Icons.Edit className="w-4 h-4" />
                               </button>
@@ -2069,12 +2069,12 @@ export const PlayerProfileModal = memo(() => {
                             key={key}
                             type="button"
                             onClick={() => setTrendStatKey(key)}
-                            className="group bg-slate-50 hover:bg-blue-50 hover:border-blue-200 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
+                            className="group bg-slate-50 hover:bg-slate-100 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
                           >
                             <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-0.5">
                               {STAT_META[key].label}
                             </div>
-                            <div className="text-sm font-black tabular-nums text-slate-900 group-hover:text-blue-700">
+                            <div className="text-sm font-black tabular-nums text-slate-900 group-hover:text-team-primary">
                               {formatStatValue(key, value)}
                             </div>
                           </button>

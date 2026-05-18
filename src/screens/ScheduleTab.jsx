@@ -806,7 +806,7 @@ export const ScheduleTab = memo(() => {
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="p-1.5 rounded bg-white/60 border border-white/50 shadow-sm">
-                    <Icons.Users className="w-4 h-4 text-blue-600" />
+                    <Icons.Users className="w-4 h-4 text-team-primary" />
                   </div>
                   <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">
                     Game Day Attendance
@@ -1054,14 +1054,14 @@ export const ScheduleTab = memo(() => {
                           <button
                             onClick={() => moveBatter(idx, -1)}
                             disabled={idx === 0}
-                            className="p-1 hover:bg-slate-100 hover:text-blue-600 rounded disabled:opacity-30 transition-colors"
+                            className="p-1 hover:bg-slate-100 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                           >
                             <Icons.ChevronUp className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => moveBatter(idx, 1)}
                             disabled={idx === battingLineup.length - 1}
-                            className="p-1 hover:bg-slate-100 hover:text-blue-600 rounded disabled:opacity-30 transition-colors"
+                            className="p-1 hover:bg-slate-100 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                           >
                             <Icons.ChevronDown className="w-4 h-4" />
                           </button>
@@ -1082,7 +1082,7 @@ export const ScheduleTab = memo(() => {
                           onClick={() =>
                             openPlayerProfile && openPlayerProfile(p.id)
                           }
-                          className="flex-1 text-sm font-black text-slate-800 text-left hover:text-blue-600 transition-colors cursor-pointer truncate"
+                          className="flex-1 text-sm font-black text-slate-800 text-left hover:text-team-primary transition-colors cursor-pointer truncate"
                         >
                           {p.name}
                         </button>
@@ -1224,7 +1224,11 @@ export const ScheduleTab = memo(() => {
           </select>
           <button
             onClick={() => addGame(newGameForm)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-colors flex items-center justify-center gap-2"
+            className="font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
+            style={{
+              backgroundColor: "var(--team-primary)",
+              color: "var(--team-tertiary)",
+            }}
           >
             <Icons.Save className="w-4 h-4" /> Save
           </button>
