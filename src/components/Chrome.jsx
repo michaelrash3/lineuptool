@@ -3,7 +3,7 @@ import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts.js";
 import { RecordBadge } from "./shared.jsx";
 
-export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, onEmailSignIn }) => (
+export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, onEmailSignIn, genError }) => (
   <div
     className="min-h-screen flex flex-col items-center justify-center p-6 border-t-8 bg-slate-50 relative"
     style={{ borderColor: primaryColor }}
@@ -50,6 +50,11 @@ export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, on
         >
           Sign In with Email Link
         </button>
+      )}
+      {genError && (
+        <p className="mt-4 rounded-xl bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-xs font-bold">
+          {genError}
+        </p>
       )}
     </div>
   </div>
