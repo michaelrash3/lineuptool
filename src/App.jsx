@@ -3240,7 +3240,7 @@ const MainShell = () => {
       const ua = navigator.userAgent || "";
       const isIOS = /iPad|iPhone|iPod/.test(ua) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      const isInApp = /FBAN|FBAV|Instagram|Line\//i.test(ua);
+      const isInApp = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|GSA|wv\)|WebView|DuckDuckGo/i.test(ua);
       return isIOS || isInApp;
     })();
 
@@ -3253,9 +3253,30 @@ const MainShell = () => {
         onSignIn={async () => {
           try {
             const provider = new GoogleAuthProvider();
-            if (isLikelyIOSOrInAppBrowser) await signInWithRedirect(auth, provider);
-            else await signInWithPopup(auth, provider);
+            provider.setCustomParameters({ prompt: "select_account" });
+            if (isLikelyIOSOrInAppBrowser) {
+              await signInWithRedirect(auth, provider);
+              return;
+            }
+            await signInWithPopup(auth, provider);
           } catch (e) {
+            const code = e?.code || "";
+            if (
+              code === "auth/popup-blocked" ||
+              code === "auth/popup-closed-by-user" ||
+              code === "auth/cancelled-popup-request" ||
+              code === "auth/operation-not-supported-in-this-environment"
+            ) {
+              try {
+                const provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: "select_account" });
+                await signInWithRedirect(auth, provider);
+                return;
+              } catch (redirectError) {
+                setGenError(redirectError?.message || "Sign-in failed");
+                return;
+              }
+            }
             setGenError(e.message);
           }
         }}
