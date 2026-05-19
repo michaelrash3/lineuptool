@@ -42,9 +42,7 @@ const shouldOverrideAuthDomain =
   !isLocalHost(runtimeHostname);
 
 const firebaseConfig: FirebaseOptions = parsedHostFirebaseConfig
-  ? shouldOverrideAuthDomain
-    ? { ...parsedHostFirebaseConfig, authDomain: runtimeHostname }
-    : parsedHostFirebaseConfig
+  ? parsedHostFirebaseConfig
   : shouldOverrideAuthDomain
     ? { ...fallbackConfig, authDomain: runtimeHostname }
     : fallbackConfig;
