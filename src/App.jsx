@@ -3253,6 +3253,7 @@ const MainShell = () => {
         onSignIn={async () => {
           try {
             const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: "select_account" });
             if (isLikelyIOSOrInAppBrowser) {
               await signInWithRedirect(auth, provider);
               return;
@@ -3262,10 +3263,13 @@ const MainShell = () => {
             const code = e?.code || "";
             if (
               code === "auth/popup-blocked" ||
+              code === "auth/popup-closed-by-user" ||
+              code === "auth/cancelled-popup-request" ||
               code === "auth/operation-not-supported-in-this-environment"
             ) {
               try {
                 const provider = new GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: "select_account" });
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError) {
