@@ -101,6 +101,14 @@ import {
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
 
+const authDiag = (event, details = {}) => {
+  if (typeof console === "undefined") return;
+  console.info("[auth-diag]", event, {
+    ts: new Date().toISOString(),
+    ...details,
+  });
+};
+
 /* ============================================================================
    SECTION 5 · Toast system (replaces scattered setGenerationError)
 ============================================================================ */
