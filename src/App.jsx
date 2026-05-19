@@ -399,6 +399,8 @@ const TeamProvider = ({ children }) => {
             setActiveTeamId(id);
             setLoadingTeams(false);
           } catch (e) {
+            // Allow retry on the next empty snapshot in this session.
+            bootstrapAttemptedRef.current = false;
             setLoadingTeams(false);
             toast.push({
               kind: "error",
