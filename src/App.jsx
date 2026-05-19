@@ -2424,9 +2424,17 @@ const TeamProvider = ({ children }) => {
     let cancelled = false;
     (async () => {
       try {
-        await getRedirectResult(auth);
+        const result = await getRedirectResult(auth);
+        if (cancelled) return;
+        if (result?.user) {
+          clearRedirectPending();
+        } else if (isRedirectLikelyStuck()) {
+          clearRedirectPending();
+          setGenError("Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.");
+        }
       } catch (e) {
         if (cancelled) return;
+        clearRedirectPending();
         setGenError(e?.message || "Sign-in failed");
       }
     })();
@@ -3255,10 +3263,17 @@ const MainShell = () => {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
             if (isLikelyIOSOrInAppBrowser) {
+              if (isRedirectLikelyStuck()) {
+                clearRedirectPending();
+                setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
+                return;
+              }
+              markRedirectPending();
               await signInWithRedirect(auth, provider);
               return;
             }
             await signInWithPopup(auth, provider);
+            clearRedirectPending();
           } catch (e) {
             const code = e?.code || "";
             if (
@@ -3270,6 +3285,12 @@ const MainShell = () => {
               try {
                 const provider = new GoogleAuthProvider();
                 provider.setCustomParameters({ prompt: "select_account" });
+                if (isRedirectLikelyStuck()) {
+                  clearRedirectPending();
+                  setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
+                  return;
+                }
+                markRedirectPending();
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError) {
@@ -3401,3 +3422,28 @@ const App = () => {
 };
 
 export default App;
+const REDIRECT_FLAG_KEY = "googleSignInRedirectPending";
+const REDIRECT_STARTED_AT_KEY = "googleSignInRedirectStartedAt";
+const REDIRECT_GUARD_MS = 45 * 1000;
+
+const markRedirectPending = () => {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(REDIRECT_FLAG_KEY, "1");
+  sessionStorage.setItem(REDIRECT_STARTED_AT_KEY, String(Date.now()));
+};
+
+const clearRedirectPending = () => {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(REDIRECT_FLAG_KEY);
+  sessionStorage.removeItem(REDIRECT_STARTED_AT_KEY);
+};
+
+const isRedirectLikelyStuck = () => {
+  if (typeof window === "undefined") return false;
+  if (sessionStorage.getItem(REDIRECT_FLAG_KEY) !== "1") return false;
+  const started = Number(sessionStorage.getItem(REDIRECT_STARTED_AT_KEY) || "0");
+  if (!Number.isFinite(started) || started <= 0) return true;
+  return Date.now() - started > REDIRECT_GUARD_MS;
+};
+
+
