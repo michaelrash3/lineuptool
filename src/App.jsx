@@ -414,7 +414,13 @@ const TeamProvider = ({ children }) => {
 
   // Subscribe to active team document
   useEffect(() => {
-    if (!activeTeamId) return;
+    if (!activeTeamId) {
+      // When auth changes (or a user has no teams yet), there is no active
+      // team doc to subscribe to. Ensure the global loading gate is cleared
+      // so the login screen/app shell can render instead of spinning forever.
+      setLoadingActive(false);
+      return;
+    }
     setLoadingActive(true);
     const ref = doc(
       db,
@@ -2463,6 +2469,18 @@ const TeamProvider = ({ children }) => {
     (async () => {
       if (typeof window === "undefined") return;
       if (!isSignInWithEmailLink(auth, window.location.href)) return;
+      const clearEmailLinkParams = () => {
+        const url = new URL(window.location.href);
+        [
+          "oobCode",
+          "mode",
+          "apiKey",
+          "lang",
+          "continueUrl",
+          "tenantId",
+        ].forEach((k) => url.searchParams.delete(k));
+        window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+      };
       const savedEmail = window.localStorage.getItem("emailForSignIn");
       const email = savedEmail || window.prompt("Enter your email to complete sign-in") || "";
       if (!email) return;
@@ -2470,10 +2488,16 @@ const TeamProvider = ({ children }) => {
         await signInWithEmailLink(auth, email, window.location.href);
         if (cancelled) return;
         window.localStorage.removeItem("emailForSignIn");
+        clearEmailLinkParams();
         authDiag("email_link_success");
+        setGenError("");
       } catch (e) {
         if (cancelled) return;
         authDiag("email_link_error", { code: e?.code || null, message: e?.message || null });
+        if (e?.code === "auth/invalid-action-code" || e?.code === "auth/expired-action-code") {
+          window.localStorage.removeItem("emailForSignIn");
+          clearEmailLinkParams();
+        }
         setGenError(e?.message || "Email sign-in failed");
       }
     })();
@@ -3519,5 +3543,3 @@ const redirectAttemptsExceeded = () => {
   const attempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
   return Number.isFinite(attempts) && attempts >= MAX_REDIRECT_ATTEMPTS;
 };
-
-
