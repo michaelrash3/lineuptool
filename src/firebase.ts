@@ -27,9 +27,33 @@ const fallbackConfig: FirebaseOptions = {
 
 const _hostFirebaseConfig =
   (typeof window !== "undefined" && window.__firebase_config) || null;
-const firebaseConfig: FirebaseOptions = _hostFirebaseConfig
+const parsedHostFirebaseConfig: FirebaseOptions | null = _hostFirebaseConfig
   ? (JSON.parse(_hostFirebaseConfig) as FirebaseOptions)
-  : fallbackConfig;
+  : null;
+
+const isLocalHost = (hostname: string): boolean =>
+  hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+
+const runtimeHostname =
+  typeof window !== "undefined" ? window.location.hostname : "";
+const shouldOverrideAuthDomain =
+  !parsedHostFirebaseConfig?.authDomain &&
+  runtimeHostname &&
+  !isLocalHost(runtimeHostname);
+
+const firebaseConfig: FirebaseOptions = parsedHostFirebaseConfig
+  ? parsedHostFirebaseConfig
+  : shouldOverrideAuthDomain
+    ? { ...fallbackConfig, authDomain: runtimeHostname }
+    : fallbackConfig;
+
+if (typeof window !== "undefined") {
+  console.info("[firebase] auth bootstrap", {
+    host: runtimeHostname || null,
+    authDomain: firebaseConfig.authDomain || null,
+    usingInjectedConfig: Boolean(parsedHostFirebaseConfig),
+  });
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
