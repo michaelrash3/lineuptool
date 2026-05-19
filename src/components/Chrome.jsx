@@ -3,7 +3,7 @@ import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts.js";
 import { RecordBadge } from "./shared.jsx";
 
-export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn }) => (
+export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, onEmailSignIn }) => (
   <div
     className="min-h-screen flex flex-col items-center justify-center p-6 border-t-8 bg-slate-50 relative"
     style={{ borderColor: primaryColor }}
@@ -42,6 +42,15 @@ export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn }) 
       >
         <Icons.Users className="w-5 h-5" /> Sign In with Google
       </button>
+      {onEmailSignIn && (
+        <button
+          onClick={onEmailSignIn}
+          className="w-full mt-3 py-3 px-4 font-black uppercase tracking-wider rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50"
+          type="button"
+        >
+          Sign In with Email Link
+        </button>
+      )}
     </div>
   </div>
 );

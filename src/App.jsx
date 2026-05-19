@@ -13,6 +13,9 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
 } from "firebase/auth";
 import {
   doc,
@@ -2446,6 +2449,31 @@ const TeamProvider = ({ children }) => {
     };
   }, []);
 
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (typeof window === "undefined") return;
+      if (!isSignInWithEmailLink(auth, window.location.href)) return;
+      const savedEmail = window.localStorage.getItem("emailForSignIn");
+      const email = savedEmail || window.prompt("Enter your email to complete sign-in") || "";
+      if (!email) return;
+      try {
+        await signInWithEmailLink(auth, email, window.location.href);
+        if (cancelled) return;
+        window.localStorage.removeItem("emailForSignIn");
+        authDiag("email_link_success");
+      } catch (e) {
+        if (cancelled) return;
+        authDiag("email_link_error", { code: e?.code || null, message: e?.message || null });
+        setGenError(e?.message || "Email sign-in failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Auto-redeem ?invite= and ?join= URL params once auth + team list
   // are ready. `?invite=<teamId>.<token>` is the legacy per-coach link
   // flow; `?join=<code>` is the new persistent team-code flow.
@@ -3307,6 +3335,24 @@ const MainShell = () => {
             }
             authDiag("popup_error", { code: e?.code || null, message: e?.message || null });
             setGenError(e.message);
+          }
+        }}
+        onEmailSignIn={async () => {
+          if (typeof window === "undefined") return;
+          const email = window.prompt("Enter your email for a sign-in link") || "";
+          if (!email) return;
+          try {
+            const continueUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+            await sendSignInLinkToEmail(auth, email, {
+              url: continueUrl,
+              handleCodeInApp: true,
+            });
+            window.localStorage.setItem("emailForSignIn", email);
+            authDiag("email_link_sent", { email });
+            setGenError("Email sign-in link sent. Check your inbox and open it on this device.");
+          } catch (e) {
+            authDiag("email_link_send_error", { code: e?.code || null, message: e?.message || null });
+            setGenError(e?.message || "Could not send email sign-in link");
           }
         }}
       />
