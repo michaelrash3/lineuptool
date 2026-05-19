@@ -414,7 +414,13 @@ const TeamProvider = ({ children }) => {
 
   // Subscribe to active team document
   useEffect(() => {
-    if (!activeTeamId) return;
+    if (!activeTeamId) {
+      // When auth changes (or a user has no teams yet), there is no active
+      // team doc to subscribe to. Ensure the global loading gate is cleared
+      // so the login screen/app shell can render instead of spinning forever.
+      setLoadingActive(false);
+      return;
+    }
     setLoadingActive(true);
     const ref = doc(
       db,
@@ -3519,5 +3525,4 @@ const redirectAttemptsExceeded = () => {
   const attempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
   return Number.isFinite(attempts) && attempts >= MAX_REDIRECT_ATTEMPTS;
 };
-
 
