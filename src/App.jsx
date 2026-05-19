@@ -3435,14 +3435,6 @@ const REDIRECT_GUARD_MS = 45 * 1000;
 const REDIRECT_ATTEMPTS_KEY = "googleSignInRedirectAttempts";
 const MAX_REDIRECT_ATTEMPTS = 2;
 
-const authDiag = (event, details = {}) => {
-  if (typeof console === "undefined") return;
-  console.info("[auth-diag]", event, {
-    ts: new Date().toISOString(),
-    ...details,
-  });
-};
-
 const markRedirectPending = () => {
   if (typeof window === "undefined") return;
   const priorAttempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
