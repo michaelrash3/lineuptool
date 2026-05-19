@@ -3345,6 +3345,7 @@ const MainShell = () => {
             setGenError(e.message);
           }
         }}
+        genError={genError}
         onEmailSignIn={async () => {
           if (typeof window === "undefined") return;
           const email = window.prompt("Enter your email for a sign-in link") || "";
