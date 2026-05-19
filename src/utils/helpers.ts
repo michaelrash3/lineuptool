@@ -19,35 +19,46 @@ export const formatStat = (val: unknown): string => {
 // Normalize a date string to YYYY-MM-DD (the format `<input type="date">`
 // requires). Handles common imports: ISO (2026-04-27), US slash (04/27/2026
 // or 4/27/26), ISO with time (2026-04-27T...). Returns "" if unparseable.
+// All date-only parsing is done from numeric parts instead of `new Date(raw)`
+// so imports are deterministic and do not shift a day across time zones.
+const padDatePart = (value: string | number): string => String(value).padStart(2, "0");
+
+const isValidDateParts = (year: number, month: number, day: number): boolean => {
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day;
+};
+
+const toIsoDate = (year: number, month: number, day: number): string =>
+  isValidDateParts(year, month, day)
+    ? `${year}-${padDatePart(month)}-${padDatePart(day)}`
+    : "";
+
 export const normalizeDateToIso = (dateString: unknown): string => {
   if (!dateString || typeof dateString !== "string") return "";
   const trimmed = dateString.trim();
   if (!trimmed) return "";
-  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  const isoLooseMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-  if (isoLooseMatch) {
-    const y = isoLooseMatch[1];
-    const m = isoLooseMatch[2].padStart(2, "0");
-    const d = isoLooseMatch[3].padStart(2, "0");
-    return `${y}-${m}-${d}`;
+
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+  if (isoMatch) {
+    return toIsoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
   }
+
   const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (slashMatch) {
-    const m = slashMatch[1].padStart(2, "0");
-    const d = slashMatch[2].padStart(2, "0");
-    let y = slashMatch[3];
-    if (y.length === 2) y = (parseInt(y, 10) > 50 ? "19" : "20") + y;
-    return `${y}-${m}-${d}`;
+    let year = Number(slashMatch[3]);
+    if (year < 100) year += year > 50 ? 1900 : 2000;
+    return toIsoDate(year, Number(slashMatch[1]), Number(slashMatch[2]));
   }
-  // Last-resort fallback: ambiguous dates may misread due to timezones.
-  const d = new Date(trimmed);
-  if (!Number.isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, "0");
-    const da = String(d.getDate()).padStart(2, "0");
-    return `${y}-${mo}-${da}`;
+
+  const dashedUsMatch = trimmed.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})$/);
+  if (dashedUsMatch) {
+    let year = Number(dashedUsMatch[3]);
+    if (year < 100) year += year > 50 ? 1900 : 2000;
+    return toIsoDate(year, Number(dashedUsMatch[1]), Number(dashedUsMatch[2]));
   }
+
   return "";
 };
 
@@ -55,17 +66,14 @@ export const formatGameDateDisplay = (dateString: string | null | undefined): st
   if (!dateString) return "";
   const iso = normalizeDateToIso(dateString);
   if (!iso) return dateString;
-  try {
-    const [y, m, d] = iso.split("-");
-    return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString(undefined, {
-      weekday: "short",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return dateString;
-  }
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(y, m - 1, d)));
 };
 
 // Slim helpers: strip embedded player objects in saved lineups down to the
@@ -223,24 +231,52 @@ export const calculateBaseballAge = (
   return age;
 };
 
-export const parseCsvLine = (text: string): string[] => {
-  const result: string[] = [];
+// Parse CSV text into records. This intentionally mirrors the subset of
+// PapaParse behavior this app needs while package installation is blocked in
+// the current npm environment: quoted commas, escaped quotes, CRLF/LF line
+// endings, UTF-8 BOMs, and quoted embedded newlines are all supported.
+export const parseCsvRecords = (text: unknown): string[][] => {
+  const source = String(text ?? "").replace(/^\uFEFF/, "");
+  const rows: string[][] = [];
+  let row: string[] = [];
   let cell = "";
   let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    if (char === '"' && inQuotes && text[i + 1] === '"') {
-      cell += '"';
-      i++;
-    } else if (char === '"') inQuotes = !inQuotes;
-    else if (char === "," && !inQuotes) {
-      result.push(cell);
-      cell = "";
-    } else cell += char;
+
+  const pushCell = (): void => {
+    row.push(cell.trim());
+    cell = "";
+  };
+  const pushRow = (): void => {
+    pushCell();
+    if (row.some((value) => value.trim() !== "")) rows.push(row);
+    row = [];
+  };
+
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === "," && !inQuotes) {
+      pushCell();
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i++;
+      pushRow();
+    } else {
+      cell += char;
+    }
   }
-  result.push(cell.trim());
-  return result;
+
+  if (cell !== "" || row.length > 0) pushRow();
+  return rows;
 };
+
+export const parseCsvLine = (text: string): string[] => parseCsvRecords(text)[0] || [];
 
 export interface CsvHeaderIndex {
   fn: number;
@@ -338,12 +374,11 @@ export const parsePercent = (val: unknown): number => {
 
 // Parse a GameChanger past-season CSV. Returns { rows, error }.
 export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => {
-  const cleaned = (text || "").replace(/^﻿/, "");
-  const lines = cleaned.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) return { error: "File appears to be empty.", rows: [] };
+  const csvRows = parseCsvRecords(text);
+  if (csvRows.length < 2) return { error: "File appears to be empty.", rows: [] };
 
   let headerRowIndex = 0;
-  const firstRow = parseCsvLine(lines[0]).map((h) => h.toLowerCase().trim());
+  const firstRow = csvRows[0].map((h) => h.toLowerCase().trim());
   const filledFirstRow = firstRow.filter(Boolean).length;
   const hasSectionLabels = firstRow.some((h) =>
     ["batting", "pitching", "fielding"].includes(h)
@@ -351,7 +386,7 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
   if (hasSectionLabels && filledFirstRow < firstRow.length / 3)
     headerRowIndex = 1;
 
-  const rawHeaders = parseCsvLine(lines[headerRowIndex]).map((h) =>
+  const rawHeaders = csvRows[headerRowIndex].map((h) =>
     h.toLowerCase().trim()
   );
   const idx = buildCsvHeaderIndex(rawHeaders);
@@ -373,10 +408,10 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
     };
   }
 
-  const rows: CsvImportResult["rows"] = [];
+  const importRows: CsvImportResult["rows"] = [];
   const dataStart = headerRowIndex + 1;
-  for (let i = dataStart; i < lines.length; i++) {
-    const cols = parseCsvLine(lines[i]);
+  for (let i = dataStart; i < csvRows.length; i++) {
+    const cols = csvRows[i];
     const fn = (idx.fn !== -1 ? cols[idx.fn] : "").trim();
     const ln = (idx.ln !== -1 ? cols[idx.ln] : "").trim();
     const name = `${fn} ${ln}`.trim();
@@ -441,13 +476,13 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
     setNum("babip", idx.babip);
 
     if (Object.keys(stats).length === 0) continue;
-    rows.push({
+    importRows.push({
       csvName: name,
       number: idx.num !== -1 ? cols[idx.num] || "" : "",
       stats,
     });
   }
-  return { rows };
+  return { rows: importRows };
 };
 
 // Suggest a likely match between a CSV row name and existing players.
