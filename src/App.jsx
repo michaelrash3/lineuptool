@@ -3135,12 +3135,60 @@ const MainShell = () => {
 
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const AUTH_REDIRECT_KEY = "authRedirectInFlightAt";
+  const AUTH_REDIRECT_STALE_MS = 5 * 60 * 1000;
+
+  const getAuthRedirectState = useCallback(() => {
+    if (typeof window === "undefined") return { inFlight: false, stale: false };
+    const raw = sessionStorage.getItem(AUTH_REDIRECT_KEY);
+    if (!raw) return { inFlight: false, stale: false };
+    const startedAt = Number(raw);
+    const stale = !Number.isFinite(startedAt) || Date.now() - startedAt > AUTH_REDIRECT_STALE_MS;
+    return { inFlight: !stale, stale };
+  }, [AUTH_REDIRECT_STALE_MS]);
+
+  const markRedirectInFlight = useCallback(() => {
+    if (typeof window === "undefined") return;
+    sessionStorage.setItem(AUTH_REDIRECT_KEY, String(Date.now()));
+  }, []);
+
+  const clearRedirectInFlight = useCallback(() => {
+    if (typeof window !== "undefined") sessionStorage.removeItem(AUTH_REDIRECT_KEY);
+  }, []);
 
   useEffect(() => {
     if (authReady && user && !onboardingHasBeenCompleted()) {
       setTutorialOpen(true);
     }
   }, [authReady, user]);
+
+  useEffect(() => {
+    const { inFlight, stale } = getAuthRedirectState();
+    if (stale) {
+      clearRedirectInFlight();
+      return;
+    }
+    if (inFlight) return;
+  }, [getAuthRedirectState, clearRedirectInFlight]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const { inFlight } = getAuthRedirectState();
+    if (!inFlight) return undefined;
+    (async () => {
+      try {
+        await getRedirectResult(auth);
+      } catch (e) {
+        if (cancelled) return;
+        setGenError(e?.message || "Sign-in failed");
+      } finally {
+        if (!cancelled) clearRedirectInFlight();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAuthRedirectState, clearRedirectInFlight, setGenError]);
 
   // Global keyboard shortcuts. Disabled while typing in form fields. Active
   // anywhere in the app:
@@ -3240,7 +3288,7 @@ const MainShell = () => {
       const ua = navigator.userAgent || "";
       const isIOS = /iPad|iPhone|iPod/.test(ua) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-      const isInApp = /FBAN|FBAV|Instagram|Line\//i.test(ua);
+      const isInApp = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|GSA|wv\)|WebView|DuckDuckGo/i.test(ua);
       return isIOS || isInApp;
     })();
 
@@ -3252,10 +3300,42 @@ const MainShell = () => {
         tertiaryColor={team.tertiaryColor}
         onSignIn={async () => {
           try {
+            const { inFlight, stale } = getAuthRedirectState();
+            if (stale) {
+              clearRedirectInFlight();
+            } else if (inFlight) {
+              setGenError("Finishing sign-in… If this takes too long, reopen this page in Safari and try again.");
+              return;
+            }
             const provider = new GoogleAuthProvider();
-            if (isLikelyIOSOrInAppBrowser) await signInWithRedirect(auth, provider);
-            else await signInWithPopup(auth, provider);
+            if (isLikelyIOSOrInAppBrowser) {
+              markRedirectInFlight();
+              try {
+                await signInWithRedirect(auth, provider);
+                return;
+              } catch (redirectLaunchError) {
+                clearRedirectInFlight();
+                throw redirectLaunchError;
+              }
+            }
+            await signInWithPopup(auth, provider);
           } catch (e) {
+            const code = e?.code || "";
+            if (
+              code === "auth/popup-blocked" ||
+              code === "auth/operation-not-supported-in-this-environment"
+            ) {
+              try {
+                const provider = new GoogleAuthProvider();
+                markRedirectInFlight();
+                await signInWithRedirect(auth, provider);
+                return;
+              } catch (redirectError) {
+                clearRedirectInFlight();
+                setGenError(redirectError?.message || "Sign-in failed");
+                return;
+              }
+            }
             setGenError(e.message);
           }
         }}
