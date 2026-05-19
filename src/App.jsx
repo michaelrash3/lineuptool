@@ -13,6 +13,9 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
 } from "firebase/auth";
 import {
   doc,
@@ -2427,15 +2430,43 @@ const TeamProvider = ({ children }) => {
         const result = await getRedirectResult(auth);
         if (cancelled) return;
         if (result?.user) {
+          authDiag("redirect_result_user", { uid: result.user.uid });
           clearRedirectPending();
         } else if (isRedirectLikelyStuck()) {
+          authDiag("redirect_result_stuck");
           clearRedirectPending();
           setGenError("Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.");
         }
       } catch (e) {
         if (cancelled) return;
+        authDiag("redirect_result_error", { code: e?.code || null, message: e?.message || null });
         clearRedirectPending();
         setGenError(e?.message || "Sign-in failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (typeof window === "undefined") return;
+      if (!isSignInWithEmailLink(auth, window.location.href)) return;
+      const savedEmail = window.localStorage.getItem("emailForSignIn");
+      const email = savedEmail || window.prompt("Enter your email to complete sign-in") || "";
+      if (!email) return;
+      try {
+        await signInWithEmailLink(auth, email, window.location.href);
+        if (cancelled) return;
+        window.localStorage.removeItem("emailForSignIn");
+        authDiag("email_link_success");
+      } catch (e) {
+        if (cancelled) return;
+        authDiag("email_link_error", { code: e?.code || null, message: e?.message || null });
+        setGenError(e?.message || "Email sign-in failed");
       }
     })();
     return () => {
@@ -3105,6 +3136,7 @@ const UIProvider = ({ children }) => {
 ============================================================================ */
 // Tab order is computed below from team.tryoutsOpen so the Tryouts
 const MainShell = () => {
+  
   const {
     team,
     user,
@@ -3267,10 +3299,13 @@ const MainShell = () => {
                 return;
               }
               markRedirectPending();
+              authDiag("redirect_start", { source: "in_app_first" });
               await signInWithRedirect(auth, provider);
               return;
             }
+            authDiag("popup_start");
             await signInWithPopup(auth, provider);
+            authDiag("popup_success");
             clearRedirectPending();
           } catch (e) {
             const code = e?.code || "";
@@ -3289,14 +3324,35 @@ const MainShell = () => {
                   return;
                 }
                 markRedirectPending();
+                authDiag("redirect_start", { source: "popup_fallback" });
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError) {
+                authDiag("redirect_fallback_error", { code: redirectError?.code || null, message: redirectError?.message || null });
                 setGenError(redirectError?.message || "Sign-in failed");
                 return;
               }
             }
+            authDiag("popup_error", { code: e?.code || null, message: e?.message || null });
             setGenError(e.message);
+          }
+        }}
+        onEmailSignIn={async () => {
+          if (typeof window === "undefined") return;
+          const email = window.prompt("Enter your email for a sign-in link") || "";
+          if (!email) return;
+          try {
+            const continueUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+            await sendSignInLinkToEmail(auth, email, {
+              url: continueUrl,
+              handleCodeInApp: true,
+            });
+            window.localStorage.setItem("emailForSignIn", email);
+            authDiag("email_link_sent", { email });
+            setGenError("Email sign-in link sent. Check your inbox and open it on this device.");
+          } catch (e) {
+            authDiag("email_link_send_error", { code: e?.code || null, message: e?.message || null });
+            setGenError(e?.message || "Could not send email sign-in link");
           }
         }}
       />
