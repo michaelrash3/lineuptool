@@ -312,6 +312,7 @@ const TeamProvider = ({ children }) => {
   // Prevents the legacy-owner migration effect from re-firing every time
   // Firestore emits a fresh snapshot before ownerId is reflected back.
   const migrationAttemptedRef = useRef(new Set());
+  const bootstrapAttemptedRef = useRef(false);
 
   // Auth subscription
   useEffect(() => {
@@ -364,7 +365,15 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
-          // Bootstrap: create first team for this user
+          // Bootstrap: create first team for this user. Guard so we don't
+          // create duplicate teams if rules/network temporarily reject the
+          // user settings write and this snapshot retries.
+          if (bootstrapAttemptedRef.current) {
+            setLoadingTeams(false);
+            return;
+          }
+          bootstrapAttemptedRef.current = true;
+
           const id = "team-" + Math.random().toString(36).substring(2, 10);
           const teamRef = doc(
             db,
@@ -386,7 +395,11 @@ const TeamProvider = ({ children }) => {
               teams: [{ id, name: "My Team" }],
               activeTeamId: id,
             });
+            setTeams([{ id, name: "My Team" }]);
+            setActiveTeamId(id);
+            setLoadingTeams(false);
           } catch (e) {
+            setLoadingTeams(false);
             toast.push({
               kind: "error",
               title: "Setup failed",
@@ -395,6 +408,7 @@ const TeamProvider = ({ children }) => {
           }
           return;
         }
+        bootstrapAttemptedRef.current = false;
         setTeams(data.teams);
         if (data.activeTeamId) setActiveTeamId(data.activeTeamId);
         else if (data.teams[0]) setActiveTeamId(data.teams[0].id);
