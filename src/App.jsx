@@ -3243,13 +3243,11 @@ const MainShell = () => {
   }
 
 
-  const isLikelyIOSOrInAppBrowser =
+  const authEnv =
     typeof navigator !== "undefined" && (() => {
       const ua = navigator.userAgent || "";
-      const isIOS = /iPad|iPhone|iPod/.test(ua) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       const isInApp = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|GSA|wv\)|WebView|DuckDuckGo/i.test(ua);
-      return isIOS || isInApp;
+      return { isInApp };
     })();
 
   if (!user) {
@@ -3262,8 +3260,8 @@ const MainShell = () => {
           try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
-            if (isLikelyIOSOrInAppBrowser) {
-              if (isRedirectLikelyStuck()) {
+            if (authEnv?.isInApp) {
+              if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                 clearRedirectPending();
                 setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
                 return;
@@ -3285,7 +3283,7 @@ const MainShell = () => {
               try {
                 const provider = new GoogleAuthProvider();
                 provider.setCustomParameters({ prompt: "select_account" });
-                if (isRedirectLikelyStuck()) {
+                if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                   clearRedirectPending();
                   setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
                   return;
@@ -3425,9 +3423,13 @@ export default App;
 const REDIRECT_FLAG_KEY = "googleSignInRedirectPending";
 const REDIRECT_STARTED_AT_KEY = "googleSignInRedirectStartedAt";
 const REDIRECT_GUARD_MS = 45 * 1000;
+const REDIRECT_ATTEMPTS_KEY = "googleSignInRedirectAttempts";
+const MAX_REDIRECT_ATTEMPTS = 2;
 
 const markRedirectPending = () => {
   if (typeof window === "undefined") return;
+  const priorAttempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
+  sessionStorage.setItem(REDIRECT_ATTEMPTS_KEY, String(Number.isFinite(priorAttempts) ? priorAttempts + 1 : 1));
   sessionStorage.setItem(REDIRECT_FLAG_KEY, "1");
   sessionStorage.setItem(REDIRECT_STARTED_AT_KEY, String(Date.now()));
 };
@@ -3436,6 +3438,7 @@ const clearRedirectPending = () => {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(REDIRECT_FLAG_KEY);
   sessionStorage.removeItem(REDIRECT_STARTED_AT_KEY);
+  sessionStorage.removeItem(REDIRECT_ATTEMPTS_KEY);
 };
 
 const isRedirectLikelyStuck = () => {
@@ -3444,6 +3447,12 @@ const isRedirectLikelyStuck = () => {
   const started = Number(sessionStorage.getItem(REDIRECT_STARTED_AT_KEY) || "0");
   if (!Number.isFinite(started) || started <= 0) return true;
   return Date.now() - started > REDIRECT_GUARD_MS;
+};
+
+const redirectAttemptsExceeded = () => {
+  if (typeof window === "undefined") return false;
+  const attempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
+  return Number.isFinite(attempts) && attempts >= MAX_REDIRECT_ATTEMPTS;
 };
 
 

@@ -1,5 +1,5 @@
 import { initializeApp, FirebaseOptions } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
@@ -33,6 +33,10 @@ const firebaseConfig: FirebaseOptions = _hostFirebaseConfig
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+void setPersistence(auth, browserLocalPersistence).catch((err) => {
+  console.warn("Auth local persistence unavailable, falling back:", err);
+});
 
 // Coaches use this app at fields with poor cell service. Initialize Firestore
 // with IndexedDB-backed persistence so cached data and pending writes survive
