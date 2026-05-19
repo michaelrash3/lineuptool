@@ -2,6 +2,9 @@
     "include": [
         "./src/**/*"
     ],
+    "exclude": [
+        "node_modules"
+    ],
     "compilerOptions": {
         "target": "es2020",
         "module": "esnext",
@@ -16,6 +19,11 @@
             "es2020"
         ],
         "jsx": "react-jsx",
+        "types": [
+            "react",
+            "react-dom",
+            "jest"
+        ],
         "skipLibCheck": true,
         "isolatedModules": true,
         "noEmit": true,
