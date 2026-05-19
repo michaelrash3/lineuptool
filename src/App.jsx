@@ -13,6 +13,9 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
 } from "firebase/auth";
 import {
   doc,
@@ -97,6 +100,14 @@ import {
 /* ============================================================================
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
+
+const authDiag = (event, details = {}) => {
+  if (typeof console === "undefined") return;
+  console.info("[auth-diag]", event, {
+    ts: new Date().toISOString(),
+    ...details,
+  });
+};
 
 /* ============================================================================
    SECTION 5 · Toast system (replaces scattered setGenerationError)
@@ -2427,15 +2438,43 @@ const TeamProvider = ({ children }) => {
         const result = await getRedirectResult(auth);
         if (cancelled) return;
         if (result?.user) {
+          authDiag("redirect_result_user", { uid: result.user.uid });
           clearRedirectPending();
         } else if (isRedirectLikelyStuck()) {
+          authDiag("redirect_result_stuck");
           clearRedirectPending();
           setGenError("Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.");
         }
       } catch (e) {
         if (cancelled) return;
+        authDiag("redirect_result_error", { code: e?.code || null, message: e?.message || null });
         clearRedirectPending();
         setGenError(e?.message || "Sign-in failed");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (typeof window === "undefined") return;
+      if (!isSignInWithEmailLink(auth, window.location.href)) return;
+      const savedEmail = window.localStorage.getItem("emailForSignIn");
+      const email = savedEmail || window.prompt("Enter your email to complete sign-in") || "";
+      if (!email) return;
+      try {
+        await signInWithEmailLink(auth, email, window.location.href);
+        if (cancelled) return;
+        window.localStorage.removeItem("emailForSignIn");
+        authDiag("email_link_success");
+      } catch (e) {
+        if (cancelled) return;
+        authDiag("email_link_error", { code: e?.code || null, message: e?.message || null });
+        setGenError(e?.message || "Email sign-in failed");
       }
     })();
     return () => {
@@ -3105,6 +3144,7 @@ const UIProvider = ({ children }) => {
 ============================================================================ */
 // Tab order is computed below from team.tryoutsOpen so the Tryouts
 const MainShell = () => {
+  
   const {
     team,
     user,
@@ -3243,13 +3283,11 @@ const MainShell = () => {
   }
 
 
-  const isLikelyIOSOrInAppBrowser =
+  const authEnv =
     typeof navigator !== "undefined" && (() => {
       const ua = navigator.userAgent || "";
-      const isIOS = /iPad|iPhone|iPod/.test(ua) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       const isInApp = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|GSA|wv\)|WebView|DuckDuckGo/i.test(ua);
-      return isIOS || isInApp;
+      return { isInApp };
     })();
 
   if (!user) {
@@ -3262,17 +3300,20 @@ const MainShell = () => {
           try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
-            if (isLikelyIOSOrInAppBrowser) {
-              if (isRedirectLikelyStuck()) {
+            if (authEnv?.isInApp) {
+              if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                 clearRedirectPending();
                 setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
                 return;
               }
               markRedirectPending();
+              authDiag("redirect_start", { source: "in_app_first" });
               await signInWithRedirect(auth, provider);
               return;
             }
+            authDiag("popup_start");
             await signInWithPopup(auth, provider);
+            authDiag("popup_success");
             clearRedirectPending();
           } catch (e) {
             const code = e?.code || "";
@@ -3285,20 +3326,41 @@ const MainShell = () => {
               try {
                 const provider = new GoogleAuthProvider();
                 provider.setCustomParameters({ prompt: "select_account" });
-                if (isRedirectLikelyStuck()) {
+                if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                   clearRedirectPending();
                   setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
                   return;
                 }
                 markRedirectPending();
+                authDiag("redirect_start", { source: "popup_fallback" });
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError) {
+                authDiag("redirect_fallback_error", { code: redirectError?.code || null, message: redirectError?.message || null });
                 setGenError(redirectError?.message || "Sign-in failed");
                 return;
               }
             }
+            authDiag("popup_error", { code: e?.code || null, message: e?.message || null });
             setGenError(e.message);
+          }
+        }}
+        onEmailSignIn={async () => {
+          if (typeof window === "undefined") return;
+          const email = window.prompt("Enter your email for a sign-in link") || "";
+          if (!email) return;
+          try {
+            const continueUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+            await sendSignInLinkToEmail(auth, email, {
+              url: continueUrl,
+              handleCodeInApp: true,
+            });
+            window.localStorage.setItem("emailForSignIn", email);
+            authDiag("email_link_sent", { email });
+            setGenError("Email sign-in link sent. Check your inbox and open it on this device.");
+          } catch (e) {
+            authDiag("email_link_send_error", { code: e?.code || null, message: e?.message || null });
+            setGenError(e?.message || "Could not send email sign-in link");
           }
         }}
       />
@@ -3425,9 +3487,13 @@ export default App;
 const REDIRECT_FLAG_KEY = "googleSignInRedirectPending";
 const REDIRECT_STARTED_AT_KEY = "googleSignInRedirectStartedAt";
 const REDIRECT_GUARD_MS = 45 * 1000;
+const REDIRECT_ATTEMPTS_KEY = "googleSignInRedirectAttempts";
+const MAX_REDIRECT_ATTEMPTS = 2;
 
 const markRedirectPending = () => {
   if (typeof window === "undefined") return;
+  const priorAttempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
+  sessionStorage.setItem(REDIRECT_ATTEMPTS_KEY, String(Number.isFinite(priorAttempts) ? priorAttempts + 1 : 1));
   sessionStorage.setItem(REDIRECT_FLAG_KEY, "1");
   sessionStorage.setItem(REDIRECT_STARTED_AT_KEY, String(Date.now()));
 };
@@ -3436,6 +3502,7 @@ const clearRedirectPending = () => {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(REDIRECT_FLAG_KEY);
   sessionStorage.removeItem(REDIRECT_STARTED_AT_KEY);
+  sessionStorage.removeItem(REDIRECT_ATTEMPTS_KEY);
 };
 
 const isRedirectLikelyStuck = () => {
@@ -3444,6 +3511,12 @@ const isRedirectLikelyStuck = () => {
   const started = Number(sessionStorage.getItem(REDIRECT_STARTED_AT_KEY) || "0");
   if (!Number.isFinite(started) || started <= 0) return true;
   return Date.now() - started > REDIRECT_GUARD_MS;
+};
+
+const redirectAttemptsExceeded = () => {
+  if (typeof window === "undefined") return false;
+  const attempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
+  return Number.isFinite(attempts) && attempts >= MAX_REDIRECT_ATTEMPTS;
 };
 
 
