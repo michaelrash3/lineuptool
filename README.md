@@ -12,3 +12,7 @@ Use `docs/firebase-rules-rollout.md` for:
 - deploy steps
 - emulator validation matrix
 - rollback procedure
+
+## Firebase web app configuration
+
+Use `docs/firebase-webapp-configuration.md` for Firebase Auth and OAuth redirect configuration details.

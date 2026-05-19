@@ -27,9 +27,29 @@ const fallbackConfig: FirebaseOptions = {
 
 const _hostFirebaseConfig =
   (typeof window !== "undefined" && window.__firebase_config) || null;
-const firebaseConfig: FirebaseOptions = _hostFirebaseConfig
+const parsedHostFirebaseConfig: FirebaseOptions | null = _hostFirebaseConfig
   ? (JSON.parse(_hostFirebaseConfig) as FirebaseOptions)
+  : null;
+
+const runtimeHostname =
+  typeof window !== "undefined" ? window.location.hostname : "";
+const canUseRuntimeAuthDomain =
+  runtimeHostname === "lineupgenerator-79159.firebaseapp.com" ||
+  runtimeHostname === "lineupgenerator-79159.web.app";
+
+const firebaseConfig: FirebaseOptions = parsedHostFirebaseConfig
+  ? parsedHostFirebaseConfig.authDomain
+    ? parsedHostFirebaseConfig
+    : { ...parsedHostFirebaseConfig, authDomain: fallbackConfig.authDomain }
   : fallbackConfig;
+if (typeof window !== "undefined") {
+  console.info("[firebase] auth bootstrap", {
+    host: runtimeHostname || null,
+    authDomain: firebaseConfig.authDomain || null,
+    usingInjectedConfig: Boolean(parsedHostFirebaseConfig),
+    canUseRuntimeAuthDomain,
+  });
+}
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
