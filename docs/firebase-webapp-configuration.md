@@ -48,19 +48,16 @@ Manage these in **Firebase Console → Authentication → Settings → Authorize
 
 ### Key Item to Verify: Authorized Redirect URIs
 
-Use redirect URIs that match the app's configured Firebase `authDomain`.
+For every Firebase authorized domain, create a corresponding OAuth redirect URI in this format:
 
-In this repo's current runtime configuration, `authDomain` resolves to Firebase Hosting (`lineupgenerator-79159.firebaseapp.com`) unless an injected config explicitly sets another value.
+`https://<your-app-domain>/__/auth/handler`
 
-Primary redirect URI:
+Examples for Vercel deployments:
 
-- `https://lineupgenerator-79159.firebaseapp.com/__/auth/handler`
+- `https://lineuptool.vercel.app/__/auth/handler`
+- `https://lineuptool-fbd6x7k3u-michaelrash3s-projects.vercel.app/__/auth/handler`
 
-Optional additional redirect URI (if you set/inject authDomain to web.app):
-
-- `https://lineupgenerator-79159.web.app/__/auth/handler`
-
-> Do **not** switch OAuth redirect URIs to Vercel/Replit/CSB app hosts unless those hosts also proxy or serve `/__/auth/*` for Firebase Auth helper endpoints.
+Add equivalent entries for all Vercel/Replit/CSB preview domains you use for authentication.
 
 Manage these in **Google Cloud Console → APIs & Services → Credentials → Web client OAuth 2.0 Client ID**.
 
@@ -82,7 +79,7 @@ View/edit rules in **Firebase Console → Firestore Database → Rules**.
 
 If new users hit an infinite Google Sign-In loop or cannot log in:
 
-1. Check Google Cloud Console authorized redirect URIs. Ensure the URI for the configured `authDomain` exists (typically `https://lineupgenerator-79159.firebaseapp.com/__/auth/handler`).
-2. Verify Firebase authorized domains include all deployment domains where the app is served.
+1. Check Google Cloud Console authorized redirect URIs. Ensure `https://<your-app-domain>/__/auth/handler` exists for **every** hosting domain.
+2. Verify Firebase authorized domains include all deployment domains.
 3. Open browser developer tools and inspect console errors during sign-in.
-4. Verify `firebaseConfig.authDomain` is set to a domain that actually serves Firebase Auth helper endpoints (`/__/auth/*`).
+4. If using `signInWithRedirect`, ensure `firebaseConfig.authDomain` matches the domain serving your app (important for some browser cookie policies).

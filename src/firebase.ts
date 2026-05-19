@@ -31,23 +31,27 @@ const parsedHostFirebaseConfig: FirebaseOptions | null = _hostFirebaseConfig
   ? (JSON.parse(_hostFirebaseConfig) as FirebaseOptions)
   : null;
 
+const isLocalHost = (hostname: string): boolean =>
+  hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+
 const runtimeHostname =
   typeof window !== "undefined" ? window.location.hostname : "";
-const canUseRuntimeAuthDomain =
-  runtimeHostname === "lineupgenerator-79159.firebaseapp.com" ||
-  runtimeHostname === "lineupgenerator-79159.web.app";
+const shouldOverrideAuthDomain =
+  !parsedHostFirebaseConfig?.authDomain &&
+  runtimeHostname &&
+  !isLocalHost(runtimeHostname);
 
 const firebaseConfig: FirebaseOptions = parsedHostFirebaseConfig
-  ? parsedHostFirebaseConfig.authDomain
-    ? parsedHostFirebaseConfig
-    : { ...parsedHostFirebaseConfig, authDomain: fallbackConfig.authDomain }
-  : fallbackConfig;
+  ? parsedHostFirebaseConfig
+  : shouldOverrideAuthDomain
+    ? { ...fallbackConfig, authDomain: runtimeHostname }
+    : fallbackConfig;
+
 if (typeof window !== "undefined") {
   console.info("[firebase] auth bootstrap", {
     host: runtimeHostname || null,
     authDomain: firebaseConfig.authDomain || null,
     usingInjectedConfig: Boolean(parsedHostFirebaseConfig),
-    canUseRuntimeAuthDomain,
   });
 }
 
