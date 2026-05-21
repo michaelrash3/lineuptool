@@ -365,6 +365,22 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
+          // If the user arrived via ?join= or ?invite= we should NOT auto-create
+          // a default team yet. Wait for pending join/invite redemption first so
+          // brand-new assistants land in the intended team.
+          const hasPendingJoinFlow =
+            typeof window !== "undefined" &&
+            Boolean(
+              sessionStorage.getItem("pendingJoin") ||
+              sessionStorage.getItem("pendingInvite") ||
+              new URLSearchParams(window.location.search).get("join") ||
+              new URLSearchParams(window.location.search).get("invite")
+            );
+          if (hasPendingJoinFlow) {
+            setLoadingTeams(false);
+            return;
+          }
+
           // Bootstrap: create first team for this user. Guard so we don't
           // create duplicate teams if rules/network temporarily reject the
           // user settings write and this snapshot retries.
