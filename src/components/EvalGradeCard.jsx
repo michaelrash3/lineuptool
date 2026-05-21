@@ -39,7 +39,7 @@ export const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
           onClick={() => onChange(n)}
           title={`${n} — ${label}`}
           aria-label={`${ariaLabel}: ${n} — ${label}`}
-          className="flex flex-col items-center justify-center min-w-[58px] h-12 px-2 rounded-lg border transition-all"
+          className="flex flex-col items-center justify-center min-w-[46px] h-10 px-1.5 rounded-md border transition-all"
           style={
             isActive
               ? {
@@ -54,10 +54,10 @@ export const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
                 }
           }
         >
-          <span className="text-sm font-black tabular-nums leading-none">
+          <span className="text-xs font-black tabular-nums leading-none">
             {n}
           </span>
-          <span className="text-[9px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
+          <span className="text-[8px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
             {label}
           </span>
         </button>
@@ -86,8 +86,8 @@ export const EvalGradeCard = memo(
   }) => {
     const playerGrades = grades || {};
     return (
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-100">
+      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <div className="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-slate-100">
           <div className="min-w-0">
             <div className="text-sm font-black uppercase tracking-tight text-slate-900 truncate">
               {player.name}
@@ -100,7 +100,7 @@ export const EvalGradeCard = memo(
           </div>
           {rightSlot}
         </div>
-        <div className="px-4 py-3 space-y-3">
+        <div className="px-3 py-2.5 space-y-2.5">
           {activeCategories.map((cat) => {
             const value = playerGrades[cat.id] ?? DEFAULT_GRADE;
             return (

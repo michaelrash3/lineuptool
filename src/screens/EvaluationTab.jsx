@@ -1072,9 +1072,10 @@ export const EvaluationTab = memo(() => {
   }, [selectedRoundId]);
 
   const handleSaveClick = useCallback(() => {
-    saveTeamEvaluation();
+    const savedRoundId = saveTeamEvaluation();
     if (isNewRound) {
       setNewRoundLabel("");
+      if (savedRoundId) setSelectedRoundId(savedRoundId);
       try {
         window.localStorage.removeItem(draftKey(teamId, userUid));
       } catch {
@@ -1087,6 +1088,7 @@ export const EvaluationTab = memo(() => {
     saveTeamEvaluation,
     isNewRound,
     setNewRoundLabel,
+    setSelectedRoundId,
     teamId,
     userUid,
     teamEvalGrades,
