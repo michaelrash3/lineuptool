@@ -31,21 +31,15 @@ const parsedHostFirebaseConfig: FirebaseOptions | null = _hostFirebaseConfig
   ? (JSON.parse(_hostFirebaseConfig) as FirebaseOptions)
   : null;
 
-const isLocalHost = (hostname: string): boolean =>
-  hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
-
+// Never infer authDomain from window.location.hostname. Firebase Auth
+// redirect/popup flows require the project's configured auth domain unless a
+// fully valid custom auth domain is explicitly provided by host-injected config.
 const runtimeHostname =
   typeof window !== "undefined" ? window.location.hostname : "";
-const shouldOverrideAuthDomain =
-  !parsedHostFirebaseConfig?.authDomain &&
-  runtimeHostname &&
-  !isLocalHost(runtimeHostname);
 
 const firebaseConfig: FirebaseOptions = parsedHostFirebaseConfig
   ? parsedHostFirebaseConfig
-  : shouldOverrideAuthDomain
-    ? { ...fallbackConfig, authDomain: runtimeHostname }
-    : fallbackConfig;
+  : fallbackConfig;
 
 if (typeof window !== "undefined") {
   console.info("[firebase] auth bootstrap", {

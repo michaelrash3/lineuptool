@@ -79,6 +79,16 @@ export const useInviteFlows = ({
           [user.uid]: data.coachRoles?.[user.uid] === "head" ? "head" : "assistant",
         };
         await setDoc(doc(db, "artifacts", appId, "public", "data", "teams", teamDoc.id), { members: nextMembers, coachRoles: nextCoachRoles }, { merge: true });
+
+        // Persist membership in user settings so re-login/reload keeps the
+        // joined team in the selector instead of dropping back to a bootstrap
+        // team.
+        const userRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
+        const nextEntry = { id: teamDoc.id, name: data.name || "Joined Team" };
+        const exists = teams.some((t) => t.id === teamDoc.id);
+        const nextTeams = exists ? teams : [...teams, nextEntry];
+        await setDoc(userRef, { teams: nextTeams, activeTeamId: teamDoc.id }, { merge: true });
+
         switchTeam(teamDoc.id);
         toast.push({ kind: "success", title: `Joined ${data.name || "team"}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
         return true;
