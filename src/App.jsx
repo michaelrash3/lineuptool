@@ -2561,15 +2561,19 @@ const TeamProvider = ({ children }) => {
     if (invite) {
       sessionStorage.setItem("pendingInvite", invite);
       stripParams();
-      redeemInviteToken(invite).then((ok) => {
-        if (ok) sessionStorage.removeItem("pendingInvite");
+      redeemInviteToken(invite).finally(() => {
+        // Always clear pending state after one redemption attempt so
+        // stale/invalid tokens can't block first-team bootstrap forever.
+        sessionStorage.removeItem("pendingInvite");
       });
       return;
     }
     if (join) {
       stripParams();
-      joinTeamByCode(join).then((ok) => {
-        if (ok) sessionStorage.removeItem("pendingJoin");
+      joinTeamByCode(join).finally(() => {
+        // Always clear pending state after one redemption attempt so
+        // stale/invalid codes can't block first-team bootstrap forever.
+        sessionStorage.removeItem("pendingJoin");
       });
     }
   }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode]);
