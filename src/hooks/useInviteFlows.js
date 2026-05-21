@@ -48,12 +48,12 @@ export const useInviteFlows = ({
 
   const joinTeamByCode = useCallback(
     async (rawCode) => {
-      if (!user || !rawCode) return false;
+      if (!user || !rawCode) return { ok: false, retryable: true };
       const code = String(rawCode).trim().toUpperCase();
       const codeRe = /^[A-HJ-NP-Z2-9]{6}$/;
       if (!codeRe.test(code)) {
         toast.push({ kind: "error", title: "Invalid code", message: "Team codes are 6 characters using A-Z and 2-9." });
-        return false;
+        return { ok: false, retryable: false };
       }
       try {
         for (const t of teams) {
@@ -61,14 +61,14 @@ export const useInviteFlows = ({
           if (snap.exists() && (snap.data().joinCode || "") === code) {
             switchTeam(t.id);
             toast.push({ kind: "success", title: `Already a member of ${snap.data().name || "this team"}` });
-            return true;
+            return { ok: true };
           }
         }
         const q = query(collection(db, "artifacts", appId, "public", "data", "teams"), where("joinCode", "==", code));
         const snap = await getDocs(q);
         if (snap.empty) {
           toast.push({ kind: "error", title: "Code not recognized" });
-          return false;
+          return { ok: false, retryable: false };
         }
         const teamDoc = snap.docs[0];
         const data = teamDoc.data();
@@ -91,10 +91,10 @@ export const useInviteFlows = ({
 
         switchTeam(teamDoc.id);
         toast.push({ kind: "success", title: `Joined ${data.name || "team"}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
-        return true;
+        return { ok: true };
       } catch (_err) {
         toast.push({ kind: "error", title: "Couldn't join", message: "Your account may not have read access to this team. Ask the head coach to confirm the code or share an invite link." });
-        return false;
+        return { ok: false, retryable: true };
       }
     },
     [user, teams, toast, switchTeam]
@@ -102,7 +102,7 @@ export const useInviteFlows = ({
 
   const redeemInviteToken = useCallback(
     async (token) => {
-      if (!user || !token) return false;
+      if (!user || !token) return { ok: false, retryable: true };
       let teamId = null;
       let plainToken = token;
       if (token.includes(".")) {
@@ -123,15 +123,15 @@ export const useInviteFlows = ({
         }
         if (!teamId) {
           toast.push({ kind: "error", title: "Invite not recognized" });
-          return false;
+          return { ok: false, retryable: false };
         }
         const teamRef = doc(db, "artifacts", appId, "public", "data", "teams", teamId);
         const snap = await getDoc(teamRef);
-        if (!snap.exists()) return false;
+        if (!snap.exists()) return { ok: false, retryable: false };
         const data = snap.data();
         const invites = Array.isArray(data.invites) ? data.invites : [];
         const invite = invites.find((i) => i.token === plainToken);
-        if (!invite || invite.usedBy) return false;
+        if (!invite || invite.usedBy) return { ok: false, retryable: false };
         const members = Array.isArray(data.members) ? data.members : [];
         const nextMembers = members.includes(user.uid) ? members : [...members, user.uid];
         const nextCoachRoles = { ...(data.coachRoles || {}), [user.uid]: invite.role };
@@ -145,10 +145,10 @@ export const useInviteFlows = ({
         const nextTeams = exists ? teams : [...teams, newEntry];
         await setDoc(userRef, { teams: nextTeams, activeTeamId: teamId }, { merge: true });
         toast.push({ kind: "success", title: "Joined team", message: invite.role === "head" ? "You're a head coach on this team." : "You're an assistant coach on this team." });
-        return true;
+        return { ok: true };
       } catch (e) {
         toast.push({ kind: "error", title: "Could not redeem invite", message: e.message });
-        return false;
+        return { ok: false, retryable: true };
       }
     },
     [user, teams, toast]
