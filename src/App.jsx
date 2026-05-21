@@ -3391,10 +3391,12 @@ const MainShell = () => {
             clearRedirectPending();
           } catch (e) {
             const code = e?.code || "";
+            if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+              authDiag("popup_dismissed", { code: code || null });
+              return;
+            }
             if (
               code === "auth/popup-blocked" ||
-              code === "auth/popup-closed-by-user" ||
-              code === "auth/cancelled-popup-request" ||
               code === "auth/operation-not-supported-in-this-environment"
             ) {
               try {
