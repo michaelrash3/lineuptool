@@ -3248,6 +3248,7 @@ const MainShell = () => {
 
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
     if (authReady && user && !onboardingHasBeenCompleted()) {
@@ -3361,7 +3362,14 @@ const MainShell = () => {
         logoUrl={team.logoUrl}
         primaryColor={team.primaryColor}
         tertiaryColor={team.tertiaryColor}
+        isSigningIn={isSigningIn}
         onSignIn={async () => {
+          if (isSigningIn) return;
+          if (auth.currentUser) {
+            clearRedirectPending();
+            return;
+          }
+          setIsSigningIn(true);
           try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
@@ -3408,6 +3416,8 @@ const MainShell = () => {
             }
             authDiag("popup_error", { code: e?.code || null, message: e?.message || null });
             setGenError(e.message);
+          } finally {
+            setIsSigningIn(false);
           }
         }}
         genError={genError}
