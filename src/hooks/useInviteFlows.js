@@ -147,7 +147,14 @@ export const useInviteFlows = ({
         toast.push({ kind: "success", title: "Joined team", message: invite.role === "head" ? "You're a head coach on this team." : "You're an assistant coach on this team." });
         return { ok: true };
       } catch (e) {
-        toast.push({ kind: "error", title: "Could not redeem invite", message: e.message });
+        toast.push({
+          kind: "error",
+          title: "Could not redeem invite",
+          message:
+            e?.code === "permission-denied"
+              ? "You don't have permission to use this invite. Ask the head coach to resend it."
+              : "Invite redemption failed. Please try again or ask for a new invite link.",
+        });
         return { ok: false, retryable: true };
       }
     },
