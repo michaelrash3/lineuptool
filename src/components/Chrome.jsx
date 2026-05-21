@@ -3,7 +3,7 @@ import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts.js";
 import { RecordBadge } from "./shared.jsx";
 
-export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, onEmailSignIn, genError }) => (
+export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, onEmailSignIn, genError, isSigningIn = false }) => (
   <div
     className="min-h-screen flex flex-col items-center justify-center p-6 border-t-8 bg-slate-50 relative"
     style={{ borderColor: primaryColor }}
@@ -37,10 +37,11 @@ export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, on
       </p>
       <button
         onClick={onSignIn}
-        className="w-full py-4 px-4 font-black uppercase tracking-wider flex items-center justify-center gap-3 transition-all rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+        disabled={isSigningIn}
+        className="w-full py-4 px-4 font-black uppercase tracking-wider flex items-center justify-center gap-3 transition-all rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
         style={{ backgroundColor: primaryColor, color: tertiaryColor }}
       >
-        <Icons.Users className="w-5 h-5" /> Sign In with Google
+        <Icons.Users className="w-5 h-5" /> {isSigningIn ? "Signing in…" : "Sign In with Google"}
       </button>
       {onEmailSignIn && (
         <button
