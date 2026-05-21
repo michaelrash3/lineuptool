@@ -2561,15 +2561,24 @@ const TeamProvider = ({ children }) => {
     if (invite) {
       sessionStorage.setItem("pendingInvite", invite);
       stripParams();
-      redeemInviteToken(invite).then((ok) => {
-        if (ok) sessionStorage.removeItem("pendingInvite");
+      redeemInviteToken(invite).then((result) => {
+        // Preserve pending state for transient/retryable failures so we can
+        // retry on the next load after URL params have been stripped.
+        if (result?.ok || !result?.retryable) {
+          sessionStorage.removeItem("pendingInvite");
+        }
       });
       return;
     }
     if (join) {
+      sessionStorage.setItem("pendingJoin", join);
       stripParams();
-      joinTeamByCode(join).then((ok) => {
-        if (ok) sessionStorage.removeItem("pendingJoin");
+      joinTeamByCode(join).then((result) => {
+        // Preserve pending state for transient/retryable failures so we can
+        // retry on the next load after URL params have been stripped.
+        if (result?.ok || !result?.retryable) {
+          sessionStorage.removeItem("pendingJoin");
+        }
       });
     }
   }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode]);
