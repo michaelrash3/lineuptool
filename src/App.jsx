@@ -314,6 +314,38 @@ const TeamProvider = ({ children }) => {
   const migrationAttemptedRef = useRef(new Set());
   const bootstrapAttemptedRef = useRef(false);
 
+  const bootstrapDefaultTeam = useCallback(async () => {
+    if (!user) return null;
+    if (bootstrapAttemptedRef.current) return null;
+    bootstrapAttemptedRef.current = true;
+    const id = "team-" + Math.random().toString(36).substring(2, 10);
+    const teamRef = doc(db, "artifacts", appId, "public", "data", "teams", id);
+    const settingsRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
+    try {
+      await setDoc(teamRef, {
+        ...DEFAULT_TEAM_DATA,
+        name: "My Team",
+        ownerId: user.uid,
+        members: [user.uid],
+      });
+      await setDoc(settingsRef, {
+        teams: [{ id, name: "My Team" }],
+        activeTeamId: id,
+      });
+      setTeams([{ id, name: "My Team" }]);
+      setActiveTeamId(id);
+      return id;
+    } catch (e) {
+      bootstrapAttemptedRef.current = false;
+      toast.push({
+        kind: "error",
+        title: "Setup failed",
+        message: "We couldn't create your default team yet. Please try again.",
+      });
+      return null;
+    }
+  }, [user, toast]);
+
   // Auth subscription
   useEffect(() => {
     let cancelled = false;
@@ -384,46 +416,8 @@ const TeamProvider = ({ children }) => {
           // Bootstrap: create first team for this user. Guard so we don't
           // create duplicate teams if rules/network temporarily reject the
           // user settings write and this snapshot retries.
-          if (bootstrapAttemptedRef.current) {
-            setLoadingTeams(false);
-            return;
-          }
-          bootstrapAttemptedRef.current = true;
-
-          const id = "team-" + Math.random().toString(36).substring(2, 10);
-          const teamRef = doc(
-            db,
-            "artifacts",
-            appId,
-            "public",
-            "data",
-            "teams",
-            id
-          );
-          try {
-            await setDoc(teamRef, {
-              ...DEFAULT_TEAM_DATA,
-              name: "My Team",
-              ownerId: user.uid,
-              members: [user.uid],
-            });
-            await setDoc(ref, {
-              teams: [{ id, name: "My Team" }],
-              activeTeamId: id,
-            });
-            setTeams([{ id, name: "My Team" }]);
-            setActiveTeamId(id);
-            setLoadingTeams(false);
-          } catch (e) {
-            // Allow retry on the next empty snapshot in this session.
-            bootstrapAttemptedRef.current = false;
-            setLoadingTeams(false);
-            toast.push({
-              kind: "error",
-              title: "Setup failed",
-              message: e.message,
-            });
-          }
+          await bootstrapDefaultTeam();
+          setLoadingTeams(false);
           return;
         }
         bootstrapAttemptedRef.current = false;
@@ -442,7 +436,7 @@ const TeamProvider = ({ children }) => {
       }
     );
     return () => unsub();
-  }, [authReady, user, toast]);
+  }, [authReady, user, toast, bootstrapDefaultTeam]);
 
   // Subscribe to active team document
   useEffect(() => {
@@ -2566,6 +2560,9 @@ const TeamProvider = ({ children }) => {
         // retry on the next load after URL params have been stripped.
         if (result?.ok || !result?.retryable) {
           sessionStorage.removeItem("pendingInvite");
+          if (!result?.ok && teams.length === 0) {
+            void bootstrapDefaultTeam();
+          }
         }
       });
       return;
@@ -2578,10 +2575,13 @@ const TeamProvider = ({ children }) => {
         // retry on the next load after URL params have been stripped.
         if (result?.ok || !result?.retryable) {
           sessionStorage.removeItem("pendingJoin");
+          if (!result?.ok && teams.length === 0) {
+            void bootstrapDefaultTeam();
+          }
         }
       });
     }
-  }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode]);
+  }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
 
   // Win-loss record derived from final games only.
   const record = useMemo(() => {
@@ -3584,4 +3584,3 @@ const redirectAttemptsExceeded = () => {
   const attempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
   return Number.isFinite(attempts) && attempts >= MAX_REDIRECT_ATTEMPTS;
 };
-

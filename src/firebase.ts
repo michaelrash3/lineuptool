@@ -27,9 +27,14 @@ const fallbackConfig: FirebaseOptions = {
 
 const _hostFirebaseConfig =
   (typeof window !== "undefined" && window.__firebase_config) || null;
-const parsedHostFirebaseConfig: FirebaseOptions | null = _hostFirebaseConfig
-  ? (JSON.parse(_hostFirebaseConfig) as FirebaseOptions)
-  : null;
+let parsedHostFirebaseConfig: FirebaseOptions | null = null;
+if (_hostFirebaseConfig) {
+  try {
+    parsedHostFirebaseConfig = JSON.parse(_hostFirebaseConfig) as FirebaseOptions;
+  } catch (err) {
+    console.warn("Invalid host-injected Firebase config; falling back to local config.", err);
+  }
+}
 
 // Never infer authDomain from window.location.hostname. Firebase Auth
 // redirect/popup flows require the project's configured auth domain unless a
