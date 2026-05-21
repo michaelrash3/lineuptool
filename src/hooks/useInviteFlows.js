@@ -138,7 +138,23 @@ export const useInviteFlows = ({
         const nextInvites = invites.map((i) =>
           i.token === plainToken ? { ...i, usedBy: user.uid, usedAt: new Date().toISOString() } : i
         );
-        await setDoc(teamRef, { members: nextMembers, coachRoles: nextCoachRoles, invites: nextInvites }, { merge: true });
+        try {
+          // Best-effort legacy invite consumption stamp. Some deployed rulesets
+          // only allow join mutations on members/coachRoles, so we gracefully
+          // fall back to a join-only write if invite bookkeeping is denied.
+          await setDoc(
+            teamRef,
+            { members: nextMembers, coachRoles: nextCoachRoles, invites: nextInvites },
+            { merge: true }
+          );
+        } catch (writeErr) {
+          if (writeErr?.code !== "permission-denied") throw writeErr;
+          await setDoc(
+            teamRef,
+            { members: nextMembers, coachRoles: nextCoachRoles },
+            { merge: true }
+          );
+        }
         const userRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
         const newEntry = { id: teamId, name: data.name || "Joined Team" };
         const exists = teams.some((t) => t.id === teamId);
@@ -147,7 +163,14 @@ export const useInviteFlows = ({
         toast.push({ kind: "success", title: "Joined team", message: invite.role === "head" ? "You're a head coach on this team." : "You're an assistant coach on this team." });
         return { ok: true };
       } catch (e) {
-        toast.push({ kind: "error", title: "Could not redeem invite", message: e.message });
+        toast.push({
+          kind: "error",
+          title: "Could not redeem invite",
+          message:
+            e?.code === "permission-denied"
+              ? "You don't have permission to use this invite. Ask the head coach to resend it."
+              : "Invite redemption failed. Please try again or ask for a new invite link.",
+        });
         return { ok: false, retryable: true };
       }
     },
