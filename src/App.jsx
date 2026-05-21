@@ -1989,7 +1989,7 @@ const TeamProvider = ({ children }) => {
       );
       updateTeam({ evaluationEvents: next });
       toast.push({ kind: "success", title: "Eval updated" });
-      return;
+      return selectedRoundId;
     }
 
     // Creating a new round
@@ -2012,7 +2012,8 @@ const TeamProvider = ({ children }) => {
       title: "Eval saved",
       message: label,
     });
-    // Caller is expected to clear newRoundLabel and re-select the new round if desired
+    // Return the created id so callers can lock onto this round for edits.
+    return newEvent.id;
   }, [user, teamData.evaluationEvents, updateTeam, toast]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
