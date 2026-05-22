@@ -1,0 +1,36 @@
+rules_version = '2';
+
+// Cloud Storage rules for Lineup Tool.
+//
+// The app only writes one kind of file today: player photos cropped to
+// 256x256 JPEG and stored at `teams/{teamId}/players/{photoFile}` from
+// AddPlayerModal / PlayerProfileModal via src/firebase.ts.
+//
+// Photos render in coach-facing UI behind Firestore-rule-gated screens.
+// The download URLs themselves are unguessable Firebase Storage URLs, so we
+// permit unauthenticated reads (matches today's behavior, simpler to deploy
+// alongside the existing firestore.rules). Writes require sign-in and reject
+// anything that isn't an image under 5 MB so a runaway upload can't fill
+// the bucket.
+//
+// If photo access ever needs to be tightened to team members only, replace
+// the `allow read` below with a firestore.exists() check against the team
+// document's members list (and re-evaluate the per-photo bandwidth cost).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /teams/{teamId}/players/{photoFile} {
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Default deny for everything else. The app does not write outside the
+    // teams/players namespace today; any new write path must add an explicit
+    // rule above this one.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
