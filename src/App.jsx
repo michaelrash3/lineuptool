@@ -455,10 +455,14 @@ const TeamProvider = ({ children }) => {
       "teams",
       activeTeamId
     );
-    const unsub = onSnapshot(
-      ref,
-      (snap) => {
-        if (snap.exists()) {
+    let unsub = () => {};
+    let retryTimeout = null;
+    let cancelled = false;
+    let permissionRetried = false;
+
+    const handleSnap = (snap) => {
+      if (cancelled) return;
+      if (snap.exists()) {
           const raw = snap.data();
           // Eval schema migration:
           //   v1 (6-category) rounds get wiped — no straightforward mapping.
@@ -544,17 +548,41 @@ const TeamProvider = ({ children }) => {
           }
         }
         setLoadingActive(false);
-      },
-      (err) => {
-        toast.push({
-          kind: "error",
-          title: "Failed to load team",
-          message: err.message,
-        });
-        setLoadingActive(false);
+    };
+
+    // Immediately after a join/invite write, the server may still reject
+    // our read because the membership change hasn't propagated to the
+    // rules engine yet. Swallow the first permission-denied error and
+    // re-subscribe after a short delay; only surface a toast if the
+    // retry also fails.
+    const handleErr = (err) => {
+      if (cancelled) return;
+      if (err?.code === "permission-denied" && !permissionRetried) {
+        permissionRetried = true;
+        unsub();
+        retryTimeout = setTimeout(() => {
+          if (!cancelled) subscribe();
+        }, 1500);
+        return;
       }
-    );
-    return () => unsub();
+      toast.push({
+        kind: "error",
+        title: "Failed to load team",
+        message: err.message,
+      });
+      setLoadingActive(false);
+    };
+
+    const subscribe = () => {
+      unsub = onSnapshot(ref, handleSnap, handleErr);
+    };
+    subscribe();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      unsub();
+    };
   }, [activeTeamId, toast]);
 
   // Helper: write a partial update to the active team document
