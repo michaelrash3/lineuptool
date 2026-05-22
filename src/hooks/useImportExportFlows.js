@@ -128,8 +128,8 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
 
           const next = [...teamData.players];
           // Coach rows from TeamSnap are skipped from the roster but
-          // captured here so the InviteCoachesPanel has real coach
-          // emails (not parent emails) to draw from. Deduped by email.
+          // captured here so the head coach has real coach contact
+          // info (not parent emails) on file. Deduped by email.
           const nextCoachContacts = [...(teamData.coachContacts || [])];
           let updated = 0,
             added = 0,

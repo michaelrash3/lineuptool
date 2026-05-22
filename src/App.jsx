@@ -397,16 +397,14 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
-          // If the user arrived via ?join= or ?invite= we should NOT auto-create
-          // a default team yet. Wait for pending join/invite redemption first so
+          // If the user arrived via ?join= we should NOT auto-create
+          // a default team yet. Wait for the pending join redemption first so
           // brand-new assistants land in the intended team.
           const hasPendingJoinFlow =
             typeof window !== "undefined" &&
             Boolean(
               sessionStorage.getItem("pendingJoin") ||
-              sessionStorage.getItem("pendingInvite") ||
-              new URLSearchParams(window.location.search).get("join") ||
-              new URLSearchParams(window.location.search).get("invite")
+              new URLSearchParams(window.location.search).get("join")
             );
           if (hasPendingJoinFlow) {
             setLoadingTeams(false);
@@ -2241,11 +2239,8 @@ const TeamProvider = ({ children }) => {
 
   const { setCoachRole } = useTeamMembership({ teamData, updateTeam, user });
   const {
-    createInviteToken,
-    revokeInviteToken,
     regenerateJoinCode,
     joinTeamByCode,
-    redeemInviteToken,
   } = useInviteFlows({
     user,
     teams,
@@ -2451,14 +2446,12 @@ const TeamProvider = ({ children }) => {
     toast,
   ]);
 
-  // Capture invite/join params immediately on first load so iOS redirect
+  // Capture ?join= param immediately on first load so iOS redirect
   // auth can round-trip without losing the tokenized URL.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const invite = params.get("invite");
     const join = params.get("join");
-    if (invite) sessionStorage.setItem("pendingInvite", invite);
     if (join) sessionStorage.setItem("pendingJoin", join);
   }, []);
 
@@ -2533,18 +2526,15 @@ const TeamProvider = ({ children }) => {
     };
   }, []);
 
-  // Auto-redeem ?invite= and ?join= URL params once auth + team list
-  // are ready. `?invite=<teamId>.<token>` is the legacy per-coach link
-  // flow; `?join=<code>` is the new persistent team-code flow.
+  // Auto-redeem ?join= URL params once auth + team list are ready.
+  // `?join=<code>` is the persistent 6-character team-code flow.
   useEffect(() => {
     if (!authReady || !user || loadingTeams) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const invite = params.get("invite") || sessionStorage.getItem("pendingInvite");
     const join = params.get("join") || sessionStorage.getItem("pendingJoin");
-    if (!invite && !join) return;
+    if (!join) return;
     const stripParams = () => {
-      params.delete("invite");
       params.delete("join");
       const newSearch = params.toString();
       const newUrl =
@@ -2553,36 +2543,19 @@ const TeamProvider = ({ children }) => {
         window.location.hash;
       window.history.replaceState({}, "", newUrl);
     };
-    if (invite) {
-      sessionStorage.setItem("pendingInvite", invite);
-      stripParams();
-      redeemInviteToken(invite).then((result) => {
-        // Preserve pending state for transient/retryable failures so we can
-        // retry on the next load after URL params have been stripped.
-        if (result?.ok || !result?.retryable) {
-          sessionStorage.removeItem("pendingInvite");
-          if (!result?.ok && teams.length === 0) {
-            void bootstrapDefaultTeam();
-          }
+    sessionStorage.setItem("pendingJoin", join);
+    stripParams();
+    joinTeamByCode(join).then((result) => {
+      // Preserve pending state for transient/retryable failures so we can
+      // retry on the next load after URL params have been stripped.
+      if (result?.ok || !result?.retryable) {
+        sessionStorage.removeItem("pendingJoin");
+        if (!result?.ok && teams.length === 0) {
+          void bootstrapDefaultTeam();
         }
-      });
-      return;
-    }
-    if (join) {
-      sessionStorage.setItem("pendingJoin", join);
-      stripParams();
-      joinTeamByCode(join).then((result) => {
-        // Preserve pending state for transient/retryable failures so we can
-        // retry on the next load after URL params have been stripped.
-        if (result?.ok || !result?.retryable) {
-          sessionStorage.removeItem("pendingJoin");
-          if (!result?.ok && teams.length === 0) {
-            void bootstrapDefaultTeam();
-          }
-        }
-      });
-    }
-  }, [authReady, user, loadingTeams, redeemInviteToken, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
+      }
+    });
+  }, [authReady, user, loadingTeams, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
 
   // Win-loss record derived from final games only.
   const record = useMemo(() => {
@@ -2677,9 +2650,6 @@ const TeamProvider = ({ children }) => {
       deleteLineupTemplate,
       removePlayerMidGame,
       setCoachRole,
-      createInviteToken,
-      revokeInviteToken,
-      redeemInviteToken,
       regenerateJoinCode,
       joinTeamByCode,
     }),
@@ -2751,9 +2721,6 @@ const TeamProvider = ({ children }) => {
       deleteLineupTemplate,
       removePlayerMidGame,
       setCoachRole,
-      createInviteToken,
-      revokeInviteToken,
-      redeemInviteToken,
       regenerateJoinCode,
       joinTeamByCode,
     ]
@@ -2809,7 +2776,6 @@ const UIProvider = ({ children }) => {
   // Header state
   const [isAddingTeam, setIsAddingTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
-  const [inviteModal, setInviteModal] = useState(null); // { token, url, role } | null
   const [assistantEvalOpen, setAssistantEvalOpen] = useState(false);
 
   // Roster/profile state
@@ -3136,8 +3102,6 @@ const UIProvider = ({ children }) => {
       setIsAddingTeam,
       newTeamName,
       setNewTeamName,
-      inviteModal,
-      setInviteModal,
       assistantEvalOpen,
       setAssistantEvalOpen,
       isAddingPlayer,
@@ -3184,7 +3148,6 @@ const UIProvider = ({ children }) => {
       opponentName,
       isAddingTeam,
       newTeamName,
-      inviteModal,
       assistantEvalOpen,
       isAddingPlayer,
       viewingPlayerId,
@@ -3250,6 +3213,14 @@ const MainShell = () => {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+
+  // Keep the sign-in button disabled across the gap between
+  // signInWithPopup resolving and onAuthStateChanged firing — otherwise
+  // a fast re-click (or UA refocus event) can re-open the popup before
+  // `user` populates, producing the reported popup loop.
+  useEffect(() => {
+    if (user) setIsSigningIn(false);
+  }, [user]);
 
   useEffect(() => {
     if (authReady && user && !onboardingHasBeenCompleted()) {
@@ -3371,6 +3342,13 @@ const MainShell = () => {
             return;
           }
           setIsSigningIn(true);
+          // Note: do NOT reset isSigningIn on the success path. The popup
+          // resolves before onAuthStateChanged fires, so resetting here
+          // re-enables the button during the gap and a fast re-click
+          // re-opens the popup. The useEffect on `user` above drops the
+          // flag once auth state actually propagates. Terminal failures
+          // (popup dismissed / redirect started / hard error) explicitly
+          // clear the flag below since the auth listener won't fire.
           try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
@@ -3378,6 +3356,7 @@ const MainShell = () => {
               if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                 clearRedirectPending();
                 setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
+                setIsSigningIn(false);
                 return;
               }
               markRedirectPending();
@@ -3393,6 +3372,7 @@ const MainShell = () => {
             const code = e?.code || "";
             if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
               authDiag("popup_dismissed", { code: code || null });
+              setIsSigningIn(false);
               return;
             }
             if (
@@ -3405,6 +3385,7 @@ const MainShell = () => {
                 if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                   clearRedirectPending();
                   setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
+                  setIsSigningIn(false);
                   return;
                 }
                 markRedirectPending();
@@ -3414,12 +3395,12 @@ const MainShell = () => {
               } catch (redirectError) {
                 authDiag("redirect_fallback_error", { code: redirectError?.code || null, message: redirectError?.message || null });
                 setGenError(redirectError?.message || "Sign-in failed");
+                setIsSigningIn(false);
                 return;
               }
             }
             authDiag("popup_error", { code: e?.code || null, message: e?.message || null });
             setGenError(e.message);
-          } finally {
             setIsSigningIn(false);
           }
         }}

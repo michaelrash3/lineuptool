@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { Icons } from "../icons";
 import {
   parseGameChangerPastSeasonCsv,
@@ -7,10 +7,6 @@ import {
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
-import {
-  sendGmailMessage,
-  buildMailtoUrl,
-} from "../integrations/gmailSend";
 import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel.jsx";
 
 // One row per team color: swatch (native color picker) + hex text input.
@@ -64,288 +60,6 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
     </div>
   );
 });
-
-// Invite-by-email panel. Reads the roster for any player with an email
-// on file, lets the head pick which ones to invite + at which role,
-// then either sends via the head's signed-in Gmail account or opens a
-// mailto: composer per row. Tokens are generated on-the-fly via
-// `createInviteToken(role)` so each recipient gets a unique one-time
-// invite URL.
-const InviteCoachesPanel = memo(
-  ({ activeTeamId, team, createInviteToken, user, primaryColor, toast }) => {
-    // Candidates come exclusively from team.coachContacts — the list
-    // the TeamSnap CSV import populates from rows whose Position column
-    // says "coach"/"manager". Parent emails on player rows stay out of
-    // this flow on purpose so the invite UI only ever proposes actual
-    // coaches.
-    const candidates = useMemo(() => {
-      return (team.coachContacts || [])
-        .filter((c) => c.email && c.email.trim())
-        .map((c) => ({
-          id: c.id,
-          name: c.name || c.email,
-          email: c.email.trim(),
-          sourceRole: c.sourceRole,
-        }))
-        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    }, [team.coachContacts]);
-
-    // Per-row state: { selected: boolean, role: "head"|"assistant", status }
-    const [rows, setRows] = useState(() => ({}));
-    const [bulkSending, setBulkSending] = useState(false);
-
-    const getRow = (id) => rows[id] || { selected: false, role: "assistant", status: null };
-    const setRow = (id, patch) =>
-      setRows((prev) => ({ ...prev, [id]: { ...getRow(id), ...patch } }));
-
-    const buildInviteUrl = (token) =>
-      typeof window !== "undefined"
-        ? `${window.location.origin}${window.location.pathname}?invite=${activeTeamId || ""}.${token}`
-        : `?invite=${activeTeamId || ""}.${token}`;
-
-    const buildEmailBody = (name, url) => {
-      const teamName = team.name || "the team";
-      const fromName = user?.displayName || "Your coach";
-      return [
-        `Hi ${name || "there"},`,
-        "",
-        `${fromName} has invited you to help coach ${teamName} on LineupTool.`,
-        "",
-        "Click the link below to accept (one-time use):",
-        url,
-        "",
-        "LineupTool keeps the roster, schedule, lineups, and player evaluations in one place. Once you accept you'll be able to view games and submit your own evaluations.",
-      ].join("\n");
-    };
-
-    const sendOne = async (candidate, role) => {
-      const token = createInviteToken?.(role);
-      if (!token) {
-        toast.push({ kind: "error", title: "Couldn't create invite token" });
-        return false;
-      }
-      const url = buildInviteUrl(token);
-      const subject = `Coach invite — ${team.name || "your team"}`;
-      const body = buildEmailBody(candidate.name, url);
-      const fromEmail = user?.email;
-      if (!fromEmail) {
-        toast.push({
-          kind: "error",
-          title: "No sender email",
-          message: "Sign in with Google to send invites.",
-        });
-        return false;
-      }
-      try {
-        await sendGmailMessage({
-          auth,
-          to: candidate.email,
-          subject,
-          body,
-          fromEmail,
-          fromName: user?.displayName || undefined,
-        });
-        return true;
-      } catch (err) {
-        // Fallback: open mailto so the user can still get the invite out.
-        const reason =
-          err?.message === "consent_declined"
-            ? "Gmail access wasn't granted."
-            : err?.message === "not_google_user"
-            ? "Only Google sign-in supports auto-send."
-            : "Send failed — using your mail app instead.";
-        toast.push({
-          kind: "warn",
-          title: `${candidate.email} — ${reason}`,
-          message: "Opening your mail app with the invite drafted.",
-        });
-        if (typeof window !== "undefined") {
-          window.open(buildMailtoUrl(candidate.email, subject, body), "_blank");
-        }
-        return false;
-      }
-    };
-
-    const handleSendOne = async (candidate) => {
-      const row = getRow(candidate.id);
-      setRow(candidate.id, { status: "sending" });
-      const ok = await sendOne(candidate, row.role);
-      setRow(candidate.id, { status: ok ? "sent" : "failed" });
-    };
-
-    const handleMailtoOne = (candidate) => {
-      const row = getRow(candidate.id);
-      const token = createInviteToken?.(row.role);
-      if (!token) return;
-      const url = buildInviteUrl(token);
-      const subject = `Coach invite — ${team.name || "your team"}`;
-      const body = buildEmailBody(candidate.name, url);
-      window.open(buildMailtoUrl(candidate.email, subject, body), "_blank");
-      setRow(candidate.id, { status: "queued" });
-    };
-
-    // Generate an invite token + copy ONLY the URL to the clipboard so
-    // the head coach can paste it into whatever channel they want
-    // (text, Slack, manually-composed email, etc.) without dealing
-    // with mailto draft quirks.
-    const handleCopyLinkOne = async (candidate) => {
-      const row = getRow(candidate.id);
-      const token = createInviteToken?.(row.role);
-      if (!token) return;
-      const url = buildInviteUrl(token);
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.push({
-          kind: "success",
-          title: "Invite link copied",
-          message: `Paste it to ${candidate.name}.`,
-        });
-        setRow(candidate.id, { status: "copied" });
-      } catch {
-        toast.push({
-          kind: "warn",
-          title: "Couldn't access clipboard",
-          message: url,
-        });
-      }
-    };
-
-    const handleBulkSend = async () => {
-      const selected = candidates.filter((c) => getRow(c.id).selected);
-      if (selected.length === 0) {
-        toast.push({ kind: "info", title: "Pick at least one row" });
-        return;
-      }
-      setBulkSending(true);
-      let sent = 0;
-      for (const c of selected) {
-        setRow(c.id, { status: "sending" });
-        // eslint-disable-next-line no-await-in-loop
-        const ok = await sendOne(c, getRow(c.id).role);
-        setRow(c.id, { status: ok ? "sent" : "failed" });
-        if (ok) sent++;
-      }
-      setBulkSending(false);
-      toast.push({
-        kind: sent === selected.length ? "success" : "warn",
-        title: `Sent ${sent} of ${selected.length}`,
-      });
-    };
-
-    if (candidates.length === 0) {
-      return (
-        <div className="bg-white/60 border border-slate-200 rounded-xl p-4 text-[11px] text-slate-500 font-medium italic">
-          No coach contacts yet. Import a TeamSnap roster CSV — rows
-          with a &quot;Position&quot; of Coach or Manager will be
-          captured here automatically.
-        </div>
-      );
-    }
-
-    const selectedCount = candidates.filter((c) => getRow(c.id).selected).length;
-
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <span className="text-[11px] font-bold text-slate-500">
-            {selectedCount > 0
-              ? `${selectedCount} of ${candidates.length} selected`
-              : `${candidates.length} candidate${candidates.length === 1 ? "" : "s"}`}
-          </span>
-          <button
-            type="button"
-            disabled={selectedCount === 0 || bulkSending}
-            onClick={handleBulkSend}
-            className="px-4 py-2 text-[11px] font-black uppercase tracking-widest text-white rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: primaryColor }}
-          >
-            {bulkSending ? "Sending…" : "Send Selected"}
-          </button>
-        </div>
-        <div className="space-y-1.5">
-          {candidates.map((c) => {
-            const row = getRow(c.id);
-            return (
-              <div
-                key={c.id}
-                className="bg-white border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3"
-              >
-                <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={row.selected}
-                    onChange={(e) =>
-                      setRow(c.id, { selected: e.target.checked })
-                    }
-                    className="w-4 h-4 accent-blue-600 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-xs font-black uppercase tracking-tight text-slate-800 truncate">
-                      {c.name}
-                      {c.sourceRole && (
-                        <span className="ml-1.5 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                          · {c.sourceRole}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-mono truncate">
-                      {c.email}
-                    </div>
-                  </div>
-                </label>
-                <select
-                  value={row.role}
-                  onChange={(e) => setRow(c.id, { role: e.target.value })}
-                  className="p-1.5 text-[11px] font-bold bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="assistant">Assistant</option>
-                  <option value="head">Head</option>
-                </select>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => handleCopyLinkOne(c)}
-                    title="Generate the invite link and copy it"
-                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white rounded-md shadow-sm hover:opacity-90"
-                    style={{
-                      backgroundColor: "var(--team-primary)",
-                      color: "var(--team-tertiary)",
-                    }}
-                  >
-                    {row.status === "copied" ? "Copied ✓" : "Copy Link"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={row.status === "sending" || bulkSending}
-                    onClick={() => handleSendOne(c)}
-                    title="Send via your signed-in Gmail"
-                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {row.status === "sending"
-                      ? "Sending…"
-                      : row.status === "sent"
-                      ? "Sent ✓"
-                      : row.status === "failed"
-                      ? "Retry"
-                      : "Send"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMailtoOne(c)}
-                    title="Open in your mail app instead"
-                    className="px-2 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
-                  >
-                    Mail
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-);
 
 // Per-player Returning / Released chips for the head to mark up the
 // current roster before tapping Advance Season. Status sticks on the
@@ -889,8 +603,6 @@ export const SettingsTab = memo(() => {
     addCoach,
     removeCoach,
     setCoachRole,
-    createInviteToken,
-    revokeInviteToken,
     realRole,
     viewAsRole,
     setViewAsRole,
@@ -901,17 +613,8 @@ export const SettingsTab = memo(() => {
     newCoachForm,
     setNewCoachForm,
     setPastSeasonImport,
-    inviteModal,
-    setInviteModal,
   } = useUI();
   const toast = useToast();
-  const copyToClipboard = useCallback(
-    (text) => {
-      if (navigator.clipboard) navigator.clipboard.writeText(text);
-      toast.push({ kind: "success", title: "Link copied" });
-    },
-    [toast]
-  );
   const {
     leagueRuleSet,
     pitchingFormat,
@@ -940,7 +643,7 @@ export const SettingsTab = memo(() => {
   const settingsMenuDescriptions = {
     team: "Core game defaults, season identity, and visual branding.",
     tryouts: "Tryout portal controls, share links, and roster cap behavior.",
-    staff: "Coaching roster, roles, invite links, and join code controls.",
+    staff: "Coaching roster, roles, and join-code controls.",
     imports: "CSV imports plus backup/export/restore operations.",
     advanced: "Diagnostics, storage details, team leave/delete, and test mode.",
   };
@@ -1384,74 +1087,6 @@ export const SettingsTab = memo(() => {
             </div>
             )}
 
-            {settingsMenu === "staff" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-3 flex items-center gap-2">
-                <Icons.Plus className="w-4 h-4" /> Invite Coaches
-              </h3>
-              <p className="text-[11px] text-slate-500 font-medium mb-3">
-                Pulls coach emails from your TeamSnap roster CSV (rows
-                marked Coach or Manager). Pick who to invite, hit Send
-                Selected, and we&apos;ll email each a one-time invite link
-                from your signed-in Gmail. Tap &quot;Mail&quot; on a row
-                to compose manually instead.
-              </p>
-              <InviteCoachesPanel
-                activeTeamId={activeTeamId}
-                team={team}
-                createInviteToken={createInviteToken}
-                user={user}
-                primaryColor={primaryColor}
-                toast={toast}
-              />
-              <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 mt-6 mb-2">
-                Pending &amp; Used Invites
-              </h4>
-              <div className="space-y-2">
-                {(team.invites || []).map((inv) => (
-                  <div
-                    key={inv.token}
-                    className="bg-white/80 p-3 border border-slate-200 rounded-xl shadow-sm flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-                        {inv.role === "head" ? "Head" : "Assistant"} ·{" "}
-                        {inv.usedBy
-                          ? `Used ${new Date(inv.usedAt || inv.createdAt).toLocaleDateString()}`
-                          : `Created ${new Date(inv.createdAt).toLocaleDateString()}`}
-                      </div>
-                      {!inv.usedBy && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            copyToClipboard(
-                              `${window.location.origin}${window.location.pathname}?invite=${activeTeamId}.${inv.token}`
-                            )
-                          }
-                          className="text-[11px] font-bold text-team-primary hover:underline truncate block max-w-full"
-                        >
-                          Copy invite link
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => revokeInviteToken?.(inv.token)}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      aria-label="Revoke invite"
-                    >
-                      <Icons.Trash className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-                {(team.invites || []).length === 0 && (
-                  <p className="text-[11px] text-slate-400 font-medium italic">
-                    No invites yet.
-                  </p>
-                )}
-              </div>
-            </div>
-            )}
           </div>
 
           <div className="space-y-10">
@@ -1763,53 +1398,6 @@ export const SettingsTab = memo(() => {
         </div>
       </div>
 
-      {inviteModal && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6 print:hidden"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
-              <h3 className="text-sm font-black uppercase tracking-tight text-slate-900">
-                Invite Link Ready
-              </h3>
-              <button
-                type="button"
-                onClick={() => setInviteModal(null)}
-                className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg"
-                aria-label="Close"
-              >
-                <Icons.X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3">
-              <p className="text-xs text-slate-600 font-medium">
-                Send this link to your{" "}
-                <strong>
-                  {inviteModal.role === "head"
-                    ? "head coach"
-                    : "assistant coach"}
-                </strong>
-                . They&apos;ll be added to the team when they open it.
-              </p>
-              <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-[11px] font-mono break-all text-slate-800">
-                {inviteModal.url}
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(inviteModal.url)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  Copy Link
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 });
