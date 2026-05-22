@@ -54,7 +54,7 @@ export const ScoreEditor = memo(
                 autoFocus
                 value={ts}
                 onChange={(e) => setTs(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-inner tabular-nums text-center"
+                className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums text-center"
               />
             </div>
             <div className="w-full sm:w-28">
@@ -67,7 +67,7 @@ export const ScoreEditor = memo(
                 inputMode="numeric"
                 value={os}
                 onChange={(e) => setOs(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-inner tabular-nums text-center"
+                className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums text-center"
               />
             </div>
             {game.lineup?.length > 0 && (
@@ -78,7 +78,7 @@ export const ScoreEditor = memo(
                 <select
                   value={inningsPlayed}
                   onChange={(e) => setInningsPlayed(parseInt(e.target.value, 10))}
-                  className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm tabular-nums text-center cursor-pointer"
+                  className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm tabular-nums text-center cursor-pointer"
                 >
                   {Array.from({ length: lineupMaxInnings }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>
@@ -436,7 +436,7 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { date: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
                 />
               </div>
               <div className="w-full">
@@ -464,7 +464,7 @@ export const ScheduleTab = memo(() => {
                       pitchingFormat: newFormat,
                     });
                   }}
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="USSSA">USSSA Baseball</option>
                   <option value="NKB">Northern Kentucky Baseball (NKB)</option>
@@ -481,7 +481,7 @@ export const ScheduleTab = memo(() => {
                       pitchingFormat: e.target.value,
                     })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   {gameLeague === "NKB" &&
                   ["6U", "7U", "8U"].includes(teamAge) ? (
@@ -509,7 +509,7 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { defenseSize: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="9">9 Fielders</option>
                   <option value="10">10 Fielders</option>
@@ -524,7 +524,7 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { positionLock: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="1">1 Inn</option>
                   <option value="2">2 Inn</option>
@@ -541,7 +541,7 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { battingSize: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="roster">Roster</option>
                   <option value="9">9</option>
@@ -569,7 +569,7 @@ export const ScheduleTab = memo(() => {
                 onChange={(e) =>
                   updateGame(selectedGameId, { gameType: e.target.value })
                 }
-                className="shrink-0 p-2 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                className="shrink-0 p-2 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
               >
                 <option value="league">League</option>
                 <option value="pool">Pool</option>
@@ -1164,7 +1164,7 @@ export const ScheduleTab = memo(() => {
             onChange={(e) =>
               setNewGameForm({ ...newGameForm, date: e.target.value })
             }
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 flex-1 shadow-inner"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <input
             type="text"
@@ -1173,7 +1173,7 @@ export const ScheduleTab = memo(() => {
               setNewGameForm({ ...newGameForm, opponent: e.target.value })
             }
             placeholder="Opponent Name"
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 flex-1 uppercase shadow-inner"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
           />
           <select
             value={newGameForm.leagueRuleSet}
@@ -1194,7 +1194,7 @@ export const ScheduleTab = memo(() => {
                 pitchingFormat: newFormat,
               });
             }}
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
             <option value="USSSA">USSSA</option>
             <option value="NKB">NKB</option>
@@ -1204,7 +1204,7 @@ export const ScheduleTab = memo(() => {
             onChange={(e) =>
               setNewGameForm({ ...newGameForm, pitchingFormat: e.target.value })
             }
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
             {newGameForm.leagueRuleSet === "NKB" &&
             ["6U", "7U", "8U"].includes(teamAge) ? (
@@ -1419,7 +1419,7 @@ export const ScheduleTab = memo(() => {
                                       status: "scheduled",
                                     });
                                   }}
-                                  className="text-[11px] font-bold p-1.5 bg-white border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer"
+                                  className="text-[11px] font-bold p-1.5 bg-white border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm cursor-pointer"
                                 />
                               </label>
                             )}

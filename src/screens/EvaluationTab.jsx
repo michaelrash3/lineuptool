@@ -507,8 +507,8 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {flags.standouts.length > 0 && (
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl px-4 py-3">
-            <div className="t-eyebrow text-emerald-700 mb-2 flex items-center gap-1.5">
+          <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl px-4 py-3.5 shadow-sm">
+            <div className="t-eyebrow text-emerald-700 mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronUp className="w-3 h-3" /> Standouts
             </div>
             <ul className="space-y-1.5">
@@ -533,8 +533,8 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
           </div>
         )}
         {flags.regressions.length > 0 && (
-          <div className="bg-rose-50/70 border border-rose-200 rounded-xl px-4 py-3">
-            <div className="t-eyebrow text-rose-700 mb-2 flex items-center gap-1.5">
+          <div className="bg-rose-50/40 border border-rose-200/80 rounded-2xl px-4 py-3.5 shadow-sm">
+            <div className="t-eyebrow text-rose-700 mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronDown className="w-3 h-3" /> Regressions
             </div>
             <ul className="space-y-1.5">
@@ -560,8 +560,8 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
         )}
       </div>
       {flags.categoryDrops.length > 0 && (
-        <div className="bg-amber-50/60 border border-amber-200 rounded-xl px-4 py-3">
-          <div className="t-eyebrow text-amber-700 mb-2 flex items-center gap-1.5">
+        <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl px-4 py-3.5 shadow-sm">
+          <div className="t-eyebrow text-amber-700 mb-2.5 flex items-center gap-1.5">
             <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
           </div>
           <ul className="space-y-1.5">
@@ -1314,7 +1314,7 @@ export const EvaluationTab = memo(() => {
                 value={newRoundLabel}
                 onChange={(e) => setNewRoundLabel(e.target.value)}
                 placeholder="e.g., Preseason 2026, Midseason, Tryouts"
-                className="flex-1 min-w-0 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex-1 min-w-0 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-[var(--team-primary)]"
               />
             </label>
           )}
@@ -1499,7 +1499,7 @@ export const EvaluationTab = memo(() => {
                         onChange={(e) => setNotes(player.id, e.target.value)}
                         placeholder="What stood out this round?"
                         rows={2}
-                        className="w-full text-sm font-medium border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full text-sm font-medium border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-[var(--team-primary)]"
                       />
                     </div>
                   </div>

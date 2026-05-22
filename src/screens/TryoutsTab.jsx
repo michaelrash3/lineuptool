@@ -288,7 +288,7 @@ export const TryoutsTab = memo(() => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name / email…"
-          className="flex-1 min-w-[180px] px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 min-w-[180px] px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
         />
         {["all", "tryout", "offered", "accepted", "declined"].map((s) => (
           <button

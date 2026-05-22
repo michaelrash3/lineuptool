@@ -11,6 +11,8 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
+import { Button, Eyebrow } from "../components/shared.jsx";
+import { Icons } from "../icons";
 
 const getTryoutAgeLabel = (teamAge) => {
   const n = Number.parseInt(String(teamAge || "").replace(/[^0-9]/g, ""), 10);
@@ -51,6 +53,67 @@ const hasDuplicateSignup = (signups, form) => {
     const sDate = String(s?.tryoutDate || "").trim();
     return sFirst === fFirst && sLast === fLast && sEmail === fEmail && sDate === fDate;
   });
+};
+
+// Shared focus-ring + radius recipe applied to every input/select/textarea
+// in this surface. Pulls the ring color from the team's primary so the form
+// feels branded instead of using a generic Tailwind blue ring.
+const INPUT_BASE =
+  "w-full px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed";
+const RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
+
+const PortalShell = ({ children, accent = true }) => (
+  <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+    {accent && (
+      <div
+        className="h-2 w-full"
+        style={{ backgroundColor: "var(--team-primary)" }}
+      />
+    )}
+    <div className="max-w-2xl mx-auto p-5 sm:p-8 relative z-10">{children}</div>
+  </div>
+);
+
+const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }) => {
+  const toneStyle =
+    tone === "error"
+      ? "border-rose-200"
+      : tone === "success"
+      ? ""
+      : "border-slate-200";
+  const accent = tone === "success" ? { borderColor: "var(--team-primary)" } : undefined;
+  return (
+    <div
+      className={`bg-white rounded-2xl p-7 max-w-md mx-auto text-center shadow-card border-2 ${toneStyle}`}
+      style={accent}
+    >
+      {Icon && (
+        <div
+          className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+          style={{
+            backgroundColor:
+              tone === "error" ? "#fef2f2" : "var(--team-primary-15)",
+          }}
+        >
+          <Icon
+            className="w-6 h-6"
+            style={{
+              color: tone === "error" ? "#b91c1c" : "var(--team-primary)",
+            }}
+          />
+        </div>
+      )}
+      {title && (
+        <h1
+          className="t-card-title mb-3"
+          style={tone === "success" ? { color: "var(--team-primary)" } : undefined}
+        >
+          {title}
+        </h1>
+      )}
+      <div className="t-body leading-relaxed">{children}</div>
+    </div>
+  );
 };
 
 export const TryoutsPortal = () => {
@@ -173,64 +236,315 @@ export const TryoutsPortal = () => {
     }
   };
 
-  if (phase === "loading") return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="text-sm font-medium text-slate-500">Loading tryouts page…</div></div>;
-  if (phase === "error") return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="bg-white border border-rose-200 rounded-2xl p-6 max-w-md text-center shadow-md"><p className="text-sm font-bold text-rose-700">{error}</p></div></div>;
-  if (phase === "sent") return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="bg-white border-2 rounded-2xl p-8 max-w-md text-center shadow-lg" style={{ borderColor: "var(--team-primary)" }}><h1 className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--team-primary)" }}>Thanks!</h1><p className="text-sm font-medium text-slate-700">Your signup is in. <strong>{form.firstName} {form.lastName}</strong> is registered for {team?.name || "tryouts"}. We&apos;ll reach you at <strong>{form.email}</strong> and <strong>{form.phone}</strong> with next steps.</p></div></div>;
+  if (phase === "loading") {
+    return (
+      <PortalShell accent={false}>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="flex items-center gap-3 text-slate-500">
+            <Icons.Refresh className="w-4 h-4 animate-spin" />
+            <span className="t-eyebrow">Loading Tryouts</span>
+          </div>
+        </div>
+      </PortalShell>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <PortalShell>
+        <div className="py-10">
+          <PhaseCard tone="error" icon={Icons.Alert} title="Can't open this page">
+            {error}
+          </PhaseCard>
+        </div>
+      </PortalShell>
+    );
+  }
+
+  if (phase === "sent") {
+    return (
+      <PortalShell>
+        <div className="py-10">
+          <PhaseCard tone="success" icon={Icons.Check} title="You're in">
+            <p>
+              <strong className="text-slate-900">
+                {form.firstName} {form.lastName}
+              </strong>{" "}
+              is registered for {team?.name || "tryouts"}. We'll reach you at{" "}
+              <strong className="text-slate-900">{form.email}</strong> and{" "}
+              <strong className="text-slate-900">{form.phone}</strong> with
+              next steps.
+            </p>
+          </PhaseCard>
+        </div>
+      </PortalShell>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+    <PortalShell>
       {team?.logoUrl && (
         <img
           src={team.logoUrl}
           alt=""
           aria-hidden="true"
-          className="pointer-events-none fixed inset-0 m-auto w-[120vw] max-w-[1100px] opacity-[0.16]"
+          className="pointer-events-none fixed inset-0 m-auto w-[120vw] max-w-[1100px] opacity-[0.10]"
           style={{ filter: "saturate(1.05)" }}
         />
       )}
-      <div className="h-2 w-full" style={{ backgroundColor: "var(--team-primary)" }} />
-      <div className="max-w-2xl mx-auto p-5 sm:p-8 relative z-10">
-        <div className="text-center mb-6">
-          {team?.logoUrl && <img src={team.logoUrl} alt={team.name} className="w-20 h-20 mx-auto mb-3 object-contain" />}
-          <h1 className="text-3xl font-black uppercase tracking-tight" style={{ color: "var(--team-primary)" }}>{team?.name || "Tryouts"} {tryoutAgeLabel} Tryouts</h1>
-          <p className="text-sm text-slate-600 mt-1 font-medium">{team?.currentSeason || "Next Season"} · Registering for {tryoutAgeLabel}</p>
+      <header className="text-center mb-7">
+        {team?.logoUrl && (
+          <img
+            src={team.logoUrl}
+            alt={team.name}
+            className="w-20 h-20 mx-auto mb-3 object-contain"
+          />
+        )}
+        <Eyebrow className="block mb-2 text-slate-500">
+          {team?.currentSeason || "Next Season"} · {tryoutAgeLabel}
+        </Eyebrow>
+        <h1
+          className="t-display"
+          style={{ color: "var(--team-primary)" }}
+        >
+          {team?.name || "Tryouts"} {tryoutAgeLabel} Tryouts
+        </h1>
+        <p className="t-body mt-2 max-w-md mx-auto">
+          Fill in the player and parent details below — fields marked with an
+          asterisk are required.
+        </p>
+      </header>
+
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white/95 backdrop-blur rounded-2xl shadow-card border border-slate-200 overflow-hidden"
+      >
+        <div
+          className="h-1 w-full"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
+        <div className="p-5 sm:p-7 space-y-6">
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
+              <h2 className="t-h2">Player Info</h2>
+              <Eyebrow>{tryoutAgeLabel}</Eyebrow>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="First Name *">
+                <input
+                  type="text"
+                  required
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Last Name *">
+                <input
+                  type="text"
+                  required
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Date of Birth">
+                <input
+                  type="date"
+                  value={form.dob}
+                  onChange={(e) => setForm({ ...form, dob: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Current Team *">
+                <input
+                  type="text"
+                  required
+                  value={form.currentTeam}
+                  onChange={(e) =>
+                    setForm({ ...form, currentTeam: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Jersey Number (preferred)">
+                <input
+                  type="text"
+                  value={form.number}
+                  onChange={(e) => setForm({ ...form, number: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Tryout Date">
+                {Array.isArray(team?.tryoutDates) && team.tryoutDates.length > 0 ? (
+                  <select
+                    value={form.tryoutDate}
+                    onChange={(e) =>
+                      setForm({ ...form, tryoutDate: e.target.value })
+                    }
+                    className={INPUT_BASE}
+                    style={RING_STYLE}
+                  >
+                    {team.tryoutDates.filter(Boolean).map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    placeholder="e.g. 5-23-2026"
+                    value={form.tryoutDate}
+                    onChange={(e) =>
+                      setForm({ ...form, tryoutDate: e.target.value })
+                    }
+                    className={INPUT_BASE}
+                    style={RING_STYLE}
+                  />
+                )}
+              </Field>
+              <Field label="Bats">
+                <select
+                  value={form.bats}
+                  onChange={(e) => setForm({ ...form, bats: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                >
+                  <option value="R">Right</option>
+                  <option value="L">Left</option>
+                  <option value="S">Switch</option>
+                </select>
+              </Field>
+              <Field label="Throws">
+                <select
+                  value={form.throws}
+                  onChange={(e) => setForm({ ...form, throws: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                >
+                  <option value="R">Right</option>
+                  <option value="L">Left</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Positions your player can play">
+              <div className="flex flex-wrap gap-2">
+                {positions.map((pos) => {
+                  const active = form.comfortablePositions.includes(pos);
+                  return (
+                    <button
+                      key={pos}
+                      type="button"
+                      onClick={() => togglePos(pos)}
+                      aria-pressed={active}
+                      className="min-w-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest rounded-full border-2 transition-all tabular-nums shadow-sm"
+                      style={
+                        active
+                          ? {
+                              backgroundColor: "var(--team-primary)",
+                              color: "var(--team-tertiary)",
+                              borderColor: "var(--team-primary)",
+                            }
+                          : {
+                              backgroundColor: "white",
+                              color: "#334155",
+                              borderColor: "#e2e8f0",
+                            }
+                      }
+                    >
+                      {pos}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
+              <h2 className="t-h2">Parent / Guardian</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Your Name">
+                <input
+                  type="text"
+                  value={form.parentName}
+                  onChange={(e) =>
+                    setForm({ ...form, parentName: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Email *">
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Phone *" className="sm:col-span-2">
+                <input
+                  type="tel"
+                  required
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+            </div>
+            <Field label="Anything we should know?">
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className={`${INPUT_BASE} resize-y min-h-[88px]`}
+                style={RING_STYLE}
+              />
+            </Field>
+          </section>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5"
+            >
+              <Icons.Alert className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full"
+          >
+            <Icons.Check className="w-4 h-4" /> Submit Signup
+          </Button>
+          <p className="t-meta text-center text-slate-400">
+            Your info is shared only with this team's coaching staff.
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="bg-white/95 rounded-2xl shadow-md border border-slate-200 p-5 sm:p-7 space-y-5">
-          <h2 className="text-lg font-black uppercase tracking-tight text-slate-900">Player Info</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="First Name *"><input type="text" required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Last Name *"><input type="text" required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Date of Birth"><input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Current Team *"><input type="text" required value={form.currentTeam} onChange={(e) => setForm({ ...form, currentTeam: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Jersey Number (preferred)"><input type="text" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Tryout Date">{Array.isArray(team?.tryoutDates) && team.tryoutDates.length > 0 ? (<select value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">{team.tryoutDates.filter(Boolean).map((d) => (<option key={d} value={d}>{d}</option>))}</select>) : (<input type="text" placeholder="e.g. 5-23-2026" value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />)}</Field>
-            <Field label="Bats"><select value={form.bats} onChange={(e) => setForm({ ...form, bats: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="R">Right</option><option value="L">Left</option><option value="S">Switch</option></select></Field>
-            <Field label="Throws"><select value={form.throws} onChange={(e) => setForm({ ...form, throws: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="R">Right</option><option value="L">Left</option></select></Field>
-          </div>
-
-          <Field label="Positions your player can play"><div className="flex flex-wrap gap-1.5">{positions.map((pos) => { const active = form.comfortablePositions.includes(pos); return <button key={pos} type="button" onClick={() => togglePos(pos)} className="px-2 py-1 text-[11px] font-black rounded-md border transition-all" style={active ? { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)", borderColor: "var(--team-primary)" } : { backgroundColor: "white", color: "#475569", borderColor: "#e2e8f0" }}>{pos}</button>; })}</div></Field>
-
-          <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 pt-3">Parent / Guardian</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Your Name"><input type="text" value={form.parentName} onChange={(e) => setForm({ ...form, parentName: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Email *"><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Phone *"><input type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-          </div>
-          <Field label="Anything we should know?"><textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-
-          {error && <p className="text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">{error}</p>}
-
-          <button type="submit" className="w-full py-3 rounded-xl shadow-md font-black uppercase tracking-widest text-sm" style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}>Submit Signup</button>
-        </form>
-      </div>
-    </div>
+      </form>
+    </PortalShell>
   );
 };
 
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">{label}</span>
+const Field = ({ label, className = "", children }) => (
+  <label className={`block ${className}`}>
+    <span className="block t-label mb-1.5">{label}</span>
     {children}
   </label>
 );

@@ -313,7 +313,8 @@ export const RosterTab = memo(() => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search players by name…"
                 aria-label="Search roster"
-                className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold text-slate-700 shadow-sm"
+                className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:border-transparent text-sm font-bold text-slate-700 shadow-sm transition-shadow"
+                style={{ "--tw-ring-color": "var(--team-primary)" }}
               />
               {searchQuery && (
                 <button
