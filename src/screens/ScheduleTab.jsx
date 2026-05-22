@@ -1164,7 +1164,7 @@ export const ScheduleTab = memo(() => {
             onChange={(e) =>
               setNewGameForm({ ...newGameForm, date: e.target.value })
             }
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <input
             type="text"
@@ -1173,7 +1173,7 @@ export const ScheduleTab = memo(() => {
               setNewGameForm({ ...newGameForm, opponent: e.target.value })
             }
             placeholder="Opponent Name"
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
           />
           <select
             value={newGameForm.leagueRuleSet}
@@ -1194,7 +1194,7 @@ export const ScheduleTab = memo(() => {
                 pitchingFormat: newFormat,
               });
             }}
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
             <option value="USSSA">USSSA</option>
             <option value="NKB">NKB</option>
@@ -1204,7 +1204,7 @@ export const ScheduleTab = memo(() => {
             onChange={(e) =>
               setNewGameForm({ ...newGameForm, pitchingFormat: e.target.value })
             }
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
             {newGameForm.leagueRuleSet === "NKB" &&
             ["6U", "7U", "8U"].includes(teamAge) ? (
