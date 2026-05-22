@@ -477,7 +477,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
           <button
             type="button"
             onClick={() => onPlayerClick?.(movers.topMover.player.id)}
-            className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-50 transition-colors"
+            className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-emerald-50/40 border border-emerald-200/80 hover:bg-emerald-50 transition-colors shadow-sm"
           >
             <span className="t-body-bold text-emerald-900 truncate">
               {movers.topMover.player.name}
@@ -491,7 +491,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
           <button
             type="button"
             onClick={() => onPlayerClick?.(movers.topRegressor.player.id)}
-            className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg bg-rose-50/70 border border-rose-200 hover:bg-rose-50 transition-colors"
+            className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-rose-50/40 border border-rose-200/80 hover:bg-rose-50 transition-colors shadow-sm"
           >
             <span className="t-body-bold text-rose-900 truncate">
               {movers.topRegressor.player.name}

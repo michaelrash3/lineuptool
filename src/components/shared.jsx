@@ -364,27 +364,120 @@ export const Button = ({
   );
 };
 
+// Shared form input recipe — apply via className on bare <input>/<select>/
+// <textarea>. The focus ring color is wired to the team primary via inline
+// style so the focus highlight feels branded instead of using Tailwind's
+// generic blue ring. Inputs across the app should use this string rather
+// than redefining the same border / radius / focus combo locally.
+export const FORM_INPUT_CLASS =
+  "w-full px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed";
+
+export const FORM_INPUT_RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
+
+// Drop-in <Modal> shell. Standardizes backdrop, panel chrome, optional
+// accent strip, and the close-on-backdrop / Escape behaviors so new modals
+// don't each reinvent the recipe. Keep using OnboardingTutorial's
+// purpose-built shell for the multi-step tour — this is the default for
+// short confirmations + single-form panels.
+export const Modal = ({
+  open,
+  onClose,
+  title,
+  eyebrow,
+  accent = true,
+  size = "md",
+  closeOnBackdrop = true,
+  closeOnEscape = true,
+  children,
+  footer,
+}) => {
+  React.useEffect(() => {
+    if (!open || !closeOnEscape || !onClose) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, closeOnEscape, onClose]);
+
+  if (!open) return null;
+
+  const widthClass =
+    size === "sm" ? "max-w-sm" : size === "lg" ? "max-w-2xl" : "max-w-md";
+
+  return (
+    <div
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+      onClick={closeOnBackdrop && onClose ? onClose : undefined}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white/95 ${widthClass} w-full rounded-2xl shadow-2xl border border-white/60 overflow-hidden`}
+      >
+        {accent && (
+          <div
+            className="h-1.5 w-full"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          />
+        )}
+        <div className="p-6 sm:p-7">
+          {(eyebrow || title || onClose) && (
+            <div className="flex items-start gap-3 mb-4">
+              <div className="min-w-0 flex-1">
+                {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+                {title && (
+                  <h3 className="t-card-title mt-1.5 break-words">{title}</h3>
+                )}
+              </div>
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="shrink-0 -mr-2 -mt-1 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  aria-label="Close"
+                >
+                  <span className="block w-4 h-4 leading-none text-lg">×</span>
+                </button>
+              )}
+            </div>
+          )}
+          <div className="t-body text-slate-700">{children}</div>
+          {footer && (
+            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+              {footer}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const SharedModals = memo(() => {
   const { modal, setModal } = useUI();
   const { team } = useTeam();
   if (!modal.isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-white/50">
-        <div className="p-1.5" style={{ backgroundColor: team.primaryColor }} />
-        <div className="p-6 bg-white">
-          <h3 className="text-xl font-black text-slate-900 mb-2 tracking-tight">
-            {modal.title}
-          </h3>
-          <p className="text-slate-600 font-medium mb-8 text-sm leading-relaxed whitespace-pre-line">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <div className="bg-white/95 rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-white/60">
+        <div
+          className="h-1.5 w-full"
+          style={{ backgroundColor: team.primaryColor }}
+        />
+        <div className="p-6 sm:p-7">
+          <h3 className="t-card-title mb-2">{modal.title}</h3>
+          <p className="t-body mb-6 leading-relaxed whitespace-pre-line">
             {modal.message}
           </p>
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             {modal.type === "confirm" && (
               <button
                 onClick={() => setModal({ ...modal, isOpen: false })}
-                className="px-5 py-2.5 bg-slate-50 border border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
+                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
               >
                 Cancel
               </button>
@@ -394,7 +487,7 @@ export const SharedModals = memo(() => {
                 if (modal.onConfirm) modal.onConfirm();
                 setModal({ ...modal, isOpen: false });
               }}
-              className="px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
+              className="px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
               style={{
                 backgroundColor: team.primaryColor,
                 color: team.tertiaryColor,

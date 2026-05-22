@@ -54,7 +54,7 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
           spellCheck={false}
           placeholder="#000000"
           maxLength={7}
-          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+          className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-2 focus:ring-[var(--team-primary)] uppercase"
         />
       </div>
     </div>
@@ -747,7 +747,7 @@ export const SettingsTab = memo(() => {
                       onChange={(e) =>
                         updateTeam({ leagueRuleSet: e.target.value })
                       }
-                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
+                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
                     >
                       <option value="USSSA">USSSA Baseball</option>
                       <option value="NKB">
@@ -764,7 +764,7 @@ export const SettingsTab = memo(() => {
                       onChange={(e) =>
                         updateTeam({ pitchingFormat: e.target.value })
                       }
-                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
+                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
                     >
                       {leagueRuleSet === "NKB" &&
                       ["6U", "7U", "8U"].includes(teamAge) ? (
@@ -792,7 +792,7 @@ export const SettingsTab = memo(() => {
                     <select
                       value={teamAge}
                       onChange={(e) => updateTeam({ teamAge: e.target.value })}
-                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
+                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
                     >
                       <option value="6U">6U</option>
                       <option value="7U">7U</option>
@@ -813,7 +813,7 @@ export const SettingsTab = memo(() => {
                       onChange={(e) =>
                         updateTeam({ inningsCount: e.target.value })
                       }
-                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
+                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
                         <option key={num} value={num}>
@@ -833,7 +833,7 @@ export const SettingsTab = memo(() => {
                       onChange={(e) =>
                         updateTeam({ positionLock: e.target.value })
                       }
-                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
+                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
                     >
                       <option value="1">1 Inn</option>
                       <option value="2">2 Inn</option>
@@ -850,7 +850,7 @@ export const SettingsTab = memo(() => {
                       onChange={(e) =>
                         updateTeam({ battingSize: e.target.value })
                       }
-                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
+                      className="w-full p-3 bg-white/80 border border-slate-200 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-white"
                     >
                       <option value="roster">Roster</option>
                       <option value="9">9</option>
@@ -937,14 +937,14 @@ export const SettingsTab = memo(() => {
                       setNewCoachForm({ ...newCoachForm, name: e.target.value })
                     }
                     placeholder="Coach Name"
-                    className="w-full p-2.5 border border-slate-300 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 rounded-lg shadow-inner"
+                    className="w-full p-2.5 border border-slate-300 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg shadow-inner"
                   />
                   <select
                     value={newCoachForm.role}
                     onChange={(e) =>
                       setNewCoachForm({ ...newCoachForm, role: e.target.value })
                     }
-                    className="w-full p-2.5 border border-slate-300 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 rounded-lg bg-white shadow-sm"
+                    className="w-full p-2.5 border border-slate-300 text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg bg-white shadow-sm"
                   >
                     <option value="Head Coach">Head Coach</option>
                     <option value="Assistant Coach">Assistant Coach</option>
@@ -1108,7 +1108,7 @@ export const SettingsTab = memo(() => {
                         updateTeam({ currentSeason: e.target.value })
                       }
                       placeholder="Spring 2026"
-                      className="w-full p-3 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+                      className="w-full p-3 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
                     />
                   </div>
                   <div className="flex items-end">

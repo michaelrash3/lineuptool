@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { Icons } from "../icons";
-import { Button, Eyebrow } from "./shared.jsx";
+import {
+  Button,
+  Eyebrow,
+  FORM_INPUT_CLASS,
+  FORM_INPUT_RING_STYLE,
+} from "./shared.jsx";
 
 // First-run modal shown when a signed-in user has no teams yet.
 // Replaces the previous "auto-create My Team" bootstrap so a coach who
@@ -133,11 +138,8 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
                 placeholder="TEAM CODE"
                 maxLength={6}
                 aria-label="6-character team join code"
-                className="flex-1 px-3 py-2.5 text-sm font-mono uppercase tracking-[0.4em] text-slate-900 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-offset-0 transition"
-                style={{
-                  // Focus ring uses the team primary so the modal feels branded.
-                  "--tw-ring-color": "var(--team-primary)",
-                }}
+                className={`${FORM_INPUT_CLASS} flex-1 font-mono uppercase tracking-[0.4em] text-center`}
+                style={FORM_INPUT_RING_STYLE}
               />
               <Button
                 type="submit"
@@ -199,8 +201,8 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
                 placeholder="My Team"
                 maxLength={60}
                 aria-label="Team name"
-                className="flex-1 px-3 py-2.5 text-sm font-bold text-slate-900 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 transition"
-                style={{ "--tw-ring-color": "var(--team-primary)" }}
+                className={`${FORM_INPUT_CLASS} flex-1 font-bold`}
+                style={FORM_INPUT_RING_STYLE}
               />
               <Button
                 type="submit"

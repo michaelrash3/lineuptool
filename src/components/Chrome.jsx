@@ -1,13 +1,27 @@
 import React, { memo } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts.js";
-import { RecordBadge } from "./shared.jsx";
+import { RecordBadge, Eyebrow } from "./shared.jsx";
 
-export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, onEmailSignIn, genError, isSigningIn = false }) => (
+export const LoginScreen = ({
+  logoUrl,
+  primaryColor,
+  tertiaryColor,
+  onSignIn,
+  onEmailSignIn,
+  genError,
+  isSigningIn = false,
+}) => (
   <div
-    className="min-h-screen flex flex-col items-center justify-center p-6 border-t-8 bg-slate-50 relative"
-    style={{ borderColor: primaryColor }}
+    className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 relative overflow-hidden"
   >
+    {/* Top accent strip — matches the in-app modal motif so the first
+        thing a returning user sees feels like the same product. */}
+    <div
+      className="absolute top-0 left-0 right-0 h-2"
+      style={{ backgroundColor: primaryColor }}
+    />
+
     {logoUrl && (
       <div
         className="fixed inset-0 z-0 pointer-events-none"
@@ -16,48 +30,70 @@ export const LoginScreen = ({ logoUrl, primaryColor, tertiaryColor, onSignIn, on
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
           backgroundSize: "60%",
-          opacity: 0.25,
+          opacity: 0.18,
         }}
       />
     )}
-    <div className="bg-white/40 p-10 shadow-2xl max-w-sm w-full text-center rounded-2xl border border-white/50 relative z-10">
-      <div className="flex justify-center mb-6">
-        <div className="p-4 rounded-full bg-white border border-white/40 shadow-sm">
-          <Icons.Clipboard
-            className="w-10 h-10"
-            style={{ color: primaryColor }}
-          />
+
+    <div className="bg-white/95 backdrop-blur shadow-card max-w-sm w-full rounded-2xl border border-white/60 relative z-10 overflow-hidden">
+      <div className="h-1 w-full" style={{ backgroundColor: primaryColor }} />
+      <div className="p-8 text-center">
+        <div className="flex justify-center mb-5">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-card"
+            style={{ backgroundColor: "var(--team-primary-15)" }}
+          >
+            <Icons.Clipboard
+              className="w-8 h-8"
+              style={{ color: primaryColor }}
+            />
+          </div>
         </div>
-      </div>
-      <h1 className="text-3xl font-black mb-2 uppercase tracking-tight text-slate-900">
-        Lineup Generator
-      </h1>
-      <p className="text-slate-500 mb-8 text-sm font-bold uppercase tracking-wider">
-        Authentication Required
-      </p>
-      <button
-        onClick={onSignIn}
-        disabled={isSigningIn}
-        className="w-full py-4 px-4 font-black uppercase tracking-wider flex items-center justify-center gap-3 transition-all rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-lg"
-        style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-      >
-        <Icons.Users className="w-5 h-5" /> {isSigningIn ? "Signing in…" : "Sign In with Google"}
-      </button>
-      {onEmailSignIn && (
-        <button
-          onClick={onEmailSignIn}
-          className="w-full mt-3 py-3 px-4 font-black uppercase tracking-wider rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50"
-          type="button"
-        >
-          Sign In with Email Link
-        </button>
-      )}
-      {genError && (
-        <p className="mt-4 rounded-xl bg-red-50 border border-red-200 text-red-700 px-3 py-2 text-xs font-bold">
-          {genError}
+        <Eyebrow className="block mb-2 text-slate-400">
+          Sign In Required
+        </Eyebrow>
+        <h1 className="t-h1 mb-2">Coach's Card</h1>
+        <p className="t-body mb-7">
+          Lineups, in-game swaps, eval rounds, and season stats in one place.
         </p>
-      )}
+        <button
+          onClick={onSignIn}
+          disabled={isSigningIn}
+          className="w-full py-3.5 px-4 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-md"
+          style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+        >
+          {isSigningIn ? (
+            <>
+              <Icons.Refresh className="w-4 h-4 animate-spin" /> Signing in…
+            </>
+          ) : (
+            <>
+              <Icons.Users className="w-4 h-4" /> Sign In with Google
+            </>
+          )}
+        </button>
+        {onEmailSignIn && (
+          <button
+            onClick={onEmailSignIn}
+            className="w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+            type="button"
+          >
+            Sign In with Email Link
+          </button>
+        )}
+        {genError && (
+          <p
+            role="alert"
+            className="mt-5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-xs font-bold"
+          >
+            {genError}
+          </p>
+        )}
+      </div>
     </div>
+    <p className="t-meta text-slate-400 mt-6 relative z-10">
+      Built for youth-baseball coaches
+    </p>
   </div>
 );
 
@@ -186,7 +222,7 @@ export const AppHeader = memo(() => {
                   }
                   placeholder="TEAM CODE"
                   maxLength={8}
-                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 flex-1 uppercase tracking-widest font-mono bg-slate-900/50 text-white rounded-lg shadow-inner"
+                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase tracking-widest font-mono bg-slate-900/50 text-white rounded-lg shadow-inner"
                 />
                 <button
                   type="submit"
@@ -224,7 +260,7 @@ export const AppHeader = memo(() => {
                   value={newTeamName}
                   onChange={(e) => setNewTeamName(e.target.value)}
                   placeholder="NEW TEAM NAME"
-                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 flex-1 uppercase bg-slate-900/50 text-white rounded-lg shadow-inner"
+                  className="p-2 text-xs outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase bg-slate-900/50 text-white rounded-lg shadow-inner"
                 />
                 <button
                   type="submit"

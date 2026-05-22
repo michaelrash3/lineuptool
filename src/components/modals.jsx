@@ -311,7 +311,7 @@ export const PastSeasonImportModal = memo(() => {
                 value={season}
                 onChange={(e) => setField({ season: e.target.value })}
                 placeholder="e.g., Spring 2025"
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
               />
             </div>
             <div>
@@ -321,7 +321,7 @@ export const PastSeasonImportModal = memo(() => {
               <select
                 value={ageGroup}
                 onChange={(e) => setField({ ageGroup: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
               >
                 <option value="">Select…</option>
                 {AGE_TIERS.map((a) => (
@@ -338,7 +338,7 @@ export const PastSeasonImportModal = memo(() => {
               <select
                 value={pitchingFormat}
                 onChange={(e) => setField({ pitchingFormat: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
               >
                 <option value="Kid Pitch">Kid Pitch</option>
                 <option value="Coach/Machine">Coach / Machine</option>
@@ -379,7 +379,7 @@ export const PastSeasonImportModal = memo(() => {
                       onChange={(e) =>
                         setAssignment(row.csvName, e.target.value)
                       }
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+                      className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                     >
                       <option value="skip">Skip this row</option>
                       <optgroup label="Match to existing player">
@@ -474,7 +474,7 @@ const PastSeasonForm = memo(
               value={season}
               onChange={(e) => setSeason(e.target.value)}
               placeholder="e.g., Spring 2025"
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-inner"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
             />
           </div>
           <div>
@@ -484,7 +484,7 @@ const PastSeasonForm = memo(
             <select
               value={ageGroup}
               onChange={(e) => setAgeGroup(e.target.value)}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
             >
               <option value="">Select…</option>
               {AGE_TIERS.map((a) => (
@@ -501,7 +501,7 @@ const PastSeasonForm = memo(
             <select
               value={pitchingFormat}
               onChange={(e) => setPitchingFormat(e.target.value)}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-sm"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
             >
               <option value="Kid Pitch">Kid Pitch</option>
               <option value="Coach/Machine">Coach / Machine</option>
@@ -520,7 +520,7 @@ const PastSeasonForm = memo(
                 step="0.001"
                 value={stats[key] || 0}
                 onChange={(e) => setStat(key, e.target.value)}
-                className="w-full p-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-inner tabular-nums"
+                className="w-full p-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums"
               />
             </div>
           ))}
@@ -1347,7 +1347,7 @@ export const PlayerProfileModal = memo(() => {
                   if (e.key === "Enter") e.target.blur();
                   if (e.key === "Escape") setEditingPlayerName(false);
                 }}
-                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 mb-1 w-full p-2 -ml-2 border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 rounded-xl bg-white shadow-inner"
+                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 mb-1 w-full p-2 -ml-2 border border-slate-200 outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl bg-white shadow-inner"
               />
             ) : (
               <h2
@@ -1443,7 +1443,7 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { number: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
                   />
                 </div>
                 <div>
@@ -1455,7 +1455,7 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { bats: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
                   >
                     <option value="R">R</option>
                     <option value="L">L</option>
@@ -1471,7 +1471,7 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { throws: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
                   >
                     <option value="R">R</option>
                     <option value="L">L</option>
@@ -1488,7 +1488,7 @@ export const PlayerProfileModal = memo(() => {
                         primaryPosition: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
                   >
                     <option value="">N/A</option>
                     {positions.map((p) => (
@@ -1508,7 +1508,7 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { dob: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
+                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
                   />
                 </div>
               </div>
@@ -1591,7 +1591,7 @@ export const PlayerProfileModal = memo(() => {
                             recentPitches: parseInt(e.target.value, 10) || 0,
                           })
                         }
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-100 disabled:text-slate-500 shadow-inner"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-100 disabled:text-slate-500 shadow-inner"
                       />
                     </div>
                     <div>
@@ -1606,7 +1606,7 @@ export const PlayerProfileModal = memo(() => {
                             lastPitchDate: e.target.value,
                           })
                         }
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-100 disabled:text-slate-500 shadow-inner"
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-100 disabled:text-slate-500 shadow-inner"
                       />
                     </div>
                   </div>
@@ -2211,7 +2211,7 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { [key]: e.target.value })
                     }
-                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
                   />
                 </div>
               ))}
@@ -2374,7 +2374,7 @@ export const AddPlayerModal = memo(() => {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold shadow-inner"
+              className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
             />
           </div>
           <div className="grid grid-cols-3 gap-3">
@@ -2386,7 +2386,7 @@ export const AddPlayerModal = memo(() => {
                 type="text"
                 value={form.number}
                 onChange={(e) => setForm({ ...form, number: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold shadow-inner"
+                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
               />
             </div>
             <div>
@@ -2396,7 +2396,7 @@ export const AddPlayerModal = memo(() => {
               <select
                 value={form.bats}
                 onChange={(e) => setForm({ ...form, bats: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold shadow-sm"
+                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
               >
                 <option>R</option>
                 <option>L</option>
@@ -2410,7 +2410,7 @@ export const AddPlayerModal = memo(() => {
               <select
                 value={form.throws}
                 onChange={(e) => setForm({ ...form, throws: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold shadow-sm"
+                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
               >
                 <option>R</option>
                 <option>L</option>

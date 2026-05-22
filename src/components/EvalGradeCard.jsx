@@ -177,7 +177,7 @@ export const EvalGradeCard = memo(
                 onChange={(e) => onNotesChange?.(player.id, e.target.value)}
                 rows={2}
                 placeholder="Anything worth flagging?"
-                className="w-full p-2.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                className="w-full p-2.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
               />
             )}
           </div>
