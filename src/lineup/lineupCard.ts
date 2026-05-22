@@ -16,9 +16,11 @@ interface DownloadArgs extends RenderArgs {
   toast?: Toast;
 }
 
-// Off-DOM image loader with CORS attribute set. getDownloadURL() URLs from
-// Firebase Storage serve with CORS headers so this works without tainting
-// the canvas. Resolves null on any error so we silently fall back to initials.
+// Off-DOM image loader with CORS attribute set. Today every photoUrl is an
+// inline data URL (no CORS to worry about), but legacy Cloud Storage URLs
+// from earlier releases still serve with CORS headers, so the attribute is
+// kept for backward compatibility. Resolves null on any error so we silently
+// fall back to initials.
 const loadImage = (url: string): Promise<HTMLImageElement | null> =>
   new Promise((resolve) => {
     const img = new Image();

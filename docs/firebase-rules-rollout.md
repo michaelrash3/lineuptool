@@ -1,10 +1,12 @@
-# Firebase Rules Rollout (Firestore + Storage)
+# Firestore Rules Rollout
 
-This guide makes both `firestore.rules` and `storage.rules` reproducible from the repo and safe to roll out.
+This guide makes `firestore.rules` reproducible from the repo and safe to roll out.
+
+> **No Cloud Storage.** The app runs on the Firebase Spark plan and does not use Cloud Storage. Player photos are persisted inline as 256×256 JPEG data URLs on the team document — see `cropImageTo256DataURL` in `src/components/shared.jsx`.
 
 ## What this covers
 
-- Deploying `firestore.rules` and `storage.rules` from source control
+- Deploying `firestore.rules` from source control
 - Testing the key auth paths for this app
 - Rolling back safely if a rule blocks coaches in the field
 
@@ -33,25 +35,17 @@ firebase use <your-firebase-project-id>
 From repo root:
 
 ```bash
-# Firestore (team docs, user settings, tryouts portal)
 firebase deploy --only firestore:rules
-
-# Cloud Storage (player photos at teams/{teamId}/players/*.jpg)
-firebase deploy --only storage:rules
-
-# Or both at once
-firebase deploy --only firestore:rules,storage:rules
 ```
 
-`storage.rules` lives at the repo root next to `firestore.rules`. The Storage rules allow unauthenticated reads of player photos (the download URLs are unguessable) and restrict writes to signed-in users with images under 5 MB. See the file for the full policy and the upgrade path to a strict-membership variant.
+If you don't have the Firebase CLI installed, paste the contents of `firestore.rules` into the Firebase Console → Firestore Database → Rules tab and click *Publish*. The repo file remains the source of truth — any console edit should be mirrored back into the repo in a follow-up commit.
 
 ## Local rule test loop (recommended before deploy)
 
 Start emulators:
 
 ```bash
-# Both rule sets, against the local emulator suite
-firebase emulators:start --only firestore,storage
+firebase emulators:start --only firestore
 ```
 
 Then verify these flows manually in-app against emulator config.
@@ -93,14 +87,6 @@ Expected: portal submission blocked once `tryoutsOpen` is false.
 - Toggle tryouts closed in Settings.
 - Retry signup submit.
 - Confirm denial/error path is shown.
-
-### 6) Storage: player photo upload
-Expected: signed-in user can upload an image under 5 MB to a team they belong to; signed-out users and oversized/non-image uploads are denied.
-
-- Open AddPlayerModal or PlayerProfileModal, attach a JPG/PNG.
-- Confirm upload succeeds and the resulting URL is recorded on the player.
-- Sign out in the emulator UI and retry — expect denial.
-- Try a >5 MB file or a non-image — expect denial.
 
 ## Rollback
 

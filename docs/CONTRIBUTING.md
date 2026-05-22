@@ -35,22 +35,22 @@ There's no eslint config beyond `react-app`; the toolchain is plain Create React
 |---|---|
 | New screen, new context value, new top-level routing | `docs/ARCHITECTURE.md` |
 | Changed a user-facing flow (sign-in, join, tryouts, eval, in-game) | `docs/USER-FLOWS.md` |
-| Changed `firestore.rules` or `storage.rules` | `docs/firebase-rules-rollout.md` (validation matrix + rollback note) |
+| Changed `firestore.rules` | `docs/firebase-rules-rollout.md` (validation matrix + rollback note) |
 | Added a deploy step, env var, or build flag | `README.md` quickstart |
 | Bumped `EVAL_SCHEMA_VERSION` or any other schema version | `docs/ARCHITECTURE.md` migration ladder + a one-release fallback in code |
 | Visual change to a primitive (Button, Card, Modal, etc.) | The corresponding preview HTML under `docs/design/coachs-card/preview/` |
 
 ## Rules rollout
 
-`firestore.rules` and `storage.rules` are deployed from the repo, not the Firebase Console. The full procedure is in `docs/firebase-rules-rollout.md`. The short version:
+`firestore.rules` is deployed from the repo, not the Firebase Console. The full procedure is in `docs/firebase-rules-rollout.md`. The short version:
 
-1. Edit rules in the repo.
-2. Test against the emulator (`firebase emulators:start --only firestore,storage`).
+1. Edit `firestore.rules` in the repo.
+2. Test against the emulator (`firebase emulators:start --only firestore`).
 3. Walk the validation matrix.
-4. Deploy with `firebase deploy --only firestore:rules,storage:rules`.
-5. Smoke-test owner, assistant, tryouts portal, and photo upload in production.
+4. Deploy with `firebase deploy --only firestore:rules` (or paste into the Firebase Console if the CLI isn't available).
+5. Smoke-test owner, assistant, and tryouts portal in production.
 
-Never edit rules in the Console — your change will be silently reverted the next time someone deploys from the repo.
+Never edit rules in the Console without mirroring the change back into the repo — your change will be silently reverted the next time someone deploys from source.
 
 ## Code conventions
 

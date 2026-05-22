@@ -1,5 +1,4 @@
 import React, { memo, useMemo, useState, useRef, useEffect } from "react";
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { Icons } from "../icons";
 import {
   formatStat,
@@ -10,8 +9,7 @@ import {
 import { AGE_TIERS } from "../constants/ui";
 import { getActivePositionList } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts.js";
-import { storage, appId } from "../firebase";
-import { PlayerAvatar, cropImageTo256 } from "./shared.jsx";
+import { PlayerAvatar, cropImageTo256DataURL } from "./shared.jsx";
 
 
 const PROFILE_SECTIONS = [
@@ -22,27 +20,11 @@ const PROFILE_SECTIONS = [
   { id: "contact", label: "Contact" },
 ];
 
-// Upload a cropped JPEG to teams/{teamId}/players/{playerId}.jpg and return
-// the public download URL. Reuses the appId namespace so previews and prod
-// stay separate.
-const uploadPlayerPhoto = async (file, teamId, playerId) => {
-  const blob = await cropImageTo256(file);
-  const path = `artifacts/${appId}/teams/${teamId}/players/${playerId}.jpg`;
-  const ref = storageRef(storage, path);
-  await uploadBytes(ref, blob, { contentType: "image/jpeg" });
-  return getDownloadURL(ref);
-};
-
-const deletePlayerPhoto = async (teamId, playerId) => {
-  const path = `artifacts/${appId}/teams/${teamId}/players/${playerId}.jpg`;
-  const ref = storageRef(storage, path);
-  try {
-    await deleteObject(ref);
-  } catch (e) {
-    // Object may not exist — ignore.
-    if (e?.code !== "storage/object-not-found") throw e;
-  }
-};
+// Convert a chosen file into a 256×256 JPEG data URL ready to persist
+// inline on the player record. Photos no longer round-trip through Cloud
+// Storage (Spark plan compatibility) — they're stored alongside the rest
+// of the player document in Firestore. Removal is just clearing the
+// photoUrl field; nothing external needs to be deleted.
 const STATS_TAB_KEYS = [
   "ops",
   "obp",
@@ -1302,11 +1284,7 @@ export const PlayerProfileModal = memo(() => {
                 if (!file) return;
                 setPhotoBusy(true);
                 try {
-                  const url = await uploadPlayerPhoto(
-                    file,
-                    team.id,
-                    player.id
-                  );
+                  const url = await cropImageTo256DataURL(file);
                   updatePlayer(player.id, { photoUrl: url });
                   toast.push({
                     kind: "success",
@@ -1317,7 +1295,7 @@ export const PlayerProfileModal = memo(() => {
                   toast.push({
                     kind: "error",
                     title: "Upload Failed",
-                    message: err?.message || "Couldn't upload photo.",
+                    message: err?.message || "Couldn't process photo.",
                   });
                 } finally {
                   setPhotoBusy(false);
@@ -1341,21 +1319,7 @@ export const PlayerProfileModal = memo(() => {
             {player.photoUrl && !photoBusy && (
               <button
                 type="button"
-                onClick={async () => {
-                  setPhotoBusy(true);
-                  try {
-                    await deletePlayerPhoto(team.id, player.id);
-                    updatePlayer(player.id, { photoUrl: "" });
-                  } catch (err) {
-                    toast.push({
-                      kind: "error",
-                      title: "Remove Failed",
-                      message: err?.message || "Couldn't remove photo.",
-                    });
-                  } finally {
-                    setPhotoBusy(false);
-                  }
-                }}
+                onClick={() => updatePlayer(player.id, { photoUrl: "" })}
                 className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white border border-slate-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 shadow-sm flex items-center justify-center"
                 aria-label="Remove photo"
                 title="Remove photo"
@@ -2337,15 +2301,17 @@ export const AddPlayerModal = memo(() => {
     e.preventDefault();
     if (!form.name.trim()) return;
     const id = addPlayer(form);
-    // Fire photo upload in the background — we don't make the user wait.
+    // Fire the photo data-URL build in the background — we don't make the
+    // user wait for the canvas crop on submit.
     if (photoFile && id) {
-      uploadPlayerPhoto(photoFile, team.id, id)
+      cropImageTo256DataURL(photoFile)
         .then((url) => updatePlayer(id, { photoUrl: url }))
         .catch((err) =>
           toast.push({
             kind: "error",
-            title: "Photo Upload Failed",
-            message: err?.message || "Couldn't upload photo. Add it later from the profile.",
+            title: "Photo Save Failed",
+            message:
+              err?.message || "Couldn't process photo. Add it later from the profile.",
           })
         );
     }
