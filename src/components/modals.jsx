@@ -278,7 +278,7 @@ export const PastSeasonImportModal = memo(() => {
   };
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm">
       <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
         <div
           className="p-1.5"
@@ -311,7 +311,7 @@ export const PastSeasonImportModal = memo(() => {
                 value={season}
                 onChange={(e) => setField({ season: e.target.value })}
                 placeholder="e.g., Spring 2025"
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
               />
             </div>
             <div>
@@ -321,7 +321,7 @@ export const PastSeasonImportModal = memo(() => {
               <select
                 value={ageGroup}
                 onChange={(e) => setField({ ageGroup: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
               >
                 <option value="">Select…</option>
                 {AGE_TIERS.map((a) => (
@@ -338,7 +338,7 @@ export const PastSeasonImportModal = memo(() => {
               <select
                 value={pitchingFormat}
                 onChange={(e) => setField({ pitchingFormat: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
               >
                 <option value="Kid Pitch">Kid Pitch</option>
                 <option value="Coach/Machine">Coach / Machine</option>
@@ -379,7 +379,7 @@ export const PastSeasonImportModal = memo(() => {
                       onChange={(e) =>
                         setAssignment(row.csvName, e.target.value)
                       }
-                      className="w-full p-2 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                     >
                       <option value="skip">Skip this row</option>
                       <optgroup label="Match to existing player">
@@ -474,7 +474,7 @@ const PastSeasonForm = memo(
               value={season}
               onChange={(e) => setSeason(e.target.value)}
               placeholder="e.g., Spring 2025"
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
             />
           </div>
           <div>
@@ -484,7 +484,7 @@ const PastSeasonForm = memo(
             <select
               value={ageGroup}
               onChange={(e) => setAgeGroup(e.target.value)}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
             >
               <option value="">Select…</option>
               {AGE_TIERS.map((a) => (
@@ -501,7 +501,7 @@ const PastSeasonForm = memo(
             <select
               value={pitchingFormat}
               onChange={(e) => setPitchingFormat(e.target.value)}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
             >
               <option value="Kid Pitch">Kid Pitch</option>
               <option value="Coach/Machine">Coach / Machine</option>
@@ -688,7 +688,7 @@ export const StatTrendModal = memo(
 
     return (
       <div
-        className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
         onClick={(e) => {
           e.stopPropagation();
           onClose();
@@ -1259,7 +1259,7 @@ export const PlayerProfileModal = memo(() => {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm overflow-y-auto"
       onClick={close}
     >
       <div
@@ -2320,7 +2320,7 @@ export const AddPlayerModal = memo(() => {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
       onClick={close}
     >
       <div

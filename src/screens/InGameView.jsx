@@ -461,7 +461,7 @@ export const InGameView = memo(() => {
           };
 
           return (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+            <div className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-3 mb-3 shadow-sm">
               <div className="text-[10px] font-extrabold uppercase tracking-widest text-amber-800 mb-2 flex items-center gap-1.5">
                 <Icons.Pitch className="w-3.5 h-3.5" />
                 Pitchers
@@ -587,9 +587,19 @@ export const InGameView = memo(() => {
                 onClick={() => handleTap(sel)}
                 className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                   selected
-                    ? "bg-white border-blue-500 ring-4 ring-blue-200 shadow-lg"
+                    ? "bg-white ring-4 shadow-lg"
                     : "bg-white border-slate-200 hover:border-slate-400 active:scale-[0.97]"
                 }`}
+                style={
+                  selected
+                    ? {
+                        borderColor: "var(--team-primary)",
+                        // The ring color is the team primary at low opacity so
+                        // it reads as a soft highlight, not a hard outline.
+                        "--tw-ring-color": "var(--team-primary-15)",
+                      }
+                    : undefined
+                }
               >
                 <div className="w-12 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-widest text-slate-500 bg-slate-100 rounded-lg py-1.5">
                   {pos}
@@ -630,9 +640,17 @@ export const InGameView = memo(() => {
                   onClick={() => handleTap(sel)}
                   className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                     selected
-                      ? "bg-white border-blue-500 ring-4 ring-blue-200 shadow-lg"
+                      ? "bg-white ring-4 shadow-lg"
                       : "bg-slate-100 border-slate-200 hover:border-slate-400 active:scale-[0.97]"
                   }`}
+                  style={
+                    selected
+                      ? {
+                          borderColor: "var(--team-primary)",
+                          "--tw-ring-color": "var(--team-primary-15)",
+                        }
+                      : undefined
+                  }
                 >
                   <div className="w-12 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-widest text-slate-500 bg-white rounded-lg py-1.5 border border-slate-200">
                     BN
