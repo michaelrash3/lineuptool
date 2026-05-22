@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   Forward,
   Link,
+  LogOut,
 } from "lucide-react";
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -148,4 +149,5 @@ export const Icons: Record<string, IconComponent> = {
   Alert: AlertTriangle,
   Forward,
   Link,
+  LogOut,
 };

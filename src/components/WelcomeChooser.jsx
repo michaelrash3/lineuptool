@@ -1,5 +1,7 @@
 import React, { useState } from "react";
+import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
+import { auth } from "../firebase";
 import {
   Button,
   Eyebrow,
@@ -229,7 +231,35 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
           </form>
 
           <p className="t-meta text-center mt-6 text-slate-400">
-            Signed in. Choose one to continue.
+            Signed in. Choose one to continue, or{" "}
+            <button
+              type="button"
+              onClick={async () => {
+                if (
+                  typeof window !== "undefined" &&
+                  !window.confirm("Sign out of Coach's Card?")
+                ) {
+                  return;
+                }
+                try {
+                  if (typeof window !== "undefined") {
+                    try {
+                      window.sessionStorage.clear();
+                    } catch {}
+                  }
+                  await signOut(auth);
+                  if (typeof window !== "undefined") {
+                    window.location.reload();
+                  }
+                } catch {
+                  /* best-effort */
+                }
+              }}
+              className="underline hover:text-slate-600"
+            >
+              sign out
+            </button>
+            .
           </p>
         </div>
       </div>

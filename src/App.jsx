@@ -2298,20 +2298,34 @@ const TeamProvider = ({ children }) => {
   // Derive the current user's REAL role on the active team — separate from
   // currentRole so the override toggle UI can render even when the visible
   // role has been flipped to "assistant".
-  // Owner is always head; coachRoles[uid] takes precedence otherwise; a
-  // legacy team without an ownerId treats the current user as head (the
-  // auto-claim effect below writes ownerId so this fallback is one-time).
+  //
+  // Rules:
+  //   - ownerId === user.uid  → head (definitive)
+  //   - coachRoles[uid] === "head" → head
+  //   - coachRoles[uid] === "assistant" → assistant
+  //   - missing ownerId AND user is the sole member → head (legacy unclaimed
+  //     team that this user is migrating)
+  //   - everything else → assistant
+  //
+  // The old "missing ownerId → head" fallback was unconditionally generous
+  // and let a second user who joined a legacy team see themselves as head
+  // until their auto-claim raced ahead of the original head's. The sole-
+  // member gate below closes that hole — once anyone else is in members[],
+  // role resolution must come from ownerId or coachRoles, not a hopeful
+  // default.
   const realRole = useMemo(() => {
     if (!user) return "head";
-    if (!teamData.ownerId) return "head";
     if (user.uid === teamData.ownerId) return "head";
     const explicit = teamData.coachRoles?.[user.uid];
     if (explicit === "head") return "head";
     if (explicit === "assistant") return "assistant";
-    // Other legacy members fall through to assistant; the head coach can
-    // promote them via Settings → Coach Roles.
+    if (!teamData.ownerId) {
+      const members = Array.isArray(teamData.members) ? teamData.members : [];
+      const others = members.filter((uid) => uid && uid !== user.uid);
+      if (others.length === 0) return "head";
+    }
     return "assistant";
-  }, [user, teamData.ownerId, teamData.coachRoles]);
+  }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
 
   // Visible role for the rest of the app. Only the head coach can flip
   // themselves to assistant; assistants can never escalate.
@@ -2321,18 +2335,36 @@ const TeamProvider = ({ children }) => {
   }, [realRole, viewAsRole]);
 
   // Auto-claim + persist legacy teams. Runs once per session per team
-  // when ownerId is missing. After Firestore acknowledges the write,
-  // subsequent loads see ownerId populated and this effect is a no-op.
-  // The session-level ref guards against re-firing during the brief
-  // window between the write and the next snapshot — the user shouldn't
-  // see a toast about it on every page reload.
+  // when ownerId is missing AND there is no plausible existing owner.
+  //
+  // The gate matters: if `members` contains anyone besides the current user,
+  // or any coachRoles entry exists, the team has already been "touched" by
+  // someone else — claiming ownership here would race ahead of the real
+  // head's auto-claim and silently demote them. That regression is exactly
+  // what knocked the original head out of their own team and is the root
+  // cause this commit is fixing.
+  //
+  // After Firestore acknowledges the write, subsequent loads see ownerId
+  // populated and this effect is a no-op. The session-level ref guards
+  // against re-firing during the brief window between the write and the
+  // next snapshot — the user shouldn't see a toast about it on every page
+  // reload.
   useEffect(() => {
     if (!authReady || !user || !activeTeamId) return;
     if (loadingActive) return;
     if (teamData.ownerId) return;
     if (migrationAttemptedRef.current.has(activeTeamId)) return;
-    migrationAttemptedRef.current.add(activeTeamId);
     const members = Array.isArray(teamData.members) ? teamData.members : [];
+    const otherMembers = members.filter((uid) => uid && uid !== user.uid);
+    const hasCoachRoles =
+      teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0;
+    if (otherMembers.length > 0 || hasCoachRoles) {
+      // Someone else has been here. Don't claim — the real head needs to
+      // recover via Settings → Coach Roles (or, if they truly never set
+      // ownerId, via the Firebase Console).
+      return;
+    }
+    migrationAttemptedRef.current.add(activeTeamId);
     const nextMembers = members.includes(user.uid)
       ? members
       : [...members, user.uid];
@@ -2346,6 +2378,7 @@ const TeamProvider = ({ children }) => {
     activeTeamId,
     teamData.ownerId,
     teamData.members,
+    teamData.coachRoles,
     loadingActive,
   ]);
 
