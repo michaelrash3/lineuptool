@@ -1,7 +1,42 @@
 import React, { memo } from "react";
+import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
+import { auth } from "../firebase";
 import { useTeam, useUI } from "../contexts.js";
 import { RecordBadge, Eyebrow } from "./shared.jsx";
+
+// Sign out flow shared by the header buttons. Clears sessionStorage so the
+// next sign-in starts fresh (drops stale viewAsRole / pendingJoin state),
+// then reloads. Lives outside SettingsTab because assistants — and the
+// original head if they got demoted — can't reach Settings.
+const performSignOut = async () => {
+  if (
+    typeof window !== "undefined" &&
+    !window.confirm("Sign out of Coach's Card on this device?")
+  ) {
+    return;
+  }
+  try {
+    if (typeof window !== "undefined") {
+      try {
+        window.sessionStorage.clear();
+      } catch {}
+    }
+    await signOut(auth);
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-alert
+      window.alert(
+        "Sign-out failed: " +
+          (err?.message || "unknown error") +
+          ". Try reloading the page."
+      );
+    }
+  }
+};
 
 export const LoginScreen = ({
   logoUrl,
@@ -195,6 +230,22 @@ export const AppHeader = memo(() => {
               </option>
             ))}
           </select>
+          {/*
+            Always-visible Sign Out. The Settings → Sign Out button lives
+            behind the head-only Settings tab, so anyone shown as assistant
+            (including a head who got demoted by the ownership-race bug)
+            had no way to sign out from the UI. This icon button is the
+            backstop.
+          */}
+          <button
+            type="button"
+            onClick={performSignOut}
+            aria-label="Sign out"
+            title="Sign out"
+            className="shrink-0 p-3 text-slate-600 bg-white/20 hover:bg-white hover:text-slate-900 border border-slate-200 rounded-xl shadow-sm transition-colors"
+          >
+            <Icons.LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
