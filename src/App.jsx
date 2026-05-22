@@ -47,6 +47,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette.jsx";
+import { WelcomeChooser } from "./components/WelcomeChooser.jsx";
 import {
   LoginScreen,
   AppHeader,
@@ -397,24 +398,15 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
-          // If the user arrived via ?join= we should NOT auto-create
-          // a default team yet. Wait for the pending join redemption first so
-          // brand-new assistants land in the intended team.
-          const hasPendingJoinFlow =
-            typeof window !== "undefined" &&
-            Boolean(
-              sessionStorage.getItem("pendingJoin") ||
-              new URLSearchParams(window.location.search).get("join")
-            );
-          if (hasPendingJoinFlow) {
-            setLoadingTeams(false);
-            return;
-          }
-
-          // Bootstrap: create first team for this user. Guard so we don't
-          // create duplicate teams if rules/network temporarily reject the
-          // user settings write and this snapshot retries.
-          await bootstrapDefaultTeam();
+          // No teams yet for this user. The MainShell renders <WelcomeChooser>
+          // off the empty `teams` list so the coach explicitly picks Join vs
+          // Create. We no longer force-create "My Team" here — that produced a
+          // throwaway team for anyone whose actual intent was to join via the
+          // 6-char code. The ?join= redemption flow still goes through
+          // bootstrapDefaultTeam() as a fallback when its lookup fails (see the
+          // join effect below).
+          setTeams([]);
+          setActiveTeamId(null);
           setLoadingTeams(false);
           return;
         }
@@ -434,7 +426,7 @@ const TeamProvider = ({ children }) => {
       }
     );
     return () => unsub();
-  }, [authReady, user, toast, bootstrapDefaultTeam]);
+  }, [authReady, user, toast]);
 
   // Subscribe to active team document
   useEffect(() => {
@@ -1685,7 +1677,7 @@ const TeamProvider = ({ children }) => {
 
   const createTeam = useCallback(
     async (name) => {
-      if (!user || !name.trim()) return;
+      if (!user || !name.trim()) return false;
       const id = "team-" + Math.random().toString(36).substring(2, 10);
       setSyncStatus("Creating");
       try {
@@ -1720,6 +1712,7 @@ const TeamProvider = ({ children }) => {
         );
         toast.push({ kind: "success", title: "Team created" });
         setSyncStatus("");
+        return true;
       } catch (e) {
         setSyncStatus("");
         toast.push({
@@ -1727,6 +1720,7 @@ const TeamProvider = ({ children }) => {
           title: "Could not create team",
           message: e.message,
         });
+        return false;
       }
     },
     [user, teams, toast]
@@ -2606,6 +2600,21 @@ const TeamProvider = ({ children }) => {
     return { wins, losses, ties, runsScored, runsAllowed };
   }, [teamData.games]);
 
+  // True when a signed-in user has no teams yet AND there's no pending
+  // ?join= flow in progress — that's the gate for showing the WelcomeChooser.
+  const hasPendingJoinFlow =
+    typeof window !== "undefined" &&
+    Boolean(
+      sessionStorage.getItem("pendingJoin") ||
+        new URLSearchParams(window.location.search).get("join")
+    );
+  const needsWelcomeChooser =
+    !!user &&
+    authReady &&
+    !loadingTeams &&
+    teams.length === 0 &&
+    !hasPendingJoinFlow;
+
   // Memoized context value — only changes when actual data does
   const value = useMemo(
     () => ({
@@ -2616,6 +2625,7 @@ const TeamProvider = ({ children }) => {
       authReady,
       syncStatus,
       loading: loadingTeams || loadingActive,
+      needsWelcomeChooser,
       genError,
       setGenError,
       record,
@@ -2690,6 +2700,7 @@ const TeamProvider = ({ children }) => {
       syncStatus,
       loadingTeams,
       loadingActive,
+      needsWelcomeChooser,
       genError,
       record,
       currentRole,
@@ -3204,6 +3215,7 @@ const MainShell = () => {
   
   const {
     team,
+    teams,
     user,
     authReady,
     loading,
@@ -3213,6 +3225,9 @@ const MainShell = () => {
     regenerateBatting,
     regenerateDefense,
     currentRole,
+    needsWelcomeChooser,
+    createTeam,
+    joinTeamByCode,
   } = useTeam();
   const {
     viewingPlayerId,
@@ -3241,6 +3256,11 @@ const MainShell = () => {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  // Counts consecutive "popup-closed-by-user" dismissals so the second one
+  // can surface a tip about third-party cookies / in-app browsers. Reset to
+  // 0 on a successful sign-in, or when we fall back to redirect (different
+  // failure mode, different remedy already shown by that path).
+  const popupDismissCountRef = useRef(0);
 
   // Keep the sign-in button disabled across the gap between
   // signInWithPopup resolving and onAuthStateChanged firing — otherwise
@@ -3250,11 +3270,19 @@ const MainShell = () => {
     if (user) setIsSigningIn(false);
   }, [user]);
 
+  // Only auto-open the onboarding tour once the user actually has a team to
+  // see — otherwise the WelcomeChooser (which is non-dismissible) and the
+  // tutorial scrim end up stacked on top of each other on first sign-in.
   useEffect(() => {
-    if (authReady && user && !onboardingHasBeenCompleted()) {
+    if (
+      authReady &&
+      user &&
+      teams.length > 0 &&
+      !onboardingHasBeenCompleted()
+    ) {
       setTutorialOpen(true);
     }
-  }, [authReady, user]);
+  }, [authReady, user, teams.length]);
 
   // Global keyboard shortcuts. Disabled while typing in form fields. Active
   // anywhere in the app:
@@ -3395,11 +3423,22 @@ const MainShell = () => {
             authDiag("popup_start");
             await signInWithPopup(auth, provider);
             authDiag("popup_success");
+            popupDismissCountRef.current = 0;
             clearRedirectPending();
           } catch (e) {
             const code = e?.code || "";
             if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
               authDiag("popup_dismissed", { code: code || null });
+              popupDismissCountRef.current += 1;
+              if (popupDismissCountRef.current >= 2) {
+                // Two dismissals in a row strongly suggests a browser-level
+                // block (third-party cookies disabled, in-app webview, etc.)
+                // rather than the user genuinely changing their mind. Surface
+                // the remediation tip instead of staying silent.
+                setGenError(
+                  "If the Google popup keeps closing right away, allow third-party cookies for lineupgenerator-79159.firebaseapp.com, or open this app directly in Safari/Chrome."
+                );
+              }
               setIsSigningIn(false);
               return;
             }
@@ -3418,6 +3457,7 @@ const MainShell = () => {
                 }
                 markRedirectPending();
                 authDiag("redirect_start", { source: "popup_fallback" });
+                popupDismissCountRef.current = 0;
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError) {
@@ -3519,6 +3559,11 @@ const MainShell = () => {
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
+      />
+      <WelcomeChooser
+        open={needsWelcomeChooser}
+        onCreate={createTeam}
+        onJoin={joinTeamByCode}
       />
       <CommandPalette
         open={paletteOpen}
