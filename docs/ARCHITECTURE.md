@@ -38,9 +38,9 @@ Per-user selector document: which teams this user belongs to and which one is ac
 { teams: { id, name }[], activeTeamId: string }
 ```
 
-### Cloud Storage: `teams/{teamId}/players/{photoFile}`
+### Photos
 
-Player photos, JPEG cropped to 256×256 by `cropImageTo256()` in `src/components/shared.jsx`. Rules permit unauthenticated reads (URLs are unguessable) and signed-in writes under 5 MB — see `storage.rules`.
+Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` field of each player object. `cropImageTo256DataURL` in `src/components/shared.jsx` covers a chosen file to a 256×256 JPEG at ~0.78 quality (~15 KB each); 30 players × 15 KB ≈ 450 KB inline, comfortably under the Firestore 1 MB document cap. The app does **not** initialize Cloud Storage — that keeps the project on the Firebase Spark plan and avoids the separate rules rollout. Existing photos uploaded to Cloud Storage during earlier releases continue to render from their old URLs; new uploads land inline.
 
 ## Client layout
 

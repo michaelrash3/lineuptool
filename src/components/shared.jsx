@@ -232,8 +232,11 @@ export const PlayerAvatar = memo(
 );
 
 // Off-DOM 256×256 canvas crop helper for photo upload. Used by
-// PlayerProfileModal + AddPlayerModal. Returns a JPEG Blob, ~5–10 KB.
-export const cropImageTo256 = (file) =>
+// PlayerProfileModal + AddPlayerModal. Returns a base64 JPEG data URL
+// that's persisted inline on the player record — the app does not use
+// Cloud Storage (Spark-plan compatible), so photos live alongside the
+// rest of the player document in Firestore.
+export const cropImageTo256DataURL = (file) =>
   new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
     const reader = new FileReader();
@@ -257,14 +260,21 @@ export const cropImageTo256 = (file) =>
         ctx.fillStyle = "#f1f5f9";
         ctx.fillRect(0, 0, SIZE, SIZE);
         ctx.drawImage(img, x, y, w, h);
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("Canvas export failed"));
-          },
-          "image/jpeg",
-          0.82
-        );
+        // 0.78 quality keeps a 256×256 JPEG data URL under ~15 KB. Thirty
+        // players × 15 KB ≈ 450 KB inline, comfortably under the Firestore
+        // 1 MB document cap once games + evaluationEvents are also there.
+        try {
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+          if (!dataUrl || dataUrl === "data:,") {
+            reject(new Error("Canvas export failed"));
+            return;
+          }
+          resolve(dataUrl);
+        } catch (err) {
+          reject(
+            err instanceof Error ? err : new Error("Canvas export failed")
+          );
+        }
       };
       img.src = reader.result;
     };

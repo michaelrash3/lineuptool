@@ -7,7 +7,7 @@ A youth-baseball coaching app for head and assistant coaches: build inning-by-in
 ## Tech stack
 
 - **React 18** + **TypeScript** scaffold (Create React App)
-- **Firebase 12** — Auth, Firestore, Cloud Storage
+- **Firebase 12** — Auth + Firestore (Spark plan; no Cloud Storage — player photos are stored inline as data URLs)
 - **react-router-dom 6** for routing (tabs + public Tryouts Portal)
 - **Tailwind CSS 3** for styling, with the design tokens centralized in `src/styles.css`
 - **lucide-react** for iconography (see `src/icons.tsx`)
@@ -51,7 +51,6 @@ src/
   utils/               # Pure helpers (date, slimGame, blankStats, etc.)
   constants/ui.ts      # DEFAULT_TEAM_DATA, EVAL_SCHEMA_VERSION, etc.
 firestore.rules        # Firestore security rules (deploy from repo)
-storage.rules          # Cloud Storage rules (deploy from repo)
 public/manifest.json   # PWA manifest
 docs/                  # See list above
 ```

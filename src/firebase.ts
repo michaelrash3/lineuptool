@@ -7,7 +7,6 @@ import {
   persistentMultipleTabManager,
   Firestore,
 } from "firebase/firestore";
-import { getStorage, FirebaseStorage } from "firebase/storage";
 
 declare global {
   interface Window {
@@ -78,10 +77,10 @@ try {
 }
 export const db = _db;
 
-// Storage backs player photo uploads. Photos are stored under
-// `teams/{teamId}/players/{playerId}.jpg`. Storage rules should restrict
-// writes to team members; reads are public-ish (anyone with the URL).
-export const storage: FirebaseStorage = getStorage(app);
+// Cloud Storage is intentionally NOT initialized — the app stays on the
+// Firebase Spark plan, which doesn't include Cloud Storage. Player photos
+// are persisted as 256×256 JPEG data URLs directly on the team document
+// via cropImageTo256DataURL in src/components/shared.jsx.
 
 const _hostAppId = (typeof window !== "undefined" && window.__app_id) || null;
 export const appId = _hostAppId || "baseball_lineup_v1";
