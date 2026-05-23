@@ -29,8 +29,12 @@ You do this once. It takes about five minutes.
 1. **Create a service account** for the deploy.
    - Open the GCP console for the project: `https://console.cloud.google.com/iam-admin/serviceaccounts?project=lineupgenerator-79159`.
    - Click **Create service account**. Name it `github-actions-rules-deploy` (or similar). Skip the optional access steps.
-2. **Grant it the Firebase Rules Admin role.**
-   - On the IAM page (`https://console.cloud.google.com/iam-admin/iam?project=lineupgenerator-79159`), find the new service account row, click **Edit principal**, **Add another role**, pick **Firebase Rules Admin**. Save.
+2. **Grant it two roles.**
+   - On the IAM page (`https://console.cloud.google.com/iam-admin/iam?project=lineupgenerator-79159`), find the new service account row, click **Edit principal**, then:
+     - **Add another role** → **Firebase Rules Admin** — lets it publish `firestore.rules`.
+     - **Add another role** → **Service Usage Consumer** — lets it pass the API-enablement precheck that `firebase deploy` does on every run (without this, the deploy fails with `serviceusage.googleapis.com ... 403, Permission denied to get service [firestore.googleapis.com]`).
+   - Save.
+   - If you'd rather avoid juggling two roles, **Firebase Admin** alone is a single-role superset that also works (broader privileges; pick whichever you prefer).
 3. **Create a JSON key.**
    - Back on the service-accounts list, open the new account → **Keys** tab → **Add key** → **Create new key** → JSON. Download the file.
 4. **Add it to GitHub repo secrets.**
