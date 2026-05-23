@@ -285,6 +285,9 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
     code && typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}?join=${code}`
       : "";
+  // In-app replacement for the window.confirm prompt that previously
+  // guarded code rotation. Modal matches the patterns in #131 / #132.
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const copy = async (text, label) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -339,14 +342,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
             </code>
             <button
               type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "Regenerate the team code? The old one will stop working."
-                  )
-                )
-                  regenerateJoinCode?.();
-              }}
+              onClick={() => setConfirmOpen(true)}
               className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
             >
               Regenerate
@@ -365,6 +361,52 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
         >
           Generate Team Code
         </button>
+      )}
+
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-1.5 bg-amber-500" />
+            <div className="p-5 sm:p-6">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                Rotate team code?
+              </h3>
+              <p className="text-sm text-slate-600 font-medium mb-5">
+                The current code{" "}
+                <code className="font-mono font-black text-slate-900">
+                  {code}
+                </code>{" "}
+                will stop working immediately. Anyone you've already invited
+                with the old code will need the new one to join.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(false)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    regenerateJoinCode?.();
+                    setConfirmOpen(false);
+                  }}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md transition-colors"
+                >
+                  Regenerate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

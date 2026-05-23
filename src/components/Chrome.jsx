@@ -2,41 +2,8 @@ import React, { memo } from "react";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI, useToast } from "../contexts.js";
 import { RecordBadge, Eyebrow } from "./shared.jsx";
-
-// Sign out flow shared by the header buttons. Clears sessionStorage so the
-// next sign-in starts fresh (drops stale viewAsRole / pendingJoin state),
-// then reloads. Lives outside SettingsTab because assistants — and the
-// original head if they got demoted — can't reach Settings.
-const performSignOut = async () => {
-  if (
-    typeof window !== "undefined" &&
-    !window.confirm("Sign out of Coach's Card on this device?")
-  ) {
-    return;
-  }
-  try {
-    if (typeof window !== "undefined") {
-      try {
-        window.sessionStorage.clear();
-      } catch {}
-    }
-    await signOut(auth);
-    if (typeof window !== "undefined") {
-      window.location.reload();
-    }
-  } catch (err) {
-    if (typeof window !== "undefined") {
-      // eslint-disable-next-line no-alert
-      window.alert(
-        "Sign-out failed: " +
-          (err?.message || "unknown error") +
-          ". Try reloading the page."
-      );
-    }
-  }
-};
 
 export const LoginScreen = ({
   logoUrl,
@@ -155,6 +122,39 @@ export const AppHeader = memo(() => {
   } = useUI();
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
+  // In-app sign-out confirmation. Replaces window.confirm + window.alert
+  // so an assistant on a demoted/locked-out team gets the same polished
+  // dialog as the rest of the app, not a 1995 native chrome.
+  const [signOutOpen, setSignOutOpen] = React.useState(false);
+  const [signingOut, setSigningOut] = React.useState(false);
+  const toast = useToast();
+
+  const doSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.clear();
+        } catch {}
+      }
+      await signOut(auth);
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    } catch (err) {
+      // Surface failure via toast instead of window.alert; let the user
+      // decide whether to retry or reload manually.
+      setSigningOut(false);
+      setSignOutOpen(false);
+      toast.push({
+        kind: "error",
+        title: "Sign-out failed",
+        message:
+          (err?.message || "Unknown error") + ". Try reloading the page.",
+      });
+    }
+  };
   const activeTeamName =
     teams.find((t) => t.id === activeTeamId)?.name || "TEAM";
   const subtitle =
@@ -239,7 +239,7 @@ export const AppHeader = memo(() => {
           */}
           <button
             type="button"
-            onClick={performSignOut}
+            onClick={() => setSignOutOpen(true)}
             aria-label="Sign out"
             title="Sign out"
             className="shrink-0 p-3 text-slate-600 bg-white/20 hover:bg-white hover:text-slate-900 border border-slate-200 rounded-xl shadow-sm transition-colors"
@@ -360,6 +360,57 @@ export const AppHeader = memo(() => {
           )}
         </div>
       </div>
+
+      {signOutOpen && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
+          onClick={() => !signingOut && setSignOutOpen(false)}
+        >
+          <div
+            className="bg-white max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="h-1.5 w-full"
+              style={{ backgroundColor: "var(--team-primary)" }}
+            />
+            <div className="p-6">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                Sign out?
+              </h3>
+              <p className="text-sm text-slate-600 font-medium mb-5">
+                You'll need to sign in again on this device. Any in-progress
+                data is already saved.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={signingOut}
+                  onClick={() => setSignOutOpen(false)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={signingOut}
+                  onClick={doSignOut}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {signingOut ? (
+                    <>
+                      <Icons.Refresh className="w-4 h-4 animate-spin" />
+                      Signing out…
+                    </>
+                  ) : (
+                    "Sign Out"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 });
