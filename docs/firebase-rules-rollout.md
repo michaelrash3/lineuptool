@@ -88,6 +88,17 @@ Expected: portal submission blocked once `tryoutsOpen` is false.
 - Retry signup submit.
 - Confirm denial/error path is shown.
 
+### 6) Ownership protection (added with the takeover-race fix)
+Expected: non-owners cannot rewrite `ownerId` or remove other members. The current owner can. A team with no existing `ownerId` AND no other members can still be claimed by its sole member (legacy auto-claim).
+
+- As an assistant on a team with a different head coach, attempt a direct Firestore write that sets `ownerId` to the assistant's UID. Confirm the write is denied (`isCurrentOwner` / `isLegitimateAutoClaim` both fail).
+- As an assistant, attempt to write `members` with a different coach removed. Confirm denial unless the only removed UID is the caller's own (leave-team).
+- As the owner, change `ownerId` to a different existing member's UID — confirm success (legitimate ownership transfer).
+- As the owner, remove an assistant from `members[]` — confirm success.
+- As an assistant, remove only themselves from `members[]` — confirm success (leave-team).
+- On a freshly created team with no `ownerId` and only the caller in `members`, write `{ownerId: caller.uid}` — confirm success (legitimate auto-claim path; covers legacy unclaimed teams).
+- On a team with `ownerId` already set, attempt a delete as a non-owner member — confirm denial. As the owner — confirm success.
+
 ## Rollback
 
 If deployed rules break access:

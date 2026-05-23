@@ -1,12 +1,14 @@
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
 } from "../utils/helpers";
+import { computeNextSeason } from "../constants/ui";
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
+import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal.jsx";
 import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel.jsx";
 
 // One row per team color: swatch (native color picker) + hex text input.
@@ -56,85 +58,6 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
           maxLength={7}
           className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-700 outline-none focus:ring-2 focus:ring-[var(--team-primary)] uppercase"
         />
-      </div>
-    </div>
-  );
-});
-
-// Per-player Returning / Released chips for the head to mark up the
-// current roster before tapping Advance Season. Status sticks on the
-// player doc until advanceSeason consumes it.
-const MarkForNextSeasonPanel = memo(({ players, setPlayerStatus }) => {
-  if (!Array.isArray(players) || players.length === 0) return null;
-  return (
-    <div className="mt-6">
-      <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">
-        Mark for Next Season
-      </div>
-      <p className="text-[11px] text-slate-500 font-medium mb-3">
-        Pick who&apos;s coming back. Released players are dropped on
-        Advance Season; tryout accepts (status &quot;accepted&quot;)
-        ride in automatically.
-      </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {players.map((p) => {
-          const status = p.playerStatus || "returning";
-          const isReturning = status === "returning";
-          const isReleased = status === "released";
-          const isAccepted = status === "accepted";
-          return (
-            <div
-              key={p.id}
-              className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2.5"
-            >
-              <span className="text-xs font-extrabold text-slate-800 uppercase tracking-tight truncate">
-                {p.name}
-              </span>
-              <div className="flex items-center gap-1 shrink-0">
-                {isAccepted && (
-                  <span
-                    className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border"
-                    style={{
-                      backgroundColor: "var(--team-primary-15)",
-                      borderColor: "var(--team-primary)",
-                      color: "var(--team-primary)",
-                    }}
-                  >
-                    Tryout
-                  </span>
-                )}
-                {!isAccepted && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPlayerStatus?.(p.id, "returning")
-                      }
-                      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
-                        isReturning
-                          ? "bg-emerald-50 border-emerald-300 text-emerald-800"
-                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
-                      Returning
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPlayerStatus?.(p.id, "released")}
-                      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
-                        isReleased
-                          ? "bg-slate-200 border-slate-300 text-slate-700"
-                          : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
-                      }`}
-                    >
-                      Released
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
@@ -633,6 +556,16 @@ export const SettingsTab = memo(() => {
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
   const [settingsMenu, setSettingsMenu] = useState("team");
+  const [advanceSeasonOpen, setAdvanceSeasonOpen] = useState(false);
+
+  // Pre-compute the next-season label so the modal header can render
+  // it without the user pressing the button first. computeNextSeason
+  // returns null when the current label can't be parsed (e.g. blank),
+  // which the modal renders as "Next Season".
+  const nextSeasonLabel = useMemo(() => {
+    const next = computeNextSeason(team?.currentSeason);
+    return next?.nextSeason || "Next Season";
+  }, [team?.currentSeason]);
   const settingsMenuItems = [
     { id: "team", label: "Team" },
     { id: "tryouts", label: "Tryouts" },
@@ -1113,7 +1046,7 @@ export const SettingsTab = memo(() => {
                   </div>
                   <div className="flex items-end">
                     <button
-                      onClick={advanceSeason}
+                      onClick={() => setAdvanceSeasonOpen(true)}
                       className="p-3 bg-slate-900 text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
                     >
                       <Icons.Forward className="w-4 h-4" /> Advance Season
@@ -1121,10 +1054,11 @@ export const SettingsTab = memo(() => {
                   </div>
                 </div>
 
-                <MarkForNextSeasonPanel
-                  players={team.players || []}
-                  setPlayerStatus={setPlayerStatus}
-                />
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Marks each player as Returning or Released when you advance
+                  to the next season. Stats from finished games are archived
+                  to season history.
+                </p>
 
                 <div className="mt-6 flex flex-wrap items-center gap-3">
                   <button
@@ -1398,6 +1332,18 @@ export const SettingsTab = memo(() => {
         </div>
       </div>
 
+      <AdvanceSeasonModal
+        open={advanceSeasonOpen}
+        players={team.players || []}
+        currentSeason={team.currentSeason}
+        nextSeasonLabel={nextSeasonLabel}
+        setPlayerStatus={setPlayerStatus}
+        onClose={() => setAdvanceSeasonOpen(false)}
+        onConfirm={() => {
+          setAdvanceSeasonOpen(false);
+          advanceSeason({ skipConfirm: true });
+        }}
+      />
     </div>
   );
 });

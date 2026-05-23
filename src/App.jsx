@@ -1726,7 +1726,8 @@ const TeamProvider = ({ children }) => {
     [user, teams, toast]
   );
 
-  const advanceSeason = useCallback(() => {
+  const advanceSeason = useCallback((opts = {}) => {
+    const { skipConfirm = false } = opts;
     const computed = computeNextSeason(teamData.currentSeason);
     if (!computed) {
       toast.push({
@@ -1803,7 +1804,12 @@ const TeamProvider = ({ children }) => {
       `\n\n` +
       `This cannot be undone.`;
 
-    if (!window.confirm(confirmMsg)) return;
+    // The AdvanceSeasonModal already walked the head through every
+    // marking and showed a full summary, so the window.confirm here is
+    // a duplicate gate when the call came from the wizard. Direct
+    // callers (anywhere besides the modal) still see the confirm
+    // dialog.
+    if (!skipConfirm && !window.confirm(confirmMsg)) return;
 
     const nowIso = new Date().toISOString();
 
