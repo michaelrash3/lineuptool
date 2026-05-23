@@ -24,8 +24,32 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(null); // "create" | "join" | null
   const [error, setError] = useState("");
+  // In-app sign-out confirmation. Replaces window.confirm so first-run
+  // users don't get a 1995-looking dialog over the polished modal.
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   if (!open) return null;
+
+  const performSignOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.clear();
+        } catch {}
+      }
+      await signOut(auth);
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    } catch {
+      // best-effort: if signOut fails we just let the user re-try.
+      setSigningOut(false);
+      setSignOutConfirmOpen(false);
+    }
+  };
 
   const codeNormalized = code.trim().toUpperCase();
   const codeValid = /^[A-HJ-NP-Z2-9]{6}$/.test(codeNormalized);
@@ -234,27 +258,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
             Signed in. Choose one to continue, or{" "}
             <button
               type="button"
-              onClick={async () => {
-                if (
-                  typeof window !== "undefined" &&
-                  !window.confirm("Sign out of Coach's Card?")
-                ) {
-                  return;
-                }
-                try {
-                  if (typeof window !== "undefined") {
-                    try {
-                      window.sessionStorage.clear();
-                    } catch {}
-                  }
-                  await signOut(auth);
-                  if (typeof window !== "undefined") {
-                    window.location.reload();
-                  }
-                } catch {
-                  /* best-effort */
-                }
-              }}
+              onClick={() => setSignOutConfirmOpen(true)}
               className="underline hover:text-slate-600"
             >
               sign out
@@ -263,6 +267,57 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
           </p>
         </div>
       </div>
+
+      {signOutConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
+          onClick={() => !signingOut && setSignOutConfirmOpen(false)}
+        >
+          <div
+            className="bg-white max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="h-1.5 w-full"
+              style={{ backgroundColor: "var(--team-primary)" }}
+            />
+            <div className="p-6">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                Sign out?
+              </h3>
+              <p className="text-sm text-slate-600 font-medium mb-5">
+                You'll need to sign in again to access your team. Any
+                in-progress data is already saved.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={signingOut}
+                  onClick={() => setSignOutConfirmOpen(false)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={signingOut}
+                  onClick={performSignOut}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
+                >
+                  {signingOut ? (
+                    <>
+                      <Icons.Refresh className="w-4 h-4 animate-spin" />
+                      Signing out…
+                    </>
+                  ) : (
+                    "Sign Out"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
