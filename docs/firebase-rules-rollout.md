@@ -6,49 +6,75 @@ This guide makes `firestore.rules` reproducible from the repo and safe to roll o
 
 ## What this covers
 
-- Deploying `firestore.rules` from source control
+- Auto-deploying `firestore.rules` via GitHub Actions on every push to `main`
+- One-time service-account setup that powers that workflow
+- Manual fallback for when the CLI/Console is the only available option
 - Testing the key auth paths for this app
 - Rolling back safely if a rule blocks coaches in the field
 
-## Required tooling
+## Auto-deploy via GitHub Actions (default path)
 
-Install Firebase CLI (one-time):
+`.github/workflows/deploy-firestore-rules.yml` runs on every push to `main` whose diff touches `firestore.rules`, `firebase.json`, or the workflow itself. The job:
+
+1. Boots the Firestore emulator with a fake project id and parses `firestore.rules` — fails fast if the rules don't compile.
+2. Authenticates to Google Cloud using the `FIREBASE_SERVICE_ACCOUNT_JSON` repo secret.
+3. Runs `firebase deploy --only firestore:rules --project lineupgenerator-79159`.
+
+GitHub Actions is free for this kind of usage (the public-repo allowance covers it many times over) and `firestore:rules` deploys are free on the Firebase Spark plan, so the workflow has no marginal cost.
+
+### One-time setup: service-account secret
+
+You do this once. It takes about five minutes.
+
+1. **Create a service account** for the deploy.
+   - Open the GCP console for the project: `https://console.cloud.google.com/iam-admin/serviceaccounts?project=lineupgenerator-79159`.
+   - Click **Create service account**. Name it `github-actions-rules-deploy` (or similar). Skip the optional access steps.
+2. **Grant it the Firebase Rules Admin role.**
+   - On the IAM page (`https://console.cloud.google.com/iam-admin/iam?project=lineupgenerator-79159`), find the new service account row, click **Edit principal**, **Add another role**, pick **Firebase Rules Admin**. Save.
+3. **Create a JSON key.**
+   - Back on the service-accounts list, open the new account → **Keys** tab → **Add key** → **Create new key** → JSON. Download the file.
+4. **Add it to GitHub repo secrets.**
+   - In GitHub: `https://github.com/michaelrash3/lineuptool/settings/secrets/actions` → **New repository secret**.
+   - Name: `FIREBASE_SERVICE_ACCOUNT_JSON`. Value: paste the **entire JSON file contents**. Save.
+5. **(Recommended) delete the local copy of the JSON file** so it doesn't sit on your machine. You can always download a new key later from the same Keys tab.
+
+After that the workflow runs automatically on the next push to `main` that changes `firestore.rules`.
+
+### Triggering the workflow manually
+
+Open `https://github.com/michaelrash3/lineuptool/actions/workflows/deploy-firestore-rules.yml` → **Run workflow** → pick `main` → **Run workflow**. Useful for one-off republishes after editing rules in the Firebase Console by mistake.
+
+### Watching a deploy
+
+`https://github.com/michaelrash3/lineuptool/actions` lists every run. Click the latest **Deploy Firestore Rules** entry to see the validate + deploy logs.
+
+## Manual fallback (Firebase Console paste)
+
+If the Action is failing and you need to publish rules right now:
+
+1. Open `https://console.firebase.google.com/project/lineupgenerator-79159/firestore/rules`.
+2. Paste the **full contents of `firestore.rules`** from the repo.
+3. Click **Publish**.
+
+After the manual edit, open a follow-up commit/PR with anything you changed in the Console so the repo stays the source of truth — the next auto-deploy will otherwise overwrite the Console state.
+
+## Manual fallback (Firebase CLI)
+
+If you have the CLI installed and authenticated:
 
 ```bash
-npm install -g firebase-tools
+firebase deploy --only firestore:rules --project lineupgenerator-79159
 ```
 
-Login:
+## Local emulator test loop
 
-```bash
-firebase login
-```
-
-Select project:
-
-```bash
-firebase use <your-firebase-project-id>
-```
-
-## Deploy rules from repo
-
-From repo root:
-
-```bash
-firebase deploy --only firestore:rules
-```
-
-If you don't have the Firebase CLI installed, paste the contents of `firestore.rules` into the Firebase Console → Firestore Database → Rules tab and click *Publish*. The repo file remains the source of truth — any console edit should be mirrored back into the repo in a follow-up commit.
-
-## Local rule test loop (recommended before deploy)
-
-Start emulators:
+Start emulators against `firestore.rules`:
 
 ```bash
 firebase emulators:start --only firestore
 ```
 
-Then verify these flows manually in-app against emulator config.
+Then verify each flow in the validation matrix below against the emulator before merging rule changes.
 
 ## Validation matrix
 
