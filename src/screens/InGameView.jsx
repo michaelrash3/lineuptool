@@ -29,6 +29,12 @@ export const InGameView = memo(() => {
   } = useUI();
   const [showEndGameScore, setShowEndGameScore] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [showScoreEditor, setShowScoreEditor] = useState(false);
+  // Two-tap confirm for mid-game removal: first tap arms the row,
+  // second tap commits. Replaces a blocking window.confirm — keeps
+  // the coach inside the modal context.
+  const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState(null);
+  const [pendingRestorePlayerId, setPendingRestorePlayerId] = useState(null);
 
   // ----- Coalesce in-game tap-swap writes -----
   // Each tap previously fired its own setDoc, so a flurry of swaps became
@@ -68,6 +74,15 @@ export const InGameView = memo(() => {
       flushTimerRef.current = null;
     }
   }, [inGameId]);
+
+  // Drop the armed-for-removal state whenever the modal closes so the row
+  // isn't still "primed" the next time the modal opens.
+  useEffect(() => {
+    if (!showRemoveModal) {
+      setPendingRemovePlayerId(null);
+      setPendingRestorePlayerId(null);
+    }
+  }, [showRemoveModal]);
 
   // Flush eagerly on visibility change / page hide / unmount so a tab
   // close mid-edit doesn't drop the latest swap from the offline write
@@ -144,6 +159,28 @@ export const InGameView = memo(() => {
   // game.midGameRemovals when crunching past games). showRemoveModal
   // hook is declared up top with the other state to keep hook order
   // stable across renders.
+
+  // Soft tap on every swap so the coach gets tactile confirmation without
+  // having to look at the screen. Android Chrome respects this; iOS Safari
+  // ignores it as a graceful no-op.
+  const tapHaptic = () => {
+    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      navigator.vibrate(15);
+    }
+  };
+
+  // Bump a score by ±1, clamped to 0. Writes through updateGame directly
+  // (no debounce) since score updates are infrequent and the coach wants
+  // immediate persistence in case the page is closed mid-edit.
+  const adjustScore = (which, delta) => {
+    if (!canEdit) return;
+    const current = (which === "team" ? game.teamScore : game.opponentScore) ?? 0;
+    const next = Math.max(0, current + delta);
+    updateGame(
+      game.id,
+      which === "team" ? { teamScore: next } : { opponentScore: next }
+    );
+  };
 
   // Apply a mid-game removal: record it on the game, clear the player
   // from inning N+ across both position slots and BENCH. The vacated
@@ -249,6 +286,7 @@ export const InGameView = memo(() => {
     patchInning(currentInning, lineupInning);
     setInGameUndoStack([undoEntry, ...inGameUndoStack].slice(0, 5));
     setInGameSelection(null);
+    tapHaptic();
   };
 
   const handleTap = (sel) => {
@@ -334,12 +372,35 @@ export const InGameView = memo(() => {
           >
             <Icons.X className="w-5 h-5" />
           </button>
-          <div className="flex-1 text-center min-w-0">
-            <div className="t-eyebrow truncate">vs. {game.opponent}</div>
-            <div className="t-h3 truncate" style={{ letterSpacing: "0.05em" }}>
-              In-Game Mode
-            </div>
-          </div>
+          {(() => {
+            const tScore = game.teamScore ?? 0;
+            const oScore = game.opponentScore ?? 0;
+            const chipBody = (
+              <>
+                <div className="t-eyebrow truncate">vs. {game.opponent}</div>
+                <div className="text-2xl font-black tabular-nums tracking-tight text-slate-900 leading-none mt-0.5">
+                  <span>{tScore}</span>
+                  <span className="text-slate-300 mx-2">–</span>
+                  <span>{oScore}</span>
+                </div>
+              </>
+            );
+            return canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowScoreEditor((s) => !s)}
+                className="flex-1 text-center min-w-0 rounded-lg px-2 py-1 hover:bg-slate-100 transition-colors"
+                aria-label="Edit live score"
+                aria-expanded={showScoreEditor}
+              >
+                {chipBody}
+              </button>
+            ) : (
+              <div className="flex-1 text-center min-w-0 px-2 py-1">
+                {chipBody}
+              </div>
+            );
+          })()}
           <div className="flex items-center gap-1">
             {canEdit && (
               <>
@@ -366,6 +427,54 @@ export const InGameView = memo(() => {
         {!canEdit && (
           <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-center text-[11px] font-black uppercase tracking-widest text-amber-800">
             View only — head coach controls lineup changes
+          </div>
+        )}
+        {showScoreEditor && canEdit && (
+          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-center gap-3">
+            {[
+              { key: "team", label: "Us", value: game.teamScore ?? 0 },
+              { key: "opp", label: "Opp", value: game.opponentScore ?? 0 },
+            ].map(({ key, label, value }) => {
+              const which = key === "team" ? "team" : "opponent";
+              return (
+                <div
+                  key={key}
+                  className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-1.5 py-1 shadow-sm"
+                >
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 px-2">
+                    {label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => adjustScore(which, -1)}
+                    disabled={value <= 0}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-700 font-black text-lg hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    aria-label={`Decrease ${label} score`}
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center text-xl font-black tabular-nums text-slate-900">
+                    {value}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => adjustScore(which, +1)}
+                    className="w-9 h-9 flex items-center justify-center rounded-lg text-white font-black text-lg hover:opacity-90 transition-opacity"
+                    style={{ backgroundColor: primaryColor }}
+                    aria-label={`Increase ${label} score`}
+                  >
+                    +
+                  </button>
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setShowScoreEditor(false)}
+              className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 px-2 py-2"
+            >
+              Done
+            </button>
           </div>
         )}
       </div>
@@ -573,7 +682,7 @@ export const InGameView = memo(() => {
 
       {/* On-field positions */}
       <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-300 mb-3 px-1">
+        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-200 mb-3 px-1">
           On Field
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
@@ -588,7 +697,9 @@ export const InGameView = memo(() => {
                 className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                   selected
                     ? "bg-white ring-4 shadow-lg"
-                    : "bg-white border-slate-200 hover:border-slate-400 active:scale-[0.97]"
+                    : `bg-white border-slate-200 hover:border-slate-400 active:scale-[0.97] ${
+                        inGameSelection ? "opacity-50" : ""
+                      }`
                 }`}
                 style={
                   selected
@@ -620,7 +731,7 @@ export const InGameView = memo(() => {
         </div>
 
         {/* Bench */}
-        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-300 mb-3 px-1">
+        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-200 mb-3 px-1">
           Bench ({benchKids.length})
         </h3>
         {benchKids.length === 0 ? (
@@ -641,7 +752,9 @@ export const InGameView = memo(() => {
                   className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                     selected
                       ? "bg-white ring-4 shadow-lg"
-                      : "bg-slate-100 border-slate-200 hover:border-slate-400 active:scale-[0.97]"
+                      : `bg-slate-100 border-slate-200 hover:border-slate-400 active:scale-[0.97] ${
+                          inGameSelection ? "opacity-50" : ""
+                        }`
                   }`}
                   style={
                     selected
@@ -762,30 +875,40 @@ export const InGameView = memo(() => {
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {eligibleForRemoval.map((p) => (
-                    <button
-                      key={`rem-${p.id}`}
-                      type="button"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            `Remove ${p.name} from inning ${
-                              currentInning + 1
-                            } onward? Their played innings will still count.`
-                          )
-                        ) {
-                          removePlayerMidGame(p.id, "injury");
-                        }
-                      }}
-                      className="w-full text-left px-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-800 font-bold hover:bg-red-50 hover:border-red-300 hover:text-red-900 transition-colors flex items-center justify-between gap-3"
-                    >
-                      <span className="truncate">
-                        {p.number ? `#${p.number} ` : ""}
-                        {p.name}
-                      </span>
-                      <Icons.Alert className="w-4 h-4 text-red-500 shrink-0" />
-                    </button>
-                  ))}
+                  {eligibleForRemoval.map((p) => {
+                    const armed = pendingRemovePlayerId === p.id;
+                    return (
+                      <button
+                        key={`rem-${p.id}`}
+                        type="button"
+                        onClick={() => {
+                          if (armed) {
+                            removePlayerMidGame(p.id, "injury");
+                          } else {
+                            setPendingRemovePlayerId(p.id);
+                            setPendingRestorePlayerId(null);
+                          }
+                        }}
+                        className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between gap-3 ${
+                          armed
+                            ? "bg-red-100 border-2 border-red-400 text-red-900 ring-2 ring-red-200"
+                            : "bg-white border border-slate-200 text-slate-800 hover:bg-red-50 hover:border-red-300 hover:text-red-900"
+                        }`}
+                      >
+                        <span className="truncate flex-1 min-w-0">
+                          {p.number ? `#${p.number} ` : ""}
+                          {p.name}
+                        </span>
+                        {armed ? (
+                          <span className="text-[10px] font-black uppercase tracking-widest text-red-700 shrink-0 whitespace-nowrap">
+                            Tap to confirm
+                          </span>
+                        ) : (
+                          <Icons.Alert className="w-4 h-4 text-red-500 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               {Object.keys(game.midGameRemovals || {}).length > 0 && (
@@ -797,33 +920,40 @@ export const InGameView = memo(() => {
                     {Object.entries(game.midGameRemovals).map(([pid, info]) => {
                       const player =
                         team.players.find((q) => q.id === pid) || { name: "(unknown)" };
+                      const armed = pendingRestorePlayerId === pid;
                       return (
                         <div
                           key={`removed-${pid}`}
-                          className="text-xs font-bold text-slate-500 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-2"
+                          className={`text-xs font-bold px-3 py-2 border rounded-lg flex items-center justify-between gap-2 transition-colors ${
+                            armed
+                              ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                              : "bg-slate-50 border-slate-200 text-slate-500"
+                          }`}
                         >
-                          <span>
+                          <span className="truncate flex-1 min-w-0">
                             {player.name} — out from inning {info.fromInning + 1}
                             {info.reason ? ` (${info.reason})` : ""}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Restore ${player.name}? They'll come back available to assign from inning ${
-                                    currentInning + 1
-                                  } onward. (Coach-initiated mistake fix.)`
-                                )
-                              ) {
+                              if (armed) {
                                 const next = { ...(game.midGameRemovals || {}) };
                                 delete next[pid];
                                 updateGame(game.id, { midGameRemovals: next });
+                                setPendingRestorePlayerId(null);
+                              } else {
+                                setPendingRestorePlayerId(pid);
+                                setPendingRemovePlayerId(null);
                               }
                             }}
-                            className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 px-2 py-1 rounded"
+                            className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded shrink-0 whitespace-nowrap transition-colors ${
+                              armed
+                                ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                : "text-slate-500 hover:text-slate-900"
+                            }`}
                           >
-                            Undo
+                            {armed ? "Tap to confirm" : "Undo"}
                           </button>
                         </div>
                       );
