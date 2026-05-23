@@ -15,3 +15,19 @@ root.render(
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Register the offline-shell service worker in production builds only.
+// Development bundles change with every HMR push, so caching them just
+// gets in the way. See public/service-worker.js for the strategy.
+if (
+  process.env.NODE_ENV === "production" &&
+  typeof navigator !== "undefined" &&
+  "serviceWorker" in navigator
+) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js").catch(() => {
+      // Registration failures are silent — the app keeps working
+      // online; we just don't get the offline cache.
+    });
+  });
+}
