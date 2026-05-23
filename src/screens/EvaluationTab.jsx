@@ -755,6 +755,9 @@ const RoundComparisonView = memo(
 // combined grade rendered in the main grading area.
 const AssistantSubmissionsPanel = memo(
   ({ evaluationEvents, players, onDelete }) => {
+  // Two-tap confirm for delete: first tap arms the row, second commits.
+  // Replaces a blocking window.confirm — keeps the head coach in flow.
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   // Pick the most recent eval per assistant (by date).
   const latestByAssistant = useMemo(() => {
     const m = new Map();
@@ -803,25 +806,47 @@ const AssistantSubmissionsPanel = memo(
                   <div className="text-[10px] font-bold text-slate-500">
                     {ev.date}
                   </div>
-                  {onDelete && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (
-                          !window.confirm(
-                            `Delete this assistant's eval round (${ev.date})?`
-                          )
-                        )
-                          return;
-                        onDelete(ev.id);
-                      }}
-                      className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-colors"
-                      title="Delete this assistant's eval round"
-                      aria-label="Delete assistant eval round"
-                    >
-                      <Icons.Trash className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  {onDelete && (() => {
+                    const armed = pendingDeleteId === ev.id;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (armed) {
+                            onDelete(ev.id);
+                            setPendingDeleteId(null);
+                          } else {
+                            setPendingDeleteId(ev.id);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (armed) setPendingDeleteId(null);
+                        }}
+                        className={`flex items-center gap-1 rounded-md transition-colors ${
+                          armed
+                            ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
+                            : "p-1 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        }`}
+                        title={
+                          armed
+                            ? "Tap again to delete"
+                            : "Delete this assistant's eval round"
+                        }
+                        aria-label={
+                          armed
+                            ? "Confirm delete assistant eval round"
+                            : "Delete assistant eval round"
+                        }
+                      >
+                        <Icons.Trash className="w-3.5 h-3.5" />
+                        {armed && (
+                          <span className="text-[10px] font-black uppercase tracking-widest">
+                            Confirm
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
               {playersWithSignal.length === 0 ? (
@@ -957,6 +982,9 @@ export const EvaluationTab = memo(() => {
   const [saveState, setSaveState] = useState("idle");
   const [activeGroup, setActiveGroup] = useState("Hitting");
   const [comparisonOpen, setComparisonOpen] = useState(false);
+  // Two-tap confirm for the head's own round delete — arms the trash
+  // button on first tap, commits on second. Replaces window.confirm.
+  const [pendingRoundDelete, setPendingRoundDelete] = useState(false);
   const lastSavedRef = useRef("");
   const draftRestoredRef = useRef(false);
 
@@ -986,6 +1014,13 @@ export const EvaluationTab = memo(() => {
   useEffect(() => {
     if (!visibleGroups.includes(activeGroup)) setActiveGroup("Hitting");
   }, [visibleGroups, activeGroup]);
+
+  // Clear any armed-for-delete state when the user switches rounds —
+  // otherwise the trash button stays "primed" for a different target
+  // than what they're now viewing.
+  useEffect(() => {
+    setPendingRoundDelete(false);
+  }, [selectedRoundId]);
 
   // Eval rounds belonging to this head coach, newest first
   const myRounds = useMemo(() => {
@@ -1282,26 +1317,39 @@ export const EvaluationTab = memo(() => {
             <button
               type="button"
               onClick={() => {
-                const r = myRounds.find((x) => x.id === selectedRoundId);
-                if (!r) return;
-                if (
-                  !window.confirm(
-                    `Delete this eval round (${
-                      r.label || r.date
-                    })? This can't be undone.`
-                  )
-                )
-                  return;
-                deleteEvaluation?.(selectedRoundId);
-                setSelectedRoundId(null);
-                lastSavedRef.current = "";
-                setSaveState("idle");
+                if (pendingRoundDelete) {
+                  deleteEvaluation?.(selectedRoundId);
+                  setSelectedRoundId(null);
+                  lastSavedRef.current = "";
+                  setSaveState("idle");
+                  setPendingRoundDelete(false);
+                } else {
+                  setPendingRoundDelete(true);
+                }
               }}
-              className="shrink-0 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 rounded-lg transition-colors"
-              title="Delete this eval round"
-              aria-label="Delete selected eval round"
+              onBlur={() => setPendingRoundDelete(false)}
+              className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
+                pendingRoundDelete
+                  ? "px-2.5 py-2 bg-red-100 text-red-800 border-red-300 ring-2 ring-red-200"
+                  : "p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border-slate-200 hover:border-red-200"
+              }`}
+              title={
+                pendingRoundDelete
+                  ? "Tap again to delete this eval round"
+                  : "Delete this eval round"
+              }
+              aria-label={
+                pendingRoundDelete
+                  ? "Confirm delete selected eval round"
+                  : "Delete selected eval round"
+              }
             >
               <Icons.Trash className="w-4 h-4" />
+              {pendingRoundDelete && (
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  Confirm
+                </span>
+              )}
             </button>
           )}
           {isNewRound && (
