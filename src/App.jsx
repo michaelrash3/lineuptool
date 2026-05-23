@@ -5,6 +5,8 @@ import React, {
   useCallback,
   useRef,
   memo,
+  lazy,
+  Suspense,
 } from "react";
 import {
   signInWithCustomToken,
@@ -53,20 +55,11 @@ import {
   AppHeader,
   TabBarNav,
 } from "./components/Chrome.jsx";
-import { HomeTab } from "./screens/HomeTab.jsx";
-import { RosterTab } from "./screens/RosterTab.jsx";
-import { ScheduleTab } from "./screens/ScheduleTab.jsx";
-import { EvaluationTab } from "./screens/EvaluationTab.jsx";
-import { SettingsTab } from "./screens/SettingsTab.jsx";
 import {
   PlayerProfileModal,
   AddPlayerModal,
   PastSeasonImportModal,
 } from "./components/modals.jsx";
-import { AssistantEvalTab } from "./screens/AssistantEvalTab.jsx";
-import { TryoutsTab } from "./screens/TryoutsTab.jsx";
-import { TryoutsPortal } from "./screens/TryoutsPortal.jsx";
-import { InGameView } from "./screens/InGameView.jsx";
 import {
   normalizeDateToIso,
   slimGame,
@@ -92,6 +85,54 @@ import {
   generateLineup as engineGenerateLineup,
   generateBattingOnly as engineGenerateBattingOnly,
 } from "./lineupEngine";
+
+// Screens are lazy-loaded so the initial bundle stays small. The Routes
+// blocks below are wrapped in <Suspense> with a tiny spinner fallback.
+// `import().then(m => ({ default: m.X }))` is the named-export shim
+// React.lazy needs — every screen here exports its component as a named
+// const, not a default.
+const HomeTab = lazy(() =>
+  import("./screens/HomeTab.jsx").then((m) => ({ default: m.HomeTab }))
+);
+const RosterTab = lazy(() =>
+  import("./screens/RosterTab.jsx").then((m) => ({ default: m.RosterTab }))
+);
+const ScheduleTab = lazy(() =>
+  import("./screens/ScheduleTab.jsx").then((m) => ({ default: m.ScheduleTab }))
+);
+const EvaluationTab = lazy(() =>
+  import("./screens/EvaluationTab.jsx").then((m) => ({
+    default: m.EvaluationTab,
+  }))
+);
+const SettingsTab = lazy(() =>
+  import("./screens/SettingsTab.jsx").then((m) => ({ default: m.SettingsTab }))
+);
+const AssistantEvalTab = lazy(() =>
+  import("./screens/AssistantEvalTab.jsx").then((m) => ({
+    default: m.AssistantEvalTab,
+  }))
+);
+const TryoutsTab = lazy(() =>
+  import("./screens/TryoutsTab.jsx").then((m) => ({ default: m.TryoutsTab }))
+);
+const TryoutsPortal = lazy(() =>
+  import("./screens/TryoutsPortal.jsx").then((m) => ({
+    default: m.TryoutsPortal,
+  }))
+);
+const InGameView = lazy(() =>
+  import("./screens/InGameView.jsx").then((m) => ({ default: m.InGameView }))
+);
+
+// Suspense fallback used while a lazy-loaded screen chunk is fetching.
+// Kept dead-simple and consistent across every route — a centered
+// spinner so layout doesn't reflow when the chunk arrives.
+const ScreenLoader = () => (
+  <div className="flex items-center justify-center py-16 text-slate-400">
+    <Icons.Refresh className="w-5 h-5 animate-spin" />
+  </div>
+);
 
 /* ============================================================================
    SECTION 2 · Firebase setup — see ./firebase.js
@@ -3565,6 +3606,7 @@ const MainShell = () => {
         navButtons={navButtons}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
+        <Suspense fallback={<ScreenLoader />}>
         <Routes>
           <Route path="/" element={<HomeTab />} />
           <Route path="/roster" element={<RosterTab />} />
@@ -3589,12 +3631,15 @@ const MainShell = () => {
           <Route path="/in-game/:gameId" element={<div className="hidden" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
       <SharedModals />
       {viewingPlayerId && <PlayerProfileModal />}
       <AddPlayerModal />
       <PastSeasonImportModal />
-      <InGameView />
+      <Suspense fallback={null}>
+        <InGameView />
+      </Suspense>
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
@@ -3637,10 +3682,12 @@ const App = () => {
   ) {
     return (
       <ToastProvider>
-        <Routes>
-          <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<ScreenLoader />}>
+          <Routes>
+            <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </ToastProvider>
     );
   }
