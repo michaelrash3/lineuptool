@@ -45,7 +45,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       # Boot the Firestore emulator using a fake project id so no real
       # credentials are needed for the parse check. The emulator parses
