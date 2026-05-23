@@ -123,6 +123,10 @@ export const TryoutsTab = memo(() => {
   const [openSignupId, setOpenSignupId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
+  // Two-tap confirm on signup delete — the trash icon previously fired
+  // deleteTryoutSignup on first click with no guard, which was a real
+  // footgun next to so many other small action buttons in the row.
+  const [pendingDeleteSignupId, setPendingDeleteSignupId] = useState(null);
 
   const filtered = useMemo(() => {
     let list = tryoutSignups || [];
@@ -352,16 +356,42 @@ export const TryoutsTab = memo(() => {
                   >
                     {expanded ? "Close" : "Open"}
                   </button>
-                  {isHead && (
-                    <button
-                      type="button"
-                      onClick={() => deleteTryoutSignup?.(s.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md"
-                      title="Delete signup"
-                    >
-                      <Icons.Trash className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  {isHead && (() => {
+                    const armed = pendingDeleteSignupId === s.id;
+                    return (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          // Stop the click from also toggling the parent
+                          // row's expand/collapse handler.
+                          e.stopPropagation();
+                          if (armed) {
+                            deleteTryoutSignup?.(s.id);
+                            setPendingDeleteSignupId(null);
+                          } else {
+                            setPendingDeleteSignupId(s.id);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (armed) setPendingDeleteSignupId(null);
+                        }}
+                        className={`flex items-center gap-1 rounded-md transition-colors ${
+                          armed
+                            ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
+                            : "p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        }`}
+                        title={armed ? "Tap again to delete" : "Delete signup"}
+                        aria-label={armed ? "Confirm delete signup" : "Delete signup"}
+                      >
+                        <Icons.Trash className="w-3.5 h-3.5" />
+                        {armed && (
+                          <span className="text-[10px] font-black uppercase tracking-widest">
+                            Confirm
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })()}
                 </div>
                 {expanded && (
                   <div className="border-t border-slate-100 p-4 space-y-3 bg-slate-50/50">

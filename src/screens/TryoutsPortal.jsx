@@ -123,6 +123,11 @@ export const TryoutsPortal = () => {
   const [team, setTeam] = useState(null);
   const [teamDocId, setTeamDocId] = useState(null);
   const [error, setError] = useState(null);
+  // Guards the submit button — parents on flaky wifi could otherwise
+  // double-tap and the duplicate-signup check would still let one slip
+  // through (the second write fires before the first one's arrayUnion
+  // has rehydrated team.tryoutSignups locally).
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -205,6 +210,7 @@ export const TryoutsPortal = () => {
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
+    if (submitting) return;
     if (!form.firstName.trim() || !form.lastName.trim()) return setError("Player first + last name are required.");
     if (!form.currentTeam.trim()) return setError("Current team is required.");
     if (!form.email.trim()) return setError("Parent email is required so we can reach you with results.");
@@ -213,6 +219,7 @@ export const TryoutsPortal = () => {
       return setError("Looks like this player is already registered for that date with this email.");
     }
     setError(null);
+    setSubmitting(true);
 
     const signup = {
       id: `ts-${Math.random().toString(36).slice(2, 10)}`,
@@ -233,6 +240,7 @@ export const TryoutsPortal = () => {
       setPhase("sent");
     } catch {
       setError("Submission failed — please retry, or contact the team's head coach directly.");
+      setSubmitting(false);
     }
   };
 
@@ -530,8 +538,20 @@ export const TryoutsPortal = () => {
             variant="primary"
             size="lg"
             className="w-full"
+            disabled={submitting}
+            style={
+              submitting ? { opacity: 0.7, cursor: "not-allowed" } : undefined
+            }
           >
-            <Icons.Check className="w-4 h-4" /> Submit Signup
+            {submitting ? (
+              <>
+                <Icons.Refresh className="w-4 h-4 animate-spin" /> Submitting…
+              </>
+            ) : (
+              <>
+                <Icons.Check className="w-4 h-4" /> Submit Signup
+              </>
+            )}
           </Button>
           <p className="t-meta text-center text-slate-400">
             Your info is shared only with this team's coaching staff.
