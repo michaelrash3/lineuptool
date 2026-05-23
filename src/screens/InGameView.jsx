@@ -247,6 +247,34 @@ export const InGameView = memo(() => {
     flushTimerRef.current = setTimeout(flush, 500);
   };
 
+  // One-tap pitcher assignment from the Available pool. Swaps the
+  // chosen player into the P slot for the current inning by reusing
+  // performSwap (preserves undo history + haptic feedback). Finds the
+  // chosen player's current cell — field position or bench — and
+  // hands it to performSwap as the "second" selection.
+  const assignPitcher = (playerId) => {
+    const innNow = pendingLineup
+      ? pendingLineup[currentInning]
+      : liveLineup[currentInning];
+    if (!innNow) return;
+    // Find which cell the chosen pitcher currently occupies this inning.
+    let sourceSel = null;
+    for (const pos of positionOrder) {
+      if (innNow[pos]?.id === playerId) {
+        sourceSel = { type: "position", pos };
+        break;
+      }
+    }
+    if (!sourceSel) {
+      const onBench = (innNow.BENCH || []).find((p) => p?.id === playerId);
+      if (onBench) sourceSel = { type: "bench", playerId };
+    }
+    if (!sourceSel) return;
+    // Don't swap a player with themselves (they're already P somehow).
+    if (sourceSel.type === "position" && sourceSel.pos === "P") return;
+    performSwap({ type: "position", pos: "P" }, sourceSel);
+  };
+
   // Perform a swap and record undo info.
   const performSwap = (firstSel, secondSel) => {
     const undoEntry = {
@@ -402,15 +430,37 @@ export const InGameView = memo(() => {
             );
           })()}
           <div className="flex items-center gap-1">
-            {canEdit && (
+            {canEdit && (() => {
+              const removedCount = Object.keys(game.midGameRemovals || {})
+                .length;
+              return (
               <>
                 <button
                   onClick={() => setShowRemoveModal(true)}
-                  className="p-2 text-slate-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors"
-                  aria-label="Remove a player (injured / ill / left)"
-                  title="Mark a player out for the rest of the game"
+                  className={`relative p-2 rounded-lg transition-colors ${
+                    removedCount > 0
+                      ? "text-red-700 bg-red-50 hover:bg-red-100"
+                      : "text-slate-600 hover:bg-red-50 hover:text-red-700"
+                  }`}
+                  aria-label={
+                    removedCount > 0
+                      ? `${removedCount} player${
+                          removedCount === 1 ? "" : "s"
+                        } out — remove another`
+                      : "Remove a player (injured / ill / left)"
+                  }
+                  title={
+                    removedCount > 0
+                      ? `${removedCount} out of game — tap to manage`
+                      : "Mark a player out for the rest of the game"
+                  }
                 >
                   <Icons.Alert className="w-5 h-5" />
+                  {removedCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">
+                      {removedCount}
+                    </span>
+                  )}
                 </button>
                 <button
                   onClick={undo}
@@ -421,7 +471,8 @@ export const InGameView = memo(() => {
                   <Icons.Refresh className="w-5 h-5" />
                 </button>
               </>
-            )}
+              );
+            })()}
           </div>
         </div>
         {!canEdit && (
@@ -626,12 +677,17 @@ export const InGameView = memo(() => {
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {availablePitchers.map((player) => (
-                      <span
+                      <button
                         key={player.id}
-                        className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-200 rounded-md px-2 py-1"
+                        type="button"
+                        onClick={() => assignPitcher(player.id)}
+                        title={`Make ${player.name} the pitcher for inning ${
+                          currentInning + 1
+                        }`}
+                        className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-200 rounded-md px-2 py-1 hover:bg-emerald-50 hover:border-emerald-400 active:scale-[0.97] transition-all cursor-pointer"
                       >
                         {player.name}
-                      </span>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -690,6 +746,13 @@ export const InGameView = memo(() => {
             const player = inn[pos];
             const sel = { type: "position", pos };
             const selected = isCellSelected(sel);
+            // Who's at this position next inning? If it's a different
+            // player (or someone-then-nobody / nobody-then-someone)
+            // surface them so the coach can plan one inning ahead.
+            const nextInn = liveLineup[currentInning + 1];
+            const nextPlayer = nextInn ? nextInn[pos] : null;
+            const showNext =
+              nextInn && nextPlayer && nextPlayer.id !== player?.id;
             return (
               <button
                 key={pos}
@@ -719,11 +782,18 @@ export const InGameView = memo(() => {
                   <div className="text-base font-black text-slate-900 truncate leading-tight">
                     {player?.name || "—"}
                   </div>
-                  {player?.number && (
-                    <div className="text-[10px] font-bold text-slate-400 mt-0.5">
-                      #{player.number}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {player?.number && (
+                      <span className="text-[10px] font-bold text-slate-400">
+                        #{player.number}
+                      </span>
+                    )}
+                    {showNext && (
+                      <span className="text-[10px] font-bold text-slate-400 truncate">
+                        → next: {nextPlayer.name}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
             );
