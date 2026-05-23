@@ -206,6 +206,14 @@ export const ScheduleTab = memo(() => {
 
   const toast = useToast();
 
+  // In-app replacements for window.prompt (save template name) and
+  // window.confirm (delete template). Modal handles the save flow with
+  // an editable default name; the delete flow shows an inline confirm
+  // banner anchored under the templates dropdown.
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState("");
+  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState(null);
+
   // Sort games by ISO date string once per games-array change instead of on
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
   // ISO YYYY-MM-DD is lexicographically equivalent to chronological, so
@@ -344,12 +352,8 @@ export const ScheduleTab = memo(() => {
                               currentGame.date || "—"
                             }`
                           : "Lineup Template";
-                        const name = window.prompt(
-                          "Save lineup as template — name?",
-                          defaultName
-                        );
-                        if (name === null) return;
-                        saveLineupTemplate?.(name);
+                        setSaveTemplateName(defaultName);
+                        setSaveTemplateOpen(true);
                       }}
                       title="Save the current lineup + batting order as a reusable template"
                       className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
@@ -368,17 +372,7 @@ export const ScheduleTab = memo(() => {
                           if (val.startsWith("apply:")) {
                             applyLineupTemplate?.(val.slice(6));
                           } else if (val.startsWith("delete:")) {
-                            const id = val.slice(7);
-                            const tpl = (team.lineupTemplates || []).find(
-                              (t) => t.id === id
-                            );
-                            if (
-                              window.confirm(
-                                `Delete template "${tpl?.name || id}"?`
-                              )
-                            ) {
-                              deleteLineupTemplate?.(id);
-                            }
+                            setPendingDeleteTemplateId(val.slice(7));
                           }
                         }}
                         title="Apply or delete a saved lineup template"
@@ -1525,6 +1519,118 @@ export const ScheduleTab = memo(() => {
           </div>
         )}
       </div>
+
+      {saveTemplateOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setSaveTemplateOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+            <div className="p-5 sm:p-6">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                Save Lineup Template
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mb-4">
+                Reusable batting order + defensive plan. Apply it to any
+                future game.
+              </p>
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                Name
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={saveTemplateName}
+                onChange={(e) => setSaveTemplateName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && saveTemplateName.trim()) {
+                    saveLineupTemplate?.(saveTemplateName.trim());
+                    setSaveTemplateOpen(false);
+                  }
+                  if (e.key === "Escape") setSaveTemplateOpen(false);
+                }}
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 text-sm font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+              />
+              <div className="flex justify-end gap-2 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setSaveTemplateOpen(false)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!saveTemplateName.trim()}
+                  onClick={() => {
+                    saveLineupTemplate?.(saveTemplateName.trim());
+                    setSaveTemplateOpen(false);
+                  }}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: primaryColor,
+                    color: tertiaryColor,
+                  }}
+                >
+                  Save Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteTemplateId && (() => {
+        const tpl = (team.lineupTemplates || []).find(
+          (t) => t.id === pendingDeleteTemplateId
+        );
+        const name = tpl?.name || "this template";
+        return (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => setPendingDeleteTemplateId(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-1.5 bg-red-500" />
+              <div className="p-5 sm:p-6">
+                <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                  Delete Template?
+                </h3>
+                <p className="text-sm text-slate-700 font-medium mb-5">
+                  "{name}" will be removed from your saved templates.
+                  Games using this template aren't affected.
+                </p>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPendingDeleteTemplateId(null)}
+                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      deleteLineupTemplate?.(pendingDeleteTemplateId);
+                      setPendingDeleteTemplateId(null);
+                    }}
+                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 });
