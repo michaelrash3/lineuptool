@@ -1,6 +1,6 @@
 {
-  "name": "Lineup Tool",
-  "short_name": "Lineup",
+  "name": "Coach's Card",
+  "short_name": "Coach",
   "description": "Youth-baseball lineup builder, in-game swap manager, and player evaluation tool for head and assistant coaches.",
   "start_url": "/",
   "display": "standalone",
@@ -9,10 +9,28 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='32' fill='%232563eb'/%3E%3Ccircle cx='96' cy='96' r='62' fill='%23FFFFFF' stroke='%231F2937' stroke-width='5'/%3E%3Cpath d='M 38 56 Q 96 96 38 136' fill='none' stroke='%23DC2626' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M 154 56 Q 96 96 154 136' fill='none' stroke='%23DC2626' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E",
-      "type": "image/svg+xml",
-      "sizes": "any",
-      "purpose": "any maskable"
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }
