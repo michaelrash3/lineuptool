@@ -91,38 +91,50 @@ const TryoutsSettingsPanel = memo(
           <Icons.Users className="w-4 h-4" /> Tryouts
         </h3>
         <p className="text-[11px] text-slate-500 font-medium mb-3">
-          Generate a public share link parents can fill out. Toggle off
-          when tryouts close to stop accepting new signups.
+          Two link types here. The <strong>Player Interest Link</strong>{" "}
+          works year-round and collects leads into the Interest tab — share
+          it on flyers / your team's home page. The per-date{" "}
+          <strong>Tryout Date Link</strong> below opens an actual signup
+          form with that date pinned (no chooser).
         </p>
         <div className="space-y-3">
           {shareId ? (
             <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
               <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
-                Public link
+                Player Interest Link
               </div>
               <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">
                 {shareUrl}
               </code>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (navigator.clipboard && shareUrl) {
-                      navigator.clipboard.writeText(shareUrl);
-                      toast.push({ kind: "success", title: "Link copied" });
-                    }
-                  }}
-                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  onClick={() => generateTryoutShareId?.()}
-                  className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
-                >
-                  Regenerate
-                </button>
+              <div className="flex items-start gap-3 flex-wrap">
+                <QRCodeImg value={shareUrl} size={120} />
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (navigator.clipboard && shareUrl) {
+                          navigator.clipboard.writeText(shareUrl);
+                          toast.push({ kind: "success", title: "Link copied" });
+                        }
+                      }}
+                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => generateTryoutShareId?.()}
+                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+                    >
+                      Regenerate
+                    </button>
+                  </div>
+                  <p className="text-[10px] font-medium text-slate-500 leading-snug">
+                    Always opens the year-round Interest Survey — works
+                    whether tryouts are open or not.
+                  </p>
+                </div>
               </div>
             </div>
           ) : (
@@ -132,7 +144,7 @@ const TryoutsSettingsPanel = memo(
               className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
               style={{ backgroundColor: "var(--team-primary)" }}
             >
-              Generate Tryout Share Link
+              Generate Player Interest Link
             </button>
           )}
 
