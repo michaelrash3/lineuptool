@@ -11,6 +11,7 @@ import {
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
 import { sendGmailMessage, buildMailtoUrl } from "../integrations/gmailSend";
+import { calculateBaseballAge } from "../utils/helpers";
 import { auth } from "../firebase";
 
 const STATUS_PILLS = {
@@ -30,6 +31,90 @@ const StatusPill = memo(({ status }) => {
     </span>
   );
 });
+
+// "Too old" age check. team.teamAge is a string like "10U" / "11U to 12U";
+// pull the LARGEST eligible age from it. If the signup's baseball age
+// exceeds that ceiling, flag them. Heads still see + can grade the kid
+// — this is a visual nudge, not a block.
+const teamAgeCeiling = (teamAgeStr) => {
+  if (!teamAgeStr) return null;
+  const nums = String(teamAgeStr)
+    .match(/\d+/g)
+    ?.map((n) => parseInt(n, 10))
+    .filter(Number.isFinite);
+  if (!nums || nums.length === 0) return null;
+  return Math.max(...nums);
+};
+
+const tryoutIsTooOld = (signup, team) => {
+  const ceiling = teamAgeCeiling(team?.teamAge);
+  if (ceiling == null) return false;
+  const age = calculateBaseballAge(signup?.dob, team?.currentSeason);
+  if (age == null) return false;
+  return age > ceiling;
+};
+
+// Roster-decision 3-bucket projection across the tryout pool. Returners
+// are concrete (they're on the team), so the question is only who fills
+// the remaining slots. Tryouts compete with each other on cumulative
+// eval grade — same scoring the per-row impact used to do, just rolled
+// up into Will Make / On The Bubble / Likely Cut piles. Too-old kids
+// are surfaced separately regardless of grade. Ungraded kids surface
+// as "not yet evaluated" so the head knows to grade them first.
+const computeRosterBuckets = (team, evaluationEvents, tryoutSignups) => {
+  const rosterCap = Number(team?.rosterCap) || 12;
+  const returners = (team?.players || []).filter(
+    (p) =>
+      p.playerStatus !== "released" &&
+      p.playerStatus !== "declined" &&
+      p.playerStatus !== "accepted"
+  );
+  const slotsRemaining = Math.max(0, rosterCap - returners.length);
+
+  const scoreOfSignup = (signup) => {
+    const ev = (evaluationEvents || []).find(
+      (e) => e.tryoutSignupId === signup.id
+    );
+    const grade = ev?.grades?.signup ?? ev?.grades?.["__signup__"];
+    if (!grade) return null;
+    return Object.values(grade).reduce(
+      (sum, v) => sum + (typeof v === "number" ? v : 0),
+      0
+    );
+  };
+
+  const tooOld = [];
+  const notGraded = [];
+  const graded = [];
+  for (const s of tryoutSignups || []) {
+    if (s.status === "declined") continue;
+    if (tryoutIsTooOld(s, team)) {
+      tooOld.push(s);
+      continue;
+    }
+    const score = scoreOfSignup(s);
+    if (score == null) notGraded.push(s);
+    else graded.push({ signup: s, score });
+  }
+  graded.sort((a, b) => b.score - a.score);
+  const makeIt = graded.slice(0, slotsRemaining);
+  const bubble = graded.slice(
+    slotsRemaining,
+    slotsRemaining + Math.max(slotsRemaining, 3)
+  );
+  const cut = graded.slice(slotsRemaining + Math.max(slotsRemaining, 3));
+
+  return {
+    rosterCap,
+    returnerCount: returners.length,
+    slotsRemaining,
+    makeIt,
+    bubble,
+    cut,
+    notGraded,
+    tooOld,
+  };
+};
 
 // Bottom-N + positional-fit impact analysis. Returning roster is the
 // current team.players excluding any with status === "released" /
@@ -102,6 +187,122 @@ const computeImpact = (signup, team, evaluationEvents) => {
   return { verdict, tryoutScore, cutoff, positionalFit, rosterCap };
 };
 
+// Three-bucket projection of who's likely to make the team — modeled
+// after the RosterDecisionsPanel on the Evaluation tab. Reads the
+// roster object built by computeRosterBuckets above; render-only,
+// no internal state.
+const TeamImpactPanel = memo(({ roster }) => {
+  const buckets = [
+    {
+      key: "make",
+      title: "Will Make Team",
+      sub: `Top ${roster.slotsRemaining} graded — fill open slots`,
+      tone: "bg-emerald-50 border-emerald-200 text-emerald-900",
+      countTone: "text-emerald-700",
+      items: roster.makeIt,
+    },
+    {
+      key: "bubble",
+      title: "On The Bubble",
+      sub: "Need another look before final cuts",
+      tone: "bg-amber-50 border-amber-200 text-amber-900",
+      countTone: "text-amber-700",
+      items: roster.bubble,
+    },
+    {
+      key: "cut",
+      title: "Likely Cut",
+      sub: "Below the line on cumulative grade",
+      tone: "bg-slate-50 border-slate-200 text-slate-700",
+      countTone: "text-slate-500",
+      items: roster.cut,
+    },
+  ];
+  const empty = roster.makeIt.length + roster.bubble.length + roster.cut.length === 0;
+  return (
+    <div className="glass-card p-4 sm:p-5 space-y-3">
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <h3 className="t-h3 flex items-center gap-2">
+          <Icons.Clipboard className="w-4 h-4" /> Roster Projection
+        </h3>
+        <span className="t-eyebrow text-slate-500">
+          {roster.returnerCount} returning · {roster.slotsRemaining} open of {roster.rosterCap}
+        </span>
+      </div>
+      {empty ? (
+        <p className="text-xs text-slate-500 font-medium italic">
+          Grade {roster.notGraded.length > 0
+            ? `the ${roster.notGraded.length} ungraded tryout${roster.notGraded.length === 1 ? "" : "s"} `
+            : "tryout players "}
+          to see the roster projection.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {buckets.map((b) => (
+            <div
+              key={b.key}
+              className={`rounded-xl border p-3 ${b.tone}`}
+            >
+              <div className="flex items-baseline justify-between mb-1.5">
+                <div className="text-[10px] font-black uppercase tracking-widest">
+                  {b.title}
+                </div>
+                <div className={`text-lg font-black tabular-nums ${b.countTone}`}>
+                  {b.items.length}
+                </div>
+              </div>
+              <div className="text-[9px] font-medium opacity-70 mb-2">
+                {b.sub}
+              </div>
+              {b.items.length === 0 ? (
+                <div className="text-[10px] italic opacity-70">—</div>
+              ) : (
+                <ul className="space-y-0.5">
+                  {b.items.map(({ signup, score }) => (
+                    <li
+                      key={signup.id}
+                      className="flex items-baseline justify-between gap-2 text-[11px]"
+                    >
+                      <span className="font-bold truncate">
+                        {signup.firstName} {signup.lastName}
+                      </span>
+                      <span className="font-black tabular-nums opacity-80 shrink-0">
+                        {score.toFixed(0)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {(roster.notGraded.length > 0 || roster.tooOld.length > 0) && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {roster.notGraded.length > 0 && (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-600">
+              {roster.notGraded.length} ungraded
+            </span>
+          )}
+          {roster.tooOld.length > 0 && (
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-amber-50 border border-amber-300 text-amber-800">
+              {roster.tooOld.length} outside age group
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const BUCKET_BADGES = {
+  make: { label: "Will Make", className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+  bubble: { label: "Bubble", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  cut: { label: "Likely Cut", className: "bg-slate-100 text-slate-600 border-slate-200" },
+  ungraded: { label: "Ungraded", className: "bg-white text-slate-500 border-slate-200" },
+  tooOld: { label: "Too Old", className: "bg-amber-50 text-amber-700 border-amber-200" },
+};
+
 export const TryoutsTab = memo(() => {
   const {
     team,
@@ -127,6 +328,10 @@ export const TryoutsTab = memo(() => {
   // deleteTryoutSignup on first click with no guard, which was a real
   // footgun next to so many other small action buttons in the row.
   const [pendingDeleteSignupId, setPendingDeleteSignupId] = useState(null);
+  // End-tryout modal: bulk-delete every signup marked present === false.
+  // The HC's day-of cleanup pattern — assign numbers to who showed,
+  // mark the rest absent, then tap End Tryout to wipe no-shows.
+  const [endTryoutOpen, setEndTryoutOpen] = useState(false);
 
   const filtered = useMemo(() => {
     let list = tryoutSignups || [];
@@ -151,6 +356,34 @@ export const TryoutsTab = memo(() => {
   }, [tryoutSignups, statusFilter, search]);
 
   const isHead = currentRole !== "assistant";
+
+  // 3-bucket roster projection, computed once for both the top-of-tab
+  // panel and the per-row bucket badge lookup.
+  const roster = useMemo(
+    () =>
+      isHead
+        ? computeRosterBuckets(team, evaluationEvents, tryoutSignups)
+        : null,
+    [isHead, team, evaluationEvents, tryoutSignups]
+  );
+  // Map signup.id → "make" | "bubble" | "cut" | "ungraded" | "tooOld"
+  // for the per-row badge.
+  const bucketBySignupId = useMemo(() => {
+    const map = new Map();
+    if (!roster) return map;
+    roster.makeIt.forEach(({ signup }) => map.set(signup.id, "make"));
+    roster.bubble.forEach(({ signup }) => map.set(signup.id, "bubble"));
+    roster.cut.forEach(({ signup }) => map.set(signup.id, "cut"));
+    roster.notGraded.forEach((s) => map.set(s.id, "ungraded"));
+    roster.tooOld.forEach((s) => map.set(s.id, "tooOld"));
+    return map;
+  }, [roster]);
+  const noShowCount = useMemo(
+    () =>
+      (tryoutSignups || []).filter((s) => s.present === false).length,
+    [tryoutSignups]
+  );
+
   const activePositions = useMemo(
     () => getActivePositionList(defenseSize),
     [defenseSize]
@@ -273,7 +506,7 @@ export const TryoutsTab = memo(() => {
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 flex items-center justify-between gap-3">
+        <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h2 className="t-h2 flex items-center gap-3">
               <Icons.Users className="w-6 h-6" /> Tryouts
@@ -281,10 +514,29 @@ export const TryoutsTab = memo(() => {
             <p className="t-eyebrow text-slate-500 mt-1">
               {(tryoutSignups || []).length} signup
               {(tryoutSignups || []).length === 1 ? "" : "s"}
+              {noShowCount > 0 && (
+                <span className="text-rose-600 ml-2">
+                  · {noShowCount} no-show{noShowCount === 1 ? "" : "s"}
+                </span>
+              )}
             </p>
           </div>
+          {isHead && noShowCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setEndTryoutOpen(true)}
+              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors"
+              title={`Bulk-delete the ${noShowCount} no-show signup${noShowCount === 1 ? "" : "s"}`}
+            >
+              End Tryout · Clear No-Shows
+            </button>
+          )}
         </div>
       </div>
+
+      {isHead && roster && (tryoutSignups || []).length > 0 && (
+        <TeamImpactPanel roster={roster} />
+      )}
 
       <div className="glass-card p-3 flex flex-wrap items-center gap-2">
         <input
@@ -331,15 +583,36 @@ export const TryoutsTab = memo(() => {
               ? computeImpact(s, team, evaluationEvents)
               : null;
             const expanded = openSignupId === s.id;
+            const bucket = bucketBySignupId.get(s.id);
+            const bucketCfg = bucket ? BUCKET_BADGES[bucket] : null;
+            const presence = s.present; // true | false | undefined
             return (
               <div
                 key={s.id}
-                className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden"
+                className={`bg-white border rounded-xl shadow-sm overflow-hidden ${
+                  presence === false
+                    ? "border-rose-200 bg-rose-50/40"
+                    : "border-slate-200"
+                }`}
               >
-                <div className="p-3 flex items-center gap-3">
+                <div className="p-3 flex items-center gap-3 flex-wrap">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-black uppercase tracking-tight text-slate-900">
-                      {s.firstName} {s.lastName}
+                    <div className="text-sm font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 flex-wrap">
+                      <span className="truncate">
+                        {s.tryoutNumber && (
+                          <span className="text-slate-400 mr-1 tabular-nums">
+                            #{s.tryoutNumber}
+                          </span>
+                        )}
+                        {s.firstName} {s.lastName}
+                      </span>
+                      {bucketCfg && (
+                        <span
+                          className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border ${bucketCfg.className}`}
+                        >
+                          {bucketCfg.label}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-slate-500 font-medium">
                       {isHead && (
@@ -350,6 +623,57 @@ export const TryoutsTab = memo(() => {
                       {new Date(s.submittedAt).toLocaleDateString()}
                     </div>
                   </div>
+                  {isHead && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={s.tryoutNumber || ""}
+                        onChange={(e) =>
+                          updateTryoutSignup?.(s.id, {
+                            tryoutNumber: e.target.value.replace(/\D/g, "").slice(0, 3),
+                          })
+                        }
+                        placeholder="#"
+                        title="Tryout number"
+                        className="w-12 text-center text-xs font-black tabular-nums px-1 py-1 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTryoutSignup?.(s.id, {
+                            present: presence === true ? null : true,
+                          })
+                        }
+                        title="Mark present"
+                        aria-pressed={presence === true}
+                        className={`p-1.5 rounded-md border transition-colors ${
+                          presence === true
+                            ? "bg-emerald-100 border-emerald-300 text-emerald-800"
+                            : "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300"
+                        }`}
+                      >
+                        <Icons.Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTryoutSignup?.(s.id, {
+                            present: presence === false ? null : false,
+                          })
+                        }
+                        title="Mark no-show"
+                        aria-pressed={presence === false}
+                        className={`p-1.5 rounded-md border transition-colors ${
+                          presence === false
+                            ? "bg-rose-100 border-rose-300 text-rose-800"
+                            : "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300"
+                        }`}
+                      >
+                        <Icons.X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                   <StatusPill status={s.status} />
                   <button
                     type="button"
@@ -435,33 +759,21 @@ export const TryoutsTab = memo(() => {
                       </p>
                     )}
 
-                    {isHead && impact && (
-                      <div className="bg-white border border-amber-200 rounded-lg p-3 text-[11px]">
-                        <div className="font-black uppercase tracking-widest text-amber-900 text-[10px] mb-1.5">
-                          Impact Analysis
+                    {isHead && impact && impact.positionalFit.length > 0 && (
+                      <div className="bg-white border border-emerald-200 rounded-lg p-3 text-[11px]">
+                        <div className="font-black uppercase tracking-widest text-emerald-900 text-[10px] mb-1.5">
+                          Position Fit
                         </div>
-                        <div className="text-slate-800 font-bold">
-                          {impact.verdict}
+                        <div className="flex flex-wrap gap-1.5">
+                          {impact.positionalFit.map((f) => (
+                            <span
+                              key={f.pos}
+                              className="px-1.5 py-0.5 rounded border bg-emerald-50 border-emerald-200 text-emerald-800 font-black uppercase tracking-widest text-[9px]"
+                            >
+                              Fills {f.pos} ({f.returnerCount} returners)
+                            </span>
+                          ))}
                         </div>
-                        {impact.tryoutScore != null && (
-                          <div className="text-slate-500 mt-0.5">
-                            Tryout score: {impact.tryoutScore.toFixed(1)} ·
-                            Cutoff (roster cap {impact.rosterCap}):{" "}
-                            {impact.cutoff.toFixed(1)}
-                          </div>
-                        )}
-                        {impact.positionalFit.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {impact.positionalFit.map((f) => (
-                              <span
-                                key={f.pos}
-                                className="px-1.5 py-0.5 rounded border bg-emerald-50 border-emerald-200 text-emerald-800 font-black uppercase tracking-widest text-[9px]"
-                              >
-                                Fills {f.pos} ({f.returnerCount} returners)
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
 
@@ -513,6 +825,62 @@ export const TryoutsTab = memo(() => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {endTryoutOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setEndTryoutOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-1.5 bg-rose-500" />
+            <div className="p-5 sm:p-6">
+              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                End tryout — clear no-shows?
+              </h3>
+              <p className="text-sm text-slate-600 font-medium mb-4">
+                {noShowCount} signup{noShowCount === 1 ? "" : "s"} marked
+                no-show will be permanently deleted. Their grades, if
+                any, are kept for historical reference but the signup
+                itself is removed. Anyone unmarked or marked present
+                stays.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEndTryoutOpen(false)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const noShows = (tryoutSignups || []).filter(
+                      (s) => s.present === false
+                    );
+                    for (const s of noShows) {
+                      deleteTryoutSignup?.(s.id);
+                    }
+                    setEndTryoutOpen(false);
+                    toast.push({
+                      kind: "success",
+                      title: `${noShows.length} no-show${
+                        noShows.length === 1 ? "" : "s"
+                      } removed`,
+                    });
+                  }}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md transition-colors"
+                >
+                  Delete No-Shows
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
