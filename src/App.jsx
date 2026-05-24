@@ -116,6 +116,9 @@ const AssistantEvalTab = lazy(() =>
 const TryoutsTab = lazy(() =>
   import("./screens/TryoutsTab.jsx").then((m) => ({ default: m.TryoutsTab }))
 );
+const InterestTab = lazy(() =>
+  import("./screens/InterestTab.jsx").then((m) => ({ default: m.InterestTab }))
+);
 const TryoutsPortal = lazy(() =>
   import("./screens/TryoutsPortal.jsx").then((m) => ({
     default: m.TryoutsPortal,
@@ -2239,11 +2242,60 @@ const TeamProvider = ({ children }) => {
   const deleteTryoutSignup = useCallback(
     (id) => {
       if (!id) return;
-      if (!window.confirm("Delete this tryout signup?")) return;
+      // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
       const next = (teamData.tryoutSignups || []).filter((s) => s.id !== id);
       updateTeam({ tryoutSignups: next });
     },
     [teamData.tryoutSignups, updateTeam]
+  );
+
+  // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
+  // in the InterestTab UI so there's no native confirm prompt here.
+  const deleteInterestSignup = useCallback(
+    (id) => {
+      if (!id) return;
+      const next = (teamData.interestSignups || []).filter((s) => s.id !== id);
+      updateTeam({ interestSignups: next });
+    },
+    [teamData.interestSignups, updateTeam]
+  );
+
+  // Promote an interest-survey lead into a real tryout signup. Useful
+  // when tryouts open and the HC wants to seed the signup list from
+  // standing interest. Copies fields, marks status:"tryout", removes
+  // the source lead from interestSignups in the same write.
+  const convertInterestToTryout = useCallback(
+    (id) => {
+      if (!id) return;
+      const lead = (teamData.interestSignups || []).find((s) => s.id === id);
+      if (!lead) return;
+      const signup = {
+        id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+        submittedAt: new Date().toISOString(),
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        dob: lead.dob || "",
+        parentName: lead.parentName || "",
+        email: lead.email || "",
+        phone: lead.phone || "",
+        currentTeam: lead.currentTeam || "",
+        comfortablePositions: lead.comfortablePositions || [],
+        notes: lead.notes || "",
+        status: "tryout",
+      };
+      updateTeam({
+        tryoutSignups: [...(teamData.tryoutSignups || []), signup],
+        interestSignups: (teamData.interestSignups || []).filter(
+          (s) => s.id !== id
+        ),
+      });
+      toast.push({
+        kind: "success",
+        title: "Moved to tryouts",
+        message: `${lead.firstName} ${lead.lastName}`.trim(),
+      });
+    },
+    [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast]
   );
 
   // Tryout grades live in team.evaluationEvents alongside roster
@@ -2792,6 +2844,8 @@ const TeamProvider = ({ children }) => {
       appendTryoutSignup,
       updateTryoutSignup,
       deleteTryoutSignup,
+      deleteInterestSignup,
+      convertInterestToTryout,
       acceptTryout,
       saveTryoutEvaluation,
       saveLineupTemplate,
@@ -2865,6 +2919,8 @@ const TeamProvider = ({ children }) => {
       appendTryoutSignup,
       updateTryoutSignup,
       deleteTryoutSignup,
+      deleteInterestSignup,
+      convertInterestToTryout,
       acceptTryout,
       saveTryoutEvaluation,
       saveLineupTemplate,
@@ -3625,6 +3681,14 @@ const MainShell = () => {
     icon: Icons.Users,
     label: "Tryouts",
   };
+  // Head-only "Interest" tab. Only surfaces in the nav when the team
+  // has at least one interest signup (otherwise it's just a dead
+  // pixel for coaches who don't use the feature). The route stays
+  // accessible regardless so heads can find it via direct URL.
+  const interestButton =
+    !isAssistant && (team?.interestSignups?.length ?? 0) > 0
+      ? { id: "interest", icon: Icons.Clipboard, label: "Interest" }
+      : null;
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
@@ -3638,6 +3702,7 @@ const MainShell = () => {
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
+        ...(interestButton ? [interestButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         { id: "settings", icon: Icons.Settings, label: "Settings" },
       ];
@@ -3671,6 +3736,12 @@ const MainShell = () => {
             path="/tryouts"
             element={
               tryoutsVisible ? <TryoutsTab /> : <Navigate to="/" replace />
+            }
+          />
+          <Route
+            path="/interest"
+            element={
+              isAssistant ? <Navigate to="/" replace /> : <InterestTab />
             }
           />
           <Route

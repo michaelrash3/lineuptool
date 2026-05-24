@@ -110,6 +110,29 @@ export interface TryoutSignup {
   phone?: string;
   notes?: string;
   status?: "tryout" | "offered" | "accepted" | "declined";
+  // Attendance + check-in fields (set by the HC at tryouts).
+  // present === true → showed up; false → no-show (eligible for bulk
+  // delete via the End Tryout flow). Missing → not yet marked.
+  present?: boolean;
+  tryoutNumber?: string;
+}
+
+// Year-round "I might want to try out" interest. Separate collection
+// from TryoutSignup so a coach can collect interest leads without
+// tryouts being open. The HC can later convert one of these into a
+// real TryoutSignup when tryouts open.
+export interface InterestSignup {
+  id: string;
+  submittedAt: string;
+  firstName: string;
+  lastName: string;
+  dob?: string;
+  parentName?: string;
+  email: string;
+  phone: string;
+  currentTeam?: string;
+  comfortablePositions?: string[];
+  notes?: string;
 }
 
 export interface Team {
@@ -125,6 +148,10 @@ export interface Team {
   tryoutsPhase?: "open" | "intake_closed" | "completed";
   rosterCap?: number;
   tryoutSignups?: TryoutSignup[];
+  // Year-round interest survey leads (PR 2). Lives outside tryoutsOpen
+  // gate — the public form is always available at the standing share
+  // URL so flyers stay useful between tryout cycles.
+  interestSignups?: InterestSignup[];
   // Persistent team join code. 6-char uppercase alphanumeric. Anyone
   // who has the code can join the team as an assistant coach. The HC
   // can regenerate it (rotating all existing codes) from Settings.

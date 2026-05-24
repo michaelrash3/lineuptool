@@ -108,15 +108,28 @@ service cloud.firestore {
                     && request.auth.uid in nextMembers();
 
       // Public tryouts path (anonymous auth included):
-      // - read themed team info while open
-      // - append to tryoutSignups only
-      allow read: if isSignedIn() && resource.data.tryoutsOpen == true;
+      // - read themed team info while tryouts are open, OR whenever a
+      //   tryoutShareId is set on the team (the standing share URL
+      //   now resolves to the year-round Player Interest Survey, so
+      //   parents need read access outside the tryouts-open window).
+      // - append to tryoutSignups only while tryouts are open.
+      // - append to interestSignups any time (interest is collected
+      //   year-round; there's no "interest-open" flag).
+      allow read: if isSignedIn()
+                  && (resource.data.tryoutsOpen == true
+                      || resource.data.tryoutShareId != null);
 
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['tryoutSignups']);
+
+      allow update: if isSignedIn()
+                    && resource.data.tryoutShareId != null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['interestSignups']);
     }
   }
 }
