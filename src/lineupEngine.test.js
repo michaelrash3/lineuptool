@@ -239,9 +239,12 @@ describe("primary-position pre-pin", () => {
     }
   });
 
-  test("Fair mode inning 0: primary kid starts at primary position", () => {
-    // Fair mode pre-pins only inning 0. Use a 10-active / 10-fielder
-    // roster so no one is benched and ace is guaranteed on the field.
+  test("Fair mode does not pin primary position — kid rotates through other allowed spots", () => {
+    // Fair mode no longer privileges primaryPosition (coach-requested change).
+    // A kid with primaryPosition='3B' should NOT play 3B in every inning —
+    // they should land elsewhere at least once across a 6-inning game,
+    // driven by rotation pressure + jitter, since no comfortablePositions
+    // whitelist restricts them.
     const players = [
       makePlayer("ace", "3B Ace", { primaryPosition: "3B", restrictions: ["C"] }),
       ...makeRoster(9),
@@ -253,7 +256,24 @@ describe("primary-position pre-pin", () => {
       seed: 99,
     });
     expect(result.error).toBeUndefined();
-    expect(result.lineup[0]["3B"]?.id).toBe("ace");
+    // Count innings where 'ace' played 3B vs. somewhere else on the field.
+    let inningsAt3B = 0;
+    let inningsAwayFrom3B = 0;
+    for (const inn of result.lineup) {
+      if (inn["3B"]?.id === "ace") inningsAt3B++;
+      else {
+        for (const pos of Object.keys(inn)) {
+          if (pos === "BENCH") continue;
+          if (inn[pos]?.id === "ace") {
+            inningsAwayFrom3B++;
+            break;
+          }
+        }
+      }
+    }
+    // Fair mode should produce real rotation — the ace plays somewhere
+    // other than 3B at least once across the game.
+    expect(inningsAwayFrom3B).toBeGreaterThan(0);
   });
 
   test("two kids with same primaryPosition: better defender wins it", () => {
