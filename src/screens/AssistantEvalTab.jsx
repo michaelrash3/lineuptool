@@ -210,8 +210,7 @@ export const AssistantEvalTab = memo(() => {
             <Icons.Clipboard className="w-6 h-6" /> Evaluation
           </h2>
           <p className="text-xs text-slate-600 font-medium mt-1.5">
-            Your grades go to the head coach for review. You won&apos;t see
-            other coaches&apos; grades.
+            Your grades go to the head coach for review.
           </p>
         </div>
       </div>

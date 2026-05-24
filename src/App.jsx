@@ -2265,7 +2265,7 @@ const TeamProvider = ({ children }) => {
         evaluatorId: user.uid,
         label: `Tryout · ${signupId}`,
         tryoutSignupId: signupId,
-        grades: { __signup__: { ...grades } },
+        grades: { signup: { ...grades } },
       };
       const next = existing
         ? teamData.evaluationEvents.map((e) =>
@@ -2385,6 +2385,23 @@ const TeamProvider = ({ children }) => {
       if (others.length === 0) return "head";
     }
     return "assistant";
+  }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
+
+  // True only when teamData carries enough signal for realRole to be
+  // trustworthy. During the window between login and the first team
+  // snapshot, teamData is the empty DEFAULT_TEAM_DATA and realRole
+  // falls through to "head" via the legacy sole-member claim path —
+  // that's the source of the "assistant briefly sees Head Coach
+  // Dashboard then transfers" report. Gating role-sensitive routes
+  // on this flag keeps the eval route in a loader until role lands.
+  const roleResolved = useMemo(() => {
+    if (!user) return false;
+    return Boolean(
+      teamData.ownerId ||
+        (teamData.coachRoles &&
+          Object.keys(teamData.coachRoles).length > 0) ||
+        (Array.isArray(teamData.members) && teamData.members.length > 0)
+    );
   }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
 
   // Visible role for the rest of the app. Only the head coach can flip
@@ -2723,6 +2740,7 @@ const TeamProvider = ({ children }) => {
       setGenError,
       record,
       currentRole,
+      roleResolved,
       realRole,
       viewAsRole,
       setViewAsRole,
@@ -2797,6 +2815,7 @@ const TeamProvider = ({ children }) => {
       genError,
       record,
       currentRole,
+      roleResolved,
       realRole,
       viewAsRole,
       setViewAsRole,
@@ -3312,6 +3331,7 @@ const MainShell = () => {
     regenerateBatting,
     regenerateDefense,
     currentRole,
+    roleResolved,
     needsWelcomeChooser,
     createTeam,
     joinTeamByCode,
@@ -3454,6 +3474,24 @@ const MainShell = () => {
 
 
   if (!authReady || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-slate-500 font-black uppercase tracking-widest text-sm flex items-center gap-3">
+          <Icons.Refresh className="w-5 h-5 animate-spin" /> Loading…
+        </div>
+      </div>
+    );
+  }
+
+  // After the auth + teams + active-team-doc gates clear, there's still
+  // a brief window where teamData has just become non-default but the
+  // role-resolution memo hasn't seen ownerId/coachRoles yet. During that
+  // window realRole falls through to the "head" branch via the legacy
+  // sole-member claim path — that's why assistant coaches reported
+  // seeing the Head Coach Dashboard flash on first sign-in across the
+  // whole app (not just /evaluation). Hold the shell behind the same
+  // loader until role is trustworthy.
+  if (user && teams.length > 0 && !roleResolved) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="text-slate-500 font-black uppercase tracking-widest text-sm flex items-center gap-3">
@@ -3621,7 +3659,13 @@ const MainShell = () => {
           <Route path="/schedule/*" element={<ScheduleTab />} />
           <Route
             path="/evaluation"
-            element={isAssistant ? <AssistantEvalTab /> : <EvaluationTab />}
+            element={
+              !roleResolved
+                ? <ScreenLoader />
+                : isAssistant
+                ? <AssistantEvalTab />
+                : <EvaluationTab />
+            }
           />
           <Route
             path="/tryouts"

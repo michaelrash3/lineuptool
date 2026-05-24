@@ -66,7 +66,7 @@ const computeImpact = (signup, team, evaluationEvents) => {
   const tryoutEvent = (evaluationEvents || []).find(
     (e) => e.tryoutSignupId === signup.id
   );
-  const tryoutGrade = tryoutEvent?.grades?.["__signup__"];
+  const tryoutGrade = tryoutEvent?.grades?.signup ?? tryoutEvent?.grades?.["__signup__"];
   const tryoutScore = tryoutGrade
     ? Object.values(tryoutGrade).reduce(
         (sum, v) => sum + (typeof v === "number" ? v : 0),
@@ -176,7 +176,7 @@ export const TryoutsTab = memo(() => {
         e.tryoutSignupId === openSignupId &&
         e.evaluatorId === user.uid
     );
-    const seed = ev?.grades?.["__signup__"] || {};
+    const seed = ev?.grades?.signup ?? ev?.grades?.["__signup__"] ?? {};
     const next = {};
     for (const c of activeCategories) next[c.id] = seed[c.id] ?? EVAL_SCALE_DEFAULT;
     if (seed.notes) next.notes = seed.notes;
@@ -342,7 +342,11 @@ export const TryoutsTab = memo(() => {
                       {s.firstName} {s.lastName}
                     </div>
                     <div className="text-[11px] text-slate-500 font-medium">
-                      {s.email || "no email"} ·{" "}
+                      {isHead && (
+                        <>
+                          {s.email || "no email"} ·{" "}
+                        </>
+                      )}
                       {new Date(s.submittedAt).toLocaleDateString()}
                     </div>
                   </div>
@@ -408,18 +412,22 @@ export const TryoutsTab = memo(() => {
                           {s.bats || "R"}/{s.throws || "R"}
                         </div>
                       </div>
-                      <div>
-                        <div className="t-eyebrow">Parent</div>
-                        <div className="font-bold text-slate-800 truncate">
-                          {s.parentName || "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="t-eyebrow">Phone</div>
-                        <div className="font-bold text-slate-800">
-                          {s.phone || "—"}
-                        </div>
-                      </div>
+                      {isHead && (
+                        <>
+                          <div>
+                            <div className="t-eyebrow">Parent</div>
+                            <div className="font-bold text-slate-800 truncate">
+                              {s.parentName || "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="t-eyebrow">Phone</div>
+                            <div className="font-bold text-slate-800">
+                              {s.phone || "—"}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                     {s.notes && (
                       <p className="text-[11px] text-slate-700 italic bg-white border border-slate-200 rounded-lg p-2">

@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { Icons } from "../icons";
+import { QRCodeImg } from "../components/QRCodeImg.jsx";
 import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
@@ -259,18 +260,26 @@ const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
       {url ? (
         <>
           <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">{url}</code>
-          <button
-            type="button"
-            onClick={() => {
-              if (navigator.clipboard) {
-                navigator.clipboard.writeText(url);
-                toast.push({ kind: "success", title: "Date link copied" });
-              }
-            }}
-            className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
-          >
-            Copy Date Link
-          </button>
+          <div className="flex items-start gap-3 flex-wrap">
+            <QRCodeImg value={url} size={120} />
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(url);
+                    toast.push({ kind: "success", title: "Date link copied" });
+                  }
+                }}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+              >
+                Copy Date Link
+              </button>
+              <p className="text-[10px] font-medium text-slate-500 leading-snug">
+                Scan to open the signup page on a phone — useful at the field.
+              </p>
+            </div>
+          </div>
         </>
       ) : null}
     </div>
@@ -347,6 +356,13 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
             >
               Regenerate
             </button>
+          </div>
+          <div className="flex items-start gap-3 flex-wrap pt-1">
+            <QRCodeImg value={url} size={120} />
+            <p className="text-[10px] font-medium text-slate-500 leading-snug flex-1 min-w-0">
+              Have an assistant coach scan this with their phone — they'll
+              land in-app on Join Team with the code pre-filled.
+            </p>
           </div>
         </div>
       ) : (
