@@ -1137,9 +1137,19 @@ export const PlayerProfileModal = memo(() => {
         gamesAvailable,
       };
 
+    // A game counts as "finalized" for stat aggregation if either:
+    //   1. status is "final" (the writer in App.jsx finalizeGame uses this)
+    //   2. status is "completed" (legacy writer some older paths may have used)
+    //   3. both teamScore and opponentScore are set (defensive — a coach
+    //      who edited the score directly may not have flipped status)
+    // The fielding-innings aggregation was previously gated on (1) only,
+    // missing finalized games that had been entered via the older paths.
+    const isFinal = (g) =>
+      g.status === "final" ||
+      g.status === "completed" ||
+      (Number.isFinite(g.teamScore) && Number.isFinite(g.opponentScore));
     for (const g of games || []) {
-      // Only finalized games count
-      if ((g.status || "scheduled") !== "final") continue;
+      if (!isFinal(g)) continue;
       if (!g.lineup?.length) continue;
 
       // Did this player attend the game?
