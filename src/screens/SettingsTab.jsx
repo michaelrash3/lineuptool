@@ -1405,13 +1405,14 @@ export const SettingsTab = memo(() => {
       <AdvanceSeasonModal
         open={advanceSeasonOpen}
         players={team.players || []}
+        tryoutSignups={team.tryoutSignups || []}
         currentSeason={team.currentSeason}
         nextSeasonLabel={nextSeasonLabel}
         setPlayerStatus={setPlayerStatus}
         onClose={() => setAdvanceSeasonOpen(false)}
-        onConfirm={() => {
+        onConfirm={({ tryoutsToPromote = [] } = {}) => {
           setAdvanceSeasonOpen(false);
-          advanceSeason({ skipConfirm: true });
+          advanceSeason({ skipConfirm: true, tryoutsToPromote });
         }}
       />
     </div>
