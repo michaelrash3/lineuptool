@@ -2070,7 +2070,7 @@ function tryBuildLineup(ctx: any): any {
     // PRIMARY POSITION PRE PIN: kids you marked with a primaryPosition get
     // their slot before any other assignment runs. Without this, the random
     // position shuffle could fill RF first and pick a strong 3B primary kid
-    // for RF before 3B is ever scored  the minus 10000 nudge inside
+    // for RF before 3B is ever scored — the minus 10000 nudge inside
     // pickBestForPosition only fires when THAT exact position is being
     // scored, so processing order matters.
     //
@@ -2078,13 +2078,17 @@ function tryBuildLineup(ctx: any): any {
     // primary all game" behavior in pickBestForPosition). MUST run before
     // lock inning carry over so a kid bumped off their primary last inning
     // gets it back, instead of being locked into the wrong spot.
-    // Fair mode: pre pin only inning 0 (matches the existing minus 100 vs minus 2
-    // nudge  primary kid starts at primary but rotates after); for inn>0
-    // in Fair mode this block is a no op and lock inning runs alone.
+    //
+    // Fair mode: pre pin disabled entirely. The coach's explicit ask is
+    // that in fair mode, kids rotate through every comfortablePositions
+    // slot they're allowed to play — no privileged primary position. The
+    // -2 tiebreaker inside pickBestForPosition keeps a feather-light
+    // preference for ties, but rotation pressure / jitter / skill match
+    // dominate the cost function.
     //
     // Sort by defensive score so when two kids share a primaryPosition,
     // the better defender wins it; the runner up is unconstrained.
-    if (isBigGame || inn === 0) {
+    if (isBigGame) {
       const sortedByDef = [...profiled].sort(
         (a, b) => b.profile.defensiveScore - a.profile.defensiveScore
       );
@@ -2486,14 +2490,18 @@ function pickBestForPosition(opts: any): any {
 
     if (p.primaryPosition === pos) {
       // Big Game: primary kids stick to their position every inning they're
-      // on the field  same hard preference inning 1+ as inning 0, so a
+      // on the field — same hard preference inning 1+ as inning 0, so a
       // primary SS kid plays SS the whole game in Big Game mode (rotating
       // off only when benched).
-      // Fair mode: gentle preference, lots of room for rotation.
+      // Fair mode: a feather-light bonus in every inning (including inn 0).
+      // The primary position is no longer privileged in fair mode — the
+      // coach asked explicitly: in fair mode, kids should rotate through
+      // every comfortablePositions slot they're allowed to play. The −2
+      // is a tiebreaker between otherwise-equal candidates, not a pin.
       if (isBigGame) {
         score -= 10000;
       } else {
-        score -= inn === 0 ? 100 : 2;
+        score -= 2;
       }
     }
 
