@@ -45,8 +45,18 @@ const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
   {}
 );
 
-const draftKey = (teamId, userUid) =>
-  `lineuptool.evalDraft.${teamId || "unknown"}.${userUid || "anon"}`;
+// Display name for a round: prefer the coach's denormalized last name
+// (written at save time so reads work without an extra auth roundtrip);
+// fall back to the legacy free-text label, then to a date-only label
+// for ancient rounds with neither field set.
+const formatRoundName = (round) => {
+  if (!round) return "";
+  if (round.evaluatorName) {
+    return `${round.evaluatorName} · ${round.date}`;
+  }
+  if (round.label) return round.label;
+  return `Eval (${round.date})`;
+};
 
 const sanitizeGrades = (g) => {
   const out = { ...DEFAULT_GRADES };
@@ -800,7 +810,7 @@ const AssistantSubmissionsPanel = memo(
             >
               <div className="flex items-baseline justify-between gap-3 mb-2">
                 <div className="text-[11px] font-extrabold uppercase tracking-widest text-slate-600 truncate">
-                  Assistant · {ev.evaluatorId?.slice(0, 8) || "—"}
+                  Assistant · {ev.evaluatorName || ev.evaluatorId?.slice(0, 8) || "—"}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="text-[10px] font-bold text-slate-500">
@@ -943,14 +953,14 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
 ));
 
 export const EvaluationTab = memo(() => {
-  const { team, user, saveTeamEvaluation, deleteEvaluation } = useTeam();
+  const { team, user, saveTeamEvaluation, deleteEvaluation, currentRole } =
+    useTeam();
+  const isAssistant = currentRole === "assistant";
   const {
     teamEvalGrades,
     setTeamEvalGrades,
     selectedRoundId,
     setSelectedRoundId,
-    newRoundLabel,
-    setNewRoundLabel,
     evalTrendPlayerId,
     setEvalTrendPlayerId,
   } = useUI();
@@ -985,8 +995,13 @@ export const EvaluationTab = memo(() => {
   // Two-tap confirm for the head's own round delete — arms the trash
   // button on first tap, commits on second. Replaces window.confirm.
   const [pendingRoundDelete, setPendingRoundDelete] = useState(false);
+  // Manage Rounds modal: lists every saved round so the head can switch
+  // or delete any of them without first selecting from the dropdown.
+  // `pendingModalDeleteId` is the per-row armed-state id for the
+  // modal's two-tap confirm.
+  const [manageOpen, setManageOpen] = useState(false);
+  const [pendingModalDeleteId, setPendingModalDeleteId] = useState(null);
   const lastSavedRef = useRef("");
-  const draftRestoredRef = useRef(false);
 
   const activeCategories = useMemo(
     () => getEvalCategoriesForTeam(team?.pitchingFormat),
@@ -1040,65 +1055,38 @@ export const EvaluationTab = memo(() => {
     ? myRounds[0]
     : null;
 
-  const teamId = team?.id;
-  const userUid = user?.uid;
-
-  // Restore draft for new rounds on first mount/team change.
-  useEffect(() => {
-    if (!isNewRound || draftRestoredRef.current) return;
-    if (Object.keys(teamEvalGrades || {}).length > 0) {
-      draftRestoredRef.current = true;
-      return;
-    }
-    try {
-      const raw = window.localStorage.getItem(draftKey(teamId, userUid));
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          setTeamEvalGrades(parsed.grades || {});
-          if (parsed.label) setNewRoundLabel(parsed.label);
-          setSaveState("draft-restored");
-        }
-      }
-    } catch {
-      /* ignore corrupt draft */
-    }
-    draftRestoredRef.current = true;
-  }, [isNewRound, teamId, userUid, teamEvalGrades, setTeamEvalGrades, setNewRoundLabel]);
-
-  // Persist new-round drafts to localStorage on every change.
-  useEffect(() => {
-    if (!isNewRound) return;
-    try {
-      window.localStorage.setItem(
-        draftKey(teamId, userUid),
-        JSON.stringify({ grades: teamEvalGrades, label: newRoundLabel })
-      );
-      setSaveState((s) =>
-        s === "saved" || s === "saving" ? s : "draft"
-      );
-    } catch {
-      /* quota exceeded — silent */
-    }
-  }, [isNewRound, teamEvalGrades, newRoundLabel, teamId, userUid]);
-
   // Track unsaved changes against the last persisted snapshot so the
-  // header can show a "Unsaved changes" indicator. The auto-save effect
-  // that used to flush on a 1.5s debounce was removed — the HC owns
-  // when a round commits, and stray writes were getting blamed for
-  // rounds that the coach didn't intend to save.
+  // header can show a single, honest "Unsaved changes" indicator until
+  // the coach clicks Save. The localStorage draft + auto-restore that
+  // used to live here was removed — it made it look like grades were
+  // saving on their own, when in fact nothing committed until Save.
+  // For both new rounds and existing-round edits the rule is the same:
+  // typing flips state to "dirty"; Save flips it to "saved".
   useEffect(() => {
-    if (isNewRound) return;
     const snapshot = JSON.stringify(teamEvalGrades);
     if (snapshot === lastSavedRef.current) return;
     if (lastSavedRef.current === "") {
-      // First snapshot after switching to this round — initialize
-      // without flagging as dirty.
+      // First snapshot after mounting / switching rounds — initialize
+      // the baseline without flagging dirty.
       lastSavedRef.current = snapshot;
       return;
     }
     setSaveState("dirty");
-  }, [isNewRound, teamEvalGrades]);
+  }, [teamEvalGrades]);
+
+  // Warn the coach before they close / navigate away with unsaved
+  // grades. Modern browsers ignore the custom string but render their
+  // own "Leave site?" prompt as long as the handler calls
+  // preventDefault + sets returnValue.
+  useEffect(() => {
+    if (saveState !== "dirty") return;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [saveState]);
 
   // Reset save baseline when switching between rounds.
   useEffect(() => {
@@ -1108,26 +1096,12 @@ export const EvaluationTab = memo(() => {
 
   const handleSaveClick = useCallback(() => {
     const savedRoundId = saveTeamEvaluation();
-    if (isNewRound) {
-      setNewRoundLabel("");
-      if (savedRoundId) setSelectedRoundId(savedRoundId);
-      try {
-        window.localStorage.removeItem(draftKey(teamId, userUid));
-      } catch {
-        /* ignore */
-      }
+    if (isNewRound && savedRoundId) {
+      setSelectedRoundId(savedRoundId);
     }
     lastSavedRef.current = JSON.stringify(teamEvalGrades);
     setSaveState("saved");
-  }, [
-    saveTeamEvaluation,
-    isNewRound,
-    setNewRoundLabel,
-    setSelectedRoundId,
-    teamId,
-    userUid,
-    teamEvalGrades,
-  ]);
+  }, [saveTeamEvaluation, isNewRound, setSelectedRoundId, teamEvalGrades]);
 
   const setGrade = useCallback(
     (playerId, categoryId, value) => {
@@ -1247,16 +1221,10 @@ export const EvaluationTab = memo(() => {
                   Saved
                 </>
               )}
-              {isNewRound && saveState === "draft" && (
+              {isNewRound && saveState === "dirty" && (
                 <>
-                  <Icons.Cloud className="w-3 h-3 text-slate-400" />
-                  Draft saved locally
-                </>
-              )}
-              {isNewRound && saveState === "draft-restored" && (
-                <>
-                  <Icons.Refresh className="w-3 h-3 text-amber-500" />
-                  Draft restored
+                  <Icons.Alert className="w-3 h-3 text-amber-600" />
+                  Unsaved changes
                 </>
               )}
             </span>
@@ -1308,7 +1276,7 @@ export const EvaluationTab = memo(() => {
               )}
               {myRounds.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {r.label || `Eval (${r.date})`} — {r.date}
+                  {formatRoundName(r)}
                 </option>
               ))}
             </select>
@@ -1352,24 +1320,22 @@ export const EvaluationTab = memo(() => {
               )}
             </button>
           )}
-          {isNewRound && (
-            <label className="flex items-center gap-2 flex-1 min-w-0">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-600 shrink-0">
-                Label:
-              </span>
-              <input
-                type="text"
-                value={newRoundLabel}
-                onChange={(e) => setNewRoundLabel(e.target.value)}
-                placeholder="e.g., Preseason 2026, Midseason, Tryouts"
-                className="flex-1 min-w-0 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-[var(--team-primary)]"
-              />
-            </label>
-          )}
           {!isNewRound && activeRound && (
             <span className="text-[10px] font-bold text-slate-500 italic">
-              Editing &quot;{activeRound.label || activeRound.date}&quot;
+              Editing &quot;{formatRoundName(activeRound)}&quot;
             </span>
+          )}
+          {myRounds.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setManageOpen(true)}
+              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+              title="View, switch between, and delete saved rounds"
+              aria-label="Manage saved eval rounds"
+            >
+              <Icons.Clipboard className="w-3.5 h-3.5" />
+              Manage
+            </button>
           )}
           {myRounds.length >= 2 && (
             <button
@@ -1437,7 +1403,7 @@ export const EvaluationTab = memo(() => {
         {/* Per-player grading cards. One column on mobile, two on lg+
             screens. Replaces the legacy desktop table — same chip rows
             as the assistant flow so head + assistant inputs match. */}
-        <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-3 bg-white/20">
+        <div className="p-4 grid grid-cols-1 gap-3 bg-white/20">
           {players.length === 0 ? (
             <div className="text-center py-10 t-body">
               No players on the roster yet.
@@ -1560,8 +1526,9 @@ export const EvaluationTab = memo(() => {
       </div>
 
       {/* Roster Decisions panel — advisory recommendations based on
-          eval trends, current performance, and age eligibility */}
-      <RosterDecisionsPanel />
+          eval trends, current performance, and age eligibility.
+          Head-coach-only; assistants don't make roster decisions. */}
+      {!isAssistant && <RosterDecisionsPanel />}
 
       {/* Side-by-side round comparison modal */}
       {comparisonOpen && (
@@ -1587,6 +1554,138 @@ export const EvaluationTab = memo(() => {
           primaryColor={primaryColor}
           onClose={() => setEvalTrendPlayerId(null)}
         />
+      )}
+
+      {/* Manage Rounds modal — lists every saved round with per-row
+          delete (two-tap armed) and a Select link. Lets the head jump
+          to or remove any round without first selecting it from the
+          dropdown. */}
+      {manageOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm"
+          onClick={() => {
+            setManageOpen(false);
+            setPendingModalDeleteId(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
+            <div className="p-5 sm:p-6 border-b border-slate-200 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                  Your Saved Rounds
+                </h3>
+                <p className="text-[12px] text-slate-500 font-medium mt-1">
+                  Select a round to review or edit, or delete one saved
+                  by mistake.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setManageOpen(false);
+                  setPendingModalDeleteId(null);
+                }}
+                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+                aria-label="Close"
+              >
+                <Icons.X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1">
+              {myRounds.length === 0 ? (
+                <div className="text-sm font-bold text-slate-400 italic text-center py-8">
+                  No saved rounds yet.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {myRounds.map((r) => {
+                    const armed = pendingModalDeleteId === r.id;
+                    const isActive = r.id === selectedRoundId;
+                    return (
+                      <div
+                        key={r.id}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
+                          isActive
+                            ? "bg-slate-50 border-slate-300"
+                            : "bg-white border-slate-200"
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-black text-slate-900 truncate">
+                            {formatRoundName(r)}
+                          </div>
+                          {isActive && (
+                            <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500 mt-0.5">
+                              Currently editing
+                            </div>
+                          )}
+                        </div>
+                        {!isActive && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRoundId(r.id);
+                              setManageOpen(false);
+                              setPendingModalDeleteId(null);
+                            }}
+                            className="shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+                          >
+                            Select
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (armed) {
+                              deleteEvaluation?.(r.id);
+                              setPendingModalDeleteId(null);
+                              if (r.id === selectedRoundId) {
+                                setSelectedRoundId(null);
+                                lastSavedRef.current = "";
+                                setSaveState("idle");
+                              }
+                            } else {
+                              setPendingModalDeleteId(r.id);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (armed) setPendingModalDeleteId(null);
+                          }}
+                          className={`shrink-0 flex items-center gap-1 rounded-md transition-colors ${
+                            armed
+                              ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
+                              : "p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                          }`}
+                          title={
+                            armed
+                              ? "Tap again to delete this round"
+                              : "Delete this round"
+                          }
+                          aria-label={
+                            armed
+                              ? `Confirm delete ${formatRoundName(r)}`
+                              : `Delete ${formatRoundName(r)}`
+                          }
+                        >
+                          <Icons.Trash className="w-3.5 h-3.5" />
+                          {armed && (
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                              Confirm
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
