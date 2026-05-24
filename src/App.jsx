@@ -143,6 +143,23 @@ const ScreenLoader = () => (
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
 
+// Pull a display-able last name from a Firebase auth user. Eval rounds
+// are tagged with this at save time so the head's "Mike · 2026-05-23"
+// label survives across devices and stale auth profiles. Falls back to
+// the email local-part, then to "Coach", before ever leaving the field
+// blank.
+const lastNameOfUser = (u) => {
+  const dn = (u?.displayName || "").trim();
+  if (dn) {
+    const parts = dn.split(/\s+/).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  const email = (u?.email || "").trim();
+  const local = email.split("@")[0];
+  if (local) return local;
+  return "Coach";
+};
+
 const authDiag = (event, details = {}) => {
   if (typeof console === "undefined") return;
   console.info("[auth-diag]", event, {
@@ -2042,15 +2059,11 @@ const TeamProvider = ({ children }) => {
     const inputs = uiBridge.current.getInputs?.();
     const grades = inputs?.teamEvalGrades || {};
     const selectedRoundId = inputs?.selectedRoundId || null;
-    const newRoundLabel = (inputs?.newRoundLabel || "").trim();
     if (!user) return;
 
-    const myEvents = teamData.evaluationEvents.filter(
-      (e) => e.coachRole === "Head" && e.evaluatorId === user.uid
-    );
-
     if (selectedRoundId) {
-      // Editing an existing round — update its grades, keep its label/date/id
+      // Editing an existing round — update its grades, keep its
+      // label/date/id/evaluatorName intact.
       const next = teamData.evaluationEvents.map((e) =>
         e.id === selectedRoundId ? { ...e, grades } : e
       );
@@ -2059,16 +2072,16 @@ const TeamProvider = ({ children }) => {
       return selectedRoundId;
     }
 
-    // Creating a new round
+    // Creating a new round. Denormalize the coach's last name onto the
+    // event so reads across devices don't need an auth roundtrip.
     const today = getLocalDateString();
-    const roundNumber = myEvents.length + 1;
-    const label = newRoundLabel || `Eval ${roundNumber} (${today})`;
+    const evaluatorName = lastNameOfUser(user);
     const newEvent = {
       id: "ev-" + Math.random().toString(36).substring(2, 10),
       date: today,
       coachRole: "Head",
       evaluatorId: user.uid,
-      label,
+      evaluatorName,
       grades,
     };
     updateTeam({
@@ -2077,7 +2090,7 @@ const TeamProvider = ({ children }) => {
     toast.push({
       kind: "success",
       title: "Eval saved",
-      message: label,
+      message: `${evaluatorName} · ${today}`,
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
@@ -2107,7 +2120,7 @@ const TeamProvider = ({ children }) => {
           date: today,
           coachRole: "Assistant",
           evaluatorId: user.uid,
-          label: `Assistant Eval · ${today}`,
+          evaluatorName: lastNameOfUser(user),
           grades,
         };
         nextEvents = [...(teamData.evaluationEvents || []), newEvent];
@@ -2913,8 +2926,6 @@ const UIProvider = ({ children }) => {
   // Eval round selection: null = creating a new round, otherwise = id of an
   // existing eval event being viewed/edited.
   const [selectedRoundId, setSelectedRoundId] = useState(null);
-  // Label for a new round (only used when selectedRoundId === null).
-  const [newRoundLabel, setNewRoundLabel] = useState("");
   // Player whose eval trend modal is currently open (null = closed)
   const [evalTrendPlayerId, setEvalTrendPlayerId] = useState(null);
 
@@ -3143,7 +3154,6 @@ const UIProvider = ({ children }) => {
           lineupQualityPenalty,
           teamEvalGrades,
           selectedRoundId,
-          newRoundLabel,
         };
       },
       applyResult: ({
@@ -3236,8 +3246,6 @@ const UIProvider = ({ children }) => {
       setTeamEvalGrades,
       selectedRoundId,
       setSelectedRoundId,
-      newRoundLabel,
-      setNewRoundLabel,
       evalTrendPlayerId,
       setEvalTrendPlayerId,
     }),
@@ -3275,7 +3283,6 @@ const UIProvider = ({ children }) => {
       newCoachForm,
       teamEvalGrades,
       selectedRoundId,
-      newRoundLabel,
       evalTrendPlayerId,
     ]
   );
