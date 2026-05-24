@@ -1788,7 +1788,7 @@ const TeamProvider = ({ children }) => {
   );
 
   const advanceSeason = useCallback((opts = {}) => {
-    const { skipConfirm = false } = opts;
+    const { skipConfirm = false, tryoutsToPromote = [] } = opts;
     const computed = computeNextSeason(teamData.currentSeason);
     if (!computed) {
       toast.push({
@@ -1904,20 +1904,56 @@ const TeamProvider = ({ children }) => {
         };
       });
 
+    // Tryout signups selected for promotion become full Player rows on
+    // the new roster. Mirrors acceptTryout's mapping but bulk and at
+    // advance-time. Every tryout signup is cleared from the team
+    // afterward — they don't carry over to the new season regardless of
+    // whether they were promoted (interest signups are untouched).
+    const promotionSet = new Set(tryoutsToPromote);
+    const promotedPlayers = (teamData.tryoutSignups || [])
+      .filter((s) => promotionSet.has(s.id))
+      .map((s) => ({
+        id: "p-" + Math.random().toString(36).slice(2, 10),
+        name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
+        number: s.tryoutNumber || s.number || "",
+        dob: s.dob || "",
+        bats: s.bats || "R",
+        throws: s.throws || "R",
+        comfortablePositions: s.comfortablePositions || [],
+        isCatcher: s.isCatcher === true,
+        parentName: s.parentName || "",
+        email: s.email || "",
+        phone: s.phone || "",
+        present: true,
+        playerStatus: "returning",
+        pastSeasons: [],
+        stats: blankStats(),
+        pitching: { recentPitches: 0, lastPitchDate: null },
+        tryoutSignupId: s.id,
+      }));
+
     updateTeam({
       currentSeason: nextSeason,
       teamAge: newAgeGroup,
-      players: updatedPlayers,
+      players: [...updatedPlayers, ...promotedPlayers],
       games: [],
       evaluationEvents: [],
+      tryoutSignups: [],
+      tryoutsOpen: false,
       lastSeasonAdvanceAt: nowIso,
     });
     toast.push({
       kind: "success",
       title: `Advanced to ${nextSeason}`,
-      message: shouldBump
-        ? `Age group is now ${newAgeGroup}.`
-        : `Age group stays ${newAgeGroup}.`,
+      message:
+        (shouldBump
+          ? `Age group is now ${newAgeGroup}.`
+          : `Age group stays ${newAgeGroup}.`) +
+        (promotedPlayers.length > 0
+          ? ` ${promotedPlayers.length} tryout${
+              promotedPlayers.length === 1 ? "" : "s"
+            } promoted to roster.`
+          : ""),
     });
   }, [teamData, updateTeam, toast]);
 
