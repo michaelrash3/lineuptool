@@ -908,7 +908,7 @@ const AssistantSubmissionsPanel = memo(
 
 const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
   <div
-    className="flex items-center gap-1.5 flex-wrap"
+    className="flex items-center gap-1"
     role="radiogroup"
     aria-label={ariaLabel}
   >
@@ -924,14 +924,13 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
           onClick={() => onChange(n)}
           title={`${n} — ${label}`}
           aria-label={`${ariaLabel}: ${n} — ${label}`}
-          className="flex flex-col items-center justify-center min-w-[58px] h-12 px-2 rounded-lg border transition-all"
+          className="flex items-center justify-center w-8 h-8 rounded-md border text-xs font-black tabular-nums transition-all"
           style={
             isActive
               ? {
                   backgroundColor: "var(--team-primary)",
                   color: "var(--team-tertiary)",
                   borderColor: "var(--team-primary)",
-                  boxShadow: "var(--shadow-md)",
                 }
               : {
                   backgroundColor: "rgba(255,255,255,0.7)",
@@ -940,12 +939,7 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
                 }
           }
         >
-          <span className="text-sm font-black tabular-nums leading-none">
-            {n}
-          </span>
-          <span className="text-[9px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
-            {label}
-          </span>
+          {n}
         </button>
       );
     })}
@@ -1001,6 +995,20 @@ export const EvaluationTab = memo(() => {
   // modal's two-tap confirm.
   const [manageOpen, setManageOpen] = useState(false);
   const [pendingModalDeleteId, setPendingModalDeleteId] = useState(null);
+  // Player cards are collapsed by default — the eval grid was too tall
+  // to scan a 12-kid roster without scrolling for days. Each card now
+  // shows a single header row (name + jersey + total + chevron); tap
+  // to expand the grading UI. Multi-expand allowed so coaches can
+  // compare two kids side-by-side mid-grading.
+  const [expandedPlayerIds, setExpandedPlayerIds] = useState(() => new Set());
+  const togglePlayerExpanded = useCallback((playerId) => {
+    setExpandedPlayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) next.delete(playerId);
+      else next.add(playerId);
+      return next;
+    });
+  }, []);
   const lastSavedRef = useRef("");
 
   const activeCategories = useMemo(
@@ -1016,14 +1024,6 @@ export const EvaluationTab = memo(() => {
     if (includeKidPitchAddons) base.push(...EVAL_GROUPS_KID_PITCH_ADDONS);
     return base;
   }, [includeKidPitchAddons]);
-  const groupCategories = useMemo(() => {
-    const byGroup = {};
-    activeCategories.forEach((c) => {
-      if (!byGroup[c.group]) byGroup[c.group] = [];
-      byGroup[c.group].push(c);
-    });
-    return byGroup;
-  }, [activeCategories]);
   // If a group disappears (e.g. user changed pitchingFormat away from Kid Pitch
   // while viewing the Pitching tab), bounce back to Hitting.
   useEffect(() => {
@@ -1403,7 +1403,32 @@ export const EvaluationTab = memo(() => {
         {/* Per-player grading cards. One column on mobile, two on lg+
             screens. Replaces the legacy desktop table — same chip rows
             as the assistant flow so head + assistant inputs match. */}
-        <div className="p-4 grid grid-cols-1 gap-3 bg-white/20">
+        <div className="p-3 bg-white/20 space-y-2">
+          {players.length > 0 && (
+            <div className="flex items-center justify-between gap-2 px-1 pb-1">
+              <span className="t-eyebrow text-slate-500">
+                {expandedPlayerIds.size} of {players.length} open
+              </span>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedPlayerIds(new Set(players.map((p) => p.id)))
+                  }
+                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                >
+                  Expand All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpandedPlayerIds(new Set())}
+                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                >
+                  Collapse All
+                </button>
+              </div>
+            </div>
+          )}
           {players.length === 0 ? (
             <div className="text-center py-10 t-body">
               No players on the roster yet.
@@ -1415,22 +1440,41 @@ export const EvaluationTab = memo(() => {
                 ...(teamEvalGrades[player.id] || {}),
               };
               const totalScore = calculateTotalScore(grades, player.stats);
+              const expanded = expandedPlayerIds.has(player.id);
+              // Count how many categories the coach has graded (any non-default
+              // chip click) so the collapsed row can show progress at a glance.
+              const gradedCount = activeCategories.filter(
+                (c) => Number.isFinite(grades[c.id]) && grades[c.id] > 0
+              ).length;
               return (
                 <div
                   key={`mc-${player.id}`}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
                 >
-                  <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setEvalTrendPlayerId(player.id)}
-                      className="flex items-center gap-2 t-body-bold uppercase tracking-tight text-slate-900 hover:text-team-primary text-left"
-                    >
+                  <button
+                    type="button"
+                    onClick={() => togglePlayerExpanded(player.id)}
+                    aria-expanded={expanded}
+                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <Icons.ChevronRight
+                      className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+                        expanded ? "rotate-90" : ""
+                      }`}
+                    />
+                    {player.number && (
+                      <span className="text-[11px] font-bold text-slate-400 tabular-nums shrink-0 w-7 text-center">
+                        #{player.number}
+                      </span>
+                    )}
+                    <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-slate-900 truncate">
                       {player.name}
-                      <Icons.ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    </button>
+                    </span>
+                    <span className="text-[10px] font-bold text-slate-400 shrink-0 tabular-nums">
+                      {gradedCount}/{activeCategories.length}
+                    </span>
                     <span
-                      className="t-stat-num-sm px-3 py-1 rounded-lg shadow-sm"
+                      className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
                       style={{
                         backgroundColor: "var(--team-primary)",
                         color: "var(--team-tertiary)",
@@ -1438,85 +1482,80 @@ export const EvaluationTab = memo(() => {
                       title="Total Score (out of 100)"
                     >
                       {totalScore}
-                      <span className="opacity-70 text-[10px] font-bold">
-                        /100
-                      </span>
                     </span>
-                  </div>
-                  <div className="px-4 py-3 space-y-4">
-                    {visibleGroups.map((group) => {
-                      const cats = groupCategories[group] || [];
-                      if (cats.length === 0) return null;
-                      return (
-                        <div key={group}>
-                          <div className="t-h3 mb-2 pb-1 border-b border-slate-100">
-                            {group}
-                          </div>
-                          <div className="space-y-3">
-                            {cats.map((cat) => (
-                              <div key={cat.id}>
-                                <div className="t-eyebrow mb-1.5">{cat.label}</div>
-                                <GradeChipRow
-                                  value={grades[cat.id]}
-                                  onChange={(v) =>
-                                    setGrade(player.id, cat.id, v)
-                                  }
-                                  ariaLabel={`${player.name} ${cat.label}`}
-                                />
-                              </div>
-                            ))}
-                          </div>
+                  </button>
+                  {expanded && (
+                    <div className="px-3 pb-3 pt-1 border-t border-slate-100 space-y-2.5">
+                      {activeCategories.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-600 truncate">
+                            {cat.label}
+                          </span>
+                          <GradeChipRow
+                            value={grades[cat.id]}
+                            onChange={(v) =>
+                              setGrade(player.id, cat.id, v)
+                            }
+                            ariaLabel={`${player.name} ${cat.label}`}
+                          />
                         </div>
-                      );
-                    })}
-                    <div>
-                      <div className="t-eyebrow mb-1.5">
-                        Suggested Positions
+                      ))}
+                      <div className="pt-1.5 border-t border-slate-100">
+                        <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                          Suggested Positions
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {SUGGESTED_POSITIONS.map((pos) => {
+                            const active = (
+                              grades.suggestedPositions || []
+                            ).includes(pos);
+                            return (
+                              <button
+                                key={pos}
+                                type="button"
+                                onClick={() =>
+                                  toggleSuggestedPosition(player.id, pos)
+                                }
+                                className="px-1.5 py-0.5 text-[10px] font-black rounded border transition-all"
+                                style={
+                                  active
+                                    ? {
+                                        backgroundColor: "var(--team-primary)",
+                                        color: "var(--team-tertiary)",
+                                        borderColor: "var(--team-primary)",
+                                      }
+                                    : {
+                                        backgroundColor: "white",
+                                        color: "#475569",
+                                        borderColor: "#e2e8f0",
+                                      }
+                                }
+                              >
+                                {pos}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {SUGGESTED_POSITIONS.map((pos) => {
-                          const active = (
-                            grades.suggestedPositions || []
-                          ).includes(pos);
-                          return (
-                            <button
-                              key={pos}
-                              type="button"
-                              onClick={() =>
-                                toggleSuggestedPosition(player.id, pos)
-                              }
-                              className="px-2 py-1 text-[11px] font-black rounded-md border transition-all"
-                              style={
-                                active
-                                  ? {
-                                      backgroundColor: "var(--team-primary)",
-                                      color: "var(--team-tertiary)",
-                                      borderColor: "var(--team-primary)",
-                                    }
-                                  : {
-                                      backgroundColor: "white",
-                                      color: "#475569",
-                                      borderColor: "#e2e8f0",
-                                    }
-                              }
-                            >
-                              {pos}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="t-eyebrow mb-1.5">Notes</div>
                       <textarea
                         value={grades.notes || ""}
                         onChange={(e) => setNotes(player.id, e.target.value)}
-                        placeholder="What stood out this round?"
-                        rows={2}
-                        className="w-full text-sm font-medium border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg focus:ring-2 focus:ring-[var(--team-primary)]"
+                        placeholder="Notes"
+                        rows={1}
+                        className="w-full text-xs font-medium border border-slate-200 bg-white text-slate-700 px-2 py-1.5 outline-none rounded-md focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setEvalTrendPlayerId(player.id)}
+                        className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 underline"
+                      >
+                        View trend →
+                      </button>
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })
