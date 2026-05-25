@@ -236,6 +236,33 @@ export const isReturning = (
   return true;
 };
 
+// True when a SlimPlayer (or any { id, name } slot from game.lineup or a
+// bench list) refers to the given roster player. Primary check is on
+// id; fallback handles the orphan-id case where a roster player was
+// deleted and re-added with a fresh id — past finalized games' lineups
+// still carry the old id baked into the snapshot. We only fall through
+// to name match when the slot's id is NOT in the current roster
+// (`livePlayerIds`); two siblings who share a first+last name and are
+// both still on the roster stay correctly distinguished by their
+// live ids.
+export const lineupSlotMatchesPlayer = (
+  slot: { id?: string; name?: string } | null | undefined,
+  player: { id?: string; name?: string } | null | undefined,
+  livePlayerIds: Set<string>
+): boolean => {
+  if (!slot || !player) return false;
+  if (slot.id && player.id && slot.id === player.id) return true;
+  // Refuse the name-match fallback unless the slot's id is genuinely
+  // orphan (no longer on the roster). This prevents accidental
+  // collisions when two live players happen to share a name.
+  if (slot.id && livePlayerIds.has(slot.id)) return false;
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const slotName = norm(slot.name);
+  const playerName = norm(player.name);
+  if (!slotName || !playerName) return false;
+  return slotName === playerName;
+};
+
 export const calculateBaseballAge = (
   dob: string | null | undefined,
   currentSeasonStr: string | null | undefined

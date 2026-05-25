@@ -5,6 +5,7 @@ import {
   formatGameDateDisplay,
   calculateBaseballAge,
   blankStats,
+  lineupSlotMatchesPlayer,
 } from "../utils/helpers";
 import { AGE_TIERS } from "../constants/ui";
 import { getActivePositionList } from "../lineupEngine";
@@ -1137,6 +1138,16 @@ export const PlayerProfileModal = memo(() => {
         gamesAvailable,
       };
 
+    // Look up the player record on the current roster so we can use the
+    // orphan-id-aware matcher. If the modal is open for an id that no
+    // longer exists on the roster (rare), fall back to a minimal stub.
+    const currentPlayer = (players || []).find((p) => p.id === pid) || {
+      id: pid,
+    };
+    const livePlayerIds = new Set((players || []).map((p) => p.id));
+    const matches = (slot) =>
+      lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
+
     // A game counts as "finalized" for stat aggregation if either:
     //   1. status is "final" (the writer in App.jsx finalizeGame uses this)
     //   2. status is "completed" (legacy writer some older paths may have used)
@@ -1161,14 +1172,14 @@ export const PlayerProfileModal = memo(() => {
 
       // First-inning bench check
       const firstBench = g.lineup[0]?.BENCH || [];
-      if (firstBench.some((p) => p?.id === pid)) firstInningBench++;
+      if (firstBench.some(matches)) firstInningBench++;
 
       // Walk every inning
       for (const inning of g.lineup) {
         // Position appearances
         for (const pos in inning) {
           if (pos === "BENCH") continue;
-          if (inning[pos]?.id === pid) {
+          if (matches(inning[pos])) {
             byPosition[pos] = (byPosition[pos] || 0) + 1;
             totalDefensive++;
             appearedThisGame = true;
@@ -1176,7 +1187,7 @@ export const PlayerProfileModal = memo(() => {
         }
         // Bench appearances
         const benchList = inning.BENCH || [];
-        if (benchList.some((p) => p?.id === pid)) {
+        if (benchList.some(matches)) {
           bench++;
           appearedThisGame = true;
         }
@@ -1191,7 +1202,7 @@ export const PlayerProfileModal = memo(() => {
       gamesPlayed,
       gamesAvailable,
     };
-  }, [games, viewingPlayerId]);
+  }, [games, players, viewingPlayerId]);
 
   // Per-game timeline for this player. Final games only, sorted by date desc.
   // Each entry: { id, date, opponent, result, score, positions, batOrder, benchInnings, totalInnings }
@@ -1199,8 +1210,20 @@ export const PlayerProfileModal = memo(() => {
     const out = [];
     const pid = viewingPlayerId;
     if (!pid) return out;
+    const currentPlayer = (players || []).find((p) => p.id === pid) || {
+      id: pid,
+    };
+    const livePlayerIds = new Set((players || []).map((p) => p.id));
+    const matches = (slot) =>
+      lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
+    // Match the aggregation's relaxed finalized-game check so the
+    // timeline doesn't silently drop games the breakdown counted.
+    const isFinal = (g) =>
+      g.status === "final" ||
+      g.status === "completed" ||
+      (Number.isFinite(g.teamScore) && Number.isFinite(g.opponentScore));
     for (const g of games || []) {
-      if ((g.status || "scheduled") !== "final") continue;
+      if (!isFinal(g)) continue;
       if (!g.lineup?.length) continue;
       if (g.attendance?.[pid] === false) continue;
 
@@ -1211,7 +1234,7 @@ export const PlayerProfileModal = memo(() => {
         let inThisInning = false;
         for (const pos in inning) {
           if (pos === "BENCH") continue;
-          if (inning[pos]?.id === pid) {
+          if (matches(inning[pos])) {
             positionsPlayed[pos] = (positionsPlayed[pos] || 0) + 1;
             totalInnings++;
             inThisInning = true;
@@ -1219,7 +1242,7 @@ export const PlayerProfileModal = memo(() => {
         }
         if (!inThisInning) {
           const benchList = inning.BENCH || [];
-          if (benchList.some((bp) => bp?.id === pid)) {
+          if (benchList.some(matches)) {
             benchInnings++;
           }
         }
@@ -1227,9 +1250,7 @@ export const PlayerProfileModal = memo(() => {
       // Skip if player wasn't on the field or bench at all
       if (totalInnings === 0 && benchInnings === 0) continue;
 
-      const batOrderIdx = (g.battingLineup || []).findIndex(
-        (bp) => bp?.id === pid
-      );
+      const batOrderIdx = (g.battingLineup || []).findIndex(matches);
       const ts = Number(g.teamScore),
         os = Number(g.opponentScore);
       const hasScore = Number.isFinite(ts) && Number.isFinite(os);
@@ -1249,7 +1270,7 @@ export const PlayerProfileModal = memo(() => {
     }
     out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     return out;
-  }, [games, viewingPlayerId]);
+  }, [games, players, viewingPlayerId]);
 
   const player = players.find((p) => p.id === viewingPlayerId);
   if (!player) return null;
