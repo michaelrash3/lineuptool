@@ -47,10 +47,15 @@ export interface Player {
   // position list because C is special (equipment, continuity, smaller
   // group of trained kids).
   isCatcher?: boolean;
-  // Season-advancement workflow status. "returning" (or undefined) =
-  // keep on the roster across advanceSeason; "released" = drop on
-  // advance; "accepted" = came in from tryouts and joins next season;
-  // "tryout" / "offered" / "declined" = in-flight tryout states.
+  // Will this kid come back next season? Explicit boolean as of the
+  // returning-Y/N change. Default-undefined means "yes" — back-compat
+  // with rounds saved before this field existed. AdvanceSeasonModal
+  // explicitly sets false when the HC toggles a kid off.
+  returning?: boolean;
+  // Workflow status — slimmed to tryout-flow states only as of the
+  // returning-Y/N change. The legacy "returning" / "released" values
+  // still appear on existing player docs; isReturning() resolves them
+  // transparently via the helper in src/utils/helpers.ts.
   playerStatus?:
     | "returning"
     | "released"

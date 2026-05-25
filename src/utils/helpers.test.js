@@ -2,6 +2,9 @@ import {
   normalizeDateToIso,
   parseCsvRecords,
   parseGameChangerPastSeasonCsv,
+  evalDueDatesForYear,
+  evalPromptStatus,
+  isReturning,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -42,5 +45,129 @@ describe("date helpers", () => {
 
   it("rejects invalid calendar dates", () => {
     expect(normalizeDateToIso("2/30/26")).toBe("");
+  });
+});
+
+describe("evalDueDatesForYear", () => {
+  it("anchors Spring on Feb 1 and Mar 15", () => {
+    const dates = evalDueDatesForYear(2026);
+    expect(dates[0].getMonth()).toBe(1); // February
+    expect(dates[0].getDate()).toBe(1);
+    expect(dates[1].getMonth()).toBe(2); // March
+    expect(dates[1].getDate()).toBe(15);
+  });
+
+  it("walks biweekly Sundays from Mar 15 through Jun 30", () => {
+    const dates = evalDueDatesForYear(2026)
+      .filter((d) => d.getMonth() >= 2 && d.getMonth() <= 5)
+      .filter((d) => !(d.getMonth() === 2 && d.getDate() === 15));
+    for (const d of dates) {
+      expect(d.getDay()).toBe(0); // Sunday
+    }
+    expect(dates[0].getTime()).toBeGreaterThan(new Date(2026, 2, 15).getTime());
+    const last = dates[dates.length - 1];
+    expect(last.getTime()).toBeLessThanOrEqual(new Date(2026, 5, 30).getTime());
+  });
+
+  it("walks weekly Sundays Sep 1–Oct 31 for Fall", () => {
+    const fall = evalDueDatesForYear(2026).filter(
+      (d) => d.getMonth() >= 8 && d.getMonth() <= 9
+    );
+    for (const d of fall) {
+      expect(d.getDay()).toBe(0);
+    }
+    expect(fall.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("emits no dates in Jul/Aug/Nov–Jan", () => {
+    const dates = evalDueDatesForYear(2026);
+    const offSeasonMonths = new Set([0, 6, 7, 10, 11]);
+    for (const d of dates) {
+      expect(offSeasonMonths.has(d.getMonth())).toBe(false);
+    }
+  });
+});
+
+describe("evalPromptStatus calendar cadence", () => {
+  const team = { currentSeason: "Spring 2026", evaluationEvents: [] };
+  const uid = "coach1";
+
+  it("is active on Feb 1 (preseason) when no eval submitted", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 1, 1));
+    expect(status.active).toBe(true);
+    expect(status.kind).toBe("preseason");
+  });
+
+  it("is active on Mar 12 (within 3 days before Mar 15)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 2, 12));
+    expect(status.active).toBe(true);
+    expect(status.kind).toBe("biweekly");
+  });
+
+  it("is not active mid-July (off-season)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 6, 15));
+    expect(status.active).toBe(false);
+  });
+
+  it("is not active mid-August (still off-season)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 7, 15));
+    expect(status.active).toBe(false);
+    expect(status.nextDueDate).toMatch(/^2026-09-/);
+  });
+
+  it("is active on a Fall Sunday (Sep 13, 2026 is a Sunday)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 8, 13));
+    expect(status.active).toBe(true);
+    expect(status.kind).toBe("biweekly");
+  });
+
+  it("is not active on Nov 1 (after fall window)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 10, 1));
+    expect(status.active).toBe(false);
+  });
+
+  it("does not fire on a date the coach already submitted on or after", () => {
+    const submittedTeam = {
+      currentSeason: "Spring 2026",
+      evaluationEvents: [
+        {
+          coachRole: "Head",
+          evaluatorId: uid,
+          date: "2026-02-01",
+        },
+      ],
+    };
+    const status = evalPromptStatus(
+      submittedTeam,
+      uid,
+      "Head",
+      new Date(2026, 1, 2)
+    );
+    expect(status.active).toBe(false);
+  });
+});
+
+describe("isReturning legacy fallback", () => {
+  it("explicit returning:false → false", () => {
+    expect(isReturning({ returning: false })).toBe(false);
+  });
+  it("explicit returning:true → true", () => {
+    expect(isReturning({ returning: true })).toBe(true);
+  });
+  it("legacy playerStatus released → false", () => {
+    expect(isReturning({ playerStatus: "released" })).toBe(false);
+  });
+  it("legacy playerStatus declined → false", () => {
+    expect(isReturning({ playerStatus: "declined" })).toBe(false);
+  });
+  it("legacy playerStatus returning → true", () => {
+    expect(isReturning({ playerStatus: "returning" })).toBe(true);
+  });
+  it("no fields → defaults to true", () => {
+    expect(isReturning({})).toBe(true);
+  });
+  it("explicit returning beats legacy playerStatus", () => {
+    expect(isReturning({ returning: false, playerStatus: "returning" })).toBe(false);
+    expect(isReturning({ returning: true, playerStatus: "released" })).toBe(true);
   });
 });

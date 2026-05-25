@@ -543,10 +543,27 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
   }, [teamData.players, activeTeamId, toast, playersToCsv]);
 
   // Per-player status setter for the "Mark for Next Season" panel.
+  // Kept for back-compat with tryout-flow callers (acceptTryout etc.);
+  // the Returning Y/N toggle in AdvanceSeasonModal uses
+  // setPlayerReturning below instead so it writes the explicit boolean.
   const setPlayerStatus = useCallback(
     (playerId, status) => {
       const next = (teamData.players || []).map((p) =>
         p.id === playerId ? { ...p, playerStatus: status } : p
+      );
+      updateTeam({ players: next });
+    },
+    [teamData.players, updateTeam]
+  );
+
+  // Explicit Returning Y/N writer used by AdvanceSeasonModal. Writes
+  // the player.returning boolean directly — isReturning() handles
+  // legacy playerStatus reads at read-time so existing rosters work
+  // unchanged.
+  const setPlayerReturning = useCallback(
+    (playerId, value) => {
+      const next = (teamData.players || []).map((p) =>
+        p.id === playerId ? { ...p, returning: value === true } : p
       );
       updateTeam({ players: next });
     },
@@ -589,6 +606,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
     exportRosterCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
+    setPlayerReturning,
     importBackup,
   };
 };

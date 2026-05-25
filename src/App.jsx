@@ -66,6 +66,7 @@ import {
   scrubUndefined,
   blankStats,
   emailPromptStatus,
+  isReturning,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
@@ -1826,11 +1827,12 @@ const TeamProvider = ({ children }) => {
     const archivedFormat = teamData.pitchingFormat;
     const playerCount = teamData.players.length;
 
-    // Split current roster by playerStatus. Returning + undefined keep
-    // their slot; released + declined are archived (stats keep flowing
-    // into pastSeasons) but dropped from the next roster.
-    const isDropped = (p) =>
-      p.playerStatus === "released" || p.playerStatus === "declined";
+    // Split current roster by the returning Y/N answer (with legacy
+    // playerStatus fallback via isReturning). Returners keep their
+    // slot; non-returners (explicit returning:false OR legacy
+    // released/declined) are archived but dropped from the next
+    // roster.
+    const isDropped = (p) => !isReturning(p);
     const droppedCount = teamData.players.filter(isDropped).length;
     // Tryout accepts ride on the same `team.players` array with
     // playerStatus === "accepted" — they join the new roster directly.
@@ -2018,6 +2020,7 @@ const TeamProvider = ({ children }) => {
     exportRosterCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
+    setPlayerReturning,
     importBackup,
   } = useImportExportFlows({ teamData, updateTeam, activeTeamId, toast });
 
@@ -2866,6 +2869,7 @@ const TeamProvider = ({ children }) => {
       exportRosterCsv,
       exportNewPlayersCsv,
       setPlayerStatus,
+      setPlayerReturning,
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
@@ -2941,6 +2945,7 @@ const TeamProvider = ({ children }) => {
       exportRosterCsv,
       exportNewPlayersCsv,
       setPlayerStatus,
+      setPlayerReturning,
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
