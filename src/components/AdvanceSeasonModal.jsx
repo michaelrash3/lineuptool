@@ -21,8 +21,14 @@ const STATUS_ACCEPTED = "accepted";
 
 const isAccepted = (p) => p?.playerStatus === STATUS_ACCEPTED;
 
+// Resolve the player's Returning Y/N answer with the same fallback
+// logic as isReturning() in helpers — the explicit `returning` boolean
+// wins, then legacy playerStatus. Yields STATUS_RETURNING /
+// STATUS_RELEASED / STATUS_ACCEPTED for downstream bucket counting.
 const effectiveStatus = (p) => {
   if (isAccepted(p)) return STATUS_ACCEPTED;
+  if (p?.returning === false) return STATUS_RELEASED;
+  if (p?.returning === true) return STATUS_RETURNING;
   return p?.playerStatus === STATUS_RELEASED ? STATUS_RELEASED : STATUS_RETURNING;
 };
 
@@ -35,7 +41,8 @@ export const AdvanceSeasonModal = memo(
     nextSeasonLabel,
     onClose,
     onConfirm,
-    setPlayerStatus,
+    setPlayerStatus, // legacy; kept in the prop list for back-compat
+    setPlayerReturning,
   }) => {
     const [busy, setBusy] = useState(false);
     // Tryout signups the HC has decided to bring forward into the new
@@ -81,11 +88,25 @@ export const AdvanceSeasonModal = memo(
 
     if (!open) return null;
 
+    // Bulk-set the Returning Y/N answer. Writes the explicit boolean
+    // via setPlayerReturning when available; falls back to the legacy
+    // setPlayerStatus("returning"/"released") string-writer otherwise.
     const setAll = (status) => {
       for (const p of togglablePlayers) {
         if (effectiveStatus(p) !== status) {
-          setPlayerStatus?.(p.id, status);
+          if (setPlayerReturning) {
+            setPlayerReturning(p.id, status === STATUS_RETURNING);
+          } else {
+            setPlayerStatus?.(p.id, status);
+          }
         }
+      }
+    };
+    const setOne = (id, status) => {
+      if (setPlayerReturning) {
+        setPlayerReturning(id, status === STATUS_RETURNING);
+      } else {
+        setPlayerStatus?.(id, status);
       }
     };
 
@@ -163,27 +184,27 @@ export const AdvanceSeasonModal = memo(
           </div>
 
           <div className="px-6 sm:px-7 flex flex-wrap items-center gap-2 pb-3">
-            <span className="t-meta text-slate-400 mr-1">Bulk:</span>
+            <span className="t-meta text-slate-400 mr-1">Returning?</span>
             <button
               type="button"
               onClick={() => setAll(STATUS_RETURNING)}
               className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-emerald-300/80 bg-emerald-50/40 text-emerald-800 hover:bg-emerald-50"
             >
-              All Returning
+              All Yes
             </button>
             <button
               type="button"
               onClick={() => setAll(STATUS_RELEASED)}
               className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
             >
-              All Released
+              All No
             </button>
             <span
               className="ml-auto text-[10px] font-black uppercase tracking-widest text-slate-500 tabular-nums whitespace-nowrap"
               aria-live="polite"
             >
-              {partition.returning.length} returning · {partition.released.length}{" "}
-              released · {partition.accepted.length} tryout
+              {partition.returning.length} yes · {partition.released.length}{" "}
+              no · {partition.accepted.length} tryout
             </span>
           </div>
 
@@ -226,12 +247,17 @@ export const AdvanceSeasonModal = memo(
                           Tryout Accept
                         </span>
                       ) : (
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div
+                          className="flex items-center gap-1 shrink-0"
+                          role="group"
+                          aria-label={`${p.name} returning next season`}
+                        >
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mr-1">
+                            Returning?
+                          </span>
                           <button
                             type="button"
-                            onClick={() =>
-                              setPlayerStatus?.(p.id, STATUS_RETURNING)
-                            }
+                            onClick={() => setOne(p.id, STATUS_RETURNING)}
                             aria-pressed={returning}
                             className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border transition-colors ${
                               returning
@@ -239,13 +265,11 @@ export const AdvanceSeasonModal = memo(
                                 : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                             }`}
                           >
-                            Returning
+                            Yes
                           </button>
                           <button
                             type="button"
-                            onClick={() =>
-                              setPlayerStatus?.(p.id, STATUS_RELEASED)
-                            }
+                            onClick={() => setOne(p.id, STATUS_RELEASED)}
                             aria-pressed={released}
                             className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border transition-colors ${
                               released
@@ -253,7 +277,7 @@ export const AdvanceSeasonModal = memo(
                                 : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
                             }`}
                           >
-                            Released
+                            No
                           </button>
                         </div>
                       )}

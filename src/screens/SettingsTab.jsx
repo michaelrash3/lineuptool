@@ -580,6 +580,7 @@ export const SettingsTab = memo(() => {
     exportRosterCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
+    setPlayerReturning,
     generateTryoutShareId,
     generateTryoutDateLink,
     setTryoutsOpen,
@@ -1409,6 +1410,7 @@ export const SettingsTab = memo(() => {
         currentSeason={team.currentSeason}
         nextSeasonLabel={nextSeasonLabel}
         setPlayerStatus={setPlayerStatus}
+        setPlayerReturning={setPlayerReturning}
         onClose={() => setAdvanceSeasonOpen(false)}
         onConfirm={({ tryoutsToPromote = [] } = {}) => {
           setAdvanceSeasonOpen(false);

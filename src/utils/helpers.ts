@@ -214,6 +214,28 @@ export const buildSeasonBenchImbalance = (
   return out;
 };
 
+// Resolve "is this player coming back" across the legacy playerStatus
+// enum + the new returning boolean field. Order of precedence:
+//   1. p.returning === false  → No  (explicit opt-out)
+//   2. p.returning === true   → Yes (explicit opt-in)
+//   3. p.playerStatus === "released" | "declined" → No (legacy)
+//   4. anything else → Yes (back-compat default; matches the prior
+//      "no playerStatus means returning" behaviour)
+// Tryout-flow states ("tryout" / "offered" / "accepted") that aren't
+// yet on the active roster still answer Yes here; this helper answers
+// the season-advance question, not "is this kid currently rostered".
+export const isReturning = (
+  player: { returning?: boolean; playerStatus?: string } | null | undefined
+): boolean => {
+  if (!player) return false;
+  if (player.returning === false) return false;
+  if (player.returning === true) return true;
+  if (player.playerStatus === "released" || player.playerStatus === "declined") {
+    return false;
+  }
+  return true;
+};
+
 export const calculateBaseballAge = (
   dob: string | null | undefined,
   currentSeasonStr: string | null | undefined
@@ -550,8 +572,11 @@ export const blankStats = (): PlayerStats => ({
 // "Start New Round" affordance is hidden.
 // ============================================================================
 
-const BIWEEKLY_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
+// Active window around each due date — three days before through three
+// days after. Long enough that coaches catching up over a weekend still
+// see the prompt; tight enough that the badge doesn't get stale.
+const EVAL_WINDOW_DAYS = 3;
 
 // Parse a "Spring 2026" / "Fall 2026" label into a season start date that we
 // use as the cutoff for "this season's evals". Spring → March 1, Fall →
@@ -568,6 +593,44 @@ export const seasonStartDate = (currentSeasonStr: string | undefined): Date | nu
   return null;
 };
 
+// Build the full ordered list of eval due-dates for a given calendar
+// year. Spring: Feb 1 (preseason), Mar 15, then every other Sunday
+// through Jun 30. Fall: every Sunday from Sep 1 through Oct 31.
+// Pure; no dependency on current time. Exported for unit testing.
+export const evalDueDatesForYear = (year: number): Date[] => {
+  const dates: Date[] = [];
+  // Spring preseason + March 15
+  dates.push(new Date(year, 1, 1)); // Feb 1
+  dates.push(new Date(year, 2, 15)); // Mar 15
+  // Every other Sunday from the first Sunday after Mar 15 through Jun 30.
+  const springEnd = new Date(year, 5, 30);
+  const firstSundayAfter = (start: Date) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
+    return d;
+  };
+  let sunday = firstSundayAfter(new Date(year, 2, 15));
+  while (sunday.getTime() <= springEnd.getTime()) {
+    dates.push(new Date(sunday));
+    sunday = new Date(sunday);
+    sunday.setDate(sunday.getDate() + 14);
+  }
+  // Fall: every Sunday from Sep 1 through Oct 31.
+  const fallStart = new Date(year, 8, 1);
+  const fallEnd = new Date(year, 9, 31);
+  let fallSunday = new Date(fallStart);
+  // Walk forward to the first Sunday on or after Sep 1.
+  if (fallSunday.getDay() !== 0) {
+    fallSunday.setDate(fallSunday.getDate() + ((7 - fallSunday.getDay()) % 7));
+  }
+  while (fallSunday.getTime() <= fallEnd.getTime()) {
+    dates.push(new Date(fallSunday));
+    fallSunday = new Date(fallSunday);
+    fallSunday.setDate(fallSunday.getDate() + 7);
+  }
+  return dates.sort((a, b) => a.getTime() - b.getTime());
+};
+
 export type EvalPromptKind = "preseason" | "biweekly";
 
 export interface EvalPromptStatus {
@@ -580,7 +643,28 @@ export interface EvalPromptStatus {
   daysUntilDue: number | null;
 }
 
+const dateToIsoLocal = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+const sameLocalDay = (a: Date, b: Date): boolean => {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+};
+
 // Pure: decides whether the given coach owes an eval right now.
+// Schedule is fixed by calendar date (see evalDueDatesForYear): Spring
+// preseason (2/1) + 3/15 + biweekly Sundays through 6/30; Fall weekly
+// Sundays 9/1–10/31. Active when the coach hasn't submitted an eval
+// within EVAL_WINDOW_DAYS of the nearest due date. Replaces the prior
+// "14 days since last save" logic per coach request — the cadence now
+// lives on the calendar, not on the last save timestamp.
 export const evalPromptStatus = (
   team: { currentSeason?: string; evaluationEvents?: any[] } | null | undefined,
   userUid: string | null | undefined,
@@ -596,44 +680,86 @@ export const evalPromptStatus = (
       daysUntilDue: null,
     };
   }
-  const start = seasonStartDate(team.currentSeason);
-  const startMs = start ? start.getTime() : 0;
+  // Every eval this coach has ever filed, newest first. The cadence is
+  // purely calendar-driven now, so we don't restrict to "this season" —
+  // each due date is checked against the latest submission on its own,
+  // and old submissions (way before any current due date) naturally
+  // fall outside the alreadyHit window.
   const mine = (team.evaluationEvents || [])
     .filter(
       (e) =>
-        e.coachRole === coachRole &&
-        e.evaluatorId === userUid &&
-        (!start || new Date(e.date).getTime() >= startMs)
+        e.coachRole === coachRole && e.evaluatorId === userUid
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  if (mine.length === 0) {
+  const lastSubmittedDate = mine[0]?.date || null;
+
+  // Build candidate due dates spanning this calendar year + the next
+  // (handles end-of-year edge case where "next due" is in January).
+  const candidates = [
+    ...evalDueDatesForYear(now.getFullYear()),
+    ...evalDueDatesForYear(now.getFullYear() + 1),
+  ];
+
+  // Find the due date closest to (and not too far past) "now".
+  let activeDue: Date | null = null;
+  let upcomingDue: Date | null = null;
+  for (const due of candidates) {
+    const deltaDays = Math.floor(
+      (now.getTime() - due.getTime()) / MS_PER_DAY
+    );
+    // Window is [due - WINDOW, due + WINDOW]. If the coach already
+    // submitted on or after the due date, treat the window as closed.
+    const alreadyHit =
+      lastSubmittedDate &&
+      new Date(lastSubmittedDate).getTime() >= due.getTime() - MS_PER_DAY;
+    if (
+      !alreadyHit &&
+      deltaDays >= -EVAL_WINDOW_DAYS &&
+      deltaDays <= EVAL_WINDOW_DAYS
+    ) {
+      activeDue = due;
+      break;
+    }
+    if (!upcomingDue && due.getTime() > now.getTime()) {
+      upcomingDue = due;
+    }
+  }
+
+  if (activeDue) {
+    // Preseason vs biweekly: Feb 1 is the preseason kickoff; everything
+    // else carries the "biweekly" label so existing copy doesn't break.
+    const isPreseason =
+      activeDue.getMonth() === 1 && activeDue.getDate() === 1;
     return {
       active: true,
-      kind: "preseason",
-      lastSubmittedDate: null,
+      kind: isPreseason ? "preseason" : "biweekly",
+      lastSubmittedDate,
+      nextDueDate: dateToIsoLocal(activeDue),
+      daysUntilDue: 0,
+    };
+  }
+  if (!upcomingDue) {
+    return {
+      active: false,
+      kind: null,
+      lastSubmittedDate,
       nextDueDate: null,
       daysUntilDue: null,
     };
   }
-  const lastDate = mine[0].date;
-  const lastMs = new Date(lastDate).getTime();
-  const elapsedDays = Math.floor((now.getTime() - lastMs) / MS_PER_DAY);
-  if (elapsedDays >= BIWEEKLY_DAYS) {
-    return {
-      active: true,
-      kind: "biweekly",
-      lastSubmittedDate: lastDate,
-      nextDueDate: null,
-      daysUntilDue: null,
-    };
-  }
-  const nextDueMs = lastMs + BIWEEKLY_DAYS * MS_PER_DAY;
+  // sameLocalDay reads as "no rounding error needed" — Math.ceil handles
+  // sub-day timestamps the right way.
+  const daysUntilDue = sameLocalDay(now, upcomingDue)
+    ? 0
+    : Math.ceil(
+        (upcomingDue.getTime() - now.getTime()) / MS_PER_DAY
+      );
   return {
     active: false,
     kind: null,
-    lastSubmittedDate: lastDate,
-    nextDueDate: new Date(nextDueMs).toISOString().slice(0, 10),
-    daysUntilDue: BIWEEKLY_DAYS - elapsedDays,
+    lastSubmittedDate,
+    nextDueDate: dateToIsoLocal(upcomingDue),
+    daysUntilDue,
   };
 };
 
