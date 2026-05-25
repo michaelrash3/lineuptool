@@ -5,6 +5,7 @@ import {
   evalDueDatesForYear,
   evalPromptStatus,
   isReturning,
+  lineupSlotMatchesPlayer,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -169,5 +170,53 @@ describe("isReturning legacy fallback", () => {
   it("explicit returning beats legacy playerStatus", () => {
     expect(isReturning({ returning: false, playerStatus: "returning" })).toBe(false);
     expect(isReturning({ returning: true, playerStatus: "released" })).toBe(true);
+  });
+});
+
+describe("lineupSlotMatchesPlayer orphan-id fallback", () => {
+  it("matches by id when ids are equal", () => {
+    const slot = { id: "abc", name: "Mike Smith" };
+    const player = { id: "abc", name: "Mike Smith" };
+    expect(lineupSlotMatchesPlayer(slot, player, new Set(["abc"]))).toBe(true);
+  });
+
+  it("matches deleted-and-re-added player by name when slot's id is orphaned", () => {
+    // The slot was written when the player had id "old". The roster
+    // now has the same kid under id "new" (and "old" is no longer
+    // present). Name match should fire.
+    const slot = { id: "old", name: "Mike Smith" };
+    const player = { id: "new", name: "Mike Smith" };
+    expect(lineupSlotMatchesPlayer(slot, player, new Set(["new"]))).toBe(true);
+  });
+
+  it("does NOT name-match when the slot's id still lives on the roster", () => {
+    // Two siblings both named "Mike Smith" — slot.id ("old") is still
+    // on the roster (some other player), so the orphan path must NOT
+    // trigger and incorrectly credit innings to the wrong kid.
+    const slot = { id: "old", name: "Mike Smith" };
+    const player = { id: "new", name: "Mike Smith" };
+    expect(
+      lineupSlotMatchesPlayer(slot, player, new Set(["new", "old"]))
+    ).toBe(false);
+  });
+
+  it("returns false for null/empty slots", () => {
+    const player = { id: "p1", name: "Test" };
+    expect(lineupSlotMatchesPlayer(null, player, new Set(["p1"]))).toBe(false);
+    expect(lineupSlotMatchesPlayer(undefined, player, new Set(["p1"]))).toBe(
+      false
+    );
+  });
+
+  it("does not name-match when names are empty on either side", () => {
+    const slot = { id: "old", name: "" };
+    const player = { id: "new", name: "Mike" };
+    expect(lineupSlotMatchesPlayer(slot, player, new Set(["new"]))).toBe(false);
+  });
+
+  it("name match is case- and whitespace-insensitive", () => {
+    const slot = { id: "old", name: "  Mike Smith  " };
+    const player = { id: "new", name: "mike smith" };
+    expect(lineupSlotMatchesPlayer(slot, player, new Set(["new"]))).toBe(true);
   });
 });
