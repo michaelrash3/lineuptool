@@ -1,6 +1,10 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { formatGameDateDisplay, evalPromptStatus } from "../utils/helpers";
+import {
+  formatGameDateDisplay,
+  evalPromptStatus,
+  buildSeasonBenchImbalance,
+} from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
 import { LeaderboardCard, RecordBadge } from "../components/shared.jsx";
 import { checkPitchEligibility } from "../lineupEngine";
@@ -695,6 +699,127 @@ const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) =>
   </div>
 ));
 
+/* ===========================================================================
+   BenchEquityTile — season-wide reminder of who's been over- or under-played.
+   Uses the same buildSeasonBenchImbalance helper already powering the
+   ScheduleTab per-game imbalance card, but rolled up across every finalized
+   game. The engine already biases lineups for fairness via priorRatio; this
+   tile just makes the running deficit visible at a glance so the coach can
+   spot kids who keep falling behind and decide whether to nudge it (e.g.
+   move someone to a Big Game position for a game).
+=========================================================================== */
+const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
+  const rows = React.useMemo(() => {
+    const imbalance = buildSeasonBenchImbalance(games, "");
+    return (players || [])
+      .map((p) => {
+        const data =
+          imbalance.get(p.id) || {
+            totalDefense: 0,
+            expectedDefense: 0,
+            gamesAttended: 0,
+          };
+        return {
+          player: p,
+          delta: data.totalDefense - data.expectedDefense,
+          gamesAttended: data.gamesAttended,
+        };
+      })
+      .filter((r) => r.gamesAttended > 0);
+  }, [players, games]);
+
+  const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
+  if (rows.length === 0) {
+    return (
+      <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
+        <p className="t-body text-slate-400 italic text-xs">
+          No finalized games yet. Once you finalize a game, each kid's
+          season-wide bench vs play balance will surface here.
+        </p>
+      </InsightTile>
+    );
+  }
+  if (!anyImbalance) {
+    return (
+      <InsightTile icon={Icons.Users} title="Bench Equity" accent="success">
+        <p className="t-body text-emerald-700 text-xs font-bold">
+          Everyone's within 1 inning of their fair share across the season.
+          Keep it up.
+        </p>
+      </InsightTile>
+    );
+  }
+  // Two ends: the kid who's been benched the LEAST (positive delta = played
+  // more than fair share, red), and the kid who's been benched the MOST
+  // (negative delta = played less than fair share, green-to-amber). Pull
+  // the top-2 on each side so the tile stays compact.
+  const sortedByDelta = [...rows].sort((a, b) => b.delta - a.delta);
+  const overPlayed = sortedByDelta
+    .filter((r) => r.delta >= 1)
+    .slice(0, 2);
+  const underPlayed = sortedByDelta
+    .filter((r) => r.delta <= -1)
+    .slice(-2)
+    .reverse();
+  const renderRow = ({ player, delta }) => {
+    const rounded = Math.round(delta);
+    const isOver = rounded > 0;
+    return (
+      <button
+        key={player.id}
+        type="button"
+        onClick={() => onPlayerClick?.(player.id)}
+        className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-slate-50 transition-colors text-left"
+      >
+        <span className="text-xs font-black uppercase tracking-tight text-slate-800 truncate">
+          {player.name}
+        </span>
+        <span
+          className={`shrink-0 text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded-md border ${
+            isOver
+              ? "bg-rose-50 border-rose-200 text-rose-700"
+              : "bg-emerald-50 border-emerald-200 text-emerald-700"
+          }`}
+          title={
+            isOver
+              ? "Played more than fair share this season"
+              : "Played less than fair share this season"
+          }
+        >
+          {isOver ? "+" : ""}
+          {rounded} inn
+        </span>
+      </button>
+    );
+  };
+  return (
+    <InsightTile icon={Icons.Users} title="Bench Equity" accent="warn">
+      <div className="space-y-2">
+        {underPlayed.length > 0 && (
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-emerald-700 mb-0.5">
+              Owed innings
+            </div>
+            <div className="flex flex-col">{underPlayed.map(renderRow)}</div>
+          </div>
+        )}
+        {overPlayed.length > 0 && (
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-rose-700 mb-0.5">
+              Has played extra
+            </div>
+            <div className="flex flex-col">{overPlayed.map(renderRow)}</div>
+          </div>
+        )}
+        <p className="text-[10px] font-medium text-slate-500 italic leading-snug pt-0.5">
+          Engine biases new lineups to even this out, but lean on Big Game
+          bench picks if a gap keeps growing.
+        </p>
+      </div>
+    </InsightTile>
+  );
+});
+
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
   const {
@@ -868,6 +993,11 @@ export const HomeTab = memo(() => {
             onOpenEval={() => setActiveTab("evaluation")}
           />
           <TeamTrendTile games={games} />
+          <BenchEquityTile
+            players={players}
+            games={games}
+            onPlayerClick={openPlayerProfile}
+          />
         </div>
       )}
 
