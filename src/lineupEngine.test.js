@@ -15,6 +15,7 @@ const makePlayer = (id, name, opts = {}) => ({
   number: opts.number ?? "",
   primaryPosition: opts.primaryPosition ?? "",
   restrictions: opts.restrictions ?? [],
+  comfortablePositions: opts.comfortablePositions,
   // Engine reads these when present. Defaulted out so a vanilla makePlayer
   // call produces a player with no special handling.
   throws: opts.throws,
@@ -274,6 +275,100 @@ describe("primary-position pre-pin", () => {
     // Fair mode should produce real rotation — the ace plays somewhere
     // other than 3B at least once across the game.
     expect(inningsAwayFrom3B).toBeGreaterThan(0);
+  });
+
+  test("Fair mode: kid with comfortablePositions stays inside that set", () => {
+    // Mike's comfort list is just {1B, 2B, 3B}. In a 6-inning fair-mode
+    // game, every inning he's on the field MUST be 1B/2B/3B — the
+    // whitelist is enforced by isPositionBlocked. This guards the
+    // fair-mode comfortablePositions bonus doesn't accidentally allow
+    // out-of-list placements via some scoring path.
+    const players = [
+      makePlayer("mike", "Mike", {
+        primaryPosition: "3B",
+        comfortablePositions: ["1B", "2B", "3B"],
+      }),
+      ...makeRoster(9),
+    ];
+    const result = buildLineup({
+      players,
+      teamAge: "10U",
+      isBigGame: false,
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    const allowed = new Set(["1B", "2B", "3B"]);
+    for (const inn of result.lineup) {
+      for (const pos of Object.keys(inn)) {
+        if (pos === "BENCH") continue;
+        if (inn[pos]?.id === "mike") {
+          expect(allowed.has(pos)).toBe(true);
+        }
+      }
+    }
+  });
+
+  test("Fair mode: kid with comfortablePositions actually rotates within them", () => {
+    // Mike's comfort list = {1B, 2B, 3B}, primary = 3B. Over a 6-inning
+    // fair-mode game, he should appear at MORE than just 3B — the
+    // primary-position bias is gone in fair mode, and the equal
+    // comfortablePositions bonus should let rotation pressure / jitter
+    // spread him across his allowed set.
+    const players = [
+      makePlayer("mike", "Mike", {
+        primaryPosition: "3B",
+        comfortablePositions: ["1B", "2B", "3B"],
+      }),
+      ...makeRoster(9),
+    ];
+    const result = buildLineup({
+      players,
+      teamAge: "10U",
+      isBigGame: false,
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    const positionsSeen = new Set();
+    for (const inn of result.lineup) {
+      for (const pos of Object.keys(inn)) {
+        if (pos === "BENCH") continue;
+        if (inn[pos]?.id === "mike") positionsSeen.add(pos);
+      }
+    }
+    // At least two different comfortable positions across the game.
+    expect(positionsSeen.size).toBeGreaterThan(1);
+  });
+
+  test("Big Game still pins primary even when comfortablePositions includes others", () => {
+    // The comfortablePositions bonus only fires in fair mode. Big Game
+    // mode keeps its -10000 primary-position pin, so a primary-SS kid
+    // with comfort list = {SS, 3B, 1B} should still play SS every
+    // inning he's on the field.
+    const players = [
+      makePlayer("ace", "SS Ace", {
+        primaryPosition: "SS",
+        comfortablePositions: ["SS", "3B", "1B"],
+        restrictions: ["C"],
+      }),
+      ...makeRoster(10),
+    ];
+    const grades = {};
+    for (let i = 0; i < 11; i++) grades[`p${i}`] = { fielding: 5 };
+    grades.ace = { fielding: 9, armStrength: 9, armAccuracy: 9 };
+    const result = buildLineup({
+      players,
+      evaluationEvents: [headEval(grades)],
+      teamAge: "10U",
+      isBigGame: true,
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    for (const inn of result.lineup) {
+      const wasBenched = (inn.BENCH || []).some((p) => p?.id === "ace");
+      if (wasBenched) continue;
+      // On the field → must be at SS.
+      expect(inn["SS"]?.id).toBe("ace");
+    }
   });
 
   test("two kids with same primaryPosition: better defender wins it", () => {

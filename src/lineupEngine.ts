@@ -2493,15 +2493,28 @@ function pickBestForPosition(opts: any): any {
       // on the field — same hard preference inning 1+ as inning 0, so a
       // primary SS kid plays SS the whole game in Big Game mode (rotating
       // off only when benched).
-      // Fair mode: a feather-light bonus in every inning (including inn 0).
-      // The primary position is no longer privileged in fair mode — the
-      // coach asked explicitly: in fair mode, kids should rotate through
-      // every comfortablePositions slot they're allowed to play. The −2
-      // is a tiebreaker between otherwise-equal candidates, not a pin.
+      // Fair mode: NO primary-position bonus. The coach asked explicitly
+      // for fair mode to rotate kids through the positions they're
+      // comfortable playing rather than clustering them at primary. The
+      // comfortablePositions bonus below handles "stay within the
+      // allowed set" without privileging primary inside that set.
       if (isBigGame) {
         score -= 10000;
-      } else {
-        score -= 2;
+      }
+    }
+
+    // FAIR MODE: bias toward any position in the player's
+    // comfortablePositions list. The list already acts as a hard
+    // whitelist via isPositionBlocked — this small bonus rewards the
+    // engine for keeping kids inside their allowed rotation set
+    // without singling out primary. Big Game ignores this bonus
+    // because it's already pinning to primary far harder.
+    if (!isBigGame) {
+      const comfort = Array.isArray(p.comfortablePositions)
+        ? p.comfortablePositions
+        : null;
+      if (comfort && comfort.length > 0 && comfort.includes(pos)) {
+        score -= 3;
       }
     }
 
