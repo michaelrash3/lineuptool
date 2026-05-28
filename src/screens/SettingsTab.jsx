@@ -107,7 +107,12 @@ const TryoutsSettingsPanel = memo(
                 {shareUrl}
               </code>
               <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg value={shareUrl} size={120} />
+                <QRCodeImg
+                  value={shareUrl}
+                  size={120}
+                  downloadable
+                  filename={`${team.name || "team"}-player-interest-qr`}
+                />
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">
                   <div className="flex gap-2">
                     <button
@@ -273,7 +278,12 @@ const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
         <>
           <code className="block text-[11px] text-slate-700 break-all font-mono bg-slate-50 border border-slate-200 rounded-md p-2">{url}</code>
           <div className="flex items-start gap-3 flex-wrap">
-            <QRCodeImg value={url} size={120} />
+            <QRCodeImg
+              value={url}
+              size={120}
+              downloadable
+              filename={`${team.name || "team"}-tryouts-${date || "qr"}`}
+            />
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <button
                 type="button"
@@ -370,7 +380,12 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
             </button>
           </div>
           <div className="flex items-start gap-3 flex-wrap pt-1">
-            <QRCodeImg value={url} size={120} />
+            <QRCodeImg
+              value={url}
+              size={120}
+              downloadable
+              filename={`${team.name || "team"}-join-code-${code}`}
+            />
             <p className="text-[10px] font-medium text-slate-500 leading-snug flex-1 min-w-0">
               Have an assistant coach scan this with their phone — they'll
               land in-app on Join Team with the code pre-filled.
