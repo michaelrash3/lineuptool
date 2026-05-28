@@ -256,8 +256,13 @@ export const AppHeader = memo(() => {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  const ok = await joinTeamByCode?.(joinCodeInput);
-                  if (ok) {
+                  // joinTeamByCode returns { ok, retryable } — the previous
+                  // check was on the object itself (always truthy) so the
+                  // form closed and cleared on failure too, hiding the
+                  // "Couldn't join" toast behind the join button reappearing
+                  // as if nothing happened. Now we only close on success.
+                  const result = await joinTeamByCode?.(joinCodeInput);
+                  if (result?.ok) {
                     setJoinCodeInput("");
                     setIsJoiningTeam(false);
                   }
