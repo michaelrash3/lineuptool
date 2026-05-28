@@ -63,9 +63,24 @@ export const useInviteFlows = ({
         switchTeam(teamDoc.id);
         toast.push({ kind: "success", title: `Joined ${data.name || "team"}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
         return { ok: true };
-      } catch (_err) {
-        toast.push({ kind: "error", title: "Couldn't join", message: "Your account may not have read access to this team. Ask the head coach to confirm the code or share an invite link." });
-        return { ok: false, retryable: true };
+      } catch (err) {
+        // Log the underlying error so a coach reporting "I can't join" can
+        // share a console snapshot — most join failures are silently caught
+        // here and the toast was too vague to act on.
+        if (typeof console !== "undefined") {
+          // eslint-disable-next-line no-console
+          console.error("[joinTeamByCode] failed:", err);
+        }
+        const code = err?.code || "";
+        const isPermission = code === "permission-denied";
+        toast.push({
+          kind: "error",
+          title: "Couldn't join",
+          message: isPermission
+            ? "The team rejected the join. Make sure the code is current — the head can regenerate it from Settings."
+            : "Couldn't reach the team. Check your connection and try again.",
+        });
+        return { ok: false, retryable: !isPermission };
       }
     },
     [user, teams, toast, switchTeam]
