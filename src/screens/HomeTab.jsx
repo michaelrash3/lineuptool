@@ -7,7 +7,7 @@ import {
   isGameFinalized,
 } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
-import { LeaderboardCard, RecordBadge } from "../components/shared.jsx";
+import { LeaderboardCard } from "../components/shared.jsx";
 import { checkPitchEligibility } from "../lineupEngine";
 
 // Dismissible banner that nudges the current coach to submit an eval round
@@ -851,6 +851,42 @@ export const HomeTab = memo(() => {
   const hasGames = (games || []).length > 0;
   const hasPlayers = (players || []).length > 0;
 
+  // Scoreboard-hero stats: run totals, last-5 form, and win pct. Uses the
+  // shared isGameFinalized() so it agrees with the record badge + trend tile.
+  const seasonHero = useMemo(() => {
+    const finals = (games || [])
+      .filter(isGameFinalized)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    let runsFor = 0;
+    let runsAgainst = 0;
+    for (const g of finals) {
+      runsFor += Number(g.teamScore) || 0;
+      runsAgainst += Number(g.opponentScore) || 0;
+    }
+    const form = finals
+      .slice(-5)
+      .map((g) =>
+        g.teamScore > g.opponentScore
+          ? "W"
+          : g.teamScore < g.opponentScore
+          ? "L"
+          : "T"
+      );
+    const total = record.wins + record.losses + record.ties;
+    const winPctStr =
+      total > 0
+        ? ((record.wins + 0.5 * record.ties) / total).toFixed(3).replace(/^0/, "")
+        : "—";
+    return {
+      runsFor,
+      runsAgainst,
+      diff: runsFor - runsAgainst,
+      form,
+      winPctStr,
+      finalsCount: finals.length,
+    };
+  }, [games, record]);
+
   return (
     <div className="space-y-8">
       {promptStatus.active && (
@@ -886,74 +922,133 @@ export const HomeTab = memo(() => {
         />
       )}
 
-      <div className="bg-surface shadow-card border border-line rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start gap-8">
-        <div>
-          <h2 className="font-black text-3xl sm:text-4xl uppercase tracking-tight text-ink mb-3">
-            {activeTeamName}
-          </h2>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-black text-ink-2 uppercase tracking-widest mb-4">
-            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
-              {currentSeason}
-            </span>
-            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
-              {teamAge}
-            </span>
-            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
-              {leagueRuleSet}
-            </span>
-            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
+      {/* ===== Scoreboard hero — record, form, run splits ===== */}
+      <div
+        className="relative overflow-hidden rounded-2xl shadow-card text-white"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--team-primary), var(--team-primary-2))",
+        }}
+      >
+        <div
+          className="absolute inset-y-0 left-0 w-1.5"
+          style={{ backgroundColor: "rgba(255,255,255,0.7)" }}
+        />
+        <div className="p-6 sm:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] opacity-80">
+                {activeTeamName}
+              </div>
+              <div className="flex items-baseline gap-3 mt-2">
+                <span className="font-black tabular-nums leading-none text-[3.25rem] sm:text-6xl">
+                  {record.wins}
+                  <span className="opacity-50">–</span>
+                  {record.losses}
+                  {record.ties > 0 && (
+                    <>
+                      <span className="opacity-50">–</span>
+                      {record.ties}
+                    </>
+                  )}
+                </span>
+                {seasonHero.finalsCount > 0 && (
+                  <span className="text-[11px] font-black uppercase tracking-widest opacity-85 leading-tight">
+                    {seasonHero.winPctStr}
+                    <br />
+                    win pct
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
+                Season
+              </div>
+              <div className="text-sm font-black uppercase tracking-wide mt-1">
+                {currentSeason}
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">
+                {teamAge} · {leagueRuleSet}
+              </div>
+            </div>
+          </div>
+
+          {seasonHero.form.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-5">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-75 mr-1">
+                Form
+              </span>
+              {seasonHero.form.map((r, i) => (
+                <span
+                  key={i}
+                  className={`w-6 h-6 rounded grid place-items-center text-[10px] font-black ${
+                    r === "W" ? "bg-white" : "bg-black/25"
+                  }`}
+                  style={
+                    r === "W" ? { color: "var(--team-primary-2)" } : undefined
+                  }
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
+            {[
+              { k: "Runs For", v: seasonHero.runsFor },
+              { k: "Against", v: seasonHero.runsAgainst },
+              {
+                k: "Run Diff",
+                v: `${seasonHero.diff >= 0 ? "+" : ""}${seasonHero.diff}`,
+              },
+              { k: "Roster", v: players.length },
+            ].map((s) => (
+              <div key={s.k}>
+                <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
+                  {s.k}
+                </div>
+                <div className="text-2xl font-black tabular-nums leading-none mt-1.5">
+                  {s.v}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {pitchingFormat && (
+            <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-white/15 px-2.5 py-1 rounded">
               {pitchingFormat}
-            </span>
-          </div>
-          {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
-            <div className="mb-6">
-              <RecordBadge record={record} variant="full" />
             </div>
           )}
-          {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
-            <div className="space-y-3 bg-surface p-5 rounded-xl border border-line shadow-sm inline-block min-w-full sm:min-w-[320px]">
-              {headCoaches.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
-                    Head Coach:
-                  </span>
-                  <span className="text-sm font-bold text-ink">
-                    {headCoaches.map((c) => c.name).join(", ")}
-                  </span>
-                </div>
-              )}
-              {assistantCoaches.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
-                    Assistant Coaches:
-                  </span>
-                  <span className="text-sm font-bold text-ink">
-                    {assistantCoaches.map((c) => c.name).join(", ")}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-4 w-full md:w-auto">
-          <div className="flex-1 md:flex-none bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl">
-            <span className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-              Roster Size
-            </span>
-            <span className="block text-3xl font-black text-ink">
-              {players.length}
-            </span>
-          </div>
-          <div className="flex-1 md:flex-none bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl">
-            <span className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-              Games
-            </span>
-            <span className="block text-3xl font-black text-ink">
-              {games.length}
-            </span>
-          </div>
         </div>
       </div>
+
+      {/* Coaches */}
+      {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
+        <div className="bg-surface border border-line rounded-xl shadow-card p-5 space-y-3">
+          {headCoaches.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
+                Head Coach
+              </span>
+              <span className="text-sm font-bold text-ink">
+                {headCoaches.map((c) => c.name).join(", ")}
+              </span>
+            </div>
+          )}
+          {assistantCoaches.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
+                Assistant Coaches
+              </span>
+              <span className="text-sm font-bold text-ink">
+                {assistantCoaches.map((c) => c.name).join(", ")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Insight tiles row — only renders when there's a player to show */}
       {hasPlayers && (
