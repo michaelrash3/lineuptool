@@ -148,9 +148,39 @@ export interface BenchImbalanceEntry {
 
 export const buildSeasonBenchImbalance = (
   games: Game[] | null | undefined,
-  currentGameId: string
+  currentGameId: string,
+  players?: Array<{ id?: string; name?: string }> | null
 ): Map<PlayerId, BenchImbalanceEntry> => {
   const out = new Map<PlayerId, BenchImbalanceEntry>();
+
+  // Resolve a lineup-snapshot slot's id to the CURRENT roster id. Past
+  // finalized games bake the id a player had at the time into their
+  // lineup; if that player was deleted and re-added they now carry a
+  // fresh id, so accumulating by the raw snapshot id strands all of
+  // their pre-deletion bench/defense history under an orphan key the
+  // tile's `imbalance.get(p.id)` lookup never matches. We coalesce by
+  // name (same id-with-name fallback as lineupSlotMatchesPlayer) so the
+  // re-added player's full season shows up. Two live players who share
+  // a name stay distinct: the name fallback only fires for ids that are
+  // NOT on the current roster.
+  const roster = players || [];
+  const livePlayerIds = new Set(
+    roster.map((p) => p.id).filter((id): id is string => !!id)
+  );
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const resolveSlotId = (
+    slot: { id?: string; name?: string } | null | undefined
+  ): string | undefined => {
+    if (!slot || !slot.id) return slot?.id;
+    if (livePlayerIds.has(slot.id)) return slot.id;
+    const slotName = norm(slot.name);
+    if (slotName) {
+      const match = roster.find((p) => p.id && norm(p.name) === slotName);
+      if (match?.id) return match.id;
+    }
+    return slot.id;
+  };
+
   for (const g of games || []) {
     if (g.id === currentGameId) continue;
     // Route through the shared isGameFinalized() so legacy games with
@@ -166,12 +196,16 @@ export const buildSeasonBenchImbalance = (
       for (const pos in inning) {
         if (pos === "BENCH") continue;
         const p = inning[pos] as SlimPlayer | undefined;
-        if (p) attending.add(p.id);
+        if (p) {
+          const rid = resolveSlotId(p);
+          if (rid) attending.add(rid);
+        }
       }
       for (const bp of inning.BENCH || []) {
         if (!bp) continue;
         if (g.attendance?.[bp.id] === false) continue;
-        attending.add(bp.id);
+        const rid = resolveSlotId(bp);
+        if (rid) attending.add(rid);
       }
     }
     const playerCount = attending.size;
@@ -193,8 +227,9 @@ export const buildSeasonBenchImbalance = (
       for (const bp of inning.BENCH || []) {
         if (!bp) continue;
         if (g.attendance?.[bp.id] === false) continue;
-        if (benchCount.has(bp.id)) {
-          benchCount.set(bp.id, (benchCount.get(bp.id) || 0) + 1);
+        const rid = resolveSlotId(bp);
+        if (rid && benchCount.has(rid)) {
+          benchCount.set(rid, (benchCount.get(rid) || 0) + 1);
         }
       }
     }

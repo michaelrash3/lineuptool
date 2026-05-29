@@ -693,7 +693,7 @@ const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) =>
 =========================================================================== */
 const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
   const rows = React.useMemo(() => {
-    const imbalance = buildSeasonBenchImbalance(games, "");
+    const imbalance = buildSeasonBenchImbalance(games, "", players);
     return (players || [])
       .map((p) => {
         const data =
