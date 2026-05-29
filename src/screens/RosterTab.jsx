@@ -19,8 +19,8 @@ const FILTER_CHIPS = [
 ];
 
 // Returns true if the player matches the given filter id. Unknown ids match.
-// Position filters consult the v4 position model — `isCatcher` for C and
-// `comfortablePositions` for the field — with legacy `primaryPosition`
+// Position filters consult the position model — `comfortablePositions`,
+// where catcher is just "C" in the list — with legacy `primaryPosition`
 // kept as a last-resort fallback so teams that haven't been migrated
 // still see something useful in the filter.
 const playerComfortable = (player, pos) => {
@@ -43,7 +43,12 @@ const playerMatchesFilter = (player, filterId) => {
     case "pitchers":
       return playerComfortable(player, "P");
     case "catchers":
-      return player.isCatcher === true;
+      // Catcher is opt-in: strictly "C" present in the comfortable list
+      // (no legacy "empty = anywhere" fallback for catcher).
+      return (
+        Array.isArray(player.comfortablePositions) &&
+        player.comfortablePositions.includes("C")
+      );
     case "infield":
       return [...INFIELD_POSITIONS].some((p) => playerComfortable(player, p));
     case "outfield":

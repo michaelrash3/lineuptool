@@ -73,10 +73,13 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
 //   v3: 11-category 1–5 labeled scale (current)
 // Teams stored at v2 get auto-converted to v3 by halving each grade value.
 // v4 (2026-05) — positive position model: players gain
-// `comfortablePositions: string[]` (positions the coach is happy with)
-// and `isCatcher: boolean`, derived once from the legacy `restrictions`
-// field on first load.
-export const EVAL_SCHEMA_VERSION = 4;
+// `comfortablePositions: string[]` (positions the coach is happy with).
+// v5 (2026-05) — catcher unification: catcher is just "C" in
+// comfortablePositions (the separate `isCatcher` flag is dropped). The v5
+// migration undoes the v4 pollution that had put "C" in every roster's
+// comfortable list, re-deriving real catchers from the legacy
+// primaryPosition / explicit isCatcher choice.
+export const EVAL_SCHEMA_VERSION = 5;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [

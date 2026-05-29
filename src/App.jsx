@@ -586,6 +586,30 @@ const TeamProvider = ({ children }) => {
                 };
               });
             }
+            // v5 — catcher unification. Catcher is now just "C" in
+            // comfortablePositions; the separate isCatcher flag is gone. The
+            // v4 auto-fill had set comfortablePositions to every position a
+            // kid wasn't *restricted* from — which, for the common case of no
+            // restrictions, marked the ENTIRE roster as catcher-eligible. Undo
+            // that: a "C" already in the list came from that auto-fill (the UI
+            // never let a coach add C), so re-derive real catcher status from
+            // the legacy primaryPosition; otherwise honor the explicit
+            // isCatcher checkbox. Then encode the result as "C" in the list.
+            if (stored < 5) {
+              migratedPlayers = migratedPlayers.map((p) => {
+                if (!p) return p;
+                const comfort = Array.isArray(p.comfortablePositions)
+                  ? p.comfortablePositions
+                  : [];
+                const isCatcher = comfort.includes("C")
+                  ? p.primaryPosition === "C"
+                  : p.isCatcher === true;
+                const next = comfort.filter((pos) => pos !== "C");
+                if (isCatcher) next.push("C");
+                const { isCatcher: _dropped, ...rest } = p;
+                return { ...rest, comfortablePositions: next };
+              });
+            }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
               players: migratedPlayers,
@@ -744,15 +768,11 @@ const TeamProvider = ({ children }) => {
         photoUrl: form.photoUrl || "",
         present: true,
         restrictions: [],
+        // Catcher is just "C" in this list — a new player isn't a catcher
+        // until the coach adds C to their comfortable positions.
         comfortablePositions: Array.isArray(form.comfortablePositions)
           ? form.comfortablePositions
           : [],
-        // v4 catcher model: a new player is NOT in the catching rotation
-        // until the coach explicitly checks "Catcher" on their profile.
-        // The engine only seats isCatcher === true players at C, so this
-        // must be an explicit boolean (an undefined flag used to leak
-        // every new player into catcher eligibility).
-        isCatcher: form.isCatcher === true,
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
       };
@@ -1941,8 +1961,12 @@ const TeamProvider = ({ children }) => {
         dob: s.dob || "",
         bats: s.bats || "R",
         throws: s.throws || "R",
-        comfortablePositions: s.comfortablePositions || [],
-        isCatcher: s.isCatcher === true,
+        comfortablePositions: [
+          ...(Array.isArray(s.comfortablePositions) ? s.comfortablePositions : []).filter(
+            (p) => p !== "C"
+          ),
+          ...(s.isCatcher === true ? ["C"] : []),
+        ],
         parentName: s.parentName || "",
         email: s.email || "",
         phone: s.phone || "",
@@ -2338,8 +2362,12 @@ const TeamProvider = ({ children }) => {
         email: lead.email || "",
         phone: lead.phone || "",
         currentTeam: lead.currentTeam || "",
-        comfortablePositions: lead.comfortablePositions || [],
-        isCatcher: lead.isCatcher === true,
+        comfortablePositions: [
+          ...(Array.isArray(lead.comfortablePositions) ? lead.comfortablePositions : []).filter(
+            (p) => p !== "C"
+          ),
+          ...(lead.isCatcher === true ? ["C"] : []),
+        ],
         notes: lead.notes || "",
         status: "tryout",
       };
@@ -2404,8 +2432,12 @@ const TeamProvider = ({ children }) => {
         dob: signup.dob || "",
         bats: signup.bats || "R",
         throws: signup.throws || "R",
-        comfortablePositions: signup.comfortablePositions || [],
-        isCatcher: signup.isCatcher === true,
+        comfortablePositions: [
+          ...(Array.isArray(signup.comfortablePositions) ? signup.comfortablePositions : []).filter(
+            (p) => p !== "C"
+          ),
+          ...(signup.isCatcher === true ? ["C"] : []),
+        ],
         parentName: signup.parentName || "",
         email: signup.email || "",
         phone: signup.phone || "",

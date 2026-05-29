@@ -81,31 +81,24 @@ export function isPositionBlocked(
   return false;
 }
 
-// Catcher eligibility. Catcher is deliberately NOT part of the field
-// "comfortable positions" model (the roster UI excludes "C" from that
-// grid and exposes a dedicated "Catcher" checkbox whose copy promises:
-// "The engine will only consider checked players for C"). So C must be
-// gated on the explicit isCatcher flag, never on comfortablePositions or
-// the absence of a restriction.
-//
-// The old behaviour fell back to `!restrictions.includes("C")` whenever
-// isCatcher wasn't a boolean. That made every freshly-added player (who
-// has no isCatcher field and an empty restrictions list) silently
-// catcher-eligible, so the engine would seat a kid at catcher whom the
-// roster shows as a non-catcher. We honour the UI contract instead:
-// catcher-eligible iff isCatcher === true. Legacy teams are migrated on
-// load (App.jsx v3→v4) so their players already carry an explicit
-// isCatcher boolean by the time a lineup is built.
+// Catcher eligibility. Catcher is just another entry in a player's
+// comfortable-positions list — there is no separate flag. A kid may be
+// seated at C ONLY when "C" is explicitly present in comfortablePositions.
+// Unlike every other position, an EMPTY comfortable list does NOT make a
+// player catcher-eligible: catching is strictly opt-in, so a kid the coach
+// never cleared for C can never end up behind the plate. A legacy negative
+// "C" restriction still wins as a hard block.
 export function isCatcherEligible(p: {
-  isCatcher?: boolean;
+  comfortablePositions?: string[];
   restrictions?: string[];
 }): boolean {
-  // A legacy negative "C" restriction always wins, even over an explicit
-  // isCatcher flag, so contradictory data never seats a restricted kid.
   if (Array.isArray(p?.restrictions) && p.restrictions.includes("C")) {
     return false;
   }
-  return p?.isCatcher === true;
+  return (
+    Array.isArray(p?.comfortablePositions) &&
+    p.comfortablePositions.includes("C")
+  );
 }
 
 // Age- and format-aware position importance. Used in addition to
@@ -1133,8 +1126,8 @@ export function generateLineup(input: EngineInput): EngineResult {
   }
 
   // Every defensive alignment (9- and 10-fielder) fields a catcher, and
-  // catcher is gated on the explicit isCatcher flag. If no present player
-  // is marked as a catcher, fail fast with an actionable message rather
+  // catcher is gated on "C" being in a player's comfortable positions. If
+  // no present player is cleared for C, fail fast with an actionable message rather
   // than letting it surface downstream as a cryptic bench-schedule error.
   if (!activePlayers.some((p) => isCatcherEligible(p))) {
     return {
@@ -1666,7 +1659,7 @@ function precomputeBenchSchedule(opts: any): any {
     // primary-infield kids are not auto-excluded (real rosters have
     // catchers whose primary is 2B/SS/3B).
     const allEligibleC = sortedForExtra
-      // Only players explicitly marked as catchers (isCatcher === true).
+      // Only players cleared for catcher ("C" in comfortablePositions).
       .filter(({ p }) => isCatcherEligible(p))
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
@@ -2113,6 +2106,9 @@ function tryBuildLineup(ctx: any): any {
             },
           };
         if (isPositionBlocked(player, pos)) continue;
+        // Catcher is opt-in only: never honor a first-inning override that
+        // would seat a non-cleared kid at C.
+        if (pos === "C" && !isCatcherEligible(player)) continue;
         inningSlots[pos] = player;
       }
     }
@@ -2216,6 +2212,8 @@ function tryBuildLineup(ctx: any): any {
         if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
         if (used.has(prevPlayer.id)) continue; // already placed
         if (isPositionBlocked(prevPlayer, pos)) continue;
+        // Never carry a non-cleared kid into the catcher slot.
+        if (pos === "C" && !isCatcherEligible(prevPlayer)) continue;
         // Pitcher carry over rule for 9 fielder games is handled in pickBest;
         // for lock innings we trust the prior assignment.
         inningSlots[pos] = prevPlayer;
@@ -2341,6 +2339,41 @@ function tryBuildLineup(ctx: any): any {
 
     inningSlots["BENCH"] = benchList;
     lineup.push(inningSlots);
+  }
+
+  // ---------- Hard catcher invariant (belt-and-suspenders) ----------
+  // Every assignment path is already gated on isCatcherEligible, but this
+  // final sweep guarantees the rule holds for the innings WE generated
+  // (never the reseeded already-played innings, which reflect reality): no
+  // inning may field a catcher who isn't cleared for C. If one ever slips
+  // through, swap them with an eligible fielder this inning (position swap,
+  // so no bench change), or failing that an eligible bench player.
+  for (let i = mgFromInning; i < lineup.length; i++) {
+    const slots = lineup[i];
+    const c = slots["C"];
+    if (!c || isCatcherEligible(c)) continue;
+    let fixed = false;
+    for (const pos of Object.keys(slots)) {
+      if (pos === "C" || pos === "BENCH") continue;
+      const other = slots[pos];
+      if (other && isCatcherEligible(other) && !isPositionBlocked(c, pos)) {
+        slots["C"] = other;
+        slots[pos] = c;
+        fixed = true;
+        break;
+      }
+    }
+    if (!fixed && Array.isArray(slots["BENCH"])) {
+      for (let b = 0; b < slots["BENCH"].length; b++) {
+        const bp = slots["BENCH"][b];
+        if (bp && isCatcherEligible(bp)) {
+          slots["BENCH"][b] = c;
+          slots["C"] = bp;
+          fixed = true;
+          break;
+        }
+      }
+    }
   }
 
   // ---------- Penalty ----------

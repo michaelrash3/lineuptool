@@ -308,6 +308,38 @@ export const InGameView = memo(() => {
       setInGameSelection(null);
       return;
     }
+
+    // Catcher is opt-in: never let a manual swap drop a player into C
+    // unless "C" is in their comfortable positions. Slots carry slim
+    // players, so resolve the roster player by id to read the list.
+    const clearedToCatch = (slim) => {
+      const rp = (team?.players || []).find((p) => p.id === slim?.id);
+      const list = Array.isArray(rp?.comfortablePositions)
+        ? rp.comfortablePositions
+        : [];
+      const restr = Array.isArray(rp?.restrictions) ? rp.restrictions : [];
+      return list.includes("C") && !restr.includes("C");
+    };
+    // After the swap, firstSel receives playerB and secondSel receives
+    // playerA — flag if either lands at C while not cleared.
+    const blocked =
+      (firstSel.type === "position" &&
+        firstSel.pos === "C" &&
+        !clearedToCatch(playerB)) ||
+      (secondSel.type === "position" &&
+        secondSel.pos === "C" &&
+        !clearedToCatch(playerA));
+    if (blocked) {
+      toast.push({
+        kind: "error",
+        title: "Not a catcher",
+        message:
+          "That player isn't cleared to catch. Add C to their comfortable positions on the roster first.",
+      });
+      setInGameSelection(null);
+      return;
+    }
+
     setPlayer(firstSel, playerB);
     setPlayer(secondSel, playerA);
 

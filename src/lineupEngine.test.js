@@ -10,17 +10,28 @@ import {
 // Test fixtures
 // ---------------------------------------------------------------------------
 
+// All field positions a player can be cleared for (mirrors the app's
+// position model). Catcher is just "C" in comfortablePositions now.
+const ALL_POSITIONS = [
+  "P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "CF", "RCF", "RF",
+];
+
 const makePlayer = (id, name, opts = {}) => ({
   id,
   name,
   number: opts.number ?? "",
   primaryPosition: opts.primaryPosition ?? "",
   restrictions: opts.restrictions ?? [],
-  comfortablePositions: opts.comfortablePositions,
-  // Catcher is gated on the explicit v4 isCatcher flag. A vanilla test
-  // player is unconstrained (plays anywhere, including C); tests that
-  // exercise catcher exclusion pass isCatcher: false explicitly.
-  isCatcher: opts.isCatcher ?? true,
+  // Catcher is opt-in via "C" in comfortablePositions. A vanilla, fully
+  // unconstrained test player is cleared everywhere INCLUDING catcher —
+  // mirror migrated production data by defaulting the list to every
+  // position minus any restrictions (so restriction-based tests still
+  // work and rosters always have catchers). Tests that exercise catcher
+  // exclusion pass an explicit comfortablePositions without "C" (or
+  // restrictions: ["C"]).
+  comfortablePositions:
+    opts.comfortablePositions ??
+    ALL_POSITIONS.filter((p) => !(opts.restrictions ?? []).includes(p)),
   // Engine reads these when present. Defaulted out so a vanilla makePlayer
   // call produces a player with no special handling.
   throws: opts.throws,
@@ -182,33 +193,38 @@ describe("catcher pre-assignment respects primaryPosition", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Catcher eligibility — only isCatcher === true players may catch.
-// Regression for: a non-catcher was seated at C. The roster UI keeps
-// catcher out of the "comfortable positions" grid and behind a dedicated
-// isCatcher checkbox ("the engine will only consider checked players for
-// C"). A freshly-added player had isCatcher undefined + restrictions [],
-// which the old fallback `!restrictions.includes("C")` treated as
-// catcher-eligible.
+// Catcher eligibility — a player may catch ONLY when "C" is in their
+// comfortablePositions list (catcher is opt-in; there is no separate flag).
+// Regression for: non-catchers kept getting seated at C because the data
+// model marked the whole roster catcher-eligible. Empty / omitted lists
+// never grant catcher.
 // ---------------------------------------------------------------------------
 
-describe("catcher eligibility (isCatcher flag)", () => {
-  // 3 designated catchers + 8 explicit non-catchers. Enough catchers that
-  // bench scheduling never has to bench the only one (no infeasibility),
-  // so the assertion isolates the eligibility gate.
-  const mixedRoster = (nonCatcherFlag) => [
-    makePlayer("c0", "Catcher 0", { isCatcher: true }),
-    makePlayer("c1", "Catcher 1", { isCatcher: true }),
-    makePlayer("c2", "Catcher 2", { isCatcher: true }),
-    ...Array.from({ length: 8 }, (_, i) =>
-      makePlayer(`x${i}`, `Field ${i}`, nonCatcherFlag)
-    ),
+describe("catcher eligibility (C in comfortablePositions)", () => {
+  const catcher = (id, name) =>
+    makePlayer(id, name);
+  const fielder = (id, name) =>
+    makePlayer(id, name, {
+      // Cleared everywhere EXCEPT catcher — can cover any field spot in
+      // both 9- and 10-fielder alignments, but must never be seated at C.
+      comfortablePositions: ALL_POSITIONS.filter((p) => p !== "C"),
+    });
+
+  // 3 designated catchers + 8 non-catchers — enough catchers that bench
+  // scheduling never has to bench the only one, so the assertion isolates
+  // the eligibility gate.
+  const mixedRoster = () => [
+    catcher("c0", "Catcher 0"),
+    catcher("c1", "Catcher 1"),
+    catcher("c2", "Catcher 2"),
+    ...Array.from({ length: 8 }, (_, i) => fielder(`x${i}`, `Field ${i}`)),
   ];
   const nonCatcherIds = Array.from({ length: 8 }, (_, i) => `x${i}`);
   const catchersSeen = (lineup) =>
     lineup.map((inn) => inn.C?.id).filter(Boolean);
 
-  test("10-fielder: an explicit non-catcher is never seated at C", () => {
-    const players = mixedRoster({ isCatcher: false });
+  test("10-fielder: a non-catcher is never seated at C", () => {
+    const players = mixedRoster();
     for (let seed = 1; seed <= 6; seed++) {
       const result = buildLineup({ players, defenseSize: "10", seed });
       expect(result.error).toBeUndefined();
@@ -218,8 +234,8 @@ describe("catcher eligibility (isCatcher flag)", () => {
     }
   });
 
-  test("9-fielder: an explicit non-catcher is never seated at C", () => {
-    const players = mixedRoster({ isCatcher: false });
+  test("9-fielder: a non-catcher is never seated at C", () => {
+    const players = mixedRoster();
     for (let seed = 1; seed <= 6; seed++) {
       const result = buildLineup({ players, defenseSize: "9", seed });
       expect(result.error).toBeUndefined();
@@ -228,60 +244,55 @@ describe("catcher eligibility (isCatcher flag)", () => {
     }
   });
 
-  test("a player with no isCatcher flag (undefined) never catches", () => {
-    // The original addPlayer bug shape: isCatcher absent, restrictions [].
-    // Build raw objects so makePlayer's default isCatcher:true can't mask
-    // the undefined case.
-    const raw = (id, withFlag) => ({
+  test("empty comfortablePositions never grants catcher (opt-in)", () => {
+    // Mirrors freshly-added players (empty list). With 3 real catchers
+    // present, the empty-list kids must never appear behind the plate.
+    const raw = (id, comfort) => ({
       id,
       name: id,
       number: "",
       primaryPosition: "",
       restrictions: [],
-      comfortablePositions: [],
-      ...(withFlag ? { isCatcher: true } : {}),
+      comfortablePositions: comfort,
     });
     const players = [
-      raw("c0", true),
-      raw("c1", true),
-      raw("c2", true),
-      ...Array.from({ length: 8 }, (_, i) => raw(`u${i}`, false)),
+      // Real catchers, cleared everywhere incl C.
+      makePlayer("c0", "Catcher 0"),
+      makePlayer("c1", "Catcher 1"),
+      makePlayer("c2", "Catcher 2"),
+      // Freshly-added kids with an empty list — must never catch.
+      ...Array.from({ length: 8 }, (_, i) => raw(`u${i}`, [])),
     ];
-    const undefinedIds = Array.from({ length: 8 }, (_, i) => `u${i}`);
+    const emptyIds = Array.from({ length: 8 }, (_, i) => `u${i}`);
     for (let seed = 1; seed <= 4; seed++) {
       const result = buildLineup({ players, defenseSize: "10", seed });
       expect(result.error).toBeUndefined();
       const seen = catchersSeen(result.lineup);
-      expect(seen.some((id) => undefinedIds.includes(id))).toBe(false);
+      expect(seen.some((id) => emptyIds.includes(id))).toBe(false);
     }
   });
 
-  test("no present player marked as catcher → actionable error", () => {
+  test("no player cleared for C -> actionable error", () => {
     const players = Array.from({ length: 11 }, (_, i) =>
-      makePlayer(`x${i}`, `Field ${i}`, { isCatcher: false })
+      fielder(`x${i}`, `Field ${i}`)
     );
     const result = buildLineup({ players, defenseSize: "10", seed: 1 });
     expect(result.lineup).toBeUndefined();
     expect(result.error).toMatch(/catcher/i);
   });
 
-  test("isCatcherEligible: flag required; explicit C restriction wins", () => {
-    expect(isCatcherEligible({ isCatcher: true })).toBe(true);
-    expect(isCatcherEligible({ isCatcher: false })).toBe(false);
-    expect(isCatcherEligible({})).toBe(false);
-    expect(isCatcherEligible({ isCatcher: true, restrictions: ["C"] })).toBe(
+  test("isCatcherEligible: C must be listed; a C restriction still wins", () => {
+    expect(isCatcherEligible({ comfortablePositions: ["C", "1B"] })).toBe(true);
+    expect(isCatcherEligible({ comfortablePositions: ["1B", "SS"] })).toBe(
       false
     );
-    // comfortablePositions is the FIELD model and must not gate catcher.
+    expect(isCatcherEligible({ comfortablePositions: [] })).toBe(false);
+    expect(isCatcherEligible({})).toBe(false);
     expect(
-      isCatcherEligible({ isCatcher: true, comfortablePositions: ["1B"] })
-    ).toBe(true);
+      isCatcherEligible({ comfortablePositions: ["C"], restrictions: ["C"] })
+    ).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Primary-position pre-pin (PR #5) + Big Game lock (PR #3)
-// ---------------------------------------------------------------------------
 
 describe("primary-position pre-pin", () => {
   test("Big Game: 3B-primary kid plays 3B every inning he's on the field", () => {
