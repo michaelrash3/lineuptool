@@ -6,6 +6,7 @@ import {
   calculateBaseballAge,
   blankStats,
   lineupSlotMatchesPlayer,
+  isGameFinalized,
 } from "../utils/helpers";
 import { AGE_TIERS } from "../constants/ui";
 import { getActivePositionList } from "../lineupEngine";
@@ -1155,12 +1156,10 @@ export const PlayerProfileModal = memo(() => {
     //      who edited the score directly may not have flipped status)
     // The fielding-innings aggregation was previously gated on (1) only,
     // missing finalized games that had been entered via the older paths.
-    const isFinal = (g) =>
-      g.status === "final" ||
-      g.status === "completed" ||
-      (Number.isFinite(g.teamScore) && Number.isFinite(g.opponentScore));
+    // Routes through the shared isGameFinalized() so all stat surfaces
+    // (record, leaderboards, trend tile) agree on which games count.
     for (const g of games || []) {
-      if (!isFinal(g)) continue;
+      if (!isGameFinalized(g)) continue;
       if (!g.lineup?.length) continue;
 
       // Did this player attend the game?
@@ -1216,14 +1215,9 @@ export const PlayerProfileModal = memo(() => {
     const livePlayerIds = new Set((players || []).map((p) => p.id));
     const matches = (slot) =>
       lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
-    // Match the aggregation's relaxed finalized-game check so the
-    // timeline doesn't silently drop games the breakdown counted.
-    const isFinal = (g) =>
-      g.status === "final" ||
-      g.status === "completed" ||
-      (Number.isFinite(g.teamScore) && Number.isFinite(g.opponentScore));
+    // Same predicate as the aggregation above — see isGameFinalized().
     for (const g of games || []) {
-      if (!isFinal(g)) continue;
+      if (!isGameFinalized(g)) continue;
       if (!g.lineup?.length) continue;
       if (g.attendance?.[pid] === false) continue;
 

@@ -245,6 +245,36 @@ export const isReturning = (
 // (`livePlayerIds`); two siblings who share a first+last name and are
 // both still on the roster stay correctly distinguished by their
 // live ids.
+// True when the game should be treated as finalized for stat,
+// record, and trend aggregations. Mirrors the predicate that
+// PR #140 introduced for PlayerProfileModal's innings-by-position
+// (`modals.jsx`); without unifying it across the rest of the
+// app, finalized games that ended up with `status === "completed"`
+// (legacy writer) — or with explicit scores but no status flip —
+// silently fall out of the team's record, the Home leaderboards,
+// and the trend tile, even though they show up correctly on the
+// player profile. Strict `status === "final"` checks remain
+// appropriate for UI affordances tied to the finalizeGame trim
+// flow itself (e.g. Restore Lineup), which only fires from that
+// specific writer.
+export const isGameFinalized = (
+  game:
+    | {
+        status?: string;
+        teamScore?: number | string | null;
+        opponentScore?: number | string | null;
+      }
+    | null
+    | undefined
+): boolean => {
+  if (!game) return false;
+  if (game.status === "final" || game.status === "completed") return true;
+  return (
+    Number.isFinite(Number(game.teamScore)) &&
+    Number.isFinite(Number(game.opponentScore))
+  );
+};
+
 export const lineupSlotMatchesPlayer = (
   slot: { id?: string; name?: string } | null | undefined,
   player: { id?: string; name?: string } | null | undefined,

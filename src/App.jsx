@@ -67,6 +67,7 @@ import {
   blankStats,
   emailPromptStatus,
   isReturning,
+  isGameFinalized,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
@@ -1811,7 +1812,7 @@ const TeamProvider = ({ children }) => {
       runsScored = 0,
       runsAllowed = 0;
     for (const g of teamData.games) {
-      if (g.status !== "final") continue;
+      if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;
@@ -2788,7 +2789,7 @@ const TeamProvider = ({ children }) => {
       runsScored = 0,
       runsAllowed = 0;
     for (const g of teamData.games) {
-      if (g.status !== "final") continue;
+      if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;

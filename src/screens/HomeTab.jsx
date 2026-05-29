@@ -4,6 +4,7 @@ import {
   formatGameDateDisplay,
   evalPromptStatus,
   buildSeasonBenchImbalance,
+  isGameFinalized,
 } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
 import { LeaderboardCard, RecordBadge } from "../components/shared.jsx";
@@ -149,11 +150,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
   if (!upcoming) return null;
 
   const { game, dayDiff, sameDayCount } = upcoming;
-  const status = game.status || "scheduled";
-  const isFinal =
-    status === "final" &&
-    Number.isFinite(game.teamScore) &&
-    Number.isFinite(game.opponentScore);
+  const isFinal = isGameFinalized(game);
 
   let whenLabel;
   if (dayDiff === 0) whenLabel = "Today";
@@ -606,12 +603,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
 const TeamTrendTile = memo(({ games }) => {
   const data = useMemo(() => {
     const finals = (games || [])
-      .filter(
-        (g) =>
-          g.status === "final" &&
-          Number.isFinite(g.teamScore) &&
-          Number.isFinite(g.opponentScore)
-      )
+      .filter(isGameFinalized)
       .sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const last5 = finals.slice(-5);
     const results = last5.map((g) => {

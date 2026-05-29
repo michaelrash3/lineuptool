@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts.js";
+import { isGameFinalized } from "../utils/helpers";
 
 // Lightweight fuzzy match: case-insensitive substring score. Returns -1 if
 // the query has zero characters present in the candidate; otherwise lower
@@ -77,7 +78,7 @@ export const CommandPalette = ({ open, onClose }) => {
         kind: "game",
         id: `game:${g.id}`,
         label: `vs ${g.opponent || "Game"}`,
-        sublabel: `${date}${g.status === "final" ? " · final" : ""}`,
+        sublabel: `${date}${isGameFinalized(g) ? " · final" : ""}`,
         searchKey: `${g.opponent || ""} ${date}`,
         action: () => {
           setActiveTab("schedule");
