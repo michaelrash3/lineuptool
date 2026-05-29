@@ -46,7 +46,7 @@ export const LineupGrid = memo(
         {/* ----- Mobile single-inning view (below sm breakpoint) ----- */}
         <div className="sm:hidden print:hidden">
           {/* Inning tab strip */}
-          <div className="px-3 pt-3 pb-2 bg-white/40 border-b border-slate-200/50">
+          <div className="px-3 pt-3 pb-2 bg-surface border-b border-line/50">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
               <span className="t-eyebrow mr-1 shrink-0">Inning</span>
               {lineup.map((_, idx) => {
@@ -81,7 +81,7 @@ export const LineupGrid = memo(
           </div>
 
           {/* Position rows for the selected inning */}
-          <div className="px-3 py-3 bg-white/20">
+          <div className="px-3 py-3 bg-surface">
             <div className="flex flex-col gap-2">
               {positions.map((pos) => {
                 const pAtPos = inn?.[pos];
@@ -99,8 +99,8 @@ export const LineupGrid = memo(
                       sel
                         ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md"
                         : pAtPos
-                        ? "bg-white border-slate-200 text-slate-800 active:bg-slate-50"
-                        : "bg-white/30 border-dashed border-slate-300 text-slate-400 active:bg-white/60"
+                        ? "bg-surface border-line text-ink active:bg-app"
+                        : "bg-surface border-dashed border-line-strong text-ink-3 active:bg-surface"
                     }`}
                   >
                     <span
@@ -116,7 +116,7 @@ export const LineupGrid = memo(
                       {pAtPos ? (
                         pAtPos.name
                       ) : (
-                        <span className="italic font-medium text-slate-400">
+                        <span className="italic font-medium text-ink-3">
                           Tap to assign
                         </span>
                       )}
@@ -127,10 +127,10 @@ export const LineupGrid = memo(
             </div>
 
             {/* Bench section */}
-            <div className="mt-5 pt-4 border-t border-slate-200/60">
+            <div className="mt-5 pt-4 border-t border-line/60">
               <div className="flex items-center gap-2 mb-3">
-                <Icons.Users className="w-4 h-4 text-slate-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                <Icons.Users className="w-4 h-4 text-ink-3" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-ink-3">
                   Bench
                 </span>
               </div>
@@ -149,7 +149,7 @@ export const LineupGrid = memo(
                         className={`px-3 py-2 text-sm font-bold border rounded-lg transition-all min-h-[40px] ${
                           sel
                             ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md"
-                            : "bg-white border-slate-200 text-slate-700 active:bg-slate-50"
+                            : "bg-surface border-line text-ink active:bg-app"
                         }`}
                       >
                         {p.name}
@@ -157,7 +157,7 @@ export const LineupGrid = memo(
                     );
                   })
                 ) : (
-                  <span className="text-xs font-bold text-slate-400 italic">
+                  <span className="text-xs font-bold text-ink-3 italic">
                     No one benched this inning
                   </span>
                 )}
@@ -170,14 +170,14 @@ export const LineupGrid = memo(
         <div className="hidden sm:block overflow-x-auto print:overflow-visible print:block">
           <table className="w-full text-left border-collapse print:text-xs">
             <thead>
-              <tr className="bg-white/40 border-b border-slate-200/50 print:bg-slate-200">
-                <th className="p-4 print:p-2 font-black text-[11px] uppercase tracking-widest text-center w-20 print:w-12 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-slate-500 bg-white/60 print:bg-slate-200 print:text-slate-900 border-r border-slate-200/50">
+              <tr className="bg-surface border-b border-line/50 print:bg-line">
+                <th className="p-4 print:p-2 font-black text-[11px] uppercase tracking-widest text-center w-20 print:w-12 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-ink-3 bg-surface print:bg-line print:text-ink border-r border-line/50">
                   Pos
                 </th>
                 {lineup.map((_, idx) => (
                   <th
                     key={`inn-${idx}-${lineup.length}`}
-                    className="p-4 print:p-2 border-r border-slate-200/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[140px] print:min-w-0 text-slate-700"
+                    className="p-4 print:p-2 border-r border-line/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[140px] print:min-w-0 text-ink"
                   >
                     Inn {idx + 1}
                   </th>
@@ -188,9 +188,9 @@ export const LineupGrid = memo(
               {positions.map((pos) => (
                 <tr
                   key={pos}
-                  className="border-b border-slate-200/50 hover:bg-white/50 break-inside-avoid transition-colors"
+                  className="border-b border-line/50 hover:bg-surface-2 break-inside-avoid transition-colors"
                 >
-                  <td className="p-3 print:p-1.5 font-black text-sm border-r border-slate-200/50 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-center bg-white/80 print:bg-transparent text-slate-800">
+                  <td className="p-3 print:p-1.5 font-black text-sm border-r border-line/50 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-center bg-surface print:bg-transparent text-ink">
                     {pos}
                   </td>
                   {lineup.map((inning, idx) => {
@@ -199,7 +199,7 @@ export const LineupGrid = memo(
                     return (
                       <td
                         key={`${pos}-${idx}-${lineup.length}`}
-                        className="p-2 print:p-1 border-r border-slate-200/50 relative"
+                        className="p-2 print:p-1 border-r border-line/50 relative"
                       >
                         <button
                           type="button"
@@ -212,8 +212,8 @@ export const LineupGrid = memo(
                             isSelected
                               ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md scale-105 z-20 relative"
                               : pAtPos
-                              ? "bg-white/80 border-slate-200 text-slate-700 hover:bg-white hover:border-slate-300"
-                              : "bg-white/30 border-dashed border-slate-300 text-slate-400 hover:bg-white/80"
+                              ? "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
+                              : "bg-surface border-dashed border-line-strong text-ink-3 hover:bg-surface"
                           }`}
                         >
                           {pAtPos ? (
@@ -227,14 +227,14 @@ export const LineupGrid = memo(
                   })}
                 </tr>
               ))}
-              <tr className="break-inside-avoid border-t-2 border-slate-200/80 bg-white/20">
-                <td className="p-3 print:p-1.5 font-black text-[10px] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none uppercase tracking-widest text-center text-slate-500 bg-white/60 print:bg-transparent border-r border-slate-200/50">
+              <tr className="break-inside-avoid border-t-2 border-line/80 bg-surface">
+                <td className="p-3 print:p-1.5 font-black text-[10px] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none uppercase tracking-widest text-center text-ink-3 bg-surface print:bg-transparent border-r border-line/50">
                   Bench
                 </td>
                 {lineup.map((inning, idx) => (
                   <td
                     key={`bench-${idx}-${lineup.length}`}
-                    className="p-3 print:p-1 align-top border-r border-slate-200/50 min-w-[140px] print:min-w-0"
+                    className="p-3 print:p-1 align-top border-r border-line/50 min-w-[140px] print:min-w-0"
                   >
                     <div className="flex flex-col gap-2 items-center">
                       {inning.BENCH?.map((p) => {
@@ -248,7 +248,7 @@ export const LineupGrid = memo(
                             className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
                               isSelected
                                 ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 scale-105 z-20 relative"
-                                : "bg-white/90 border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300"
+                                : "bg-surface border-line text-ink-2 hover:bg-surface-2 hover:border-line-strong"
                             }`}
                           >
                             {p.name}
@@ -256,7 +256,7 @@ export const LineupGrid = memo(
                         );
                       })}
                       {(!inning.BENCH || inning.BENCH.length === 0) && (
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400/50 py-2">
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3/50 py-2">
                           Empty
                         </div>
                       )}

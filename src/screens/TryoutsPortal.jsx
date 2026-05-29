@@ -59,11 +59,11 @@ const hasDuplicateSignup = (signups, form) => {
 // in this surface. Pulls the ring color from the team's primary so the form
 // feels branded instead of using a generic Tailwind blue ring.
 const INPUT_BASE =
-  "w-full px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed";
+  "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
 const RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
 
 const PortalShell = ({ children, accent = true }) => (
-  <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+  <div className="min-h-screen bg-app relative overflow-hidden">
     {accent && (
       <div
         className="h-2 w-full"
@@ -80,11 +80,11 @@ const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }) => {
       ? "border-rose-200"
       : tone === "success"
       ? ""
-      : "border-slate-200";
+      : "border-line";
   const accent = tone === "success" ? { borderColor: "var(--team-primary)" } : undefined;
   return (
     <div
-      className={`bg-white rounded-2xl p-7 max-w-md mx-auto text-center shadow-card border-2 ${toneStyle}`}
+      className={`bg-surface rounded-2xl p-7 max-w-md mx-auto text-center shadow-card border-2 ${toneStyle}`}
       style={accent}
     >
       {Icon && (
@@ -306,7 +306,7 @@ export const TryoutsPortal = () => {
     return (
       <PortalShell accent={false}>
         <div className="min-h-[60vh] flex items-center justify-center">
-          <div className="flex items-center gap-3 text-slate-500">
+          <div className="flex items-center gap-3 text-ink-3">
             <Icons.Refresh className="w-4 h-4 animate-spin" />
             <span className="t-eyebrow">Loading Tryouts</span>
           </div>
@@ -338,15 +338,15 @@ export const TryoutsPortal = () => {
             title={isInterest ? "Thanks for your interest" : "You're in"}
           >
             <p>
-              <strong className="text-slate-900">
+              <strong className="text-ink">
                 {form.firstName} {form.lastName}
               </strong>{" "}
               {isInterest
                 ? `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch when tryouts open.`
                 : `is registered for ${team?.name || "tryouts"}. We'll reach out with next steps.`}{" "}
               Contact at{" "}
-              <strong className="text-slate-900">{form.email}</strong> ·{" "}
-              <strong className="text-slate-900">{form.phone}</strong>.
+              <strong className="text-ink">{form.email}</strong> ·{" "}
+              <strong className="text-ink">{form.phone}</strong>.
             </p>
           </PhaseCard>
         </div>
@@ -373,7 +373,7 @@ export const TryoutsPortal = () => {
             className="w-20 h-20 mx-auto mb-3 object-contain"
           />
         )}
-        <Eyebrow className="block mb-2 text-slate-500">
+        <Eyebrow className="block mb-2 text-ink-3">
           {team?.currentSeason || "Next Season"} · {tryoutAgeLabel}
         </Eyebrow>
         <h1
@@ -394,7 +394,7 @@ export const TryoutsPortal = () => {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white/95 backdrop-blur rounded-2xl shadow-card border border-slate-200 overflow-hidden"
+        className="bg-surface backdrop-blur rounded-2xl shadow-card border border-line overflow-hidden"
       >
         <div
           className="h-1 w-full"
@@ -402,7 +402,7 @@ export const TryoutsPortal = () => {
         />
         <div className="p-5 sm:p-7 space-y-6">
           <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
               <h2 className="t-h2">Player Info</h2>
               <Eyebrow>{tryoutAgeLabel}</Eyebrow>
             </div>
@@ -463,7 +463,7 @@ export const TryoutsPortal = () => {
                   </Field>
                   <Field label="Tryout Date">
                     <div
-                      className={`${INPUT_BASE} bg-slate-50 text-slate-700 font-bold cursor-not-allowed`}
+                      className={`${INPUT_BASE} bg-app text-ink font-bold cursor-not-allowed`}
                       style={RING_STYLE}
                       aria-label="Tryout date (locked)"
                     >
@@ -533,7 +533,7 @@ export const TryoutsPortal = () => {
           </section>
 
           <section className="space-y-4">
-            <div className="flex items-center justify-between gap-3 pb-2 border-b border-slate-100">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
               <h2 className="t-h2">Parent / Guardian</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -611,7 +611,7 @@ export const TryoutsPortal = () => {
               </>
             )}
           </Button>
-          <p className="t-meta text-center text-slate-400">
+          <p className="t-meta text-center text-ink-3">
             Your info is shared only with this team's coaching staff.
           </p>
         </div>

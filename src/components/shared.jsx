@@ -39,9 +39,9 @@ export const LeaderboardCard = memo(
     }, [players, statKey, asc]);
 
     return (
-      <div className="bg-white/30 rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-white/50 overflow-hidden">
-        <div className="px-2.5 py-1.5 border-b border-white/40">
-          <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-slate-600 truncate">
+      <div className="bg-surface rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-line overflow-hidden">
+        <div className="px-2.5 py-1.5 border-b border-line">
+          <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-ink-2 truncate">
             {title}
           </h4>
         </div>
@@ -53,13 +53,13 @@ export const LeaderboardCard = memo(
                 className="flex justify-between items-center gap-1.5"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-[10px] font-black text-slate-400 w-2 shrink-0 tabular-nums">
+                  <span className="text-[10px] font-black text-ink-3 w-2 shrink-0 tabular-nums">
                     {i + 1}
                   </span>
                   <button
                     type="button"
                     onClick={() => onPlayerClick && onPlayerClick(p.id)}
-                    className="text-[11px] font-extrabold text-slate-800 truncate text-left hover:text-team-primary transition-colors cursor-pointer leading-tight"
+                    className="text-[11px] font-extrabold text-ink truncate text-left hover:text-team-primary transition-colors cursor-pointer leading-tight"
                   >
                     {p.name}
                   </button>
@@ -78,7 +78,7 @@ export const LeaderboardCard = memo(
               </div>
             ))
           ) : (
-            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center py-2 italic">
+            <div className="text-[9px] font-bold text-ink-3 uppercase tracking-widest text-center py-2 italic">
               No data
             </div>
           )}
@@ -100,7 +100,7 @@ export const RecordBadge = memo(
     if (variant === "compact") {
       return (
         <span
-          className="text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm border border-white/50 tabular-nums"
+          className="text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm border border-line tabular-nums"
           style={{ backgroundColor: primaryColor, color: tertiaryColor }}
         >
           {wl}
@@ -108,24 +108,24 @@ export const RecordBadge = memo(
       );
     }
     return (
-      <div className="inline-flex items-center gap-3 bg-white/80 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+      <div className="inline-flex items-center gap-3 bg-surface px-4 py-2.5 rounded-xl border border-line shadow-sm">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           Record
         </span>
-        <span className="text-base font-black tabular-nums text-slate-900">
+        <span className="text-base font-black tabular-nums text-ink">
           {wl}
         </span>
         <span className="h-4 w-px bg-slate-300" />
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           RS
         </span>
-        <span className="text-sm font-black tabular-nums text-slate-900">
+        <span className="text-sm font-black tabular-nums text-ink">
           {runsScored}
         </span>
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           RA
         </span>
-        <span className="text-sm font-black tabular-nums text-slate-900">
+        <span className="text-sm font-black tabular-nums text-ink">
           {runsAllowed}
         </span>
       </div>
@@ -181,7 +181,7 @@ export const PlayerAvatar = memo(
     if (photo) {
       return (
         <span
-          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-slate-200 border border-white/60 shadow-inner ${className}`}
+          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-line border border-line shadow-inner ${className}`}
           style={dim}
         >
           <img
@@ -206,7 +206,7 @@ export const PlayerAvatar = memo(
     }
     return (
       <span
-        className={`relative inline-flex items-center justify-center rounded-full font-black tabular-nums text-white border border-white/60 shadow-inner ${className}`}
+        className={`relative inline-flex items-center justify-center rounded-full font-black tabular-nums text-white border border-line shadow-inner ${className}`}
         style={{
           ...dim,
           fontSize: Math.max(10, size * 0.4),
@@ -283,7 +283,7 @@ export const cropImageTo256DataURL = (file) =>
 
 export const StatTile = ({ label, value, className = "" }) => (
   <div
-    className={`bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl ${className}`}
+    className={`bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl ${className}`}
   >
     <span className="block mb-1.5 t-eyebrow">{label}</span>
     <span className="block t-stat-num">{value}</span>
@@ -325,11 +325,11 @@ const BUTTON_VARIANTS = {
   },
   secondary: {
     className:
-      "bg-white/80 border border-slate-200 text-slate-700 shadow-sm hover:bg-white",
+      "bg-surface border border-line text-ink shadow-sm hover:bg-surface-2",
     style: {},
   },
   ghost: {
-    className: "bg-transparent text-slate-600 hover:bg-white/60",
+    className: "bg-transparent text-ink-2 hover:bg-surface",
     style: {},
   },
   success: {
@@ -370,7 +370,7 @@ export const Button = ({
 // generic blue ring. Inputs across the app should use this string rather
 // than redefining the same border / radius / focus combo locally.
 export const FORM_INPUT_CLASS =
-  "w-full px-3 py-2.5 text-sm bg-white border border-slate-200 rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed";
+  "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
 
 export const FORM_INPUT_RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
 
@@ -415,7 +415,7 @@ export const Modal = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white/95 ${widthClass} w-full rounded-2xl shadow-2xl border border-white/60 overflow-hidden`}
+        className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden`}
       >
         {accent && (
           <div
@@ -436,7 +436,7 @@ export const Modal = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 -mr-2 -mt-1 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                  className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
                   aria-label="Close"
                 >
                   <span className="block w-4 h-4 leading-none text-lg">×</span>
@@ -444,7 +444,7 @@ export const Modal = ({
               )}
             </div>
           )}
-          <div className="t-body text-slate-700">{children}</div>
+          <div className="t-body text-ink">{children}</div>
           {footer && (
             <div className="mt-6 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               {footer}
@@ -463,7 +463,7 @@ export const SharedModals = memo(() => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="bg-white/95 rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-white/60">
+      <div className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: team.primaryColor }}
@@ -477,7 +477,7 @@ export const SharedModals = memo(() => {
             {modal.type === "confirm" && (
               <button
                 onClick={() => setModal({ ...modal, isOpen: false })}
-                className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+                className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
               >
                 Cancel
               </button>

@@ -41,11 +41,11 @@ export const ScoreEditor = memo(
       : null;
 
     return (
-      <div className="px-5 pb-5 pt-1 border-t border-white/40">
-        <div className="bg-white/80 border border-slate-200 rounded-xl p-4 shadow-sm">
+      <div className="px-5 pb-5 pt-1 border-t border-line">
+        <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap">
             <div className="w-full sm:w-28">
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Our Score
               </label>
               <input
@@ -55,11 +55,11 @@ export const ScoreEditor = memo(
                 autoFocus
                 value={ts}
                 onChange={(e) => setTs(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums text-center"
+                className="w-full p-2.5 bg-surface border border-line text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums text-center"
               />
             </div>
             <div className="w-full sm:w-28">
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Opp. Score
               </label>
               <input
@@ -68,18 +68,18 @@ export const ScoreEditor = memo(
                 inputMode="numeric"
                 value={os}
                 onChange={(e) => setOs(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums text-center"
+                className="w-full p-2.5 bg-surface border border-line text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums text-center"
               />
             </div>
             {game.lineup?.length > 0 && (
               <div className="w-full sm:w-32">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Innings Played
                 </label>
                 <select
                   value={inningsPlayed}
                   onChange={(e) => setInningsPlayed(parseInt(e.target.value, 10))}
-                  className="w-full p-2.5 bg-white border border-slate-200 text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm tabular-nums text-center cursor-pointer"
+                  className="w-full p-2.5 bg-surface border border-line text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm tabular-nums text-center cursor-pointer"
                 >
                   {Array.from({ length: lineupMaxInnings }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>
@@ -106,7 +106,7 @@ export const ScoreEditor = memo(
               <button
                 type="button"
                 onClick={onCancel}
-                className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-line text-ink rounded-lg hover:bg-surface-2 transition-colors shadow-sm"
               >
                 Cancel
               </button>
@@ -114,7 +114,7 @@ export const ScoreEditor = memo(
                 <button
                   type="button"
                   onClick={onClear}
-                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-white border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
                 >
                   Clear
                 </button>
@@ -130,7 +130,7 @@ export const ScoreEditor = memo(
               </button>
             </div>
           </div>
-          <p className="text-[10px] text-slate-500 mt-3 font-medium">
+          <p className="text-[10px] text-ink-3 mt-3 font-medium">
             Saving marks this game Final — its innings will count toward future lineup fairness. Trimmed innings are saved separately and can be restored from the game editor.
           </p>
         </div>
@@ -257,12 +257,12 @@ export const ScheduleTab = memo(() => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-white/30 shadow-sm border border-white/50 print:hidden rounded-2xl overflow-hidden">
-          <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-white/40 bg-white/20">
+        <div className="bg-surface shadow-sm border border-line print:hidden rounded-2xl overflow-hidden">
+          <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line bg-surface">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSelectedGameId(null)}
-                className="p-2 hover:bg-white/60 text-slate-500 hover:text-slate-900 rounded-full transition-colors"
+                className="p-2 hover:bg-surface text-ink-3 hover:text-ink rounded-full transition-colors"
               >
                 <Icons.ChevronUp className="w-6 h-6 -rotate-90" />
               </button>
@@ -275,34 +275,34 @@ export const ScheduleTab = memo(() => {
                   style={{ color: primaryColor }}
                 />
               </div>
-              <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider">
+              <h2 className="text-xl font-black text-ink uppercase tracking-wider">
                 Game Command Center
               </h2>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
-              <div className="bg-white/60 border border-white/50 px-4 py-2.5 rounded-xl shrink-0 shadow-sm">
-                <span className="block text-[9px] text-slate-500 font-extrabold uppercase tracking-widest leading-none mb-1.5">
+              <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 shadow-sm">
+                <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
                   Opponent
                 </span>
-                <span className="block text-sm text-slate-900 font-black uppercase leading-none">
+                <span className="block text-sm text-ink font-black uppercase leading-none">
                   {currentGame.opponent}
                 </span>
               </div>
-              <div className="bg-white/60 border border-white/50 px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
-                <span className="block text-[9px] text-slate-500 font-extrabold uppercase tracking-widest leading-none mb-1.5">
+              <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
+                <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
                   Rotation
                 </span>
-                <span className="block text-sm text-slate-900 font-black uppercase leading-none">
+                <span className="block text-sm text-ink font-black uppercase leading-none">
                   {gamePositionLock === "full"
                     ? "Full Game"
                     : `${gamePositionLock} Inn`}
                 </span>
               </div>
-              <div className="bg-white/60 border border-white/50 px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
-                <span className="block text-[9px] text-slate-500 font-extrabold uppercase tracking-widest leading-none mb-1.5">
+              <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
+                <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
                   Batters
                 </span>
-                <span className="block text-sm text-slate-900 font-black uppercase leading-none">
+                <span className="block text-sm text-ink font-black uppercase leading-none">
                   {gameBattingSize === "roster" ? "Roster" : gameBattingSize}
                 </span>
               </div>
@@ -322,7 +322,7 @@ export const ScheduleTab = memo(() => {
                     <button
                       onClick={regenerateLineup}
                       title="Re-roll a different valid lineup"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
                     >
                       <Icons.Refresh className="w-4 h-4" /> Re-roll
                     </button>
@@ -331,7 +331,7 @@ export const ScheduleTab = memo(() => {
                     <button
                       onClick={regenerateBatting}
                       title="Re-roll just the batting order — defense stays the same"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
                     >
                       <Icons.Bat className="w-4 h-4" /> Re-roll Batting
                     </button>
@@ -340,7 +340,7 @@ export const ScheduleTab = memo(() => {
                     <button
                       onClick={regenerateDefense}
                       title="Re-roll just the defensive schedule — batting order stays the same"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
                     >
                       <Icons.Glove className="w-4 h-4" /> Re-roll Defense
                     </button>
@@ -357,7 +357,7 @@ export const ScheduleTab = memo(() => {
                         setSaveTemplateOpen(true);
                       }}
                       title="Save the current lineup + batting order as a reusable template"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
                     >
                       <Icons.Save className="w-4 h-4" /> Save as Template
                     </button>
@@ -378,7 +378,7 @@ export const ScheduleTab = memo(() => {
                         }}
                         title="Apply or delete a saved lineup template"
                         aria-label="Lineup templates"
-                        className="py-3 px-4 font-black uppercase tracking-widest rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700 cursor-pointer"
+                        className="py-3 px-4 font-black uppercase tracking-widest rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink cursor-pointer"
                       >
                         <option value="">Templates…</option>
                         <optgroup label="Apply">
@@ -409,7 +409,7 @@ export const ScheduleTab = memo(() => {
                         })
                       }
                       title="Share this lineup as a PNG image"
-                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-white/80 border border-slate-200 hover:bg-white text-slate-700"
+                      className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
                     >
                       <Icons.Link className="w-4 h-4" /> Share
                     </button>
@@ -420,9 +420,9 @@ export const ScheduleTab = memo(() => {
           </div>
 
           
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-white/40">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-line">
               <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Date
                 </label>
                 <input
@@ -431,11 +431,11 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { date: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
                 />
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Game Rules
                 </label>
                 <select
@@ -459,14 +459,14 @@ export const ScheduleTab = memo(() => {
                       pitchingFormat: newFormat,
                     });
                   }}
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="USSSA">USSSA Baseball</option>
                   <option value="NKB">Northern Kentucky Baseball (NKB)</option>
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Pitching
                 </label>
                 <select
@@ -476,7 +476,7 @@ export const ScheduleTab = memo(() => {
                       pitchingFormat: e.target.value,
                     })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   {gameLeague === "NKB" &&
                   ["6U", "7U", "8U"].includes(teamAge) ? (
@@ -496,7 +496,7 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Fielders
                 </label>
                 <select
@@ -504,14 +504,14 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { defenseSize: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="9">9 Fielders</option>
                   <option value="10">10 Fielders</option>
                 </select>
               </div>
               <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Rotation
                 </label>
                 <select
@@ -519,7 +519,7 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { positionLock: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="1">1 Inn</option>
                   <option value="2">2 Inn</option>
@@ -528,7 +528,7 @@ export const ScheduleTab = memo(() => {
                 </select>
               </div>
               <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Batters
                 </label>
                 <select
@@ -536,7 +536,7 @@ export const ScheduleTab = memo(() => {
                   onChange={(e) =>
                     updateGame(selectedGameId, { battingSize: e.target.value })
                   }
-                  className="w-full p-2.5 bg-white/80 border border-slate-200 text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
                   <option value="roster">Roster</option>
                   <option value="9">9</option>
@@ -550,12 +550,12 @@ export const ScheduleTab = memo(() => {
             <>
             {/* Game type dropdown — League / Pool / Bracket. Drives
                 engine pitcher pool sizes for 9U+ Kid Pitch (D4). */}
-            <div className="bg-white/80 border border-slate-200 rounded-xl p-3 mt-3 flex items-center gap-3">
+            <div className="bg-surface border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-widest text-slate-800">
+                <div className="text-[11px] font-black uppercase tracking-widest text-ink">
                   Game Type
                 </div>
-                <div className="text-[10px] text-slate-600 font-medium leading-tight mt-0.5">
+                <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
                   Pool = spread pitchers across the staff. Bracket = your aces.
                 </div>
               </div>
@@ -564,7 +564,7 @@ export const ScheduleTab = memo(() => {
                 onChange={(e) =>
                   updateGame(selectedGameId, { gameType: e.target.value })
                 }
-                className="shrink-0 p-2 text-[11px] font-black uppercase tracking-widest bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                className="shrink-0 p-2 text-[11px] font-black uppercase tracking-widest bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
               >
                 <option value="league">League</option>
                 <option value="pool">Pool</option>
@@ -589,17 +589,17 @@ export const ScheduleTab = memo(() => {
                 aria-label="Toggle big game"
               >
                 <span
-                  className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
+                  className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
                     isBigGame ? "left-5" : "left-0.5"
                   }`}
                 />
               </button>
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5">
+                <div className="text-[11px] font-black uppercase tracking-widest text-ink flex items-center gap-1.5">
                   <span aria-hidden>⭐</span>
                   Big Game {isBigGame ? "ON" : "OFF"}
                 </div>
-                <div className="text-[10px] text-slate-600 font-medium leading-tight mt-0.5">
+                <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
                   {isBigGame
                     ? "Strongest defense possible. Past games don't factor in."
                     : "Off — engine builds a normal lineup."}
@@ -620,7 +620,7 @@ export const ScheduleTab = memo(() => {
                 disabled={isBigGame}
                 className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
                   isBigGame
-                    ? "bg-slate-200 cursor-not-allowed"
+                    ? "bg-line cursor-not-allowed"
                     : applySeasonalFairness
                     ? "bg-emerald-500"
                     : "bg-slate-300"
@@ -628,7 +628,7 @@ export const ScheduleTab = memo(() => {
                 aria-label="Toggle even out playing time"
               >
                 <span
-                  className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
+                  className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
                     isBigGame || !applySeasonalFairness ? "left-0.5" : "left-5"
                   }`}
                 />
@@ -636,7 +636,7 @@ export const ScheduleTab = memo(() => {
               <div className="flex-1 min-w-0">
                 <div
                   className={`text-[11px] font-black uppercase tracking-widest ${
-                    isBigGame ? "text-slate-400" : "text-slate-700"
+                    isBigGame ? "text-ink-3" : "text-ink"
                   }`}
                 >
                   Even Out Playing Time{" "}
@@ -644,7 +644,7 @@ export const ScheduleTab = memo(() => {
                 </div>
                 <div
                   className={`text-[10px] font-medium leading-tight mt-0.5 ${
-                    isBigGame ? "text-slate-400" : "text-slate-500"
+                    isBigGame ? "text-ink-3" : "text-ink-3"
                   }`}
                 >
                   {isBigGame
@@ -683,8 +683,8 @@ export const ScheduleTab = memo(() => {
               const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
               if (!anyImbalance) return null;
               return (
-                <div className="bg-white/40 border border-white/60 rounded-xl p-3 mt-3">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-600 mb-2 flex items-center gap-2">
+                <div className="bg-surface border border-line rounded-xl p-3 mt-3">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
                     <Icons.Users className="w-3.5 h-3.5" />
                     Innings Played This Season
                   </div>
@@ -701,10 +701,10 @@ export const ScheduleTab = memo(() => {
                               ? "bg-red-50 border-red-200"
                               : isUnder
                               ? "bg-green-50 border-green-200"
-                              : "bg-white border-slate-200"
+                              : "bg-surface border-line"
                           }`}
                         >
-                          <span className="font-bold text-slate-700 truncate">
+                          <span className="font-bold text-ink truncate">
                             {r.player.name.split(" ")[0]}
                           </span>
                           <span
@@ -713,7 +713,7 @@ export const ScheduleTab = memo(() => {
                                 ? "text-red-700"
                                 : isUnder
                                 ? "text-green-700"
-                                : "text-slate-400"
+                                : "text-ink-3"
                             }`}
                           >
                             {isOver ? `+${rounded}` : rounded === 0 ? "0" : rounded}
@@ -722,7 +722,7 @@ export const ScheduleTab = memo(() => {
                       );
                     })}
                   </div>
-                  <div className="text-[10px] text-slate-500 italic font-medium mt-2">
+                  <div className="text-[10px] text-ink-3 italic font-medium mt-2">
                     Red = played more than the team average. Green = played
                     less. With the toggle on, green kids get more time today.
                     Missed games don&apos;t count against anyone.
@@ -752,7 +752,7 @@ export const ScheduleTab = memo(() => {
                     </span>
                   </div>
                   <label className="inline-flex items-center gap-2 select-none">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-ink">
                       Innings Played:
                     </span>
                     <select
@@ -777,7 +777,7 @@ export const ScheduleTab = memo(() => {
                         }
                         updateGame(selectedGameId, updates);
                       }}
-                      className="text-[11px] font-bold p-1.5 bg-white border border-amber-300 rounded-md outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer tabular-nums"
+                      className="text-[11px] font-bold p-1.5 bg-surface border border-amber-300 rounded-md outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer tabular-nums"
                     >
                       {Array.from({ length: maxInnings }, (_, i) => i + 1).map((n) => (
                         <option key={n} value={n}>
@@ -800,10 +800,10 @@ export const ScheduleTab = memo(() => {
             <div className={`grid grid-cols-1 ${canEdit ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-white/40 bg-transparent`}>
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="p-1.5 rounded bg-white/60 border border-white/50 shadow-sm">
+                  <div className="p-1.5 rounded bg-surface border border-line shadow-sm">
                     <Icons.Users className="w-4 h-4 text-team-primary" />
                   </div>
-                  <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">
+                  <h3 className="font-black text-ink uppercase tracking-widest text-sm">
                     Game Day Attendance
                   </h3>
                 </div>
@@ -822,8 +822,8 @@ export const ScheduleTab = memo(() => {
                       }
                       className={`text-left p-3 text-xs font-extrabold uppercase tracking-wider border rounded-xl transition-all flex justify-between items-center ${
                         currentGameAttendance[p.id] !== false
-                          ? "bg-white/80 border-slate-200 text-slate-800 shadow-sm hover:bg-white"
-                          : "bg-white/30 border-slate-200/50 text-slate-500 grayscale opacity-60"
+                          ? "bg-surface border-line text-ink shadow-sm hover:bg-surface-2"
+                          : "bg-surface border-line/50 text-ink-3 grayscale opacity-60"
                       }`}
                     >
                       <span className="truncate mr-2">
@@ -843,16 +843,16 @@ export const ScheduleTab = memo(() => {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
-                    <div className="p-1.5 rounded bg-white/60 border border-white/50 shadow-sm">
+                    <div className="p-1.5 rounded bg-surface border border-line shadow-sm">
                       <Icons.MapPin className="w-4 h-4 text-amber-600" />
                     </div>
-                    <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">
+                    <h3 className="font-black text-ink uppercase tracking-widest text-sm">
                       First Inning Setup
                     </h3>
                   </div>
                   <button
                     onClick={() => setFirstInningLineup({})}
-                    className="text-[10px] font-black uppercase tracking-widest text-slate-600 hover:text-slate-900 transition-colors bg-white/60 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm"
+                    className="text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink transition-colors bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm"
                   >
                     Clear All
                   </button>
@@ -868,12 +868,12 @@ export const ScheduleTab = memo(() => {
                       (pos) => (
                         <div
                           key={pos}
-                          className="flex items-center gap-3 bg-white/80 border border-slate-200 rounded-xl p-2 shadow-sm"
+                          className="flex items-center gap-3 bg-surface border border-line rounded-xl p-2 shadow-sm"
                         >
-                          <span className="font-black text-[11px] w-8 text-center text-slate-700 shrink-0 uppercase tracking-widest">
+                          <span className="font-black text-[11px] w-8 text-center text-ink shrink-0 uppercase tracking-widest">
                             {pos}
                           </span>
-                          <div className="h-6 w-px bg-slate-200 shrink-0" />
+                          <div className="h-6 w-px bg-line shrink-0" />
                           <select
                             value={firstInningLineup[pos] || ""}
                             onChange={(e) => {
@@ -892,7 +892,7 @@ export const ScheduleTab = memo(() => {
                             className={`flex-1 p-1.5 outline-none rounded-lg text-xs font-extrabold transition-colors cursor-pointer w-full truncate ${
                               firstInningLineup[pos]
                                 ? "bg-amber-100 text-amber-900"
-                                : "bg-transparent text-slate-600 hover:bg-white/50"
+                                : "bg-transparent text-ink-2 hover:bg-surface-2"
                             }`}
                           >
                             <option value="">Auto Assign</option>
@@ -930,8 +930,8 @@ export const ScheduleTab = memo(() => {
         </div>
 
         {lineup && (
-          <div className="bg-white/30 shadow-sm border border-white/50 print:border-none print:shadow-none rounded-2xl overflow-hidden mb-12">
-            <div className="p-5 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden bg-white/40 border-b border-white/40">
+          <div className="bg-surface shadow-sm border border-line print:border-none print:shadow-none rounded-2xl overflow-hidden mb-12">
+            <div className="p-5 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden bg-surface border-b border-line">
               <div className="flex items-center gap-4">
                 <div
                   className="p-2.5 rounded-full"
@@ -942,26 +942,26 @@ export const ScheduleTab = memo(() => {
                     style={{ color: primaryColor }}
                   />
                 </div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider">
+                <h2 className="text-xl font-black text-ink uppercase tracking-wider">
                   Active Lineup Grid
                 </h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
                 {canEdit && (
-                  <div className="flex items-center bg-white/80 border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="flex items-center bg-surface border border-line rounded-xl overflow-hidden shadow-sm">
                     <button
                       onClick={removeInning}
                       disabled={lineup.length <= 1}
-                      className="px-4 py-2.5 hover:bg-slate-100 disabled:opacity-50 transition-colors text-slate-600"
+                      className="px-4 py-2.5 hover:bg-surface-2 disabled:opacity-50 transition-colors text-ink-2"
                     >
                       <Icons.Minus className="w-4 h-4" />
                     </button>
-                    <span className="text-xs font-black px-4 text-slate-800 tracking-widest border-x border-slate-200 bg-slate-50/50 py-2.5">
+                    <span className="text-xs font-black px-4 text-ink tracking-widest border-x border-line bg-app/50 py-2.5">
                       {lineup.length} INN
                     </span>
                     <button
                       onClick={addInning}
-                      className="px-4 py-2.5 hover:bg-slate-100 transition-colors text-slate-600"
+                      className="px-4 py-2.5 hover:bg-surface-2 transition-colors text-ink-2"
                     >
                       <Icons.Plus className="w-4 h-4" />
                     </button>
@@ -977,13 +977,13 @@ export const ScheduleTab = memo(() => {
                     })
                   }
                   title="Download lineup as a PDF for emailing or texting"
-                  className="text-xs bg-white/80 border border-slate-200 text-slate-700 py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-white transition-colors rounded-xl shadow-sm"
+                  className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.FileText className="w-4 h-4" /> PDF
                 </button>
                 <button
                   onClick={() => window.print()}
-                  className="text-xs bg-white/80 border border-slate-200 text-slate-700 py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-white transition-colors rounded-xl shadow-sm"
+                  className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
                   <Icons.Printer className="w-4 h-4" /> Print
                 </button>
@@ -1007,7 +1007,7 @@ export const ScheduleTab = memo(() => {
               </div>
             </div>
 
-            <div className="hidden print:flex p-6 border-b border-slate-200 items-center justify-center gap-4 bg-white">
+            <div className="hidden print:flex p-6 border-b border-line items-center justify-center gap-4 bg-surface">
               {logoUrl && (
                 <img
                   src={logoUrl}
@@ -1015,7 +1015,7 @@ export const ScheduleTab = memo(() => {
                   className="w-24 h-24 object-contain drop-shadow-md"
                 />
               )}
-              <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
+              <h2 className="text-3xl font-black uppercase tracking-tighter text-ink">
                 GAME VS {currentGame.opponent || "OPPONENT"}
               </h2>
             </div>
@@ -1028,12 +1028,12 @@ export const ScheduleTab = memo(() => {
             />
 
             {battingLineup && (
-              <div className="p-6 border-t border-slate-200/80 print:hidden bg-transparent">
-                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-200/50">
-                  <div className="p-2 rounded-full bg-white/60 border border-slate-200 shadow-sm">
-                    <Icons.Bat className="w-5 h-5 text-slate-600" />
+              <div className="p-6 border-t border-line/80 print:hidden bg-transparent">
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-line/50">
+                  <div className="p-2 rounded-full bg-surface border border-line shadow-sm">
+                    <Icons.Bat className="w-5 h-5 text-ink-2" />
                   </div>
-                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-widest">
+                  <h3 className="text-lg font-black text-ink uppercase tracking-widest">
                     Batting Order
                   </h3>
                 </div>
@@ -1041,22 +1041,22 @@ export const ScheduleTab = memo(() => {
                   {battingLineup.map((p, idx) => (
                     <div
                       key={`batter_${idx}`}
-                      className="bg-white/80 border border-slate-200 p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-white"
+                      className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
                     >
                       <div className="flex items-center gap-4">
                       
-                        <div className="flex flex-col items-center gap-1 text-slate-400 border-r border-slate-200/50 pr-3 mr-1">
+                        <div className="flex flex-col items-center gap-1 text-ink-3 border-r border-line/50 pr-3 mr-1">
                           <button
                             onClick={() => moveBatter(idx, -1)}
                             disabled={idx === 0}
-                            className="p-1 hover:bg-slate-100 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
+                            className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                           >
                             <Icons.ChevronUp className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => moveBatter(idx, 1)}
                             disabled={idx === battingLineup.length - 1}
-                            className="p-1 hover:bg-slate-100 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
+                            className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
                           >
                             <Icons.ChevronDown className="w-4 h-4" />
                           </button>
@@ -1077,7 +1077,7 @@ export const ScheduleTab = memo(() => {
                           onClick={() =>
                             openPlayerProfile && openPlayerProfile(p.id)
                           }
-                          className="flex-1 text-sm font-black text-slate-800 text-left hover:text-team-primary transition-colors cursor-pointer truncate"
+                          className="flex-1 text-sm font-black text-ink text-left hover:text-team-primary transition-colors cursor-pointer truncate"
                         >
                           {p.name}
                         </button>
@@ -1085,21 +1085,21 @@ export const ScheduleTab = memo(() => {
                           p.stats?.ops > 0 ||
                           p.stats?.avg > 0 ||
                           p.stats?.contact > 0) && (
-                          <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-3 bg-white/60 px-3 py-1.5 border border-slate-200 rounded-lg">
+                          <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex items-center gap-3 bg-surface px-3 py-1.5 border border-line rounded-lg">
                             <span>
                               {p.stats.h || 0}/{p.stats.ab || 0}
                             </span>
-                            <span className="text-slate-300">|</span>
+                            <span className="text-ink-3">|</span>
                             <span>
                               AVG:{" "}
-                              <span className="text-slate-800">
+                              <span className="text-ink">
                                 {formatStat(p.stats.avg)}
                               </span>
                             </span>
-                            <span className="text-slate-300">|</span>
+                            <span className="text-ink-3">|</span>
                             <span>
                               OPS:{" "}
-                              <span className="text-slate-800">
+                              <span className="text-ink">
                                 {formatStat(p.stats.ops)}
                               </span>
                             </span>
@@ -1120,8 +1120,8 @@ export const ScheduleTab = memo(() => {
 
   // Schedule list view
   return (
-    <div className="bg-white/30 shadow-sm border border-white/50 rounded-2xl overflow-hidden">
-      <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/20 border-b border-white/40">
+    <div className="bg-surface shadow-sm border border-line rounded-2xl overflow-hidden">
+      <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border-b border-line">
         <div className="flex items-center gap-4">
           <div
             className="p-2.5 rounded-full"
@@ -1132,7 +1132,7 @@ export const ScheduleTab = memo(() => {
               style={{ color: primaryColor }}
             />
           </div>
-          <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider flex items-center gap-3">
+          <h2 className="text-xl font-black text-ink uppercase tracking-wider flex items-center gap-3">
             Schedule & Lineups
           </h2>
         </div>
@@ -1152,14 +1152,14 @@ export const ScheduleTab = memo(() => {
         </div>
       </div>
       {isAddingGame && (
-        <div className="p-5 bg-white/40 border-b border-white/30 flex flex-col sm:flex-row gap-3">
+        <div className="p-5 bg-surface border-b border-white/30 flex flex-col sm:flex-row gap-3">
           <input
             type="date"
             value={newGameForm.date}
             onChange={(e) =>
               setNewGameForm({ ...newGameForm, date: e.target.value })
             }
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
+            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <input
             type="text"
@@ -1168,7 +1168,7 @@ export const ScheduleTab = memo(() => {
               setNewGameForm({ ...newGameForm, opponent: e.target.value })
             }
             placeholder="Opponent Name"
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
+            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
           />
           <select
             value={newGameForm.leagueRuleSet}
@@ -1189,7 +1189,7 @@ export const ScheduleTab = memo(() => {
                 pitchingFormat: newFormat,
               });
             }}
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
             <option value="USSSA">USSSA</option>
             <option value="NKB">NKB</option>
@@ -1199,7 +1199,7 @@ export const ScheduleTab = memo(() => {
             onChange={(e) =>
               setNewGameForm({ ...newGameForm, pitchingFormat: e.target.value })
             }
-            className="p-2.5 bg-white/80 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
             {newGameForm.leagueRuleSet === "NKB" &&
             ["6U", "7U", "8U"].includes(teamAge) ? (
@@ -1229,7 +1229,7 @@ export const ScheduleTab = memo(() => {
           </button>
           <button
             onClick={() => setIsAddingGame(false)}
-            className="bg-white/80 hover:bg-white text-slate-700 font-bold uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-sm border border-slate-200 transition-colors flex items-center justify-center"
+            className="bg-surface hover:bg-surface-2 text-ink font-bold uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-sm border border-line transition-colors flex items-center justify-center"
           >
             Cancel
           </button>
@@ -1245,12 +1245,12 @@ export const ScheduleTab = memo(() => {
                 className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
               />
             ) : (
-              <Icons.Calendar className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+              <Icons.Calendar className="w-16 h-16 text-ink-3 mx-auto mb-4" />
             )}
-            <h3 className="font-black uppercase tracking-widest text-slate-500 text-lg mb-2">
+            <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
               No Games Scheduled
             </h3>
-            <p className="text-slate-500 text-sm font-semibold max-w-sm mx-auto">
+            <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
               Add a game manually or head to Settings to import your schedule.
             </p>
           </div>
@@ -1280,7 +1280,7 @@ export const ScheduleTab = memo(() => {
                 return (
                   <div
                     key={game.id}
-                    className={`glass-card bg-white/40 hover:bg-white/60 transition-all ${
+                    className={`glass-card bg-surface hover:bg-surface transition-all ${
                       isPostponed ? "opacity-60" : ""
                     }`}
                   >
@@ -1339,7 +1339,7 @@ export const ScheduleTab = memo(() => {
                               {game.teamScore}-{game.opponentScore}
                             </span>
                           ) : isPostponed ? (
-                            <span className="t-chip bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-300">
+                            <span className="t-chip bg-surface-2 text-ink px-2.5 py-1 rounded-md border border-line-strong">
                               Postponed
                             </span>
                           ) : game.lineup ? (
@@ -1354,10 +1354,10 @@ export const ScheduleTab = memo(() => {
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex items-center gap-2">
                           <Icons.Clock className="w-3.5 h-3.5" />{" "}
                           {formatGameDateDisplay(game.date)}{" "}
-                          <span className="text-slate-300">|</span>{" "}
+                          <span className="text-ink-3">|</span>{" "}
                           {game.leagueRuleSet || leagueRuleSet}{" "}
                           {game.pitchingFormat || pitchingFormat}
                         </p>
@@ -1379,15 +1379,15 @@ export const ScheduleTab = memo(() => {
                                     });
                                   }
                                 }}
-                                className="w-4 h-4 rounded border-slate-300 cursor-pointer"
+                                className="w-4 h-4 rounded border-line-strong cursor-pointer"
                               />
-                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-ink-2">
                                 Postponed
                               </span>
                             </label>
                             {isPostponed && (
                               <label className="inline-flex items-center gap-2 select-none">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-ink-2">
                                   Reschedule:
                                 </span>
                                 <input
@@ -1402,7 +1402,7 @@ export const ScheduleTab = memo(() => {
                                       status: "scheduled",
                                     });
                                   }}
-                                  className="text-[11px] font-bold p-1.5 bg-white border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm cursor-pointer"
+                                  className="text-[11px] font-bold p-1.5 bg-surface border border-line-strong rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm cursor-pointer"
                                 />
                               </label>
                             )}
@@ -1420,7 +1420,7 @@ export const ScheduleTab = memo(() => {
                               setBattingLineup(game.battingLineup || null);
                               setCurrentGameAttendance(game.attendance || {});
                             }}
-                            className="flex-1 sm:flex-none text-xs px-5 py-3 bg-white/80 text-slate-800 border border-slate-200 font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-white transition-colors rounded-xl shadow-sm"
+                            className="flex-1 sm:flex-none text-xs px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                           >
                             {!canEdit ? (
                               <Icons.Clipboard className="w-4 h-4" />
@@ -1456,7 +1456,7 @@ export const ScheduleTab = memo(() => {
                             }
                             className={`flex-1 sm:flex-none text-xs px-5 py-3 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border ${
                               isFinal
-                                ? "bg-white/80 text-slate-800 border-slate-200 hover:bg-white"
+                                ? "bg-surface text-ink border-line hover:bg-surface-2"
                                 : "text-white border-transparent hover:-translate-y-0.5"
                             }`}
                             style={
@@ -1475,7 +1475,7 @@ export const ScheduleTab = memo(() => {
                         {canEdit && (
                           <button
                             onClick={() => deleteSavedGame(game.id)}
-                            className="text-slate-400 hover:text-red-600 bg-white/80 border border-slate-200 hover:border-red-200 hover:bg-red-50 p-3 transition-colors rounded-xl shadow-sm"
+                            className="text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-red-200 hover:bg-red-50 p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
                           </button>
@@ -1515,19 +1515,19 @@ export const ScheduleTab = memo(() => {
           onClick={() => setSaveTemplateOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                 Save Lineup Template
               </h3>
-              <p className="text-xs text-slate-500 font-medium mb-4">
+              <p className="text-xs text-ink-3 font-medium mb-4">
                 Reusable batting order + defensive plan. Apply it to any
                 future game.
               </p>
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
                 Name
               </label>
               <input
@@ -1542,13 +1542,13 @@ export const ScheduleTab = memo(() => {
                   }
                   if (e.key === "Escape") setSaveTemplateOpen(false);
                 }}
-                className="w-full px-3 py-2.5 bg-white border border-slate-200 text-sm font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+                className="w-full px-3 py-2.5 bg-surface border border-line text-sm font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
               />
               <div className="flex justify-end gap-2 mt-5">
                 <button
                   type="button"
                   onClick={() => setSaveTemplateOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
                 >
                   Cancel
                 </button>
@@ -1584,15 +1584,15 @@ export const ScheduleTab = memo(() => {
             onClick={() => setPendingDeleteTemplateId(null)}
           >
             <div
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-1.5 bg-red-500" />
               <div className="p-5 sm:p-6">
-                <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+                <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                   Delete Template?
                 </h3>
-                <p className="text-sm text-slate-700 font-medium mb-5">
+                <p className="text-sm text-ink font-medium mb-5">
                   "{name}" will be removed from your saved templates.
                   Games using this template aren't affected.
                 </p>
@@ -1600,7 +1600,7 @@ export const ScheduleTab = memo(() => {
                   <button
                     type="button"
                     onClick={() => setPendingDeleteTemplateId(null)}
-                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
                   >
                     Cancel
                   </button>

@@ -281,23 +281,23 @@ export const PastSeasonImportModal = memo(() => {
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
         <div
           className="p-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
 
-        <div className="p-6 sm:p-7 border-b border-slate-200">
+        <div className="p-6 sm:p-7 border-b border-line">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
               <h3 className="t-card-title">Import Past Season Stats</h3>
-              <p className="text-xs text-slate-500 font-medium mt-1">
+              <p className="text-xs text-ink-3 font-medium mt-1">
                 Review and confirm which player each row belongs to.
               </p>
             </div>
             <button
               onClick={close}
-              className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+              className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
             >
               <Icons.X className="w-5 h-5" />
             </button>
@@ -305,7 +305,7 @@ export const PastSeasonImportModal = memo(() => {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Season *
               </label>
               <input
@@ -313,17 +313,17 @@ export const PastSeasonImportModal = memo(() => {
                 value={season}
                 onChange={(e) => setField({ season: e.target.value })}
                 placeholder="e.g., Spring 2025"
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
+                className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Age Group *
               </label>
               <select
                 value={ageGroup}
                 onChange={(e) => setField({ ageGroup: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
               >
                 <option value="">Select…</option>
                 {AGE_TIERS.map((a) => (
@@ -334,13 +334,13 @@ export const PastSeasonImportModal = memo(() => {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Pitching Format *
               </label>
               <select
                 value={pitchingFormat}
                 onChange={(e) => setField({ pitchingFormat: e.target.value })}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
               >
                 <option value="Kid Pitch">Kid Pitch</option>
                 <option value="Coach/Machine">Coach / Machine</option>
@@ -349,9 +349,9 @@ export const PastSeasonImportModal = memo(() => {
           </div>
         </div>
 
-        <div className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50">
+        <div className="overflow-y-auto custom-scrollbar flex-1 bg-app/50">
           <div className="p-4 sm:p-6 space-y-2">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 grid grid-cols-12 gap-3 px-3 pb-2">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 grid grid-cols-12 gap-3 px-3 pb-2">
               <div className="col-span-5">From CSV</div>
               <div className="col-span-7">Assign To</div>
             </div>
@@ -361,16 +361,16 @@ export const PastSeasonImportModal = memo(() => {
               return (
                 <div
                   key={row.csvName}
-                  className={`grid grid-cols-12 gap-3 items-center bg-white border rounded-xl p-3 shadow-sm ${
-                    isSkip ? "opacity-60" : "border-slate-200"
+                  className={`grid grid-cols-12 gap-3 items-center bg-surface border rounded-xl p-3 shadow-sm ${
+                    isSkip ? "opacity-60" : "border-line"
                   }`}
                 >
                   <div className="col-span-5">
-                    <div className="text-sm font-black text-slate-800 truncate">
+                    <div className="text-sm font-black text-ink truncate">
                       {row.csvName}
                     </div>
                     {row.number && (
-                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
                         #{row.number}
                       </div>
                     )}
@@ -381,7 +381,7 @@ export const PastSeasonImportModal = memo(() => {
                       onChange={(e) =>
                         setAssignment(row.csvName, e.target.value)
                       }
-                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                      className="w-full p-2 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                     >
                       <option value="skip">Skip this row</option>
                       <optgroup label="Match to existing player">
@@ -406,15 +406,15 @@ export const PastSeasonImportModal = memo(() => {
           </div>
         </div>
 
-        <div className="bg-white border-t border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+        <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-[11px] font-bold text-ink-3 uppercase tracking-widest">
             {assignedCount} matched · {skipCount} skipped
           </div>
           <div className="flex gap-3">
             <button
               type="button"
               onClick={close}
-              className="text-[11px] font-black uppercase tracking-widest px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+              className="text-[11px] font-black uppercase tracking-widest px-5 py-2.5 bg-surface border border-line text-ink rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
             >
               Cancel
             </button>
@@ -465,10 +465,10 @@ const PastSeasonForm = memo(
     });
 
     return (
-      <div className="bg-white border-2 border-blue-200 rounded-xl p-4 shadow-md mb-3">
+      <div className="bg-surface border-2 border-blue-200 rounded-xl p-4 shadow-md mb-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Season *
             </label>
             <input
@@ -476,17 +476,17 @@ const PastSeasonForm = memo(
               value={season}
               onChange={(e) => setSeason(e.target.value)}
               placeholder="e.g., Spring 2025"
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
+              className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Age Group *
             </label>
             <select
               value={ageGroup}
               onChange={(e) => setAgeGroup(e.target.value)}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
             >
               <option value="">Select…</option>
               {AGE_TIERS.map((a) => (
@@ -497,13 +497,13 @@ const PastSeasonForm = memo(
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Pitching Format
             </label>
             <select
               value={pitchingFormat}
               onChange={(e) => setPitchingFormat(e.target.value)}
-              className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
             >
               <option value="Kid Pitch">Kid Pitch</option>
               <option value="Coach/Machine">Coach / Machine</option>
@@ -514,7 +514,7 @@ const PastSeasonForm = memo(
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
           {fields.map((key) => (
             <div key={key}>
-              <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">
+              <label className="block text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
                 {key.toUpperCase()}
               </label>
               <input
@@ -522,7 +522,7 @@ const PastSeasonForm = memo(
                 step="0.001"
                 value={stats[key] || 0}
                 onChange={(e) => setStat(key, e.target.value)}
-                className="w-full p-1.5 bg-white border border-slate-200 rounded-md text-xs font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums"
+                className="w-full p-1.5 bg-surface border border-line rounded-md text-xs font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner tabular-nums"
               />
             </div>
           ))}
@@ -533,7 +533,7 @@ const PastSeasonForm = memo(
             <button
               type="button"
               onClick={onDelete}
-              className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-white border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm mr-auto"
+              className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-surface border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm mr-auto"
             >
               Delete
             </button>
@@ -541,7 +541,7 @@ const PastSeasonForm = memo(
           <button
             type="button"
             onClick={onCancel}
-            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-surface border border-line text-ink rounded-lg hover:bg-surface-2 transition-colors shadow-sm"
           >
             Cancel
           </button>
@@ -697,14 +697,14 @@ export const StatTrendModal = memo(
         }}
       >
         <div
-          className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          className="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div
             className="p-1.5"
             style={{ backgroundColor: "var(--team-primary)" }}
           />
-          <div className="p-5 sm:p-6 border-b border-slate-200 flex items-start justify-between gap-4">
+          <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
             <div>
               <div className="t-eyebrow mb-1">{player.name}</div>
               <h3 className="t-card-title">{meta.label}</h3>
@@ -730,7 +730,7 @@ export const StatTrendModal = memo(
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+              className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
             >
               <Icons.X className="w-5 h-5" />
             </button>
@@ -738,33 +738,33 @@ export const StatTrendModal = memo(
 
           <div className="p-5 sm:p-7 overflow-y-auto custom-scrollbar flex-1">
             {series.length === 0 ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 text-center">
-                <Icons.Bat className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm font-black uppercase tracking-widest text-slate-500 mb-1">
+              <div className="bg-app border border-line rounded-xl p-12 text-center">
+                <Icons.Bat className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+                <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
                   No Data Available
                 </p>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-ink-3 font-medium">
                   {meta.category === "pitching"
                     ? "No Kid Pitch seasons with this stat on file."
                     : "No seasons have data for this stat yet."}
                 </p>
               </div>
             ) : series.length === 1 ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">
+              <div className="bg-app border border-line rounded-xl p-8 text-center">
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
                   {series[0].season}
                   {series[0].ageGroup ? ` · ${series[0].ageGroup}` : ""}
                 </div>
-                <div className="text-5xl font-black tabular-nums text-slate-900 mb-2">
+                <div className="text-5xl font-black tabular-nums text-ink mb-2">
                   {formatStatValue(statKey, series[0].value)}
                 </div>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-ink-3 font-medium">
                   Add past seasons to see year-over-year trends.
                 </p>
               </div>
             ) : (
               <>
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+                <div className="bg-app border border-line rounded-xl p-4 mb-4">
                   <svg
                     viewBox={`0 0 ${W} ${H}`}
                     className="w-full h-auto"
@@ -870,15 +870,15 @@ export const StatTrendModal = memo(
                 </div>
 
                 {/* Season-by-season breakdown table */}
-                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                  <div className="grid grid-cols-3 px-4 py-2 bg-slate-50 border-b border-slate-200">
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                <div className="bg-surface border border-line rounded-xl overflow-hidden">
+                  <div className="grid grid-cols-3 px-4 py-2 bg-app border-b border-line">
+                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
                       Season
                     </div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
                       Age
                     </div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 text-right">
+                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 text-right">
                       {meta.label}
                     </div>
                   </div>
@@ -886,17 +886,17 @@ export const StatTrendModal = memo(
                     <div
                       key={i}
                       className={`grid grid-cols-3 px-4 py-2 ${
-                        i < series.length - 1 ? "border-b border-slate-100" : ""
+                        i < series.length - 1 ? "border-b border-line" : ""
                       } ${s.isCurrent ? "bg-blue-50/30" : ""}`}
                     >
-                      <div className="text-xs font-black text-slate-900 uppercase">
+                      <div className="text-xs font-black text-ink uppercase">
                         {s.season}
                         {s.isCurrent ? " ·" : ""}
                       </div>
-                      <div className="text-xs font-bold text-slate-600">
+                      <div className="text-xs font-bold text-ink-2">
                         {s.ageGroup || "—"}
                       </div>
-                      <div className="text-xs font-black tabular-nums text-slate-900 text-right">
+                      <div className="text-xs font-black tabular-nums text-ink text-right">
                         {formatStatValue(statKey, s.value)}
                       </div>
                     </div>
@@ -981,11 +981,11 @@ const RecentMovementPanel = memo(({ player }) => {
   const history = Array.isArray(player.statsHistory) ? player.statsHistory : [];
   if (history.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-        <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 flex items-center gap-2 mb-3">
+      <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+        <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
           <Icons.Forward className="w-4 h-4" /> Recent Movement
         </h4>
-        <p className="text-[11px] text-slate-500 font-medium italic">
+        <p className="text-[11px] text-ink-3 font-medium italic">
           No trend data yet — upload another CSV to start tracking.
         </p>
       </div>
@@ -998,10 +998,10 @@ const RecentMovementPanel = memo(({ player }) => {
   const windowed = series.slice(-Math.min(RECENT_MOVEMENT_WINDOW + 1, series.length));
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-      <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 flex items-center gap-2 mb-3">
+    <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+      <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
         <Icons.Forward className="w-4 h-4" /> Recent Movement
-        <span className="ml-auto text-[9px] font-bold text-slate-400 normal-case tracking-normal">
+        <span className="ml-auto text-[9px] font-bold text-ink-3 normal-case tracking-normal">
           Last {Math.min(RECENT_MOVEMENT_WINDOW, series.length - 1)} updates
         </span>
       </h4>
@@ -1016,17 +1016,17 @@ const RecentMovementPanel = memo(({ player }) => {
               ? "text-emerald-700 bg-emerald-50 border-emerald-200"
               : delta < 0
               ? "text-rose-700 bg-rose-50 border-rose-200"
-              : "text-slate-500 bg-slate-50 border-slate-200";
+              : "text-ink-3 bg-app border-line";
           return (
             <div
               key={key}
-              className="rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-2.5 flex items-center gap-3"
+              className="rounded-lg border border-line bg-app/40 px-3 py-2.5 flex items-center gap-3"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">
+                <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
                   {label}
                 </div>
-                <div className="text-base font-black tabular-nums text-slate-900 leading-tight">
+                <div className="text-base font-black tabular-nums text-ink leading-tight">
                   {fmtTrendVal(current, decimals)}
                 </div>
               </div>
@@ -1289,13 +1289,13 @@ export const PlayerProfileModal = memo(() => {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
       >
         <div
           className="p-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-6 sm:p-7 flex flex-col sm:flex-row items-start gap-5 border-b border-slate-100">
+        <div className="p-6 sm:p-7 flex flex-col sm:flex-row items-start gap-5 border-b border-line">
           <div className="relative shrink-0 group">
             <PlayerAvatar player={player} size={96} showNumber />
             <input
@@ -1345,7 +1345,7 @@ export const PlayerProfileModal = memo(() => {
               <button
                 type="button"
                 onClick={() => updatePlayer(player.id, { photoUrl: "" })}
-                className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white border border-slate-200 text-rose-500 hover:bg-rose-50 hover:text-rose-700 shadow-sm flex items-center justify-center"
+                className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-surface border border-line text-rose-500 hover:bg-rose-50 hover:text-rose-700 shadow-sm flex items-center justify-center"
                 aria-label="Remove photo"
                 title="Remove photo"
               >
@@ -1372,7 +1372,7 @@ export const PlayerProfileModal = memo(() => {
                   if (e.key === "Enter") e.target.blur();
                   if (e.key === "Escape") setEditingPlayerName(false);
                 }}
-                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 mb-1 w-full p-2 -ml-2 border border-slate-200 outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl bg-white shadow-inner"
+                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-ink mb-1 w-full p-2 -ml-2 border border-line outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl bg-surface shadow-inner"
               />
             ) : (
               <h2
@@ -1380,12 +1380,12 @@ export const PlayerProfileModal = memo(() => {
                   setTempPlayerName(player.name);
                   setEditingPlayerName(true);
                 }}
-                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-slate-900 mb-1 truncate cursor-pointer hover:bg-slate-100 px-2 py-1 -ml-2 rounded-xl transition-colors"
+                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-ink mb-1 truncate cursor-pointer hover:bg-surface-2 px-2 py-1 -ml-2 rounded-xl transition-colors"
               >
                 {player.name}
               </h2>
             )}
-            <p className="text-xs uppercase tracking-widest text-slate-500 font-extrabold mb-3">
+            <p className="text-xs uppercase tracking-widest text-ink-3 font-extrabold mb-3">
               Athlete Profile
             </p>
             <div className="flex gap-2 flex-wrap">
@@ -1397,11 +1397,11 @@ export const PlayerProfileModal = memo(() => {
                   P: {player.primaryPosition || "N/A"}
                 </span>
               )}
-              <span className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg bg-slate-100 text-slate-700">
+              <span className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg bg-surface-2 text-ink">
                 B/T: {player.bats || "R"}/{player.throws || "R"}
               </span>
               {player.dob && (
-                <span className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg bg-slate-100 text-slate-700">
+                <span className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg bg-surface-2 text-ink">
                   Age: {calculateBaseballAge(player.dob, currentSeason) || "?"}
                 </span>
               )}
@@ -1409,13 +1409,13 @@ export const PlayerProfileModal = memo(() => {
           </div>
           <button
             onClick={close}
-            className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mr-2 -mt-2 absolute top-6 right-4 sm:relative sm:top-0 sm:right-0"
+            className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mr-2 -mt-2 absolute top-6 right-4 sm:relative sm:top-0 sm:right-0"
           >
             <Icons.X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="bg-white border-b border-slate-200 flex-shrink-0">
+        <div className="bg-surface border-b border-line flex-shrink-0">
           <div className="flex overflow-x-auto px-6 sm:px-7 scrollbar-hide">
             {PROFILE_SECTIONS.filter(
               (t) => canEdit || (t.id !== "general" && t.id !== "contact")
@@ -1435,8 +1435,8 @@ export const PlayerProfileModal = memo(() => {
                 aria-current={activeSection === t.id ? "true" : undefined}
                 className={`py-3.5 px-4 font-extrabold text-[10px] uppercase tracking-widest whitespace-nowrap relative transition-colors border-b-2 ${
                   activeSection === t.id
-                    ? "text-slate-900"
-                    : "text-slate-400 border-transparent hover:text-slate-700"
+                    ? "text-ink"
+                    : "text-ink-3 border-transparent hover:text-ink"
                 }`}
                 style={
                   activeSection === t.id ? { borderColor: primaryColor } : {}
@@ -1450,7 +1450,7 @@ export const PlayerProfileModal = memo(() => {
 
         <div
           ref={scrollContainerRef}
-          className="overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50"
+          className="overflow-y-auto custom-scrollbar flex-1 bg-app/50"
         >
           <div
             data-profile-section="general"
@@ -1459,7 +1459,7 @@ export const PlayerProfileModal = memo(() => {
             <h3 className="t-h3">General Info</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                     Number
                   </label>
                   <input
@@ -1468,11 +1468,11 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { number: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
+                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                     Bats
                   </label>
                   <select
@@ -1480,7 +1480,7 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { bats: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
                   >
                     <option value="R">R</option>
                     <option value="L">L</option>
@@ -1488,7 +1488,7 @@ export const PlayerProfileModal = memo(() => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                     Throws
                   </label>
                   <select
@@ -1496,14 +1496,14 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { throws: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
                   >
                     <option value="R">R</option>
                     <option value="L">L</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                     Primary Pos
                   </label>
                   <select
@@ -1513,7 +1513,7 @@ export const PlayerProfileModal = memo(() => {
                         primaryPosition: e.target.value,
                       })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-sm"
+                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
                   >
                     <option value="">N/A</option>
                     {positions.map((p) => (
@@ -1524,7 +1524,7 @@ export const PlayerProfileModal = memo(() => {
                   </select>
                 </div>
                 <div className="col-span-2 sm:col-span-2">
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                     Date of Birth
                   </label>
                   <input
@@ -1533,20 +1533,20 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { dob: e.target.value })
                     }
-                    className="w-full p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
+                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
                   Comfortable Positions
                 </label>
-                <p className="text-[11px] text-slate-500 font-medium mb-3">
+                <p className="text-[11px] text-ink-3 font-medium mb-3">
                   Tap positions you&apos;re comfortable with this player playing.
                   Leave empty to let the engine consider them anywhere.
                 </p>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-white border border-slate-200 p-3 rounded-xl shadow-sm">
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
                   {positions
                     .filter((pos) => pos !== "C")
                     .map((pos) => {
@@ -1568,7 +1568,7 @@ export const PlayerProfileModal = memo(() => {
                           className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
                             active
                               ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
-                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                              : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
                           }`}
                         >
                           {pos}
@@ -1576,7 +1576,7 @@ export const PlayerProfileModal = memo(() => {
                       );
                     })}
                 </div>
-                <label className="mt-4 flex items-start gap-3 bg-white border border-slate-200 p-3 rounded-xl shadow-sm cursor-pointer">
+                <label className="mt-4 flex items-start gap-3 bg-surface border border-line p-3 rounded-xl shadow-sm cursor-pointer">
                   <input
                     type="checkbox"
                     checked={player.isCatcher === true}
@@ -1586,10 +1586,10 @@ export const PlayerProfileModal = memo(() => {
                     className="mt-0.5 w-4 h-4 accent-emerald-600"
                   />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-xs font-black uppercase tracking-widest text-slate-800">
+                    <span className="block text-xs font-black uppercase tracking-widest text-ink">
                       Catcher
                     </span>
-                    <span className="block text-[11px] text-slate-500 font-medium mt-0.5">
+                    <span className="block text-[11px] text-ink-3 font-medium mt-0.5">
                       This player is part of the catching rotation. The engine
                       will only consider checked players for C.
                     </span>
@@ -1598,13 +1598,13 @@ export const PlayerProfileModal = memo(() => {
               </div>
 
               {pitchingFormat === "Kid Pitch" && (
-                <div className="p-5 bg-white border border-slate-200 rounded-xl shadow-sm">
-                  <h4 className="font-black text-xs uppercase tracking-widest text-slate-700 mb-4 flex items-center gap-2">
+                <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+                  <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
                     <Icons.Pitch className="w-4 h-4" /> Recent Pitching
                   </h4>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                         Pitches Last Game
                       </label>
                       <input
@@ -1616,11 +1616,11 @@ export const PlayerProfileModal = memo(() => {
                             recentPitches: parseInt(e.target.value, 10) || 0,
                           })
                         }
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-100 disabled:text-slate-500 shadow-inner"
+                        className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                         Last Date Pitched
                       </label>
                       <input
@@ -1631,7 +1631,7 @@ export const PlayerProfileModal = memo(() => {
                             lastPitchDate: e.target.value,
                           })
                         }
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-100 disabled:text-slate-500 shadow-inner"
+                        className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
                       />
                     </div>
                   </div>
@@ -1641,20 +1641,20 @@ export const PlayerProfileModal = memo(() => {
 
           <div
             data-profile-section="report"
-            className="p-6 sm:p-7 space-y-6 border-t border-slate-200"
+            className="p-6 sm:p-7 space-y-6 border-t border-line"
           >
             <h3 className="t-h3">Season Report</h3>
               {/* Current season summary */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+              <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 flex items-center gap-2">
+                  <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
                     <Icons.Bat className="w-4 h-4" /> {currentSeason}
                   </h4>
                 </div>
 
                 {/* Hitting */}
                 <div className="mb-5">
-                  <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">
+                  <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
                     Hitting
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -1668,12 +1668,12 @@ export const PlayerProfileModal = memo(() => {
                     ].map((s) => (
                       <div
                         key={s.label}
-                        className="bg-slate-50 rounded-lg p-2 text-center"
+                        className="bg-app rounded-lg p-2 text-center"
                       >
-                        <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">
+                        <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
                           {s.label}
                         </div>
-                        <div className="text-sm font-black tabular-nums text-slate-900">
+                        <div className="text-sm font-black tabular-nums text-ink">
                           {s.v}
                         </div>
                       </div>
@@ -1684,7 +1684,7 @@ export const PlayerProfileModal = memo(() => {
                 {/* Pitching (only when team is Kid Pitch) */}
                 {pitchingFormat === "Kid Pitch" && (
                   <div className="mb-5">
-                    <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">
+                    <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
                       Pitching
                     </div>
                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -1695,12 +1695,12 @@ export const PlayerProfileModal = memo(() => {
                       ].map((s) => (
                         <div
                           key={s.label}
-                          className="bg-slate-50 rounded-lg p-2 text-center"
+                          className="bg-app rounded-lg p-2 text-center"
                         >
-                          <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">
+                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
                             {s.label}
                           </div>
-                          <div className="text-sm font-black tabular-nums text-slate-900">
+                          <div className="text-sm font-black tabular-nums text-ink">
                             {s.v}
                           </div>
                         </div>
@@ -1711,7 +1711,7 @@ export const PlayerProfileModal = memo(() => {
 
                 {/* Fielding */}
                 <div>
-                  <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-2">
+                  <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
                     Fielding
                   </div>
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -1723,12 +1723,12 @@ export const PlayerProfileModal = memo(() => {
                     ].map((s) => (
                       <div
                         key={s.label}
-                        className="bg-slate-50 rounded-lg p-2 text-center"
+                        className="bg-app rounded-lg p-2 text-center"
                       >
-                        <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">
+                        <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
                           {s.label}
                         </div>
-                        <div className="text-sm font-black tabular-nums text-slate-900">
+                        <div className="text-sm font-black tabular-nums text-ink">
                           {s.v}
                         </div>
                       </div>
@@ -1745,12 +1745,12 @@ export const PlayerProfileModal = memo(() => {
                   ).sort((a, b) => b[1] - a[1]);
                   const maxCount = entries[0]?.[1] || 1;
                   return (
-                    <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                      <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 mb-4 flex items-center gap-2">
+                    <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                      <h4 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
                         <Icons.Glove className="w-4 h-4" /> Innings by Position
                       </h4>
                       {entries.length === 0 ? (
-                        <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-center py-3">
+                        <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-3">
                           All Innings on Bench
                         </div>
                       ) : (
@@ -1762,10 +1762,10 @@ export const PlayerProfileModal = memo(() => {
                                 key={pos}
                                 className="flex items-center gap-3"
                               >
-                                <div className="w-10 text-[11px] font-black uppercase tracking-widest text-slate-700 shrink-0">
+                                <div className="w-10 text-[11px] font-black uppercase tracking-widest text-ink shrink-0">
                                   {pos}
                                 </div>
-                                <div className="flex-1 h-5 bg-slate-100 rounded-md overflow-hidden">
+                                <div className="flex-1 h-5 bg-surface-2 rounded-md overflow-hidden">
                                   <div
                                     className="h-full rounded-md transition-all"
                                     style={{
@@ -1775,7 +1775,7 @@ export const PlayerProfileModal = memo(() => {
                                     }}
                                   />
                                 </div>
-                                <div className="w-8 text-right text-sm font-black tabular-nums text-slate-800 shrink-0">
+                                <div className="w-8 text-right text-sm font-black tabular-nums text-ink shrink-0">
                                   {count}
                                 </div>
                               </div>
@@ -1788,16 +1788,16 @@ export const PlayerProfileModal = memo(() => {
                 })()}
 
               {/* Past Seasons */}
-              <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+              <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-black text-[11px] uppercase tracking-widest text-slate-700 flex items-center gap-2">
+                  <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
                     <Icons.Clock className="w-4 h-4" /> Past Seasons
                   </h4>
                   {!addingPastSeason && (
                     <button
                       type="button"
                       onClick={() => setAddingPastSeason(true)}
-                      className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-1.5"
+                      className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center gap-1.5"
                     >
                       <Icons.Plus className="w-3.5 h-3.5" /> Add
                     </button>
@@ -1818,7 +1818,7 @@ export const PlayerProfileModal = memo(() => {
 
                 {(player.pastSeasons || []).length === 0 &&
                 !addingPastSeason ? (
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-center py-4">
+                  <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-4">
                     No Past Seasons On File
                   </div>
                 ) : (
@@ -1848,14 +1848,14 @@ export const PlayerProfileModal = memo(() => {
                       return (
                         <div
                           key={entry.id}
-                          className="bg-slate-50 border border-slate-200 rounded-xl p-4"
+                          className="bg-app border border-line rounded-xl p-4"
                         >
                           <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
-                              <div className="text-sm font-black text-slate-900 uppercase">
+                              <div className="text-sm font-black text-ink uppercase">
                                 {entry.season}
                               </div>
-                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
                                 {entry.ageGroup} · {entry.pitchingFormat}
                                 {entry.record &&
                                 entry.record.wins +
@@ -1876,7 +1876,7 @@ export const PlayerProfileModal = memo(() => {
                               <button
                                 type="button"
                                 onClick={() => setEditingPastSeasonId(entry.id)}
-                                className="p-2 text-slate-400 hover:text-team-primary hover:bg-white rounded-lg transition-colors"
+                                className="p-2 text-ink-3 hover:text-team-primary hover:bg-surface-2 rounded-lg transition-colors"
                               >
                                 <Icons.Edit className="w-4 h-4" />
                               </button>
@@ -1893,12 +1893,12 @@ export const PlayerProfileModal = memo(() => {
                             ].map((s) => (
                               <div
                                 key={s.label}
-                                className="bg-white rounded-lg p-2 text-center border border-slate-200"
+                                className="bg-surface rounded-lg p-2 text-center border border-line"
                               >
-                                <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">
+                                <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
                                   {s.label}
                                 </div>
-                                <div className="text-sm font-black tabular-nums text-slate-900">
+                                <div className="text-sm font-black tabular-nums text-ink">
                                   {s.v}
                                 </div>
                               </div>
@@ -1922,12 +1922,12 @@ export const PlayerProfileModal = memo(() => {
                               ].map((s) => (
                                 <div
                                   key={s.label}
-                                  className="bg-white rounded-lg p-2 text-center border border-slate-200"
+                                  className="bg-surface rounded-lg p-2 text-center border border-line"
                                 >
-                                  <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">
+                                  <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
                                     {s.label}
                                   </div>
-                                  <div className="text-sm font-black tabular-nums text-slate-900">
+                                  <div className="text-sm font-black tabular-nums text-ink">
                                     {s.v}
                                   </div>
                                 </div>
@@ -1942,34 +1942,34 @@ export const PlayerProfileModal = memo(() => {
               </div>
 
               {/* Game-by-game timeline (collapsed by default) */}
-              <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="bg-surface border border-line rounded-xl shadow-sm overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setShowTimeline((s) => !s)}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface-2 transition-colors"
                 >
                   <div className="flex items-center gap-2">
-                    <Icons.Calendar className="w-4 h-4 text-slate-700" />
-                    <span className="font-black text-[11px] uppercase tracking-widest text-slate-700">
+                    <Icons.Calendar className="w-4 h-4 text-ink" />
+                    <span className="font-black text-[11px] uppercase tracking-widest text-ink">
                       Game by Game
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400">
+                    <span className="text-[10px] font-bold text-ink-3">
                       ({timeline.length})
                     </span>
                   </div>
                   {showTimeline ? (
-                    <Icons.ChevronUp className="w-4 h-4 text-slate-500" />
+                    <Icons.ChevronUp className="w-4 h-4 text-ink-3" />
                   ) : (
-                    <Icons.ChevronDown className="w-4 h-4 text-slate-500" />
+                    <Icons.ChevronDown className="w-4 h-4 text-ink-3" />
                   )}
                 </button>
                 {showTimeline &&
                   (timeline.length === 0 ? (
-                    <div className="px-5 pb-5 text-xs font-bold text-slate-400 uppercase tracking-widest text-center">
+                    <div className="px-5 pb-5 text-xs font-bold text-ink-3 uppercase tracking-widest text-center">
                       No Final Games On File
                     </div>
                   ) : (
-                    <div className="border-t border-slate-200 divide-y divide-slate-100 max-h-72 overflow-y-auto custom-scrollbar">
+                    <div className="border-t border-line divide-y divide-line max-h-72 overflow-y-auto custom-scrollbar">
                       {timeline.map((g) => {
                         const positions = Object.entries(g.positions)
                           .sort((a, b) => b[1] - a[1])
@@ -1978,11 +1978,11 @@ export const PlayerProfileModal = memo(() => {
                         return (
                           <div
                             key={g.id}
-                            className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+                            className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-surface-2 transition-colors"
                           >
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-xs font-black text-slate-800 uppercase truncate">
+                                <span className="text-xs font-black text-ink uppercase truncate">
                                   vs. {g.opponent}
                                 </span>
                                 {g.result && (
@@ -1999,15 +1999,15 @@ export const PlayerProfileModal = memo(() => {
                                   </span>
                                 )}
                               </div>
-                              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
                                 {formatGameDateDisplay(g.date)}
                               </div>
                             </div>
                             <div className="text-right shrink-0">
-                              <div className="text-[10px] font-bold text-slate-700 tabular-nums">
+                              <div className="text-[10px] font-bold text-ink tabular-nums">
                                 {positions || "Bench"}
                               </div>
-                              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                              <div className="text-[9px] font-bold text-ink-3 uppercase tracking-widest">
                                 {g.batOrder ? `Bat ${g.batOrder} · ` : ""}
                                 {g.benchInnings} bench
                               </div>
@@ -2022,14 +2022,14 @@ export const PlayerProfileModal = memo(() => {
 
           <div
             data-profile-section="stats"
-            className="p-6 sm:p-7 space-y-6 border-t border-slate-200"
+            className="p-6 sm:p-7 space-y-6 border-t border-line"
           >
             <h3 className="t-h3">Season Stats</h3>
               <div className="flex items-center justify-between">
-                <h4 className="font-black text-xs uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
                   <Icons.Bat className="w-4 h-4" /> Season Statistics
                 </h4>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
                   Tap a stat for trend
                 </span>
               </div>
@@ -2045,9 +2045,9 @@ export const PlayerProfileModal = memo(() => {
                 return (
                   <div
                     key={category}
-                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
+                    className="bg-surface border border-line rounded-xl p-5 shadow-sm"
                   >
-                    <h5 className="font-black text-[11px] uppercase tracking-widest text-slate-700 mb-3 capitalize">
+                    <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-3 capitalize">
                       {category}
                     </h5>
                     <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
@@ -2058,12 +2058,12 @@ export const PlayerProfileModal = memo(() => {
                             key={key}
                             type="button"
                             onClick={() => setTrendStatKey(key)}
-                            className="group bg-slate-50 hover:bg-slate-100 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
+                            className="group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
                           >
-                            <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-0.5">
+                            <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
                               {STAT_META[key].label}
                             </div>
-                            <div className="text-sm font-black tabular-nums text-slate-900 group-hover:text-team-primary">
+                            <div className="text-sm font-black tabular-nums text-ink group-hover:text-team-primary">
                               {formatStatValue(key, value)}
                             </div>
                           </button>
@@ -2085,25 +2085,25 @@ export const PlayerProfileModal = memo(() => {
 
           <div
             data-profile-section="innings"
-            className="p-6 sm:p-7 space-y-6 border-t border-slate-200"
+            className="p-6 sm:p-7 space-y-6 border-t border-line"
           >
             <h3 className="t-h3">Innings Played</h3>
               <div className="flex items-center justify-between">
-                <h4 className="font-black text-xs uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
                   <Icons.Glove className="w-4 h-4" /> Defensive Innings
                 </h4>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
                   From Final games only
                 </span>
               </div>
 
               {inningsBreakdown.gamesAvailable === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center shadow-sm">
-                  <Icons.Calendar className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                  <p className="text-sm font-black uppercase tracking-widest text-slate-500 mb-1">
+                <div className="bg-surface border border-line rounded-xl p-8 text-center shadow-sm">
+                  <Icons.Calendar className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+                  <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
                     No Game History Yet
                   </p>
-                  <p className="text-xs text-slate-500 font-medium">
+                  <p className="text-xs text-ink-3 font-medium">
                     Mark games as Final on the Schedule tab to start tracking
                     innings here.
                   </p>
@@ -2111,45 +2111,45 @@ export const PlayerProfileModal = memo(() => {
               ) : (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                         Games Played
                       </div>
-                      <div className="text-2xl font-black text-slate-900 tabular-nums">
+                      <div className="text-2xl font-black text-ink tabular-nums">
                         {inningsBreakdown.gamesPlayed}
-                        <span className="text-sm text-slate-400 font-bold">
+                        <span className="text-sm text-ink-3 font-bold">
                           /{inningsBreakdown.gamesAvailable}
                         </span>
                       </div>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                         Defensive Inn.
                       </div>
-                      <div className="text-2xl font-black text-slate-900 tabular-nums">
+                      <div className="text-2xl font-black text-ink tabular-nums">
                         {inningsBreakdown.totalDefensive}
                       </div>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                         Bench Inn.
                       </div>
-                      <div className="text-2xl font-black text-slate-900 tabular-nums">
+                      <div className="text-2xl font-black text-ink tabular-nums">
                         {inningsBreakdown.bench}
                       </div>
                     </div>
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                         1st Inn. Bench
                       </div>
-                      <div className="text-2xl font-black text-slate-900 tabular-nums">
+                      <div className="text-2xl font-black text-ink tabular-nums">
                         {inningsBreakdown.firstInningBench}
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-                    <h5 className="font-black text-[11px] uppercase tracking-widest text-slate-700 mb-4">
+                  <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                    <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4">
                       By Position
                     </h5>
                     {(() => {
@@ -2158,7 +2158,7 @@ export const PlayerProfileModal = memo(() => {
                       ).sort((a, b) => b[1] - a[1]);
                       if (entries.length === 0) {
                         return (
-                          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest text-center py-4">
+                          <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-4">
                             All Innings on Bench
                           </div>
                         );
@@ -2173,10 +2173,10 @@ export const PlayerProfileModal = memo(() => {
                                 key={pos}
                                 className="flex items-center gap-3"
                               >
-                                <div className="w-10 text-[11px] font-black uppercase tracking-widest text-slate-700 shrink-0">
+                                <div className="w-10 text-[11px] font-black uppercase tracking-widest text-ink shrink-0">
                                   {pos}
                                 </div>
-                                <div className="flex-1 h-6 bg-slate-100 rounded-md overflow-hidden relative">
+                                <div className="flex-1 h-6 bg-surface-2 rounded-md overflow-hidden relative">
                                   <div
                                     className="h-full rounded-md transition-all"
                                     style={{
@@ -2186,7 +2186,7 @@ export const PlayerProfileModal = memo(() => {
                                     }}
                                   />
                                 </div>
-                                <div className="w-10 text-right text-sm font-black tabular-nums text-slate-800 shrink-0">
+                                <div className="w-10 text-right text-sm font-black tabular-nums text-ink shrink-0">
                                   {count}
                                 </div>
                               </div>
@@ -2202,19 +2202,19 @@ export const PlayerProfileModal = memo(() => {
 
           <div
             data-profile-section="contact"
-            className={`p-6 sm:p-7 space-y-4 border-t border-slate-200 ${
+            className={`p-6 sm:p-7 space-y-4 border-t border-line ${
               canEdit ? "" : "hidden"
             }`}
           >
             <h3 className="t-h3">Contact</h3>
               <div className="flex justify-between items-center">
-                <h4 className="font-black text-xs uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
                   <Icons.User className="w-4 h-4" /> Family Contact
                 </h4>
                 
                   <button
                     onClick={() => setEditingContact(!editingContact)}
-                    className="text-[10px] font-black uppercase tracking-widest bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                    className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                   >
                     {editingContact ? "Done" : "Edit"}
                   </button>
@@ -2226,7 +2226,7 @@ export const PlayerProfileModal = memo(() => {
                 { key: "email", label: "Email Address" },
               ].map(({ key, label }) => (
                 <div key={key}>
-                  <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                     {label}
                   </label>
                   <input
@@ -2236,14 +2236,14 @@ export const PlayerProfileModal = memo(() => {
                     onChange={(e) =>
                       updatePlayer(player.id, { [key]: e.target.value })
                     }
-                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-slate-50 disabled:text-slate-500 shadow-inner"
+                    className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
                   />
                 </div>
               ))}
             </div>
         </div>
 
-        <div className="bg-white border-t border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+        <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
           
             <button
               onClick={() =>
@@ -2262,7 +2262,7 @@ export const PlayerProfileModal = memo(() => {
             
               <button
                 onClick={() => removePlayer(player.id)}
-                className="text-[10px] font-black uppercase tracking-widest bg-white border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-2"
+                className="text-[10px] font-black uppercase tracking-widest bg-surface border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-2"
               >
                 <Icons.Trash className="w-3.5 h-3.5" /> Delete
               </button>
@@ -2350,7 +2350,7 @@ export const AddPlayerModal = memo(() => {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-white/50"
+        className="bg-surface rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-line"
       >
         <div
           className="p-1.5"
@@ -2382,7 +2382,7 @@ export const AddPlayerModal = memo(() => {
               <button
                 type="button"
                 onClick={() => photoInputRef.current?.click()}
-                className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white flex items-center gap-1.5"
+                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
               >
                 <Icons.Upload className="w-3.5 h-3.5" />
                 {photoFile ? "Replace Photo" : "Choose Photo"}
@@ -2390,7 +2390,7 @@ export const AddPlayerModal = memo(() => {
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Name *
             </label>
             <input
@@ -2399,29 +2399,29 @@ export const AddPlayerModal = memo(() => {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
+              className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
             />
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Number
               </label>
               <input
                 type="text"
                 value={form.number}
                 onChange={(e) => setForm({ ...form, number: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
+                className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Bats
               </label>
               <select
                 value={form.bats}
                 onChange={(e) => setForm({ ...form, bats: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
+                className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
               >
                 <option>R</option>
                 <option>L</option>
@@ -2429,13 +2429,13 @@ export const AddPlayerModal = memo(() => {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Throws
               </label>
               <select
                 value={form.throws}
                 onChange={(e) => setForm({ ...form, throws: e.target.value })}
-                className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
+                className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
               >
                 <option>R</option>
                 <option>L</option>
@@ -2446,7 +2446,7 @@ export const AddPlayerModal = memo(() => {
             <button
               type="button"
               onClick={close}
-              className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+              className="px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
             >
               Cancel
             </button>

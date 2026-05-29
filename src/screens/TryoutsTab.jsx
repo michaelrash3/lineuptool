@@ -15,7 +15,7 @@ import { calculateBaseballAge } from "../utils/helpers";
 import { auth } from "../firebase";
 
 const STATUS_PILLS = {
-  tryout: { label: "Tryout", className: "bg-slate-100 border-slate-200 text-slate-700" },
+  tryout: { label: "Tryout", className: "bg-surface-2 border-line text-ink" },
   offered: { label: "Offered", className: "bg-amber-50 border-amber-200 text-amber-800" },
   accepted: { label: "Accepted", className: "bg-emerald-50 border-emerald-200 text-emerald-800" },
   declined: { label: "Declined", className: "bg-rose-50 border-rose-200 text-rose-800" },
@@ -213,8 +213,8 @@ const TeamImpactPanel = memo(({ roster }) => {
       key: "cut",
       title: "Likely Cut",
       sub: "Below the line on cumulative grade",
-      tone: "bg-slate-50 border-slate-200 text-slate-700",
-      countTone: "text-slate-500",
+      tone: "bg-app border-line text-ink",
+      countTone: "text-ink-3",
       items: roster.cut,
     },
   ];
@@ -225,12 +225,12 @@ const TeamImpactPanel = memo(({ roster }) => {
         <h3 className="t-h3 flex items-center gap-2">
           <Icons.Clipboard className="w-4 h-4" /> Roster Projection
         </h3>
-        <span className="t-eyebrow text-slate-500">
+        <span className="t-eyebrow text-ink-3">
           {roster.returnerCount} returning · {roster.slotsRemaining} open of {roster.rosterCap}
         </span>
       </div>
       {empty ? (
-        <p className="text-xs text-slate-500 font-medium italic">
+        <p className="text-xs text-ink-3 font-medium italic">
           Grade {roster.notGraded.length > 0
             ? `the ${roster.notGraded.length} ungraded tryout${roster.notGraded.length === 1 ? "" : "s"} `
             : "tryout players "}
@@ -280,7 +280,7 @@ const TeamImpactPanel = memo(({ roster }) => {
       {(roster.notGraded.length > 0 || roster.tooOld.length > 0) && (
         <div className="flex flex-wrap gap-2 pt-1">
           {roster.notGraded.length > 0 && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-600">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-surface-2 border border-line text-ink-2">
               {roster.notGraded.length} ungraded
             </span>
           )}
@@ -298,8 +298,8 @@ const TeamImpactPanel = memo(({ roster }) => {
 const BUCKET_BADGES = {
   make: { label: "Will Make", className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
   bubble: { label: "Bubble", className: "bg-amber-100 text-amber-800 border-amber-200" },
-  cut: { label: "Likely Cut", className: "bg-slate-100 text-slate-600 border-slate-200" },
-  ungraded: { label: "Ungraded", className: "bg-white text-slate-500 border-slate-200" },
+  cut: { label: "Likely Cut", className: "bg-surface-2 text-ink-2 border-line" },
+  ungraded: { label: "Ungraded", className: "bg-surface text-ink-3 border-line" },
   tooOld: { label: "Too Old", className: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
@@ -511,7 +511,7 @@ export const TryoutsTab = memo(() => {
             <h2 className="t-h2 flex items-center gap-3">
               <Icons.Users className="w-6 h-6" /> Tryouts
             </h2>
-            <p className="t-eyebrow text-slate-500 mt-1">
+            <p className="t-eyebrow text-ink-3 mt-1">
               {(tryoutSignups || []).length} signup
               {(tryoutSignups || []).length === 1 ? "" : "s"}
               {noShowCount > 0 && (
@@ -544,7 +544,7 @@ export const TryoutsTab = memo(() => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search name / email…"
-          className="flex-1 min-w-[180px] px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+          className="flex-1 min-w-[180px] px-3 py-2 text-xs bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
         />
         {["all", "tryout", "offered", "accepted", "declined"].map((s) => (
           <button
@@ -554,7 +554,7 @@ export const TryoutsTab = memo(() => {
             className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
               statusFilter === s
                 ? "bg-team-primary text-team-tertiary border-team-primary"
-                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                : "bg-surface border-line text-ink-2 hover:bg-surface-2"
             }`}
             style={
               statusFilter === s
@@ -572,7 +572,7 @@ export const TryoutsTab = memo(() => {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="glass-card p-8 text-center text-slate-500 text-sm font-medium">
+        <div className="glass-card p-8 text-center text-ink-3 text-sm font-medium">
           No tryout signups yet. Share the public form link from
           Settings to start collecting.
         </div>
@@ -589,18 +589,18 @@ export const TryoutsTab = memo(() => {
             return (
               <div
                 key={s.id}
-                className={`bg-white border rounded-xl shadow-sm overflow-hidden ${
+                className={`bg-surface border rounded-xl shadow-sm overflow-hidden ${
                   presence === false
                     ? "border-rose-200 bg-rose-50/40"
-                    : "border-slate-200"
+                    : "border-line"
                 }`}
               >
                 <div className="p-3 flex items-center gap-3 flex-wrap">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 flex-wrap">
+                    <div className="text-sm font-black uppercase tracking-tight text-ink flex items-center gap-2 flex-wrap">
                       <span className="truncate">
                         {s.tryoutNumber && (
-                          <span className="text-slate-400 mr-1 tabular-nums">
+                          <span className="text-ink-3 mr-1 tabular-nums">
                             #{s.tryoutNumber}
                           </span>
                         )}
@@ -614,7 +614,7 @@ export const TryoutsTab = memo(() => {
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-slate-500 font-medium">
+                    <div className="text-[11px] text-ink-3 font-medium">
                       {isHead && (
                         <>
                           {s.email || "no email"} ·{" "}
@@ -636,7 +636,7 @@ export const TryoutsTab = memo(() => {
                         }
                         placeholder="#"
                         title="Tryout number"
-                        className="w-12 text-center text-xs font-black tabular-nums px-1 py-1 bg-white border border-slate-200 rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                        className="w-12 text-center text-xs font-black tabular-nums px-1 py-1 bg-surface border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
                       />
                       <button
                         type="button"
@@ -650,7 +650,7 @@ export const TryoutsTab = memo(() => {
                         className={`p-1.5 rounded-md border transition-colors ${
                           presence === true
                             ? "bg-emerald-100 border-emerald-300 text-emerald-800"
-                            : "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300"
+                            : "bg-surface border-line text-ink-3 hover:text-emerald-600 hover:border-emerald-300"
                         }`}
                       >
                         <Icons.Check className="w-3.5 h-3.5" />
@@ -667,7 +667,7 @@ export const TryoutsTab = memo(() => {
                         className={`p-1.5 rounded-md border transition-colors ${
                           presence === false
                             ? "bg-rose-100 border-rose-300 text-rose-800"
-                            : "bg-white border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-300"
+                            : "bg-surface border-line text-ink-3 hover:text-rose-600 hover:border-rose-300"
                         }`}
                       >
                         <Icons.X className="w-3.5 h-3.5" />
@@ -680,7 +680,7 @@ export const TryoutsTab = memo(() => {
                     onClick={() =>
                       setOpenSignupId(expanded ? null : s.id)
                     }
-                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50"
+                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
                   >
                     {expanded ? "Close" : "Open"}
                   </button>
@@ -706,7 +706,7 @@ export const TryoutsTab = memo(() => {
                         className={`flex items-center gap-1 rounded-md transition-colors ${
                           armed
                             ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                            : "p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                            : "p-1.5 text-ink-3 hover:text-red-600 hover:bg-red-50"
                         }`}
                         title={armed ? "Tap again to delete" : "Delete signup"}
                         aria-label={armed ? "Confirm delete signup" : "Delete signup"}
@@ -722,17 +722,17 @@ export const TryoutsTab = memo(() => {
                   })()}
                 </div>
                 {expanded && (
-                  <div className="border-t border-slate-100 p-4 space-y-3 bg-slate-50/50">
+                  <div className="border-t border-line p-4 space-y-3 bg-app/50">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
                       <div>
                         <div className="t-eyebrow">DOB</div>
-                        <div className="font-bold text-slate-800">
+                        <div className="font-bold text-ink">
                           {s.dob || "—"}
                         </div>
                       </div>
                       <div>
                         <div className="t-eyebrow">Bats/Throws</div>
-                        <div className="font-bold text-slate-800">
+                        <div className="font-bold text-ink">
                           {s.bats || "R"}/{s.throws || "R"}
                         </div>
                       </div>
@@ -740,13 +740,13 @@ export const TryoutsTab = memo(() => {
                         <>
                           <div>
                             <div className="t-eyebrow">Parent</div>
-                            <div className="font-bold text-slate-800 truncate">
+                            <div className="font-bold text-ink truncate">
                               {s.parentName || "—"}
                             </div>
                           </div>
                           <div>
                             <div className="t-eyebrow">Phone</div>
-                            <div className="font-bold text-slate-800">
+                            <div className="font-bold text-ink">
                               {s.phone || "—"}
                             </div>
                           </div>
@@ -754,13 +754,13 @@ export const TryoutsTab = memo(() => {
                       )}
                     </div>
                     {s.notes && (
-                      <p className="text-[11px] text-slate-700 italic bg-white border border-slate-200 rounded-lg p-2">
+                      <p className="text-[11px] text-ink italic bg-surface border border-line rounded-lg p-2">
                         {s.notes}
                       </p>
                     )}
 
                     {isHead && impact && impact.positionalFit.length > 0 && (
-                      <div className="bg-white border border-emerald-200 rounded-lg p-3 text-[11px]">
+                      <div className="bg-surface border border-emerald-200 rounded-lg p-3 text-[11px]">
                         <div className="font-black uppercase tracking-widest text-emerald-900 text-[10px] mb-1.5">
                           Position Fit
                         </div>
@@ -804,7 +804,7 @@ export const TryoutsTab = memo(() => {
                           <button
                             type="button"
                             onClick={() => sendOfferLetter(s)}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest text-slate-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200"
+                            className="px-4 py-2 text-xs font-black uppercase tracking-widest text-ink bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200"
                           >
                             Make an Offer
                           </button>
@@ -834,15 +834,15 @@ export const TryoutsTab = memo(() => {
           onClick={() => setEndTryoutOpen(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5 bg-rose-500" />
             <div className="p-5 sm:p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                 End tryout — clear no-shows?
               </h3>
-              <p className="text-sm text-slate-600 font-medium mb-4">
+              <p className="text-sm text-ink-2 font-medium mb-4">
                 {noShowCount} signup{noShowCount === 1 ? "" : "s"} marked
                 no-show will be permanently deleted. Their grades, if
                 any, are kept for historical reference but the signup
@@ -853,7 +853,7 @@ export const TryoutsTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => setEndTryoutOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors"
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
                 >
                   Cancel
                 </button>

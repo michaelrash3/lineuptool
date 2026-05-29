@@ -25,7 +25,7 @@ const EvalPromptBanner = memo(
       : "Send your grades to the head coach.";
     return (
       <div
-        className="rounded-2xl border border-white/50 shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+        className="rounded-2xl border border-line shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
         style={{ backgroundColor: "var(--team-primary-15)" }}
       >
         <div
@@ -35,9 +35,9 @@ const EvalPromptBanner = memo(
           <Icons.Clipboard className="w-6 h-6" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="t-eyebrow text-slate-600">{kind}</div>
-          <div className="t-card-title text-slate-900 mt-0.5">{headline}</div>
-          <p className="text-xs text-slate-600 font-medium mt-1">{sub}</p>
+          <div className="t-eyebrow text-ink-2">{kind}</div>
+          <div className="t-card-title text-ink mt-0.5">{headline}</div>
+          <p className="text-xs text-ink-2 font-medium mt-1">{sub}</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
@@ -51,7 +51,7 @@ const EvalPromptBanner = memo(
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="px-3 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-lg"
+            className="px-3 py-2.5 text-[11px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg"
           >
             Snooze
           </button>
@@ -183,7 +183,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     : null;
 
   return (
-    <div className="rounded-2xl shadow-card border border-white/50 overflow-hidden bg-white/40">
+    <div className="rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
       <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
       <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
         <div className="flex items-center gap-4 sm:gap-5">
@@ -229,19 +229,19 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
                 </span>
               )}
             </div>
-            <h3 className="font-black text-xl sm:text-2xl text-slate-900 uppercase tracking-tight leading-tight">
+            <h3 className="font-black text-xl sm:text-2xl text-ink uppercase tracking-tight leading-tight">
               VS. {game.opponent}
             </h3>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
+            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
               <Icons.Clock className="w-3.5 h-3.5" /> {fullDate}
-              <span className="text-slate-300">|</span>
+              <span className="text-ink-3">|</span>
               <span>
                 {game.leagueRuleSet || leagueRuleSet}{" "}
                 {game.pitchingFormat || pitchingFormat}
               </span>
               {sameDayCount > 1 && (
                 <>
-                  <span className="text-slate-300">|</span>
+                  <span className="text-ink-3">|</span>
                   <span className="text-team-primary">
                     +{sameDayCount - 1} more{" "}
                     {whenLabel.toLowerCase() === "today" ? "today" : "this day"}
@@ -295,7 +295,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
           {dayDiff === 0 && !isFinal && (
             <button
               onClick={openScoreEditor}
-              className="flex-1 sm:flex-none text-xs px-5 py-3 bg-white/80 text-slate-800 border border-slate-200 font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-colors rounded-xl shadow-sm"
+              className="flex-1 sm:flex-none text-xs px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
             >
               <Icons.FileText className="w-4 h-4" /> Final Score
             </button>
@@ -323,8 +323,8 @@ const InsightTile = memo(
     };
     const styles = ACCENT_STYLES[accent] || ACCENT_STYLES.slate;
     return (
-      <div className="bg-white/60 rounded-2xl shadow-card border border-white/60 overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-white/50 bg-white/40 flex items-center gap-3">
+      <div className="bg-surface rounded-2xl shadow-card border border-line overflow-hidden flex flex-col">
+        <div className="px-4 py-3 border-b border-line bg-surface flex items-center gap-3">
           <div
             className="p-2 rounded-lg shrink-0"
             style={{ backgroundColor: styles.halo }}
@@ -336,7 +336,7 @@ const InsightTile = memo(
             <button
               type="button"
               onClick={onClick}
-              className="t-button text-slate-500 hover:text-slate-800 flex items-center gap-0.5 shrink-0"
+              className="t-button text-ink-3 hover:text-ink flex items-center gap-0.5 shrink-0"
             >
               {ctaLabel}
               <Icons.ChevronRight className="w-3.5 h-3.5" />
@@ -392,11 +392,11 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
       onClick={onOpenRoster}
     >
       <div className="flex items-baseline gap-3 mb-3">
-        <div className="t-stat-num text-slate-900">{stats.eligible}</div>
+        <div className="t-stat-num text-ink">{stats.eligible}</div>
         <div className="t-eyebrow">eligible today</div>
       </div>
       {stats.resters.length === 0 ? (
-        <p className="text-[11px] text-slate-500 font-medium">
+        <p className="text-[11px] text-ink-3 font-medium">
           Full bullpen available — no rest or pitch-limit holds.
         </p>
       ) : (
@@ -415,7 +415,7 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
             </span>
           ))}
           {stats.resters.length > 4 && (
-            <span className="t-chip px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-600">
+            <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink-2">
               +{stats.resters.length - 4}
             </span>
           )}
@@ -453,7 +453,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
   if (!movers.topMover && !movers.topRegressor) {
     return (
       <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
-        <p className="text-[11px] text-slate-500 font-medium italic">
+        <p className="text-[11px] text-ink-3 font-medium italic">
           Upload another CSV to start tracking game-to-game stat movement.
         </p>
       </InsightTile>
@@ -564,7 +564,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
       <div className="space-y-2">
         {flags.top && (
           <div className="flex items-center justify-between gap-2">
-            <span className="t-body-bold text-slate-800 truncate">
+            <span className="t-body-bold text-ink truncate">
               {flags.top.player.name}
             </span>
             <span className="t-stat-num-sm text-emerald-700 tabular-nums shrink-0">
@@ -574,7 +574,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
         )}
         {flags.bottom && (
           <div className="flex items-center justify-between gap-2">
-            <span className="t-body-bold text-slate-800 truncate">
+            <span className="t-body-bold text-ink truncate">
               {flags.bottom.player.name}
             </span>
             <span className="t-stat-num-sm text-rose-700 tabular-nums shrink-0">
@@ -614,13 +614,13 @@ const TeamTrendTile = memo(({ games }) => {
   return (
     <InsightTile icon={Icons.Bat} title="Last 5 Games" accent="primary">
       <div className="flex items-baseline gap-3 mb-3">
-        <span className="t-stat-num text-slate-900">
+        <span className="t-stat-num text-ink">
           {data.results.filter((r) => r === "W").length}
-          <span className="text-slate-300 text-2xl">-</span>
+          <span className="text-ink-3 text-2xl">-</span>
           {data.results.filter((r) => r === "L").length}
           {data.results.filter((r) => r === "T").length > 0 && (
             <>
-              <span className="text-slate-300 text-2xl">-</span>
+              <span className="text-ink-3 text-2xl">-</span>
               {data.results.filter((r) => r === "T").length}
             </>
           )}
@@ -631,7 +631,7 @@ const TeamTrendTile = memo(({ games }) => {
               ? "text-emerald-700"
               : data.diff < 0
               ? "text-rose-700"
-              : "text-slate-500"
+              : "text-ink-3"
           }`}
         >
           {data.diff >= 0 ? "+" : ""}
@@ -663,9 +663,9 @@ const TeamTrendTile = memo(({ games }) => {
    Empty-state CTAs surfaced when the roster or schedule is blank.
 =========================================================================== */
 const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) => (
-  <div className="rounded-2xl bg-white/60 border border-white/60 shadow-card p-8 text-center">
-    <div className="inline-flex p-3 rounded-2xl bg-slate-100 mb-4">
-      <Icon className="w-7 h-7 text-slate-400" />
+  <div className="rounded-2xl bg-surface border border-line shadow-card p-8 text-center">
+    <div className="inline-flex p-3 rounded-2xl bg-surface-2 mb-4">
+      <Icon className="w-7 h-7 text-ink-3" />
     </div>
     <h3 className="t-h3 mb-2">{title}</h3>
     <p className="t-body max-w-md mx-auto mb-5">{body}</p>
@@ -715,7 +715,7 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
   if (rows.length === 0) {
     return (
       <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
-        <p className="t-body text-slate-400 italic text-xs">
+        <p className="t-body text-ink-3 italic text-xs">
           No finalized games yet. Once you finalize a game, each kid's
           season-wide bench vs play balance will surface here.
         </p>
@@ -752,9 +752,9 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
         key={player.id}
         type="button"
         onClick={() => onPlayerClick?.(player.id)}
-        className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-slate-50 transition-colors text-left"
+        className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-surface-2 transition-colors text-left"
       >
-        <span className="text-xs font-black uppercase tracking-tight text-slate-800 truncate">
+        <span className="text-xs font-black uppercase tracking-tight text-ink truncate">
           {player.name}
         </span>
         <span
@@ -794,7 +794,7 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
             <div className="flex flex-col">{overPlayed.map(renderRow)}</div>
           </div>
         )}
-        <p className="text-[10px] font-medium text-slate-500 italic leading-snug pt-0.5">
+        <p className="text-[10px] font-medium text-ink-3 italic leading-snug pt-0.5">
           Engine biases new lineups to even this out, but lean on Big Game
           bench picks if a gap keeps growing.
         </p>
@@ -886,22 +886,22 @@ export const HomeTab = memo(() => {
         />
       )}
 
-      <div className="bg-white/30 shadow-card border border-white/50 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start gap-8">
+      <div className="bg-surface shadow-card border border-line rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start gap-8">
         <div>
-          <h2 className="font-black text-3xl sm:text-4xl uppercase tracking-tight text-slate-900 mb-3">
+          <h2 className="font-black text-3xl sm:text-4xl uppercase tracking-tight text-ink mb-3">
             {activeTeamName}
           </h2>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-black text-slate-600 uppercase tracking-widest mb-4">
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-black text-ink-2 uppercase tracking-widest mb-4">
+            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
               {currentSeason}
             </span>
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
               {teamAge}
             </span>
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
               {leagueRuleSet}
             </span>
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+            <span className="bg-surface px-3 py-1.5 rounded-lg border border-line shadow-sm">
               {pitchingFormat}
             </span>
           </div>
@@ -911,23 +911,23 @@ export const HomeTab = memo(() => {
             </div>
           )}
           {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
-            <div className="space-y-3 bg-white/60 p-5 rounded-xl border border-slate-200 shadow-sm inline-block min-w-full sm:min-w-[320px]">
+            <div className="space-y-3 bg-surface p-5 rounded-xl border border-line shadow-sm inline-block min-w-full sm:min-w-[320px]">
               {headCoaches.length > 0 && (
                 <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 sm:w-32 shrink-0 sm:pt-0.5">
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
                     Head Coach:
                   </span>
-                  <span className="text-sm font-bold text-slate-800">
+                  <span className="text-sm font-bold text-ink">
                     {headCoaches.map((c) => c.name).join(", ")}
                   </span>
                 </div>
               )}
               {assistantCoaches.length > 0 && (
                 <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 sm:w-32 shrink-0 sm:pt-0.5">
+                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
                     Assistant Coaches:
                   </span>
-                  <span className="text-sm font-bold text-slate-800">
+                  <span className="text-sm font-bold text-ink">
                     {assistantCoaches.map((c) => c.name).join(", ")}
                   </span>
                 </div>
@@ -936,19 +936,19 @@ export const HomeTab = memo(() => {
           )}
         </div>
         <div className="flex gap-4 w-full md:w-auto">
-          <div className="flex-1 md:flex-none bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl">
-            <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+          <div className="flex-1 md:flex-none bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl">
+            <span className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Roster Size
             </span>
-            <span className="block text-3xl font-black text-slate-900">
+            <span className="block text-3xl font-black text-ink">
               {players.length}
             </span>
           </div>
-          <div className="flex-1 md:flex-none bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl">
-            <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+          <div className="flex-1 md:flex-none bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl">
+            <span className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Games
             </span>
-            <span className="block text-3xl font-black text-slate-900">
+            <span className="block text-3xl font-black text-ink">
               {games.length}
             </span>
           </div>
@@ -1047,9 +1047,9 @@ const LeaderboardsSection = memo(
     const visibleTab = tabs.find((t) => t.id === activeTab) || tabs[0];
 
     return (
-      <div className="bg-white/30 rounded-xl shadow-card border border-white/50 p-3 sm:p-4">
+      <div className="bg-surface rounded-xl shadow-card border border-line p-3 sm:p-4">
         <div className="flex items-center justify-between gap-3 mb-3 px-1">
-          <h2 className="text-sm font-black uppercase tracking-tight text-slate-800">
+          <h2 className="text-sm font-black uppercase tracking-tight text-ink">
             Leaderboards
           </h2>
           <div className="flex gap-1.5">
@@ -1063,7 +1063,7 @@ const LeaderboardsSection = memo(
                   className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
                     isActive
                       ? "shadow-sm"
-                      : "text-slate-500 hover:bg-white/60"
+                      : "text-ink-3 hover:bg-surface"
                   }`}
                   style={
                     isActive
