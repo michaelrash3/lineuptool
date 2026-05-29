@@ -170,14 +170,14 @@ export const AssistantEvalTab = memo(() => {
         <div className="glass-card p-5 flex items-center justify-between gap-3">
           <div>
             <h2 className="t-h2">Past Round</h2>
-            <p className="t-eyebrow text-slate-500 mt-1">
+            <p className="t-eyebrow text-ink-3 mt-1">
               {viewingPastRound.date} · read-only view of your submission
             </p>
           </div>
           <button
             type="button"
             onClick={() => setViewingPastRoundId(null)}
-            className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
           >
             Back to Form
           </button>
@@ -205,11 +205,11 @@ export const AssistantEvalTab = memo(() => {
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 border-b border-white/40 bg-white/20">
+        <div className="p-5 border-b border-line bg-surface">
           <h2 className="t-h2 flex items-center gap-3">
             <Icons.Clipboard className="w-6 h-6" /> Evaluation
           </h2>
-          <p className="text-xs text-slate-600 font-medium mt-1.5">
+          <p className="text-xs text-ink-2 font-medium mt-1.5">
             Your grades go to the head coach for review.
           </p>
         </div>
@@ -219,7 +219,7 @@ export const AssistantEvalTab = memo(() => {
         <div className="glass-card p-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="t-h3">Your Past Rounds</h3>
-            <span className="t-eyebrow text-slate-500">
+            <span className="t-eyebrow text-ink-3">
               {myRounds.length} round{myRounds.length === 1 ? "" : "s"}
             </span>
           </div>
@@ -231,15 +231,15 @@ export const AssistantEvalTab = memo(() => {
                   key={r.id}
                   type="button"
                   onClick={() => setViewingPastRoundId(r.id)}
-                  className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-left"
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-surface border border-line rounded-lg hover:bg-surface-2 text-left"
                 >
-                  <span className="text-sm font-extrabold text-slate-800 tabular-nums">
+                  <span className="text-sm font-extrabold text-ink tabular-nums">
                     {r.date}
                   </span>
-                  <span className="text-[11px] font-bold text-slate-500">
+                  <span className="text-[11px] font-bold text-ink-3">
                     {playerCount} player{playerCount === 1 ? "" : "s"} graded
                   </span>
-                  <Icons.ChevronRight className="w-4 h-4 text-slate-400" />
+                  <Icons.ChevronRight className="w-4 h-4 text-ink-3" />
                 </button>
               );
             })}
@@ -248,7 +248,7 @@ export const AssistantEvalTab = memo(() => {
       )}
 
       <div className="glass-card overflow-hidden">
-        <div className="px-5 py-3 bg-white border-b border-slate-200 flex gap-2 overflow-x-auto scrollbar-hide">
+        <div className="px-5 py-3 bg-surface border-b border-line flex gap-2 overflow-x-auto scrollbar-hide">
           {visibleGroups.map((g) => {
             const isActive = activeGroup === g;
             return (
@@ -259,7 +259,7 @@ export const AssistantEvalTab = memo(() => {
                 className={`py-1.5 px-3.5 text-[11px] font-black uppercase tracking-wider rounded-full transition-all whitespace-nowrap ${
                   isActive
                     ? "shadow-sm border"
-                    : "text-slate-500 hover:bg-slate-100 border border-transparent"
+                    : "text-ink-3 hover:bg-surface-2 border border-transparent"
                 }`}
                 style={
                   isActive
@@ -279,7 +279,7 @@ export const AssistantEvalTab = memo(() => {
 
         <div className="px-3 sm:px-5 py-4 space-y-3">
           {orderedPlayers.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 text-sm font-medium">
+            <div className="text-center py-12 text-ink-3 text-sm font-medium">
               No active players to evaluate.
             </div>
           ) : (
@@ -300,7 +300,7 @@ export const AssistantEvalTab = memo(() => {
           )}
         </div>
 
-        <div className="bg-white border-t border-slate-200 px-5 py-3 flex items-center justify-end gap-3 sticky bottom-0">
+        <div className="bg-surface border-t border-line px-5 py-3 flex items-center justify-end gap-3 sticky bottom-0">
           <button
             type="button"
             onClick={handleSave}

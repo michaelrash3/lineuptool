@@ -20,17 +20,17 @@ export const StorageUsagePanel = ({ team }) => {
       : "Healthy";
 
   return (
-    <div className="pt-6 border-t border-slate-200/50">
+    <div className="pt-6 border-t border-line/50">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="font-bold text-slate-800 text-sm">Storage Usage</h4>
-        <span className="text-xs font-black tabular-nums text-slate-700">
+        <h4 className="font-bold text-ink text-sm">Storage Usage</h4>
+        <span className="text-xs font-black tabular-nums text-ink">
           {sizeKb} KB / {limitKb} KB
         </span>
       </div>
-      <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+      <div className="w-full h-2 bg-line rounded-full overflow-hidden">
         <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
-      <p className="text-xs text-slate-500 mt-1.5 font-medium">
+      <p className="text-xs text-ink-3 mt-1.5 font-medium">
         {label} ({pct.toFixed(0)}%). Saves are limited to 1 MB per team. Data resets at season rollover.
       </p>
     </div>
@@ -38,16 +38,16 @@ export const StorageUsagePanel = ({ team }) => {
 };
 
 export const TeamManagementPanel = ({ teams, leaveTeamCmd, deleteTeamCmd }) => (
-  <div className="pt-6 border-t border-slate-200/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  <div className="pt-6 border-t border-line/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div>
-      <h4 className="font-bold text-slate-800 text-sm">Team Management</h4>
-      <p className="text-xs text-slate-500 mt-1 font-medium">Leave this team or permanently delete it.</p>
+      <h4 className="font-bold text-ink text-sm">Team Management</h4>
+      <p className="text-xs text-ink-3 mt-1 font-medium">Leave this team or permanently delete it.</p>
     </div>
     <div className="flex gap-3">
       <button
         onClick={leaveTeamCmd}
         disabled={teams.length <= 1}
-        className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
+        className="px-6 py-3 bg-surface border border-line hover:bg-surface-2 disabled:opacity-50 disabled:cursor-not-allowed text-ink text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
       >
         Leave Team
       </button>

@@ -106,17 +106,17 @@ export const InGameView = memo(() => {
     // Edge case: someone hit "Start Game" before generating a lineup
     return (
       <div className="fixed inset-0 z-[85] bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
-          <Icons.Clipboard className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 mb-2">
+        <div className="bg-surface rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+          <Icons.Clipboard className="w-12 h-12 text-ink-3 mx-auto mb-4" />
+          <h3 className="text-xl font-black uppercase tracking-tight text-ink mb-2">
             No Lineup Generated
           </h3>
-          <p className="text-sm text-slate-500 font-medium mb-6">
+          <p className="text-sm text-ink-3 font-medium mb-6">
             You need to generate a lineup before starting in-game mode.
           </p>
           <button
             onClick={() => setInGameId(null)}
-            className="text-xs font-black uppercase tracking-widest px-5 py-3 bg-slate-100 text-slate-800 border border-slate-200 rounded-xl hover:bg-slate-200 transition-colors"
+            className="text-xs font-black uppercase tracking-widest px-5 py-3 bg-surface-2 text-ink border border-line rounded-xl hover:bg-line transition-colors"
           >
             Close
           </button>
@@ -390,12 +390,12 @@ export const InGameView = memo(() => {
   return (
     <div className="fixed inset-0 z-[85] bg-slate-900 overflow-y-auto">
       {/* Top bar */}
-      <div className="bg-white shadow-md">
+      <div className="bg-surface shadow-md">
         <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
         <div className="px-4 py-3 flex items-center justify-between gap-3">
           <button
             onClick={close}
-            className="p-2 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
+            className="p-2 hover:bg-surface-2 text-ink-2 rounded-lg transition-colors"
             aria-label="Close in-game mode"
           >
             <Icons.X className="w-5 h-5" />
@@ -406,9 +406,9 @@ export const InGameView = memo(() => {
             const chipBody = (
               <>
                 <div className="t-eyebrow truncate">vs. {game.opponent}</div>
-                <div className="text-2xl font-black tabular-nums tracking-tight text-slate-900 leading-none mt-0.5">
+                <div className="text-2xl font-black tabular-nums tracking-tight text-ink leading-none mt-0.5">
                   <span>{tScore}</span>
-                  <span className="text-slate-300 mx-2">–</span>
+                  <span className="text-ink-3 mx-2">–</span>
                   <span>{oScore}</span>
                 </div>
               </>
@@ -417,7 +417,7 @@ export const InGameView = memo(() => {
               <button
                 type="button"
                 onClick={() => setShowScoreEditor((s) => !s)}
-                className="flex-1 text-center min-w-0 rounded-lg px-2 py-1 hover:bg-slate-100 transition-colors"
+                className="flex-1 text-center min-w-0 rounded-lg px-2 py-1 hover:bg-surface-2 transition-colors"
                 aria-label="Edit live score"
                 aria-expanded={showScoreEditor}
               >
@@ -440,7 +440,7 @@ export const InGameView = memo(() => {
                   className={`relative p-2 rounded-lg transition-colors ${
                     removedCount > 0
                       ? "text-red-700 bg-red-50 hover:bg-red-100"
-                      : "text-slate-600 hover:bg-red-50 hover:text-red-700"
+                      : "text-ink-2 hover:bg-red-50 hover:text-red-700"
                   }`}
                   aria-label={
                     removedCount > 0
@@ -465,7 +465,7 @@ export const InGameView = memo(() => {
                 <button
                   onClick={undo}
                   disabled={inGameUndoStack.length === 0}
-                  className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="p-2 text-ink-2 hover:bg-surface-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   aria-label="Undo last swap"
                 >
                   <Icons.Refresh className="w-5 h-5" />
@@ -481,7 +481,7 @@ export const InGameView = memo(() => {
           </div>
         )}
         {showScoreEditor && canEdit && (
-          <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-center gap-3">
+          <div className="px-4 py-3 bg-app border-t border-line flex items-center justify-center gap-3">
             {[
               { key: "team", label: "Us", value: game.teamScore ?? 0 },
               { key: "opp", label: "Opp", value: game.opponentScore ?? 0 },
@@ -490,21 +490,21 @@ export const InGameView = memo(() => {
               return (
                 <div
                   key={key}
-                  className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-1.5 py-1 shadow-sm"
+                  className="flex items-center gap-1.5 bg-surface border border-line rounded-xl px-1.5 py-1 shadow-sm"
                 >
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 px-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 px-2">
                     {label}
                   </span>
                   <button
                     type="button"
                     onClick={() => adjustScore(which, -1)}
                     disabled={value <= 0}
-                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-700 font-black text-lg hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 text-ink font-black text-lg hover:bg-line disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     aria-label={`Decrease ${label} score`}
                   >
                     −
                   </button>
-                  <span className="w-8 text-center text-xl font-black tabular-nums text-slate-900">
+                  <span className="w-8 text-center text-xl font-black tabular-nums text-ink">
                     {value}
                   </span>
                   <button
@@ -522,7 +522,7 @@ export const InGameView = memo(() => {
             <button
               type="button"
               onClick={() => setShowScoreEditor(false)}
-              className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 px-2 py-2"
+              className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink px-2 py-2"
             >
               Done
             </button>
@@ -531,12 +531,12 @@ export const InGameView = memo(() => {
       </div>
 
       {/* Inning navigator + score */}
-      <div className="bg-white border-b border-slate-200 p-4">
+      <div className="bg-surface border-b border-line p-4">
         <div className="flex items-center justify-between gap-3 mb-3">
           <button
             onClick={() => setInGameInning(Math.max(0, currentInning - 1))}
             disabled={currentInning === 0}
-            className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Previous inning"
           >
             <Icons.ChevronLeft className="w-5 h-5" />
@@ -545,7 +545,7 @@ export const InGameView = memo(() => {
             <div className="t-eyebrow">Inning</div>
             <div className="t-stat-num">
               {currentInning + 1}
-              <span className="text-slate-300 text-lg font-black">
+              <span className="text-ink-3 text-lg font-black">
                 {" "}
                 / {totalInnings}
               </span>
@@ -556,7 +556,7 @@ export const InGameView = memo(() => {
               setInGameInning(Math.min(totalInnings - 1, currentInning + 1))
             }
             disabled={currentInning >= totalInnings - 1}
-            className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            className="p-3 bg-surface-2 hover:bg-line rounded-xl text-ink font-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Next inning"
           >
             <Icons.ChevronRight className="w-5 h-5" />
@@ -635,13 +635,13 @@ export const InGameView = memo(() => {
                     {usedPitcherList.map(({ player, firstInning }) => (
                       <div
                         key={player.id}
-                        className="flex items-center gap-2 bg-white border border-amber-200 rounded-md px-2 py-1.5"
+                        className="flex items-center gap-2 bg-surface border border-amber-200 rounded-md px-2 py-1.5"
                       >
                         <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-slate-800 truncate">
+                          <span className="text-[11px] font-bold text-ink truncate">
                             {player.name}
                           </span>
-                          <span className="text-slate-400 text-[9px] font-medium shrink-0">
+                          <span className="text-ink-3 text-[9px] font-medium shrink-0">
                             (I{firstInning})
                           </span>
                         </div>
@@ -655,7 +655,7 @@ export const InGameView = memo(() => {
                               updatePitchCount(player.id, e.target.value)
                             }
                             placeholder="0"
-                            className="w-14 p-1 text-xs font-black text-slate-900 text-center bg-amber-50 border border-amber-300 rounded outline-none focus:ring-1 focus:ring-amber-500 tabular-nums"
+                            className="w-14 p-1 text-xs font-black text-ink text-center bg-amber-50 border border-amber-300 rounded outline-none focus:ring-1 focus:ring-amber-500 tabular-nums"
                           />
                           <span className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
                             P
@@ -671,7 +671,7 @@ export const InGameView = memo(() => {
                   Available ({availablePitchers.length})
                 </div>
                 {availablePitchers.length === 0 ? (
-                  <div className="text-[11px] text-slate-500 italic font-medium">
+                  <div className="text-[11px] text-ink-3 italic font-medium">
                     No eligible pitchers remaining
                   </div>
                 ) : (
@@ -684,7 +684,7 @@ export const InGameView = memo(() => {
                         title={`Make ${player.name} the pitcher for inning ${
                           currentInning + 1
                         }`}
-                        className="text-[11px] font-bold text-emerald-800 bg-white border border-emerald-200 rounded-md px-2 py-1 hover:bg-emerald-50 hover:border-emerald-400 active:scale-[0.97] transition-all cursor-pointer"
+                        className="text-[11px] font-bold text-emerald-800 bg-surface border border-emerald-200 rounded-md px-2 py-1 hover:bg-emerald-50 hover:border-emerald-400 active:scale-[0.97] transition-all cursor-pointer"
                       >
                         {player.name}
                       </button>
@@ -708,7 +708,7 @@ export const InGameView = memo(() => {
               })
             }
             title="Share this lineup as a PNG image"
-            className="shrink-0 py-3 px-4 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 bg-white/90 text-slate-700 border border-slate-200"
+            className="shrink-0 py-3 px-4 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 bg-surface text-ink border border-line"
           >
             <Icons.Link className="w-4 h-4" /> Share
           </button>
@@ -759,8 +759,8 @@ export const InGameView = memo(() => {
                 onClick={() => handleTap(sel)}
                 className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                   selected
-                    ? "bg-white ring-4 shadow-lg"
-                    : `bg-white border-slate-200 hover:border-slate-400 active:scale-[0.97] ${
+                    ? "bg-surface ring-4 shadow-lg"
+                    : `bg-surface border-line hover:border-slate-400 active:scale-[0.97] ${
                         inGameSelection ? "opacity-50" : ""
                       }`
                 }`}
@@ -775,21 +775,21 @@ export const InGameView = memo(() => {
                     : undefined
                 }
               >
-                <div className="w-12 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-widest text-slate-500 bg-slate-100 rounded-lg py-1.5">
+                <div className="w-12 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-widest text-ink-3 bg-surface-2 rounded-lg py-1.5">
                   {pos}
                 </div>
                 <div className="flex-1 min-w-0 text-left">
-                  <div className="text-base font-black text-slate-900 truncate leading-tight">
+                  <div className="text-base font-black text-ink truncate leading-tight">
                     {player?.name || "—"}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {player?.number && (
-                      <span className="text-[10px] font-bold text-slate-400">
+                      <span className="text-[10px] font-bold text-ink-3">
                         #{player.number}
                       </span>
                     )}
                     {showNext && (
-                      <span className="text-[10px] font-bold text-slate-400 truncate">
+                      <span className="text-[10px] font-bold text-ink-3 truncate">
                         → next: {nextPlayer.name}
                       </span>
                     )}
@@ -806,7 +806,7 @@ export const InGameView = memo(() => {
         </h3>
         {benchKids.length === 0 ? (
           <div className="bg-slate-800 rounded-xl p-6 text-center">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            <p className="text-xs font-bold text-ink-3 uppercase tracking-widest">
               No Bench This Inning
             </p>
           </div>
@@ -821,8 +821,8 @@ export const InGameView = memo(() => {
                   onClick={() => handleTap(sel)}
                   className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                     selected
-                      ? "bg-white ring-4 shadow-lg"
-                      : `bg-slate-100 border-slate-200 hover:border-slate-400 active:scale-[0.97] ${
+                      ? "bg-surface ring-4 shadow-lg"
+                      : `bg-surface-2 border-line hover:border-slate-400 active:scale-[0.97] ${
                           inGameSelection ? "opacity-50" : ""
                         }`
                   }`}
@@ -835,15 +835,15 @@ export const InGameView = memo(() => {
                       : undefined
                   }
                 >
-                  <div className="w-12 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-widest text-slate-500 bg-white rounded-lg py-1.5 border border-slate-200">
+                  <div className="w-12 shrink-0 text-center text-[11px] font-extrabold uppercase tracking-widest text-ink-3 bg-surface rounded-lg py-1.5 border border-line">
                     BN
                   </div>
                   <div className="flex-1 min-w-0 text-left">
-                    <div className="text-base font-black text-slate-900 truncate leading-tight">
+                    <div className="text-base font-black text-ink truncate leading-tight">
                       {player.name}
                     </div>
                     {player.number && (
-                      <div className="text-[10px] font-bold text-slate-400 mt-0.5">
+                      <div className="text-[10px] font-bold text-ink-3 mt-0.5">
                         #{player.number}
                       </div>
                     )}
@@ -862,22 +862,22 @@ export const InGameView = memo(() => {
           onClick={() => setShowEndGameScore(false)}
         >
           <div
-            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-            <div className="p-5 sm:p-6 border-b border-slate-200 flex items-start justify-between gap-4">
+            <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
               <div>
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-0.5">
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
                   vs. {game.opponent}
                 </div>
-                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                <h3 className="text-xl font-black uppercase tracking-tight text-ink">
                   Final Score
                 </h3>
               </div>
               <button
                 onClick={() => setShowEndGameScore(false)}
-                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+                className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
               >
                 <Icons.X className="w-5 h-5" />
               </button>
@@ -912,23 +912,23 @@ export const InGameView = memo(() => {
           onClick={() => setShowRemoveModal(false)}
         >
           <div
-            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
+            className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-            <div className="p-5 sm:p-6 border-b border-slate-200">
+            <div className="p-5 sm:p-6 border-b border-line">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-black uppercase tracking-tight text-slate-900">
+                  <h3 className="text-xl font-black uppercase tracking-tight text-ink">
                     Remove a Player
                   </h3>
-                  <p className="text-[12px] text-slate-600 font-medium mt-1">
+                  <p className="text-[12px] text-ink-2 font-medium mt-1">
                     Mark a player out for the rest of the game (injury, illness, or had to leave). Innings they already played still count toward season totals.
                   </p>
                 </div>
                 <button
                   onClick={() => setShowRemoveModal(false)}
-                  className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+                  className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
                   aria-label="Cancel"
                 >
                   <Icons.X className="w-5 h-5" />
@@ -936,11 +936,11 @@ export const InGameView = memo(() => {
               </div>
             </div>
             <div className="p-4 sm:p-5 overflow-y-auto flex-1">
-              <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
                 Inning {currentInning + 1} of {totalInnings} — they'll be removed from this inning onward
               </div>
               {eligibleForRemoval.length === 0 ? (
-                <div className="text-sm font-bold text-slate-400 italic text-center py-8">
+                <div className="text-sm font-bold text-ink-3 italic text-center py-8">
                   No players to remove this inning.
                 </div>
               ) : (
@@ -962,7 +962,7 @@ export const InGameView = memo(() => {
                         className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between gap-3 ${
                           armed
                             ? "bg-red-100 border-2 border-red-400 text-red-900 ring-2 ring-red-200"
-                            : "bg-white border border-slate-200 text-slate-800 hover:bg-red-50 hover:border-red-300 hover:text-red-900"
+                            : "bg-surface border border-line text-ink hover:bg-red-50 hover:border-red-300 hover:text-red-900"
                         }`}
                       >
                         <span className="truncate flex-1 min-w-0">
@@ -982,8 +982,8 @@ export const InGameView = memo(() => {
                 </div>
               )}
               {Object.keys(game.midGameRemovals || {}).length > 0 && (
-                <div className="mt-5 pt-4 border-t border-slate-200">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                <div className="mt-5 pt-4 border-t border-line">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
                     Already removed
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -997,7 +997,7 @@ export const InGameView = memo(() => {
                           className={`text-xs font-bold px-3 py-2 border rounded-lg flex items-center justify-between gap-2 transition-colors ${
                             armed
                               ? "bg-emerald-50 border-emerald-300 text-emerald-900"
-                              : "bg-slate-50 border-slate-200 text-slate-500"
+                              : "bg-app border-line text-ink-3"
                           }`}
                         >
                           <span className="truncate flex-1 min-w-0">
@@ -1020,7 +1020,7 @@ export const InGameView = memo(() => {
                             className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded shrink-0 whitespace-nowrap transition-colors ${
                               armed
                                 ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                                : "text-slate-500 hover:text-slate-900"
+                                : "text-ink-3 hover:text-ink"
                             }`}
                           >
                             {armed ? "Tap to confirm" : "Undo"}

@@ -134,7 +134,7 @@ const InGameView = lazy(() =>
 // Kept dead-simple and consistent across every route — a centered
 // spinner so layout doesn't reflow when the chunk arrives.
 const ScreenLoader = () => (
-  <div className="flex items-center justify-center py-16 text-slate-400">
+  <div className="flex items-center justify-center py-16 text-ink-3">
     <Icons.Refresh className="w-5 h-5 animate-spin" />
   </div>
 );
@@ -256,7 +256,7 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
         return (
           <div
             key={t.id}
-            className="relative bg-white rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
+            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
             role="status"
           >
             <span
@@ -271,12 +271,12 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
             </span>
             <div className="flex-1 min-w-0">
               {t.title && (
-                <div className="t-button text-slate-900" style={{ fontSize: "12px" }}>
+                <div className="t-button text-ink" style={{ fontSize: "12px" }}>
                   {t.title}
                 </div>
               )}
               {t.message && (
-                <div className="text-[11.5px] font-semibold text-slate-600 mt-0.5 leading-snug">
+                <div className="text-[11.5px] font-semibold text-ink-2 mt-0.5 leading-snug">
                   {t.message}
                 </div>
               )}
@@ -288,7 +288,7 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
                   t.action.onClick();
                   dismiss(t.id);
                 }}
-                className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-slate-50"
+                className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
                 style={{
                   color: tone.actionColor,
                   borderColor: tone.actionBorder,
@@ -301,7 +301,7 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
               type="button"
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss"
-              className="shrink-0 w-[22px] h-[22px] grid place-items-center text-slate-400 hover:text-slate-700 rounded-md"
+              className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
             >
               <Icons.X className="w-3 h-3" />
             </button>
@@ -3593,8 +3593,8 @@ const MainShell = () => {
 
   if (!authReady || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-slate-500 font-black uppercase tracking-widest text-sm flex items-center gap-3">
+      <div className="min-h-screen flex items-center justify-center bg-app">
+        <div className="text-ink-3 font-black uppercase tracking-widest text-sm flex items-center gap-3">
           <Icons.Refresh className="w-5 h-5 animate-spin" /> Loading…
         </div>
       </div>
@@ -3611,8 +3611,8 @@ const MainShell = () => {
   // loader until role is trustworthy.
   if (user && teams.length > 0 && !roleResolved) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-slate-500 font-black uppercase tracking-widest text-sm flex items-center gap-3">
+      <div className="min-h-screen flex items-center justify-center bg-app">
+        <div className="text-ink-3 font-black uppercase tracking-widest text-sm flex items-center gap-3">
           <Icons.Refresh className="w-5 h-5 animate-spin" /> Loading…
         </div>
       </div>
@@ -3770,7 +3770,7 @@ const MainShell = () => {
       ];
 
   return (
-    <div className="min-h-screen bg-slate-50 print:bg-white">
+    <div className="min-h-screen bg-app print:bg-surface">
       <AppHeader />
       <TabBarNav
         activeTab={activeTab}

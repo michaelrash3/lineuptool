@@ -36,7 +36,7 @@ export const InterestTab = memo(() => {
     // Assistants don't need the standing interest list; the head-coach
     // owns outreach to interested players.
     return (
-      <div className="max-w-3xl mx-auto py-12 text-center text-slate-400 italic">
+      <div className="max-w-3xl mx-auto py-12 text-center text-ink-3 italic">
         Interest survey leads are only visible to the head coach.
       </div>
     );
@@ -49,11 +49,11 @@ export const InterestTab = memo(() => {
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 border-b border-white/40 bg-white/20">
+        <div className="p-5 border-b border-line bg-surface">
           <h2 className="t-h2 flex items-center gap-3">
             <Icons.Users className="w-6 h-6" /> Player Interest
           </h2>
-          <p className="text-xs text-slate-600 font-medium mt-1.5">
+          <p className="text-xs text-ink-2 font-medium mt-1.5">
             Parents who submitted the year-round interest survey on your
             team page. When tryouts open, "Move to Tryouts" promotes a
             lead into the active tryout list.
@@ -66,26 +66,26 @@ export const InterestTab = memo(() => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, email, current team…"
-              className="flex-1 px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg outline-none focus:ring-2"
+              className="flex-1 px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2"
               style={{ "--tw-ring-color": "var(--team-primary)" }}
             />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 tabular-nums shrink-0">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3 tabular-nums shrink-0">
               {visible.length} / {leads.length}
             </span>
           </div>
           {leads.length === 0 ? (
-            <div className="text-center py-12 bg-white/60 border border-slate-200 rounded-xl">
-              <Icons.Users className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-bold text-slate-500 mb-1">
+            <div className="text-center py-12 bg-surface border border-line rounded-xl">
+              <Icons.Users className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+              <p className="text-sm font-bold text-ink-3 mb-1">
                 No interest signups yet
               </p>
-              <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto">
+              <p className="text-xs text-ink-3 font-medium max-w-sm mx-auto">
                 Share your team's standing link or QR code. Parents will
                 appear here as they submit.
               </p>
             </div>
           ) : visible.length === 0 ? (
-            <div className="text-sm font-bold text-slate-400 italic text-center py-8">
+            <div className="text-sm font-bold text-ink-3 italic text-center py-8">
               No leads match the current search.
             </div>
           ) : (
@@ -96,28 +96,28 @@ export const InterestTab = memo(() => {
                 return (
                   <div
                     key={lead.id}
-                    className="bg-white border border-slate-200 rounded-xl p-3 flex items-start gap-3 shadow-sm"
+                    className="bg-surface border border-line rounded-xl p-3 flex items-start gap-3 shadow-sm"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="text-sm font-black uppercase tracking-tight text-slate-900 truncate">
+                        <span className="text-sm font-black uppercase tracking-tight text-ink truncate">
                           {lead.firstName} {lead.lastName}
                         </span>
                         {age != null && (
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
                             {age} y/o
                           </span>
                         )}
-                        <span className="text-[10px] font-bold text-slate-400">
+                        <span className="text-[10px] font-bold text-ink-3">
                           {new Date(lead.submittedAt).toLocaleDateString()}
                         </span>
                       </div>
-                      <div className="text-[11px] text-slate-600 font-medium mt-0.5 break-all">
+                      <div className="text-[11px] text-ink-2 font-medium mt-0.5 break-all">
                         {lead.parentName ? `${lead.parentName} · ` : ""}
                         {lead.email} · {lead.phone}
                       </div>
                       {lead.currentTeam && (
-                        <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                        <div className="text-[10px] text-ink-3 font-medium mt-0.5">
                           Currently with: {lead.currentTeam}
                         </div>
                       )}
@@ -127,7 +127,7 @@ export const InterestTab = memo(() => {
                             {lead.comfortablePositions.map((p) => (
                               <span
                                 key={p}
-                                className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-slate-100 text-slate-700"
+                                className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface-2 text-ink"
                               >
                                 {p}
                               </span>
@@ -135,7 +135,7 @@ export const InterestTab = memo(() => {
                           </div>
                         )}
                       {lead.notes && (
-                        <div className="text-[11px] text-slate-600 font-medium mt-1.5 italic line-clamp-2">
+                        <div className="text-[11px] text-ink-2 font-medium mt-1.5 italic line-clamp-2">
                           "{lead.notes}"
                         </div>
                       )}
@@ -166,7 +166,7 @@ export const InterestTab = memo(() => {
                         className={`flex items-center justify-center gap-1 rounded-md transition-colors ${
                           armed
                             ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                            : "px-2 py-1 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200"
+                            : "px-2 py-1 text-ink-3 hover:text-red-600 hover:bg-red-50 border border-line"
                         }`}
                         title={armed ? "Tap again to delete" : "Delete this lead"}
                         aria-label={armed ? "Confirm delete" : "Delete lead"}

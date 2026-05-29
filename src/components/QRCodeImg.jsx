@@ -90,7 +90,7 @@ export const QRCodeImg = ({
   if (!dataUrl) {
     return (
       <div
-        className={`bg-slate-100 border border-slate-200 rounded-lg ${className}`}
+        className={`bg-surface-2 border border-line rounded-lg ${className}`}
         style={{ width: size, height: size }}
         aria-label="QR code unavailable"
       />
@@ -102,7 +102,7 @@ export const QRCodeImg = ({
       alt={`QR code for ${value}`}
       width={size}
       height={size}
-      className={`rounded-lg border border-slate-200 bg-white ${className}`}
+      className={`rounded-lg border border-line bg-surface ${className}`}
     />
   );
   if (!downloadable) return img;
@@ -112,7 +112,7 @@ export const QRCodeImg = ({
       <button
         type="button"
         onClick={handleDownload}
-        className="text-[9px] font-black uppercase tracking-widest text-slate-600 hover:text-slate-900 px-2 py-0.5 rounded border border-slate-200 bg-white hover:bg-slate-50 transition-colors"
+        className="text-[9px] font-black uppercase tracking-widest text-ink-2 hover:text-ink px-2 py-0.5 rounded border border-line bg-surface hover:bg-surface-2 transition-colors"
         title={`Save a high-resolution PNG for flyers`}
       >
         {downloadLabel}

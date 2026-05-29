@@ -4,6 +4,28 @@ import { Icons } from "../icons";
 import { auth } from "../firebase";
 import { useTeam, useUI, useToast } from "../contexts.js";
 import { RecordBadge, Eyebrow } from "./shared.jsx";
+import { useTheme } from "../hooks/useTheme";
+
+// Light/dark toggle — sun in dark mode (tap to go light), moon in light mode.
+const ThemeToggle = () => {
+  const { resolved, toggle } = useTheme();
+  const isDark = resolved === "dark";
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      title={isDark ? "Light mode" : "Dark mode"}
+      className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
+    >
+      {isDark ? (
+        <Icons.Sun className="w-4 h-4" />
+      ) : (
+        <Icons.Moon className="w-4 h-4" />
+      )}
+    </button>
+  );
+};
 
 export const LoginScreen = ({
   logoUrl,
@@ -15,7 +37,7 @@ export const LoginScreen = ({
   isSigningIn = false,
 }) => (
   <div
-    className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 relative overflow-hidden"
+    className="min-h-screen flex flex-col items-center justify-center p-6 bg-app relative overflow-hidden"
   >
     {/* Top accent strip — matches the in-app modal motif so the first
         thing a returning user sees feels like the same product. */}
@@ -37,7 +59,7 @@ export const LoginScreen = ({
       />
     )}
 
-    <div className="bg-white/95 backdrop-blur shadow-card max-w-sm w-full rounded-2xl border border-white/60 relative z-10 overflow-hidden">
+    <div className="bg-surface backdrop-blur shadow-card max-w-sm w-full rounded-2xl border border-line relative z-10 overflow-hidden">
       <div className="h-1 w-full" style={{ backgroundColor: primaryColor }} />
       <div className="p-8 text-center">
         <div className="flex justify-center mb-5">
@@ -51,7 +73,7 @@ export const LoginScreen = ({
             />
           </div>
         </div>
-        <Eyebrow className="block mb-2 text-slate-400">
+        <Eyebrow className="block mb-2 text-ink-3">
           Sign In Required
         </Eyebrow>
         <h1 className="t-h1 mb-2">Coach's Card</h1>
@@ -77,7 +99,7 @@ export const LoginScreen = ({
         {onEmailSignIn && (
           <button
             onClick={onEmailSignIn}
-            className="w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm transition-colors"
+            className="w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 shadow-sm transition-colors"
             type="button"
           >
             Sign In with Email Link
@@ -93,7 +115,7 @@ export const LoginScreen = ({
         )}
       </div>
     </div>
-    <p className="t-meta text-slate-400 mt-6 relative z-10">
+    <p className="t-meta text-ink-3 mt-6 relative z-10">
       Built for youth-baseball coaches
     </p>
   </div>
@@ -166,7 +188,7 @@ export const AppHeader = memo(() => {
   const showViewAsChip = realRole === "head" && viewAsRole === "assistant";
 
   return (
-    <header className="print:hidden w-full relative z-20 bg-white/40 shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
+    <header className="print:hidden w-full relative z-20 bg-surface shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
       <div
         className="h-1.5 w-full"
         style={{ backgroundColor: team.primaryColor }}
@@ -180,7 +202,7 @@ export const AppHeader = memo(() => {
               className="w-16 h-16 md:w-20 md:h-20 object-contain p-1"
             />
           ) : (
-            <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-white border border-slate-200 shadow-sm">
+            <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-surface border border-line shadow-sm">
               <Icons.Clipboard
                 className="w-6 h-6"
                 style={{ color: team.primaryColor }}
@@ -189,7 +211,7 @@ export const AppHeader = memo(() => {
           )}
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-black uppercase tracking-tight leading-none text-slate-900">
+              <h1 className="text-2xl font-black uppercase tracking-tight leading-none text-ink">
                 {activeTeamName}
               </h1>
               <RecordBadge
@@ -199,7 +221,7 @@ export const AppHeader = memo(() => {
                 tertiaryColor={team.tertiaryColor}
               />
             </div>
-            <p className="text-xs uppercase tracking-widest font-extrabold mt-1 text-slate-500">
+            <p className="text-xs uppercase tracking-widest font-extrabold mt-1 text-ink-3">
               {subtitle}
             </p>
           </div>
@@ -222,7 +244,7 @@ export const AppHeader = memo(() => {
           <select
             value={activeTeamId}
             onChange={(e) => switchTeam(e.target.value)}
-            className="p-3 outline-none flex-1 sm:w-64 text-sm font-black uppercase tracking-wider cursor-pointer rounded-xl bg-white/20 hover:bg-white transition-colors border border-slate-200 shadow-sm"
+            className="p-3 outline-none flex-1 sm:w-64 text-sm font-black uppercase tracking-wider cursor-pointer rounded-xl bg-surface hover:bg-surface-2 transition-colors border border-line shadow-sm"
           >
             {teams.map((t) => (
               <option key={t.id} value={t.id}>
@@ -237,12 +259,13 @@ export const AppHeader = memo(() => {
             had no way to sign out from the UI. This icon button is the
             backstop.
           */}
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => setSignOutOpen(true)}
             aria-label="Sign out"
             title="Sign out"
-            className="shrink-0 p-3 text-slate-600 bg-white/20 hover:bg-white hover:text-slate-900 border border-slate-200 rounded-xl shadow-sm transition-colors"
+            className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
           >
             <Icons.LogOut className="w-4 h-4" />
           </button>
@@ -354,7 +377,7 @@ export const AppHeader = memo(() => {
             )}
           </div>
           {syncStatus && (
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-300">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-ink-3">
               {syncStatus === "Saving" || syncStatus === "Creating" ? (
                 <Icons.Refresh className="w-3 h-3 animate-spin text-blue-400" />
               ) : (
@@ -372,7 +395,7 @@ export const AppHeader = memo(() => {
           onClick={() => !signingOut && setSignOutOpen(false)}
         >
           <div
-            className="bg-white max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
+            className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div
@@ -380,10 +403,10 @@ export const AppHeader = memo(() => {
               style={{ backgroundColor: "var(--team-primary)" }}
             />
             <div className="p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                 Sign out?
               </h3>
-              <p className="text-sm text-slate-600 font-medium mb-5">
+              <p className="text-sm text-ink-2 font-medium mb-5">
                 You'll need to sign in again on this device. Any in-progress
                 data is already saved.
               </p>
@@ -392,7 +415,7 @@ export const AppHeader = memo(() => {
                   type="button"
                   disabled={signingOut}
                   onClick={() => setSignOutOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-50"
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -422,7 +445,7 @@ export const AppHeader = memo(() => {
 
 export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }) => {
   return (
-    <div className="bg-white/30 border-b border-white/40 print:hidden relative z-10 shadow-sm">
+    <div className="bg-surface border-b border-line print:hidden relative z-10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
           {navButtons.map((btn) => {
@@ -440,7 +463,7 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }) => {
                 className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
                   isActive
                     ? "shadow-sm"
-                    : "text-slate-600 hover:bg-white/80 hover:text-slate-900 border-transparent"
+                    : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
                 } ${rightAlign ? "ml-auto" : ""}`}
                 style={
                   isActive

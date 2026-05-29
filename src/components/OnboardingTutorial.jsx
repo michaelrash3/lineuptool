@@ -241,7 +241,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white/95 max-w-lg w-full rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -261,7 +261,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
             <button
               type="button"
               onClick={close}
-              className="shrink-0 -mr-2 -mt-1 p-2 text-slate-400 hover:text-slate-700"
+              className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink"
               aria-label="Close tutorial"
             >
               <Icons.X className="w-5 h-5" />
@@ -304,7 +304,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
             <button
               type="button"
               onClick={close}
-              className="t-button text-slate-500 hover:text-slate-800"
+              className="t-button text-ink-3 hover:text-ink"
             >
               Skip Tutorial
             </button>

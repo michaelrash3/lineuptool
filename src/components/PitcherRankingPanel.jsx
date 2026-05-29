@@ -86,7 +86,7 @@ export const PitcherRankingPanel = memo(() => {
         className="h-1.5 w-full"
         style={{ backgroundColor: "var(--team-primary)" }}
       />
-      <div className="p-5 border-b border-white/40 bg-white/20 flex items-center justify-between gap-3">
+      <div className="p-5 border-b border-line bg-surface flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
             className="p-2 rounded-full"
@@ -99,15 +99,15 @@ export const PitcherRankingPanel = memo(() => {
           </div>
           <h2 className="t-h2">Pitcher Ranking</h2>
         </div>
-        <span className="t-eyebrow text-slate-500 hidden sm:inline">
+        <span className="t-eyebrow text-ink-3 hidden sm:inline">
           Eval-weighted · {ranked.length} ranked
         </span>
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-white/40">
-            <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+          <thead className="bg-surface">
+            <tr className="text-[10px] font-black uppercase tracking-widest text-ink-3">
               <th className="px-3 py-2 w-8">#</th>
               <th className="px-3 py-2">Pitcher</th>
               <th className="px-3 py-2 text-right">Score</th>
@@ -120,32 +120,32 @@ export const PitcherRankingPanel = memo(() => {
             {ranked.map((row, idx) => (
               <tr
                 key={row.p.id}
-                className="border-t border-white/40 hover:bg-white/30 transition-colors"
+                className="border-t border-line hover:bg-surface transition-colors"
               >
-                <td className="px-3 py-2 font-black tabular-nums text-slate-500">
+                <td className="px-3 py-2 font-black tabular-nums text-ink-3">
                   {idx + 1}
                 </td>
                 <td className="px-3 py-2">
                   <button
                     type="button"
                     onClick={() => openPlayerProfile?.(row.p.id)}
-                    className="font-extrabold text-slate-900 hover:text-team-primary text-left"
+                    className="font-extrabold text-ink hover:text-team-primary text-left"
                   >
                     {row.p.name}
                     {row.p.number != null && row.p.number !== "" && (
-                      <span className="ml-1.5 text-slate-400 font-bold text-[10px] tabular-nums">
+                      <span className="ml-1.5 text-ink-3 font-bold text-[10px] tabular-nums">
                         #{row.p.number}
                       </span>
                     )}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums font-black text-slate-900">
+                <td className="px-3 py-2 text-right tabular-nums font-black text-ink">
                   {row.score.toFixed(1)}
                 </td>
-                <td className="px-3 py-2 text-right hidden sm:table-cell text-slate-600 tabular-nums">
+                <td className="px-3 py-2 text-right hidden sm:table-cell text-ink-2 tabular-nums">
                   {formatPitchDate(row.lastPitchDate)}
                 </td>
-                <td className="px-3 py-2 text-right hidden md:table-cell tabular-nums text-slate-600">
+                <td className="px-3 py-2 text-right hidden md:table-cell tabular-nums text-ink-2">
                   {row.recentPitches || "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -158,7 +158,7 @@ export const PitcherRankingPanel = memo(() => {
                       +{row.daysUntil}d
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-2 border border-line text-ink-3 text-[10px] font-black uppercase tracking-widest">
                       Out
                     </span>
                   )}

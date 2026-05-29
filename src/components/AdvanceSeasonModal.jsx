@@ -142,7 +142,7 @@ export const AdvanceSeasonModal = memo(
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="bg-white/95 max-w-2xl w-full max-h-[90vh] rounded-2xl shadow-2xl border border-white/60 overflow-hidden flex flex-col"
+          className="bg-surface max-w-2xl w-full max-h-[90vh] rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col"
         >
           <div
             className="h-1.5 w-full"
@@ -176,7 +176,7 @@ export const AdvanceSeasonModal = memo(
                 type="button"
                 onClick={onClose}
                 aria-label="Cancel"
-                className="shrink-0 -mr-2 -mt-1 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
               >
                 <Icons.X className="w-4 h-4" />
               </button>
@@ -184,7 +184,7 @@ export const AdvanceSeasonModal = memo(
           </div>
 
           <div className="px-6 sm:px-7 flex flex-wrap items-center gap-2 pb-3">
-            <span className="t-meta text-slate-400 mr-1">Returning?</span>
+            <span className="t-meta text-ink-3 mr-1">Returning?</span>
             <button
               type="button"
               onClick={() => setAll(STATUS_RETURNING)}
@@ -195,12 +195,12 @@ export const AdvanceSeasonModal = memo(
             <button
               type="button"
               onClick={() => setAll(STATUS_RELEASED)}
-              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong bg-surface text-ink hover:bg-surface-2"
             >
               All No
             </button>
             <span
-              className="ml-auto text-[10px] font-black uppercase tracking-widest text-slate-500 tabular-nums whitespace-nowrap"
+              className="ml-auto text-[10px] font-black uppercase tracking-widest text-ink-3 tabular-nums whitespace-nowrap"
               aria-live="polite"
             >
               {partition.returning.length} yes · {partition.released.length}{" "}
@@ -210,7 +210,7 @@ export const AdvanceSeasonModal = memo(
 
           <div className="flex-1 overflow-y-auto px-6 sm:px-7 pb-4 space-y-5">
             {togglablePlayers.length === 0 && partition.accepted.length === 0 ? (
-              <p className="t-body text-center py-6 italic text-slate-400">
+              <p className="t-body text-center py-6 italic text-ink-3">
                 No players on the roster yet.
               </p>
             ) : (
@@ -223,14 +223,14 @@ export const AdvanceSeasonModal = memo(
                   return (
                     <li
                       key={p.id}
-                      className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 shadow-sm"
+                      className="flex items-center justify-between gap-2 bg-surface border border-line rounded-xl px-3 py-2.5 shadow-sm"
                     >
                       <div className="min-w-0 flex items-center gap-2">
-                        <span className="text-xs font-extrabold text-slate-800 uppercase tracking-tight truncate">
+                        <span className="text-xs font-extrabold text-ink uppercase tracking-tight truncate">
                           {p.name}
                         </span>
                         {p.number && (
-                          <span className="text-[10px] font-bold text-slate-400 tabular-nums shrink-0">
+                          <span className="text-[10px] font-bold text-ink-3 tabular-nums shrink-0">
                             #{p.number}
                           </span>
                         )}
@@ -252,7 +252,7 @@ export const AdvanceSeasonModal = memo(
                           role="group"
                           aria-label={`${p.name} returning next season`}
                         >
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mr-1">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-ink-3 mr-1">
                             Returning?
                           </span>
                           <button
@@ -262,7 +262,7 @@ export const AdvanceSeasonModal = memo(
                             className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border transition-colors ${
                               returning
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800"
-                                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                                : "bg-surface border-line text-ink-3 hover:bg-surface-2"
                             }`}
                           >
                             Yes
@@ -273,8 +273,8 @@ export const AdvanceSeasonModal = memo(
                             aria-pressed={released}
                             className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border transition-colors ${
                               released
-                                ? "bg-slate-200 border-slate-300 text-slate-700"
-                                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50"
+                                ? "bg-line border-line-strong text-ink"
+                                : "bg-surface border-line text-ink-3 hover:bg-surface-2"
                             }`}
                           >
                             No
@@ -288,13 +288,13 @@ export const AdvanceSeasonModal = memo(
             )}
 
             {sortedSignups.length > 0 && (
-              <div className="border-t border-slate-100 pt-4">
+              <div className="border-t border-line pt-4">
                 <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
                   <div>
                     <h3 className="t-h3 flex items-center gap-2">
                       <Icons.Plus className="w-4 h-4" /> Tryout Signups
                     </h3>
-                    <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    <p className="text-[11px] text-ink-3 font-medium mt-0.5">
                       Check the kids you're bringing onto the new roster.
                       Unchecked signups (and all signups not promoted) are
                       cleared when the season advances.
@@ -311,7 +311,7 @@ export const AdvanceSeasonModal = memo(
                     <button
                       type="button"
                       onClick={() => setAllSignups(false)}
-                      className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                      className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-line-strong bg-surface text-ink hover:bg-surface-2"
                     >
                       None
                     </button>
@@ -326,7 +326,7 @@ export const AdvanceSeasonModal = memo(
                         className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 shadow-sm transition-colors ${
                           checked
                             ? "bg-emerald-50/40 border-emerald-300"
-                            : "bg-white border-slate-200"
+                            : "bg-surface border-line"
                         }`}
                       >
                         <input
@@ -338,15 +338,15 @@ export const AdvanceSeasonModal = memo(
                         />
                         <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
                           {s.tryoutNumber && (
-                            <span className="text-[10px] font-bold text-slate-400 tabular-nums shrink-0">
+                            <span className="text-[10px] font-bold text-ink-3 tabular-nums shrink-0">
                               #{s.tryoutNumber}
                             </span>
                           )}
-                          <span className="text-xs font-extrabold text-slate-800 uppercase tracking-tight truncate">
+                          <span className="text-xs font-extrabold text-ink uppercase tracking-tight truncate">
                             {s.firstName} {s.lastName}
                           </span>
                           {s.status && (
-                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 shrink-0">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-ink-3 shrink-0">
                               {s.status}
                             </span>
                           )}
@@ -355,14 +355,14 @@ export const AdvanceSeasonModal = memo(
                     );
                   })}
                 </ul>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 tabular-nums mt-2 text-right">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3 tabular-nums mt-2 text-right">
                   {promoteIds.size} of {sortedSignups.length} selected
                 </div>
               </div>
             )}
           </div>
 
-          <div className="border-t border-slate-100 px-6 sm:px-7 py-4 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end bg-white/80">
+          <div className="border-t border-line px-6 sm:px-7 py-4 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end bg-surface">
             <Button
               type="button"
               variant="secondary"

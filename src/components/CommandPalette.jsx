@@ -231,14 +231,14 @@ export const CommandPalette = ({ open, onClose }) => {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-white/50 overflow-hidden flex flex-col max-h-[70vh]"
+        className="bg-surface w-full max-w-xl rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col max-h-[70vh]"
       >
         <div
           className="h-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center gap-2">
-          <Icons.Forward className="w-4 h-4 text-slate-400" />
+        <div className="px-4 py-3 border-b border-line flex items-center gap-2">
+          <Icons.Forward className="w-4 h-4 text-ink-3" />
           <input
             ref={inputRef}
             type="text"
@@ -250,13 +250,13 @@ export const CommandPalette = ({ open, onClose }) => {
             onKeyDown={onKeyDown}
             placeholder="Search players, games, actions…"
             aria-label="Command palette search"
-            className="flex-1 text-sm font-bold text-slate-800 outline-none bg-transparent"
+            className="flex-1 text-sm font-bold text-ink outline-none bg-transparent"
           />
-          <span className="t-eyebrow text-slate-400 hidden sm:inline">Esc</span>
+          <span className="t-eyebrow text-ink-3 hidden sm:inline">Esc</span>
         </div>
         <div ref={listRef} className="overflow-y-auto flex-1 py-2">
           {results.length === 0 ? (
-            <div className="px-4 py-8 text-center t-body text-slate-500">
+            <div className="px-4 py-8 text-center t-body text-ink-3">
               No matches.
             </div>
           ) : (
@@ -273,7 +273,7 @@ export const CommandPalette = ({ open, onClose }) => {
                     onClose();
                   }}
                   className={`w-full text-left px-4 py-2.5 flex items-center gap-3 transition-colors ${
-                    isActive ? "bg-slate-100" : "hover:bg-slate-50"
+                    isActive ? "bg-surface-2" : "hover:bg-surface-2"
                   }`}
                 >
                   <span
@@ -292,22 +292,22 @@ export const CommandPalette = ({ open, onClose }) => {
                       : "Action"}
                   </span>
                   <span className="flex-1 min-w-0">
-                    <span className="block t-body-bold truncate text-slate-900">
+                    <span className="block t-body-bold truncate text-ink">
                       {item.label}
                     </span>
-                    <span className="block text-[11px] font-medium text-slate-500 truncate">
+                    <span className="block text-[11px] font-medium text-ink-3 truncate">
                       {item.sublabel}
                     </span>
                   </span>
                   {isActive && (
-                    <Icons.ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <Icons.ChevronRight className="w-4 h-4 text-ink-3 shrink-0" />
                   )}
                 </button>
               );
             })
           )}
         </div>
-        <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+        <div className="px-4 py-2.5 bg-app border-t border-line flex items-center justify-between text-[10px] font-bold text-ink-3 uppercase tracking-widest">
           <span>↑↓ navigate</span>
           <span>↵ select</span>
           <span>Esc close</span>

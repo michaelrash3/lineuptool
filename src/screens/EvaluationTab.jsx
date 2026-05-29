@@ -316,14 +316,14 @@ export const RosterDecisionsPanel = memo(() => {
       key={d.player.id}
       type="button"
       onClick={() => setEvalTrendPlayerId(d.player.id)}
-      className="w-full text-left bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 hover:shadow-sm transition-all"
+      className="w-full text-left bg-surface border border-line rounded-lg p-3 hover:border-line-strong hover:shadow-sm transition-all"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
-        <div className="font-black text-sm uppercase tracking-tight text-slate-900 truncate">
+        <div className="font-black text-sm uppercase tracking-tight text-ink truncate">
           {d.player.name}
         </div>
         {Number.isFinite(d.baseballAge) && (
-          <div className="text-[9px] font-bold text-slate-400 shrink-0">
+          <div className="text-[9px] font-bold text-ink-3 shrink-0">
             Age {d.baseballAge}
             {d.playingUp ? " ↑" : ""}
           </div>
@@ -331,7 +331,7 @@ export const RosterDecisionsPanel = memo(() => {
       </div>
       <div className="flex items-center gap-2 mb-1.5">
         {d.latestEvalAvg != null && (
-          <span className="text-[10px] font-bold text-slate-600 tabular-nums">
+          <span className="text-[10px] font-bold text-ink-2 tabular-nums">
             Eval {d.latestEvalAvg.toFixed(1)}
           </span>
         )}
@@ -342,7 +342,7 @@ export const RosterDecisionsPanel = memo(() => {
                 ? "text-green-700"
                 : d.evalTrend === "declining"
                 ? "text-red-700"
-                : "text-slate-500"
+                : "text-ink-3"
             }`}
           >
             {d.evalTrend === "improving"
@@ -359,7 +359,7 @@ export const RosterDecisionsPanel = memo(() => {
                 ? "text-green-700"
                 : d.statsPctVsAvg < -5
                 ? "text-red-700"
-                : "text-slate-500"
+                : "text-ink-3"
             }`}
           >
             {d.statsPctVsAvg > 0 ? "+" : ""}
@@ -367,15 +367,15 @@ export const RosterDecisionsPanel = memo(() => {
           </span>
         )}
       </div>
-      <div className="text-[10px] text-slate-500 italic font-medium">
+      <div className="text-[10px] text-ink-3 italic font-medium">
         {d.rationale.join(" · ")}
       </div>
     </button>
   );
 
   return (
-    <div className="bg-white/30 shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-white/50 rounded-2xl overflow-hidden">
-      <div className="p-5 bg-white/40 border-b border-white/40">
+    <div className="bg-surface shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-line rounded-2xl overflow-hidden">
+      <div className="p-5 bg-surface border-b border-line">
         <div className="flex items-center gap-4">
           <div
             className="p-2.5 rounded-full"
@@ -384,10 +384,10 @@ export const RosterDecisionsPanel = memo(() => {
             <Icons.Users className="w-6 h-6" style={{ color: primaryColor }} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-800 uppercase tracking-wider">
+            <h2 className="text-xl font-black text-ink uppercase tracking-wider">
               Roster Decisions
             </h2>
-            <p className="text-[10px] font-extrabold uppercase tracking-widest mt-1 text-slate-500">
+            <p className="text-[10px] font-extrabold uppercase tracking-widest mt-1 text-ink-3">
               Advisory only — uses eval trends, stats, and age
             </p>
           </div>
@@ -402,7 +402,7 @@ export const RosterDecisionsPanel = memo(() => {
             Strong Fit ({byBucket.strong.length})
           </div>
           {byBucket.strong.length === 0 ? (
-            <p className="text-[11px] text-slate-400 italic font-medium px-1">
+            <p className="text-[11px] text-ink-3 italic font-medium px-1">
               No players in this group yet.
             </p>
           ) : (
@@ -419,7 +419,7 @@ export const RosterDecisionsPanel = memo(() => {
             Watchlist ({byBucket.watch.length})
           </div>
           {byBucket.watch.length === 0 ? (
-            <p className="text-[11px] text-slate-400 italic font-medium px-1">
+            <p className="text-[11px] text-ink-3 italic font-medium px-1">
               No players need a closer look right now.
             </p>
           ) : (
@@ -431,12 +431,12 @@ export const RosterDecisionsPanel = memo(() => {
 
         {/* Better Suited for Younger Group */}
         <div>
-          <div className="text-[11px] font-black uppercase tracking-widest text-slate-600 mb-2 flex items-center gap-2">
+          <div className="text-[11px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-slate-400" />
             Better Suited for Younger ({byBucket.younger.length})
           </div>
           {byBucket.younger.length === 0 ? (
-            <p className="text-[11px] text-slate-400 italic font-medium px-1">
+            <p className="text-[11px] text-ink-3 italic font-medium px-1">
               No candidates eligible for this recommendation.
             </p>
           ) : (
@@ -447,7 +447,7 @@ export const RosterDecisionsPanel = memo(() => {
         </div>
       </div>
 
-      <div className="px-5 pb-4 text-[10px] text-slate-500 italic font-medium">
+      <div className="px-5 pb-4 text-[10px] text-ink-3 italic font-medium">
         Tap any card to see that player&apos;s full evaluation trend.
       </div>
     </div>
@@ -527,10 +527,10 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
     flags.standouts.length || flags.regressions.length || flags.categoryDrops.length;
   if (!hasAny) return null;
   return (
-    <div className="px-5 py-4 bg-white/40 border-b border-slate-200/50 flex flex-col gap-3">
+    <div className="px-5 py-4 bg-surface border-b border-line/50 flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span className="t-eyebrow">Round-Over-Round Insights</span>
-        <span className="text-[10px] font-bold text-slate-400">
+        <span className="text-[10px] font-bold text-ink-3">
           {rounds[0].label || rounds[0].date} vs {rounds[1].label || rounds[1].date}
         </span>
       </div>
@@ -638,13 +638,13 @@ const RoundComparisonView = memo(
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="bg-white rounded-t-2xl sm:rounded-2xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col"
+          className="bg-surface rounded-t-2xl sm:rounded-2xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col"
         >
           <div
             className="h-1.5"
             style={{ backgroundColor: "var(--team-primary)" }}
           />
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+          <div className="px-6 py-4 border-b border-line flex items-center justify-between gap-3">
             <div>
               <div className="t-eyebrow">Round Comparison</div>
               <h3 className="t-card-title">Side By Side</h3>
@@ -652,19 +652,19 @@ const RoundComparisonView = memo(
             <button
               type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              className="p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg"
               aria-label="Close round comparison"
             >
               <Icons.X className="w-5 h-5" />
             </button>
           </div>
-          <div className="px-6 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+          <div className="px-6 py-3 border-b border-line flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 flex-1 min-w-[200px]">
               <span className="t-eyebrow shrink-0">From:</span>
               <select
                 value={leftId}
                 onChange={(e) => setLeftId(e.target.value)}
-                className="flex-1 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 rounded-lg cursor-pointer outline-none"
+                className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
               >
                 {rounds.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -678,7 +678,7 @@ const RoundComparisonView = memo(
               <select
                 value={rightId}
                 onChange={(e) => setRightId(e.target.value)}
-                className="flex-1 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 rounded-lg cursor-pointer outline-none"
+                className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
               >
                 {rounds.map((r) => (
                   <option key={r.id} value={r.id}>
@@ -690,9 +690,9 @@ const RoundComparisonView = memo(
           </div>
           <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 sticky top-0 z-10">
+              <thead className="bg-app sticky top-0 z-10">
                 <tr>
-                  <th className="p-3 t-eyebrow text-left w-48 sticky left-0 bg-slate-50 z-20 border-r border-slate-200">
+                  <th className="p-3 t-eyebrow text-left w-48 sticky left-0 bg-app z-20 border-r border-line">
                     Player
                   </th>
                   {activeCategories.map((cat) => (
@@ -700,12 +700,12 @@ const RoundComparisonView = memo(
                       {cat.label}
                     </th>
                   ))}
-                  <th className="p-3 t-eyebrow text-center bg-slate-100 border-l border-slate-200">
+                  <th className="p-3 t-eyebrow text-center bg-surface-2 border-l border-line">
                     Avg Δ
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-line">
                 {players.map((p) => {
                   const lg = left?.grades?.[p.id];
                   const rg = right?.grades?.[p.id];
@@ -714,12 +714,12 @@ const RoundComparisonView = memo(
                   const avgDelta =
                     la != null && ra != null ? ra - la : null;
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="p-3 sticky left-0 bg-white z-10 border-r border-slate-100 max-w-[200px]">
+                    <tr key={p.id} className="hover:bg-surface-2">
+                      <td className="p-3 sticky left-0 bg-surface z-10 border-r border-line max-w-[200px]">
                         <button
                           type="button"
                           onClick={() => onPlayerClick(p.id)}
-                          className="t-body-bold text-slate-900 hover:text-team-primary uppercase tracking-tight text-left truncate"
+                          className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
                         >
                           {p.name}
                         </button>
@@ -733,7 +733,7 @@ const RoundComparisonView = memo(
                         return (
                           <td key={cat.id} className="p-2 text-center">
                             <div className="flex flex-col items-center leading-none gap-0.5">
-                              <span className="text-sm font-black text-slate-900 tabular-nums">
+                              <span className="text-sm font-black text-ink tabular-nums">
                                 {has2 ? v2 : "—"}
                               </span>
                               {delta != null && delta !== 0 && (
@@ -751,16 +751,16 @@ const RoundComparisonView = memo(
                           </td>
                         );
                       })}
-                      <td className="p-2 text-center bg-slate-50 border-l border-slate-200">
+                      <td className="p-2 text-center bg-app border-l border-line">
                         <span
                           className={`text-sm font-black tabular-nums ${
                             avgDelta == null
-                              ? "text-slate-400"
+                              ? "text-ink-3"
                               : avgDelta > 0
                               ? "text-emerald-600"
                               : avgDelta < 0
                               ? "text-rose-600"
-                              : "text-slate-500"
+                              : "text-ink-3"
                           }`}
                         >
                           {avgDelta != null ? fmtDelta(avgDelta) : "—"}
@@ -806,7 +806,7 @@ const AssistantSubmissionsPanel = memo(
     <div className="px-5 py-4 bg-amber-50/40 border-b border-amber-100">
       <div className="flex items-center justify-between mb-3">
         <h3 className="t-h3">Assistant Submissions</h3>
-        <span className="t-eyebrow text-slate-500">
+        <span className="t-eyebrow text-ink-3">
           {latestByAssistant.length} assistant
           {latestByAssistant.length === 1 ? "" : "s"} ·{" "}
           {Math.round(50)}% weight (split equally with your eval)
@@ -825,14 +825,14 @@ const AssistantSubmissionsPanel = memo(
           return (
             <div
               key={ev.id}
-              className="bg-white border border-amber-200 rounded-xl p-3 shadow-sm"
+              className="bg-surface border border-amber-200 rounded-xl p-3 shadow-sm"
             >
               <div className="flex items-baseline justify-between gap-3 mb-2">
-                <div className="text-[11px] font-extrabold uppercase tracking-widest text-slate-600 truncate">
+                <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
                   Assistant · {ev.evaluatorName || ev.evaluatorId?.slice(0, 8) || "—"}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-[10px] font-bold text-slate-500">
+                  <div className="text-[10px] font-bold text-ink-3">
                     {ev.date}
                   </div>
                   {onDelete && (() => {
@@ -854,7 +854,7 @@ const AssistantSubmissionsPanel = memo(
                         className={`flex items-center gap-1 rounded-md transition-colors ${
                           armed
                             ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                            : "p-1 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                            : "p-1 text-ink-3 hover:text-red-600 hover:bg-red-50"
                         }`}
                         title={
                           armed
@@ -879,7 +879,7 @@ const AssistantSubmissionsPanel = memo(
                 </div>
               </div>
               {playersWithSignal.length === 0 ? (
-                <p className="text-[11px] text-slate-500 font-medium italic">
+                <p className="text-[11px] text-ink-3 font-medium italic">
                   Grades submitted — no positions or notes flagged.
                 </p>
               ) : (
@@ -891,7 +891,7 @@ const AssistantSubmissionsPanel = memo(
                         key={p.id}
                         className="border-t border-amber-100 pt-2 first:border-t-0 first:pt-0"
                       >
-                        <div className="text-[12px] font-black uppercase tracking-tight text-slate-800 mb-1">
+                        <div className="text-[12px] font-black uppercase tracking-tight text-ink mb-1">
                           {p.name}
                         </div>
                         {Array.isArray(g.suggestedPositions) &&
@@ -908,7 +908,7 @@ const AssistantSubmissionsPanel = memo(
                             </div>
                           )}
                         {g.notes && g.notes.trim() && (
-                          <p className="text-[11px] text-slate-700 italic leading-snug">
+                          <p className="text-[11px] text-ink italic leading-snug">
                             {g.notes}
                           </p>
                         )}
@@ -1205,7 +1205,7 @@ export const EvaluationTab = memo(() => {
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/40 border-b border-white/40">
+        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border-b border-line">
           <div className="flex items-center gap-4">
             <div
               className="p-2.5 rounded-full"
@@ -1265,7 +1265,7 @@ export const EvaluationTab = memo(() => {
         {/* Round selection bar */}
         <div className="px-5 py-3 bg-amber-50/40 border-b border-amber-100 flex flex-col sm:flex-row gap-3 sm:items-center">
           <label className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-600 shrink-0">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-2 shrink-0">
               Eval:
             </span>
             <select
@@ -1276,7 +1276,7 @@ export const EvaluationTab = memo(() => {
                 const v = e.target.value;
                 setSelectedRoundId(v === "__new" || v === "" ? null : v);
               }}
-              className="flex-1 min-w-0 text-xs font-bold border border-slate-200 bg-white text-slate-700 px-3 py-2 outline-none rounded-lg cursor-pointer hover:bg-white/90 transition-colors"
+              className="flex-1 min-w-0 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 outline-none rounded-lg cursor-pointer hover:bg-surface transition-colors"
             >
               {promptStatus.active ? (
                 <option value="__new">
@@ -1318,7 +1318,7 @@ export const EvaluationTab = memo(() => {
               className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
                 pendingRoundDelete
                   ? "px-2.5 py-2 bg-red-100 text-red-800 border-red-300 ring-2 ring-red-200"
-                  : "p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border-slate-200 hover:border-red-200"
+                  : "p-2 text-ink-3 hover:text-red-600 hover:bg-red-50 border-line hover:border-red-200"
               }`}
               title={
                 pendingRoundDelete
@@ -1340,7 +1340,7 @@ export const EvaluationTab = memo(() => {
             </button>
           )}
           {!isNewRound && activeRound && (
-            <span className="text-[10px] font-bold text-slate-500 italic">
+            <span className="text-[10px] font-bold text-ink-3 italic">
               Editing &quot;{formatRoundName(activeRound)}&quot;
             </span>
           )}
@@ -1348,7 +1348,7 @@ export const EvaluationTab = memo(() => {
             <button
               type="button"
               onClick={() => setManageOpen(true)}
-              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5"
+              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
               title="View, switch between, and delete saved rounds"
               aria-label="Manage saved eval rounds"
             >
@@ -1360,7 +1360,7 @@ export const EvaluationTab = memo(() => {
             <button
               type="button"
               onClick={() => setComparisonOpen(true)}
-              className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white flex items-center gap-1.5 shrink-0"
+              className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5 shrink-0"
               title="Compare any two saved rounds side by side"
             >
               <Icons.Forward className="w-3.5 h-3.5" /> Compare Rounds
@@ -1386,13 +1386,13 @@ export const EvaluationTab = memo(() => {
         />
 
         {/* Quick-set toolbar */}
-        <div className="px-5 py-3 bg-white/40 border-b border-white/40 flex flex-wrap items-center gap-2">
+        <div className="px-5 py-3 bg-surface border-b border-line flex flex-wrap items-center gap-2">
           <span className="t-eyebrow mr-1">Quick Set:</span>
           <button
             type="button"
             onClick={copyFromLastRound}
             disabled={!hasLastRound}
-            className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
             title={
               hasLastRound
                 ? "Copy grades from your most recent saved eval"
@@ -1404,7 +1404,7 @@ export const EvaluationTab = memo(() => {
           <button
             type="button"
             onClick={applyAllAverage}
-            className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white flex items-center gap-1.5"
+            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
             title="Set every category for every player to 3"
           >
             <Icons.Refresh className="w-3.5 h-3.5" /> All Average (3)
@@ -1412,7 +1412,7 @@ export const EvaluationTab = memo(() => {
           <button
             type="button"
             onClick={() => setTeamEvalGrades({})}
-            className="t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 flex items-center gap-1.5"
+            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 flex items-center gap-1.5"
             title="Clear all in-progress grades"
           >
             <Icons.X className="w-3.5 h-3.5" /> Clear
@@ -1422,10 +1422,10 @@ export const EvaluationTab = memo(() => {
         {/* Per-player grading cards. One column on mobile, two on lg+
             screens. Replaces the legacy desktop table — same chip rows
             as the assistant flow so head + assistant inputs match. */}
-        <div className="p-3 bg-white/20 space-y-2">
+        <div className="p-3 bg-surface space-y-2">
           {players.length > 0 && (
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
-              <span className="t-eyebrow text-slate-500">
+              <span className="t-eyebrow text-ink-3">
                 {expandedPlayerIds.size} of {players.length} open
               </span>
               <div className="flex gap-1.5">
@@ -1434,14 +1434,14 @@ export const EvaluationTab = memo(() => {
                   onClick={() =>
                     setExpandedPlayerIds(new Set(players.map((p) => p.id)))
                   }
-                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
                 >
                   Expand All
                 </button>
                 <button
                   type="button"
                   onClick={() => setExpandedPlayerIds(new Set())}
-                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
                 >
                   Collapse All
                 </button>
@@ -1468,28 +1468,28 @@ export const EvaluationTab = memo(() => {
               return (
                 <div
                   key={`mc-${player.id}`}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden"
                 >
                   <button
                     type="button"
                     onClick={() => togglePlayerExpanded(player.id)}
                     aria-expanded={expanded}
-                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-slate-50 transition-colors text-left"
+                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-surface-2 transition-colors text-left"
                   >
                     <Icons.ChevronRight
-                      className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+                      className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
                         expanded ? "rotate-90" : ""
                       }`}
                     />
                     {player.number && (
-                      <span className="text-[11px] font-bold text-slate-400 tabular-nums shrink-0 w-7 text-center">
+                      <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0 w-7 text-center">
                         #{player.number}
                       </span>
                     )}
-                    <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-slate-900 truncate">
+                    <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-ink truncate">
                       {player.name}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0 tabular-nums">
+                    <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
                       {gradedCount}/{activeCategories.length}
                     </span>
                     <span
@@ -1504,13 +1504,13 @@ export const EvaluationTab = memo(() => {
                     </span>
                   </button>
                   {expanded && (
-                    <div className="px-3 pb-3 pt-1 border-t border-slate-100 space-y-2.5">
+                    <div className="px-3 pb-3 pt-1 border-t border-line space-y-2.5">
                       {activeCategories.map((cat) => (
                         <div
                           key={cat.id}
                           className="flex items-center justify-between gap-3"
                         >
-                          <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-600 truncate">
+                          <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
                             {cat.label}
                           </span>
                           <GradeChipRow
@@ -1522,8 +1522,8 @@ export const EvaluationTab = memo(() => {
                           />
                         </div>
                       ))}
-                      <div className="pt-1.5 border-t border-slate-100">
-                        <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1.5">
+                      <div className="pt-1.5 border-t border-line">
+                        <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
                           Suggested Positions
                         </div>
                         <div className="flex flex-wrap gap-1">
@@ -1564,12 +1564,12 @@ export const EvaluationTab = memo(() => {
                         onChange={(e) => setNotes(player.id, e.target.value)}
                         placeholder="Notes"
                         rows={1}
-                        className="w-full text-xs font-medium border border-slate-200 bg-white text-slate-700 px-2 py-1.5 outline-none rounded-md focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
+                        className="w-full text-xs font-medium border border-line bg-surface text-ink px-2 py-1.5 outline-none rounded-md focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
                       />
                       <button
                         type="button"
                         onClick={() => setEvalTrendPlayerId(player.id)}
-                        className="text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 underline"
+                        className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
                       >
                         View trend →
                       </button>
@@ -1627,16 +1627,16 @@ export const EvaluationTab = memo(() => {
           }}
         >
           <div
-            className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
+            className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-            <div className="p-5 sm:p-6 border-b border-slate-200 flex items-start justify-between gap-3">
+            <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">
+                <h3 className="text-lg font-black uppercase tracking-tight text-ink">
                   Your Saved Rounds
                 </h3>
-                <p className="text-[12px] text-slate-500 font-medium mt-1">
+                <p className="text-[12px] text-ink-3 font-medium mt-1">
                   Select a round to review or edit, or delete one saved
                   by mistake.
                 </p>
@@ -1647,7 +1647,7 @@ export const EvaluationTab = memo(() => {
                   setManageOpen(false);
                   setPendingModalDeleteId(null);
                 }}
-                className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+                className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
                 aria-label="Close"
               >
                 <Icons.X className="w-5 h-5" />
@@ -1655,7 +1655,7 @@ export const EvaluationTab = memo(() => {
             </div>
             <div className="p-4 sm:p-5 overflow-y-auto flex-1">
               {myRounds.length === 0 ? (
-                <div className="text-sm font-bold text-slate-400 italic text-center py-8">
+                <div className="text-sm font-bold text-ink-3 italic text-center py-8">
                   No saved rounds yet.
                 </div>
               ) : (
@@ -1668,16 +1668,16 @@ export const EvaluationTab = memo(() => {
                         key={r.id}
                         className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
                           isActive
-                            ? "bg-slate-50 border-slate-300"
-                            : "bg-white border-slate-200"
+                            ? "bg-app border-line-strong"
+                            : "bg-surface border-line"
                         }`}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-black text-slate-900 truncate">
+                          <div className="text-sm font-black text-ink truncate">
                             {formatRoundName(r)}
                           </div>
                           {isActive && (
-                            <div className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500 mt-0.5">
+                            <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mt-0.5">
                               Currently editing
                             </div>
                           )}
@@ -1690,7 +1690,7 @@ export const EvaluationTab = memo(() => {
                               setManageOpen(false);
                               setPendingModalDeleteId(null);
                             }}
-                            className="shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:text-slate-900 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+                            className="shrink-0 text-[10px] font-black uppercase tracking-widest text-ink hover:text-ink px-2 py-1 rounded hover:bg-surface-2 transition-colors"
                           >
                             Select
                           </button>
@@ -1716,7 +1716,7 @@ export const EvaluationTab = memo(() => {
                           className={`shrink-0 flex items-center gap-1 rounded-md transition-colors ${
                             armed
                               ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                              : "p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              : "p-1.5 text-ink-3 hover:text-red-600 hover:bg-red-50"
                           }`}
                           title={
                             armed
@@ -1840,19 +1840,19 @@ export const EvalTrendModal = memo(
         }}
       >
         <div
-          className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          className="bg-surface rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-          <div className="p-5 sm:p-6 border-b border-slate-200 flex items-start justify-between gap-4">
+          <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
             <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-0.5">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
                 {player.name}
               </div>
-              <h3 className="text-2xl font-black uppercase tracking-tight text-slate-900">
+              <h3 className="text-2xl font-black uppercase tracking-tight text-ink">
                 Evaluation Trend
               </h3>
-              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+              <p className="text-[11px] text-ink-3 font-medium mt-0.5">
                 {evalCount === 0
                   ? "No eval data yet."
                   : evalCount === 1
@@ -1862,7 +1862,7 @@ export const EvalTrendModal = memo(
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-900 rounded-xl transition-colors -mt-1 -mr-2"
+              className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
             >
               <Icons.X className="w-5 h-5" />
             </button>
@@ -1870,25 +1870,25 @@ export const EvalTrendModal = memo(
 
           <div className="p-5 sm:p-7 overflow-y-auto custom-scrollbar flex-1">
             {evalCount === 0 ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-12 text-center">
-                <Icons.Clipboard className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <p className="text-sm font-black uppercase tracking-widest text-slate-500 mb-1">
+              <div className="bg-app border border-line rounded-xl p-12 text-center">
+                <Icons.Clipboard className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+                <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
                   No Evals Recorded
                 </p>
-                <p className="text-xs text-slate-500 font-medium">
+                <p className="text-xs text-ink-3 font-medium">
                   Save an eval round to start tracking this player&apos;s trends.
                 </p>
               </div>
             ) : evalCount === 1 ? (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-2">
+              <div className="bg-app border border-line rounded-xl p-8 text-center">
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
                   {xLabels[0].label}
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
                   {categorySeries.map((cs, idx) => (
                     <div
                       key={cs.id}
-                      className="bg-white border border-slate-200 rounded-lg p-3"
+                      className="bg-surface border border-line rounded-lg p-3"
                     >
                       <div
                         className="text-[10px] font-black uppercase tracking-widest mb-1"
@@ -1896,20 +1896,20 @@ export const EvalTrendModal = memo(
                       >
                         {cs.label}
                       </div>
-                      <div className="text-2xl font-black tabular-nums text-slate-900">
+                      <div className="text-2xl font-black tabular-nums text-ink">
                         {cs.points[0]?.value ?? "—"}
                       </div>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-slate-500 font-medium mt-4">
+                <p className="text-xs text-ink-3 font-medium mt-4">
                   Add more eval rounds to see trends.
                 </p>
               </div>
             ) : (
               <>
                 {/* Chart */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+                <div className="bg-app border border-line rounded-xl p-4 mb-4">
                   <svg
                     viewBox={`0 0 ${W} ${H}`}
                     className="w-full h-auto"
@@ -2023,14 +2023,14 @@ export const EvalTrendModal = memo(
                     return (
                       <div
                         key={cs.id}
-                        className="bg-white border border-slate-200 rounded-lg p-2.5 flex items-center gap-2"
+                        className="bg-surface border border-line rounded-lg p-2.5 flex items-center gap-2"
                       >
                         <div
                           className="w-3 h-3 rounded-full shrink-0"
                           style={{ backgroundColor: color }}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-slate-700 truncate">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-ink truncate">
                             {cs.label}
                           </div>
                           {trend && (
@@ -2040,7 +2040,7 @@ export const EvalTrendModal = memo(
                                   ? "text-green-700"
                                   : trend.change < 0
                                   ? "text-red-700"
-                                  : "text-slate-500"
+                                  : "text-ink-3"
                               }`}
                             >
                               {trend.change > 0 ? "↑" : trend.change < 0 ? "↓" : "—"}

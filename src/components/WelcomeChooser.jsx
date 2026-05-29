@@ -95,7 +95,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
 
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
-      <div className="bg-white/95 max-w-lg w-full rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -133,7 +133,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
 
           <form
             onSubmit={handleJoin}
-            className="rounded-xl border border-slate-200 bg-white/80 p-5"
+            className="rounded-xl border border-line bg-surface p-5"
           >
             <div className="flex items-start gap-2 mb-3">
               <Icons.Users
@@ -141,7 +141,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
                 style={{ color: "var(--team-primary)" }}
               />
               <div className="min-w-0">
-                <h3 className="t-h3 text-[13px] tracking-widest text-slate-800">
+                <h3 className="t-h3 text-[13px] tracking-widest text-ink">
                   Join an existing team
                 </h3>
                 <p className="t-body text-xs mt-1">
@@ -192,14 +192,14 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
           </form>
 
           <div className="my-5 flex items-center gap-3" aria-hidden>
-            <span className="h-px flex-1 bg-slate-200" />
-            <span className="t-eyebrow text-slate-400">or</span>
-            <span className="h-px flex-1 bg-slate-200" />
+            <span className="h-px flex-1 bg-line" />
+            <span className="t-eyebrow text-ink-3">or</span>
+            <span className="h-px flex-1 bg-line" />
           </div>
 
           <form
             onSubmit={handleCreate}
-            className="rounded-xl border border-slate-200 bg-white/80 p-5"
+            className="rounded-xl border border-line bg-surface p-5"
           >
             <div className="flex items-start gap-2 mb-3">
               <Icons.Plus
@@ -207,7 +207,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
                 style={{ color: "var(--team-primary)" }}
               />
               <div className="min-w-0">
-                <h3 className="t-h3 text-[13px] tracking-widest text-slate-800">
+                <h3 className="t-h3 text-[13px] tracking-widest text-ink">
                   Start a new team
                 </h3>
                 <p className="t-body text-xs mt-1">
@@ -254,12 +254,12 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
             </div>
           </form>
 
-          <p className="t-meta text-center mt-6 text-slate-400">
+          <p className="t-meta text-center mt-6 text-ink-3">
             Signed in. Choose one to continue, or{" "}
             <button
               type="button"
               onClick={() => setSignOutConfirmOpen(true)}
-              className="underline hover:text-slate-600"
+              className="underline hover:text-ink-2"
             >
               sign out
             </button>
@@ -274,7 +274,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
           onClick={() => !signingOut && setSignOutConfirmOpen(false)}
         >
           <div
-            className="bg-white max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
+            className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div
@@ -282,10 +282,10 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
               style={{ backgroundColor: "var(--team-primary)" }}
             />
             <div className="p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 mb-1">
+              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                 Sign out?
               </h3>
-              <p className="text-sm text-slate-600 font-medium mb-5">
+              <p className="text-sm text-ink-2 font-medium mb-5">
                 You'll need to sign in again to access your team. Any
                 in-progress data is already saved.
               </p>
@@ -294,7 +294,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
                   type="button"
                   disabled={signingOut}
                   onClick={() => setSignOutConfirmOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors disabled:opacity-50"
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
