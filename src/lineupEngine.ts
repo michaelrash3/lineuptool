@@ -401,7 +401,10 @@ export function calculateTotalScore(
 
 // ---------- Pitch count eligibility ----------
 
-const PITCH_LIMITS: Record<string, number> = {
+// Single source of truth for max pitches by age group. Also consumed by
+// the lineup card's pitch-availability column (src/lineup/lineupCard.ts)
+// so the two never drift out of league spec.
+export const PITCH_LIMITS: Record<string, number> = {
   "6U": 50,
   "7U": 50,
   "8U": 50,

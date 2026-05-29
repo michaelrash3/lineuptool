@@ -6,6 +6,7 @@
 
 import { Game, SlimPlayer, Team, Toast } from "../types";
 import { isGameFinalized } from "../utils/helpers";
+import { PITCH_LIMITS } from "../lineupEngine";
 
 // Compute the team's W-L-T record from finalized games, for the share
 // card header. Uses the shared isGameFinalized() so it matches the
@@ -141,17 +142,6 @@ const drawAvatar = (
 interface CanvasArgs extends RenderArgs {
   photos: Map<string, HTMLImageElement>;
 }
-
-const PITCH_LIMITS: Record<string, number> = {
-  "6U": 50,
-  "7U": 50,
-  "8U": 50,
-  "9U": 75,
-  "10U": 75,
-  "11U to 12U": 85,
-  "13U to 14U": 95,
-  "15U to 18U": 105,
-};
 
 const buildLineupCanvasInternal = ({
   game,
