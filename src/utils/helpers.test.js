@@ -4,6 +4,7 @@ import {
   parseGameChangerPastSeasonCsv,
   evalDueDatesForYear,
   evalPromptStatus,
+  emailPromptStatus,
   isReturning,
   lineupSlotMatchesPlayer,
   isGameFinalized,
@@ -89,6 +90,51 @@ describe("evalDueDatesForYear", () => {
       expect(offSeasonMonths.has(d.getMonth())).toBe(false);
     }
   });
+
+  it("returns dates sorted ascending with no duplicates", () => {
+    const dates = evalDueDatesForYear(2026);
+    const times = dates.map((d) => d.getTime());
+    const sorted = [...times].sort((a, b) => a - b);
+    expect(times).toEqual(sorted);
+    expect(new Set(times).size).toBe(times.length);
+  });
+
+  // The spring biweekly walk starts the first Sunday *after* Mar 15
+  // (the `|| 7` skip), specifically so Mar 15 isn't pushed twice when it
+  // itself lands on a Sunday. Lock that intentional asymmetry.
+  it("never duplicates Mar 15 even in a year where it is a Sunday", () => {
+    let year = null;
+    for (let y = 2024; y <= 2040; y++) {
+      if (new Date(y, 2, 15).getDay() === 0) {
+        year = y;
+        break;
+      }
+    }
+    expect(year).not.toBeNull();
+    const dates = evalDueDatesForYear(year);
+    const mar15s = dates.filter(
+      (d) => d.getMonth() === 2 && d.getDate() === 15
+    );
+    expect(mar15s.length).toBe(1);
+  });
+
+  // Fall has no separate Sep 1 anchor, so unlike spring it *includes*
+  // Sep 1 when that day is a Sunday (no `|| 7` skip). Lock that too.
+  it("includes Sep 1 in Fall when it falls on a Sunday", () => {
+    let year = null;
+    for (let y = 2024; y <= 2040; y++) {
+      if (new Date(y, 8, 1).getDay() === 0) {
+        year = y;
+        break;
+      }
+    }
+    expect(year).not.toBeNull();
+    const dates = evalDueDatesForYear(year);
+    const hasSep1 = dates.some(
+      (d) => d.getMonth() === 8 && d.getDate() === 1
+    );
+    expect(hasSep1).toBe(true);
+  });
 });
 
 describe("evalPromptStatus calendar cadence", () => {
@@ -147,6 +193,67 @@ describe("evalPromptStatus calendar cadence", () => {
       new Date(2026, 1, 2)
     );
     expect(status.active).toBe(false);
+  });
+
+  it("rolls the next due date into next year at year end", () => {
+    // Late December: all of this year's windows are past, so the next due
+    // date must come from next year's Feb 1 preseason anchor.
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 11, 20));
+    expect(status.active).toBe(false);
+    expect(status.nextDueDate).toBe("2027-02-01");
+  });
+
+  it("returns inert defaults when team or user is missing", () => {
+    const a = evalPromptStatus(null, uid, "Head", new Date(2026, 1, 1));
+    const b = evalPromptStatus(team, null, "Head", new Date(2026, 1, 1));
+    expect(a.active).toBe(false);
+    expect(a.nextDueDate).toBeNull();
+    expect(b.active).toBe(false);
+  });
+});
+
+describe("emailPromptStatus", () => {
+  const onFeb1 = new Date(2026, 1, 1); // preseason cadence active
+  const team = {
+    ownerId: "head1",
+    evaluationEvents: [],
+    coachRoles: { asst1: "assistant" },
+  };
+
+  it("returns inactive for a missing team", () => {
+    const s = emailPromptStatus(null, onFeb1);
+    expect(s.active).toBe(false);
+    expect(s.reason).toBe("no team");
+  });
+
+  it("respects the reminders-disabled flag", () => {
+    const s = emailPromptStatus(
+      { ...team, emailEvalRemindersDisabled: true },
+      onFeb1
+    );
+    expect(s.active).toBe(false);
+    expect(s.reason).toBe("reminders disabled");
+  });
+
+  it("honors the cool-off after a recent send", () => {
+    const recent = new Date(2026, 0, 30).toISOString(); // 2 days before
+    const s = emailPromptStatus({ ...team, lastEvalEmailedAt: recent }, onFeb1);
+    expect(s.active).toBe(false);
+    expect(s.reason).toMatch(/cool-off/);
+  });
+
+  it("fires when cadence is active and nobody has submitted", () => {
+    const s = emailPromptStatus(team, onFeb1);
+    expect(s.active).toBe(true);
+    expect(s.kind).toBe("preseason");
+    expect(s.headDue).toBe(true);
+    expect(s.assistantsDue.asst1).toBe(true);
+  });
+
+  it("is inactive off-season even with reminders enabled", () => {
+    const s = emailPromptStatus(team, new Date(2026, 6, 15)); // mid-July
+    expect(s.active).toBe(false);
+    expect(s.reason).toBe("no cadence active");
   });
 });
 
