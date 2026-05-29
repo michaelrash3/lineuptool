@@ -371,6 +371,51 @@ describe("primary-position pre-pin", () => {
     }
   });
 
+  test("Fair mode: kid restricted to OF cycles through LF/CF/RF, doesn't park at one", () => {
+    // Mike's comfort list is the three OF spots. In a 6-inning fair-mode
+    // game, the engine should rotate him across multiple OF positions
+    // instead of putting him at RF (or any one spot) every inning he's
+    // on the field — the +1.75x OF rotation multiplier in fair mode
+    // makes repeating the same OF position actively expensive.
+    const players = [
+      makePlayer("mike", "Mike", {
+        primaryPosition: "RF",
+        comfortablePositions: ["LF", "CF", "RF"],
+      }),
+      ...makeRoster(9),
+    ];
+    // Try several seeds — at least one should show real rotation.
+    // Any single seed could hit a coin-flip edge case via jitter, so
+    // the assertion is that across these seeds Mike sees multiple OF
+    // positions over the 6 innings of each game.
+    // Use positionLock="1" (no lock-inning carry-over) so the engine is
+    // free to rotate inning-to-inning. Lock modes ("2", "3", "full")
+    // intentionally pin same-position via a -1000 bonus, which would
+    // override the OF rotation pressure being tested here.
+    let totalDistinctOFSeen = 0;
+    let games = 0;
+    for (const seed of [11, 23, 47, 99, 113]) {
+      const result = buildLineup({
+        players,
+        teamAge: "10U",
+        isBigGame: false,
+        positionLock: "1",
+        seed,
+      });
+      if (result.error) continue;
+      games++;
+      const positionsSeen = new Set();
+      for (const inn of result.lineup) {
+        for (const pos of ["LF", "CF", "RF"]) {
+          if (inn[pos]?.id === "mike") positionsSeen.add(pos);
+        }
+      }
+      totalDistinctOFSeen += positionsSeen.size;
+    }
+    // Average ≥ 2 different OF positions per game over the 5 seeds.
+    expect(totalDistinctOFSeen / games).toBeGreaterThanOrEqual(2);
+  });
+
   test("two kids with same primaryPosition: better defender wins it", () => {
     // Both restricted from C so the catcher pre-pin can't grab the strong
     // defender via tier-2 defScore tiebreaker.
