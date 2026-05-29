@@ -355,8 +355,6 @@ export const parseCsvRecords = (text: unknown): string[][] => {
   return rows;
 };
 
-export const parseCsvLine = (text: string): string[] => parseCsvRecords(text)[0] || [];
-
 export interface CsvHeaderIndex {
   fn: number;
   ln: number;
@@ -634,21 +632,6 @@ const MS_PER_DAY = 86_400_000;
 // days after. Long enough that coaches catching up over a weekend still
 // see the prompt; tight enough that the badge doesn't get stale.
 const EVAL_WINDOW_DAYS = 3;
-
-// Parse a "Spring 2026" / "Fall 2026" label into a season start date that we
-// use as the cutoff for "this season's evals". Spring → March 1, Fall →
-// August 1. Returns null when the label can't be parsed.
-export const seasonStartDate = (currentSeasonStr: string | undefined): Date | null => {
-  const parts = (currentSeasonStr || "").trim().split(/\s+/);
-  if (parts.length < 2) return null;
-  const season = parts[0].toLowerCase();
-  const year = parseInt(parts[parts.length - 1], 10);
-  if (Number.isNaN(year)) return null;
-  if (season === "spring") return new Date(`${year}-03-01T00:00:00`);
-  if (season === "fall" || season === "autumn")
-    return new Date(`${year}-08-01T00:00:00`);
-  return null;
-};
 
 // Build the full ordered list of eval due-dates for a given calendar
 // year. Spring: Feb 1 (preseason), Mar 15, then every other Sunday
