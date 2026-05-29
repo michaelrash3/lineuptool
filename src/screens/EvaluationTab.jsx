@@ -178,88 +178,107 @@ export const RosterDecisionsPanel = memo(() => {
         baseballAge < teamAgeNum;
 
       // ---- Bucket assignment ----
-      // Eval scale used here: 6-7 = average for the age tier, 8-10 = above avg,
-      // 5-6 = a little below, <5 = notably struggling, <4 = genuinely struggling.
-      // Stats: ratio of player OPS to team avg OPS. 1.0 = team avg.
+      // Stricter rules per coach feedback ("too lenient with keeping kids,
+      // especially when their stats tell you otherwise"). Default is now
+      // **watch**, not strong — a kid earns Strong Fit only with positive
+      // signal across the board. Stats getting beat by the team baseline
+      // is a hard demotion to watch even when evals look fine, and vice
+      // versa.
       //
-      // Buckets:
-      //   "younger" — playing up + eval avg <5 + not strongly improving
-      //               (kid is genuinely struggling at the higher tier)
-      //   "watch"   — declining eval trend, OR eval avg <5 (struggling),
-      //               OR stats are notably below team baseline
-      //   "strong"  — default: average-or-better at the level
+      // Scale calibration (eval 1–5; stats expressed as OPS ratio vs
+      // team OPS avg, 1.00 = at team avg):
+      //   Strong : eval ≥ 3.5  AND  stats ratio ≥ 0.95 (or no stats yet)
+      //                       AND  not declining
+      //   Younger: playing up AND (eval ≤ 2.5 OR stats ratio ≤ 0.6)
+      //                       AND not strongly improving
+      //   Watch  : everything else, with the dominant signal in the rationale
+      //
+      // The previous defaults pushed every player without a single negative
+      // flag into Strong — so kids at eval 2.7 + stats at team avg landed
+      // there with the dismissive label "at level". Now they correctly land
+      // on the watchlist.
 
-      let bucket = "strong"; // default
+      let bucket = "watch"; // default — earn Strong Fit explicitly
       const rationale = [];
 
-      // Strongest signal first: declining trend always means review
-      if (evalTrend === "declining") {
-        bucket = "watch";
-        rationale.push(
-          `Eval trend declining (${evalDelta.toFixed(1)} from first eval)`
-        );
-      }
+      const stronglyImproving =
+        evalTrend === "improving" && evalDelta != null && evalDelta >= 0.5;
+      const evalAboveBar = latestEvalAvg != null && latestEvalAvg >= 3.5;
+      const evalBelowBar = latestEvalAvg != null && latestEvalAvg < 3.0;
+      const evalDeepBelowBar = latestEvalAvg != null && latestEvalAvg <= 2.5;
+      const statsBelowBar = statsRatio != null && statsRatio < 0.85;
+      const statsWayBelowBar = statsRatio != null && statsRatio <= 0.6;
+      const statsAbsent = statsRatio == null;
+      const evalAbsent = latestEvalAvg == null;
 
-      // Notable struggle at this level (1–5 scale: < 2.5 = below mid)
-      if (latestEvalAvg != null && latestEvalAvg < 2.5) {
-        // Strongly improving = give them another eval before flagging
-        const stronglyImproving =
-          evalTrend === "improving" && evalDelta != null && evalDelta >= 0.5;
-        if (playingUp && !stronglyImproving) {
+      // 1) Younger group — playing up + clear struggle signal + not on the rise.
+      if (playingUp && !stronglyImproving) {
+        if (evalDeepBelowBar || statsWayBelowBar) {
           bucket = "younger";
-          rationale.length = 0; // override
-          rationale.push(
-            `Eval avg ${latestEvalAvg.toFixed(1)} below the team's age tier baseline`
-          );
-          rationale.push(`Eligible for younger group (age ${baseballAge})`);
-        } else if (!stronglyImproving) {
-          bucket = "watch";
-          if (
-            !rationale.some((r) => r.startsWith("Eval trend"))
-          ) {
+          if (evalDeepBelowBar) {
             rationale.push(
-              `Eval avg ${latestEvalAvg.toFixed(1)} below the level's baseline (avg ~3)`
+              `Eval avg ${latestEvalAvg.toFixed(1)} ≤ 2.5 at the higher tier`
             );
           }
-        } else if (stronglyImproving) {
-          // Strongly improving but still <2.5 — still watch, but with positive note
-          bucket = "watch";
-          rationale.push(
-            `Eval avg ${latestEvalAvg.toFixed(1)} but improving fast (+${evalDelta.toFixed(1)})`
-          );
+          if (statsWayBelowBar) {
+            rationale.push(
+              `Stats ${Math.round((1 - statsRatio) * 100)}% below team OPS avg`
+            );
+          }
+          rationale.push(`Eligible for younger group (age ${baseballAge})`);
         }
       }
 
-      // Stats well below team avg are a watch signal (only if not already in younger)
-      if (
-        bucket !== "younger" &&
-        statsRatio != null &&
-        statsRatio < 0.7 &&
-        evalTrend !== "improving"
-      ) {
-        if (bucket !== "watch") {
-          bucket = "watch";
+      // 2) Strong Fit — earn it with positive signal across the board.
+      if (bucket !== "younger") {
+        const noNegatives = !evalBelowBar && !statsBelowBar && evalTrend !== "declining";
+        const positiveSignal = evalAboveBar || stronglyImproving || (statsRatio != null && statsRatio >= 1.05);
+        if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
+          bucket = "strong";
+          if (evalAboveBar) {
+            rationale.push(`Eval ${latestEvalAvg.toFixed(1)} ≥ 3.5 — above average`);
+          }
+          if (stronglyImproving) {
+            rationale.push(`Trending up (+${evalDelta.toFixed(1)})`);
+          }
+          if (statsRatio != null && statsRatio >= 1.05) {
+            rationale.push(
+              `Stats +${Math.round((statsRatio - 1) * 100)}% vs team OPS avg`
+            );
+          }
         }
-        rationale.push(
-          `Stats ${Math.round((1 - statsRatio) * 100)}% below team OPS avg`
-        );
       }
 
-      // Strong Fit positive notes (only if currently default-strong)
-      if (bucket === "strong") {
-        if (latestEvalAvg != null && latestEvalAvg >= 3.75) {
-          rationale.push(`Eval ${latestEvalAvg.toFixed(1)} — above average`);
-        } else if (latestEvalAvg != null) {
-          rationale.push(`Eval ${latestEvalAvg.toFixed(1)} — at level`);
-        }
-        if (evalTrend === "improving") rationale.push("Improving");
-        if (statsRatio != null && statsRatio >= 1.15) {
-          rationale.push(
-            `Stats +${Math.round((statsRatio - 1) * 100)}% vs team OPS avg`
-          );
-        }
-        if (rationale.length === 0) {
-          rationale.push("Steady contributor");
+      // 3) Watch list — anything that didn't earn Strong, with the
+      //    dominant signal called out.
+      if (bucket === "watch") {
+        if (evalAbsent && statsAbsent) {
+          rationale.push("No eval or stats yet — needs review");
+        } else {
+          if (evalTrend === "declining") {
+            rationale.push(
+              `Eval trend declining (${evalDelta.toFixed(1)} since first eval)`
+            );
+          }
+          if (evalBelowBar) {
+            rationale.push(
+              `Eval ${latestEvalAvg.toFixed(1)} below the at-level mark (3.0)`
+            );
+          } else if (evalAbsent) {
+            rationale.push("No eval yet — needs a round");
+          }
+          if (statsBelowBar) {
+            rationale.push(
+              `Stats ${Math.round((1 - statsRatio) * 100)}% below team OPS avg`
+            );
+          } else if (statsAbsent) {
+            rationale.push("No stats yet");
+          }
+          if (rationale.length === 0) {
+            // Edge case: at-level evals + at-level stats with no positive
+            // edge — neither flagged nor strong. Make it explicit.
+            rationale.push("At the team line — no margin either way");
+          }
         }
       }
 
