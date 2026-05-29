@@ -93,10 +93,10 @@ export const ScoreEditor = memo(
               <div
                 className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest shadow-sm self-end mb-0.5 ${
                   result === "win"
-                    ? "bg-green-50 text-green-800 border border-green-200"
+                    ? "bg-win-bg text-win border border-line"
                     : result === "loss"
-                    ? "bg-red-50 text-red-800 border border-red-200"
-                    : "bg-amber-50 text-amber-800 border border-amber-200"
+                    ? "bg-loss-bg text-loss border border-line"
+                    : "bg-warn-bg text-warnfg border border-line"
                 }`}
               >
                 {result === "win" ? "Win" : result === "loss" ? "Loss" : "Tie"}
@@ -114,7 +114,7 @@ export const ScoreEditor = memo(
                 <button
                   type="button"
                   onClick={onClear}
-                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm"
+                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 bg-surface border border-line text-loss rounded-lg hover:bg-loss-bg transition-colors shadow-sm"
                 >
                   Clear
                 </button>
@@ -609,7 +609,7 @@ export const ScheduleTab = memo(() => {
 
             {/* Seasonal fairness toggle — controls whether the engine applies
                 cumulative bench debt when generating this game's lineup. Default ON. */}
-            <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 mt-3 flex items-center gap-3">
+            <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() =>
@@ -622,7 +622,7 @@ export const ScheduleTab = memo(() => {
                   isBigGame
                     ? "bg-line cursor-not-allowed"
                     : applySeasonalFairness
-                    ? "bg-emerald-500"
+                    ? "bg-win-bg0"
                     : "bg-slate-300"
                 }`}
                 aria-label="Toggle even out playing time"
@@ -698,9 +698,9 @@ export const ScheduleTab = memo(() => {
                           key={r.player.id}
                           className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-[11px] border ${
                             isOver
-                              ? "bg-red-50 border-red-200"
+                              ? "bg-loss-bg border-line"
                               : isUnder
-                              ? "bg-green-50 border-green-200"
+                              ? "bg-win-bg border-line"
                               : "bg-surface border-line"
                           }`}
                         >
@@ -710,9 +710,9 @@ export const ScheduleTab = memo(() => {
                           <span
                             className={`font-black tabular-nums shrink-0 ${
                               isOver
-                                ? "text-red-700"
+                                ? "text-loss"
                                 : isUnder
-                                ? "text-green-700"
+                                ? "text-win"
                                 : "text-ink-3"
                             }`}
                           >
@@ -744,10 +744,10 @@ export const ScheduleTab = memo(() => {
               const maxInnings = longest.length;
               const currentInningsPlayed = currentGame.lineup.length;
               return (
-                <div className="px-6 py-4 bg-amber-50/50 border-b border-amber-200/50 flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="px-6 py-4 bg-warn-bg border-b border-warn-bg flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2">
-                    <Icons.Clock className="w-4 h-4 text-amber-700" />
-                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-800">
+                    <Icons.Clock className="w-4 h-4 text-warnfg" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg">
                       Final Game Adjustments
                     </span>
                   </div>
@@ -788,7 +788,7 @@ export const ScheduleTab = memo(() => {
                   </label>
                   {currentGame.originalLineup &&
                     currentGame.originalLineup.length > currentGame.lineup.length && (
-                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">
+                      <span className="text-[10px] font-bold text-warnfg uppercase tracking-widest">
                         ({currentGame.originalLineup.length - currentGame.lineup.length} inning{currentGame.originalLineup.length - currentGame.lineup.length === 1 ? "" : "s"} trimmed — restorable)
                       </span>
                     )}
@@ -858,7 +858,7 @@ export const ScheduleTab = memo(() => {
                   </button>
                 </div>
                 {presentCount < 7 ? (
-                  <div className="p-5 bg-red-50/80 text-red-800 text-xs font-bold uppercase tracking-wide border border-red-200 rounded-xl flex items-center gap-3 shadow-sm">
+                  <div className="p-5 bg-loss-bg text-loss text-xs font-bold uppercase tracking-wide border border-line rounded-xl flex items-center gap-3 shadow-sm">
                     <Icons.Alert className="w-6 h-6 shrink-0" /> Set at least 7
                     players to 'Present' to configure positions.
                   </div>
@@ -1325,10 +1325,10 @@ export const ScheduleTab = memo(() => {
                             <span
                               className={`t-chip px-2.5 py-1 rounded-md border tabular-nums ${
                                 result === "win"
-                                  ? "bg-green-50 text-green-800 border-green-200"
+                                  ? "bg-win-bg text-win border-line"
                                   : result === "loss"
-                                  ? "bg-red-50 text-red-800 border-red-200"
-                                  : "bg-amber-50 text-amber-800 border-amber-200"
+                                  ? "bg-loss-bg text-loss border-line"
+                                  : "bg-warn-bg text-warnfg border-line"
                               }`}
                             >
                               {result === "win"
@@ -1344,12 +1344,12 @@ export const ScheduleTab = memo(() => {
                             </span>
                           ) : game.lineup ? (
                             <>
-                              <span className="t-chip bg-green-50 text-green-700 px-2 py-1 rounded-md border border-green-200">
+                              <span className="t-chip bg-win-bg text-win px-2 py-1 rounded-md border border-line">
                                 Lineup Ready
                               </span>
                             </>
                           ) : (
-                            <span className="t-chip bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-200">
+                            <span className="t-chip bg-warn-bg text-warnfg px-2 py-1 rounded-md border border-line">
                               Lineup Needed
                             </span>
                           )}
@@ -1475,7 +1475,7 @@ export const ScheduleTab = memo(() => {
                         {canEdit && (
                           <button
                             onClick={() => deleteSavedGame(game.id)}
-                            className="text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-red-200 hover:bg-red-50 p-3 transition-colors rounded-xl shadow-sm"
+                            className="text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
                           </button>
@@ -1587,7 +1587,7 @@ export const ScheduleTab = memo(() => {
               className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-1.5 bg-red-500" />
+              <div className="p-1.5 bg-loss-bg0" />
               <div className="p-5 sm:p-6">
                 <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                   Delete Template?
