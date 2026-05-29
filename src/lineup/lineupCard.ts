@@ -287,11 +287,6 @@ const buildLineupCanvasInternal = ({
   ctx.font = "700 14px system-ui, -apple-system, Segoe UI, sans-serif";
   const opp = (game.opponent || "OPPONENT").toUpperCase();
   ctx.fillText(`VS ${opp}`, PAD, 48);
-  // Big Game star in the header so the shared card flags the stakes.
-  if (game.isBigGame) {
-    ctx.font = "700 13px system-ui, -apple-system, Segoe UI, sans-serif";
-    ctx.fillText("★ BIG GAME", PAD, 72);
-  }
 
   // Right column: season (top), record (middle, bold), date•time (bottom).
   // Each line is right-aligned against the header's right padding.
