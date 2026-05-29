@@ -2462,7 +2462,21 @@ function pickBestForPosition(opts: any): any {
     // Big Game: lighter pressure (1.5)  let strong defenders stay at premium
     // spots even if they've played there a lot, since winning matters more.
     const rotationWeight = isBigGame ? 1.5 : 8;
-    score += (seasonCount + (st.positions[pos] || 0)) * rotationWeight;
+    // FAIR MODE intra-OF cycling: outfield positions get an extra 1.75x
+    // rotation multiplier so a kid who already played RF this game gets
+    // actively pushed to CF/LF on their next OF inning instead of
+    // settling back into RF whenever they cycle off the bench. The
+    // existing back-to-back +500 only catches the immediately-prior
+    // inning, so RF→bench→RF→bench→RF was still possible at default
+    // weight (jitter ±5 sometimes wins over the +8 pressure). Big Game
+    // ignores the boost — strong defenders parking in a premium OF
+    // (typically CF) is desired there.
+    const isOF = OF_POSITIONS.has(pos);
+    const ofRotationBoost = !isBigGame && isOF ? 1.75 : 1;
+    score +=
+      (seasonCount + (st.positions[pos] || 0)) *
+      rotationWeight *
+      ofRotationBoost;
     // FAIR MODE compensatory rotation: kids who've played this position in
     // Big Games get an additional push away from it in fair mode. Helps
     // share premium positions across the roster over the season.
