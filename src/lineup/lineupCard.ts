@@ -5,6 +5,30 @@
 // inconsistent across devices).
 
 import { Game, SlimPlayer, Team, Toast } from "../types";
+import { isGameFinalized } from "../utils/helpers";
+
+// Compute the team's W-L-T record from finalized games, for the share
+// card header. Uses the shared isGameFinalized() so it matches the
+// record badge shown elsewhere in the app (a game with a saved score
+// but no "final" status still counts; future games don't).
+const computeRecord = (team?: Team | null): string | null => {
+  const games = team?.games;
+  if (!Array.isArray(games)) return null;
+  let w = 0;
+  let l = 0;
+  let t = 0;
+  for (const g of games) {
+    if (!isGameFinalized(g)) continue;
+    const ts = Number(g.teamScore);
+    const os = Number(g.opponentScore);
+    if (!Number.isFinite(ts) || !Number.isFinite(os)) continue;
+    if (ts > os) w += 1;
+    else if (ts < os) l += 1;
+    else t += 1;
+  }
+  if (w + l + t === 0) return null;
+  return t > 0 ? `${w}-${l}-${t}` : `${w}-${l}`;
+};
 
 interface RenderArgs {
   game: Game;
@@ -225,7 +249,7 @@ const buildLineupCanvasInternal = ({
       ? pitcherSectionTitleH + pitcherRowH * pitcherEntries.length
       : 0;
 
-  const headerH = 90;
+  const headerH = 100;
   const sectionTitleH = 36;
   const cellH = 38;
   const defenseH = sectionTitleH + cellH * (presentPositions.length + 1);
@@ -263,14 +287,38 @@ const buildLineupCanvasInternal = ({
   ctx.font = "700 14px system-ui, -apple-system, Segoe UI, sans-serif";
   const opp = (game.opponent || "OPPONENT").toUpperCase();
   ctx.fillText(`VS ${opp}`, PAD, 48);
-  ctx.font = "600 12px system-ui, -apple-system, Segoe UI, sans-serif";
+  // Big Game star in the header so the shared card flags the stakes.
+  if (game.isBigGame) {
+    ctx.font = "700 13px system-ui, -apple-system, Segoe UI, sans-serif";
+    ctx.fillText("★ BIG GAME", PAD, 72);
+  }
+
+  // Right column: season (top), record (middle, bold), date•time (bottom).
+  // Each line is right-aligned against the header's right padding.
+  const rightLine = (text: string, y: number, font: string) => {
+    if (!text) return;
+    ctx.font = font;
+    const tw = ctx.measureText(text).width;
+    ctx.fillText(text, W - PAD - tw, y);
+  };
+  const season = String(team?.currentSeason || "").toUpperCase();
+  rightLine(season, 20, "600 12px system-ui, -apple-system, Segoe UI, sans-serif");
+  const record = computeRecord(team);
+  if (record) {
+    rightLine(
+      `RECORD ${record}`,
+      42,
+      "800 15px system-ui, -apple-system, Segoe UI, sans-serif"
+    );
+  }
   const dateStr = game.date ? formatDate(game.date) : "";
   const timeStr = game.time || "";
   const dateTime = [dateStr, timeStr].filter(Boolean).join(" • ");
-  if (dateTime) {
-    const tw = ctx.measureText(dateTime).width;
-    ctx.fillText(dateTime, W - PAD - tw, 50);
-  }
+  rightLine(
+    dateTime,
+    record ? 68 : 46,
+    "600 12px system-ui, -apple-system, Segoe UI, sans-serif"
+  );
 
   // ---- Defense section ----
   let y = headerH + PAD;
