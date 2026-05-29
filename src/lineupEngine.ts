@@ -622,12 +622,68 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
 
 // ---------- Aggregated history ----------
 
-function buildPositionHistory(games: Game[], currentGameId?: string): any {
+// Whether a past game counts toward season fairness/rotation history.
+// Mirrors utils/helpers.isGameFinalized so the engine agrees with the rest
+// of the app: a game finalized with the legacy `status === "completed"`
+// writer, or one with both scores entered but no status flip to "final",
+// STILL counts. The old strict `status === "final"` check silently dropped
+// those, starving the fairness model of history.
+function isFinalizedGame(g: any): boolean {
+  if (!g) return false;
+  if (g.status === "final" || g.status === "completed") return true;
+  const ts = g.teamScore;
+  const os = g.opponentScore;
+  if (ts == null || ts === "" || os == null || os === "") return false;
+  return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
+}
+
+// Resolve a past lineup-snapshot slot's id to the CURRENT roster id. Games
+// store the id a player had when they were played; if the roster was deleted
+// and re-added (a single kid, or the whole team by mistake) those ids are
+// orphaned and the re-added players carry fresh ids. Keying season fairness
+// by the raw snapshot id then finds NO history for the current roster, so the
+// engine sees everyone as neutral and falls back to seating the weakest /
+// least-used kids first. Coalesce by unique name (same id-with-name fallback
+// as utils/helpers.lineupSlotMatchesPlayer and the Bench Equity tile). Two
+// live players who share a name are left un-coalesced — we only remap when the
+// snapshot id is no longer on the roster AND the name is unambiguous.
+function buildSlotIdResolver(
+  roster: any[]
+): (id?: string, name?: string) => string | undefined {
+  const live = new Set((roster || []).map((p) => p && p.id).filter(Boolean));
+  const norm = (s: any) => String(s ?? "").trim().toLowerCase();
+  const byName = new Map<string, string>();
+  const dupe = new Set<string>();
+  for (const p of roster || []) {
+    if (!p || !p.id) continue;
+    const n = norm(p.name);
+    if (!n) continue;
+    if (byName.has(n)) dupe.add(n);
+    else byName.set(n, p.id);
+  }
+  return (id, name) => {
+    if (!id) return id;
+    if (live.has(id)) return id; // still on the roster — keep
+    const n = norm(name);
+    if (n && !dupe.has(n) && byName.has(n)) return byName.get(n);
+    return id; // unmatched orphan — leave as-is
+  };
+}
+
+const IDENTITY_RESOLVER = (id?: string) => id;
+
+function buildPositionHistory(
+  games: Game[],
+  currentGameId?: string,
+  resolveId: (
+    id?: string,
+    name?: string
+  ) => string | undefined = IDENTITY_RESOLVER
+): any {
   const out = new Map();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup) continue;
-    // Only completed games count toward fairness  postponed/scheduled don't.
-    if (g.status && g.status !== "final") continue;
+    if (!isFinalizedGame(g)) continue;
     const wasBigGame = g.isBigGame === true;
     for (const inning of g.lineup) {
       // Cast to a positions-only view: we skip BENCH up front, so every
@@ -637,10 +693,11 @@ function buildPositionHistory(games: Game[], currentGameId?: string): any {
         if (pos === "BENCH") continue;
         const p = innPos[pos];
         if (!p) continue;
-        let m = out.get(p.id);
+        const key = resolveId(p.id, p.name);
+        let m = out.get(key);
         if (!m) {
           m = new Map();
-          out.set(p.id, m);
+          out.set(key, m);
         }
         const cur = m.get(pos) || { total: 0, bigGame: 0 };
         cur.total += 1;
@@ -652,16 +709,26 @@ function buildPositionHistory(games: Game[], currentGameId?: string): any {
   return out;
 }
 
-function buildFirstInningBenchHistory(games: Game[], currentGameId?: string): any {
+function buildFirstInningBenchHistory(
+  games: Game[],
+  currentGameId?: string,
+  resolveId: (
+    id?: string,
+    name?: string
+  ) => string | undefined = IDENTITY_RESOLVER
+): any {
   const counts = new Map();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
-    if (g.status && g.status !== "final") continue;
+    if (!isFinalizedGame(g)) continue;
     const firstBench = g.lineup[0]?.BENCH;
     if (!firstBench) continue;
     for (const bp of firstBench) {
+      // attendance is keyed by the id stored at game time, so check it on
+      // the original slot id; tally under the resolved (current) id.
       if (g.attendance?.[bp.id] === false) continue;
-      counts.set(bp.id, (counts.get(bp.id) || 0) + 1);
+      const key = resolveId(bp.id, bp.name);
+      counts.set(key, (counts.get(key) || 0) + 1);
     }
   }
   return counts;
@@ -675,12 +742,19 @@ function buildFirstInningBenchHistory(games: Game[], currentGameId?: string): an
 // (math floor) and tally each player's "extra sits" = bench count minus minimum.
 // Players who weren't present don't count for that game.
 // Returns Map<playerId, { extraSits: number }>.
-function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
+function buildExtraSitHistory(
+  games: Game[],
+  currentGameId?: string,
+  resolveId: (
+    id?: string,
+    name?: string
+  ) => string | undefined = IDENTITY_RESOLVER
+): any {
   const out = new Map();
 
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
-    if (g.status && g.status !== "final") continue;
+    if (!isFinalizedGame(g)) continue;
 
     // Mid-game removals: a kid marked as injured/ill/left from inning N
     // played innings 0..N-1 and is gone from N onward. Innings before N
@@ -703,15 +777,25 @@ function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
     // Bench slots per inning is constant within a game (driven by defenseSize
     // + roster present), so we read it from the first inning's BENCH array.
     const attending = new Set();
+    // Map each original snapshot id → name so we can resolve orphaned ids
+    // (from a roster delete+re-add) to the current roster id at accumulation
+    // time. All the per-game tallying below stays keyed by the original id so
+    // attendance / mid-game-removal lookups (also keyed by the snapshot id)
+    // stay correct.
+    const idName = new Map();
     for (const inning of g.lineup) {
       for (const pos in inning) {
         if (pos === "BENCH") continue;
         const p = inning[pos];
-        if (p) attending.add(p.id);
+        if (p) {
+          attending.add(p.id);
+          idName.set(p.id, p.name);
+        }
       }
       for (const bp of inning.BENCH || []) {
         if (g.attendance?.[bp.id] === false) continue;
         attending.add(bp.id);
+        idName.set(bp.id, bp.name);
       }
     }
     const playerCount = attending.size;
@@ -763,7 +847,10 @@ function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
     // 4th of 6 innings doesn't accumulate a 6-inning fair share.
     for (const [pid, count] of benchCount) {
       const played = playedInn.get(pid) || 0;
-      const cur = out.get(pid) || {
+      // Key by the CURRENT roster id so a re-added player's pre-delete
+      // history isn't stranded under their old (orphaned) id.
+      const key = resolveId(pid, idName.get(pid));
+      const cur = out.get(key) || {
         extraSits: 0,
         benchInn: 0,
         defInn: 0,
@@ -775,7 +862,7 @@ function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
       cur.defInn += Math.max(0, played - count);
       cur.expectedDef +=
         innings > 0 ? (played / innings) * expectedDefThisGame : 0;
-      out.set(pid, cur);
+      out.set(key, cur);
     }
   }
   return out;
@@ -1177,16 +1264,24 @@ export function generateLineup(input: EngineInput): EngineResult {
   // Big Game mode automatically relaxes seasonal fairness too
   const effectiveRelax = relaxFairness || isBigGame;
 
-  const positionHistory = buildPositionHistory(games, currentGameId);
+  // Resolver maps orphaned snapshot ids (from a roster delete+re-add) to the
+  // current roster id, so season fairness/rotation history follows re-added
+  // players instead of stranding it under their old ids.
+  const resolveSlotId = buildSlotIdResolver(allPlayers || activePlayers);
+  const positionHistory = buildPositionHistory(
+    games,
+    currentGameId,
+    resolveSlotId
+  );
   const firstInningBenchHx = effectiveRelax
     ? new Map()
-    : buildFirstInningBenchHistory(games, currentGameId);
+    : buildFirstInningBenchHistory(games, currentGameId, resolveSlotId);
   // Cumulative seasonal fairness pressure. When relaxed, we feed the solver
   // an empty history so this game's bench distribution doesn't get skewed by
   // accumulated debt  useful when the strict solver has failed.
   const benchHistory = effectiveRelax
     ? new Map()
-    : buildExtraSitHistory(games, currentGameId);
+    : buildExtraSitHistory(games, currentGameId, resolveSlotId);
 
   // Mid-game rebuild fairness: when fromInning > 0 the engine replays
   // innings 0..fromInning-1 from currentLineup. Those replayed innings'

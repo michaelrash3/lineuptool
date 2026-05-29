@@ -1449,3 +1449,94 @@ describe("D4 — pitcher scoring + pool sizing", () => {
     expect(getPitcherPoolSize(null)).toBe(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Season fairness must survive (a) a roster delete + re-add, where past games
+// reference the players' OLD ids, and (b) games finalized without
+// status:"final" (legacy "completed"). Before the fix the engine's history
+// builders keyed by the raw snapshot id and used a strict status check, so it
+// saw no history and seated the weakest / least-used kids FIRST — the bug a
+// coach hit: their most-unused player sat first.
+// ---------------------------------------------------------------------------
+
+describe("season fairness: orphan ids + non-'final' games still count", () => {
+  const POS9 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+  // p0 sits 4 innings, p1 sits 2 (one bench slot per inning, 9-fielder).
+  const bench = [0, 0, 1, 0, 1, 0];
+  const finalGame = (id, date, status, slimFor) => ({
+    id,
+    date,
+    opponent: "Opp",
+    status,
+    teamScore: 7,
+    opponentScore: 1,
+    lineup: bench.map((benchIdx) => {
+      const inning = {};
+      const field = [...Array(10).keys()].filter((idx) => idx !== benchIdx);
+      POS9.forEach((pos, k) => {
+        inning[pos] = slimFor(field[k]);
+      });
+      inning.BENCH = [slimFor(benchIdx)];
+      return inning;
+    }),
+  });
+  // Current roster: p0..p9 named "Player 0".."Player 9"; p0 is the weakest
+  // fielder, so with NO usable history the engine seats them first.
+  const weakP0 = () => {
+    const players = makeRoster(10);
+    const grades = {};
+    for (let i = 0; i < 10; i++) {
+      const lo = i === 0;
+      grades[`p${i}`] = {
+        fielding: lo ? 1 : 9,
+        armStrength: lo ? 1 : 9,
+        armAccuracy: lo ? 1 : 9,
+        speedAgility: lo ? 1 : 9,
+        baseballIQ: lo ? 1 : 9,
+      };
+    }
+    return { players, ev: [headEval(grades)] };
+  };
+  const benchCount = (lineup, id) =>
+    lineup.filter((inn) => (inn.BENCH || []).some((b) => b?.id === id)).length;
+  const dates = ["2026-04-01", "2026-04-08", "2026-04-15"];
+
+  test("re-added roster (old ids in history) — under-played kid is not benched first", () => {
+    const { players, ev } = weakP0();
+    // History snapshots use OLD ids but the players' real names.
+    const slimOld = (i) => ({ id: "OLD" + i, name: `Player ${i}`, number: "" });
+    const games = dates.map((d, gi) => finalGame("g" + gi, d, "final", slimOld));
+    for (let seed = 1; seed <= 5; seed++) {
+      const result = buildLineup({
+        players,
+        games,
+        evaluationEvents: ev,
+        defenseSize: "9",
+        seed,
+        currentGame: { id: "g_new", date: "2026-05-01", opponent: "New" },
+      });
+      expect(result.error).toBeUndefined();
+      expect(benchCount(result.lineup, "p0")).toBe(0);
+    }
+  });
+
+  test("legacy 'completed' games still feed fairness", () => {
+    const { players, ev } = weakP0();
+    const slimCur = (i) => ({ id: `p${i}`, name: `Player ${i}`, number: "" });
+    const games = dates.map((d, gi) =>
+      finalGame("g" + gi, d, "completed", slimCur)
+    );
+    for (let seed = 1; seed <= 5; seed++) {
+      const result = buildLineup({
+        players,
+        games,
+        evaluationEvents: ev,
+        defenseSize: "9",
+        seed,
+        currentGame: { id: "g_new", date: "2026-05-01", opponent: "New" },
+      });
+      expect(result.error).toBeUndefined();
+      expect(benchCount(result.lineup, "p0")).toBe(0);
+    }
+  });
+});
