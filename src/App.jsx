@@ -3155,8 +3155,16 @@ const UIProvider = ({ children }) => {
     const localUnsaved =
       localLineupJson !== loadedGameRef.current.lineupJson ||
       localBattingJson !== loadedGameRef.current.battingJson;
+    // The remote snapshot already matches what we have locally — this is our
+    // OWN save echoing back (or another device landing on the identical
+    // lineup), NOT a conflict. Adopt it silently. Without this guard the
+    // warning fired on every save you made, since loadedGameRef still held
+    // the pre-edit version.
+    const remoteMatchesLocal =
+      remoteLineupJson === localLineupJson &&
+      remoteBattingJson === localBattingJson;
 
-    if (!localUnsaved) {
+    if (!localUnsaved || remoteMatchesLocal) {
       loadedGameRef.current = {
         id: game.id,
         lineupJson: remoteLineupJson,
