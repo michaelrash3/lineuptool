@@ -153,7 +153,12 @@ export const buildSeasonBenchImbalance = (
   const out = new Map<PlayerId, BenchImbalanceEntry>();
   for (const g of games || []) {
     if (g.id === currentGameId) continue;
-    if (g.status && g.status !== "final") continue;
+    // Route through the shared isGameFinalized() so legacy games with
+    // status === "completed" (from earlier app builds) are counted —
+    // the previous `g.status && g.status !== "final"` filter silently
+    // skipped them and coaches saw the Bench Equity tile miss past
+    // finalized games.
+    if (!isGameFinalized(g)) continue;
     if (!g.lineup?.length) continue;
 
     const attending = new Set<PlayerId>();
@@ -257,6 +262,13 @@ export const isReturning = (
 // appropriate for UI affordances tied to the finalizeGame trim
 // flow itself (e.g. Restore Lineup), which only fires from that
 // specific writer.
+//
+// The null/undefined/empty-string guard up front is load-bearing.
+// `Number(null)` is `0` and `isFinite(0)` is true, so a brand-new
+// scheduled game with `teamScore: null, opponentScore: null` would
+// otherwise be treated as a 0-0 tie — that was the bug coaches
+// reported where future games showed up as ties on the trend tile
+// and record badge.
 export const isGameFinalized = (
   game:
     | {
@@ -269,10 +281,10 @@ export const isGameFinalized = (
 ): boolean => {
   if (!game) return false;
   if (game.status === "final" || game.status === "completed") return true;
-  return (
-    Number.isFinite(Number(game.teamScore)) &&
-    Number.isFinite(Number(game.opponentScore))
-  );
+  const ts = game.teamScore;
+  const os = game.opponentScore;
+  if (ts == null || ts === "" || os == null || os === "") return false;
+  return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
 };
 
 export const lineupSlotMatchesPlayer = (

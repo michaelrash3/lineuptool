@@ -249,4 +249,32 @@ describe("isGameFinalized", () => {
     expect(isGameFinalized(null)).toBe(false);
     expect(isGameFinalized(undefined)).toBe(false);
   });
+  it("returns false for explicit null teamScore + opponentScore (future game)", () => {
+    // Regression: this was the "future games shown as 0-0 tie" bug.
+    // Number(null) === 0 and Number.isFinite(0) === true, so the old
+    // predicate silently turned every brand-new scheduled game into
+    // a counted 0-0 tie. The strict null guard at the top of the
+    // helper now rejects it.
+    expect(
+      isGameFinalized({
+        status: "scheduled",
+        teamScore: null,
+        opponentScore: null,
+      })
+    ).toBe(false);
+  });
+  it("returns false for empty-string scores (in-progress ScoreEditor state)", () => {
+    // Score editor seeds inputs as "" when no score is set. Number("")
+    // is also 0, so the same regression class — strict guard catches it.
+    expect(isGameFinalized({ teamScore: "", opponentScore: "" })).toBe(
+      false
+    );
+    expect(isGameFinalized({ teamScore: "", opponentScore: 5 })).toBe(false);
+    expect(isGameFinalized({ teamScore: 5, opponentScore: "" })).toBe(false);
+  });
+  it("still counts a real 0-0 tie when both scores are numeric 0", () => {
+    // The strict guard rejects nullish/empty but real zeros still
+    // count — actual scoreless games are valid finalized games.
+    expect(isGameFinalized({ teamScore: 0, opponentScore: 0 })).toBe(true);
+  });
 });
