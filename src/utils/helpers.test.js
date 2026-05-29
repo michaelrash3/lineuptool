@@ -6,6 +6,7 @@ import {
   evalPromptStatus,
   isReturning,
   lineupSlotMatchesPlayer,
+  isGameFinalized,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -218,5 +219,34 @@ describe("lineupSlotMatchesPlayer orphan-id fallback", () => {
     const slot = { id: "old", name: "  Mike Smith  " };
     const player = { id: "new", name: "mike smith" };
     expect(lineupSlotMatchesPlayer(slot, player, new Set(["new"]))).toBe(true);
+  });
+});
+
+describe("isGameFinalized", () => {
+  it('returns true for status === "final"', () => {
+    expect(isGameFinalized({ status: "final" })).toBe(true);
+  });
+  it('returns true for legacy status === "completed"', () => {
+    expect(isGameFinalized({ status: "completed" })).toBe(true);
+  });
+  it("returns true when both scores are finite even with no status", () => {
+    expect(isGameFinalized({ teamScore: 7, opponentScore: 4 })).toBe(true);
+  });
+  it("returns true when both scores are finite numeric strings", () => {
+    expect(isGameFinalized({ teamScore: "5", opponentScore: "3" })).toBe(true);
+  });
+  it("returns false for scheduled games with no scores", () => {
+    expect(isGameFinalized({ status: "scheduled" })).toBe(false);
+  });
+  it("returns false for postponed", () => {
+    expect(isGameFinalized({ status: "postponed" })).toBe(false);
+  });
+  it("returns false when only one score is set", () => {
+    expect(isGameFinalized({ teamScore: 5 })).toBe(false);
+    expect(isGameFinalized({ opponentScore: 5 })).toBe(false);
+  });
+  it("returns false for null/undefined input", () => {
+    expect(isGameFinalized(null)).toBe(false);
+    expect(isGameFinalized(undefined)).toBe(false);
   });
 });

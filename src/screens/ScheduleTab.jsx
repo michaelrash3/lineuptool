@@ -5,6 +5,7 @@ import {
   normalizeDateToIso,
   formatGameDateDisplay,
   buildSeasonBenchImbalance,
+  isGameFinalized,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
@@ -1257,10 +1258,7 @@ export const ScheduleTab = memo(() => {
           <div className="flex flex-col gap-2 p-4 sm:p-6 bg-transparent">
             {sortedGames.map((game) => {
                 const status = game.status || "scheduled";
-                const isFinal =
-                  status === "final" &&
-                  Number.isFinite(game.teamScore) &&
-                  Number.isFinite(game.opponentScore);
+                const isFinal = isGameFinalized(game);
                 const isPostponed = status === "postponed";
                 const result = isFinal
                   ? game.teamScore > game.opponentScore
