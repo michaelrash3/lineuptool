@@ -1319,15 +1319,6 @@ export const ScheduleTab = memo(() => {
                             </span>
                           )}
                           <h3 className="t-card-title leading-tight">
-                            {game.isBigGame && (
-                              <span
-                                className="inline-block mr-1.5 text-yellow-500"
-                                title="Big Game"
-                                aria-label="Big Game"
-                              >
-                                ⭐
-                              </span>
-                            )}
                             VS. {game.opponent}
                           </h3>
                           {isFinal ? (
