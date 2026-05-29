@@ -594,12 +594,22 @@ const TeamProvider = ({ children }) => {
             setTeamData({
               ...DEFAULT_TEAM_DATA,
               ...raw,
+              // Coerce core collections to arrays: a malformed doc with
+              // players/games set to null would otherwise override the
+              // DEFAULT_TEAM_DATA [] and crash the many .map/.find call
+              // sites downstream.
+              games: Array.isArray(raw.games) ? raw.games : [],
               evaluationEvents: migratedEvents,
               players: migratedPlayers,
               evalSchemaVersion: EVAL_SCHEMA_VERSION,
             });
           } else {
-            setTeamData({ ...DEFAULT_TEAM_DATA, ...raw });
+            setTeamData({
+              ...DEFAULT_TEAM_DATA,
+              ...raw,
+              players: Array.isArray(raw.players) ? raw.players : [],
+              games: Array.isArray(raw.games) ? raw.games : [],
+            });
           }
         }
         setLoadingActive(false);
