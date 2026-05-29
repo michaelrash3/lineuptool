@@ -871,6 +871,99 @@ describe("mid-game removal — fairness counting", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mid-game rebuild fairness — bench history of THIS game's already-played
+// innings feeds the priorRatio of the bench scheduler for innings N+, so a
+// kid benched twice in 0..N-1 isn't picked AGAIN in N+ just because the
+// in-game state was previously invisible to the scheduler.
+// ---------------------------------------------------------------------------
+
+describe("mid-game rebuild fairness", () => {
+  const slim = (id) => ({ id, name: `Player ${id}`, number: "" });
+
+  test("rebuild doesn't bench a kid who already sat twice this game", () => {
+    // 11 active players, defenseSize=10 → 1 bench slot per inning.
+    // Simulated history (innings 0..3 played):
+    //   inn 0: p0 on bench, p1..p10 on field
+    //   inn 1: p10 on bench, p0..p9 on field
+    //   inn 2: p0 on bench, p1..p10 on field   ← p0 has sat TWICE now
+    //   inn 3: p1 on bench, others on field
+    // Rebuild from inn 4 with 6 total innings. p0 has the highest in-
+    // game bench count; with the fairness fix folded into priorRatio,
+    // p0 should NOT be picked for the inning 4 or inning 5 bench.
+    const players = Array.from({ length: 11 }, (_, i) =>
+      makePlayer(`p${i}`, `P${i}`)
+    );
+    const onFieldExcept = (excludeId) => {
+      const fielders = players.filter((p) => p.id !== excludeId);
+      return {
+        P: slim(fielders[0].id),
+        C: slim(fielders[1].id),
+        "1B": slim(fielders[2].id),
+        "2B": slim(fielders[3].id),
+        "3B": slim(fielders[4].id),
+        SS: slim(fielders[5].id),
+        LF: slim(fielders[6].id),
+        LCF: slim(fielders[7].id),
+        RCF: slim(fielders[8].id),
+        RF: slim(fielders[9].id),
+        BENCH: [slim(excludeId)],
+      };
+    };
+    const currentLineup = [
+      onFieldExcept("p0"),
+      onFieldExcept("p10"),
+      onFieldExcept("p0"),
+      onFieldExcept("p1"),
+    ];
+    const result = buildLineup({
+      players,
+      teamAge: "10U",
+      isBigGame: false,
+      seed: 17,
+      totalInnings: 6,
+      currentGame: {
+        ...baseGame(),
+        // Mid-game rebuild requires fromInning + currentLineup.
+        fromInning: 4,
+        currentLineup,
+      },
+    });
+    // Pass through generateLineup directly so we control fromInning +
+    // currentLineup. buildLineup doesn't forward those; spell them out.
+    const direct = generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g_test", date: "2026-05-01", opponent: "X" },
+      firstInningOverridesById: {},
+      totalInnings: 6,
+      leagueRuleSet: "USSSA",
+      teamAge: "10U",
+      defenseSize: "10",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 17,
+      isBigGame: false,
+      fromInning: 4,
+      currentLineup,
+    });
+    expect(direct.error).toBeUndefined();
+    // Replayed innings 0..3 should match currentLineup verbatim.
+    for (let i = 0; i < 4; i++) {
+      expect(direct.lineup[i].BENCH[0]?.id).toBe(currentLineup[i].BENCH[0].id);
+    }
+    // The fix: p0 should NOT be benched again in innings 4 or 5.
+    for (let i = 4; i < 6; i++) {
+      const benchIds = (direct.lineup[i].BENCH || []).map((b) => b?.id);
+      expect(benchIds).not.toContain("p0");
+    }
+    // And the unused result var keeps tslint quiet — touch it.
+    expect(result).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8U fuzz / soak — run many realistic 8U setups through the engine and
 // assert it never bails out and never violates basic invariants. This is
 // the safety net that catches "no eligible player for LF in inning 3"
