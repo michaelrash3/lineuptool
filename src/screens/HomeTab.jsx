@@ -230,15 +230,6 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
               )}
             </div>
             <h3 className="font-black text-xl sm:text-2xl text-slate-900 uppercase tracking-tight leading-tight">
-              {game.isBigGame && (
-                <span
-                  className="inline-block mr-1.5 text-yellow-500"
-                  title="Big Game"
-                  aria-label="Big Game"
-                >
-                  ⭐
-                </span>
-              )}
               VS. {game.opponent}
             </h3>
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
