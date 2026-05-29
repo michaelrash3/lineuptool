@@ -1544,57 +1544,45 @@ export const PlayerProfileModal = memo(() => {
                 </label>
                 <p className="text-[11px] text-ink-3 font-medium mb-3">
                   Tap positions you&apos;re comfortable with this player playing.
-                  Leave empty to let the engine consider them anywhere.
+                  Leave empty to let the engine consider them anywhere except
+                  catcher — <strong className="text-ink">C is opt-in</strong>,
+                  so a player is only ever seated at catcher when you select it
+                  here.
                 </p>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
-                  {positions
-                    .filter((pos) => pos !== "C")
-                    .map((pos) => {
-                      const list = Array.isArray(player.comfortablePositions)
-                        ? player.comfortablePositions
-                        : [];
-                      const active = list.includes(pos);
-                      return (
-                        <button
-                          key={pos}
-                          onClick={() => {
-                            const next = active
-                              ? list.filter((p) => p !== pos)
-                              : [...list, pos];
-                            updatePlayer(player.id, {
-                              comfortablePositions: next,
-                            });
-                          }}
-                          className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
-                            active
-                              ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
-                              : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
-                          }`}
-                        >
-                          {pos}
-                        </button>
-                      );
-                    })}
+                  {positions.map((pos) => {
+                    const list = Array.isArray(player.comfortablePositions)
+                      ? player.comfortablePositions
+                      : [];
+                    const active = list.includes(pos);
+                    const isCatcher = pos === "C";
+                    return (
+                      <button
+                        key={pos}
+                        onClick={() => {
+                          const next = active
+                            ? list.filter((p) => p !== pos)
+                            : [...list, pos];
+                          updatePlayer(player.id, {
+                            comfortablePositions: next,
+                          });
+                        }}
+                        title={
+                          isCatcher
+                            ? "Catcher — only selected players are ever used at C"
+                            : undefined
+                        }
+                        className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
+                          active
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
+                            : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
+                        }`}
+                      >
+                        {pos}
+                      </button>
+                    );
+                  })}
                 </div>
-                <label className="mt-4 flex items-start gap-3 bg-surface border border-line p-3 rounded-xl shadow-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={player.isCatcher === true}
-                    onChange={(e) =>
-                      updatePlayer(player.id, { isCatcher: e.target.checked })
-                    }
-                    className="mt-0.5 w-4 h-4 accent-emerald-600"
-                  />
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-xs font-black uppercase tracking-widest text-ink">
-                      Catcher
-                    </span>
-                    <span className="block text-[11px] text-ink-3 font-medium mt-0.5">
-                      This player is part of the catching rotation. The engine
-                      will only consider checked players for C.
-                    </span>
-                  </span>
-                </label>
               </div>
 
               {pitchingFormat === "Kid Pitch" && (

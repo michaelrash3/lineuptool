@@ -170,7 +170,9 @@ const computeImpact = (signup, team, evaluationEvents) => {
     if (count < 3) positionalFit.push({ pos, returnerCount: count });
   }
   if (signup.isCatcher) {
-    const catcherCount = returners.filter((p) => p.isCatcher).length;
+    const catcherCount = returners.filter((p) =>
+      (p.comfortablePositions || []).includes("C")
+    ).length;
     if (catcherCount < 2)
       positionalFit.push({ pos: "C (catcher)", returnerCount: catcherCount });
   }
