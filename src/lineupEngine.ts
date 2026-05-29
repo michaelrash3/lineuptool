@@ -1154,6 +1154,50 @@ export function generateLineup(input: EngineInput): EngineResult {
     ? new Map()
     : buildExtraSitHistory(games, currentGameId);
 
+  // Mid-game rebuild fairness: when fromInning > 0 the engine replays
+  // innings 0..fromInning-1 from currentLineup. Those replayed innings'
+  // bench tallies are NOT in buildExtraSitHistory (current game is
+  // excluded) so the bench scheduler for innings N+ used to plan as if
+  // nobody had sat yet this game — which let it bench the same kid
+  // again in a later inning even though they'd already sat earlier in
+  // the same game. Fold the already-played innings into benchHistory
+  // so priorRatio reflects the in-game state on the rebuild path.
+  if (
+    !effectiveRelax &&
+    fromInning > 0 &&
+    Array.isArray(currentLineup) &&
+    currentLineup.length > 0
+  ) {
+    const limit = Math.min(fromInning, currentLineup.length, totalInnings);
+    for (let i = 0; i < limit; i++) {
+      const inn = currentLineup[i] || {};
+      for (const pos of Object.keys(inn)) {
+        if (pos === "BENCH") continue;
+        const p = (inn as any)[pos];
+        if (!p) continue;
+        const cur = benchHistory.get(p.id) || {
+          extraSits: 0,
+          benchInn: 0,
+          defInn: 0,
+          expectedDef: 0,
+        };
+        cur.defInn += 1;
+        benchHistory.set(p.id, cur);
+      }
+      for (const bp of (inn as any).BENCH || []) {
+        if (!bp) continue;
+        const cur = benchHistory.get(bp.id) || {
+          extraSits: 0,
+          benchInn: 0,
+          defInn: 0,
+          expectedDef: 0,
+        };
+        cur.benchInn += 1;
+        benchHistory.set(bp.id, cur);
+      }
+    }
+  }
+
   const battingLineup = generateBattingOrder(profiled, battingSize, {
     leagueRuleSet,
     teamAge,
