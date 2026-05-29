@@ -7,6 +7,7 @@ import {
   isReturning,
   lineupSlotMatchesPlayer,
   isGameFinalized,
+  buildSeasonBenchImbalance,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -276,5 +277,69 @@ describe("isGameFinalized", () => {
     // The strict guard rejects nullish/empty but real zeros still
     // count — actual scoreless games are valid finalized games.
     expect(isGameFinalized({ teamScore: 0, opponentScore: 0 })).toBe(true);
+  });
+});
+
+describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
+  // Two finalized 2-position (P/C), 1-bench, 2-inning games. "Sam"
+  // appears under id "old-sam" in game 1 (written before he was deleted
+  // from the roster) and under "new-sam" in game 2 (after re-add). The
+  // current roster only has "new-sam".
+  const game = (id, samId) => ({
+    id,
+    status: "final",
+    teamScore: 1,
+    opponentScore: 0,
+    lineup: [
+      {
+        P: { id: "A", name: "Alice" },
+        C: { id: samId, name: "Sam" },
+        BENCH: [{ id: "B", name: "Bob" }],
+      },
+      {
+        P: { id: "B", name: "Bob" },
+        C: { id: "A", name: "Alice" },
+        BENCH: [{ id: samId, name: "Sam" }],
+      },
+    ],
+  });
+  const games = [game("g1", "old-sam"), game("g2", "new-sam")];
+  const roster = [
+    { id: "A", name: "Alice" },
+    { id: "B", name: "Bob" },
+    { id: "new-sam", name: "Sam" },
+  ];
+
+  it("merges a re-added player's pre-deletion history into the current id", () => {
+    const out = buildSeasonBenchImbalance(games, "", roster);
+    const sam = out.get("new-sam");
+    expect(sam).toBeDefined();
+    // Sam fielded 1 inning in each game → 2 total across both games.
+    expect(sam.totalDefense).toBe(2);
+    expect(sam.gamesAttended).toBe(2);
+    expect(sam.totalBench).toBe(2);
+    // The orphan key must not survive — its innings were coalesced.
+    expect(out.get("old-sam")).toBeUndefined();
+  });
+
+  it("without a roster, keeps the legacy by-raw-id behaviour", () => {
+    const out = buildSeasonBenchImbalance(games, "");
+    // No coalescing: the two ids stay split, one game each.
+    expect(out.get("old-sam")?.gamesAttended).toBe(1);
+    expect(out.get("new-sam")?.gamesAttended).toBe(1);
+  });
+
+  it("does not merge two distinct live players who share a name", () => {
+    // Both ids are on the current roster, so the name fallback must not
+    // fire — each "Sam" keeps their own innings.
+    const liveRoster = [
+      { id: "A", name: "Alice" },
+      { id: "B", name: "Bob" },
+      { id: "old-sam", name: "Sam" },
+      { id: "new-sam", name: "Sam" },
+    ];
+    const out = buildSeasonBenchImbalance(games, "", liveRoster);
+    expect(out.get("old-sam")?.gamesAttended).toBe(1);
+    expect(out.get("new-sam")?.gamesAttended).toBe(1);
   });
 });

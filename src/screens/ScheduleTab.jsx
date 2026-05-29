@@ -664,7 +664,7 @@ export const ScheduleTab = memo(() => {
                 Positive (red) = played more than fair, Negative (green) =
                 played less. Absences are correctly excluded. */}
             {(() => {
-              const imbalance = buildSeasonBenchImbalance(games, currentGame.id);
+              const imbalance = buildSeasonBenchImbalance(games, currentGame.id, players);
               const rows = presentPlayers
                 .map((p) => {
                   const data = imbalance.get(p.id) || {
