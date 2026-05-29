@@ -161,6 +161,15 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
   }
   const fullDate = formatGameDateDisplay(game.date);
+  // Scoreboard-style date block (MON / DD).
+  const [gy, gm, gd] = (game.date || "").split("-");
+  const dateBlockObj = gy
+    ? new Date(Number(gy), Number(gm) - 1, Number(gd))
+    : null;
+  const monthAbbr = dateBlockObj
+    ? dateBlockObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
+    : "";
+  const dayNum = gd ? String(Number(gd)) : "";
 
   const openInSchedule = () => {
     setSelectedGameId(game.id);
@@ -183,21 +192,33 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     : null;
 
   return (
-    <div className="rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
-      <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
-      <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-        <div className="flex items-center gap-4 sm:gap-5">
+    <div className="relative rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
+      <div
+        className="absolute inset-y-0 left-0 w-1.5"
+        style={{ backgroundColor: primaryColor }}
+      />
+      <div className="p-5 sm:p-6 pl-6 sm:pl-7 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+          {/* Scoreboard-style date block */}
           <div
-            className="hidden sm:flex w-14 h-14 rounded-2xl items-center justify-center shrink-0 shadow-inner"
-            style={{ backgroundColor: `${primaryColor}15` }}
+            className="shrink-0 w-16 text-center rounded-xl border overflow-hidden shadow-sm"
+            style={{ borderColor: `${primaryColor}55` }}
           >
-            <Icons.Calendar
-              className="w-7 h-7"
-              style={{ color: primaryColor }}
-            />
+            <div
+              className="text-[9px] font-black uppercase tracking-widest py-1"
+              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+            >
+              {monthAbbr}
+            </div>
+            <div className="text-3xl font-black tabular-nums text-ink py-1.5">
+              {dayNum}
+            </div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                Next Game
+              </span>
               <span
                 className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
