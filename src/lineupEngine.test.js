@@ -3,6 +3,7 @@ import {
   generateBattingOnly,
   calcPitcherScore,
   getPitcherPoolSize,
+  isCatcherEligible,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -16,6 +17,10 @@ const makePlayer = (id, name, opts = {}) => ({
   primaryPosition: opts.primaryPosition ?? "",
   restrictions: opts.restrictions ?? [],
   comfortablePositions: opts.comfortablePositions,
+  // Catcher is gated on the explicit v4 isCatcher flag. A vanilla test
+  // player is unconstrained (plays anywhere, including C); tests that
+  // exercise catcher exclusion pass isCatcher: false explicitly.
+  isCatcher: opts.isCatcher ?? true,
   // Engine reads these when present. Defaulted out so a vanilla makePlayer
   // call produces a player with no special handling.
   throws: opts.throws,
@@ -173,6 +178,104 @@ describe("catcher pre-assignment respects primaryPosition", () => {
     // p0 should appear behind the plate at least once.
     const seen = new Set(result.lineup.map((inn) => inn.C?.id).filter(Boolean));
     expect(seen.has("p0")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Catcher eligibility — only isCatcher === true players may catch.
+// Regression for: a non-catcher was seated at C. The roster UI keeps
+// catcher out of the "comfortable positions" grid and behind a dedicated
+// isCatcher checkbox ("the engine will only consider checked players for
+// C"). A freshly-added player had isCatcher undefined + restrictions [],
+// which the old fallback `!restrictions.includes("C")` treated as
+// catcher-eligible.
+// ---------------------------------------------------------------------------
+
+describe("catcher eligibility (isCatcher flag)", () => {
+  // 3 designated catchers + 8 explicit non-catchers. Enough catchers that
+  // bench scheduling never has to bench the only one (no infeasibility),
+  // so the assertion isolates the eligibility gate.
+  const mixedRoster = (nonCatcherFlag) => [
+    makePlayer("c0", "Catcher 0", { isCatcher: true }),
+    makePlayer("c1", "Catcher 1", { isCatcher: true }),
+    makePlayer("c2", "Catcher 2", { isCatcher: true }),
+    ...Array.from({ length: 8 }, (_, i) =>
+      makePlayer(`x${i}`, `Field ${i}`, nonCatcherFlag)
+    ),
+  ];
+  const nonCatcherIds = Array.from({ length: 8 }, (_, i) => `x${i}`);
+  const catchersSeen = (lineup) =>
+    lineup.map((inn) => inn.C?.id).filter(Boolean);
+
+  test("10-fielder: an explicit non-catcher is never seated at C", () => {
+    const players = mixedRoster({ isCatcher: false });
+    for (let seed = 1; seed <= 6; seed++) {
+      const result = buildLineup({ players, defenseSize: "10", seed });
+      expect(result.error).toBeUndefined();
+      const seen = catchersSeen(result.lineup);
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.some((id) => nonCatcherIds.includes(id))).toBe(false);
+    }
+  });
+
+  test("9-fielder: an explicit non-catcher is never seated at C", () => {
+    const players = mixedRoster({ isCatcher: false });
+    for (let seed = 1; seed <= 6; seed++) {
+      const result = buildLineup({ players, defenseSize: "9", seed });
+      expect(result.error).toBeUndefined();
+      const seen = catchersSeen(result.lineup);
+      expect(seen.some((id) => nonCatcherIds.includes(id))).toBe(false);
+    }
+  });
+
+  test("a player with no isCatcher flag (undefined) never catches", () => {
+    // The original addPlayer bug shape: isCatcher absent, restrictions [].
+    // Build raw objects so makePlayer's default isCatcher:true can't mask
+    // the undefined case.
+    const raw = (id, withFlag) => ({
+      id,
+      name: id,
+      number: "",
+      primaryPosition: "",
+      restrictions: [],
+      comfortablePositions: [],
+      ...(withFlag ? { isCatcher: true } : {}),
+    });
+    const players = [
+      raw("c0", true),
+      raw("c1", true),
+      raw("c2", true),
+      ...Array.from({ length: 8 }, (_, i) => raw(`u${i}`, false)),
+    ];
+    const undefinedIds = Array.from({ length: 8 }, (_, i) => `u${i}`);
+    for (let seed = 1; seed <= 4; seed++) {
+      const result = buildLineup({ players, defenseSize: "10", seed });
+      expect(result.error).toBeUndefined();
+      const seen = catchersSeen(result.lineup);
+      expect(seen.some((id) => undefinedIds.includes(id))).toBe(false);
+    }
+  });
+
+  test("no present player marked as catcher → actionable error", () => {
+    const players = Array.from({ length: 11 }, (_, i) =>
+      makePlayer(`x${i}`, `Field ${i}`, { isCatcher: false })
+    );
+    const result = buildLineup({ players, defenseSize: "10", seed: 1 });
+    expect(result.lineup).toBeUndefined();
+    expect(result.error).toMatch(/catcher/i);
+  });
+
+  test("isCatcherEligible: flag required; explicit C restriction wins", () => {
+    expect(isCatcherEligible({ isCatcher: true })).toBe(true);
+    expect(isCatcherEligible({ isCatcher: false })).toBe(false);
+    expect(isCatcherEligible({})).toBe(false);
+    expect(isCatcherEligible({ isCatcher: true, restrictions: ["C"] })).toBe(
+      false
+    );
+    // comfortablePositions is the FIELD model and must not gate catcher.
+    expect(
+      isCatcherEligible({ isCatcher: true, comfortablePositions: ["1B"] })
+    ).toBe(true);
   });
 });
 
