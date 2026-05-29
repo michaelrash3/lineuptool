@@ -50,6 +50,28 @@ service cloud.firestore {
         return nextMembers().toSet().hasAll(prevMembers().toSet());
       }
 
+      function prevCoachRoles() {
+        return resource.data.coachRoles != null ? resource.data.coachRoles : {};
+      }
+
+      function nextCoachRoles() {
+        return request.resource.data.coachRoles != null
+          ? request.resource.data.coachRoles
+          : {};
+      }
+
+      function coachRolesSelfJoinValid() {
+        // On the join-code self-join path the caller may only touch their
+        // OWN coachRoles entry (existing entries stay byte-for-byte), and
+        // that entry must be a real role — never an arbitrary string the
+        // role-resolution logic would silently ignore or that could be
+        // used to smuggle a bogus privilege value. Mirrors the client
+        // guard in useTeamMembership.setCoachRole.
+        return nextCoachRoles().diff(prevCoachRoles()).affectedKeys()
+                 .hasOnly([request.auth.uid])
+          && nextCoachRoles()[request.auth.uid] in ['head', 'assistant'];
+      }
+
       function selfRemoveOnly() {
         // The only delta is the caller's own UID being removed (leave-team).
         return prevMembers().toSet().difference(nextMembers().toSet())
@@ -105,7 +127,8 @@ service cloud.firestore {
                          .affectedKeys()
                          .hasOnly(['members', 'coachRoles'])
                     && membersAppendOnly()
-                    && request.auth.uid in nextMembers();
+                    && request.auth.uid in nextMembers()
+                    && coachRolesSelfJoinValid();
 
       // Public tryouts path (anonymous auth included):
       // - read themed team info while tryouts are open, OR whenever a
