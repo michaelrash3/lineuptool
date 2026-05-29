@@ -734,6 +734,15 @@ const TeamProvider = ({ children }) => {
         photoUrl: form.photoUrl || "",
         present: true,
         restrictions: [],
+        comfortablePositions: Array.isArray(form.comfortablePositions)
+          ? form.comfortablePositions
+          : [],
+        // v4 catcher model: a new player is NOT in the catching rotation
+        // until the coach explicitly checks "Catcher" on their profile.
+        // The engine only seats isCatcher === true players at C, so this
+        // must be an explicit boolean (an undefined flag used to leak
+        // every new player into catcher eligibility).
+        isCatcher: form.isCatcher === true,
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
       };
@@ -2320,6 +2329,7 @@ const TeamProvider = ({ children }) => {
         phone: lead.phone || "",
         currentTeam: lead.currentTeam || "",
         comfortablePositions: lead.comfortablePositions || [],
+        isCatcher: lead.isCatcher === true,
         notes: lead.notes || "",
         status: "tryout",
       };

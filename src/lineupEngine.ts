@@ -81,6 +81,33 @@ export function isPositionBlocked(
   return false;
 }
 
+// Catcher eligibility. Catcher is deliberately NOT part of the field
+// "comfortable positions" model (the roster UI excludes "C" from that
+// grid and exposes a dedicated "Catcher" checkbox whose copy promises:
+// "The engine will only consider checked players for C"). So C must be
+// gated on the explicit isCatcher flag, never on comfortablePositions or
+// the absence of a restriction.
+//
+// The old behaviour fell back to `!restrictions.includes("C")` whenever
+// isCatcher wasn't a boolean. That made every freshly-added player (who
+// has no isCatcher field and an empty restrictions list) silently
+// catcher-eligible, so the engine would seat a kid at catcher whom the
+// roster shows as a non-catcher. We honour the UI contract instead:
+// catcher-eligible iff isCatcher === true. Legacy teams are migrated on
+// load (App.jsx v3→v4) so their players already carry an explicit
+// isCatcher boolean by the time a lineup is built.
+export function isCatcherEligible(p: {
+  isCatcher?: boolean;
+  restrictions?: string[];
+}): boolean {
+  // A legacy negative "C" restriction always wins, even over an explicit
+  // isCatcher flag, so contradictory data never seats a restricted kid.
+  if (Array.isArray(p?.restrictions) && p.restrictions.includes("C")) {
+    return false;
+  }
+  return p?.isCatcher === true;
+}
+
 // Age- and format-aware position importance. Used in addition to
 // POS_DIFFICULTY so the scarcity ordering can reflect what actually
 // matters at each level. P is intentionally low at 9U+ because P
@@ -1102,6 +1129,17 @@ export function generateLineup(input: EngineInput): EngineResult {
     };
   }
 
+  // Every defensive alignment (9- and 10-fielder) fields a catcher, and
+  // catcher is gated on the explicit isCatcher flag. If no present player
+  // is marked as a catcher, fail fast with an actionable message rather
+  // than letting it surface downstream as a cryptic bench-schedule error.
+  if (!activePlayers.some((p) => isCatcherEligible(p))) {
+    return {
+      error:
+        "No present player is set as a catcher. Open a player and check “Catcher” to add them to the catching rotation.",
+    };
+  }
+
   const currentGameId = currentGame?.id ?? null;
   const targetDateStr =
     currentGame?.date || new Date().toISOString().split("T")[0];
@@ -1625,14 +1663,8 @@ function precomputeBenchSchedule(opts: any): any {
     // primary-infield kids are not auto-excluded (real rosters have
     // catchers whose primary is 2B/SS/3B).
     const allEligibleC = sortedForExtra
-      // v4 model: prefer the explicit isCatcher flag. Legacy teams that
-      // never migrated fall back to !restrictions.includes("C") so the
-      // engine keeps working before the user opens a player profile.
-      .filter(({ p }) =>
-        typeof (p as any).isCatcher === "boolean"
-          ? (p as any).isCatcher
-          : !p.restrictions?.includes("C")
-      )
+      // Only players explicitly marked as catchers (isCatcher === true).
+      .filter(({ p }) => isCatcherEligible(p))
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher
@@ -2099,9 +2131,7 @@ function tryBuildLineup(ctx: any): any {
           catcher &&
           !benchedSet.has(catcherId) &&
           !used.has(catcherId) &&
-          (typeof (catcher as any).isCatcher === "boolean"
-            ? (catcher as any).isCatcher
-            : !catcher.restrictions?.includes("C"))
+          isCatcherEligible(catcher)
         ) {
           inningSlots["C"] = catcher;
           used.add(catcherId);
@@ -2147,6 +2177,7 @@ function tryBuildLineup(ctx: any): any {
         // don't pre pin into an illegal slot.
         const st = state.get(p.id);
         if (pos === "C") {
+          if (!isCatcherEligible(p)) continue;
           const cCap = defenseSize === "10" ? 2 : 3;
           if ((st.positions["C"] || 0) >= cCap) continue;
         }
@@ -2218,6 +2249,7 @@ function tryBuildLineup(ctx: any): any {
           if (inn > 0 && pCount > 0 && !playedHereLast) continue;
         }
         if (pos === "C") {
+          if (!isCatcherEligible(p)) continue;
           const cCap = defenseSize === "10" ? 2 : 3;
           if ((st.positions["C"] || 0) >= cCap) continue;
         }
@@ -2467,6 +2499,7 @@ function pickBestForPosition(opts: any): any {
     }
 
     if (pos === "C") {
+      if (!isCatcherEligible(p)) continue;
       const cCap = defenseSize === "10" ? 2 : 3;
       if ((st.positions["C"] || 0) >= cCap) continue;
     }
