@@ -339,9 +339,9 @@ export const RosterDecisionsPanel = memo(() => {
           <span
             className={`text-[10px] font-black tabular-nums ${
               d.evalTrend === "improving"
-                ? "text-green-700"
+                ? "text-win"
                 : d.evalTrend === "declining"
-                ? "text-red-700"
+                ? "text-loss"
                 : "text-ink-3"
             }`}
           >
@@ -356,9 +356,9 @@ export const RosterDecisionsPanel = memo(() => {
           <span
             className={`text-[10px] font-bold tabular-nums ${
               d.statsPctVsAvg > 5
-                ? "text-green-700"
+                ? "text-win"
                 : d.statsPctVsAvg < -5
-                ? "text-red-700"
+                ? "text-loss"
                 : "text-ink-3"
             }`}
           >
@@ -397,7 +397,7 @@ export const RosterDecisionsPanel = memo(() => {
       <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Strong Fit */}
         <div>
-          <div className="text-[11px] font-black uppercase tracking-widest text-emerald-700 mb-2 flex items-center gap-2">
+          <div className="text-[11px] font-black uppercase tracking-widest text-win mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
             Strong Fit ({byBucket.strong.length})
           </div>
@@ -414,7 +414,7 @@ export const RosterDecisionsPanel = memo(() => {
 
         {/* Watchlist */}
         <div>
-          <div className="text-[11px] font-black uppercase tracking-widest text-amber-700 mb-2 flex items-center gap-2">
+          <div className="text-[11px] font-black uppercase tracking-widest text-warnfg mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
             Watchlist ({byBucket.watch.length})
           </div>
@@ -432,7 +432,7 @@ export const RosterDecisionsPanel = memo(() => {
         {/* Better Suited for Younger Group */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-slate-400" />
+            <span className="w-2 h-2 rounded-full bg-ink-3" />
             Better Suited for Younger ({byBucket.younger.length})
           </div>
           {byBucket.younger.length === 0 ? (
@@ -536,8 +536,8 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {flags.standouts.length > 0 && (
-          <div className="bg-emerald-50/40 border border-emerald-200/80 rounded-2xl px-4 py-3.5 shadow-sm">
-            <div className="t-eyebrow text-emerald-700 mb-2.5 flex items-center gap-1.5">
+          <div className="bg-win-bg border border-line rounded-2xl px-4 py-3.5 shadow-sm">
+            <div className="t-eyebrow text-win mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronUp className="w-3 h-3" /> Standouts
             </div>
             <ul className="space-y-1.5">
@@ -549,11 +549,11 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
                   <button
                     type="button"
                     onClick={() => onPlayerClick(s.player.id)}
-                    className="t-body-bold text-emerald-900 hover:underline text-left truncate"
+                    className="t-body-bold text-win hover:underline text-left truncate"
                   >
                     {s.player.name}
                   </button>
-                  <span className="t-stat-num-sm text-emerald-700 tabular-nums">
+                  <span className="t-stat-num-sm text-win tabular-nums">
                     {fmtDelta(s.delta)}
                   </span>
                 </li>
@@ -562,8 +562,8 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
           </div>
         )}
         {flags.regressions.length > 0 && (
-          <div className="bg-rose-50/40 border border-rose-200/80 rounded-2xl px-4 py-3.5 shadow-sm">
-            <div className="t-eyebrow text-rose-700 mb-2.5 flex items-center gap-1.5">
+          <div className="bg-loss-bg border border-line rounded-2xl px-4 py-3.5 shadow-sm">
+            <div className="t-eyebrow text-loss mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronDown className="w-3 h-3" /> Regressions
             </div>
             <ul className="space-y-1.5">
@@ -575,11 +575,11 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
                   <button
                     type="button"
                     onClick={() => onPlayerClick(r.player.id)}
-                    className="t-body-bold text-rose-900 hover:underline text-left truncate"
+                    className="t-body-bold text-loss hover:underline text-left truncate"
                   >
                     {r.player.name}
                   </button>
-                  <span className="t-stat-num-sm text-rose-700 tabular-nums">
+                  <span className="t-stat-num-sm text-loss tabular-nums">
                     {fmtDelta(r.delta)}
                   </span>
                 </li>
@@ -589,8 +589,8 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
         )}
       </div>
       {flags.categoryDrops.length > 0 && (
-        <div className="bg-amber-50/40 border border-amber-200/80 rounded-2xl px-4 py-3.5 shadow-sm">
-          <div className="t-eyebrow text-amber-700 mb-2.5 flex items-center gap-1.5">
+        <div className="bg-warn-bg border border-line rounded-2xl px-4 py-3.5 shadow-sm">
+          <div className="t-eyebrow text-warnfg mb-2.5 flex items-center gap-1.5">
             <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
           </div>
           <ul className="space-y-1.5">
@@ -603,15 +603,15 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
                   <button
                     type="button"
                     onClick={() => onPlayerClick(d.player.id)}
-                    className="t-body-bold text-amber-900 hover:underline text-left truncate"
+                    className="t-body-bold text-warnfg hover:underline text-left truncate"
                   >
                     {d.player.name}
                   </button>
-                  <span className="t-eyebrow text-amber-700">
+                  <span className="t-eyebrow text-warnfg">
                     {d.category.label}
                   </span>
                 </span>
-                <span className="t-stat-num-sm text-amber-700 tabular-nums">
+                <span className="t-stat-num-sm text-warnfg tabular-nums">
                   {d.from} → {d.to}
                 </span>
               </li>
@@ -740,8 +740,8 @@ const RoundComparisonView = memo(
                                 <span
                                   className={`text-[10px] font-black tabular-nums ${
                                     delta > 0
-                                      ? "text-emerald-600"
-                                      : "text-rose-600"
+                                      ? "text-win"
+                                      : "text-loss"
                                   }`}
                                 >
                                   {fmtDelta(delta)}
@@ -757,9 +757,9 @@ const RoundComparisonView = memo(
                             avgDelta == null
                               ? "text-ink-3"
                               : avgDelta > 0
-                              ? "text-emerald-600"
+                              ? "text-win"
                               : avgDelta < 0
-                              ? "text-rose-600"
+                              ? "text-loss"
                               : "text-ink-3"
                           }`}
                         >
@@ -803,7 +803,7 @@ const AssistantSubmissionsPanel = memo(
   if (latestByAssistant.length === 0) return null;
 
   return (
-    <div className="px-5 py-4 bg-amber-50/40 border-b border-amber-100">
+    <div className="px-5 py-4 bg-warn-bg border-b border-line">
       <div className="flex items-center justify-between mb-3">
         <h3 className="t-h3">Assistant Submissions</h3>
         <span className="t-eyebrow text-ink-3">
@@ -825,7 +825,7 @@ const AssistantSubmissionsPanel = memo(
           return (
             <div
               key={ev.id}
-              className="bg-surface border border-amber-200 rounded-xl p-3 shadow-sm"
+              className="bg-surface border border-line rounded-xl p-3 shadow-sm"
             >
               <div className="flex items-baseline justify-between gap-3 mb-2">
                 <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
@@ -853,8 +853,8 @@ const AssistantSubmissionsPanel = memo(
                         }}
                         className={`flex items-center gap-1 rounded-md transition-colors ${
                           armed
-                            ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                            : "p-1 text-ink-3 hover:text-red-600 hover:bg-red-50"
+                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-red-300"
+                            : "p-1 text-ink-3 hover:text-loss hover:bg-loss-bg"
                         }`}
                         title={
                           armed
@@ -889,7 +889,7 @@ const AssistantSubmissionsPanel = memo(
                     return (
                       <div
                         key={p.id}
-                        className="border-t border-amber-100 pt-2 first:border-t-0 first:pt-0"
+                        className="border-t border-line pt-2 first:border-t-0 first:pt-0"
                       >
                         <div className="text-[12px] font-black uppercase tracking-tight text-ink mb-1">
                           {p.name}
@@ -900,7 +900,7 @@ const AssistantSubmissionsPanel = memo(
                               {g.suggestedPositions.map((pos) => (
                                 <span
                                   key={pos}
-                                  className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-amber-100 border-amber-200 text-amber-900"
+                                  className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg"
                                 >
                                   {pos}
                                 </span>
@@ -1230,19 +1230,19 @@ export const EvaluationTab = memo(() => {
             >
               {!isNewRound && saveState === "dirty" && (
                 <>
-                  <Icons.Alert className="w-3 h-3 text-amber-600" />
+                  <Icons.Alert className="w-3 h-3 text-warnfg" />
                   Unsaved changes
                 </>
               )}
               {!isNewRound && saveState === "saved" && (
                 <>
-                  <Icons.Check className="w-3 h-3 text-emerald-600" />
+                  <Icons.Check className="w-3 h-3 text-win" />
                   Saved
                 </>
               )}
               {isNewRound && saveState === "dirty" && (
                 <>
-                  <Icons.Alert className="w-3 h-3 text-amber-600" />
+                  <Icons.Alert className="w-3 h-3 text-warnfg" />
                   Unsaved changes
                 </>
               )}
@@ -1263,7 +1263,7 @@ export const EvaluationTab = memo(() => {
         </div>
 
         {/* Round selection bar */}
-        <div className="px-5 py-3 bg-amber-50/40 border-b border-amber-100 flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="px-5 py-3 bg-warn-bg border-b border-line flex flex-col sm:flex-row gap-3 sm:items-center">
           <label className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-2 shrink-0">
               Eval:
@@ -1317,8 +1317,8 @@ export const EvaluationTab = memo(() => {
               onBlur={() => setPendingRoundDelete(false)}
               className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
                 pendingRoundDelete
-                  ? "px-2.5 py-2 bg-red-100 text-red-800 border-red-300 ring-2 ring-red-200"
-                  : "p-2 text-ink-3 hover:text-red-600 hover:bg-red-50 border-line hover:border-red-200"
+                  ? "px-2.5 py-2 bg-loss-bg text-loss border-line ring-2 ring-red-200"
+                  : "p-2 text-ink-3 hover:text-loss hover:bg-loss-bg border-line hover:border-line"
               }`}
               title={
                 pendingRoundDelete
@@ -1412,7 +1412,7 @@ export const EvaluationTab = memo(() => {
           <button
             type="button"
             onClick={() => setTeamEvalGrades({})}
-            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-rose-50 hover:border-rose-200 hover:text-rose-700 flex items-center gap-1.5"
+            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-loss-bg hover:border-line hover:text-loss flex items-center gap-1.5"
             title="Clear all in-progress grades"
           >
             <Icons.X className="w-3.5 h-3.5" /> Clear
@@ -1715,8 +1715,8 @@ export const EvaluationTab = memo(() => {
                           }}
                           className={`shrink-0 flex items-center gap-1 rounded-md transition-colors ${
                             armed
-                              ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                              : "p-1.5 text-ink-3 hover:text-red-600 hover:bg-red-50"
+                              ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-red-300"
+                              : "p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg"
                           }`}
                           title={
                             armed
@@ -2037,9 +2037,9 @@ export const EvalTrendModal = memo(
                             <div
                               className={`text-[10px] font-black tabular-nums ${
                                 trend.change > 0
-                                  ? "text-green-700"
+                                  ? "text-win"
                                   : trend.change < 0
-                                  ? "text-red-700"
+                                  ? "text-loss"
                                   : "text-ink-3"
                               }`}
                             >

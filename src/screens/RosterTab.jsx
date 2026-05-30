@@ -68,9 +68,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
   return (
     <div
       className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch rounded-2xl border border-line overflow-hidden shadow-card transition-all hover:shadow-md ${
-        absent
-          ? "bg-gradient-to-b from-slate-50 to-slate-100 opacity-85"
-          : "bg-gradient-to-b from-white to-slate-50"
+        absent ? "bg-surface-2 opacity-85" : "bg-surface"
       }`}
     >
       <div
@@ -117,9 +115,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
             </button>
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${
-                absent
-                  ? "bg-slate-300"
-                  : "bg-emerald-500"
+                absent ? "bg-ink-3" : "bg-emerald-500"
               }`}
               style={{
                 boxShadow: absent
@@ -139,7 +135,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
               </span>
             )}
             {absent && (
-              <span className="t-chip px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-700">
+              <span className="t-chip px-2 py-1 rounded-md bg-loss-bg border border-line text-loss">
                 Out
               </span>
             )}
@@ -148,13 +144,12 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
       </div>
 
       <div
-        className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-line bg-gradient-to-b from-slate-50"
-        style={{ backgroundImage: "linear-gradient(to bottom, var(--slate-50), var(--team-primary-soft))" }}
+        className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-line bg-surface-2"
       >
         {hasStats ? (
           <>
             <div
-              className="text-center px-2 py-2.5 border-r border-slate-900/5 relative"
+              className="text-center px-2 py-2.5 border-r border-line relative"
               style={{ backgroundColor: "var(--team-primary-15)" }}
             >
               <div
@@ -177,7 +172,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
                 }}
               />
             </div>
-            <div className="text-center px-2 py-2.5 border-r border-slate-900/5">
+            <div className="text-center px-2 py-2.5 border-r border-line">
               <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
                 OPS
               </div>
@@ -185,7 +180,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
                 {formatStat(player.stats?.ops)}
               </div>
             </div>
-            <div className="text-center px-2 py-2.5 border-r border-slate-900/5">
+            <div className="text-center px-2 py-2.5 border-r border-line">
               <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
                 H
               </div>
