@@ -13,16 +13,21 @@ import { checkPitchEligibility } from "../lineupEngine";
 // Dismissible banner that nudges the current coach to submit an eval round
 // when the cadence (preseason or biweekly) is active.
 const EvalPromptBanner = memo(
-  ({ kind, isHead, primaryColor, onStart }) => {
+  ({ kind, isHead, primaryColor, onStart, dueDate }) => {
     const [dismissed, setDismissed] = useState(false);
     if (dismissed) return null;
+    const dueLabel = dueDate ? formatGameDateDisplay(dueDate) : "";
     const headline =
       kind === "preseason"
         ? "Preseason evaluation due"
         : "Biweekly evaluation due";
-    const sub = isHead
-      ? "Open Evaluation and start a fresh round."
-      : "Send your grades to the head coach.";
+    // Spell out the due date so the coach knows exactly which round this
+    // reminder is for. Filing an eval inside its window clears the banner.
+    const sub = `${dueLabel ? `Due ${dueLabel}. ` : ""}${
+      isHead
+        ? "Open Evaluation and start a fresh round to clear this."
+        : "Send your grades to the head coach to clear this."
+    }`;
     return (
       <div
         className="rounded-2xl border border-line shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
@@ -915,6 +920,7 @@ export const HomeTab = memo(() => {
           kind={promptStatus.kind}
           isHead={isHead}
           primaryColor={primaryColor}
+          dueDate={promptStatus.nextDueDate}
           onStart={() => {
             setActiveTab("evaluation");
           }}

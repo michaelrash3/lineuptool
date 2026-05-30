@@ -737,6 +737,15 @@ const dateToIsoLocal = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
+// Parse a stored eval date ("YYYY-MM-DD", optionally with a time suffix) into
+// a *local* midnight Date. Using local construction here keeps the day-delta
+// math below on the same footing as `due` (also local midnight) and avoids the
+// UTC skew you'd get from `new Date("YYYY-MM-DD")`.
+const isoToLocalDate = (s: string): Date => {
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
 const sameLocalDay = (a: Date, b: Date): boolean => {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -794,11 +803,17 @@ export const evalPromptStatus = (
     const deltaDays = Math.floor(
       (now.getTime() - due.getTime()) / MS_PER_DAY
     );
-    // Window is [due - WINDOW, due + WINDOW]. If the coach already
-    // submitted on or after the due date, treat the window as closed.
+    // Window is [due - WINDOW, due + WINDOW]. The prompt is fulfilled once the
+    // coach files an eval anywhere inside that window — including the days
+    // *before* the due date — so the reminder clears as soon as they catch up
+    // instead of lingering until the due date physically passes. A later
+    // submission (next round already in) counts too, hence the open-ended `>=`.
     const alreadyHit =
       lastSubmittedDate &&
-      new Date(lastSubmittedDate).getTime() >= due.getTime() - MS_PER_DAY;
+      Math.round(
+        (isoToLocalDate(lastSubmittedDate).getTime() - due.getTime()) /
+          MS_PER_DAY
+      ) >= -EVAL_WINDOW_DAYS;
     if (
       !alreadyHit &&
       deltaDays >= -EVAL_WINDOW_DAYS &&
