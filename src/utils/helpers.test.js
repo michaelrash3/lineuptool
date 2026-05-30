@@ -4,6 +4,8 @@ import {
   parseGameChangerPastSeasonCsv,
   evalDueDatesForYear,
   evalPromptStatus,
+  evalRoundDateForSave,
+  restampEvalDueDates,
   emailPromptStatus,
   isReturning,
   lineupSlotMatchesPlayer,
@@ -507,5 +509,164 @@ describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
     const out = buildSeasonBenchImbalance(games, "", liveRoster);
     expect(out.get("old-sam")?.gamesAttended).toBe(1);
     expect(out.get("new-sam")?.gamesAttended).toBe(1);
+  });
+});
+
+describe("evalRoundDateForSave", () => {
+  const isoLocal = (d) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+
+  it("stamps a save made on a due date with that due date", () => {
+    // Mar 15, 2026 is a scheduled due date.
+    expect(evalRoundDateForSave(new Date(2026, 2, 15, 12))).toBe("2026-03-15");
+  });
+
+  it("snaps a save filed a few days early to the upcoming due date", () => {
+    expect(evalRoundDateForSave(new Date(2026, 2, 12, 9))).toBe("2026-03-15");
+  });
+
+  it("stamps a preseason save with Feb 1", () => {
+    expect(evalRoundDateForSave(new Date(2026, 1, 1, 17))).toBe("2026-02-01");
+  });
+
+  it("snaps a late-January save to that year's Feb 1, not the prior fall", () => {
+    expect(evalRoundDateForSave(new Date(2026, 0, 25, 12))).toBe("2026-02-01");
+  });
+
+  it("never returns the literal off-season day — always a real due date", () => {
+    const out = evalRoundDateForSave(new Date(2026, 6, 1, 12)); // Jul 1
+    expect(out).not.toBe("2026-07-01");
+    const allDue = new Set(
+      [
+        ...evalDueDatesForYear(2025),
+        ...evalDueDatesForYear(2026),
+        ...evalDueDatesForYear(2027),
+      ].map(isoLocal)
+    );
+    expect(allDue.has(out)).toBe(true);
+  });
+});
+
+describe("restampEvalDueDates", () => {
+  it("re-stamps a roster round onto its nearest due date", () => {
+    const out = restampEvalDueDates([
+      {
+        id: "a",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-03-17",
+        grades: {},
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("a");
+    expect(out[0].date).toBe("2026-03-15");
+  });
+
+  it("leaves tryout grades (tryoutSignupId) untouched", () => {
+    const out = restampEvalDueDates([
+      {
+        id: "t",
+        evaluatorId: "u1",
+        date: "2026-07-04",
+        tryoutSignupId: "s1",
+        grades: {},
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].date).toBe("2026-07-04");
+  });
+
+  it("collapses two same-coach rounds on one due date, keeping the freshest", () => {
+    const out = restampEvalDueDates([
+      {
+        id: "old",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-03-14",
+        grades: { x: 1 },
+      },
+      {
+        id: "new",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-03-16",
+        grades: { x: 2 },
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("new");
+    expect(out[0].date).toBe("2026-03-15");
+  });
+
+  it("keeps distinct coaches/roles that land on the same date separate", () => {
+    const out = restampEvalDueDates([
+      {
+        id: "h",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-03-16",
+        grades: {},
+      },
+      {
+        id: "a",
+        coachRole: "Assistant",
+        evaluatorId: "u2",
+        date: "2026-03-16",
+        grades: {},
+      },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out.every((e) => e.date === "2026-03-15")).toBe(true);
+  });
+
+  it("preserves original order of surviving rounds", () => {
+    const out = restampEvalDueDates([
+      {
+        id: "feb",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-02-02",
+        grades: {},
+      },
+      {
+        id: "mar",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-03-16",
+        grades: {},
+      },
+    ]);
+    expect(out.map((e) => e.id)).toEqual(["feb", "mar"]);
+    expect(out[0].date).toBe("2026-02-01");
+    expect(out[1].date).toBe("2026-03-15");
+  });
+
+  it("is idempotent", () => {
+    const once = restampEvalDueDates([
+      {
+        id: "feb",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-02-02",
+        grades: {},
+      },
+      {
+        id: "mar",
+        coachRole: "Head",
+        evaluatorId: "u1",
+        date: "2026-03-16",
+        grades: {},
+      },
+    ]);
+    const twice = restampEvalDueDates(once);
+    expect(twice).toEqual(once);
+  });
+
+  it("returns [] for non-array input", () => {
+    expect(restampEvalDueDates(null)).toEqual([]);
+    expect(restampEvalDueDates(undefined)).toEqual([]);
   });
 });

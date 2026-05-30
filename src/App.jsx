@@ -66,6 +66,8 @@ import {
   scrubUndefined,
   blankStats,
   emailPromptStatus,
+  evalRoundDateForSave,
+  restampEvalDueDates,
   isReturning,
   isGameFinalized,
 } from "./utils/helpers";
@@ -609,6 +611,13 @@ const TeamProvider = ({ children }) => {
                 const { isCatcher: _dropped, ...rest } = p;
                 return { ...rest, comfortablePositions: next };
               });
+            }
+            // v6 — re-stamp existing roster eval rounds onto the calendar due
+            // date they satisfy, matching how new saves are now dated. Tryout
+            // grades are left alone; same-round duplicates collapse to the
+            // freshest. Idempotent, so it's safe even if a doc lands here twice.
+            if (stored < 6) {
+              migratedEvents = restampEvalDueDates(migratedEvents);
             }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
@@ -2158,13 +2167,15 @@ const TeamProvider = ({ children }) => {
       return selectedRoundId;
     }
 
-    // Creating a new round. Denormalize the coach's last name onto the
-    // event so reads across devices don't need an auth roundtrip.
-    const today = getLocalDateString();
+    // Creating a new round. Stamp it with the calendar due date it satisfies
+    // (not the literal day) so rounds line up with the cadence schedule, and
+    // denormalize the coach's last name so reads across devices don't need an
+    // auth roundtrip.
+    const roundDate = evalRoundDateForSave();
     const evaluatorName = lastNameOfUser(user);
     const newEvent = {
       id: "ev-" + Math.random().toString(36).substring(2, 10),
-      date: today,
+      date: roundDate,
       coachRole: "Head",
       evaluatorId: user.uid,
       evaluatorName,
@@ -2176,24 +2187,25 @@ const TeamProvider = ({ children }) => {
     toast.push({
       kind: "success",
       title: "Eval saved",
-      message: `${evaluatorName} · ${today}`,
+      message: `${evaluatorName} · ${roundDate}`,
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
   }, [user, teamData.evaluationEvents, updateTeam, toast]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
-  // upsert behavior — if this assistant already has a round on today's date
-  // we update it in place; otherwise we append a new event.
+  // upsert behavior — the round is stamped with the calendar due date it
+  // satisfies, and the upsert key uses that same date so a second submission
+  // inside the same window updates the round in place instead of duplicating.
   const saveAssistantEvaluation = useCallback(
     (grades) => {
       if (!user) return;
-      const today = getLocalDateString();
+      const roundDate = evalRoundDateForSave();
       const existing = (teamData.evaluationEvents || []).find(
         (e) =>
           e.coachRole === "Assistant" &&
           e.evaluatorId === user.uid &&
-          e.date === today
+          e.date === roundDate
       );
       let nextEvents;
       if (existing) {
@@ -2203,7 +2215,7 @@ const TeamProvider = ({ children }) => {
       } else {
         const newEvent = {
           id: "ev-" + Math.random().toString(36).substring(2, 10),
-          date: today,
+          date: roundDate,
           coachRole: "Assistant",
           evaluatorId: user.uid,
           evaluatorName: lastNameOfUser(user),
