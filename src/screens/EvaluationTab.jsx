@@ -125,7 +125,7 @@ export const RosterDecisionsPanel = memo(() => {
       return parseInt(m[m.length - 1], 10);
     })();
 
-    return players.map((player) => {
+    const decisionRows = players.map((player) => {
       // ---- Latest eval grade (average across categories) ----
       let latestEvalAvg = null;
       const evalsForPlayer = myEvals
@@ -177,13 +177,13 @@ export const RosterDecisionsPanel = memo(() => {
         teamAgeNum != null &&
         baseballAge < teamAgeNum;
 
-      // ---- Bucket assignment ----
-      // Stricter rules per coach feedback ("too lenient with keeping kids,
-      // especially when their stats tell you otherwise"). Default is now
-      // **watch**, not strong — a kid earns Strong Fit only with positive
-      // signal across the board. Stats getting beat by the team baseline
-      // is a hard demotion to watch even when evals look fine, and vice
-      // versa.
+      // ---- Bucket assignment (per-player PROPOSAL) ----
+      // This pass only *proposes* a bucket from absolute cutoffs; the
+      // relative pass after the .map (see "Relative Development Focus")
+      // tempers the proposed watch list against the team's own spread so
+      // average kids on an average team are never flagged. Default here is
+      // **watch** — a kid earns Strong Fit with positive signal across the
+      // board, otherwise the relative pass decides whether they stay flagged.
       //
       // Scale calibration (eval 1–5; stats expressed as OPS ratio vs
       // team OPS avg, 1.00 = at team avg):
@@ -191,14 +191,9 @@ export const RosterDecisionsPanel = memo(() => {
       //                       AND  not declining
       //   Younger: playing up AND (eval ≤ 2.5 OR stats ratio ≤ 0.6)
       //                       AND not strongly improving
-      //   Watch  : everything else, with the dominant signal in the rationale
-      //
-      // The previous defaults pushed every player without a single negative
-      // flag into Strong — so kids at eval 2.7 + stats at team avg landed
-      // there with the dismissive label "at level". Now they correctly land
-      // on the watchlist.
+      //   Watch  : everything else (proposal only — tempered below)
 
-      let bucket = "watch"; // default — earn Strong Fit explicitly
+      let bucket = "watch"; // proposal — Strong Fit earned, watch tempered below
       const rationale = [];
 
       const stronglyImproving =
@@ -249,8 +244,9 @@ export const RosterDecisionsPanel = memo(() => {
         }
       }
 
-      // 3) Watch list — anything that didn't earn Strong, with the
-      //    dominant signal called out.
+      // 3) Watch proposal — anything that didn't earn Strong, with the
+      //    dominant signal called out. The relative pass after the .map
+      //    decides which of these actually stay flagged.
       if (bucket === "watch") {
         if (evalAbsent && statsAbsent) {
           rationale.push("No eval or stats yet — needs review");
@@ -296,6 +292,57 @@ export const RosterDecisionsPanel = memo(() => {
         rationale,
       };
     });
+
+    // ---- Relative Development Focus (no fixed cap) ----
+    // The per-player pass above only *proposes* a "watch" bucket from
+    // absolute cutoffs (eval >= 3.3 on a 1-5 scale where 3 = "average"),
+    // which over-flags a roster that's simply young or early in the season
+    // -- it once put 7 of 12 kids on the list. Temper it against the team's
+    // OWN spread instead: a player stays flagged only if their composite
+    // standing is more than one standard deviation below the team mean.
+    // There is NO hard cap -- the distribution itself decides, so a
+    // tightly-bunched team can flag nobody and only genuine outliers ever
+    // surface. Anyone tempered off moves to "strong" (good standing); the
+    // "younger" bucket is untouched.
+    //
+    // Composite standing: eval (1-5) and stats (OPS ratio, 1.0 = team avg)
+    // each normalized to 0-1, blended 60/40 toward the eval. Null when we
+    // have no signal at all for that kid -- can't call them low without data.
+    const compositeOf = (d) => {
+      const evalNorm =
+        d.latestEvalAvg != null ? (d.latestEvalAvg - 1) / 4 : null;
+      const statsNorm =
+        d.statsRatio != null
+          ? Math.max(0, Math.min(1, d.statsRatio / 2))
+          : null;
+      if (evalNorm != null && statsNorm != null)
+        return evalNorm * 0.6 + statsNorm * 0.4;
+      if (evalNorm != null) return evalNorm;
+      if (statsNorm != null) return statsNorm;
+      return null;
+    };
+    const withComp = decisionRows.map((d) => ({ d, c: compositeOf(d) }));
+    const scored = withComp.map((x) => x.c).filter((c) => c != null);
+    const mean = scored.length
+      ? scored.reduce((a, b) => a + b, 0) / scored.length
+      : 0;
+    const sd = scored.length
+      ? Math.sqrt(
+          scored.reduce((a, b) => a + (b - mean) ** 2, 0) / scored.length
+        )
+      : 0;
+    const belowLine = mean - sd;
+    for (const x of withComp) {
+      // perfScore drives the within-bucket card sort below (was never set).
+      x.d.perfScore = x.c != null ? x.c : mean;
+      if (x.d.bucket !== "watch") continue;
+      // Keep flagged only if genuinely below the team line AND we have data.
+      if (x.c != null && x.c < belowLine) continue;
+      x.d.bucket = "strong";
+      if (x.c != null) x.d.rationale = ["In good standing with the group"];
+    }
+
+    return decisionRows;
   }, [players, evaluationEvents, user, teamAge, currentSeason]);
 
   if (!decisions || decisions.length === 0) return null;
@@ -388,7 +435,7 @@ export const RosterDecisionsPanel = memo(() => {
               Roster Decisions
             </h2>
             <p className="text-[10px] font-extrabold uppercase tracking-widest mt-1 text-ink-3">
-              Advisory only — uses eval trends, stats, and age
+              Advisory only — flagged relative to your team, no fixed cap
             </p>
           </div>
         </div>
@@ -412,15 +459,15 @@ export const RosterDecisionsPanel = memo(() => {
           )}
         </div>
 
-        {/* Watchlist */}
+        {/* Development Focus */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-warnfg mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            Watchlist ({byBucket.watch.length})
+            Development Focus ({byBucket.watch.length})
           </div>
           {byBucket.watch.length === 0 ? (
             <p className="text-[11px] text-ink-3 italic font-medium px-1">
-              No players need a closer look right now.
+              No players need extra focus right now.
             </p>
           ) : (
             <div className="flex flex-col gap-2">
