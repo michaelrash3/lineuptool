@@ -187,7 +187,7 @@ export const RosterDecisionsPanel = memo(() => {
       //
       // Scale calibration (eval 1–5; stats expressed as OPS ratio vs
       // team OPS avg, 1.00 = at team avg):
-      //   Strong : eval ≥ 3.5  AND  stats ratio ≥ 0.95 (or no stats yet)
+      //   Strong : eval ≥ 3.3  AND  not below the watch line on stats
       //                       AND  not declining
       //   Younger: playing up AND (eval ≤ 2.5 OR stats ratio ≤ 0.6)
       //                       AND not strongly improving
@@ -203,10 +203,10 @@ export const RosterDecisionsPanel = memo(() => {
 
       const stronglyImproving =
         evalTrend === "improving" && evalDelta != null && evalDelta >= 0.5;
-      const evalAboveBar = latestEvalAvg != null && latestEvalAvg >= 3.5;
-      const evalBelowBar = latestEvalAvg != null && latestEvalAvg < 3.0;
+      const evalAboveBar = latestEvalAvg != null && latestEvalAvg >= 3.3;
+      const evalBelowBar = latestEvalAvg != null && latestEvalAvg < 2.8;
       const evalDeepBelowBar = latestEvalAvg != null && latestEvalAvg <= 2.5;
-      const statsBelowBar = statsRatio != null && statsRatio < 0.85;
+      const statsBelowBar = statsRatio != null && statsRatio < 0.8;
       const statsWayBelowBar = statsRatio != null && statsRatio <= 0.6;
       const statsAbsent = statsRatio == null;
       const evalAbsent = latestEvalAvg == null;
@@ -232,16 +232,16 @@ export const RosterDecisionsPanel = memo(() => {
       // 2) Strong Fit — earn it with positive signal across the board.
       if (bucket !== "younger") {
         const noNegatives = !evalBelowBar && !statsBelowBar && evalTrend !== "declining";
-        const positiveSignal = evalAboveBar || stronglyImproving || (statsRatio != null && statsRatio >= 1.05);
+        const positiveSignal = evalAboveBar || stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
         if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
           bucket = "strong";
           if (evalAboveBar) {
-            rationale.push(`Eval ${latestEvalAvg.toFixed(1)} ≥ 3.5 — above average`);
+            rationale.push(`Eval ${latestEvalAvg.toFixed(1)} ≥ 3.3 — above average`);
           }
           if (stronglyImproving) {
             rationale.push(`Trending up (+${evalDelta.toFixed(1)})`);
           }
-          if (statsRatio != null && statsRatio >= 1.05) {
+          if (statsRatio != null && statsRatio >= 1.0) {
             rationale.push(
               `Stats +${Math.round((statsRatio - 1) * 100)}% vs team OPS avg`
             );
