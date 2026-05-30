@@ -325,6 +325,74 @@ const catcherInningMap = (lineup) => {
 const isContiguous = (sorted) =>
   sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
 
+// ---------------------------------------------------------------------------
+// Rotation lock yields to avoid stranding a scarce position.
+// Regression for a real coach backup: NKB 8U Machine Pitch, 10-fielder,
+// 2-inning rotation lock, catcher cap 2 (back-to-back). The catcher pool and
+// the 1B pool are nearly the same 6 kids, so reserving 3 distinct catchers +
+// freezing the rest via the rotation lock left inning 6 with no eligible 1B —
+// and the engine fell back to one-game balance (dropping season fairness).
+// The lock must instead RELAX for that one inning and keep full fairness.
+// (Roster eligibility mirrors the real backup; names are anonymized.)
+// ---------------------------------------------------------------------------
+describe("rotation lock yields instead of stranding a scarce position", () => {
+  const PROFILE = [
+    "P,1B,C,2B,3B,SS,LF,LCF,RCF,RF", "C,P,1B,2B,LCF,LF,SS,3B,RCF,RF",
+    "P,2B,LF,LCF,RCF,RF", "P,2B,3B,SS,RF,RCF,LCF,LF",
+    "P,LF,LCF,RCF,RF,2B", "C,P,1B,2B,LCF,LF,SS,3B,RCF,RF",
+    "C,P,1B,2B,LCF,LF,SS,3B,RCF,RF", "P,2B,LF,LCF,RCF,RF",
+    "P,LCF,LF,RCF,RF,1B,2B", "C,P,1B,2B,LCF,LF,SS,3B,RCF,RF",
+    "P,2B,3B,SS,LF,LCF,RCF,RF,C", "P,2B,LCF,LF,SS,3B,RF,RCF",
+  ];
+  const players = PROFILE.map((cp, i) =>
+    makePlayer(`p${i}`, `P${i}`, { comfortablePositions: cp.split(",") })
+  );
+  const POS10 = ["P","C","1B","2B","3B","SS","LF","LCF","RCF","RF"];
+  const slim = (i) => ({ id: `p${i}`, name: `P${i}`, number: "" });
+  // Past games bench the 1B-capable kids so they're under-played and the
+  // fairness scheduler seats them in late innings — including the inning-6
+  // rotation-lock inning, which is what triggers the 1B strand.
+  const benchPlan = [[0,1],[5,6],[9,0],[1,5],[6,9],[0,1]];
+  const games = [
+    "2026-04-01","2026-04-05","2026-04-09","2026-04-13","2026-04-17","2026-04-21",
+  ].map((dt, gi) => ({
+    id: "g" + gi, date: dt, opponent: "O", status: "final",
+    teamScore: 5, opponentScore: 1,
+    lineup: benchPlan.map((b) => {
+      const inn = {};
+      const field = [...Array(12).keys()].filter((x) => !b.includes(x));
+      POS10.forEach((pos, k) => (inn[pos] = slim(field[k])));
+      inn.BENCH = b.map(slim);
+      return inn;
+    }),
+  }));
+
+  const build = (seed) =>
+    generateLineup({
+      activePlayers: players, allPlayers: players, games, evaluationEvents: [],
+      currentGame: { id: "gn", date: "2026-05-06", opponent: "N" },
+      firstInningOverridesById: {}, totalInnings: 6, leagueRuleSet: "NKB",
+      teamAge: "8U", defenseSize: "10", positionLock: "2", battingSize: "roster",
+      pitchingFormat: "Machine Pitch", catcherMaxInnings: "2",
+      catcherConsecutive: true, seed,
+    });
+
+  test("builds with full season fairness; lock relaxes only where needed", () => {
+    let relaxEngaged = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const r = build(seed);
+      // Must NOT fall back to one-game balance, and 1B is filled every inning.
+      expect(r.error).toBeUndefined();
+      expect(r.fairnessRelaxed).toBeFalsy();
+      for (const inn of r.lineup) expect(inn["1B"]).toBeTruthy();
+      if ((r.lockRelaxedInnings || []).length > 0) relaxEngaged++;
+    }
+    // Across the seeds, the lock-yield must actually fire — without it those
+    // seeds would have stranded 1B and dropped season fairness.
+    expect(relaxEngaged).toBeGreaterThan(0);
+  });
+});
+
 describe("lineup failure diagnostics", () => {
   test("hard failure surfaces the specific blocking position + inning", () => {
     // Every present player is restricted from RF, so no inning can be filled.

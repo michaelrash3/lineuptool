@@ -1323,13 +1323,22 @@ const TeamProvider = ({ children }) => {
       const relaxedBlocker =
         result.fairnessRelaxedReason ||
         "the bench distribution couldn't be scheduled";
+      // The engine eases the rotation lock for an inning when keeping everyone
+      // in their slot would otherwise make a fair, full defense impossible.
+      const relaxedInns = Array.isArray(result.lockRelaxedInnings)
+        ? result.lockRelaxedInnings
+        : [];
+      const lockNote =
+        relaxedInns.length > 0
+          ? ` Rotation eased in inning ${relaxedInns.join(", ")} to keep a full, fair defense.`
+          : "";
       const successMessage = internallyRelaxed
         ? `Strict fairness blocked — ${relaxedBlocker} Built one-game balanced instead; catch up over future games.`
         : relaxFairness
         ? "Built without considering past games. Some kids may bench more than others this season."
         : hasPrev
-        ? "Tap Undo to restore the previous lineup."
-        : "";
+        ? `Tap Undo to restore the previous lineup.${lockNote}`
+        : lockNote.trim();
       toast.push({
         kind: showAsRelaxed ? "warn" : "success",
         title: showAsRelaxed

@@ -1471,6 +1471,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   const runAttempts = (firstInnHx, seasonHx) => {
     let bestLineup = null;
     let bestPenalty = Infinity;
+    let bestLockRelaxed = [];
     const failureReasons = []; // accumulate every failure for diagnostic
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const rand = mulberry32(baseSeed + attempt * 2654435761);
@@ -1506,10 +1507,16 @@ export function generateLineup(input: EngineInput): EngineResult {
       if (penalty < bestPenalty) {
         bestPenalty = penalty;
         bestLineup = lineup;
+        bestLockRelaxed = result.lockRelaxedInnings || [];
         if (penalty === 0) break;
       }
     }
-    if (bestLineup) return { lineup: bestLineup, penalty: bestPenalty };
+    if (bestLineup)
+      return {
+        lineup: bestLineup,
+        penalty: bestPenalty,
+        lockRelaxedInnings: bestLockRelaxed,
+      };
     // No lineup found  pick the most common failure reason for diagnostic
     return { failures: failureReasons };
   };
@@ -1596,6 +1603,9 @@ export function generateLineup(input: EngineInput): EngineResult {
     // engine fell back to one-game balance). Surfaced in the UI toast.
     fairnessRelaxedReason,
     fairnessRelaxedType,
+    // Innings (1-based) where the rotation lock was relaxed to keep a valid,
+    // fair defense (rather than stranding a scarce position).
+    lockRelaxedInnings: attempt.lockRelaxedInnings || [],
     qualityPenalty: attempt.penalty,
   };
 }
@@ -1639,10 +1649,33 @@ function precomputeBenchSchedule(opts: any): any {
     catcherInningBlocks,
     catcherCap,
     enforceCatcherCap,
+    positionsToFill,
     rand,
     forcedBenchInning0,
     firstInningOverridesById,
   } = opts;
+
+  // Field-position "supply": how many present players are eligible for each
+  // non-catcher position. Used to steer catcher selection AWAY from kids who
+  // are one of the few options for a scarce position (e.g. 1B), so reserving
+  // them at C doesn't strand that position. A kid eligible only for plentiful
+  // spots (deep OF) is the ideal catcher; a kid who's one of the few 1B
+  // options is a poor one. `scarcityDrain` sums 1/supply over the positions a
+  // player can field — higher means "more needed elsewhere."
+  const posSupply = new Map();
+  for (const pos of positionsToFill || []) {
+    if (pos === "C") continue;
+    let n = 0;
+    for (const p of profiled) if (!isPositionBlocked(p, pos)) n++;
+    posSupply.set(pos, n);
+  }
+  const scarcityDrain = (p) => {
+    let drain = 0;
+    for (const [pos, supply] of posSupply) {
+      if (supply > 0 && !isPositionBlocked(p, pos)) drain += 1 / supply;
+    }
+    return drain;
+  };
 
   const N = profiled.length;
   const totalBenchSlots = numToBench * totalInnings;
@@ -1866,6 +1899,13 @@ function precomputeBenchSchedule(opts: any): any {
         const aPrimary = a.p.primaryPosition === "C" ? 0 : 1;
         const bPrimary = b.p.primaryPosition === "C" ? 0 : 1;
         if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+
+        // Prefer catchers who are NOT scarce elsewhere — reserving a kid who's
+        // one of the few options for (say) 1B at C can strand that position.
+        // Only acts on a meaningful gap so it doesn't churn near-equal kids.
+        const da = scarcityDrain(a.p);
+        const db = scarcityDrain(b.p);
+        if (Math.abs(da - db) > 0.15) return da - db;
 
         // Prefer kids with LOW target sit (they need to play more)
         const ta = targetSits.get(a.p.id);
@@ -2240,6 +2280,7 @@ function tryBuildLineup(ctx: any): any {
     catcherInningBlocks,
     catcherCap,
     enforceCatcherCap,
+    positionsToFill,
     rand,
     forcedBenchInning0,
     firstInningOverridesById, // Safe-guards our overrides so we don't bench them
@@ -2249,6 +2290,9 @@ function tryBuildLineup(ctx: any): any {
   const { schedule: benchSchedule, catcherByInning } = sched;
 
   const lineup = [];
+  // Innings (1-based) where the rotation lock was relaxed to avoid stranding
+  // a scarce position. Surfaced so the UI can note it instead of failing.
+  const lockRelaxedInnings = [];
 
   // Mid-game rebuild seed: when `fromInning > 0` and `currentLineup` is
   // provided, replay the already-played innings into our per-player state
@@ -2294,7 +2338,6 @@ function tryBuildLineup(ctx: any): any {
       (positionLock === "3" && inn % 3 !== 0) ||
       (positionLock === "full" && inn > 0);
 
-    const inningSlots = {};
     const benchedSet = new Set();
 
     // Bench assignment: read directly from the precomputed schedule.
@@ -2315,231 +2358,263 @@ function tryBuildLineup(ctx: any): any {
         },
       };
 
-    if (inn === 0) {
-      for (const pos in firstInningOverridesById) {
-        const pid = firstInningOverridesById[pos];
-        const player = profiled.find((p) => p.id === pid);
-        if (!player || !positionsToFill.includes(pos)) continue;
-        if (benchedSet.has(pid))
-          return {
-            ok: false,
-            failure: {
-              type: "first-inning-override-benched",
-              playerName: player.name,
-              position: pos,
-            },
-          };
-        if (isPositionBlocked(player, pos)) continue;
-        // Catcher is opt-in only: never honor a first-inning override that
-        // would seat a non-cleared kid at C.
-        if (pos === "C" && !isCatcherEligible(player)) continue;
-        inningSlots[pos] = player;
+    // Build this inning's defensive alignment. `useLock` controls whether
+    // players are carried over from the previous inning at a rotation-lock
+    // inning. The rotation lock is a PREFERENCE, not a physical constraint:
+    // honoring it can freeze the only eligible kids for a scarce position
+    // (e.g. 1B) into other slots and leave that position unfillable. So if a
+    // locked build strands a position, we retry the inning with the lock
+    // relaxed rather than fail the whole lineup (which would otherwise drop
+    // season fairness entirely). Per-player state (positions/history/bench)
+    // is mutated only AFTER a slot set is committed below, so building twice
+    // here is side-effect free.
+    const buildSlots = (useLock) => {
+      const inningSlots = {};
+      if (inn === 0) {
+        for (const pos in firstInningOverridesById) {
+          const pid = firstInningOverridesById[pos];
+          const player = profiled.find((p) => p.id === pid);
+          if (!player || !positionsToFill.includes(pos)) continue;
+          if (benchedSet.has(pid))
+            return {
+              ok: false,
+              failure: {
+                type: "first-inning-override-benched",
+                playerName: player.name,
+                position: pos,
+              },
+            };
+          if (isPositionBlocked(player, pos)) continue;
+          // Catcher is opt-in only: never honor a first-inning override that
+          // would seat a non-cleared kid at C.
+          if (pos === "C" && !isCatcherEligible(player)) continue;
+          inningSlots[pos] = player;
+        }
       }
-    }
 
-    const used = new Set(Object.values(inningSlots).map((p) => p.id));
-    const remainingPositions = positionsToFill.filter(
-      (pos) => !inningSlots[pos]
-    );
+      const used = new Set(Object.values(inningSlots).map((p) => p.id));
+      const remainingPositions = positionsToFill.filter(
+        (pos) => !inningSlots[pos]
+      );
 
-    // Consecutive-catcher mode: catcher is fixed by the precomputed schedule
-    // (one catcher per contiguous block of innings).
-    if (catcherInningBlocks && !inningSlots["C"]) {
-      const catcherId = catcherByInning.get(inn);
-      if (catcherId) {
-        const catcher = profiled.find((p) => p.id === catcherId);
-        if (
-          catcher &&
-          !benchedSet.has(catcherId) &&
-          !used.has(catcherId) &&
-          isCatcherEligible(catcher)
-        ) {
-          inningSlots["C"] = catcher;
-          used.add(catcherId);
-          const idx = remainingPositions.indexOf("C");
+      // Consecutive-catcher mode: catcher is fixed by the precomputed schedule
+      // (one catcher per contiguous block of innings).
+      if (catcherInningBlocks && !inningSlots["C"]) {
+        const catcherId = catcherByInning.get(inn);
+        if (catcherId) {
+          const catcher = profiled.find((p) => p.id === catcherId);
+          if (
+            catcher &&
+            !benchedSet.has(catcherId) &&
+            !used.has(catcherId) &&
+            isCatcherEligible(catcher)
+          ) {
+            inningSlots["C"] = catcher;
+            used.add(catcherId);
+            const idx = remainingPositions.indexOf("C");
+            if (idx !== -1) remainingPositions.splice(idx, 1);
+          }
+        }
+      }
+
+      // PRIMARY POSITION PRE PIN: kids you marked with a primaryPosition get
+      // their slot before any other assignment runs. Without this, the random
+      // position shuffle could fill RF first and pick a strong 3B primary kid
+      // for RF before 3B is ever scored — the minus 10000 nudge inside
+      // pickBestForPosition only fires when THAT exact position is being
+      // scored, so processing order matters.
+      //
+      // Big Game: pre pin every inning (matches the "primary kid plays
+      // primary all game" behavior in pickBestForPosition). MUST run before
+      // lock inning carry over so a kid bumped off their primary last inning
+      // gets it back, instead of being locked into the wrong spot.
+      //
+      // Fair mode: pre pin disabled entirely. The coach's explicit ask is
+      // that in fair mode, kids rotate through every comfortablePositions
+      // slot they're allowed to play — no privileged primary position. The
+      // -2 tiebreaker inside pickBestForPosition keeps a feather-light
+      // preference for ties, but rotation pressure / jitter / skill match
+      // dominate the cost function.
+      //
+      // Sort by defensive score so when two kids share a primaryPosition,
+      // the better defender wins it; the runner up is unconstrained.
+      if (isBigGame) {
+        const sortedByDef = [...profiled].sort(
+          (a, b) => b.profile.defensiveScore - a.profile.defensiveScore
+        );
+        for (const p of sortedByDef) {
+          const pos = p.primaryPosition;
+          if (!pos) continue;
+          if (!remainingPositions.includes(pos)) continue;
+          if (benchedSet.has(p.id)) continue;
+          if (used.has(p.id)) continue;
+          if (isPositionBlocked(p, pos)) continue;
+          // Mirror pickBestForPosition's per position eligibility checks so we
+          // don't pre pin into an illegal slot.
+          const st = state.get(p.id);
+          if (pos === "C") {
+            if (!isCatcherEligible(p)) continue;
+            if (
+              Number.isFinite(catcherCap) &&
+              (st.positions["C"] || 0) >= catcherCap
+            )
+              continue;
+          }
+          if (pos === "P" && defenseSize === "9") {
+            if (
+              leagueRuleSet === "NKB" &&
+              !checkPitchEligibility(p, targetDateStr, teamAge)
+            )
+              continue;
+            const pCount = st.positions["P"] || 0;
+            const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
+            if (inn > 0 && pCount > 0 && !playedHereLast) continue;
+          }
+          inningSlots[pos] = p;
+          used.add(p.id);
+          const idx = remainingPositions.indexOf(pos);
           if (idx !== -1) remainingPositions.splice(idx, 1);
         }
       }
-    }
 
-    // PRIMARY POSITION PRE PIN: kids you marked with a primaryPosition get
-    // their slot before any other assignment runs. Without this, the random
-    // position shuffle could fill RF first and pick a strong 3B primary kid
-    // for RF before 3B is ever scored — the minus 10000 nudge inside
-    // pickBestForPosition only fires when THAT exact position is being
-    // scored, so processing order matters.
-    //
-    // Big Game: pre pin every inning (matches the "primary kid plays
-    // primary all game" behavior in pickBestForPosition). MUST run before
-    // lock inning carry over so a kid bumped off their primary last inning
-    // gets it back, instead of being locked into the wrong spot.
-    //
-    // Fair mode: pre pin disabled entirely. The coach's explicit ask is
-    // that in fair mode, kids rotate through every comfortablePositions
-    // slot they're allowed to play — no privileged primary position. The
-    // -2 tiebreaker inside pickBestForPosition keeps a feather-light
-    // preference for ties, but rotation pressure / jitter / skill match
-    // dominate the cost function.
-    //
-    // Sort by defensive score so when two kids share a primaryPosition,
-    // the better defender wins it; the runner up is unconstrained.
-    if (isBigGame) {
-      const sortedByDef = [...profiled].sort(
-        (a, b) => b.profile.defensiveScore - a.profile.defensiveScore
-      );
-      for (const p of sortedByDef) {
-        const pos = p.primaryPosition;
-        if (!pos) continue;
-        if (!remainingPositions.includes(pos)) continue;
-        if (benchedSet.has(p.id)) continue;
-        if (used.has(p.id)) continue;
-        if (isPositionBlocked(p, pos)) continue;
-        // Mirror pickBestForPosition's per position eligibility checks so we
-        // don't pre pin into an illegal slot.
-        const st = state.get(p.id);
-        if (pos === "C") {
-          if (!isCatcherEligible(p)) continue;
-          if (
-            Number.isFinite(catcherCap) &&
-            (st.positions["C"] || 0) >= catcherCap
-          )
-            continue;
+      // LOCK INNING: a player who held a position last inning and is still on
+      // the field should keep that position. Fills any slot the primary
+      // pre pin pass above didn't claim  pre pin wins ties so a
+      // primary position kid bumped off their primary last inning gets it
+      // back here, even in lock inning + Big Game mode.
+      if (useLock && inn > 0) {
+        const prevInning = lineup[inn - 1];
+        // Collect (pos, player) pairs from last inning where the player is still
+        // available and the position still needs filling.
+        for (const pos of [...remainingPositions]) {
+          const prevPlayer = prevInning?.[pos];
+          if (!prevPlayer) continue;
+          if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
+          if (used.has(prevPlayer.id)) continue; // already placed
+          if (isPositionBlocked(prevPlayer, pos)) continue;
+          // Never carry a non-cleared kid into the catcher slot.
+          if (pos === "C" && !isCatcherEligible(prevPlayer)) continue;
+          // Pitcher carry over rule for 9 fielder games is handled in pickBest;
+          // for lock innings we trust the prior assignment.
+          inningSlots[pos] = prevPlayer;
+          used.add(prevPlayer.id);
+          const idx = remainingPositions.indexOf(pos);
+          if (idx !== -1) remainingPositions.splice(idx, 1);
         }
-        if (pos === "P" && defenseSize === "9") {
-          if (
-            leagueRuleSet === "NKB" &&
-            !checkPitchEligibility(p, targetDateStr, teamAge)
-          )
-            continue;
-          const pCount = st.positions["P"] || 0;
+      }
+
+      // Instead of pure random shuffle, fill the hardest positions first.
+      // A position is "hard" if very few unassigned, unbenched kids are
+      // eligible to play it. Mirrors EVERY hard filter from
+      // pickBestForPosition so the count reflects reality — otherwise the
+      // engine cheerfully fills the easy positions first and gets stuck
+      // with no candidate for (say) RF at inning 3 because the OF rotation
+      // lock or "can't play same spot back-to-back" rule eliminated every
+      // remaining kid.
+      const posScarcity = remainingPositions.map((pos) => {
+        let count = 0;
+        for (const p of profiled) {
+          if (used.has(p.id) || benchedSet.has(p.id)) continue;
+          if (isPositionBlocked(p, pos)) continue;
+
+          const st = state.get(p.id);
           const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
-          if (inn > 0 && pCount > 0 && !playedHereLast) continue;
+
+          if (pos === "P" && defenseSize === "9") {
+            if (
+              leagueRuleSet === "NKB" &&
+              !checkPitchEligibility(p, targetDateStr, teamAge)
+            )
+              continue;
+            const pCount = st.positions["P"] || 0;
+            if (inn > 0 && pCount > 0 && !playedHereLast) continue;
+          }
+          if (pos === "C") {
+            if (!isCatcherEligible(p)) continue;
+            if (
+              Number.isFinite(catcherCap) &&
+              (st.positions["C"] || 0) >= catcherCap
+            )
+              continue;
+          }
+
+          // Same-position back-to-back AND the OF 2-inning rotation lock
+          // are now soft score penalties inside pickBestForPosition rather
+          // than hard exclusions (see comment there). So they're still
+          // eligible for counting here — just disfavored.
+
+          count++;
         }
-        inningSlots[pos] = p;
-        used.add(p.id);
-        const idx = remainingPositions.indexOf(pos);
-        if (idx !== -1) remainingPositions.splice(idx, 1);
-      }
-    }
-
-    // LOCK INNING: a player who held a position last inning and is still on
-    // the field should keep that position. Fills any slot the primary
-    // pre pin pass above didn't claim  pre pin wins ties so a
-    // primary position kid bumped off their primary last inning gets it
-    // back here, even in lock inning + Big Game mode.
-    if (isLockInning && inn > 0) {
-      const prevInning = lineup[inn - 1];
-      // Collect (pos, player) pairs from last inning where the player is still
-      // available and the position still needs filling.
-      for (const pos of [...remainingPositions]) {
-        const prevPlayer = prevInning?.[pos];
-        if (!prevPlayer) continue;
-        if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
-        if (used.has(prevPlayer.id)) continue; // already placed
-        if (isPositionBlocked(prevPlayer, pos)) continue;
-        // Never carry a non-cleared kid into the catcher slot.
-        if (pos === "C" && !isCatcherEligible(prevPlayer)) continue;
-        // Pitcher carry over rule for 9 fielder games is handled in pickBest;
-        // for lock innings we trust the prior assignment.
-        inningSlots[pos] = prevPlayer;
-        used.add(prevPlayer.id);
-        const idx = remainingPositions.indexOf(pos);
-        if (idx !== -1) remainingPositions.splice(idx, 1);
-      }
-    }
-
-    // Instead of pure random shuffle, fill the hardest positions first.
-    // A position is "hard" if very few unassigned, unbenched kids are
-    // eligible to play it. Mirrors EVERY hard filter from
-    // pickBestForPosition so the count reflects reality — otherwise the
-    // engine cheerfully fills the easy positions first and gets stuck
-    // with no candidate for (say) RF at inning 3 because the OF rotation
-    // lock or "can't play same spot back-to-back" rule eliminated every
-    // remaining kid.
-    const posScarcity = remainingPositions.map((pos) => {
-      let count = 0;
-      for (const p of profiled) {
-        if (used.has(p.id) || benchedSet.has(p.id)) continue;
-        if (isPositionBlocked(p, pos)) continue;
-
-        const st = state.get(p.id);
-        const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
-
-        if (pos === "P" && defenseSize === "9") {
-          if (
-            leagueRuleSet === "NKB" &&
-            !checkPitchEligibility(p, targetDateStr, teamAge)
-          )
-            continue;
-          const pCount = st.positions["P"] || 0;
-          if (inn > 0 && pCount > 0 && !playedHereLast) continue;
-        }
-        if (pos === "C") {
-          if (!isCatcherEligible(p)) continue;
-          if (
-            Number.isFinite(catcherCap) &&
-            (st.positions["C"] || 0) >= catcherCap
-          )
-            continue;
-        }
-
-        // Same-position back-to-back AND the OF 2-inning rotation lock
-        // are now soft score penalties inside pickBestForPosition rather
-        // than hard exclusions (see comment there). So they're still
-        // eligible for counting here — just disfavored.
-
-        count++;
-      }
-      return { pos, count, r: rand() };
-    });
-
-    // Sort by fewest eligible candidates first. Tie-breaker is random.
-    posScarcity.sort((a, b) => {
-      if (a.count !== b.count) return a.count - b.count;
-      return a.r - b.r;
-    });
-
-    remainingPositions.length = 0;
-    for (const item of posScarcity) {
-      remainingPositions.push(item.pos);
-    }
-
-    for (const pos of remainingPositions) {
-      const candidate = pickBestForPosition({
-        pos,
-        inn,
-        profiled,
-        used,
-        benchedSet,
-        state,
-        positionHistory,
-        headGrades,
-        defenseSize,
-        positionLock,
-        leagueRuleSet,
-        teamAge,
-        targetDateStr,
-        leftyPenalty,
-        isLockInning,
-        isBigGame,
-        pitcherPoolIds,
-        catcherCap,
-        rand,
-        premiumPositions: PREMIUM_POSITIONS,
+        return { pos, count, r: rand() };
       });
-      if (!candidate) {
-        return {
-          ok: false,
-          failure: {
-            type: "no-candidate-for-position",
-            position: pos,
-            inning: inn + 1,
-          },
-        };
+
+      // Sort by fewest eligible candidates first. Tie-breaker is random.
+      posScarcity.sort((a, b) => {
+        if (a.count !== b.count) return a.count - b.count;
+        return a.r - b.r;
+      });
+
+      remainingPositions.length = 0;
+      for (const item of posScarcity) {
+        remainingPositions.push(item.pos);
       }
-      inningSlots[pos] = candidate;
-      used.add(candidate.id);
+
+      for (const pos of remainingPositions) {
+        const candidate = pickBestForPosition({
+          pos,
+          inn,
+          profiled,
+          used,
+          benchedSet,
+          state,
+          positionHistory,
+          headGrades,
+          defenseSize,
+          positionLock,
+          leagueRuleSet,
+          teamAge,
+          targetDateStr,
+          leftyPenalty,
+          isLockInning: useLock,
+          isBigGame,
+          pitcherPoolIds,
+          catcherCap,
+          rand,
+          premiumPositions: PREMIUM_POSITIONS,
+        });
+        if (!candidate) {
+          return {
+            ok: false,
+            failure: {
+              type: "no-candidate-for-position",
+              position: pos,
+              inning: inn + 1,
+            },
+          };
+        }
+        inningSlots[pos] = candidate;
+        used.add(candidate.id);
+      }
+      return { ok: true, inningSlots };
+    };
+
+    // Try honoring the rotation lock first; if it strands a position, retry
+    // this inning with the lock relaxed before giving up.
+    let built = buildSlots(isLockInning);
+    if (
+      !built.ok &&
+      isLockInning &&
+      inn > 0 &&
+      built.failure?.type === "no-candidate-for-position"
+    ) {
+      const relaxed = buildSlots(false);
+      if (relaxed.ok) {
+        built = relaxed;
+        lockRelaxedInnings.push(inn + 1);
+      }
     }
+    if (!built.ok) return { ok: false, failure: built.failure };
+    const inningSlots = built.inningSlots;
 
     const benchList = [];
     for (const p of profiled) {
@@ -2669,7 +2744,7 @@ function tryBuildLineup(ctx: any): any {
   // 1500 per unit of spread is meaningful but doesn't override hard constraints.
   penalty += extraSitSpread * 1500;
 
-  return { ok: true, lineup, penalty };
+  return { ok: true, lineup, penalty, lockRelaxedInnings };
 }
 
 // ---------- Position scoring ----------
