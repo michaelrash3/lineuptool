@@ -101,6 +101,55 @@ export function isCatcherEligible(p: {
   );
 }
 
+// Resolved catcher playing-time policy.
+//   cap          max innings any one kid catches (Infinity = no limit)
+//   consecutive  a catcher's innings must form contiguous block(s) — the
+//                engine tiles the game into blocks of `cap` innings and gives
+//                each block a single catcher (back-to-back)
+//   enforceCap   hard-cap a single kid's catching innings during the
+//                pre-pick. Only the explicit settings enforce it; "auto"
+//                keeps the legacy lenient reuse so existing teams see ZERO
+//                behavior change.
+export interface CatcherPolicy {
+  cap: number;
+  consecutive: boolean;
+  enforceCap: boolean;
+}
+
+// Resolve the catcher policy from the two team/game settings.
+//   catcherMaxInnings: "auto" (default) | "1".."6" | "none"
+//   catcherConsecutive: boolean toggle — only consulted for an explicit cap.
+// "auto" reproduces the historical behavior exactly: 10-fielder uses
+// back-to-back catcher pairs (cap 2, lenient reuse when catchers are scarce),
+// every other alignment caps at 3 with a free-rotating catcher.
+export function resolveCatcherPolicy(
+  catcherMaxInnings: string | number | undefined | null,
+  catcherConsecutive: boolean | undefined,
+  defenseSize: string | undefined,
+  profiledLength: number
+): CatcherPolicy {
+  const setting =
+    catcherMaxInnings === undefined ||
+    catcherMaxInnings === null ||
+    catcherMaxInnings === ""
+      ? "auto"
+      : String(catcherMaxInnings);
+
+  if (setting === "auto") {
+    return {
+      cap: defenseSize === "10" ? 2 : 3,
+      consecutive: defenseSize === "10" && profiledLength >= 10,
+      enforceCap: false,
+    };
+  }
+  if (setting === "none") {
+    return { cap: Infinity, consecutive: false, enforceCap: false };
+  }
+  const n = parseInt(setting, 10);
+  const cap = Number.isFinite(n) && n > 0 ? n : 3;
+  return { cap, consecutive: catcherConsecutive !== false, enforceCap: true };
+}
+
 // Age- and format-aware position importance. Used in addition to
 // POS_DIFFICULTY so the scarcity ordering can reflect what actually
 // matters at each level. P is intentionally low at 9U+ because P
@@ -1200,6 +1249,10 @@ export function generateLineup(input: EngineInput): EngineResult {
     // explicitly passed.
     gameType: gameTypeInput,
     pitchingFormat,
+    // Catcher playing-time team settings. Default "auto" preserves the
+    // historical behavior exactly (see resolveCatcherPolicy).
+    catcherMaxInnings,
+    catcherConsecutive,
   } = input;
   const gameType =
     gameTypeInput ||
@@ -1382,6 +1435,35 @@ export function generateLineup(input: EngineInput): EngineResult {
   const numToBench = Math.max(0, activePlayers.length - positionsToFill.length);
   const leftyPenalty = leftyInfieldPenalty(leagueRuleSet, teamAge);
 
+  // Resolve the catcher playing-time policy (team/game settings). When the
+  // coach sets an explicit cap, fail fast with an actionable message if the
+  // roster simply doesn't have enough catcher-eligible kids to cover every
+  // inning under that cap — this is the one "truly impossible" case where
+  // relaxing fairness can't help (catcher supply is independent of fairness).
+  const catcherPolicy = resolveCatcherPolicy(
+    catcherMaxInnings,
+    catcherConsecutive,
+    defenseSize,
+    activePlayers.length
+  );
+  if (catcherPolicy.enforceCap && Number.isFinite(catcherPolicy.cap)) {
+    const eligibleCatchers = activePlayers.filter((p) =>
+      isCatcherEligible(p)
+    ).length;
+    const required = Math.ceil(totalInnings / catcherPolicy.cap);
+    if (eligibleCatchers < required) {
+      return {
+        error: `Need at least ${required} catcher-eligible player${
+          required === 1 ? "" : "s"
+        } for a ${totalInnings}-inning game when each catches at most ${
+          catcherPolicy.cap
+        } inning${catcherPolicy.cap === 1 ? "" : "s"}. ${eligibleCatchers} ${
+          eligibleCatchers === 1 ? "is" : "are"
+        } cleared for catcher — open more players and check “Catcher,” or raise the catcher innings limit in Settings.`,
+      };
+    }
+  }
+
   const baseSeed = (seed ?? Date.now()) >>> 0;
   const MAX_ATTEMPTS = 200;
 
@@ -1411,6 +1493,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         leftyPenalty,
         isBigGame,
         pitcherPoolIds,
+        catcherPolicy,
         rand,
         fromInning,
         currentLineup,
@@ -1520,13 +1603,17 @@ export function generateLineup(input: EngineInput): EngineResult {
      priorExtraSits         Map<playerId, { extraSits: number }>
      firstInningBenchHx     Map<playerId, number>
      topHalfIds             Set<playerId> (top half by defensive score)
-     catcherInningPairs     Array<[inn, inn]> for 10 fielder C continuity, OR
-                               null for 9 fielder (no continuity)
+     catcherInningBlocks    Array<number[]> contiguous inning blocks, one
+                               catcher each (back-to-back continuity), OR
+                               null when the catcher rotates freely
+     catcherCap             max innings any one kid may catch (Infinity = none)
+     enforceCatcherCap      hard-enforce the cap during pre-pick (explicit
+                               settings); false = legacy lenient reuse
      rand                   seeded random function for tiebreakers
      firstInningBenchOverride  Set<playerId> who MUST be benched in inning 0
      firstInningOverridesById  Map of positions locked in inning 0 so we don't bench them
 
-   Returns: { schedule: Map<playerId, Set<inning>>, catcherByPair: Map<pairIdx, playerId> }
+   Returns: { schedule: Map<playerId, Set<inning>>, catcherByInning: Map<inning, playerId> }
    On infeasibility: returns null (caller restarts attempt).
 ---------------------------------------------------------------------------- */
 function precomputeBenchSchedule(opts: any): any {
@@ -1537,7 +1624,9 @@ function precomputeBenchSchedule(opts: any): any {
     priorExtraSits,
     firstInningBenchHx,
     topHalfIds,
-    catcherInningPairs,
+    catcherInningBlocks,
+    catcherCap,
+    enforceCatcherCap,
     rand,
     forcedBenchInning0,
     firstInningOverridesById,
@@ -1549,7 +1638,7 @@ function precomputeBenchSchedule(opts: any): any {
     // No benching to do
     const empty = new Map();
     for (const p of profiled) empty.set(p.id, new Set());
-    return { schedule: empty, catcherByPair: new Map() };
+    return { schedule: empty, catcherByInning: new Map() };
   }
 
   const firstInningMustPlay = new Set();
@@ -1736,27 +1825,29 @@ function precomputeBenchSchedule(opts: any): any {
   }));
 
   // ============================================================
-  // Step 2: pre pick catchers (10 fielder C continuity).
-  // Each catcher pair of (inn, inn+1) needs a single kid who can play
-  // both. They cannot be on bench in those innings. We pick catcher
-  // kids whose target sit count is LOW (so we use up the must play kids
-  // first as catchers).
+  // Step 2: pre pick catchers (consecutive-catcher continuity).
+  // Each contiguous block of innings (e.g. (0,1) for the back-to-back cap
+  // of 2, or (0,1,2) for a cap of 3) needs a single kid who plays all of
+  // them. They cannot be on bench in those innings. We pick catcher kids
+  // whose target sit count is LOW (so we use up the must play kids first as
+  // catchers). When the coach set an explicit cap, `enforceCatcherCap` is
+  // true and no kid may catch more total innings than the cap; under "auto"
+  // it's false, preserving the legacy lenient reuse for short-staffed teams.
   // ============================================================
-  const catcherByPair = new Map();
+  const catcherByInning = new Map();
+  // innings each kid is already committed to catch — drives the hard cap.
+  const catcherInnTotals = new Map();
   const offFieldByInning = new Array(totalInnings)
     .fill(null)
     .map(() => new Set());
 
-  if (catcherInningPairs && catcherInningPairs.length > 0) {
-    // Eligible catchers: not C restricted, AND have enough remaining play
-    // budget to cover both innings of a catcher pair. Coaches who don't
-    // want a particular kid catching use the explicit C restriction —
-    // primary-infield kids are not auto-excluded (real rosters have
-    // catchers whose primary is 2B/SS/3B).
-    const allEligibleC = sortedForExtra
+  if (catcherInningBlocks && catcherInningBlocks.length > 0) {
+    // Eligible catcher pool. Coaches who don't want a particular kid catching
+    // use the explicit C restriction — primary-infield kids are not
+    // auto-excluded (real rosters have catchers whose primary is 2B/SS/3B).
+    const eligiblePool = sortedForExtra
       // Only players cleared for catcher ("C" in comfortablePositions).
       .filter(({ p }) => isCatcherEligible(p))
-      .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher
         // are picked first.
@@ -1774,60 +1865,65 @@ function precomputeBenchSchedule(opts: any): any {
         return a.rand - b.rand;
       });
 
-    const usedCatchers = new Set();
-    for (let i = 0; i < catcherInningPairs.length; i++) {
-      const [a, b] = catcherInningPairs[i];
-      const involvesInning0 = a === 0 || b === 0;
+    for (let bi = 0; bi < catcherInningBlocks.length; bi++) {
+      const block = catcherInningBlocks[bi];
+      const blockSize = block.length;
+      const involvesInning0 = block.includes(0);
 
-      const isAvailableForPair = (p) => {
+      const isAvailable = (p) => {
         if (involvesInning0) {
           const lockedPos = firstInningLockedPos.get(p.id);
-          // If you forced them to play a specific spot that IS NOT catcher in the 1st inning,
-          // they cannot be the catcher for the (0, 1) pair!
+          // If you forced them to play a specific spot that IS NOT catcher in
+          // the 1st inning, they can't be the catcher for a block covering it.
           if (lockedPos && lockedPos !== "C") return false;
+        }
+        // Enough remaining play budget to be on the field every inning of the
+        // block (i.e. not benched so much they can't cover it).
+        if ((targetSits.get(p.id) || 0) > totalInnings - blockSize) {
+          return false;
+        }
+        // Hard cap: never let a single kid catch more than `catcherCap`
+        // innings (only enforced for explicit settings).
+        if (
+          enforceCatcherCap &&
+          Number.isFinite(catcherCap) &&
+          (catcherInnTotals.get(p.id) || 0) + blockSize > catcherCap
+        ) {
+          return false;
         }
         return true;
       };
 
-      // 1. Unused Primary Catcher
-      let candidate = allEligibleC.find(
-        ({ p }) =>
-          p.primaryPosition === "C" &&
-          !usedCatchers.has(p.id) &&
-          isAvailableForPair(p)
-      );
+      const unused = (p) => (catcherInnTotals.get(p.id) || 0) === 0;
 
-      // 2. Unused Secondary Catcher (can catch, but different primary)
-      if (!candidate) {
-        candidate = allEligibleC.find(
-          ({ p }) =>
-            p.primaryPosition !== "C" &&
-            !usedCatchers.has(p.id) &&
-            isAvailableForPair(p)
-        );
-      }
+      // 1. Unused primary catcher, then 2. unused secondary catcher — always
+      // prefer spreading the work across distinct kids first.
+      let candidate =
+        eligiblePool.find(
+          ({ p }) => p.primaryPosition === "C" && unused(p) && isAvailable(p)
+        ) || eligiblePool.find(({ p }) => unused(p) && isAvailable(p));
 
-      // 3. Reuse a Primary Catcher (if we ran out of unique catchers)
-      if (!candidate) {
-        candidate = allEligibleC.find(
-          ({ p }) => p.primaryPosition === "C" && isAvailableForPair(p)
-        );
-      }
-
-      // 4. Reuse whatever eligible catcher we have
-      if (!candidate) {
-        candidate = allEligibleC.find(({ p }) => isAvailableForPair(p));
+      // 3. Reuse — only when the cap isn't being hard-enforced (legacy "auto"
+      // behavior for short-staffed teams). Prefer reusing a primary catcher.
+      if (!candidate && !enforceCatcherCap) {
+        candidate =
+          eligiblePool.find(
+            ({ p }) => p.primaryPosition === "C" && isAvailable(p)
+          ) || eligiblePool.find(({ p }) => isAvailable(p));
       }
 
       if (!candidate) {
-        return null; // Infeasible: no kids can play catcher
+        // Infeasible: not enough catcher-eligible kids (under the cap) to
+        // cover this block. Caller restarts the attempt / surfaces an error.
+        return null;
       }
 
-      catcherByPair.set(i, candidate.p.id);
-      usedCatchers.add(candidate.p.id);
-      // Mark this kid as off the bench list for both innings
-      offFieldByInning[a].add(candidate.p.id);
-      offFieldByInning[b].add(candidate.p.id);
+      const id = candidate.p.id;
+      catcherInnTotals.set(id, (catcherInnTotals.get(id) || 0) + blockSize);
+      for (const inn of block) {
+        catcherByInning.set(inn, id);
+        offFieldByInning[inn].add(id);
+      }
     }
   }
 
@@ -2021,7 +2117,7 @@ function precomputeBenchSchedule(opts: any): any {
     if (count !== numToBench) return null;
   }
 
-  return { schedule, catcherByPair };
+  return { schedule, catcherByInning };
 }
 
 function tryBuildLineup(ctx: any): any {
@@ -2044,10 +2140,20 @@ function tryBuildLineup(ctx: any): any {
     leftyPenalty,
     isBigGame,
     pitcherPoolIds,
+    catcherPolicy,
     rand,
     fromInning = 0,
     currentLineup = null,
   } = ctx;
+
+  // Resolved catcher playing-time policy. Defaulted defensively so any caller
+  // that predates the setting still gets the legacy behavior.
+  const {
+    cap: catcherCap,
+    consecutive: catcherConsecutive,
+    enforceCap: enforceCatcherCap,
+  } = catcherPolicy ||
+    resolveCatcherPolicy(undefined, undefined, defenseSize, profiled.length);
 
   // Hoist age derived constants used by pickBestForPosition out of the
   // per call hot path (they don't change inning to inning).
@@ -2079,18 +2185,27 @@ function tryBuildLineup(ctx: any): any {
     sortedByDefense.slice(0, topHalfCount).map((p) => p.id)
   );
 
-  // For 10 fielder mode we use catcher continuity: catcher in inning K and K+1
-  // is the same kid. For 9 fielder mode there's no such constraint.
-  // Pairs are (0,1), (2,3), (4,5) for a 6 inning game.
-  let catcherInningPairs = null;
-  if (defenseSize === "10" && profiled.length >= 10) {
-    catcherInningPairs = [];
-    for (let i = 0; i < totalInnings - 1; i += 2) {
-      catcherInningPairs.push([i, i + 1]);
-    }
-    // Odd inning game: last inning is solo, catcher just for it
-    if (totalInnings % 2 === 1) {
-      catcherInningPairs.push([totalInnings - 1, totalInnings - 1]);
+  // Catcher continuity ("back-to-back"). When the policy is consecutive we
+  // tile the game into contiguous blocks of `catcherCap` innings and give
+  // each block a single catcher — e.g. cap 2 → (0,1)(2,3)(4,5), cap 3 →
+  // (0,1,2)(3,4,5). The legacy 10-fielder behavior is exactly cap 2. When the
+  // policy is NOT consecutive (legacy 9-fielder, or an explicit cap with the
+  // toggle off) there are no blocks and the catcher is picked fresh each
+  // inning by pickBestForPosition under the per-kid cap.
+  let catcherInningBlocks = null;
+  if (
+    catcherConsecutive &&
+    Number.isFinite(catcherCap) &&
+    catcherCap >= 1
+  ) {
+    catcherInningBlocks = [];
+    const blockSize = Math.max(1, Math.min(catcherCap, totalInnings));
+    for (let i = 0; i < totalInnings; i += blockSize) {
+      const block = [];
+      for (let j = i; j < Math.min(i + blockSize, totalInnings); j++) {
+        block.push(j);
+      }
+      catcherInningBlocks.push(block);
     }
   }
 
@@ -2110,14 +2225,16 @@ function tryBuildLineup(ctx: any): any {
     priorExtraSits: benchHistory,
     firstInningBenchHx,
     topHalfIds,
-    catcherInningPairs,
+    catcherInningBlocks,
+    catcherCap,
+    enforceCatcherCap,
     rand,
     forcedBenchInning0,
     firstInningOverridesById, // Safe-guards our overrides so we don't bench them
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
-  const { schedule: benchSchedule, catcherByPair } = sched;
+  const { schedule: benchSchedule, catcherByInning } = sched;
 
   const lineup = [];
 
@@ -2213,12 +2330,10 @@ function tryBuildLineup(ctx: any): any {
       (pos) => !inningSlots[pos]
     );
 
-    // 10 fielder mode: catcher is fixed by the precomputed schedule
-    // (one catcher per (inn, inn+1) pair, then the next, etc.).
-    if (defenseSize === "10" && !inningSlots["C"]) {
-      // Which pair are we in? Pairs are (0,1), (2,3), (4,5), ...
-      const pairIdx = Math.floor(inn / 2);
-      const catcherId = catcherByPair.get(pairIdx);
+    // Consecutive-catcher mode: catcher is fixed by the precomputed schedule
+    // (one catcher per contiguous block of innings).
+    if (catcherInningBlocks && !inningSlots["C"]) {
+      const catcherId = catcherByInning.get(inn);
       if (catcherId) {
         const catcher = profiled.find((p) => p.id === catcherId);
         if (
@@ -2272,8 +2387,11 @@ function tryBuildLineup(ctx: any): any {
         const st = state.get(p.id);
         if (pos === "C") {
           if (!isCatcherEligible(p)) continue;
-          const cCap = defenseSize === "10" ? 2 : 3;
-          if ((st.positions["C"] || 0) >= cCap) continue;
+          if (
+            Number.isFinite(catcherCap) &&
+            (st.positions["C"] || 0) >= catcherCap
+          )
+            continue;
         }
         if (pos === "P" && defenseSize === "9") {
           if (
@@ -2346,8 +2464,11 @@ function tryBuildLineup(ctx: any): any {
         }
         if (pos === "C") {
           if (!isCatcherEligible(p)) continue;
-          const cCap = defenseSize === "10" ? 2 : 3;
-          if ((st.positions["C"] || 0) >= cCap) continue;
+          if (
+            Number.isFinite(catcherCap) &&
+            (st.positions["C"] || 0) >= catcherCap
+          )
+            continue;
         }
 
         // Same-position back-to-back AND the OF 2-inning rotation lock
@@ -2390,6 +2511,7 @@ function tryBuildLineup(ctx: any): any {
         isLockInning,
         isBigGame,
         pitcherPoolIds,
+        catcherCap,
         rand,
         premiumPositions: PREMIUM_POSITIONS,
       });
@@ -2559,6 +2681,7 @@ function pickBestForPosition(opts: any): any {
     isLockInning,
     isBigGame,
     pitcherPoolIds,
+    catcherCap,
     rand,
     premiumPositions,
   } = opts;
@@ -2631,7 +2754,11 @@ function pickBestForPosition(opts: any): any {
 
     if (pos === "C") {
       if (!isCatcherEligible(p)) continue;
-      const cCap = defenseSize === "10" ? 2 : 3;
+      const cCap = Number.isFinite(catcherCap)
+        ? catcherCap
+        : defenseSize === "10"
+        ? 2
+        : 3;
       if ((st.positions["C"] || 0) >= cCap) continue;
     }
 

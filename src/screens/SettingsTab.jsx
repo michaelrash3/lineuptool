@@ -632,6 +632,8 @@ export const SettingsTab = memo(() => {
     positionLock,
     battingSize,
     defenseSize,
+    catcherMaxInnings,
+    catcherConsecutive,
     primaryColor,
     secondaryColor,
     tertiaryColor,
@@ -915,6 +917,62 @@ export const SettingsTab = memo(() => {
                       Unlocked for Recreational Rules
                     </p>
                   )}
+                </div>
+                <div className="grid grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Catcher Innings
+                    </label>
+                    <select
+                      value={catcherMaxInnings || "auto"}
+                      onChange={(e) =>
+                        updateTeam({ catcherMaxInnings: e.target.value })
+                      }
+                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                    >
+                      <option value="auto">Auto (by defense)</option>
+                      <option value="1">Max 1</option>
+                      <option value="2">Max 2</option>
+                      <option value="3">Max 3</option>
+                      <option value="4">Max 4</option>
+                      <option value="none">No limit</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Back-to-back
+                    </label>
+                    {(() => {
+                      const capIsExplicit =
+                        catcherMaxInnings &&
+                        catcherMaxInnings !== "auto" &&
+                        catcherMaxInnings !== "none";
+                      const consecutiveOn = catcherConsecutive !== false;
+                      return (
+                        <button
+                          type="button"
+                          disabled={!capIsExplicit}
+                          onClick={() =>
+                            updateTeam({ catcherConsecutive: !consecutiveOn })
+                          }
+                          className={`w-full p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
+                            capIsExplicit && consecutiveOn
+                              ? "bg-[var(--team-primary)] text-white"
+                              : "bg-surface text-ink-3 hover:bg-surface-2"
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {capIsExplicit && consecutiveOn ? "On" : "Off"}
+                        </button>
+                      );
+                    })()}
+                    <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
+                      {catcherMaxInnings &&
+                      catcherMaxInnings !== "auto" &&
+                      catcherMaxInnings !== "none"
+                        ? "Catcher's innings stay consecutive"
+                        : "Set a catcher limit to enable"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
