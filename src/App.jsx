@@ -2049,11 +2049,15 @@ const TeamProvider = ({ children }) => {
     (grades) => {
       if (!user) return;
       const today = getLocalDateString();
+      // Label the round with the active due date when one is open, matching
+      // saveTeamEvaluation. The upsert key uses the same date so a second
+      // submission inside the window updates the round instead of duplicating.
+      const roundDate = evalRoundDateFor(teamData, user.uid, "Assistant", today);
       const existing = (teamData.evaluationEvents || []).find(
         (e) =>
           e.coachRole === "Assistant" &&
           e.evaluatorId === user.uid &&
-          e.date === today
+          e.date === roundDate
       );
       let nextEvents;
       if (existing) {
@@ -2063,7 +2067,7 @@ const TeamProvider = ({ children }) => {
       } else {
         const newEvent = {
           id: "ev-" + Math.random().toString(36).substring(2, 10),
-          date: today,
+          date: roundDate,
           coachRole: "Assistant",
           evaluatorId: user.uid,
           label: `Assistant Eval · ${today}`,
