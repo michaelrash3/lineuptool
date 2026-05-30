@@ -1293,7 +1293,7 @@ export const SettingsTab = memo(() => {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <label
                     htmlFor="settings-import-schedule-csv"
-                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md"
+                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
                   >
                     <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-blue-500 mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
@@ -1311,7 +1311,7 @@ export const SettingsTab = memo(() => {
                   </label>
                   <label
                     htmlFor="settings-import-roster-csv"
-                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md"
+                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
                   >
                     <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-blue-500 mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
@@ -1329,7 +1329,7 @@ export const SettingsTab = memo(() => {
                   </label>
                   <label
                     htmlFor="settings-import-past-season-csv"
-                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-slate-400 transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
+                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
                   >
                     <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-amber-500 mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
