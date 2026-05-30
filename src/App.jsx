@@ -72,6 +72,7 @@ import {
   scrubUndefined,
   blankStats,
   emailPromptStatus,
+  evalRoundDateFor,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
@@ -2018,13 +2019,16 @@ const TeamProvider = ({ children }) => {
       return selectedRoundId;
     }
 
-    // Creating a new round
+    // Creating a new round — label it with the active due date when a cadence
+    // window is open (falling back to today off-cadence) so the round lines up
+    // with the reminder's "already done" window and the banner clears cleanly.
     const today = getLocalDateString();
+    const roundDate = evalRoundDateFor(teamData, user.uid, "Head", today);
     const roundNumber = myEvents.length + 1;
-    const label = newRoundLabel || `Eval ${roundNumber} (${today})`;
+    const label = newRoundLabel || `Eval ${roundNumber} (${roundDate})`;
     const newEvent = {
       id: "ev-" + Math.random().toString(36).substring(2, 10),
-      date: today,
+      date: roundDate,
       coachRole: "Head",
       evaluatorId: user.uid,
       label,
@@ -2040,7 +2044,7 @@ const TeamProvider = ({ children }) => {
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
-  }, [user, teamData.evaluationEvents, updateTeam, toast]);
+  }, [user, teamData, updateTeam, toast]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
   // upsert behavior — if this assistant already has a round on today's date
@@ -2081,7 +2085,7 @@ const TeamProvider = ({ children }) => {
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, updateTeam, toast]
+    [user, teamData, updateTeam, toast]
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach

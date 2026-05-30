@@ -2,6 +2,7 @@ import {
   normalizeDateToIso,
   parseCsvRecords,
   parseGameChangerPastSeasonCsv,
+  evalRoundDateFor,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -42,5 +43,68 @@ describe("date helpers", () => {
 
   it("rejects invalid calendar dates", () => {
     expect(normalizeDateToIso("2/30/26")).toBe("");
+  });
+});
+
+describe("evalRoundDateFor", () => {
+  it("stamps a biweekly round with its due date (filed after it came due)", () => {
+    const team = {
+      currentSeason: "Spring 2026",
+      evaluationEvents: [
+        { coachRole: "Head", evaluatorId: "u1", date: "2026-03-08" },
+      ],
+    };
+    // 17 days after the last round — biweekly window is open, due 2026-03-22.
+    const now = new Date("2026-03-25T12:00:00Z");
+    expect(evalRoundDateFor(team, "u1", "Head", "2026-03-25", now)).toBe(
+      "2026-03-22"
+    );
+  });
+
+  it("stamps a preseason round with the season start (filed before it)", () => {
+    const team = { currentSeason: "Spring 2026", evaluationEvents: [] };
+    // Filed Feb 15, before the Mar 1 season start — still the preseason round.
+    const now = new Date("2026-02-15T12:00:00Z");
+    expect(evalRoundDateFor(team, "u1", "Head", "2026-02-15", now)).toBe(
+      "2026-03-01"
+    );
+  });
+
+  it("falls back to today off-cadence (no open window)", () => {
+    const team = {
+      currentSeason: "Spring 2026",
+      evaluationEvents: [
+        { coachRole: "Head", evaluatorId: "u1", date: "2026-03-08" },
+      ],
+    };
+    // Only 4 days since the last round — no window open yet.
+    const now = new Date("2026-03-12T12:00:00Z");
+    expect(evalRoundDateFor(team, "u1", "Head", "2026-03-12", now)).toBe(
+      "2026-03-12"
+    );
+  });
+
+  it("falls back to today when the season can't be parsed (off-season)", () => {
+    const team = { currentSeason: undefined, evaluationEvents: [] };
+    const now = new Date("2026-07-04T12:00:00Z");
+    expect(evalRoundDateFor(team, "u1", "Head", "2026-07-04", now)).toBe(
+      "2026-07-04"
+    );
+  });
+
+  it("falls back to today when team or user is missing", () => {
+    const now = new Date("2026-07-04T12:00:00Z");
+    expect(evalRoundDateFor(null, "u1", "Head", "2026-07-04", now)).toBe(
+      "2026-07-04"
+    );
+    expect(
+      evalRoundDateFor(
+        { currentSeason: "Spring 2026", evaluationEvents: [] },
+        null,
+        "Head",
+        "2026-07-04",
+        now
+      )
+    ).toBe("2026-07-04");
   });
 });

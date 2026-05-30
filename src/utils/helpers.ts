@@ -637,6 +637,37 @@ export const evalPromptStatus = (
   };
 };
 
+// Pick the date to stamp a freshly-filed eval round with. When the coach is
+// inside an active cadence window the round is labeled with the due date it
+// satisfies — the season start for a preseason round, or last-submission + 14
+// days for a biweekly one — instead of the literal day it was filled out. That
+// lines the round up with the reminder's "already done" window so the banner
+// clears cleanly. Off-cadence (no open window, unparseable season, or missing
+// team/user) we fall back to `today`. Pure and injectable for testing.
+export const evalRoundDateFor = (
+  team: { currentSeason?: string; evaluationEvents?: any[] } | null | undefined,
+  userUid: string | null | undefined,
+  coachRole: "Head" | "Assistant",
+  today: string,
+  now: Date = new Date()
+): string => {
+  const status = evalPromptStatus(team, userUid, coachRole, now);
+  if (!status.active) return today;
+  if (status.kind === "preseason") {
+    const start = seasonStartDate(team?.currentSeason);
+    if (!start) return today;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+  }
+  // biweekly — the round became due 14 days after the last submission.
+  if (status.lastSubmittedDate) {
+    const dueMs =
+      new Date(status.lastSubmittedDate).getTime() + BIWEEKLY_DAYS * MS_PER_DAY;
+    return new Date(dueMs).toISOString().slice(0, 10);
+  }
+  return today;
+};
+
 // Cool-off between automated reminder batches. The cadence prompt
 // (preseason / biweekly) can stay active for days as coaches catch up;
 // without this guard the email fires every time the HC opens the app.
