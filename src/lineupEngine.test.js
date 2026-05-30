@@ -325,6 +325,30 @@ const catcherInningMap = (lineup) => {
 const isContiguous = (sorted) =>
   sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
 
+describe("lineup failure diagnostics", () => {
+  test("hard failure surfaces the specific blocking position + inning", () => {
+    // Every present player is restricted from RF, so no inning can be filled.
+    // Both fairness passes fail → a specific, actionable error (not generic).
+    const players = makeRoster(11).map((p) =>
+      makePlayer(p.id, p.name, {
+        comfortablePositions: ALL_POSITIONS.filter((x) => x !== "RF"),
+        restrictions: ["RF"],
+      })
+    );
+    const result = buildLineup({ players, defenseSize: "9" });
+    expect(result.lineup).toBeUndefined();
+    expect(result.error).toMatch(/no eligible player for RF/i);
+    expect(result.error).toMatch(/restricted from RF/i);
+  });
+
+  test("a clean build carries no fairness-relaxed diagnostic", () => {
+    const result = buildLineup({ players: makeRoster(12), defenseSize: "9" });
+    expect(result.error).toBeUndefined();
+    expect(result.fairnessRelaxed).toBeFalsy();
+    expect(result.fairnessRelaxedReason).toBeUndefined();
+  });
+});
+
 describe("resolveCatcherPolicy", () => {
   test("auto preserves legacy defense-size behavior", () => {
     // 10-fielder with a full roster → back-to-back pairs (cap 2), lenient.
@@ -1845,3 +1869,4 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
     }
   });
 });
+
