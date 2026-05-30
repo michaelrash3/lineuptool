@@ -195,6 +195,65 @@ describe("evalPromptStatus calendar cadence", () => {
     expect(status.active).toBe(false);
   });
 
+  it("clears once an eval is filed early, before the due date passes", () => {
+    // Mar 15 due date; coach files on Mar 12 (3 days early, still inside the
+    // active window). The prompt must go quiet for the rest of the window
+    // instead of nagging until Mar 15 arrives.
+    const submittedTeam = {
+      currentSeason: "Spring 2026",
+      evaluationEvents: [
+        {
+          coachRole: "Head",
+          evaluatorId: uid,
+          date: "2026-03-12",
+        },
+      ],
+    };
+    // Two days before the due date, having already submitted.
+    const before = evalPromptStatus(
+      submittedTeam,
+      uid,
+      "Head",
+      new Date(2026, 2, 13)
+    );
+    expect(before.active).toBe(false);
+    // And the day after the due date — still cleared, not re-nagging.
+    const after = evalPromptStatus(
+      submittedTeam,
+      uid,
+      "Head",
+      new Date(2026, 2, 16)
+    );
+    expect(after.active).toBe(false);
+  });
+
+  it("surfaces the active due date so the banner can show it", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 2, 12));
+    expect(status.active).toBe(true);
+    expect(status.nextDueDate).toBe("2026-03-15");
+  });
+
+  it("does not let an early eval suppress the next cadence window", () => {
+    // Filing for the Mar 15 round must not clear the following biweekly
+    // Sunday's prompt (adjacent windows stay independent).
+    const submittedTeam = {
+      currentSeason: "Spring 2026",
+      evaluationEvents: [
+        { coachRole: "Head", evaluatorId: uid, date: "2026-03-12" },
+      ],
+    };
+    // Mar 22, 2026 is the next biweekly Sunday after Mar 15 (Mar 15 itself is
+    // a Sunday, so the cadence steps a week, then biweekly thereafter).
+    const status = evalPromptStatus(
+      submittedTeam,
+      uid,
+      "Head",
+      new Date(2026, 2, 22)
+    );
+    expect(status.active).toBe(true);
+    expect(status.nextDueDate).toBe("2026-03-22");
+  });
+
   it("rolls the next due date into next year at year end", () => {
     // Late December: all of this year's windows are past, so the next due
     // date must come from next year's Feb 1 preseason anchor.
