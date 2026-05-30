@@ -865,6 +865,82 @@ export const evalPromptStatus = (
   };
 };
 
+// Snap a freshly-filed eval to the calendar round it satisfies. The cadence is
+// fixed by date (see evalDueDatesForYear), so a saved round should carry the
+// due date it lands nearest to — not the literal day it was keyed in. We scan
+// last year's, this year's, and next year's due dates and pick the one closest
+// in absolute calendar distance (ties favor the earlier date). The schedule is
+// never empty, so the `now` fallback is purely defensive. Pure / injectable.
+export const evalRoundDateForSave = (now: Date = new Date()): string => {
+  const candidates = [
+    ...evalDueDatesForYear(now.getFullYear() - 1),
+    ...evalDueDatesForYear(now.getFullYear()),
+    ...evalDueDatesForYear(now.getFullYear() + 1),
+  ];
+  let best: Date | null = null;
+  let bestDist = Infinity;
+  for (const due of candidates) {
+    const dist = Math.abs(due.getTime() - now.getTime());
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = due;
+    }
+  }
+  return best ? dateToIsoLocal(best) : dateToIsoLocal(now);
+};
+
+// One-time migration: re-stamp every existing roster eval round onto the
+// calendar due date it falls nearest to, matching how new saves are now dated
+// (see evalRoundDateForSave). Tryout grades (those carrying `tryoutSignupId`)
+// are NOT cadence rounds and pass through untouched. When two of the same
+// coach's rounds collapse onto one due date, the round with the most recent
+// original date wins (its grades are freshest) and the older is dropped, which
+// keeps the per-(role, coach, date) upsert key unique. Idempotent: a round
+// already on its due date snaps to itself. Pure.
+export const restampEvalDueDates = <
+  T extends {
+    date?: string;
+    coachRole?: string;
+    evaluatorId?: string;
+    tryoutSignupId?: string;
+  }
+>(
+  events: T[] | null | undefined
+): T[] => {
+  if (!Array.isArray(events)) return [];
+  // Resolve collisions by original recency: decide winners newest-first,
+  // breaking ties by original position for determinism.
+  const ranked = events
+    .map((e, i) => ({
+      e,
+      i,
+      t: e?.date ? isoToLocalDate(e.date).getTime() : 0,
+    }))
+    .sort((a, b) => b.t - a.t || a.i - b.i);
+  const newDateByIndex = new Map<number, string>();
+  const dropped = new Set<number>();
+  const seen = new Set<string>();
+  for (const { e, i } of ranked) {
+    // Leave tryout grades and dateless/blank events exactly as they are.
+    if (!e?.date || e.tryoutSignupId) continue;
+    const snapped = evalRoundDateForSave(isoToLocalDate(e.date));
+    const key = `${e.coachRole ?? ""}|${e.evaluatorId ?? ""}|${snapped}`;
+    if (seen.has(key)) {
+      dropped.add(i); // older duplicate for this round — drop it
+      continue;
+    }
+    seen.add(key);
+    newDateByIndex.set(i, snapped);
+  }
+  return events
+    .map((e, i) => {
+      if (dropped.has(i)) return null;
+      const nd = newDateByIndex.get(i);
+      return nd && nd !== e.date ? { ...e, date: nd } : e;
+    })
+    .filter((e): e is T => e !== null);
+};
+
 // Cool-off between automated reminder batches. The cadence prompt
 // (preseason / biweekly) can stay active for days as coaches catch up;
 // without this guard the email fires every time the HC opens the app.

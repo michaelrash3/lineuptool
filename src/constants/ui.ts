@@ -79,7 +79,11 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
 // migration undoes the v4 pollution that had put "C" in every roster's
 // comfortable list, re-deriving real catchers from the legacy
 // primaryPosition / explicit isCatcher choice.
-export const EVAL_SCHEMA_VERSION = 5;
+// v6 (2026-05) — eval rounds are dated by the calendar due date they satisfy
+// (see evalRoundDateForSave) instead of the literal save day. The v6 migration
+// re-stamps existing roster rounds onto their nearest due date and drops the
+// older of any two rounds that collapse onto the same date.
+export const EVAL_SCHEMA_VERSION = 6;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [
