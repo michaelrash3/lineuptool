@@ -1276,34 +1276,49 @@ export const ScheduleTab = memo(() => {
                 const isToday = game.date === todayStr;
                 const canStartInGame =
                   isToday && !isPostponed && !isFinal && game.lineup;
+                const [gy, gm, gd] = (game.date || "").split("-");
+                const moDate = gy
+                  ? new Date(Number(gy), Number(gm) - 1, Number(gd))
+                  : null;
+                const mo = moDate
+                  ? moDate
+                      .toLocaleDateString(undefined, { month: "short" })
+                      .toUpperCase()
+                  : "";
+                const dnum = gd ? String(Number(gd)) : "";
 
                 return (
                   <div
                     key={game.id}
-                    className={`glass-card bg-surface hover:bg-surface transition-all ${
+                    className={`glass-card relative bg-surface transition-all ${
                       isPostponed ? "opacity-60" : ""
                     }`}
                   >
+                    {/* Left accent edge highlights today's game. */}
                     <div
-                      className="h-1.5"
+                      className="absolute inset-y-0 left-0 w-1.5"
                       style={{
                         backgroundColor: isToday
                           ? "var(--team-primary)"
                           : "transparent",
                       }}
                     />
-                    <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="p-5 pl-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                       <div className="flex items-start gap-4 sm:gap-5 min-w-0">
-                        <div
-                          className="hidden sm:grid place-items-center shrink-0 w-14 h-14 rounded-2xl shadow-inner"
-                          style={{
-                            backgroundColor: "var(--team-primary-15)",
-                          }}
-                        >
-                          <Icons.Calendar
-                            className="w-7 h-7"
-                            style={{ color: "var(--team-primary)" }}
-                          />
+                        {/* Scoreboard-style date block */}
+                        <div className="shrink-0 w-14 text-center rounded-xl border border-line overflow-hidden shadow-sm">
+                          <div
+                            className="text-[9px] font-black uppercase tracking-widest py-1"
+                            style={{
+                              backgroundColor: "var(--team-primary)",
+                              color: "var(--team-tertiary)",
+                            }}
+                          >
+                            {mo}
+                          </div>
+                          <div className="text-2xl font-black tabular-nums text-ink py-1 bg-surface">
+                            {dnum}
+                          </div>
                         </div>
                         <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-1.5">
