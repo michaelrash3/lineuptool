@@ -1514,28 +1514,15 @@ export function generateLineup(input: EngineInput): EngineResult {
     return { failures: failureReasons };
   };
 
-  // First pass: try with the user's chosen fairness settings
-  let attempt = runAttempts(firstInningBenchHx, benchHistory);
-  if (attempt.lineup) {
-    // success
-  }
-
-  // Second pass: if the user wanted fairness ON but the engine couldn't satisfy
-  // all the constraints, internally fall back to relaxed fairness rather than
-  // failing. The kid imbalance can be made up over future games  this game
-  // just needs a working lineup. We surface this as a soft note in the result.
-  let fairnessRelaxed = false;
-  if (!attempt.lineup && !effectiveRelax) {
-    fairnessRelaxed = true;
-    attempt = runAttempts(new Map(), new Map());
-  }
-
-  if (!attempt.lineup) {
-    // Build a specific, actionable error from the captured failures.
-    // Pick the most common failure type  that's likely the real blocker.
-    const failures = attempt.failures || [];
+  // Turn the per-attempt failures accumulated by runAttempts into one
+  // human-readable blocker. Picks the most common failure (type + position +
+  // inning) — that's the likeliest real cause. Returns both a coach-facing
+  // message and the raw dominant type so callers can branch / log on it.
+  const describeFailures = (
+    failures: any[]
+  ): { msg: string; type: string | null; position?: string; inning?: number } => {
     const counts = new Map();
-    for (const f of failures) {
+    for (const f of failures || []) {
       const key = JSON.stringify({
         type: f.type,
         position: f.position,
@@ -1552,38 +1539,63 @@ export function generateLineup(input: EngineInput): EngineResult {
         topKey = k;
       }
     }
-    let errorMsg = "Couldn't build a lineup.";
-    if (topKey) {
-      const top = JSON.parse(topKey);
-      if (top.type === "no-candidate-for-position") {
-        // Find which kids COULD play this position but were unavailable
-        const candidates = activePlayers.filter(
-          (p) => !isPositionBlocked(p, top.position)
-        );
-        const restrictedCount = activePlayers.length - candidates.length;
-        errorMsg = `No eligible player for ${top.position} in inning ${top.inning}.`;
-        if (restrictedCount > 0) {
-          errorMsg += ` ${restrictedCount} present player${
-            restrictedCount === 1 ? " is" : "s are"
-          } restricted from ${top.position}.`;
-        }
-        errorMsg +=
-          " Check player restrictions or first inning setup for this position.";
-      } else if (top.type === "first-inning-override-benched") {
-        errorMsg = `${top.playerName} is set to play ${top.position} in inning 1 but the bench schedule has them benched. Adjust first inning setup.`;
-      } else if (top.type === "bench-schedule-impossible") {
-        errorMsg =
-          "Bench schedule couldn't satisfy attendance + catcher continuity rules. Check who's marked present.";
-      } else if (top.type === "bench-schedule-mismatch") {
-        errorMsg = `Bench math doesn't add up in inning ${top.inning}. This usually means too many position locks or first inning overrides.`;
+    if (!topKey) return { msg: "Couldn't build a lineup.", type: null };
+    const top = JSON.parse(topKey);
+    let msg = "Couldn't build a lineup.";
+    if (top.type === "no-candidate-for-position") {
+      const candidates = activePlayers.filter(
+        (p) => !isPositionBlocked(p, top.position)
+      );
+      const restrictedCount = activePlayers.length - candidates.length;
+      msg = `No eligible player for ${top.position} in inning ${top.inning}.`;
+      if (restrictedCount > 0) {
+        msg += ` ${restrictedCount} present player${
+          restrictedCount === 1 ? " is" : "s are"
+        } restricted from ${top.position}.`;
       }
+      msg +=
+        " Check player restrictions or first inning setup for this position.";
+    } else if (top.type === "first-inning-override-benched") {
+      msg = `${top.playerName} is set to play ${top.position} in inning 1 but the bench schedule has them benched. Adjust first inning setup.`;
+    } else if (top.type === "bench-schedule-impossible") {
+      msg =
+        "Bench schedule couldn't satisfy attendance + catcher continuity rules. Check who's marked present.";
+    } else if (top.type === "bench-schedule-mismatch") {
+      msg = `Bench math doesn't add up in inning ${top.inning}. This usually means too many position locks or first inning overrides.`;
     }
-    return { error: errorMsg };
+    return { msg, type: top.type, position: top.position, inning: top.inning };
+  };
+
+  // First pass: try with the user's chosen fairness settings.
+  let attempt = runAttempts(firstInningBenchHx, benchHistory);
+
+  // Second pass: if the user wanted fairness ON but the engine couldn't satisfy
+  // all the constraints, internally fall back to relaxed fairness rather than
+  // failing. The kid imbalance can be made up over future games  this game
+  // just needs a working lineup. We capture WHY the strict pass failed so the
+  // UI can show the real blocker instead of a generic note.
+  let fairnessRelaxed = false;
+  let fairnessRelaxedReason: string | undefined;
+  let fairnessRelaxedType: string | null | undefined;
+  if (!attempt.lineup && !effectiveRelax) {
+    fairnessRelaxed = true;
+    const strict = describeFailures(attempt.failures || []);
+    fairnessRelaxedReason = strict.msg;
+    fairnessRelaxedType = strict.type;
+    attempt = runAttempts(new Map(), new Map());
+  }
+
+  if (!attempt.lineup) {
+    return { error: describeFailures(attempt.failures || []).msg };
   }
   return {
     lineup: attempt.lineup,
     battingLineup,
     fairnessRelaxed,
+    // Why strict season-fairness couldn't be scheduled (only set when the
+    // engine fell back to one-game balance). Surfaced in the UI toast.
+    fairnessRelaxedReason,
+    fairnessRelaxedType,
     qualityPenalty: attempt.penalty,
   };
 }

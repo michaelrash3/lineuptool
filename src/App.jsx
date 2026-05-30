@@ -1308,9 +1308,23 @@ const TeamProvider = ({ children }) => {
       // Engine may have internally relaxed fairness when strict failed.
       // Treat that as a soft note, not an error.
       const internallyRelaxed = result.fairnessRelaxed === true;
+      if (internallyRelaxed) {
+        // Structured detail for diagnosis — surfaces the dominant strict-pass
+        // failure (type/position/inning) alongside the coach-facing message.
+        console.warn("[lineup] strict fairness relaxed:", {
+          type: result.fairnessRelaxedType,
+          reason: result.fairnessRelaxedReason,
+        });
+      }
       const showAsRelaxed = relaxFairness || internallyRelaxed;
+      // When the engine fell back, show the ACTUAL blocker that defeated
+      // strict fairness (e.g. "Bench schedule couldn't satisfy…") so the
+      // cause can be locked down, not just a generic note.
+      const relaxedBlocker =
+        result.fairnessRelaxedReason ||
+        "the bench distribution couldn't be scheduled";
       const successMessage = internallyRelaxed
-        ? "Couldn't satisfy strict fairness — built without past games. Catch up over future games."
+        ? `Strict fairness blocked — ${relaxedBlocker} Built one-game balanced instead; catch up over future games.`
         : relaxFairness
         ? "Built without considering past games. Some kids may bench more than others this season."
         : hasPrev

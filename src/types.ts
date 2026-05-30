@@ -296,6 +296,13 @@ export interface EngineResult {
   battingLineup?: SlimPlayer[];
   error?: string;
   details?: string[];
+  // True when the engine couldn't schedule strict season-fairness and fell
+  // back to one-game balance. `fairnessRelaxedReason` is the human-readable
+  // blocker that defeated the strict pass; `fairnessRelaxedType` is the raw
+  // dominant failure type (e.g. "bench-schedule-impossible") for logging.
+  fairnessRelaxed?: boolean;
+  fairnessRelaxedReason?: string;
+  fairnessRelaxedType?: string | null;
   [key: string]: unknown;
 }
 
