@@ -11,6 +11,8 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
+import { Button, Eyebrow } from "../components/shared.jsx";
+import { Icons } from "../icons";
 
 const getTryoutAgeLabel = (teamAge) => {
   const n = Number.parseInt(String(teamAge || "").replace(/[^0-9]/g, ""), 10);
@@ -53,13 +55,87 @@ const hasDuplicateSignup = (signups, form) => {
   });
 };
 
+// Shared focus-ring + radius recipe applied to every input/select/textarea
+// in this surface. Pulls the ring color from the team's primary so the form
+// feels branded instead of using a generic Tailwind blue ring.
+const INPUT_BASE =
+  "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
+const RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
+
+const PortalShell = ({ children, accent = true }) => (
+  <div className="min-h-screen bg-app relative overflow-hidden">
+    {accent && (
+      <div
+        className="h-2 w-full"
+        style={{ backgroundColor: "var(--team-primary)" }}
+      />
+    )}
+    <div className="max-w-2xl mx-auto p-5 sm:p-8 relative z-10">{children}</div>
+  </div>
+);
+
+const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }) => {
+  const toneStyle =
+    tone === "error"
+      ? "border-rose-200"
+      : tone === "success"
+      ? ""
+      : "border-line";
+  const accent = tone === "success" ? { borderColor: "var(--team-primary)" } : undefined;
+  return (
+    <div
+      className={`bg-surface rounded-2xl p-7 max-w-md mx-auto text-center shadow-card border-2 ${toneStyle}`}
+      style={accent}
+    >
+      {Icon && (
+        <div
+          className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
+          style={{
+            backgroundColor:
+              tone === "error" ? "#fef2f2" : "var(--team-primary-15)",
+          }}
+        >
+          <Icon
+            className="w-6 h-6"
+            style={{
+              color: tone === "error" ? "#b91c1c" : "var(--team-primary)",
+            }}
+          />
+        </div>
+      )}
+      {title && (
+        <h1
+          className="t-card-title mb-3"
+          style={tone === "success" ? { color: "var(--team-primary)" } : undefined}
+        >
+          {title}
+        </h1>
+      )}
+      <div className="t-body leading-relaxed">{children}</div>
+    </div>
+  );
+};
+
 export const TryoutsPortal = () => {
   const { slug } = useParams();
   const linkSlug = (slug || "").trim();
   const [phase, setPhase] = useState("loading");
+  // "interest" → standing share link → year-round interest survey.
+  // "tryout"   → per-date slug → tryout signup with date pinned.
+  const [mode, setMode] = useState(null);
+  // Pinned tryout date (only meaningful in tryout mode). Parents no
+  // longer pick a date — the slug determines it. Removes the long-
+  // standing bug where the date dropdown surfaced stale dates left
+  // over on the team after the HC removed them.
+  const [pinnedDate, setPinnedDate] = useState("");
   const [team, setTeam] = useState(null);
   const [teamDocId, setTeamDocId] = useState(null);
   const [error, setError] = useState(null);
+  // Guards the submit button — parents on flaky wifi could otherwise
+  // double-tap and the duplicate-signup check would still let one slip
+  // through (the second write fires before the first one's arrayUnion
+  // has rehydrated team.tryoutSignups locally).
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -72,7 +148,6 @@ export const TryoutsPortal = () => {
     parentName: "",
     email: "",
     phone: "",
-    tryoutDate: "",
     notes: "",
   });
 
@@ -84,45 +159,63 @@ export const TryoutsPortal = () => {
 
   useEffect(() => {
     let cancelled = false;
+    const applyThemeColors = (data) => {
+      const root = document.documentElement;
+      if (data.primaryColor) root.style.setProperty("--team-primary", data.primaryColor);
+      if (data.secondaryColor) root.style.setProperty("--team-secondary", data.secondaryColor);
+      if (data.tertiaryColor) root.style.setProperty("--team-tertiary", data.tertiaryColor);
+    };
     const init = async () => {
       try {
         await signInAnonymously(auth);
       } catch {}
       try {
         const teamsRef = collection(db, "artifacts", appId, "public", "data", "teams");
+        // Standing share link → interest survey (always valid).
+        // Per-date link → tryout signup (gated on tryoutsOpen).
         const [shareSnap, dateSnap] = await Promise.all([
-          getDocs(query(teamsRef, where("tryoutsOpen", "==", true), where("tryoutShareId", "==", linkSlug))),
-          getDocs(query(teamsRef, where("tryoutsOpen", "==", true), where("tryoutDateSlug", "==", linkSlug))),
+          getDocs(query(teamsRef, where("tryoutShareId", "==", linkSlug))),
+          getDocs(query(teamsRef, where("tryoutDateSlug", "==", linkSlug))),
         ]);
         if (cancelled) return;
-        const hit = !shareSnap.empty ? shareSnap : dateSnap;
-        if (hit.empty) {
-          setError("Tryouts link not found or has been deactivated.");
-          setPhase("error");
+
+        if (!shareSnap.empty) {
+          const teamDoc = shareSnap.docs[0];
+          const data = teamDoc.data();
+          setTeam(data);
+          setTeamDocId(teamDoc.id);
+          applyThemeColors(data);
+          setMode("interest");
+          setPhase("form");
           return;
         }
-        const teamDoc = hit.docs[0];
-        const data = teamDoc.data();
-        if (data.tryoutsOpen === false) {
-          setError("Tryouts are closed for this team.");
-          setPhase("error");
+
+        if (!dateSnap.empty) {
+          const teamDoc = dateSnap.docs[0];
+          const data = teamDoc.data();
+          if (data.tryoutsOpen === false) {
+            setError("Tryouts are closed for this team.");
+            setPhase("error");
+            return;
+          }
+          // Date is pinned to the slug's matched date — no chooser.
+          const configuredDates = Array.isArray(data.tryoutDates)
+            ? data.tryoutDates.filter(Boolean)
+            : [];
+          const matched = configuredDates.find((d) => String(d).trim() === linkSlug);
+          setPinnedDate(matched || configuredDates[0] || "");
+          setTeam(data);
+          setTeamDocId(teamDoc.id);
+          applyThemeColors(data);
+          setMode("tryout");
+          setPhase("form");
           return;
         }
-        setTeam(data);
-        setTeamDocId(teamDoc.id);
-        const configuredDates = Array.isArray(data.tryoutDates) ? data.tryoutDates.filter(Boolean) : [];
-        const matchedDate = configuredDates.find((d) => String(d).trim() === linkSlug);
-        setForm((prev) => ({
-          ...prev,
-          tryoutDate: matchedDate || configuredDates[0] || "",
-        }));
-        const root = document.documentElement;
-        if (data.primaryColor) root.style.setProperty("--team-primary", data.primaryColor);
-        if (data.secondaryColor) root.style.setProperty("--team-secondary", data.secondaryColor);
-        if (data.tertiaryColor) root.style.setProperty("--team-tertiary", data.tertiaryColor);
-        setPhase("form");
+
+        setError("Link not found or has been deactivated.");
+        setPhase("error");
       } catch {
-        setError("Couldn't load this team's tryouts page. The link may be invalid or your network may be down.");
+        setError("Couldn't load this team's page. The link may be invalid or your network may be down.");
         setPhase("error");
       }
     };
@@ -142,95 +235,394 @@ export const TryoutsPortal = () => {
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
-    if (!form.firstName.trim() || !form.lastName.trim()) return setError("Player first + last name are required.");
-    if (!form.currentTeam.trim()) return setError("Current team is required.");
-    if (!form.email.trim()) return setError("Parent email is required so we can reach you with results.");
-    if (!form.phone.trim()) return setError("Parent phone number is required.");
-    if (hasDuplicateSignup(team?.tryoutSignups, form)) {
-      return setError("Looks like this player is already registered for that date with this email.");
-    }
-    setError(null);
+    if (submitting) return;
+    // Common required fields (player name + parent contact). Both modes
+    // need these; the tryout mode additionally requires currentTeam.
+    if (!form.firstName.trim() || !form.lastName.trim())
+      return setError("Player first + last name are required.");
+    if (!form.email.trim())
+      return setError("Parent email is required so we can reach you.");
+    if (!form.phone.trim())
+      return setError("Parent phone number is required.");
 
-    const signup = {
-      id: `ts-${Math.random().toString(36).slice(2, 10)}`,
-      submittedAt: new Date().toISOString(),
-      status: "tryout",
-      tryoutAge: tryoutAgeLabel,
-      ...form,
-    };
+    if (mode === "tryout") {
+      if (!form.currentTeam.trim()) return setError("Current team is required.");
+      const forDedup = { ...form, tryoutDate: pinnedDate };
+      if (hasDuplicateSignup(team?.tryoutSignups, forDedup)) {
+        return setError(
+          "Looks like this player is already registered for that date with this email."
+        );
+      }
+    }
+
+    setError(null);
+    setSubmitting(true);
 
     try {
-      await updateDoc(doc(db, "artifacts", appId, "public", "data", "teams", teamDocId), {
-        tryoutSignups: arrayUnion(signup),
-      });
-      setTeam((prev) => ({
-        ...(prev || {}),
-        tryoutSignups: [...(Array.isArray(prev?.tryoutSignups) ? prev.tryoutSignups : []), signup],
-      }));
+      if (mode === "tryout") {
+        const signup = {
+          id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+          submittedAt: new Date().toISOString(),
+          status: "tryout",
+          tryoutAge: tryoutAgeLabel,
+          tryoutDate: pinnedDate,
+          ...form,
+        };
+        await updateDoc(
+          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId),
+          { tryoutSignups: arrayUnion(signup) }
+        );
+      } else {
+        // Interest mode — separate array; smaller payload (no
+        // bats/throws/jersey-number/currentTeam-required at this stage).
+        const lead = {
+          id: `int-${Math.random().toString(36).slice(2, 10)}`,
+          submittedAt: new Date().toISOString(),
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          dob: form.dob || "",
+          parentName: form.parentName || "",
+          email: form.email.trim(),
+          phone: form.phone.trim(),
+          currentTeam: form.currentTeam || "",
+          comfortablePositions: form.comfortablePositions || [],
+          notes: form.notes || "",
+        };
+        await updateDoc(
+          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId),
+          { interestSignups: arrayUnion(lead) }
+        );
+      }
       setPhase("sent");
     } catch {
-      setError("Submission failed — please retry, or contact the team's head coach directly.");
+      setError(
+        "Submission failed — please retry, or contact the team's head coach directly."
+      );
+      setSubmitting(false);
     }
   };
 
-  if (phase === "loading") return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="text-sm font-medium text-slate-500">Loading tryouts page…</div></div>;
-  if (phase === "error") return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="bg-white border border-rose-200 rounded-2xl p-6 max-w-md text-center shadow-md"><p className="text-sm font-bold text-rose-700">{error}</p></div></div>;
-  if (phase === "sent") return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6"><div className="bg-white border-2 rounded-2xl p-8 max-w-md text-center shadow-lg" style={{ borderColor: "var(--team-primary)" }}><h1 className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--team-primary)" }}>Thanks!</h1><p className="text-sm font-medium text-slate-700">Your signup is in. <strong>{form.firstName} {form.lastName}</strong> is registered for {team?.name || "tryouts"}. We&apos;ll reach you at <strong>{form.email}</strong> and <strong>{form.phone}</strong> with next steps.</p></div></div>;
+  if (phase === "loading") {
+    return (
+      <PortalShell accent={false}>
+        <div className="min-h-[60vh] flex items-center justify-center">
+          <div className="flex items-center gap-3 text-ink-3">
+            <Icons.Refresh className="w-4 h-4 animate-spin" />
+            <span className="t-eyebrow">Loading Tryouts</span>
+          </div>
+        </div>
+      </PortalShell>
+    );
+  }
+
+  if (phase === "error") {
+    return (
+      <PortalShell>
+        <div className="py-10">
+          <PhaseCard tone="error" icon={Icons.Alert} title="Can't open this page">
+            {error}
+          </PhaseCard>
+        </div>
+      </PortalShell>
+    );
+  }
+
+  if (phase === "sent") {
+    const isInterest = mode === "interest";
+    return (
+      <PortalShell>
+        <div className="py-10">
+          <PhaseCard
+            tone="success"
+            icon={Icons.Check}
+            title={isInterest ? "Thanks for your interest" : "You're in"}
+          >
+            <p>
+              <strong className="text-ink">
+                {form.firstName} {form.lastName}
+              </strong>{" "}
+              {isInterest
+                ? `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch when tryouts open.`
+                : `is registered for ${team?.name || "tryouts"}. We'll reach out with next steps.`}{" "}
+              Contact at{" "}
+              <strong className="text-ink">{form.email}</strong> ·{" "}
+              <strong className="text-ink">{form.phone}</strong>.
+            </p>
+          </PhaseCard>
+        </div>
+      </PortalShell>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 relative overflow-hidden">
+    <PortalShell>
       {team?.logoUrl && (
         <img
           src={team.logoUrl}
           alt=""
           aria-hidden="true"
-          className="pointer-events-none fixed inset-0 m-auto w-[120vw] max-w-[1100px] opacity-[0.16]"
+          className="pointer-events-none fixed inset-0 m-auto w-[120vw] max-w-[1100px] opacity-[0.10]"
           style={{ filter: "saturate(1.05)" }}
         />
       )}
-      <div className="h-2 w-full" style={{ backgroundColor: "var(--team-primary)" }} />
-      <div className="max-w-2xl mx-auto p-5 sm:p-8 relative z-10">
-        <div className="text-center mb-6">
-          {team?.logoUrl && <img src={team.logoUrl} alt={team.name} className="w-20 h-20 mx-auto mb-3 object-contain" />}
-          <h1 className="text-3xl font-black uppercase tracking-tight" style={{ color: "var(--team-primary)" }}>{team?.name || "Tryouts"} {tryoutAgeLabel} Tryouts</h1>
-          <p className="text-sm text-slate-600 mt-1 font-medium">{team?.currentSeason || "Next Season"} · Registering for {tryoutAgeLabel}</p>
+      <header className="text-center mb-7">
+        {team?.logoUrl && (
+          <img
+            src={team.logoUrl}
+            alt={team.name}
+            className="w-20 h-20 mx-auto mb-3 object-contain"
+          />
+        )}
+        <Eyebrow className="block mb-2 text-ink-3">
+          {team?.currentSeason || "Next Season"} · {tryoutAgeLabel}
+        </Eyebrow>
+        <h1
+          className="t-display"
+          style={{ color: "var(--team-primary)" }}
+        >
+          {team?.name || "Tryouts"}{" "}
+          {mode === "interest"
+            ? "Player Interest"
+            : `${tryoutAgeLabel} Tryouts`}
+        </h1>
+        <p className="t-body mt-2 max-w-md mx-auto">
+          {mode === "interest"
+            ? "Let us know your child is interested in playing for this team next season. The head coach will reach out when tryouts open."
+            : `Tryout date ${pinnedDate || ""}. Fill in the details below — fields marked with an asterisk are required.`}
+        </p>
+      </header>
+
+      <form
+        onSubmit={handleSubmit}
+        className="bg-surface backdrop-blur rounded-2xl shadow-card border border-line overflow-hidden"
+      >
+        <div
+          className="h-1 w-full"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
+        <div className="p-5 sm:p-7 space-y-6">
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
+              <h2 className="t-h2">Player Info</h2>
+              <Eyebrow>{tryoutAgeLabel}</Eyebrow>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="First Name *">
+                <input
+                  type="text"
+                  required
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Last Name *">
+                <input
+                  type="text"
+                  required
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Date of Birth">
+                <input
+                  type="date"
+                  value={form.dob}
+                  onChange={(e) => setForm({ ...form, dob: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label={mode === "interest" ? "Current Team" : "Current Team *"}>
+                <input
+                  type="text"
+                  required={mode === "tryout"}
+                  value={form.currentTeam}
+                  onChange={(e) =>
+                    setForm({ ...form, currentTeam: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              {mode === "tryout" && (
+                <>
+                  <Field label="Jersey Number (preferred)">
+                    <input
+                      type="text"
+                      value={form.number}
+                      onChange={(e) =>
+                        setForm({ ...form, number: e.target.value })
+                      }
+                      className={INPUT_BASE}
+                      style={RING_STYLE}
+                    />
+                  </Field>
+                  <Field label="Tryout Date">
+                    <div
+                      className={`${INPUT_BASE} bg-app text-ink font-bold cursor-not-allowed`}
+                      style={RING_STYLE}
+                      aria-label="Tryout date (locked)"
+                    >
+                      {pinnedDate || "—"}
+                    </div>
+                  </Field>
+                  <Field label="Bats">
+                    <select
+                      value={form.bats}
+                      onChange={(e) => setForm({ ...form, bats: e.target.value })}
+                      className={INPUT_BASE}
+                      style={RING_STYLE}
+                    >
+                      <option value="R">Right</option>
+                      <option value="L">Left</option>
+                      <option value="S">Switch</option>
+                    </select>
+                  </Field>
+                  <Field label="Throws">
+                    <select
+                      value={form.throws}
+                      onChange={(e) =>
+                        setForm({ ...form, throws: e.target.value })
+                      }
+                      className={INPUT_BASE}
+                      style={RING_STYLE}
+                    >
+                      <option value="R">Right</option>
+                      <option value="L">Left</option>
+                    </select>
+                  </Field>
+                </>
+              )}
+            </div>
+
+            <Field label="Positions your player can play">
+              <div className="flex flex-wrap gap-2">
+                {positions.map((pos) => {
+                  const active = form.comfortablePositions.includes(pos);
+                  return (
+                    <button
+                      key={pos}
+                      type="button"
+                      onClick={() => togglePos(pos)}
+                      aria-pressed={active}
+                      className="min-w-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest rounded-full border-2 transition-all tabular-nums shadow-sm"
+                      style={
+                        active
+                          ? {
+                              backgroundColor: "var(--team-primary)",
+                              color: "var(--team-tertiary)",
+                              borderColor: "var(--team-primary)",
+                            }
+                          : {
+                              backgroundColor: "white",
+                              color: "#334155",
+                              borderColor: "#e2e8f0",
+                            }
+                      }
+                    >
+                      {pos}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
+              <h2 className="t-h2">Parent / Guardian</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Your Name">
+                <input
+                  type="text"
+                  value={form.parentName}
+                  onChange={(e) =>
+                    setForm({ ...form, parentName: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Email *">
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Phone *" className="sm:col-span-2">
+                <input
+                  type="tel"
+                  required
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+            </div>
+            <Field label="Anything we should know?">
+              <textarea
+                rows={3}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className={`${INPUT_BASE} resize-y min-h-[88px]`}
+                style={RING_STYLE}
+              />
+            </Field>
+          </section>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5"
+            >
+              <Icons.Alert className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <Button
+            type="submit"
+            variant="primary"
+            size="lg"
+            className="w-full"
+            disabled={submitting}
+            style={
+              submitting ? { opacity: 0.7, cursor: "not-allowed" } : undefined
+            }
+          >
+            {submitting ? (
+              <>
+                <Icons.Refresh className="w-4 h-4 animate-spin" /> Submitting…
+              </>
+            ) : (
+              <>
+                <Icons.Check className="w-4 h-4" />{" "}
+                {mode === "interest" ? "Submit Interest" : "Submit Signup"}
+              </>
+            )}
+          </Button>
+          <p className="t-meta text-center text-ink-3">
+            Your info is shared only with this team's coaching staff.
+          </p>
         </div>
-
-        <form onSubmit={handleSubmit} className="bg-white/95 rounded-2xl shadow-md border border-slate-200 p-5 sm:p-7 space-y-5">
-          <h2 className="text-lg font-black uppercase tracking-tight text-slate-900">Player Info</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="First Name *"><input type="text" required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Last Name *"><input type="text" required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Date of Birth"><input type="date" value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Current Team *"><input type="text" required value={form.currentTeam} onChange={(e) => setForm({ ...form, currentTeam: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Jersey Number (preferred)"><input type="text" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Tryout Date">{Array.isArray(team?.tryoutDates) && team.tryoutDates.length > 0 ? (<select value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">{team.tryoutDates.filter(Boolean).map((d) => (<option key={d} value={d}>{d}</option>))}</select>) : (<input type="text" placeholder="e.g. 5-23-2026" value={form.tryoutDate} onChange={(e) => setForm({ ...form, tryoutDate: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />)}</Field>
-            <Field label="Bats"><select value={form.bats} onChange={(e) => setForm({ ...form, bats: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="R">Right</option><option value="L">Left</option><option value="S">Switch</option></select></Field>
-            <Field label="Throws"><select value={form.throws} onChange={(e) => setForm({ ...form, throws: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="R">Right</option><option value="L">Left</option></select></Field>
-          </div>
-
-          <Field label="Positions your player can play"><div className="flex flex-wrap gap-1.5">{positions.map((pos) => { const active = form.comfortablePositions.includes(pos); return <button key={pos} type="button" onClick={() => togglePos(pos)} className="px-2 py-1 text-[11px] font-black rounded-md border transition-all" style={active ? { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)", borderColor: "var(--team-primary)" } : { backgroundColor: "white", color: "#475569", borderColor: "#e2e8f0" }}>{pos}</button>; })}</div></Field>
-
-          <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 pt-3">Parent / Guardian</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Your Name"><input type="text" value={form.parentName} onChange={(e) => setForm({ ...form, parentName: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Email *"><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-            <Field label="Phone *"><input type="tel" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-          </div>
-          <Field label="Anything we should know?"><textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></Field>
-
-          {error && <p className="text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2">{error}</p>}
-
-          <button type="submit" className="w-full py-3 rounded-xl shadow-md font-black uppercase tracking-widest text-sm" style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}>Submit Signup</button>
-        </form>
-      </div>
-    </div>
+      </form>
+    </PortalShell>
   );
 };
 
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[10px] font-extrabold uppercase tracking-widest text-slate-500 mb-1">{label}</span>
+const Field = ({ label, className = "", children }) => (
+  <label className={`block ${className}`}>
+    <span className="block t-label mb-1.5">{label}</span>
     {children}
   </label>
 );

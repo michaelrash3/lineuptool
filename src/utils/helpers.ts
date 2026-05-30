@@ -148,12 +148,47 @@ export interface BenchImbalanceEntry {
 
 export const buildSeasonBenchImbalance = (
   games: Game[] | null | undefined,
-  currentGameId: string
+  currentGameId: string,
+  players?: Array<{ id?: string; name?: string }> | null
 ): Map<PlayerId, BenchImbalanceEntry> => {
   const out = new Map<PlayerId, BenchImbalanceEntry>();
+
+  // Resolve a lineup-snapshot slot's id to the CURRENT roster id. Past
+  // finalized games bake the id a player had at the time into their
+  // lineup; if that player was deleted and re-added they now carry a
+  // fresh id, so accumulating by the raw snapshot id strands all of
+  // their pre-deletion bench/defense history under an orphan key the
+  // tile's `imbalance.get(p.id)` lookup never matches. We coalesce by
+  // name (same id-with-name fallback as lineupSlotMatchesPlayer) so the
+  // re-added player's full season shows up. Two live players who share
+  // a name stay distinct: the name fallback only fires for ids that are
+  // NOT on the current roster.
+  const roster = players || [];
+  const livePlayerIds = new Set(
+    roster.map((p) => p.id).filter((id): id is string => !!id)
+  );
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const resolveSlotId = (
+    slot: { id?: string; name?: string } | null | undefined
+  ): string | undefined => {
+    if (!slot || !slot.id) return slot?.id;
+    if (livePlayerIds.has(slot.id)) return slot.id;
+    const slotName = norm(slot.name);
+    if (slotName) {
+      const match = roster.find((p) => p.id && norm(p.name) === slotName);
+      if (match?.id) return match.id;
+    }
+    return slot.id;
+  };
+
   for (const g of games || []) {
     if (g.id === currentGameId) continue;
-    if (g.status && g.status !== "final") continue;
+    // Route through the shared isGameFinalized() so legacy games with
+    // status === "completed" (from earlier app builds) are counted —
+    // the previous `g.status && g.status !== "final"` filter silently
+    // skipped them and coaches saw the Bench Equity tile miss past
+    // finalized games.
+    if (!isGameFinalized(g)) continue;
     if (!g.lineup?.length) continue;
 
     const attending = new Set<PlayerId>();
@@ -161,12 +196,16 @@ export const buildSeasonBenchImbalance = (
       for (const pos in inning) {
         if (pos === "BENCH") continue;
         const p = inning[pos] as SlimPlayer | undefined;
-        if (p) attending.add(p.id);
+        if (p) {
+          const rid = resolveSlotId(p);
+          if (rid) attending.add(rid);
+        }
       }
       for (const bp of inning.BENCH || []) {
         if (!bp) continue;
         if (g.attendance?.[bp.id] === false) continue;
-        attending.add(bp.id);
+        const rid = resolveSlotId(bp);
+        if (rid) attending.add(rid);
       }
     }
     const playerCount = attending.size;
@@ -188,8 +227,9 @@ export const buildSeasonBenchImbalance = (
       for (const bp of inning.BENCH || []) {
         if (!bp) continue;
         if (g.attendance?.[bp.id] === false) continue;
-        if (benchCount.has(bp.id)) {
-          benchCount.set(bp.id, (benchCount.get(bp.id) || 0) + 1);
+        const rid = resolveSlotId(bp);
+        if (rid && benchCount.has(rid)) {
+          benchCount.set(rid, (benchCount.get(rid) || 0) + 1);
         }
       }
     }
@@ -212,6 +252,92 @@ export const buildSeasonBenchImbalance = (
     }
   }
   return out;
+};
+
+// Resolve "is this player coming back" across the legacy playerStatus
+// enum + the new returning boolean field. Order of precedence:
+//   1. p.returning === false  → No  (explicit opt-out)
+//   2. p.returning === true   → Yes (explicit opt-in)
+//   3. p.playerStatus === "released" | "declined" → No (legacy)
+//   4. anything else → Yes (back-compat default; matches the prior
+//      "no playerStatus means returning" behaviour)
+// Tryout-flow states ("tryout" / "offered" / "accepted") that aren't
+// yet on the active roster still answer Yes here; this helper answers
+// the season-advance question, not "is this kid currently rostered".
+export const isReturning = (
+  player: { returning?: boolean; playerStatus?: string } | null | undefined
+): boolean => {
+  if (!player) return false;
+  if (player.returning === false) return false;
+  if (player.returning === true) return true;
+  if (player.playerStatus === "released" || player.playerStatus === "declined") {
+    return false;
+  }
+  return true;
+};
+
+// True when a SlimPlayer (or any { id, name } slot from game.lineup or a
+// bench list) refers to the given roster player. Primary check is on
+// id; fallback handles the orphan-id case where a roster player was
+// deleted and re-added with a fresh id — past finalized games' lineups
+// still carry the old id baked into the snapshot. We only fall through
+// to name match when the slot's id is NOT in the current roster
+// (`livePlayerIds`); two siblings who share a first+last name and are
+// both still on the roster stay correctly distinguished by their
+// live ids.
+// True when the game should be treated as finalized for stat,
+// record, and trend aggregations. Mirrors the predicate that
+// PR #140 introduced for PlayerProfileModal's innings-by-position
+// (`modals.jsx`); without unifying it across the rest of the
+// app, finalized games that ended up with `status === "completed"`
+// (legacy writer) — or with explicit scores but no status flip —
+// silently fall out of the team's record, the Home leaderboards,
+// and the trend tile, even though they show up correctly on the
+// player profile. Strict `status === "final"` checks remain
+// appropriate for UI affordances tied to the finalizeGame trim
+// flow itself (e.g. Restore Lineup), which only fires from that
+// specific writer.
+//
+// The null/undefined/empty-string guard up front is load-bearing.
+// `Number(null)` is `0` and `isFinite(0)` is true, so a brand-new
+// scheduled game with `teamScore: null, opponentScore: null` would
+// otherwise be treated as a 0-0 tie — that was the bug coaches
+// reported where future games showed up as ties on the trend tile
+// and record badge.
+export const isGameFinalized = (
+  game:
+    | {
+        status?: string;
+        teamScore?: number | string | null;
+        opponentScore?: number | string | null;
+      }
+    | null
+    | undefined
+): boolean => {
+  if (!game) return false;
+  if (game.status === "final" || game.status === "completed") return true;
+  const ts = game.teamScore;
+  const os = game.opponentScore;
+  if (ts == null || ts === "" || os == null || os === "") return false;
+  return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
+};
+
+export const lineupSlotMatchesPlayer = (
+  slot: { id?: string; name?: string } | null | undefined,
+  player: { id?: string; name?: string } | null | undefined,
+  livePlayerIds: Set<string>
+): boolean => {
+  if (!slot || !player) return false;
+  if (slot.id && player.id && slot.id === player.id) return true;
+  // Refuse the name-match fallback unless the slot's id is genuinely
+  // orphan (no longer on the roster). This prevents accidental
+  // collisions when two live players happen to share a name.
+  if (slot.id && livePlayerIds.has(slot.id)) return false;
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const slotName = norm(slot.name);
+  const playerName = norm(player.name);
+  if (!slotName || !playerName) return false;
+  return slotName === playerName;
 };
 
 export const calculateBaseballAge = (
@@ -275,8 +401,6 @@ export const parseCsvRecords = (text: unknown): string[][] => {
   if (cell !== "" || row.length > 0) pushRow();
   return rows;
 };
-
-export const parseCsvLine = (text: string): string[] => parseCsvRecords(text)[0] || [];
 
 export interface CsvHeaderIndex {
   fn: number;
@@ -550,22 +674,48 @@ export const blankStats = (): PlayerStats => ({
 // "Start New Round" affordance is hidden.
 // ============================================================================
 
-const BIWEEKLY_DAYS = 14;
 const MS_PER_DAY = 86_400_000;
+// Active window around each due date — three days before through three
+// days after. Long enough that coaches catching up over a weekend still
+// see the prompt; tight enough that the badge doesn't get stale.
+const EVAL_WINDOW_DAYS = 3;
 
-// Parse a "Spring 2026" / "Fall 2026" label into a season start date that we
-// use as the cutoff for "this season's evals". Spring → March 1, Fall →
-// August 1. Returns null when the label can't be parsed.
-export const seasonStartDate = (currentSeasonStr: string | undefined): Date | null => {
-  const parts = (currentSeasonStr || "").trim().split(/\s+/);
-  if (parts.length < 2) return null;
-  const season = parts[0].toLowerCase();
-  const year = parseInt(parts[parts.length - 1], 10);
-  if (Number.isNaN(year)) return null;
-  if (season === "spring") return new Date(`${year}-03-01T00:00:00`);
-  if (season === "fall" || season === "autumn")
-    return new Date(`${year}-08-01T00:00:00`);
-  return null;
+// Build the full ordered list of eval due-dates for a given calendar
+// year. Spring: Feb 1 (preseason), Mar 15, then every other Sunday
+// through Jun 30. Fall: every Sunday from Sep 1 through Oct 31.
+// Pure; no dependency on current time. Exported for unit testing.
+export const evalDueDatesForYear = (year: number): Date[] => {
+  const dates: Date[] = [];
+  // Spring preseason + March 15
+  dates.push(new Date(year, 1, 1)); // Feb 1
+  dates.push(new Date(year, 2, 15)); // Mar 15
+  // Every other Sunday from the first Sunday after Mar 15 through Jun 30.
+  const springEnd = new Date(year, 5, 30);
+  const firstSundayAfter = (start: Date) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
+    return d;
+  };
+  let sunday = firstSundayAfter(new Date(year, 2, 15));
+  while (sunday.getTime() <= springEnd.getTime()) {
+    dates.push(new Date(sunday));
+    sunday = new Date(sunday);
+    sunday.setDate(sunday.getDate() + 14);
+  }
+  // Fall: every Sunday from Sep 1 through Oct 31.
+  const fallStart = new Date(year, 8, 1);
+  const fallEnd = new Date(year, 9, 31);
+  let fallSunday = new Date(fallStart);
+  // Walk forward to the first Sunday on or after Sep 1.
+  if (fallSunday.getDay() !== 0) {
+    fallSunday.setDate(fallSunday.getDate() + ((7 - fallSunday.getDay()) % 7));
+  }
+  while (fallSunday.getTime() <= fallEnd.getTime()) {
+    dates.push(new Date(fallSunday));
+    fallSunday = new Date(fallSunday);
+    fallSunday.setDate(fallSunday.getDate() + 7);
+  }
+  return dates.sort((a, b) => a.getTime() - b.getTime());
 };
 
 export type EvalPromptKind = "preseason" | "biweekly";
@@ -580,7 +730,37 @@ export interface EvalPromptStatus {
   daysUntilDue: number | null;
 }
 
+const dateToIsoLocal = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+// Parse a stored eval date ("YYYY-MM-DD", optionally with a time suffix) into
+// a *local* midnight Date. Using local construction here keeps the day-delta
+// math below on the same footing as `due` (also local midnight) and avoids the
+// UTC skew you'd get from `new Date("YYYY-MM-DD")`.
+const isoToLocalDate = (s: string): Date => {
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const sameLocalDay = (a: Date, b: Date): boolean => {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+};
+
 // Pure: decides whether the given coach owes an eval right now.
+// Schedule is fixed by calendar date (see evalDueDatesForYear): Spring
+// preseason (2/1) + 3/15 + biweekly Sundays through 6/30; Fall weekly
+// Sundays 9/1–10/31. Active when the coach hasn't submitted an eval
+// within EVAL_WINDOW_DAYS of the nearest due date. Replaces the prior
+// "14 days since last save" logic per coach request — the cadence now
+// lives on the calendar, not on the last save timestamp.
 export const evalPromptStatus = (
   team: { currentSeason?: string; evaluationEvents?: any[] } | null | undefined,
   userUid: string | null | undefined,
@@ -596,44 +776,92 @@ export const evalPromptStatus = (
       daysUntilDue: null,
     };
   }
-  const start = seasonStartDate(team.currentSeason);
-  const startMs = start ? start.getTime() : 0;
+  // Every eval this coach has ever filed, newest first. The cadence is
+  // purely calendar-driven now, so we don't restrict to "this season" —
+  // each due date is checked against the latest submission on its own,
+  // and old submissions (way before any current due date) naturally
+  // fall outside the alreadyHit window.
   const mine = (team.evaluationEvents || [])
     .filter(
       (e) =>
-        e.coachRole === coachRole &&
-        e.evaluatorId === userUid &&
-        (!start || new Date(e.date).getTime() >= startMs)
+        e.coachRole === coachRole && e.evaluatorId === userUid
     )
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  if (mine.length === 0) {
+  const lastSubmittedDate = mine[0]?.date || null;
+
+  // Build candidate due dates spanning this calendar year + the next
+  // (handles end-of-year edge case where "next due" is in January).
+  const candidates = [
+    ...evalDueDatesForYear(now.getFullYear()),
+    ...evalDueDatesForYear(now.getFullYear() + 1),
+  ];
+
+  // Find the due date closest to (and not too far past) "now".
+  let activeDue: Date | null = null;
+  let upcomingDue: Date | null = null;
+  for (const due of candidates) {
+    const deltaDays = Math.floor(
+      (now.getTime() - due.getTime()) / MS_PER_DAY
+    );
+    // Window is [due - WINDOW, due + WINDOW]. The prompt is fulfilled once the
+    // coach files an eval anywhere inside that window — including the days
+    // *before* the due date — so the reminder clears as soon as they catch up
+    // instead of lingering until the due date physically passes. A later
+    // submission (next round already in) counts too, hence the open-ended `>=`.
+    const alreadyHit =
+      lastSubmittedDate &&
+      Math.round(
+        (isoToLocalDate(lastSubmittedDate).getTime() - due.getTime()) /
+          MS_PER_DAY
+      ) >= -EVAL_WINDOW_DAYS;
+    if (
+      !alreadyHit &&
+      deltaDays >= -EVAL_WINDOW_DAYS &&
+      deltaDays <= EVAL_WINDOW_DAYS
+    ) {
+      activeDue = due;
+      break;
+    }
+    if (!upcomingDue && due.getTime() > now.getTime()) {
+      upcomingDue = due;
+    }
+  }
+
+  if (activeDue) {
+    // Preseason vs biweekly: Feb 1 is the preseason kickoff; everything
+    // else carries the "biweekly" label so existing copy doesn't break.
+    const isPreseason =
+      activeDue.getMonth() === 1 && activeDue.getDate() === 1;
     return {
       active: true,
-      kind: "preseason",
-      lastSubmittedDate: null,
+      kind: isPreseason ? "preseason" : "biweekly",
+      lastSubmittedDate,
+      nextDueDate: dateToIsoLocal(activeDue),
+      daysUntilDue: 0,
+    };
+  }
+  if (!upcomingDue) {
+    return {
+      active: false,
+      kind: null,
+      lastSubmittedDate,
       nextDueDate: null,
       daysUntilDue: null,
     };
   }
-  const lastDate = mine[0].date;
-  const lastMs = new Date(lastDate).getTime();
-  const elapsedDays = Math.floor((now.getTime() - lastMs) / MS_PER_DAY);
-  if (elapsedDays >= BIWEEKLY_DAYS) {
-    return {
-      active: true,
-      kind: "biweekly",
-      lastSubmittedDate: lastDate,
-      nextDueDate: null,
-      daysUntilDue: null,
-    };
-  }
-  const nextDueMs = lastMs + BIWEEKLY_DAYS * MS_PER_DAY;
+  // sameLocalDay reads as "no rounding error needed" — Math.ceil handles
+  // sub-day timestamps the right way.
+  const daysUntilDue = sameLocalDay(now, upcomingDue)
+    ? 0
+    : Math.ceil(
+        (upcomingDue.getTime() - now.getTime()) / MS_PER_DAY
+      );
   return {
     active: false,
     kind: null,
-    lastSubmittedDate: lastDate,
-    nextDueDate: new Date(nextDueMs).toISOString().slice(0, 10),
-    daysUntilDue: BIWEEKLY_DAYS - elapsedDays,
+    lastSubmittedDate,
+    nextDueDate: dateToIsoLocal(upcomingDue),
+    daysUntilDue,
   };
 };
 

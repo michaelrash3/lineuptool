@@ -3,11 +3,18 @@ import {
   generateBattingOnly,
   calcPitcherScore,
   getPitcherPoolSize,
+  isCatcherEligible,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
 // ---------------------------------------------------------------------------
+
+// All field positions a player can be cleared for (mirrors the app's
+// position model). Catcher is just "C" in comfortablePositions now.
+const ALL_POSITIONS = [
+  "P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "CF", "RCF", "RF",
+];
 
 const makePlayer = (id, name, opts = {}) => ({
   id,
@@ -15,6 +22,16 @@ const makePlayer = (id, name, opts = {}) => ({
   number: opts.number ?? "",
   primaryPosition: opts.primaryPosition ?? "",
   restrictions: opts.restrictions ?? [],
+  // Catcher is opt-in via "C" in comfortablePositions. A vanilla, fully
+  // unconstrained test player is cleared everywhere INCLUDING catcher —
+  // mirror migrated production data by defaulting the list to every
+  // position minus any restrictions (so restriction-based tests still
+  // work and rosters always have catchers). Tests that exercise catcher
+  // exclusion pass an explicit comfortablePositions without "C" (or
+  // restrictions: ["C"]).
+  comfortablePositions:
+    opts.comfortablePositions ??
+    ALL_POSITIONS.filter((p) => !(opts.restrictions ?? []).includes(p)),
   // Engine reads these when present. Defaulted out so a vanilla makePlayer
   // call produces a player with no special handling.
   throws: opts.throws,
@@ -176,8 +193,106 @@ describe("catcher pre-assignment respects primaryPosition", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Primary-position pre-pin (PR #5) + Big Game lock (PR #3)
+// Catcher eligibility — a player may catch ONLY when "C" is in their
+// comfortablePositions list (catcher is opt-in; there is no separate flag).
+// Regression for: non-catchers kept getting seated at C because the data
+// model marked the whole roster catcher-eligible. Empty / omitted lists
+// never grant catcher.
 // ---------------------------------------------------------------------------
+
+describe("catcher eligibility (C in comfortablePositions)", () => {
+  const catcher = (id, name) =>
+    makePlayer(id, name);
+  const fielder = (id, name) =>
+    makePlayer(id, name, {
+      // Cleared everywhere EXCEPT catcher — can cover any field spot in
+      // both 9- and 10-fielder alignments, but must never be seated at C.
+      comfortablePositions: ALL_POSITIONS.filter((p) => p !== "C"),
+    });
+
+  // 3 designated catchers + 8 non-catchers — enough catchers that bench
+  // scheduling never has to bench the only one, so the assertion isolates
+  // the eligibility gate.
+  const mixedRoster = () => [
+    catcher("c0", "Catcher 0"),
+    catcher("c1", "Catcher 1"),
+    catcher("c2", "Catcher 2"),
+    ...Array.from({ length: 8 }, (_, i) => fielder(`x${i}`, `Field ${i}`)),
+  ];
+  const nonCatcherIds = Array.from({ length: 8 }, (_, i) => `x${i}`);
+  const catchersSeen = (lineup) =>
+    lineup.map((inn) => inn.C?.id).filter(Boolean);
+
+  test("10-fielder: a non-catcher is never seated at C", () => {
+    const players = mixedRoster();
+    for (let seed = 1; seed <= 6; seed++) {
+      const result = buildLineup({ players, defenseSize: "10", seed });
+      expect(result.error).toBeUndefined();
+      const seen = catchersSeen(result.lineup);
+      expect(seen.length).toBeGreaterThan(0);
+      expect(seen.some((id) => nonCatcherIds.includes(id))).toBe(false);
+    }
+  });
+
+  test("9-fielder: a non-catcher is never seated at C", () => {
+    const players = mixedRoster();
+    for (let seed = 1; seed <= 6; seed++) {
+      const result = buildLineup({ players, defenseSize: "9", seed });
+      expect(result.error).toBeUndefined();
+      const seen = catchersSeen(result.lineup);
+      expect(seen.some((id) => nonCatcherIds.includes(id))).toBe(false);
+    }
+  });
+
+  test("empty comfortablePositions never grants catcher (opt-in)", () => {
+    // Mirrors freshly-added players (empty list). With 3 real catchers
+    // present, the empty-list kids must never appear behind the plate.
+    const raw = (id, comfort) => ({
+      id,
+      name: id,
+      number: "",
+      primaryPosition: "",
+      restrictions: [],
+      comfortablePositions: comfort,
+    });
+    const players = [
+      // Real catchers, cleared everywhere incl C.
+      makePlayer("c0", "Catcher 0"),
+      makePlayer("c1", "Catcher 1"),
+      makePlayer("c2", "Catcher 2"),
+      // Freshly-added kids with an empty list — must never catch.
+      ...Array.from({ length: 8 }, (_, i) => raw(`u${i}`, [])),
+    ];
+    const emptyIds = Array.from({ length: 8 }, (_, i) => `u${i}`);
+    for (let seed = 1; seed <= 4; seed++) {
+      const result = buildLineup({ players, defenseSize: "10", seed });
+      expect(result.error).toBeUndefined();
+      const seen = catchersSeen(result.lineup);
+      expect(seen.some((id) => emptyIds.includes(id))).toBe(false);
+    }
+  });
+
+  test("no player cleared for C -> actionable error", () => {
+    const players = Array.from({ length: 11 }, (_, i) =>
+      fielder(`x${i}`, `Field ${i}`)
+    );
+    const result = buildLineup({ players, defenseSize: "10", seed: 1 });
+    expect(result.lineup).toBeUndefined();
+    expect(result.error).toMatch(/catcher/i);
+  });
+
+  test("isCatcherEligible: C must be listed; a C restriction still wins", () => {
+    expect(isCatcherEligible({ comfortablePositions: ["C", "1B"] })).toBe(true);
+    expect(isCatcherEligible({ comfortablePositions: ["1B", "SS"] })).toBe(
+      false
+    );
+    expect(isCatcherEligible({ comfortablePositions: [] })).toBe(false);
+    expect(isCatcherEligible({})).toBe(false);
+    expect(
+      isCatcherEligible({ comfortablePositions: ["C"], restrictions: ["C"] })
+    ).toBe(false);
+  });
+});
 
 describe("primary-position pre-pin", () => {
   test("Big Game: 3B-primary kid plays 3B every inning he's on the field", () => {
@@ -239,9 +354,12 @@ describe("primary-position pre-pin", () => {
     }
   });
 
-  test("Fair mode inning 0: primary kid starts at primary position", () => {
-    // Fair mode pre-pins only inning 0. Use a 10-active / 10-fielder
-    // roster so no one is benched and ace is guaranteed on the field.
+  test("Fair mode does not pin primary position — kid rotates through other allowed spots", () => {
+    // Fair mode no longer privileges primaryPosition (coach-requested change).
+    // A kid with primaryPosition='3B' should NOT play 3B in every inning —
+    // they should land elsewhere at least once across a 6-inning game,
+    // driven by rotation pressure + jitter, since no comfortablePositions
+    // whitelist restricts them.
     const players = [
       makePlayer("ace", "3B Ace", { primaryPosition: "3B", restrictions: ["C"] }),
       ...makeRoster(9),
@@ -253,7 +371,163 @@ describe("primary-position pre-pin", () => {
       seed: 99,
     });
     expect(result.error).toBeUndefined();
-    expect(result.lineup[0]["3B"]?.id).toBe("ace");
+    // Count innings where 'ace' played 3B vs. somewhere else on the field.
+    let inningsAt3B = 0;
+    let inningsAwayFrom3B = 0;
+    for (const inn of result.lineup) {
+      if (inn["3B"]?.id === "ace") inningsAt3B++;
+      else {
+        for (const pos of Object.keys(inn)) {
+          if (pos === "BENCH") continue;
+          if (inn[pos]?.id === "ace") {
+            inningsAwayFrom3B++;
+            break;
+          }
+        }
+      }
+    }
+    // Fair mode should produce real rotation — the ace plays somewhere
+    // other than 3B at least once across the game.
+    expect(inningsAwayFrom3B).toBeGreaterThan(0);
+  });
+
+  test("Fair mode: kid with comfortablePositions stays inside that set", () => {
+    // Mike's comfort list is just {1B, 2B, 3B}. In a 6-inning fair-mode
+    // game, every inning he's on the field MUST be 1B/2B/3B — the
+    // whitelist is enforced by isPositionBlocked. This guards the
+    // fair-mode comfortablePositions bonus doesn't accidentally allow
+    // out-of-list placements via some scoring path.
+    const players = [
+      makePlayer("mike", "Mike", {
+        primaryPosition: "3B",
+        comfortablePositions: ["1B", "2B", "3B"],
+      }),
+      ...makeRoster(9),
+    ];
+    const result = buildLineup({
+      players,
+      teamAge: "10U",
+      isBigGame: false,
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    const allowed = new Set(["1B", "2B", "3B"]);
+    for (const inn of result.lineup) {
+      for (const pos of Object.keys(inn)) {
+        if (pos === "BENCH") continue;
+        if (inn[pos]?.id === "mike") {
+          expect(allowed.has(pos)).toBe(true);
+        }
+      }
+    }
+  });
+
+  test("Fair mode: kid with comfortablePositions actually rotates within them", () => {
+    // Mike's comfort list = {1B, 2B, 3B}, primary = 3B. Over a 6-inning
+    // fair-mode game, he should appear at MORE than just 3B — the
+    // primary-position bias is gone in fair mode, and the equal
+    // comfortablePositions bonus should let rotation pressure / jitter
+    // spread him across his allowed set.
+    const players = [
+      makePlayer("mike", "Mike", {
+        primaryPosition: "3B",
+        comfortablePositions: ["1B", "2B", "3B"],
+      }),
+      ...makeRoster(9),
+    ];
+    const result = buildLineup({
+      players,
+      teamAge: "10U",
+      isBigGame: false,
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    const positionsSeen = new Set();
+    for (const inn of result.lineup) {
+      for (const pos of Object.keys(inn)) {
+        if (pos === "BENCH") continue;
+        if (inn[pos]?.id === "mike") positionsSeen.add(pos);
+      }
+    }
+    // At least two different comfortable positions across the game.
+    expect(positionsSeen.size).toBeGreaterThan(1);
+  });
+
+  test("Big Game still pins primary even when comfortablePositions includes others", () => {
+    // The comfortablePositions bonus only fires in fair mode. Big Game
+    // mode keeps its -10000 primary-position pin, so a primary-SS kid
+    // with comfort list = {SS, 3B, 1B} should still play SS every
+    // inning he's on the field.
+    const players = [
+      makePlayer("ace", "SS Ace", {
+        primaryPosition: "SS",
+        comfortablePositions: ["SS", "3B", "1B"],
+        restrictions: ["C"],
+      }),
+      ...makeRoster(10),
+    ];
+    const grades = {};
+    for (let i = 0; i < 11; i++) grades[`p${i}`] = { fielding: 5 };
+    grades.ace = { fielding: 9, armStrength: 9, armAccuracy: 9 };
+    const result = buildLineup({
+      players,
+      evaluationEvents: [headEval(grades)],
+      teamAge: "10U",
+      isBigGame: true,
+      seed: 7,
+    });
+    expect(result.error).toBeUndefined();
+    for (const inn of result.lineup) {
+      const wasBenched = (inn.BENCH || []).some((p) => p?.id === "ace");
+      if (wasBenched) continue;
+      // On the field → must be at SS.
+      expect(inn["SS"]?.id).toBe("ace");
+    }
+  });
+
+  test("Fair mode: kid restricted to OF cycles through LF/CF/RF, doesn't park at one", () => {
+    // Mike's comfort list is the three OF spots. In a 6-inning fair-mode
+    // game, the engine should rotate him across multiple OF positions
+    // instead of putting him at RF (or any one spot) every inning he's
+    // on the field — the +1.75x OF rotation multiplier in fair mode
+    // makes repeating the same OF position actively expensive.
+    const players = [
+      makePlayer("mike", "Mike", {
+        primaryPosition: "RF",
+        comfortablePositions: ["LF", "CF", "RF"],
+      }),
+      ...makeRoster(9),
+    ];
+    // Try several seeds — at least one should show real rotation.
+    // Any single seed could hit a coin-flip edge case via jitter, so
+    // the assertion is that across these seeds Mike sees multiple OF
+    // positions over the 6 innings of each game.
+    // Use positionLock="1" (no lock-inning carry-over) so the engine is
+    // free to rotate inning-to-inning. Lock modes ("2", "3", "full")
+    // intentionally pin same-position via a -1000 bonus, which would
+    // override the OF rotation pressure being tested here.
+    let totalDistinctOFSeen = 0;
+    let games = 0;
+    for (const seed of [11, 23, 47, 99, 113]) {
+      const result = buildLineup({
+        players,
+        teamAge: "10U",
+        isBigGame: false,
+        positionLock: "1",
+        seed,
+      });
+      if (result.error) continue;
+      games++;
+      const positionsSeen = new Set();
+      for (const inn of result.lineup) {
+        for (const pos of ["LF", "CF", "RF"]) {
+          if (inn[pos]?.id === "mike") positionsSeen.add(pos);
+        }
+      }
+      totalDistinctOFSeen += positionsSeen.size;
+    }
+    // Average ≥ 2 different OF positions per game over the 5 seeds.
+    expect(totalDistinctOFSeen / games).toBeGreaterThanOrEqual(2);
   });
 
   test("two kids with same primaryPosition: better defender wins it", () => {
@@ -711,6 +985,99 @@ describe("mid-game removal — fairness counting", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mid-game rebuild fairness — bench history of THIS game's already-played
+// innings feeds the priorRatio of the bench scheduler for innings N+, so a
+// kid benched twice in 0..N-1 isn't picked AGAIN in N+ just because the
+// in-game state was previously invisible to the scheduler.
+// ---------------------------------------------------------------------------
+
+describe("mid-game rebuild fairness", () => {
+  const slim = (id) => ({ id, name: `Player ${id}`, number: "" });
+
+  test("rebuild doesn't bench a kid who already sat twice this game", () => {
+    // 11 active players, defenseSize=10 → 1 bench slot per inning.
+    // Simulated history (innings 0..3 played):
+    //   inn 0: p0 on bench, p1..p10 on field
+    //   inn 1: p10 on bench, p0..p9 on field
+    //   inn 2: p0 on bench, p1..p10 on field   ← p0 has sat TWICE now
+    //   inn 3: p1 on bench, others on field
+    // Rebuild from inn 4 with 6 total innings. p0 has the highest in-
+    // game bench count; with the fairness fix folded into priorRatio,
+    // p0 should NOT be picked for the inning 4 or inning 5 bench.
+    const players = Array.from({ length: 11 }, (_, i) =>
+      makePlayer(`p${i}`, `P${i}`)
+    );
+    const onFieldExcept = (excludeId) => {
+      const fielders = players.filter((p) => p.id !== excludeId);
+      return {
+        P: slim(fielders[0].id),
+        C: slim(fielders[1].id),
+        "1B": slim(fielders[2].id),
+        "2B": slim(fielders[3].id),
+        "3B": slim(fielders[4].id),
+        SS: slim(fielders[5].id),
+        LF: slim(fielders[6].id),
+        LCF: slim(fielders[7].id),
+        RCF: slim(fielders[8].id),
+        RF: slim(fielders[9].id),
+        BENCH: [slim(excludeId)],
+      };
+    };
+    const currentLineup = [
+      onFieldExcept("p0"),
+      onFieldExcept("p10"),
+      onFieldExcept("p0"),
+      onFieldExcept("p1"),
+    ];
+    const result = buildLineup({
+      players,
+      teamAge: "10U",
+      isBigGame: false,
+      seed: 17,
+      totalInnings: 6,
+      currentGame: {
+        ...baseGame(),
+        // Mid-game rebuild requires fromInning + currentLineup.
+        fromInning: 4,
+        currentLineup,
+      },
+    });
+    // Pass through generateLineup directly so we control fromInning +
+    // currentLineup. buildLineup doesn't forward those; spell them out.
+    const direct = generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g_test", date: "2026-05-01", opponent: "X" },
+      firstInningOverridesById: {},
+      totalInnings: 6,
+      leagueRuleSet: "USSSA",
+      teamAge: "10U",
+      defenseSize: "10",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 17,
+      isBigGame: false,
+      fromInning: 4,
+      currentLineup,
+    });
+    expect(direct.error).toBeUndefined();
+    // Replayed innings 0..3 should match currentLineup verbatim.
+    for (let i = 0; i < 4; i++) {
+      expect(direct.lineup[i].BENCH[0]?.id).toBe(currentLineup[i].BENCH[0].id);
+    }
+    // The fix: p0 should NOT be benched again in innings 4 or 5.
+    for (let i = 4; i < 6; i++) {
+      const benchIds = (direct.lineup[i].BENCH || []).map((b) => b?.id);
+      expect(benchIds).not.toContain("p0");
+    }
+    // And the unused result var keeps tslint quiet — touch it.
+    expect(result).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8U fuzz / soak — run many realistic 8U setups through the engine and
 // assert it never bails out and never violates basic invariants. This is
 // the safety net that catches "no eligible player for LF in inning 3"
@@ -1080,5 +1447,96 @@ describe("D4 — pitcher scoring + pool sizing", () => {
     expect(getPitcherPoolSize("league")).toBe(3);
     expect(getPitcherPoolSize(undefined)).toBe(3);
     expect(getPitcherPoolSize(null)).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Season fairness must survive (a) a roster delete + re-add, where past games
+// reference the players' OLD ids, and (b) games finalized without
+// status:"final" (legacy "completed"). Before the fix the engine's history
+// builders keyed by the raw snapshot id and used a strict status check, so it
+// saw no history and seated the weakest / least-used kids FIRST — the bug a
+// coach hit: their most-unused player sat first.
+// ---------------------------------------------------------------------------
+
+describe("season fairness: orphan ids + non-'final' games still count", () => {
+  const POS9 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+  // p0 sits 4 innings, p1 sits 2 (one bench slot per inning, 9-fielder).
+  const bench = [0, 0, 1, 0, 1, 0];
+  const finalGame = (id, date, status, slimFor) => ({
+    id,
+    date,
+    opponent: "Opp",
+    status,
+    teamScore: 7,
+    opponentScore: 1,
+    lineup: bench.map((benchIdx) => {
+      const inning = {};
+      const field = [...Array(10).keys()].filter((idx) => idx !== benchIdx);
+      POS9.forEach((pos, k) => {
+        inning[pos] = slimFor(field[k]);
+      });
+      inning.BENCH = [slimFor(benchIdx)];
+      return inning;
+    }),
+  });
+  // Current roster: p0..p9 named "Player 0".."Player 9"; p0 is the weakest
+  // fielder, so with NO usable history the engine seats them first.
+  const weakP0 = () => {
+    const players = makeRoster(10);
+    const grades = {};
+    for (let i = 0; i < 10; i++) {
+      const lo = i === 0;
+      grades[`p${i}`] = {
+        fielding: lo ? 1 : 9,
+        armStrength: lo ? 1 : 9,
+        armAccuracy: lo ? 1 : 9,
+        speedAgility: lo ? 1 : 9,
+        baseballIQ: lo ? 1 : 9,
+      };
+    }
+    return { players, ev: [headEval(grades)] };
+  };
+  const benchCount = (lineup, id) =>
+    lineup.filter((inn) => (inn.BENCH || []).some((b) => b?.id === id)).length;
+  const dates = ["2026-04-01", "2026-04-08", "2026-04-15"];
+
+  test("re-added roster (old ids in history) — under-played kid is not benched first", () => {
+    const { players, ev } = weakP0();
+    // History snapshots use OLD ids but the players' real names.
+    const slimOld = (i) => ({ id: "OLD" + i, name: `Player ${i}`, number: "" });
+    const games = dates.map((d, gi) => finalGame("g" + gi, d, "final", slimOld));
+    for (let seed = 1; seed <= 5; seed++) {
+      const result = buildLineup({
+        players,
+        games,
+        evaluationEvents: ev,
+        defenseSize: "9",
+        seed,
+        currentGame: { id: "g_new", date: "2026-05-01", opponent: "New" },
+      });
+      expect(result.error).toBeUndefined();
+      expect(benchCount(result.lineup, "p0")).toBe(0);
+    }
+  });
+
+  test("legacy 'completed' games still feed fairness", () => {
+    const { players, ev } = weakP0();
+    const slimCur = (i) => ({ id: `p${i}`, name: `Player ${i}`, number: "" });
+    const games = dates.map((d, gi) =>
+      finalGame("g" + gi, d, "completed", slimCur)
+    );
+    for (let seed = 1; seed <= 5; seed++) {
+      const result = buildLineup({
+        players,
+        games,
+        evaluationEvents: ev,
+        defenseSize: "9",
+        seed,
+        currentGame: { id: "g_new", date: "2026-05-01", opponent: "New" },
+      });
+      expect(result.error).toBeUndefined();
+      expect(benchCount(result.lineup, "p0")).toBe(0);
+    }
   });
 });

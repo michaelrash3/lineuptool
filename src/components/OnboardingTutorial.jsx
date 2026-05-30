@@ -4,8 +4,10 @@ import { Button, Eyebrow } from "./shared.jsx";
 import { useTeam, useUI } from "../contexts.js";
 
 // Bumped from v1 → v2 when the tour switched from passive descriptions to
-// action-oriented walkthrough with per-step CTAs.
-const STORAGE_KEY = "lineuptool.onboardingComplete.v2";
+// action-oriented walkthrough with per-step CTAs. v3 adds the tryouts /
+// interest-survey step and makes step numbering dynamic so it can't drift
+// out of sync with the panel count again.
+const STORAGE_KEY = "lineuptool.onboardingComplete.v3";
 
 export const onboardingHasBeenCompleted = () => {
   try {
@@ -34,6 +36,10 @@ export const resetOnboarding = () => {
 // Each step's `cta` returns a list of { label, action } buttons. The action
 // receives the ctx (useUI bag) and runs setters that navigate / open modals.
 // A null cta means there's no jump-into-the-app affordance for that step.
+//
+// Step numbering is applied AFTER this array is built (see attachStepNumbers)
+// so the "Step N of M" eyebrows always match the actual numbered-step count —
+// no more hand-maintained "of 7" labels that drift when steps are added.
 const buildSteps = (ctx) => {
   const { hasGameToday, hasPlayers, hasGames } = ctx;
   return [
@@ -41,13 +47,13 @@ const buildSteps = (ctx) => {
       eyebrow: "Welcome",
       title: "Coach's Card",
       icon: Icons.HomePlate,
-      body: "Lineups, in-game swaps, eval rounds, season stats — all in one place. Each step below pushes you to actually do the thing.",
+      body: "Lineups, in-game swaps, eval rounds, tryouts, season stats — all in one place. Each step below pushes you to actually do the thing.",
     },
     {
-      eyebrow: "Step 1 of 7",
+      numbered: true,
       title: "Set up your team",
       icon: Icons.Settings,
-      body: "Open Settings to set the team name, age group, league rules, and pitching format. These drive every recommendation downstream.",
+      body: "Open Settings to set the team name, age group, league rules, and pitching format. These drive every recommendation downstream. You can also set team colors and upload a logo here.",
       cta: [
         {
           label: "Go to Settings",
@@ -57,7 +63,7 @@ const buildSteps = (ctx) => {
       ],
     },
     {
-      eyebrow: "Step 2 of 7",
+      numbered: true,
       title: "Add your players",
       icon: Icons.UserPlus,
       body: hasPlayers
@@ -79,10 +85,23 @@ const buildSteps = (ctx) => {
       ],
     },
     {
-      eyebrow: "Step 3 of 7",
+      numbered: true,
+      title: "Recruit with tryouts & interest",
+      icon: Icons.Users,
+      body: "Settings → Tryouts gives you two shareable links (with downloadable QR codes for flyers): a year-round Player Interest survey, and per-date tryout signup forms. Signups land in the Tryouts tab where you can grade, take attendance, and project your roster. Interest leads collect in the Interest tab until you're ready.",
+      cta: [
+        {
+          label: "Set up tryouts",
+          primary: true,
+          run: () => ctx.setActiveTab("settings"),
+        },
+      ],
+    },
+    {
+      numbered: true,
       title: "Add a game",
       icon: Icons.Calendar,
-      body: "Schedule tab → Add Game. Pick the date and opponent. Flag a game as a Big Game ⭐ when you want primary-position-only fielding.",
+      body: "Schedule tab → Add Game. Pick the date and opponent. Flag a game as a Big Game ⭐ when you want primary-position-only fielding; otherwise Fair mode rotates kids through the positions they're comfortable playing.",
       cta: [
         {
           label: "Go to Schedule",
@@ -95,10 +114,10 @@ const buildSteps = (ctx) => {
       ],
     },
     {
-      eyebrow: "Step 4 of 7",
+      numbered: true,
       title: "Generate a lineup",
       icon: Icons.Clipboard,
-      body: "Open a scheduled game and tap Generate. The engine fills positions inning-by-inning with fairness rules, the catcher 2-inning cap, scarcity-aware ordering, and Big Game rules when flagged.",
+      body: "Open a scheduled game and tap Generate. The engine fills positions inning-by-inning with season-long bench + position fairness, the catcher inning cap, pitch-eligibility rules, scarcity-aware ordering, and Big Game rules when flagged.",
       cta: hasGames
         ? [
             {
@@ -110,10 +129,10 @@ const buildSteps = (ctx) => {
         : null,
     },
     {
-      eyebrow: "Step 5 of 7",
+      numbered: true,
       title: "Run In-Game mode",
       icon: Icons.Forward,
-      body: "On gameday, open In-Game from the Home dashboard. Tap any cell to swap players; the red Alert button handles mid-game injuries and prorates fairness automatically.",
+      body: "On gameday, open In-Game from the Home dashboard. Tap any cell to swap players; the red Alert button handles mid-game injuries and re-balances the remaining innings automatically.",
       cta: hasGameToday
         ? [
             {
@@ -125,10 +144,10 @@ const buildSteps = (ctx) => {
         : null,
     },
     {
-      eyebrow: "Step 6 of 7",
+      numbered: true,
       title: "Save score & evaluate",
       icon: Icons.FileText,
-      body: "After a game: enter the score (Home or Schedule), then open Evaluation to grade players on the 1–5 scale. Trends + leaderboards refresh instantly.",
+      body: "After a game: enter the score (Home or Schedule), then open Evaluation to grade players on the 1–5 scale. Eval rounds are due on a set calendar cadence; trends, leaderboards, the Bench Equity tile, and Roster Decisions all refresh instantly.",
       cta: [
         {
           label: "Open Evaluation",
@@ -144,6 +163,18 @@ const buildSteps = (ctx) => {
       body: "⌘K / Ctrl-K opens the command palette from anywhere. The ? button in the bottom corner replays this tour. Have a great season.",
     },
   ];
+};
+
+// Stamp "Step N of M" onto each numbered step. M is the count of numbered
+// steps, so adding/removing a step keeps the labels correct automatically.
+const attachStepNumbers = (steps) => {
+  const total = steps.filter((s) => s.numbered).length;
+  let n = 0;
+  return steps.map((s) => {
+    if (!s.numbered) return s;
+    n += 1;
+    return { ...s, eyebrow: `Step ${n} of ${total}` };
+  });
 };
 
 export const OnboardingTutorial = ({ open, onClose }) => {
@@ -178,7 +209,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
     };
   }, [team, ui]);
 
-  const steps = useMemo(() => buildSteps(ctaCtx), [ctaCtx]);
+  const steps = useMemo(() => attachStepNumbers(buildSteps(ctaCtx)), [ctaCtx]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -210,7 +241,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-white/95 max-w-lg w-full rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
+      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -230,7 +261,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
             <button
               type="button"
               onClick={close}
-              className="shrink-0 -mr-2 -mt-1 p-2 text-slate-400 hover:text-slate-700"
+              className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink"
               aria-label="Close tutorial"
             >
               <Icons.X className="w-5 h-5" />
@@ -273,7 +304,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
             <button
               type="button"
               onClick={close}
-              className="t-button text-slate-500 hover:text-slate-800"
+              className="t-button text-ink-3 hover:text-ink"
             >
               Skip Tutorial
             </button>

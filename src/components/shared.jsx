@@ -39,9 +39,9 @@ export const LeaderboardCard = memo(
     }, [players, statKey, asc]);
 
     return (
-      <div className="bg-white/30 rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-white/50 overflow-hidden">
-        <div className="px-2.5 py-1.5 border-b border-white/40">
-          <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-slate-600 truncate">
+      <div className="bg-surface rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-line overflow-hidden">
+        <div className="px-2.5 py-1.5 border-b border-line">
+          <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-ink-2 truncate">
             {title}
           </h4>
         </div>
@@ -53,13 +53,13 @@ export const LeaderboardCard = memo(
                 className="flex justify-between items-center gap-1.5"
               >
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-[10px] font-black text-slate-400 w-2 shrink-0 tabular-nums">
+                  <span className="text-[10px] font-black text-ink-3 w-2 shrink-0 tabular-nums">
                     {i + 1}
                   </span>
                   <button
                     type="button"
                     onClick={() => onPlayerClick && onPlayerClick(p.id)}
-                    className="text-[11px] font-extrabold text-slate-800 truncate text-left hover:text-team-primary transition-colors cursor-pointer leading-tight"
+                    className="text-[11px] font-extrabold text-ink truncate text-left hover:text-team-primary transition-colors cursor-pointer leading-tight"
                   >
                     {p.name}
                   </button>
@@ -78,7 +78,7 @@ export const LeaderboardCard = memo(
               </div>
             ))
           ) : (
-            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center py-2 italic">
+            <div className="text-[9px] font-bold text-ink-3 uppercase tracking-widest text-center py-2 italic">
               No data
             </div>
           )}
@@ -100,7 +100,7 @@ export const RecordBadge = memo(
     if (variant === "compact") {
       return (
         <span
-          className="text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm border border-white/50 tabular-nums"
+          className="text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm border border-line tabular-nums"
           style={{ backgroundColor: primaryColor, color: tertiaryColor }}
         >
           {wl}
@@ -108,24 +108,24 @@ export const RecordBadge = memo(
       );
     }
     return (
-      <div className="inline-flex items-center gap-3 bg-white/80 px-4 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+      <div className="inline-flex items-center gap-3 bg-surface px-4 py-2.5 rounded-xl border border-line shadow-sm">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           Record
         </span>
-        <span className="text-base font-black tabular-nums text-slate-900">
+        <span className="text-base font-black tabular-nums text-ink">
           {wl}
         </span>
         <span className="h-4 w-px bg-slate-300" />
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           RS
         </span>
-        <span className="text-sm font-black tabular-nums text-slate-900">
+        <span className="text-sm font-black tabular-nums text-ink">
           {runsScored}
         </span>
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           RA
         </span>
-        <span className="text-sm font-black tabular-nums text-slate-900">
+        <span className="text-sm font-black tabular-nums text-ink">
           {runsAllowed}
         </span>
       </div>
@@ -181,7 +181,7 @@ export const PlayerAvatar = memo(
     if (photo) {
       return (
         <span
-          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-slate-200 border border-white/60 shadow-inner ${className}`}
+          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-line border border-line shadow-inner ${className}`}
           style={dim}
         >
           <img
@@ -206,7 +206,7 @@ export const PlayerAvatar = memo(
     }
     return (
       <span
-        className={`relative inline-flex items-center justify-center rounded-full font-black tabular-nums text-white border border-white/60 shadow-inner ${className}`}
+        className={`relative inline-flex items-center justify-center rounded-full font-black tabular-nums text-white border border-line shadow-inner ${className}`}
         style={{
           ...dim,
           fontSize: Math.max(10, size * 0.4),
@@ -232,8 +232,11 @@ export const PlayerAvatar = memo(
 );
 
 // Off-DOM 256×256 canvas crop helper for photo upload. Used by
-// PlayerProfileModal + AddPlayerModal. Returns a JPEG Blob, ~5–10 KB.
-export const cropImageTo256 = (file) =>
+// PlayerProfileModal + AddPlayerModal. Returns a base64 JPEG data URL
+// that's persisted inline on the player record — the app does not use
+// Cloud Storage (Spark-plan compatible), so photos live alongside the
+// rest of the player document in Firestore.
+export const cropImageTo256DataURL = (file) =>
   new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
     const reader = new FileReader();
@@ -257,14 +260,21 @@ export const cropImageTo256 = (file) =>
         ctx.fillStyle = "#f1f5f9";
         ctx.fillRect(0, 0, SIZE, SIZE);
         ctx.drawImage(img, x, y, w, h);
-        canvas.toBlob(
-          (blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error("Canvas export failed"));
-          },
-          "image/jpeg",
-          0.82
-        );
+        // 0.78 quality keeps a 256×256 JPEG data URL under ~15 KB. Thirty
+        // players × 15 KB ≈ 450 KB inline, comfortably under the Firestore
+        // 1 MB document cap once games + evaluationEvents are also there.
+        try {
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+          if (!dataUrl || dataUrl === "data:,") {
+            reject(new Error("Canvas export failed"));
+            return;
+          }
+          resolve(dataUrl);
+        } catch (err) {
+          reject(
+            err instanceof Error ? err : new Error("Canvas export failed")
+          );
+        }
       };
       img.src = reader.result;
     };
@@ -273,7 +283,7 @@ export const cropImageTo256 = (file) =>
 
 export const StatTile = ({ label, value, className = "" }) => (
   <div
-    className={`bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl ${className}`}
+    className={`bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl ${className}`}
   >
     <span className="block mb-1.5 t-eyebrow">{label}</span>
     <span className="block t-stat-num">{value}</span>
@@ -315,11 +325,11 @@ const BUTTON_VARIANTS = {
   },
   secondary: {
     className:
-      "bg-white/80 border border-slate-200 text-slate-700 shadow-sm hover:bg-white",
+      "bg-surface border border-line text-ink shadow-sm hover:bg-surface-2",
     style: {},
   },
   ghost: {
-    className: "bg-transparent text-slate-600 hover:bg-white/60",
+    className: "bg-transparent text-ink-2 hover:bg-surface",
     style: {},
   },
   success: {
@@ -354,27 +364,120 @@ export const Button = ({
   );
 };
 
+// Shared form input recipe — apply via className on bare <input>/<select>/
+// <textarea>. The focus ring color is wired to the team primary via inline
+// style so the focus highlight feels branded instead of using Tailwind's
+// generic blue ring. Inputs across the app should use this string rather
+// than redefining the same border / radius / focus combo locally.
+export const FORM_INPUT_CLASS =
+  "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
+
+export const FORM_INPUT_RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
+
+// Drop-in <Modal> shell. Standardizes backdrop, panel chrome, optional
+// accent strip, and the close-on-backdrop / Escape behaviors so new modals
+// don't each reinvent the recipe. Keep using OnboardingTutorial's
+// purpose-built shell for the multi-step tour — this is the default for
+// short confirmations + single-form panels.
+export const Modal = ({
+  open,
+  onClose,
+  title,
+  eyebrow,
+  accent = true,
+  size = "md",
+  closeOnBackdrop = true,
+  closeOnEscape = true,
+  children,
+  footer,
+}) => {
+  React.useEffect(() => {
+    if (!open || !closeOnEscape || !onClose) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, closeOnEscape, onClose]);
+
+  if (!open) return null;
+
+  const widthClass =
+    size === "sm" ? "max-w-sm" : size === "lg" ? "max-w-2xl" : "max-w-md";
+
+  return (
+    <div
+      className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+      onClick={closeOnBackdrop && onClose ? onClose : undefined}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden`}
+      >
+        {accent && (
+          <div
+            className="h-1.5 w-full"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          />
+        )}
+        <div className="p-6 sm:p-7">
+          {(eyebrow || title || onClose) && (
+            <div className="flex items-start gap-3 mb-4">
+              <div className="min-w-0 flex-1">
+                {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
+                {title && (
+                  <h3 className="t-card-title mt-1.5 break-words">{title}</h3>
+                )}
+              </div>
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
+                  aria-label="Close"
+                >
+                  <span className="block w-4 h-4 leading-none text-lg">×</span>
+                </button>
+              )}
+            </div>
+          )}
+          <div className="t-body text-ink">{children}</div>
+          {footer && (
+            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
+              {footer}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const SharedModals = memo(() => {
   const { modal, setModal } = useUI();
   const { team } = useTeam();
   if (!modal.isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-white/50">
-        <div className="p-1.5" style={{ backgroundColor: team.primaryColor }} />
-        <div className="p-6 bg-white">
-          <h3 className="text-xl font-black text-slate-900 mb-2 tracking-tight">
-            {modal.title}
-          </h3>
-          <p className="text-slate-600 font-medium mb-8 text-sm leading-relaxed whitespace-pre-line">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <div className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line">
+        <div
+          className="h-1.5 w-full"
+          style={{ backgroundColor: team.primaryColor }}
+        />
+        <div className="p-6 sm:p-7">
+          <h3 className="t-card-title mb-2">{modal.title}</h3>
+          <p className="t-body mb-6 leading-relaxed whitespace-pre-line">
             {modal.message}
           </p>
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
             {modal.type === "confirm" && (
               <button
                 onClick={() => setModal({ ...modal, isOpen: false })}
-                className="px-5 py-2.5 bg-slate-50 border border-slate-200 text-slate-600 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-100 transition-colors shadow-sm"
+                className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
               >
                 Cancel
               </button>
@@ -384,7 +487,7 @@ export const SharedModals = memo(() => {
                 if (modal.onConfirm) modal.onConfirm();
                 setModal({ ...modal, isOpen: false });
               }}
-              className="px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
+              className="px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
               style={{
                 backgroundColor: team.primaryColor,
                 color: team.tertiaryColor,

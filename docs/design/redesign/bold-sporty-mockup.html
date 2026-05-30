@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Coach's Card — Bold &amp; Sporty redesign mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Barlow+Condensed:wght@600;700;800&display=swap" rel="stylesheet" />
+<style>
+  /* ===================================================================
+     BOLD & SPORTY — design direction mock (not wired to the app yet)
+     Toggle light/dark + swap team color with the controls up top.
+     =================================================================== */
+  :root {
+    /* team triplet — user tunable, drives every accent */
+    --team: #2563eb;
+    --team-ink: #ffffff;            /* text that sits on team color */
+    --team-soft: color-mix(in srgb, var(--team) 12%, transparent);
+    --team-glow: color-mix(in srgb, var(--team) 40%, transparent);
+
+    /* LIGHT surfaces */
+    --bg: #eef1f6;
+    --panel: #ffffff;
+    --panel-2: #f6f8fb;
+    --ink: #0d1526;
+    --ink-2: #475569;
+    --ink-3: #8a98ad;
+    --line: #e4e9f1;
+    --scoreboard: #0d1526;          /* dark band even in light mode */
+    --scoreboard-ink: #ffffff;
+    --win: #16a34a;  --win-bg: #e9f9ef;
+    --loss: #dc2626; --loss-bg: #fdecec;
+    --warn: #d97706; --warn-bg: #fdf3e3;
+    --shadow: 0 6px 22px rgb(13 21 38 / 0.07), 0 2px 6px rgb(13 21 38 / 0.05);
+    --shadow-lg: 0 18px 40px rgb(13 21 38 / 0.16);
+  }
+  body.dark {
+    --bg: #070b14;
+    --panel: #111827;
+    --panel-2: #0d141f;
+    --ink: #f1f5f9;
+    --ink-2: #9fb0c6;
+    --ink-3: #61708a;
+    --line: #1d2738;
+    --scoreboard: #0b1322;
+    --scoreboard-ink: #f1f5f9;
+    --win: #34d399;  --win-bg: #0e2a20;
+    --loss: #f87171; --loss-bg: #2a1416;
+    --warn: #fbbf24; --warn-bg: #2a2008;
+    --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 22px 50px rgb(0 0 0 / 0.6);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Inter", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    transition: background .25s ease, color .25s ease;
+    padding-bottom: 90px;
+  }
+  .num { font-family: "Barlow Condensed", "Inter", sans-serif; font-variant-numeric: tabular-nums; }
+
+  /* ---- dev controls (not part of the app) ---- */
+  .controls {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel);
+    border-bottom: 1px solid var(--line);
+  }
+  .controls b { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .ctl-btn {
+    font: 800 11px/1 "Inter"; letter-spacing: .08em; text-transform: uppercase;
+    padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--ink); cursor: pointer;
+  }
+  .swatch { width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--line); cursor: pointer; }
+
+  .phone { max-width: 440px; margin: 0 auto; padding: 16px; }
+
+  /* ---- top app bar ---- */
+  .appbar { display: flex; align-items: center; gap: 12px; padding: 8px 2px 18px; }
+  .crest {
+    width: 42px; height: 42px; border-radius: 12px; flex: none;
+    background: linear-gradient(135deg, var(--team), color-mix(in srgb, var(--team) 60%, #000));
+    display: grid; place-items: center; color: var(--team-ink);
+    font: 900 18px/1 "Inter"; box-shadow: 0 4px 14px var(--team-glow);
+  }
+  .appbar .team-name { font: 900 18px/1 "Inter"; letter-spacing: -.01em; }
+  .appbar .team-sub { font: 700 10px/1.3 "Inter"; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); margin-top: 4px; }
+  .appbar .spacer { flex: 1; }
+  .icon-btn { width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); display: grid; place-items: center; font-size: 16px; }
+
+  /* ---- SCOREBOARD hero ---- */
+  .scoreboard {
+    position: relative; overflow: hidden;
+    background: var(--scoreboard); color: var(--scoreboard-ink);
+    border-radius: 20px; padding: 18px 20px 20px;
+    box-shadow: var(--shadow-lg);
+  }
+  .scoreboard::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 90% at 100% 0%, var(--team-glow), transparent 55%);
+    opacity: .9;
+  }
+  .scoreboard::after {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+    background: var(--team);
+  }
+  .sb-row { position: relative; display: flex; justify-content: space-between; align-items: flex-start; }
+  .sb-eyebrow { font: 800 10px/1 "Inter"; letter-spacing: .18em; text-transform: uppercase; color: color-mix(in srgb, var(--scoreboard-ink) 60%, transparent); }
+  .sb-record { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
+  .sb-record .big { font-weight: 800; font-size: 60px; line-height: .85; letter-spacing: .01em; }
+  .sb-record .wl { font: 800 11px/1.4 "Inter"; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--scoreboard-ink) 55%, transparent); }
+  .sb-pill { background: var(--team); color: var(--team-ink); font: 900 11px/1 "Inter"; letter-spacing: .08em; text-transform: uppercase; padding: 7px 11px; border-radius: 999px; box-shadow: 0 6px 16px var(--team-glow); }
+  .sb-meta { position: relative; display: flex; gap: 18px; margin-top: 16px; padding-top: 14px; border-top: 1px solid color-mix(in srgb, var(--scoreboard-ink) 14%, transparent); }
+  .sb-meta .cell .k { font: 700 9px/1 "Inter"; letter-spacing: .14em; text-transform: uppercase; color: color-mix(in srgb, var(--scoreboard-ink) 55%, transparent); }
+  .sb-meta .cell .v { font-weight: 800; font-size: 22px; line-height: 1; margin-top: 6px; }
+  .sb-meta .cell .v.pos { color: var(--win); } .sb-meta .cell .v.neg { color: var(--loss); }
+
+  /* ---- section label ---- */
+  .seclabel { display: flex; align-items: center; gap: 8px; margin: 22px 4px 10px; }
+  .seclabel span { font: 800 11px/1 "Inter"; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); }
+  .seclabel .bar { width: 16px; height: 3px; border-radius: 2px; background: var(--team); }
+
+  /* ---- stat tiles ---- */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px 14px 13px; box-shadow: var(--shadow); }
+  .tile .k { font: 700 9px/1 "Inter"; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .tile .v { font-weight: 800; font-size: 30px; line-height: 1; margin-top: 9px; }
+  .tile .s { font: 700 10px/1 "Inter"; color: var(--ink-2); margin-top: 6px; }
+
+  /* ---- next game card ---- */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .nextgame { padding: 0; }
+  .ng-top { display: flex; align-items: center; gap: 12px; padding: 16px 16px 14px; }
+  .ng-date { flex: none; width: 58px; text-align: center; background: var(--team-soft); border: 1px solid color-mix(in srgb, var(--team) 25%, transparent); border-radius: 12px; padding: 8px 0; }
+  .ng-date .mo { font: 800 9px/1 "Inter"; letter-spacing: .14em; text-transform: uppercase; color: var(--team); }
+  .ng-date .dy { font-weight: 800; font-size: 24px; line-height: 1; margin-top: 3px; color: var(--ink); }
+  .ng-info .vs { font: 700 10px/1 "Inter"; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .ng-info .opp { font: 900 18px/1.05 "Inter"; letter-spacing: -.01em; margin-top: 5px; }
+  .ng-info .when { font: 600 12px/1 "Inter"; color: var(--ink-2); margin-top: 6px; }
+  .ng-tag { margin-left: auto; align-self: flex-start; background: var(--warn-bg); color: var(--warn); font: 900 9px/1 "Inter"; letter-spacing: .1em; text-transform: uppercase; padding: 6px 9px; border-radius: 999px; }
+  .ng-cta { display: flex; gap: 10px; padding: 0 16px 16px; }
+
+  .btn { flex: 1; border: none; cursor: pointer; border-radius: 12px; font: 900 12px/1 "Inter"; letter-spacing: .08em; text-transform: uppercase; padding: 14px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-primary { background: var(--team); color: var(--team-ink); box-shadow: 0 8px 20px var(--team-glow); }
+  .btn-ghost { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); flex: 0 0 auto; padding: 14px 16px; }
+
+  /* ---- leaderboard / list ---- */
+  .list { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: none; }
+  .rank { width: 26px; height: 26px; flex: none; border-radius: 8px; background: var(--team-soft); color: var(--team); display: grid; place-items: center; font: 800 13px/1 "Inter"; }
+  .rank.gold { background: var(--team); color: var(--team-ink); }
+  .avatar { width: 34px; height: 34px; border-radius: 10px; flex: none; background: linear-gradient(135deg, var(--panel-2), var(--line)); display: grid; place-items: center; font: 800 12px/1 "Inter"; color: var(--ink-2); }
+  .row .nm { font: 800 14px/1 "Inter"; }
+  .row .pos { font: 700 10px/1.3 "Inter"; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); margin-top: 4px; }
+  .row .stat { margin-left: auto; text-align: right; }
+  .row .stat .v { font-weight: 800; font-size: 20px; line-height: 1; }
+  .row .stat .k { font: 700 9px/1 "Inter"; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
+  .chip { font: 800 10px/1 "Inter"; letter-spacing: .06em; text-transform: uppercase; padding: 5px 8px; border-radius: 7px; }
+  .chip.win { background: var(--win-bg); color: var(--win); }
+  .chip.loss { background: var(--loss-bg); color: var(--loss); }
+
+  /* ---- roster row with position chips ---- */
+  .poschips { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+  .poschips b { font: 800 9px/1 "Inter"; letter-spacing: .06em; text-transform: uppercase; padding: 4px 6px; border-radius: 6px; background: var(--team-soft); color: var(--team); }
+
+  /* ---- bottom tab bar ---- */
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: color-mix(in srgb, var(--panel) 88%, transparent); backdrop-filter: blur(14px); border-top: 1px solid var(--line); display: flex; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; color: var(--ink-3); font: 800 9px/1 "Inter"; letter-spacing: .08em; text-transform: uppercase; }
+  .tab .ic { font-size: 18px; }
+  .tab.active { color: var(--team); }
+  .tab.active .ic { filter: drop-shadow(0 4px 8px var(--team-glow)); }
+
+  .note { max-width: 440px; margin: 18px auto 0; padding: 0 18px; color: var(--ink-3); font: 500 11px/1.5 "Inter"; text-align: center; }
+</style>
+</head>
+<body>
+  <div class="controls">
+    <b>Mock controls</b>
+    <button class="ctl-btn" onclick="document.body.classList.toggle('dark')">Toggle light / dark</button>
+    <b style="margin-left:6px">Team color</b>
+    <span class="swatch" style="background:#2563eb" onclick="setTeam('#2563eb')"></span>
+    <span class="swatch" style="background:#dc2626" onclick="setTeam('#dc2626')"></span>
+    <span class="swatch" style="background:#059669" onclick="setTeam('#059669')"></span>
+    <span class="swatch" style="background:#7c3aed" onclick="setTeam('#7c3aed')"></span>
+    <span class="swatch" style="background:#ea580c" onclick="setTeam('#ea580c')"></span>
+    <span class="swatch" style="background:#0891b2" onclick="setTeam('#0891b2')"></span>
+  </div>
+
+  <div class="phone">
+    <!-- App bar -->
+    <div class="appbar">
+      <div class="crest">RR</div>
+      <div>
+        <div class="team-name">Riverside Rockets</div>
+        <div class="team-sub">10U · Spring 2026</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="icon-btn">⌕</div>
+      <div class="icon-btn">⚙</div>
+    </div>
+
+    <!-- Scoreboard hero -->
+    <div class="scoreboard">
+      <div class="sb-row">
+        <div>
+          <div class="sb-eyebrow">Season record</div>
+          <div class="sb-record">
+            <span class="big num">12–3</span>
+            <span class="wl">.800<br/>win pct</span>
+          </div>
+        </div>
+        <div class="sb-pill">W4 streak</div>
+      </div>
+      <div class="sb-meta">
+        <div class="cell"><div class="k">Runs for</div><div class="v num">98</div></div>
+        <div class="cell"><div class="k">Runs against</div><div class="v num">61</div></div>
+        <div class="cell"><div class="k">Run diff</div><div class="v num pos">+37</div></div>
+        <div class="cell"><div class="k">Games left</div><div class="v num">5</div></div>
+      </div>
+    </div>
+
+    <!-- Next game -->
+    <div class="seclabel"><span class="bar"></span><span>Next game</span></div>
+    <div class="card nextgame">
+      <div class="ng-top">
+        <div class="ng-date"><div class="mo">May</div><div class="dy num">31</div></div>
+        <div class="ng-info">
+          <div class="vs">vs</div>
+          <div class="opp">Riverside Rays</div>
+          <div class="when">Sat · 10:00 AM · Field 3</div>
+        </div>
+        <div class="ng-tag">★ Big game</div>
+      </div>
+      <div class="ng-cta">
+        <button class="btn btn-primary">View lineup →</button>
+        <button class="btn btn-ghost">Edit</button>
+      </div>
+    </div>
+
+    <!-- Quick stat tiles -->
+    <div class="seclabel"><span class="bar"></span><span>This season</span></div>
+    <div class="tiles">
+      <div class="tile"><div class="k">Record</div><div class="v num">12–3</div><div class="s">+3 last 5</div></div>
+      <div class="tile"><div class="k">Bench equity</div><div class="v num">±1</div><div class="s">on track</div></div>
+      <div class="tile"><div class="k">Roster</div><div class="v num">13</div><div class="s">11 present</div></div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="seclabel"><span class="bar"></span><span>Batting leaders</span></div>
+    <div class="list">
+      <div class="row">
+        <div class="rank gold num">1</div>
+        <div class="avatar">JM</div>
+        <div><div class="nm">Jordan M.</div><div class="pos">2B · #7</div></div>
+        <div class="stat"><div class="v num">.512</div><div class="k">AVG</div></div>
+      </div>
+      <div class="row">
+        <div class="rank num">2</div>
+        <div class="avatar">AC</div>
+        <div><div class="nm">Avery C.</div><div class="pos">SS · #3</div></div>
+        <div class="stat"><div class="v num">.471</div><div class="k">AVG</div></div>
+      </div>
+      <div class="row">
+        <div class="rank num">3</div>
+        <div class="avatar">SD</div>
+        <div><div class="nm">Sam D.</div><div class="pos">CF · #12</div></div>
+        <div class="stat"><div class="v num">.444</div><div class="k">AVG</div></div>
+      </div>
+    </div>
+
+    <!-- Last games -->
+    <div class="seclabel"><span class="bar"></span><span>Last 5</span></div>
+    <div class="list">
+      <div class="row"><div class="chip win">W</div><div><div class="nm">vs Hawks</div><div class="pos">May 24</div></div><div class="stat"><div class="v num">9–4</div></div></div>
+      <div class="row"><div class="chip win">W</div><div><div class="nm">@ Bandits</div><div class="pos">May 20</div></div><div class="stat"><div class="v num">7–2</div></div></div>
+      <div class="row"><div class="chip loss">L</div><div><div class="nm">vs Storm</div><div class="pos">May 17</div></div><div class="stat"><div class="v num">5–8</div></div></div>
+    </div>
+
+    <!-- Roster row sample -->
+    <div class="seclabel"><span class="bar"></span><span>Roster preview</span></div>
+    <div class="list">
+      <div class="row">
+        <div class="avatar">JM</div>
+        <div><div class="nm">Jordan Miller · #7</div>
+          <div class="poschips"><b>2B</b><b>SS</b><b>CF</b><b>★ C</b></div>
+        </div>
+        <div class="stat"><div class="v num">3.8</div><div class="k">Eval</div></div>
+      </div>
+      <div class="row">
+        <div class="avatar">AC</div>
+        <div><div class="nm">Avery Chen · #3</div>
+          <div class="poschips"><b>SS</b><b>3B</b><b>P</b></div>
+        </div>
+        <div class="stat"><div class="v num">4.1</div><div class="k">Eval</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tabbar">
+    <div class="tab active"><div class="ic">●</div>Home</div>
+    <div class="tab"><div class="ic">☰</div>Roster</div>
+    <div class="tab"><div class="ic">▦</div>Schedule</div>
+    <div class="tab"><div class="ic">◆</div>Lineup</div>
+    <div class="tab"><div class="ic">⋯</div>More</div>
+  </div>
+
+  <p class="note">Bold &amp; sporty direction · scoreboard hero, condensed tabular numbers, team-color accents. Use the controls at top to toggle light/dark and swap the team color (theming stays live).</p>
+
+  <script>
+    function setTeam(c){ document.documentElement.style.setProperty('--team', c); }
+  </script>
+</body>
+</html>

@@ -81,6 +81,26 @@ export function isPositionBlocked(
   return false;
 }
 
+// Catcher eligibility. Catcher is just another entry in a player's
+// comfortable-positions list — there is no separate flag. A kid may be
+// seated at C ONLY when "C" is explicitly present in comfortablePositions.
+// Unlike every other position, an EMPTY comfortable list does NOT make a
+// player catcher-eligible: catching is strictly opt-in, so a kid the coach
+// never cleared for C can never end up behind the plate. A legacy negative
+// "C" restriction still wins as a hard block.
+export function isCatcherEligible(p: {
+  comfortablePositions?: string[];
+  restrictions?: string[];
+}): boolean {
+  if (Array.isArray(p?.restrictions) && p.restrictions.includes("C")) {
+    return false;
+  }
+  return (
+    Array.isArray(p?.comfortablePositions) &&
+    p.comfortablePositions.includes("C")
+  );
+}
+
 // Age- and format-aware position importance. Used in addition to
 // POS_DIFFICULTY so the scarcity ordering can reflect what actually
 // matters at each level. P is intentionally low at 9U+ because P
@@ -401,7 +421,10 @@ export function calculateTotalScore(
 
 // ---------- Pitch count eligibility ----------
 
-const PITCH_LIMITS: Record<string, number> = {
+// Single source of truth for max pitches by age group. Also consumed by
+// the lineup card's pitch-availability column (src/lineup/lineupCard.ts)
+// so the two never drift out of league spec.
+export const PITCH_LIMITS: Record<string, number> = {
   "6U": 50,
   "7U": 50,
   "8U": 50,
@@ -599,12 +622,68 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
 
 // ---------- Aggregated history ----------
 
-function buildPositionHistory(games: Game[], currentGameId?: string): any {
+// Whether a past game counts toward season fairness/rotation history.
+// Mirrors utils/helpers.isGameFinalized so the engine agrees with the rest
+// of the app: a game finalized with the legacy `status === "completed"`
+// writer, or one with both scores entered but no status flip to "final",
+// STILL counts. The old strict `status === "final"` check silently dropped
+// those, starving the fairness model of history.
+function isFinalizedGame(g: any): boolean {
+  if (!g) return false;
+  if (g.status === "final" || g.status === "completed") return true;
+  const ts = g.teamScore;
+  const os = g.opponentScore;
+  if (ts == null || ts === "" || os == null || os === "") return false;
+  return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
+}
+
+// Resolve a past lineup-snapshot slot's id to the CURRENT roster id. Games
+// store the id a player had when they were played; if the roster was deleted
+// and re-added (a single kid, or the whole team by mistake) those ids are
+// orphaned and the re-added players carry fresh ids. Keying season fairness
+// by the raw snapshot id then finds NO history for the current roster, so the
+// engine sees everyone as neutral and falls back to seating the weakest /
+// least-used kids first. Coalesce by unique name (same id-with-name fallback
+// as utils/helpers.lineupSlotMatchesPlayer and the Bench Equity tile). Two
+// live players who share a name are left un-coalesced — we only remap when the
+// snapshot id is no longer on the roster AND the name is unambiguous.
+function buildSlotIdResolver(
+  roster: any[]
+): (id?: string, name?: string) => string | undefined {
+  const live = new Set((roster || []).map((p) => p && p.id).filter(Boolean));
+  const norm = (s: any) => String(s ?? "").trim().toLowerCase();
+  const byName = new Map<string, string>();
+  const dupe = new Set<string>();
+  for (const p of roster || []) {
+    if (!p || !p.id) continue;
+    const n = norm(p.name);
+    if (!n) continue;
+    if (byName.has(n)) dupe.add(n);
+    else byName.set(n, p.id);
+  }
+  return (id, name) => {
+    if (!id) return id;
+    if (live.has(id)) return id; // still on the roster — keep
+    const n = norm(name);
+    if (n && !dupe.has(n) && byName.has(n)) return byName.get(n);
+    return id; // unmatched orphan — leave as-is
+  };
+}
+
+const IDENTITY_RESOLVER = (id?: string) => id;
+
+function buildPositionHistory(
+  games: Game[],
+  currentGameId?: string,
+  resolveId: (
+    id?: string,
+    name?: string
+  ) => string | undefined = IDENTITY_RESOLVER
+): any {
   const out = new Map();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup) continue;
-    // Only completed games count toward fairness  postponed/scheduled don't.
-    if (g.status && g.status !== "final") continue;
+    if (!isFinalizedGame(g)) continue;
     const wasBigGame = g.isBigGame === true;
     for (const inning of g.lineup) {
       // Cast to a positions-only view: we skip BENCH up front, so every
@@ -614,10 +693,11 @@ function buildPositionHistory(games: Game[], currentGameId?: string): any {
         if (pos === "BENCH") continue;
         const p = innPos[pos];
         if (!p) continue;
-        let m = out.get(p.id);
+        const key = resolveId(p.id, p.name);
+        let m = out.get(key);
         if (!m) {
           m = new Map();
-          out.set(p.id, m);
+          out.set(key, m);
         }
         const cur = m.get(pos) || { total: 0, bigGame: 0 };
         cur.total += 1;
@@ -629,16 +709,26 @@ function buildPositionHistory(games: Game[], currentGameId?: string): any {
   return out;
 }
 
-function buildFirstInningBenchHistory(games: Game[], currentGameId?: string): any {
+function buildFirstInningBenchHistory(
+  games: Game[],
+  currentGameId?: string,
+  resolveId: (
+    id?: string,
+    name?: string
+  ) => string | undefined = IDENTITY_RESOLVER
+): any {
   const counts = new Map();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
-    if (g.status && g.status !== "final") continue;
+    if (!isFinalizedGame(g)) continue;
     const firstBench = g.lineup[0]?.BENCH;
     if (!firstBench) continue;
     for (const bp of firstBench) {
+      // attendance is keyed by the id stored at game time, so check it on
+      // the original slot id; tally under the resolved (current) id.
       if (g.attendance?.[bp.id] === false) continue;
-      counts.set(bp.id, (counts.get(bp.id) || 0) + 1);
+      const key = resolveId(bp.id, bp.name);
+      counts.set(key, (counts.get(key) || 0) + 1);
     }
   }
   return counts;
@@ -652,12 +742,19 @@ function buildFirstInningBenchHistory(games: Game[], currentGameId?: string): an
 // (math floor) and tally each player's "extra sits" = bench count minus minimum.
 // Players who weren't present don't count for that game.
 // Returns Map<playerId, { extraSits: number }>.
-function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
+function buildExtraSitHistory(
+  games: Game[],
+  currentGameId?: string,
+  resolveId: (
+    id?: string,
+    name?: string
+  ) => string | undefined = IDENTITY_RESOLVER
+): any {
   const out = new Map();
 
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
-    if (g.status && g.status !== "final") continue;
+    if (!isFinalizedGame(g)) continue;
 
     // Mid-game removals: a kid marked as injured/ill/left from inning N
     // played innings 0..N-1 and is gone from N onward. Innings before N
@@ -680,15 +777,25 @@ function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
     // Bench slots per inning is constant within a game (driven by defenseSize
     // + roster present), so we read it from the first inning's BENCH array.
     const attending = new Set();
+    // Map each original snapshot id → name so we can resolve orphaned ids
+    // (from a roster delete+re-add) to the current roster id at accumulation
+    // time. All the per-game tallying below stays keyed by the original id so
+    // attendance / mid-game-removal lookups (also keyed by the snapshot id)
+    // stay correct.
+    const idName = new Map();
     for (const inning of g.lineup) {
       for (const pos in inning) {
         if (pos === "BENCH") continue;
         const p = inning[pos];
-        if (p) attending.add(p.id);
+        if (p) {
+          attending.add(p.id);
+          idName.set(p.id, p.name);
+        }
       }
       for (const bp of inning.BENCH || []) {
         if (g.attendance?.[bp.id] === false) continue;
         attending.add(bp.id);
+        idName.set(bp.id, bp.name);
       }
     }
     const playerCount = attending.size;
@@ -740,7 +847,10 @@ function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
     // 4th of 6 innings doesn't accumulate a 6-inning fair share.
     for (const [pid, count] of benchCount) {
       const played = playedInn.get(pid) || 0;
-      const cur = out.get(pid) || {
+      // Key by the CURRENT roster id so a re-added player's pre-delete
+      // history isn't stranded under their old (orphaned) id.
+      const key = resolveId(pid, idName.get(pid));
+      const cur = out.get(key) || {
         extraSits: 0,
         benchInn: 0,
         defInn: 0,
@@ -752,7 +862,7 @@ function buildExtraSitHistory(games: Game[], currentGameId?: string): any {
       cur.defInn += Math.max(0, played - count);
       cur.expectedDef +=
         innings > 0 ? (played / innings) * expectedDefThisGame : 0;
-      out.set(pid, cur);
+      out.set(key, cur);
     }
   }
   return out;
@@ -1102,6 +1212,17 @@ export function generateLineup(input: EngineInput): EngineResult {
     };
   }
 
+  // Every defensive alignment (9- and 10-fielder) fields a catcher, and
+  // catcher is gated on "C" being in a player's comfortable positions. If
+  // no present player is cleared for C, fail fast with an actionable message rather
+  // than letting it surface downstream as a cryptic bench-schedule error.
+  if (!activePlayers.some((p) => isCatcherEligible(p))) {
+    return {
+      error:
+        "No present player is set as a catcher. Open a player and check “Catcher” to add them to the catching rotation.",
+    };
+  }
+
   const currentGameId = currentGame?.id ?? null;
   const targetDateStr =
     currentGame?.date || new Date().toISOString().split("T")[0];
@@ -1143,16 +1264,68 @@ export function generateLineup(input: EngineInput): EngineResult {
   // Big Game mode automatically relaxes seasonal fairness too
   const effectiveRelax = relaxFairness || isBigGame;
 
-  const positionHistory = buildPositionHistory(games, currentGameId);
+  // Resolver maps orphaned snapshot ids (from a roster delete+re-add) to the
+  // current roster id, so season fairness/rotation history follows re-added
+  // players instead of stranding it under their old ids.
+  const resolveSlotId = buildSlotIdResolver(allPlayers || activePlayers);
+  const positionHistory = buildPositionHistory(
+    games,
+    currentGameId,
+    resolveSlotId
+  );
   const firstInningBenchHx = effectiveRelax
     ? new Map()
-    : buildFirstInningBenchHistory(games, currentGameId);
+    : buildFirstInningBenchHistory(games, currentGameId, resolveSlotId);
   // Cumulative seasonal fairness pressure. When relaxed, we feed the solver
   // an empty history so this game's bench distribution doesn't get skewed by
   // accumulated debt  useful when the strict solver has failed.
   const benchHistory = effectiveRelax
     ? new Map()
-    : buildExtraSitHistory(games, currentGameId);
+    : buildExtraSitHistory(games, currentGameId, resolveSlotId);
+
+  // Mid-game rebuild fairness: when fromInning > 0 the engine replays
+  // innings 0..fromInning-1 from currentLineup. Those replayed innings'
+  // bench tallies are NOT in buildExtraSitHistory (current game is
+  // excluded) so the bench scheduler for innings N+ used to plan as if
+  // nobody had sat yet this game — which let it bench the same kid
+  // again in a later inning even though they'd already sat earlier in
+  // the same game. Fold the already-played innings into benchHistory
+  // so priorRatio reflects the in-game state on the rebuild path.
+  if (
+    !effectiveRelax &&
+    fromInning > 0 &&
+    Array.isArray(currentLineup) &&
+    currentLineup.length > 0
+  ) {
+    const limit = Math.min(fromInning, currentLineup.length, totalInnings);
+    for (let i = 0; i < limit; i++) {
+      const inn = currentLineup[i] || {};
+      for (const pos of Object.keys(inn)) {
+        if (pos === "BENCH") continue;
+        const p = (inn as any)[pos];
+        if (!p) continue;
+        const cur = benchHistory.get(p.id) || {
+          extraSits: 0,
+          benchInn: 0,
+          defInn: 0,
+          expectedDef: 0,
+        };
+        cur.defInn += 1;
+        benchHistory.set(p.id, cur);
+      }
+      for (const bp of (inn as any).BENCH || []) {
+        if (!bp) continue;
+        const cur = benchHistory.get(bp.id) || {
+          extraSits: 0,
+          benchInn: 0,
+          defInn: 0,
+          expectedDef: 0,
+        };
+        cur.benchInn += 1;
+        benchHistory.set(bp.id, cur);
+      }
+    }
+  }
 
   const battingLineup = generateBattingOrder(profiled, battingSize, {
     leagueRuleSet,
@@ -1581,14 +1754,8 @@ function precomputeBenchSchedule(opts: any): any {
     // primary-infield kids are not auto-excluded (real rosters have
     // catchers whose primary is 2B/SS/3B).
     const allEligibleC = sortedForExtra
-      // v4 model: prefer the explicit isCatcher flag. Legacy teams that
-      // never migrated fall back to !restrictions.includes("C") so the
-      // engine keeps working before the user opens a player profile.
-      .filter(({ p }) =>
-        typeof (p as any).isCatcher === "boolean"
-          ? (p as any).isCatcher
-          : !p.restrictions?.includes("C")
-      )
+      // Only players cleared for catcher ("C" in comfortablePositions).
+      .filter(({ p }) => isCatcherEligible(p))
       .filter(({ p }) => (targetSits.get(p.id) || 0) <= totalInnings - 2)
       .sort((a, b) => {
         // Tier 1 wins over tier 2: kids whose primary position is catcher
@@ -2034,6 +2201,9 @@ function tryBuildLineup(ctx: any): any {
             },
           };
         if (isPositionBlocked(player, pos)) continue;
+        // Catcher is opt-in only: never honor a first-inning override that
+        // would seat a non-cleared kid at C.
+        if (pos === "C" && !isCatcherEligible(player)) continue;
         inningSlots[pos] = player;
       }
     }
@@ -2055,9 +2225,7 @@ function tryBuildLineup(ctx: any): any {
           catcher &&
           !benchedSet.has(catcherId) &&
           !used.has(catcherId) &&
-          (typeof (catcher as any).isCatcher === "boolean"
-            ? (catcher as any).isCatcher
-            : !catcher.restrictions?.includes("C"))
+          isCatcherEligible(catcher)
         ) {
           inningSlots["C"] = catcher;
           used.add(catcherId);
@@ -2070,7 +2238,7 @@ function tryBuildLineup(ctx: any): any {
     // PRIMARY POSITION PRE PIN: kids you marked with a primaryPosition get
     // their slot before any other assignment runs. Without this, the random
     // position shuffle could fill RF first and pick a strong 3B primary kid
-    // for RF before 3B is ever scored  the minus 10000 nudge inside
+    // for RF before 3B is ever scored — the minus 10000 nudge inside
     // pickBestForPosition only fires when THAT exact position is being
     // scored, so processing order matters.
     //
@@ -2078,13 +2246,17 @@ function tryBuildLineup(ctx: any): any {
     // primary all game" behavior in pickBestForPosition). MUST run before
     // lock inning carry over so a kid bumped off their primary last inning
     // gets it back, instead of being locked into the wrong spot.
-    // Fair mode: pre pin only inning 0 (matches the existing minus 100 vs minus 2
-    // nudge  primary kid starts at primary but rotates after); for inn>0
-    // in Fair mode this block is a no op and lock inning runs alone.
+    //
+    // Fair mode: pre pin disabled entirely. The coach's explicit ask is
+    // that in fair mode, kids rotate through every comfortablePositions
+    // slot they're allowed to play — no privileged primary position. The
+    // -2 tiebreaker inside pickBestForPosition keeps a feather-light
+    // preference for ties, but rotation pressure / jitter / skill match
+    // dominate the cost function.
     //
     // Sort by defensive score so when two kids share a primaryPosition,
     // the better defender wins it; the runner up is unconstrained.
-    if (isBigGame || inn === 0) {
+    if (isBigGame) {
       const sortedByDef = [...profiled].sort(
         (a, b) => b.profile.defensiveScore - a.profile.defensiveScore
       );
@@ -2099,6 +2271,7 @@ function tryBuildLineup(ctx: any): any {
         // don't pre pin into an illegal slot.
         const st = state.get(p.id);
         if (pos === "C") {
+          if (!isCatcherEligible(p)) continue;
           const cCap = defenseSize === "10" ? 2 : 3;
           if ((st.positions["C"] || 0) >= cCap) continue;
         }
@@ -2134,6 +2307,8 @@ function tryBuildLineup(ctx: any): any {
         if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
         if (used.has(prevPlayer.id)) continue; // already placed
         if (isPositionBlocked(prevPlayer, pos)) continue;
+        // Never carry a non-cleared kid into the catcher slot.
+        if (pos === "C" && !isCatcherEligible(prevPlayer)) continue;
         // Pitcher carry over rule for 9 fielder games is handled in pickBest;
         // for lock innings we trust the prior assignment.
         inningSlots[pos] = prevPlayer;
@@ -2170,6 +2345,7 @@ function tryBuildLineup(ctx: any): any {
           if (inn > 0 && pCount > 0 && !playedHereLast) continue;
         }
         if (pos === "C") {
+          if (!isCatcherEligible(p)) continue;
           const cCap = defenseSize === "10" ? 2 : 3;
           if ((st.positions["C"] || 0) >= cCap) continue;
         }
@@ -2258,6 +2434,41 @@ function tryBuildLineup(ctx: any): any {
 
     inningSlots["BENCH"] = benchList;
     lineup.push(inningSlots);
+  }
+
+  // ---------- Hard catcher invariant (belt-and-suspenders) ----------
+  // Every assignment path is already gated on isCatcherEligible, but this
+  // final sweep guarantees the rule holds for the innings WE generated
+  // (never the reseeded already-played innings, which reflect reality): no
+  // inning may field a catcher who isn't cleared for C. If one ever slips
+  // through, swap them with an eligible fielder this inning (position swap,
+  // so no bench change), or failing that an eligible bench player.
+  for (let i = mgFromInning; i < lineup.length; i++) {
+    const slots = lineup[i];
+    const c = slots["C"];
+    if (!c || isCatcherEligible(c)) continue;
+    let fixed = false;
+    for (const pos of Object.keys(slots)) {
+      if (pos === "C" || pos === "BENCH") continue;
+      const other = slots[pos];
+      if (other && isCatcherEligible(other) && !isPositionBlocked(c, pos)) {
+        slots["C"] = other;
+        slots[pos] = c;
+        fixed = true;
+        break;
+      }
+    }
+    if (!fixed && Array.isArray(slots["BENCH"])) {
+      for (let b = 0; b < slots["BENCH"].length; b++) {
+        const bp = slots["BENCH"][b];
+        if (bp && isCatcherEligible(bp)) {
+          slots["BENCH"][b] = c;
+          slots["C"] = bp;
+          fixed = true;
+          break;
+        }
+      }
+    }
   }
 
   // ---------- Penalty ----------
@@ -2419,6 +2630,7 @@ function pickBestForPosition(opts: any): any {
     }
 
     if (pos === "C") {
+      if (!isCatcherEligible(p)) continue;
       const cCap = defenseSize === "10" ? 2 : 3;
       if ((st.positions["C"] || 0) >= cCap) continue;
     }
@@ -2458,7 +2670,21 @@ function pickBestForPosition(opts: any): any {
     // Big Game: lighter pressure (1.5)  let strong defenders stay at premium
     // spots even if they've played there a lot, since winning matters more.
     const rotationWeight = isBigGame ? 1.5 : 8;
-    score += (seasonCount + (st.positions[pos] || 0)) * rotationWeight;
+    // FAIR MODE intra-OF cycling: outfield positions get an extra 1.75x
+    // rotation multiplier so a kid who already played RF this game gets
+    // actively pushed to CF/LF on their next OF inning instead of
+    // settling back into RF whenever they cycle off the bench. The
+    // existing back-to-back +500 only catches the immediately-prior
+    // inning, so RF→bench→RF→bench→RF was still possible at default
+    // weight (jitter ±5 sometimes wins over the +8 pressure). Big Game
+    // ignores the boost — strong defenders parking in a premium OF
+    // (typically CF) is desired there.
+    const isOF = OF_POSITIONS.has(pos);
+    const ofRotationBoost = !isBigGame && isOF ? 1.75 : 1;
+    score +=
+      (seasonCount + (st.positions[pos] || 0)) *
+      rotationWeight *
+      ofRotationBoost;
     // FAIR MODE compensatory rotation: kids who've played this position in
     // Big Games get an additional push away from it in fair mode. Helps
     // share premium positions across the roster over the season.
@@ -2486,14 +2712,31 @@ function pickBestForPosition(opts: any): any {
 
     if (p.primaryPosition === pos) {
       // Big Game: primary kids stick to their position every inning they're
-      // on the field  same hard preference inning 1+ as inning 0, so a
+      // on the field — same hard preference inning 1+ as inning 0, so a
       // primary SS kid plays SS the whole game in Big Game mode (rotating
       // off only when benched).
-      // Fair mode: gentle preference, lots of room for rotation.
+      // Fair mode: NO primary-position bonus. The coach asked explicitly
+      // for fair mode to rotate kids through the positions they're
+      // comfortable playing rather than clustering them at primary. The
+      // comfortablePositions bonus below handles "stay within the
+      // allowed set" without privileging primary inside that set.
       if (isBigGame) {
         score -= 10000;
-      } else {
-        score -= inn === 0 ? 100 : 2;
+      }
+    }
+
+    // FAIR MODE: bias toward any position in the player's
+    // comfortablePositions list. The list already acts as a hard
+    // whitelist via isPositionBlocked — this small bonus rewards the
+    // engine for keeping kids inside their allowed rotation set
+    // without singling out primary. Big Game ignores this bonus
+    // because it's already pinning to primary far harder.
+    if (!isBigGame) {
+      const comfort = Array.isArray(p.comfortablePositions)
+        ? p.comfortablePositions
+        : null;
+      if (comfort && comfort.length > 0 && comfort.includes(pos)) {
+        score -= 3;
       }
     }
 

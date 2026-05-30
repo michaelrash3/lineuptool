@@ -14,6 +14,32 @@
   --team-tertiary: #ffffff;
   --team-primary-15: color-mix(in srgb, var(--team-primary) 15%, transparent);
   --team-primary-soft: color-mix(in srgb, var(--team-primary) 8%, white);
+  --team-primary-2: color-mix(in srgb, var(--team-primary) 68%, #000);
+
+  /* ==========================================================================
+     SEMANTIC SURFACE TOKENS — Bold & Sporty redesign (light + dark).
+     Components reference these (via Tailwind: bg-surface / text-ink /
+     border-line …) so dark mode is a single [data-theme] swap and the
+     palette lives in one place. Light values below; dark overrides in the
+     [data-theme="dark"] block.
+     ========================================================================== */
+  --app-bg: #eceff4;
+  --surface: #ffffff;
+  --surface-2: #f4f6fa;
+  --ink: #0d1526;
+  --ink-2: #4a5872;
+  --ink-3: #8c99ae;
+  --line: #e2e7ef;
+  --line-strong: #d4dae4;
+
+  --win: #16a34a;  --win-bg: #e7f7ee;
+  --loss: #dc2626; --loss-bg: #fdeaea;
+  --warn-fg: #c2660a; --warn-bg: #fbf0dd;
+
+  /* Sharp geometry — no soft bubbles. */
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-lg: 6px;
 
   /* SLATE SCALE */
   --slate-50: #f8fafc;
@@ -55,7 +81,7 @@
   --info-700: #1d4ed8;
 
   /* SURFACE */
-  --bg-app: var(--slate-50);
+  --bg-app: var(--app-bg);
   --surface-glass-1: rgba(255, 255, 255, 0.2);
   --surface-glass-2: rgba(255, 255, 255, 0.3);
   --surface-glass-3: rgba(255, 255, 255, 0.4);
@@ -78,13 +104,43 @@
     monospace;
 }
 
+/* ============================================================================
+   DARK THEME — applied via <html data-theme="dark">. True-black-ish surfaces,
+   restrained accent (the team color stays on top). Only the semantic tokens
+   flip; the team triplet is injected per-team at runtime in App.jsx.
+   ============================================================================ */
+:root[data-theme="dark"] {
+  --app-bg: #06090f;
+  --surface: #10151f;
+  --surface-2: #0b111a;
+  --ink: #eef2f8;
+  --ink-2: #a2b1c6;
+  --ink-3: #647389;
+  --line: #1c2535;
+  --line-strong: #283447;
+
+  --win: #34d399;  --win-bg: #0f2a20;
+  --loss: #f87171; --loss-bg: #2a1416;
+  --warn-fg: #fbbf24; --warn-bg: #2a2008;
+
+  /* Glass surfaces read as dark translucency in dark mode. */
+  --surface-glass-1: rgba(255, 255, 255, 0.04);
+  --surface-glass-2: rgba(255, 255, 255, 0.06);
+  --surface-glass-3: rgba(255, 255, 255, 0.08);
+  --surface-glass-4: rgba(255, 255, 255, 0.10);
+  --surface-glass-5: rgba(255, 255, 255, 0.14);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --team-primary-soft: color-mix(in srgb, var(--team-primary) 22%, #0b111a);
+}
+
 html,
 body {
   background: var(--bg-app);
   font-family: var(--font-sans);
-  color: var(--slate-900);
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* ============================================================================
@@ -95,49 +151,49 @@ body {
   font: 900 36px/1 var(--font-sans);
   letter-spacing: -0.025em;
   text-transform: uppercase;
-  color: var(--slate-900);
+  color: var(--ink);
 }
 
 .t-h1 {
   font: 900 30px/1 var(--font-sans);
   letter-spacing: -0.025em;
   text-transform: uppercase;
-  color: var(--slate-900);
+  color: var(--ink);
 }
 
 .t-h2 {
   font: 900 20px/1.1 var(--font-sans);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--slate-800);
+  color: var(--ink);
 }
 
 .t-h3 {
   font: 900 18px/1.2 var(--font-sans);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--slate-800);
+  color: var(--ink);
 }
 
 .t-card-title {
   font: 900 24px/1.1 var(--font-sans);
   letter-spacing: -0.025em;
   text-transform: uppercase;
-  color: var(--slate-900);
+  color: var(--ink);
 }
 
 .t-eyebrow {
   font: 800 10px/1 var(--font-sans);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--slate-500);
+  color: var(--ink-3);
 }
 
 .t-label {
   font: 800 10px/1 var(--font-sans);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--slate-500);
+  color: var(--ink-3);
 }
 
 .t-button {
@@ -155,36 +211,36 @@ body {
 .t-stat-num {
   font: 900 30px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
-  color: var(--slate-900);
+  color: var(--ink);
 }
 
 .t-stat-num-sm {
   font: 900 14px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
-  color: var(--slate-900);
+  color: var(--ink);
 }
 
 .t-body {
   font: 500 14px/1.5 var(--font-sans);
-  color: var(--slate-600);
+  color: var(--ink-2);
 }
 
 .t-body-bold {
   font: 800 14px/1.4 var(--font-sans);
-  color: var(--slate-800);
+  color: var(--ink);
 }
 
 .t-meta {
   font: 700 10px/1 var(--font-sans);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--slate-500);
+  color: var(--ink-3);
 }
 
 .t-mono {
   font: 700 12px/1 var(--font-mono);
   letter-spacing: 0.05em;
-  color: var(--slate-800);
+  color: var(--ink);
 }
 
 /* ============================================================================
@@ -192,11 +248,19 @@ body {
    ============================================================================ */
 
 .glass-card {
-  background: var(--surface-glass-3);
-  border: 1px solid var(--hairline);
+  background: var(--surface);
+  border: 1px solid var(--line);
   box-shadow: var(--shadow-card);
-  border-radius: 16px;
+  border-radius: var(--radius);
   overflow: hidden;
+}
+
+/* Reusable redesigned surface — crisp, sharp, theme-aware. */
+.cc-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
 
 .bg-team-primary-15 {

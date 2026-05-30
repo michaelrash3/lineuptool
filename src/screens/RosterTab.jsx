@@ -19,8 +19,8 @@ const FILTER_CHIPS = [
 ];
 
 // Returns true if the player matches the given filter id. Unknown ids match.
-// Position filters consult the v4 position model — `isCatcher` for C and
-// `comfortablePositions` for the field — with legacy `primaryPosition`
+// Position filters consult the position model — `comfortablePositions`,
+// where catcher is just "C" in the list — with legacy `primaryPosition`
 // kept as a last-resort fallback so teams that haven't been migrated
 // still see something useful in the filter.
 const playerComfortable = (player, pos) => {
@@ -43,7 +43,12 @@ const playerMatchesFilter = (player, filterId) => {
     case "pitchers":
       return playerComfortable(player, "P");
     case "catchers":
-      return player.isCatcher === true;
+      // Catcher is opt-in: strictly "C" present in the comfortable list
+      // (no legacy "empty = anywhere" fallback for catcher).
+      return (
+        Array.isArray(player.comfortablePositions) &&
+        player.comfortablePositions.includes("C")
+      );
     case "infield":
       return [...INFIELD_POSITIONS].some((p) => playerComfortable(player, p));
     case "outfield":
@@ -62,10 +67,8 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
 
   return (
     <div
-      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch rounded-2xl border border-slate-200 overflow-hidden shadow-card transition-all hover:shadow-md ${
-        absent
-          ? "bg-gradient-to-b from-slate-50 to-slate-100 opacity-85"
-          : "bg-gradient-to-b from-white to-slate-50"
+      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch rounded-2xl border border-line overflow-hidden shadow-card transition-all hover:shadow-md ${
+        absent ? "bg-surface-2 opacity-85" : "bg-surface"
       }`}
     >
       <div
@@ -106,15 +109,13 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
             <button
               type="button"
               onClick={() => onOpenProfile(player.id)}
-              className="font-black text-base sm:text-lg uppercase tracking-tight text-slate-900 leading-none hover:text-team-primary transition-colors text-left truncate"
+              className="font-black text-base sm:text-lg uppercase tracking-tight text-ink leading-none hover:text-team-primary transition-colors text-left truncate"
             >
               {player.name}
             </button>
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${
-                absent
-                  ? "bg-slate-300"
-                  : "bg-emerald-500"
+                absent ? "bg-ink-3" : "bg-emerald-500"
               }`}
               style={{
                 boxShadow: absent
@@ -125,16 +126,16 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
             />
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
-            <span className="t-chip px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700">
+            <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
               B/T · {player.bats || "R"}/{player.throws || "R"}
             </span>
             {player.dob && (
-              <span className="t-chip px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700">
+              <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
                 Age {calculateBaseballAge(player.dob, currentSeason) || "?"}
               </span>
             )}
             {absent && (
-              <span className="t-chip px-2 py-1 rounded-md bg-rose-50 border border-rose-200 text-rose-700">
+              <span className="t-chip px-2 py-1 rounded-md bg-loss-bg border border-line text-loss">
                 Out
               </span>
             )}
@@ -143,13 +144,12 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
       </div>
 
       <div
-        className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-slate-200 bg-gradient-to-b from-slate-50"
-        style={{ backgroundImage: "linear-gradient(to bottom, var(--slate-50), var(--team-primary-soft))" }}
+        className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-line bg-surface-2"
       >
         {hasStats ? (
           <>
             <div
-              className="text-center px-2 py-2.5 border-r border-slate-900/5 relative"
+              className="text-center px-2 py-2.5 border-r border-line relative"
               style={{ backgroundColor: "var(--team-primary-15)" }}
             >
               <div
@@ -172,19 +172,19 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
                 }}
               />
             </div>
-            <div className="text-center px-2 py-2.5 border-r border-slate-900/5">
+            <div className="text-center px-2 py-2.5 border-r border-line">
               <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
                 OPS
               </div>
-              <div className="font-black text-base text-slate-900 tabular-nums">
+              <div className="font-black text-base text-ink tabular-nums">
                 {formatStat(player.stats?.ops)}
               </div>
             </div>
-            <div className="text-center px-2 py-2.5 border-r border-slate-900/5">
+            <div className="text-center px-2 py-2.5 border-r border-line">
               <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
                 H
               </div>
-              <div className="font-black text-base text-slate-900 tabular-nums">
+              <div className="font-black text-base text-ink tabular-nums">
                 {player.stats?.h || 0}
               </div>
             </div>
@@ -192,13 +192,13 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
               <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
                 RBI
               </div>
-              <div className="font-black text-base text-slate-900 tabular-nums">
+              <div className="font-black text-base text-ink tabular-nums">
                 {player.stats?.rbi || 0}
               </div>
             </div>
           </>
         ) : (
-          <div className="col-span-4 grid place-items-center py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest italic">
+          <div className="col-span-4 grid place-items-center py-4 text-[10px] font-black text-ink-3 uppercase tracking-widest italic">
             No Stats Logged
           </div>
         )}
@@ -264,7 +264,7 @@ export const RosterTab = memo(() => {
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/20 border-b border-white/40">
+        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border-b border-line">
           <div className="flex items-center gap-4">
             <div
               className="p-2.5 rounded-full"
@@ -304,23 +304,24 @@ export const RosterTab = memo(() => {
           )}
         </div>
         {players.length > 0 && (
-          <div className="px-4 sm:px-6 pt-4 pb-3 bg-white/20 border-b border-white/40 space-y-3">
+          <div className="px-4 sm:px-6 pt-4 pb-3 bg-surface border-b border-line space-y-3">
             <div className="relative">
-              <Icons.User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Icons.User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search players by name…"
                 aria-label="Search roster"
-                className="w-full pl-9 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold text-slate-700 shadow-sm"
+                className="w-full pl-9 pr-9 py-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:border-transparent text-sm font-bold text-ink shadow-sm transition-shadow"
+                style={{ "--tw-ring-color": "var(--team-primary)" }}
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery("")}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-700 rounded-md"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-ink-3 hover:text-ink rounded-md"
                 >
                   <Icons.X className="w-3.5 h-3.5" />
                 </button>
@@ -358,12 +359,12 @@ export const RosterTab = memo(() => {
                 <button
                   type="button"
                   onClick={clearAll}
-                  className="t-button px-3 py-1.5 rounded-full text-slate-500 hover:text-slate-800 hover:bg-white/60"
+                  className="t-button px-3 py-1.5 rounded-full text-ink-3 hover:text-ink hover:bg-surface"
                 >
                   Clear All
                 </button>
               )}
-              <span className="ml-auto t-eyebrow text-slate-400 tabular-nums">
+              <span className="ml-auto t-eyebrow text-ink-3 tabular-nums">
                 {visiblePlayers.length} / {players.length}
               </span>
             </div>
@@ -371,7 +372,7 @@ export const RosterTab = memo(() => {
         )}
         <div className="p-4 sm:p-6">
           {players.length === 0 ? (
-            <div className="text-center py-20 bg-white/30 border border-white/50 shadow-sm rounded-2xl">
+            <div className="text-center py-20 bg-surface border border-line shadow-sm rounded-2xl">
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -379,17 +380,17 @@ export const RosterTab = memo(() => {
                   className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
                 />
               ) : (
-                <Icons.Jersey className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                <Icons.Jersey className="w-16 h-16 text-ink-3 mx-auto mb-4" />
               )}
-              <h3 className="t-h3 mb-2 text-slate-500">No Roster Found</h3>
+              <h3 className="t-h3 mb-2 text-ink-3">No Roster Found</h3>
               <p className="t-body max-w-sm mx-auto">
                 Manually add players to build your team, or head to Settings to
                 import your stats file.
               </p>
             </div>
           ) : visiblePlayers.length === 0 ? (
-            <div className="text-center py-12 bg-white/30 border border-white/50 shadow-sm rounded-2xl">
-              <Icons.Jersey className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+            <div className="text-center py-12 bg-surface border border-line shadow-sm rounded-2xl">
+              <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />
               <p className="t-body max-w-sm mx-auto">
                 No players match the current filter — clear to see the full
                 roster.
@@ -397,7 +398,7 @@ export const RosterTab = memo(() => {
               <button
                 type="button"
                 onClick={clearAll}
-                className="mt-3 t-button px-3 py-2 rounded-lg border bg-white/80 border-slate-200 text-slate-700 hover:bg-white"
+                className="mt-3 t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2"
               >
                 Clear Filters
               </button>

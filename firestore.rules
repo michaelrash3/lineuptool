@@ -23,33 +23,136 @@ service cloud.firestore {
         );
       }
 
-      // Base team access: owners/members can read + write team docs.
-      allow read, write: if isMember(resource.data);
+      function isCurrentOwner() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
 
-      // Team bootstrap: signed-in creator can create new team doc when ownerId
-      // is set to their UID.
+      function changedKeys() {
+        return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      function ownerIdUnchanged() {
+        return !changedKeys().hasAny(['ownerId']);
+      }
+
+      function prevMembers() {
+        return resource.data.members != null ? resource.data.members : [];
+      }
+
+      function nextMembers() {
+        return request.resource.data.members != null
+          ? request.resource.data.members
+          : [];
+      }
+
+      function membersAppendOnly() {
+        // Every existing member must still be present after the write.
+        return nextMembers().toSet().hasAll(prevMembers().toSet());
+      }
+
+      function prevCoachRoles() {
+        return resource.data.coachRoles != null ? resource.data.coachRoles : {};
+      }
+
+      function nextCoachRoles() {
+        return request.resource.data.coachRoles != null
+          ? request.resource.data.coachRoles
+          : {};
+      }
+
+      function coachRolesSelfJoinValid() {
+        // On the join-code self-join path the caller may only touch their
+        // OWN coachRoles entry (existing entries stay byte-for-byte), and
+        // that entry must be a real role — never an arbitrary string the
+        // role-resolution logic would silently ignore or that could be
+        // used to smuggle a bogus privilege value. Mirrors the client
+        // guard in useTeamMembership.setCoachRole.
+        return nextCoachRoles().diff(prevCoachRoles()).affectedKeys()
+                 .hasOnly([request.auth.uid])
+          && nextCoachRoles()[request.auth.uid] in ['head', 'assistant'];
+      }
+
+      function selfRemoveOnly() {
+        // The only delta is the caller's own UID being removed (leave-team).
+        return prevMembers().toSet().difference(nextMembers().toSet())
+          .hasOnly([request.auth.uid]);
+      }
+
+      function isLegitimateAutoClaim() {
+        // Team is genuinely unowned AND caller becomes the new owner AND no
+        // other members exist on the previous doc. Mirrors the client-side
+        // auto-claim guard in App.jsx — the same race-prevention check that
+        // shipped in PR #123 is enforced here at the rules layer so a
+        // misbehaving client can't bypass it.
+        return (!('ownerId' in resource.data)
+                || resource.data.ownerId == null
+                || resource.data.ownerId == "")
+          && request.resource.data.ownerId == request.auth.uid
+          && prevMembers().toSet().difference([request.auth.uid].toSet()).size() == 0;
+      }
+
+      // ----- Base team access -----
+      // Members can read. Members can update only when:
+      //   - ownerId stays the same OR caller is the current owner OR it's a
+      //     legitimate first-time auto-claim, AND
+      //   - members[] doesn't shrink OR caller is the current owner OR caller
+      //     is only removing themselves (assistant leaving a team).
+      // The previous "members can write anything" stance was what let the
+      // ownership-takeover race demote a head coach in production. The PR
+      // #123 client-side guard closes the race in our own code; this rules
+      // tightening closes it for any client (or future bug) too.
+      allow read: if isMember(resource.data);
+      allow update: if isMember(resource.data)
+                    && (ownerIdUnchanged() || isCurrentOwner() || isLegitimateAutoClaim())
+                    && (membersAppendOnly() || isCurrentOwner() || selfRemoveOnly());
+
+      // Only the current owner can delete the team document.
+      allow delete: if isCurrentOwner();
+
+      // Team bootstrap: signed-in creator can create a new team doc when
+      // ownerId is set to their UID.
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
 
       // Team join code lookup/read path.
       allow read: if isSignedIn() && resource.data.joinCode != null;
 
-      // Join-code self-join path. Caller may only modify members + coachRoles.
+      // Join-code self-join path. Caller may only modify members + coachRoles,
+      // can never shrink the members list, and must add themselves as a
+      // member by the end of the write. The base-update rule's ownerId
+      // protection still applies on top of this — a code-holder cannot
+      // rewrite the ownership shape.
       allow update: if isSignedIn()
                     && resource.data.joinCode != null
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
-                         .hasOnly(['members', 'coachRoles']);
+                         .hasOnly(['members', 'coachRoles'])
+                    && membersAppendOnly()
+                    && request.auth.uid in nextMembers()
+                    && coachRolesSelfJoinValid();
 
       // Public tryouts path (anonymous auth included):
-      // - read themed team info while open
-      // - append to tryoutSignups only
-      allow read: if isSignedIn() && resource.data.tryoutsOpen == true;
+      // - read themed team info while tryouts are open, OR whenever a
+      //   tryoutShareId is set on the team (the standing share URL
+      //   now resolves to the year-round Player Interest Survey, so
+      //   parents need read access outside the tryouts-open window).
+      // - append to tryoutSignups only while tryouts are open.
+      // - append to interestSignups any time (interest is collected
+      //   year-round; there's no "interest-open" flag).
+      allow read: if isSignedIn()
+                  && (resource.data.tryoutsOpen == true
+                      || resource.data.tryoutShareId != null);
 
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['tryoutSignups']);
+
+      allow update: if isSignedIn()
+                    && resource.data.tryoutShareId != null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['interestSignups']);
     }
   }
 }

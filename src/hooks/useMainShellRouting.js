@@ -6,6 +6,7 @@ const TAB_TO_PATH = {
   schedule: "/schedule",
   evaluation: "/evaluation",
   tryouts: "/tryouts",
+  interest: "/interest",
   settings: "/settings",
 };
 

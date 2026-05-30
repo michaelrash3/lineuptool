@@ -1,26 +1,36 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { formatGameDateDisplay, evalPromptStatus } from "../utils/helpers";
+import {
+  formatGameDateDisplay,
+  evalPromptStatus,
+  buildSeasonBenchImbalance,
+  isGameFinalized,
+} from "../utils/helpers";
 import { useTeam, useUI } from "../contexts.js";
-import { LeaderboardCard, RecordBadge } from "../components/shared.jsx";
+import { LeaderboardCard } from "../components/shared.jsx";
 import { checkPitchEligibility } from "../lineupEngine";
 
 // Dismissible banner that nudges the current coach to submit an eval round
 // when the cadence (preseason or biweekly) is active.
 const EvalPromptBanner = memo(
-  ({ kind, isHead, primaryColor, onStart }) => {
+  ({ kind, isHead, primaryColor, onStart, dueDate }) => {
     const [dismissed, setDismissed] = useState(false);
     if (dismissed) return null;
+    const dueLabel = dueDate ? formatGameDateDisplay(dueDate) : "";
     const headline =
       kind === "preseason"
         ? "Preseason evaluation due"
         : "Biweekly evaluation due";
-    const sub = isHead
-      ? "Open Evaluation and start a fresh round."
-      : "Send your grades to the head coach.";
+    // Spell out the due date so the coach knows exactly which round this
+    // reminder is for. Filing an eval inside its window clears the banner.
+    const sub = `${dueLabel ? `Due ${dueLabel}. ` : ""}${
+      isHead
+        ? "Open Evaluation and start a fresh round to clear this."
+        : "Send your grades to the head coach to clear this."
+    }`;
     return (
       <div
-        className="rounded-2xl border border-white/50 shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+        className="rounded-2xl border border-line shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
         style={{ backgroundColor: "var(--team-primary-15)" }}
       >
         <div
@@ -30,9 +40,9 @@ const EvalPromptBanner = memo(
           <Icons.Clipboard className="w-6 h-6" />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="t-eyebrow text-slate-600">{kind}</div>
-          <div className="t-card-title text-slate-900 mt-0.5">{headline}</div>
-          <p className="text-xs text-slate-600 font-medium mt-1">{sub}</p>
+          <div className="t-eyebrow text-ink-2">{kind}</div>
+          <div className="t-card-title text-ink mt-0.5">{headline}</div>
+          <p className="text-xs text-ink-2 font-medium mt-1">{sub}</p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
           <button
@@ -46,7 +56,7 @@ const EvalPromptBanner = memo(
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="px-3 py-2.5 text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-800 hover:bg-white/50 rounded-lg"
+            className="px-3 py-2.5 text-[11px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg"
           >
             Snooze
           </button>
@@ -145,11 +155,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
   if (!upcoming) return null;
 
   const { game, dayDiff, sameDayCount } = upcoming;
-  const status = game.status || "scheduled";
-  const isFinal =
-    status === "final" &&
-    Number.isFinite(game.teamScore) &&
-    Number.isFinite(game.opponentScore);
+  const isFinal = isGameFinalized(game);
 
   let whenLabel;
   if (dayDiff === 0) whenLabel = "Today";
@@ -160,6 +166,15 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
   }
   const fullDate = formatGameDateDisplay(game.date);
+  // Scoreboard-style date block (MON / DD).
+  const [gy, gm, gd] = (game.date || "").split("-");
+  const dateBlockObj = gy
+    ? new Date(Number(gy), Number(gm) - 1, Number(gd))
+    : null;
+  const monthAbbr = dateBlockObj
+    ? dateBlockObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
+    : "";
+  const dayNum = gd ? String(Number(gd)) : "";
 
   const openInSchedule = () => {
     setSelectedGameId(game.id);
@@ -182,21 +197,33 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     : null;
 
   return (
-    <div className="rounded-2xl shadow-card border border-white/50 overflow-hidden bg-white/40">
-      <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
-      <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-        <div className="flex items-center gap-4 sm:gap-5">
+    <div className="relative rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
+      <div
+        className="absolute inset-y-0 left-0 w-1.5"
+        style={{ backgroundColor: primaryColor }}
+      />
+      <div className="p-5 sm:p-6 pl-6 sm:pl-7 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+        <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+          {/* Scoreboard-style date block */}
           <div
-            className="hidden sm:flex w-14 h-14 rounded-2xl items-center justify-center shrink-0 shadow-inner"
-            style={{ backgroundColor: `${primaryColor}15` }}
+            className="shrink-0 w-16 text-center rounded-xl border overflow-hidden shadow-sm"
+            style={{ borderColor: `${primaryColor}55` }}
           >
-            <Icons.Calendar
-              className="w-7 h-7"
-              style={{ color: primaryColor }}
-            />
+            <div
+              className="text-[9px] font-black uppercase tracking-widest py-1"
+              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+            >
+              {monthAbbr}
+            </div>
+            <div className="text-3xl font-black tabular-nums text-ink py-1.5">
+              {dayNum}
+            </div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                Next Game
+              </span>
               <span
                 className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
@@ -207,10 +234,10 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
                 <span
                   className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border tabular-nums ${
                     result === "win"
-                      ? "bg-green-50 text-green-800 border-green-200"
+                      ? "bg-win-bg text-win border-line"
                       : result === "loss"
-                      ? "bg-red-50 text-red-800 border-red-200"
-                      : "bg-amber-50 text-amber-800 border-amber-200"
+                      ? "bg-loss-bg text-loss border-line"
+                      : "bg-warn-bg text-warnfg border-line"
                   }`}
                 >
                   {result === "win" ? "W" : result === "loss" ? "L" : "T"}{" "}
@@ -218,38 +245,29 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
                 </span>
               )}
               {!isFinal && game.lineup && (
-                <span className="bg-green-50 text-green-700 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-green-200">
+                <span className="bg-win-bg text-win text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
                   Lineup Ready
                 </span>
               )}
               {!isFinal && !game.lineup && (
-                <span className="bg-amber-50 text-amber-700 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-amber-200">
+                <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
                   Lineup Needed
                 </span>
               )}
             </div>
-            <h3 className="font-black text-xl sm:text-2xl text-slate-900 uppercase tracking-tight leading-tight">
-              {game.isBigGame && (
-                <span
-                  className="inline-block mr-1.5 text-yellow-500"
-                  title="Big Game"
-                  aria-label="Big Game"
-                >
-                  ⭐
-                </span>
-              )}
+            <h3 className="font-black text-xl sm:text-2xl text-ink uppercase tracking-tight leading-tight">
               VS. {game.opponent}
             </h3>
-            <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
+            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
               <Icons.Clock className="w-3.5 h-3.5" /> {fullDate}
-              <span className="text-slate-300">|</span>
+              <span className="text-ink-3">|</span>
               <span>
                 {game.leagueRuleSet || leagueRuleSet}{" "}
                 {game.pitchingFormat || pitchingFormat}
               </span>
               {sameDayCount > 1 && (
                 <>
-                  <span className="text-slate-300">|</span>
+                  <span className="text-ink-3">|</span>
                   <span className="text-team-primary">
                     +{sameDayCount - 1} more{" "}
                     {whenLabel.toLowerCase() === "today" ? "today" : "this day"}
@@ -303,7 +321,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
           {dayDiff === 0 && !isFinal && (
             <button
               onClick={openScoreEditor}
-              className="flex-1 sm:flex-none text-xs px-5 py-3 bg-white/80 text-slate-800 border border-slate-200 font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-white transition-colors rounded-xl shadow-sm"
+              className="flex-1 sm:flex-none text-xs px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
             >
               <Icons.FileText className="w-4 h-4" /> Final Score
             </button>
@@ -331,8 +349,8 @@ const InsightTile = memo(
     };
     const styles = ACCENT_STYLES[accent] || ACCENT_STYLES.slate;
     return (
-      <div className="bg-white/60 rounded-2xl shadow-card border border-white/60 overflow-hidden flex flex-col">
-        <div className="px-4 py-3 border-b border-white/50 bg-white/40 flex items-center gap-3">
+      <div className="bg-surface rounded-2xl shadow-card border border-line overflow-hidden flex flex-col">
+        <div className="px-4 py-3 border-b border-line bg-surface flex items-center gap-3">
           <div
             className="p-2 rounded-lg shrink-0"
             style={{ backgroundColor: styles.halo }}
@@ -344,7 +362,7 @@ const InsightTile = memo(
             <button
               type="button"
               onClick={onClick}
-              className="t-button text-slate-500 hover:text-slate-800 flex items-center gap-0.5 shrink-0"
+              className="t-button text-ink-3 hover:text-ink flex items-center gap-0.5 shrink-0"
             >
               {ctaLabel}
               <Icons.ChevronRight className="w-3.5 h-3.5" />
@@ -400,11 +418,11 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
       onClick={onOpenRoster}
     >
       <div className="flex items-baseline gap-3 mb-3">
-        <div className="t-stat-num text-slate-900">{stats.eligible}</div>
+        <div className="t-stat-num text-ink">{stats.eligible}</div>
         <div className="t-eyebrow">eligible today</div>
       </div>
       {stats.resters.length === 0 ? (
-        <p className="text-[11px] text-slate-500 font-medium">
+        <p className="text-[11px] text-ink-3 font-medium">
           Full bullpen available — no rest or pitch-limit holds.
         </p>
       ) : (
@@ -414,8 +432,8 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
               key={i}
               className={`inline-flex items-center gap-1 px-2 py-1 rounded-md t-chip border ${
                 r.label === "limit"
-                  ? "bg-rose-50 border-rose-200 text-rose-700"
-                  : "bg-amber-50 border-amber-200 text-amber-800"
+                  ? "bg-loss-bg border-line text-loss"
+                  : "bg-warn-bg border-line text-warnfg"
               }`}
               title={`${r.recent} recent pitches`}
             >
@@ -423,7 +441,7 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
             </span>
           ))}
           {stats.resters.length > 4 && (
-            <span className="t-chip px-2 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-600">
+            <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink-2">
               +{stats.resters.length - 4}
             </span>
           )}
@@ -461,7 +479,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
   if (!movers.topMover && !movers.topRegressor) {
     return (
       <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
-        <p className="text-[11px] text-slate-500 font-medium italic">
+        <p className="text-[11px] text-ink-3 font-medium italic">
           Upload another CSV to start tracking game-to-game stat movement.
         </p>
       </InsightTile>
@@ -477,12 +495,12 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
           <button
             type="button"
             onClick={() => onPlayerClick?.(movers.topMover.player.id)}
-            className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg bg-emerald-50/70 border border-emerald-200 hover:bg-emerald-50 transition-colors"
+            className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-win-bg/40 border border-line/80 hover:bg-win-bg transition-colors shadow-sm"
           >
             <span className="t-body-bold text-emerald-900 truncate">
               {movers.topMover.player.name}
             </span>
-            <span className="t-stat-num-sm text-emerald-700 tabular-nums shrink-0">
+            <span className="t-stat-num-sm text-win tabular-nums shrink-0">
               ↑ OPS {fmt(movers.topMover.delta)}
             </span>
           </button>
@@ -491,12 +509,12 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
           <button
             type="button"
             onClick={() => onPlayerClick?.(movers.topRegressor.player.id)}
-            className="w-full text-left flex items-center justify-between gap-2 p-2 rounded-lg bg-rose-50/70 border border-rose-200 hover:bg-rose-50 transition-colors"
+            className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-loss-bg/40 border border-line/80 hover:bg-loss-bg transition-colors shadow-sm"
           >
             <span className="t-body-bold text-rose-900 truncate">
               {movers.topRegressor.player.name}
             </span>
-            <span className="t-stat-num-sm text-rose-700 tabular-nums shrink-0">
+            <span className="t-stat-num-sm text-loss tabular-nums shrink-0">
               ↓ OPS {fmt(movers.topRegressor.delta)}
             </span>
           </button>
@@ -572,20 +590,20 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
       <div className="space-y-2">
         {flags.top && (
           <div className="flex items-center justify-between gap-2">
-            <span className="t-body-bold text-slate-800 truncate">
+            <span className="t-body-bold text-ink truncate">
               {flags.top.player.name}
             </span>
-            <span className="t-stat-num-sm text-emerald-700 tabular-nums shrink-0">
+            <span className="t-stat-num-sm text-win tabular-nums shrink-0">
               ↑ {fmt(flags.top.delta)}
             </span>
           </div>
         )}
         {flags.bottom && (
           <div className="flex items-center justify-between gap-2">
-            <span className="t-body-bold text-slate-800 truncate">
+            <span className="t-body-bold text-ink truncate">
               {flags.bottom.player.name}
             </span>
-            <span className="t-stat-num-sm text-rose-700 tabular-nums shrink-0">
+            <span className="t-stat-num-sm text-loss tabular-nums shrink-0">
               ↓ {fmt(flags.bottom.delta)}
             </span>
           </div>
@@ -602,12 +620,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
 const TeamTrendTile = memo(({ games }) => {
   const data = useMemo(() => {
     const finals = (games || [])
-      .filter(
-        (g) =>
-          g.status === "final" &&
-          Number.isFinite(g.teamScore) &&
-          Number.isFinite(g.opponentScore)
-      )
+      .filter(isGameFinalized)
       .sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const last5 = finals.slice(-5);
     const results = last5.map((g) => {
@@ -627,13 +640,13 @@ const TeamTrendTile = memo(({ games }) => {
   return (
     <InsightTile icon={Icons.Bat} title="Last 5 Games" accent="primary">
       <div className="flex items-baseline gap-3 mb-3">
-        <span className="t-stat-num text-slate-900">
+        <span className="t-stat-num text-ink">
           {data.results.filter((r) => r === "W").length}
-          <span className="text-slate-300 text-2xl">-</span>
+          <span className="text-ink-3 text-2xl">-</span>
           {data.results.filter((r) => r === "L").length}
           {data.results.filter((r) => r === "T").length > 0 && (
             <>
-              <span className="text-slate-300 text-2xl">-</span>
+              <span className="text-ink-3 text-2xl">-</span>
               {data.results.filter((r) => r === "T").length}
             </>
           )}
@@ -641,10 +654,10 @@ const TeamTrendTile = memo(({ games }) => {
         <span
           className={`t-eyebrow tabular-nums ${
             data.diff > 0
-              ? "text-emerald-700"
+              ? "text-win"
               : data.diff < 0
-              ? "text-rose-700"
-              : "text-slate-500"
+              ? "text-loss"
+              : "text-ink-3"
           }`}
         >
           {data.diff >= 0 ? "+" : ""}
@@ -657,10 +670,10 @@ const TeamTrendTile = memo(({ games }) => {
             key={i}
             className={`flex-1 h-7 rounded-md grid place-items-center t-button text-white ${
               r === "W"
-                ? "bg-emerald-500"
+                ? "bg-win-bg0"
                 : r === "L"
-                ? "bg-rose-500"
-                : "bg-amber-500"
+                ? "bg-loss-bg0"
+                : "bg-warn-bg0"
             }`}
             title={`Game ${i + 1}: ${r}`}
           >
@@ -676,9 +689,9 @@ const TeamTrendTile = memo(({ games }) => {
    Empty-state CTAs surfaced when the roster or schedule is blank.
 =========================================================================== */
 const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) => (
-  <div className="rounded-2xl bg-white/60 border border-white/60 shadow-card p-8 text-center">
-    <div className="inline-flex p-3 rounded-2xl bg-slate-100 mb-4">
-      <Icon className="w-7 h-7 text-slate-400" />
+  <div className="rounded-2xl bg-surface border border-line shadow-card p-8 text-center">
+    <div className="inline-flex p-3 rounded-2xl bg-surface-2 mb-4">
+      <Icon className="w-7 h-7 text-ink-3" />
     </div>
     <h3 className="t-h3 mb-2">{title}</h3>
     <p className="t-body max-w-md mx-auto mb-5">{body}</p>
@@ -694,6 +707,127 @@ const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) =>
     )}
   </div>
 ));
+
+/* ===========================================================================
+   BenchEquityTile — season-wide reminder of who's been over- or under-played.
+   Uses the same buildSeasonBenchImbalance helper already powering the
+   ScheduleTab per-game imbalance card, but rolled up across every finalized
+   game. The engine already biases lineups for fairness via priorRatio; this
+   tile just makes the running deficit visible at a glance so the coach can
+   spot kids who keep falling behind and decide whether to nudge it (e.g.
+   move someone to a Big Game position for a game).
+=========================================================================== */
+const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
+  const rows = React.useMemo(() => {
+    const imbalance = buildSeasonBenchImbalance(games, "", players);
+    return (players || [])
+      .map((p) => {
+        const data =
+          imbalance.get(p.id) || {
+            totalDefense: 0,
+            expectedDefense: 0,
+            gamesAttended: 0,
+          };
+        return {
+          player: p,
+          delta: data.totalDefense - data.expectedDefense,
+          gamesAttended: data.gamesAttended,
+        };
+      })
+      .filter((r) => r.gamesAttended > 0);
+  }, [players, games]);
+
+  const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
+  if (rows.length === 0) {
+    return (
+      <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
+        <p className="t-body text-ink-3 italic text-xs">
+          No finalized games yet. Once you finalize a game, each kid's
+          season-wide bench vs play balance will surface here.
+        </p>
+      </InsightTile>
+    );
+  }
+  if (!anyImbalance) {
+    return (
+      <InsightTile icon={Icons.Users} title="Bench Equity" accent="success">
+        <p className="t-body text-win text-xs font-bold">
+          Everyone's within 1 inning of their fair share across the season.
+          Keep it up.
+        </p>
+      </InsightTile>
+    );
+  }
+  // Two ends: the kid who's been benched the LEAST (positive delta = played
+  // more than fair share, red), and the kid who's been benched the MOST
+  // (negative delta = played less than fair share, green-to-amber). Pull
+  // the top-2 on each side so the tile stays compact.
+  const sortedByDelta = [...rows].sort((a, b) => b.delta - a.delta);
+  const overPlayed = sortedByDelta
+    .filter((r) => r.delta >= 1)
+    .slice(0, 2);
+  const underPlayed = sortedByDelta
+    .filter((r) => r.delta <= -1)
+    .slice(-2)
+    .reverse();
+  const renderRow = ({ player, delta }) => {
+    const rounded = Math.round(delta);
+    const isOver = rounded > 0;
+    return (
+      <button
+        key={player.id}
+        type="button"
+        onClick={() => onPlayerClick?.(player.id)}
+        className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-surface-2 transition-colors text-left"
+      >
+        <span className="text-xs font-black uppercase tracking-tight text-ink truncate">
+          {player.name}
+        </span>
+        <span
+          className={`shrink-0 text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded-md border ${
+            isOver
+              ? "bg-loss-bg border-line text-loss"
+              : "bg-win-bg border-line text-win"
+          }`}
+          title={
+            isOver
+              ? "Played more than fair share this season"
+              : "Played less than fair share this season"
+          }
+        >
+          {isOver ? "+" : ""}
+          {rounded} inn
+        </span>
+      </button>
+    );
+  };
+  return (
+    <InsightTile icon={Icons.Users} title="Bench Equity" accent="warn">
+      <div className="space-y-2">
+        {underPlayed.length > 0 && (
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-win mb-0.5">
+              Owed innings
+            </div>
+            <div className="flex flex-col">{underPlayed.map(renderRow)}</div>
+          </div>
+        )}
+        {overPlayed.length > 0 && (
+          <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-loss mb-0.5">
+              Has played extra
+            </div>
+            <div className="flex flex-col">{overPlayed.map(renderRow)}</div>
+          </div>
+        )}
+        <p className="text-[10px] font-medium text-ink-3 italic leading-snug pt-0.5">
+          Engine biases new lineups to even this out, but lean on Big Game
+          bench picks if a gap keeps growing.
+        </p>
+      </div>
+    </InsightTile>
+  );
+});
 
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
@@ -743,6 +877,42 @@ export const HomeTab = memo(() => {
   const hasGames = (games || []).length > 0;
   const hasPlayers = (players || []).length > 0;
 
+  // Scoreboard-hero stats: run totals, last-5 form, and win pct. Uses the
+  // shared isGameFinalized() so it agrees with the record badge + trend tile.
+  const seasonHero = useMemo(() => {
+    const finals = (games || [])
+      .filter(isGameFinalized)
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    let runsFor = 0;
+    let runsAgainst = 0;
+    for (const g of finals) {
+      runsFor += Number(g.teamScore) || 0;
+      runsAgainst += Number(g.opponentScore) || 0;
+    }
+    const form = finals
+      .slice(-5)
+      .map((g) =>
+        g.teamScore > g.opponentScore
+          ? "W"
+          : g.teamScore < g.opponentScore
+          ? "L"
+          : "T"
+      );
+    const total = record.wins + record.losses + record.ties;
+    const winPctStr =
+      total > 0
+        ? ((record.wins + 0.5 * record.ties) / total).toFixed(3).replace(/^0/, "")
+        : "—";
+    return {
+      runsFor,
+      runsAgainst,
+      diff: runsFor - runsAgainst,
+      form,
+      winPctStr,
+      finalsCount: finals.length,
+    };
+  }, [games, record]);
+
   return (
     <div className="space-y-8">
       {promptStatus.active && (
@@ -750,6 +920,7 @@ export const HomeTab = memo(() => {
           kind={promptStatus.kind}
           isHead={isHead}
           primaryColor={primaryColor}
+          dueDate={promptStatus.nextDueDate}
           onStart={() => {
             setActiveTab("evaluation");
           }}
@@ -778,74 +949,133 @@ export const HomeTab = memo(() => {
         />
       )}
 
-      <div className="bg-white/30 shadow-card border border-white/50 rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row justify-between items-start gap-8">
-        <div>
-          <h2 className="font-black text-3xl sm:text-4xl uppercase tracking-tight text-slate-900 mb-3">
-            {activeTeamName}
-          </h2>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-[11px] sm:text-xs font-black text-slate-600 uppercase tracking-widest mb-4">
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-              {currentSeason}
-            </span>
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-              {teamAge}
-            </span>
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
-              {leagueRuleSet}
-            </span>
-            <span className="bg-white/80 px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+      {/* ===== Scoreboard hero — record, form, run splits ===== */}
+      <div
+        className="relative overflow-hidden rounded-2xl shadow-card text-white"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--team-primary), var(--team-primary-2))",
+        }}
+      >
+        <div
+          className="absolute inset-y-0 left-0 w-1.5"
+          style={{ backgroundColor: "rgba(255,255,255,0.7)" }}
+        />
+        <div className="p-6 sm:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] opacity-80">
+                {activeTeamName}
+              </div>
+              <div className="flex items-baseline gap-3 mt-2">
+                <span className="font-black tabular-nums leading-none text-[3.25rem] sm:text-6xl">
+                  {record.wins}
+                  <span className="opacity-50">–</span>
+                  {record.losses}
+                  {record.ties > 0 && (
+                    <>
+                      <span className="opacity-50">–</span>
+                      {record.ties}
+                    </>
+                  )}
+                </span>
+                {seasonHero.finalsCount > 0 && (
+                  <span className="text-[11px] font-black uppercase tracking-widest opacity-85 leading-tight">
+                    {seasonHero.winPctStr}
+                    <br />
+                    win pct
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
+                Season
+              </div>
+              <div className="text-sm font-black uppercase tracking-wide mt-1">
+                {currentSeason}
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">
+                {teamAge} · {leagueRuleSet}
+              </div>
+            </div>
+          </div>
+
+          {seasonHero.form.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-5">
+              <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-75 mr-1">
+                Form
+              </span>
+              {seasonHero.form.map((r, i) => (
+                <span
+                  key={i}
+                  className={`w-6 h-6 rounded grid place-items-center text-[10px] font-black ${
+                    r === "W" ? "bg-white" : "bg-black/25"
+                  }`}
+                  style={
+                    r === "W" ? { color: "var(--team-primary-2)" } : undefined
+                  }
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
+            {[
+              { k: "Runs For", v: seasonHero.runsFor },
+              { k: "Against", v: seasonHero.runsAgainst },
+              {
+                k: "Run Diff",
+                v: `${seasonHero.diff >= 0 ? "+" : ""}${seasonHero.diff}`,
+              },
+              { k: "Roster", v: players.length },
+            ].map((s) => (
+              <div key={s.k}>
+                <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
+                  {s.k}
+                </div>
+                <div className="text-2xl font-black tabular-nums leading-none mt-1.5">
+                  {s.v}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {pitchingFormat && (
+            <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-white/15 px-2.5 py-1 rounded">
               {pitchingFormat}
-            </span>
-          </div>
-          {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
-            <div className="mb-6">
-              <RecordBadge record={record} variant="full" />
             </div>
           )}
-          {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
-            <div className="space-y-3 bg-white/60 p-5 rounded-xl border border-slate-200 shadow-sm inline-block min-w-full sm:min-w-[320px]">
-              {headCoaches.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 sm:w-32 shrink-0 sm:pt-0.5">
-                    Head Coach:
-                  </span>
-                  <span className="text-sm font-bold text-slate-800">
-                    {headCoaches.map((c) => c.name).join(", ")}
-                  </span>
-                </div>
-              )}
-              {assistantCoaches.length > 0 && (
-                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                  <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 sm:w-32 shrink-0 sm:pt-0.5">
-                    Assistant Coaches:
-                  </span>
-                  <span className="text-sm font-bold text-slate-800">
-                    {assistantCoaches.map((c) => c.name).join(", ")}
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex gap-4 w-full md:w-auto">
-          <div className="flex-1 md:flex-none bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl">
-            <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
-              Roster Size
-            </span>
-            <span className="block text-3xl font-black text-slate-900">
-              {players.length}
-            </span>
-          </div>
-          <div className="flex-1 md:flex-none bg-white/60 px-6 py-5 border border-slate-200 text-center shadow-sm rounded-xl">
-            <span className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
-              Games
-            </span>
-            <span className="block text-3xl font-black text-slate-900">
-              {games.length}
-            </span>
-          </div>
         </div>
       </div>
+
+      {/* Coaches */}
+      {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
+        <div className="bg-surface border border-line rounded-xl shadow-card p-5 space-y-3">
+          {headCoaches.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
+                Head Coach
+              </span>
+              <span className="text-sm font-bold text-ink">
+                {headCoaches.map((c) => c.name).join(", ")}
+              </span>
+            </div>
+          )}
+          {assistantCoaches.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
+                Assistant Coaches
+              </span>
+              <span className="text-sm font-bold text-ink">
+                {assistantCoaches.map((c) => c.name).join(", ")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Insight tiles row — only renders when there's a player to show */}
       {hasPlayers && (
@@ -868,6 +1098,11 @@ export const HomeTab = memo(() => {
             onOpenEval={() => setActiveTab("evaluation")}
           />
           <TeamTrendTile games={games} />
+          <BenchEquityTile
+            players={players}
+            games={games}
+            onPlayerClick={openPlayerProfile}
+          />
         </div>
       )}
 
@@ -934,9 +1169,9 @@ const LeaderboardsSection = memo(
     const visibleTab = tabs.find((t) => t.id === activeTab) || tabs[0];
 
     return (
-      <div className="bg-white/30 rounded-xl shadow-card border border-white/50 p-3 sm:p-4">
+      <div className="bg-surface rounded-xl shadow-card border border-line p-3 sm:p-4">
         <div className="flex items-center justify-between gap-3 mb-3 px-1">
-          <h2 className="text-sm font-black uppercase tracking-tight text-slate-800">
+          <h2 className="text-sm font-black uppercase tracking-tight text-ink">
             Leaderboards
           </h2>
           <div className="flex gap-1.5">
@@ -950,7 +1185,7 @@ const LeaderboardsSection = memo(
                   className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
                     isActive
                       ? "shadow-sm"
-                      : "text-slate-500 hover:bg-white/60"
+                      : "text-ink-3 hover:bg-surface"
                   }`}
                   style={
                     isActive

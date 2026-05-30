@@ -86,14 +86,14 @@ export const EvalGradeCard = memo(
   }) => {
     const playerGrades = grades || {};
     return (
-      <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <div className="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-slate-100">
+      <div className="bg-surface border border-line rounded-lg shadow-sm overflow-hidden">
+        <div className="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-line">
           <div className="min-w-0">
-            <div className="text-sm font-black uppercase tracking-tight text-slate-900 truncate">
+            <div className="text-sm font-black uppercase tracking-tight text-ink truncate">
               {player.name}
             </div>
             {player.number != null && player.number !== "" && (
-              <div className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">
+              <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
                 #{player.number}
               </div>
             )}
@@ -105,13 +105,13 @@ export const EvalGradeCard = memo(
             const value = playerGrades[cat.id] ?? DEFAULT_GRADE;
             return (
               <div key={cat.id}>
-                <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+                <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   {cat.label}
                 </div>
                 {readOnly ? (
-                  <div className="text-xl font-black tabular-nums text-slate-900">
+                  <div className="text-xl font-black tabular-nums text-ink">
                     {value}
-                    <span className="text-[10px] text-slate-400 font-bold ml-1">
+                    <span className="text-[10px] text-ink-3 font-bold ml-1">
                       / 5
                     </span>
                   </div>
@@ -126,7 +126,7 @@ export const EvalGradeCard = memo(
             );
           })}
           <div>
-            <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+            <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Suggested Positions
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -162,13 +162,13 @@ export const EvalGradeCard = memo(
             </div>
           </div>
           <div>
-            <div className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">
+            <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
               Notes
             </div>
             {readOnly ? (
-              <p className="text-xs text-slate-700 italic leading-snug min-h-[1.25rem]">
+              <p className="text-xs text-ink italic leading-snug min-h-[1.25rem]">
                 {playerGrades.notes || (
-                  <span className="text-slate-400 not-italic">—</span>
+                  <span className="text-ink-3 not-italic">—</span>
                 )}
               </p>
             ) : (
@@ -177,7 +177,7 @@ export const EvalGradeCard = memo(
                 onChange={(e) => onNotesChange?.(player.id, e.target.value)}
                 rows={2}
                 placeholder="Anything worth flagging?"
-                className="w-full p-2.5 text-xs border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                className="w-full p-2.5 text-xs border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
               />
             )}
           </div>

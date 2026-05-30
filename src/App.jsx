@@ -5,6 +5,8 @@ import React, {
   useCallback,
   useRef,
   memo,
+  lazy,
+  Suspense,
 } from "react";
 import {
   signInWithCustomToken,
@@ -47,32 +49,25 @@ import {
   Navigate,
 } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette.jsx";
+import { WelcomeChooser } from "./components/WelcomeChooser.jsx";
 import {
   LoginScreen,
   AppHeader,
   TabBarNav,
 } from "./components/Chrome.jsx";
-import { HomeTab } from "./screens/HomeTab.jsx";
-import { RosterTab } from "./screens/RosterTab.jsx";
-import { ScheduleTab } from "./screens/ScheduleTab.jsx";
-import { EvaluationTab } from "./screens/EvaluationTab.jsx";
-import { SettingsTab } from "./screens/SettingsTab.jsx";
 import {
   PlayerProfileModal,
   AddPlayerModal,
   PastSeasonImportModal,
 } from "./components/modals.jsx";
-import { AssistantEvalTab } from "./screens/AssistantEvalTab.jsx";
-import { TryoutsTab } from "./screens/TryoutsTab.jsx";
-import { TryoutsPortal } from "./screens/TryoutsPortal.jsx";
-import { InGameView } from "./screens/InGameView.jsx";
 import {
   normalizeDateToIso,
   slimGame,
   scrubUndefined,
   blankStats,
   emailPromptStatus,
-  evalRoundDateFor,
+  isReturning,
+  isGameFinalized,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
@@ -93,6 +88,57 @@ import {
   generateBattingOnly as engineGenerateBattingOnly,
 } from "./lineupEngine";
 
+// Screens are lazy-loaded so the initial bundle stays small. The Routes
+// blocks below are wrapped in <Suspense> with a tiny spinner fallback.
+// `import().then(m => ({ default: m.X }))` is the named-export shim
+// React.lazy needs — every screen here exports its component as a named
+// const, not a default.
+const HomeTab = lazy(() =>
+  import("./screens/HomeTab.jsx").then((m) => ({ default: m.HomeTab }))
+);
+const RosterTab = lazy(() =>
+  import("./screens/RosterTab.jsx").then((m) => ({ default: m.RosterTab }))
+);
+const ScheduleTab = lazy(() =>
+  import("./screens/ScheduleTab.jsx").then((m) => ({ default: m.ScheduleTab }))
+);
+const EvaluationTab = lazy(() =>
+  import("./screens/EvaluationTab.jsx").then((m) => ({
+    default: m.EvaluationTab,
+  }))
+);
+const SettingsTab = lazy(() =>
+  import("./screens/SettingsTab.jsx").then((m) => ({ default: m.SettingsTab }))
+);
+const AssistantEvalTab = lazy(() =>
+  import("./screens/AssistantEvalTab.jsx").then((m) => ({
+    default: m.AssistantEvalTab,
+  }))
+);
+const TryoutsTab = lazy(() =>
+  import("./screens/TryoutsTab.jsx").then((m) => ({ default: m.TryoutsTab }))
+);
+const InterestTab = lazy(() =>
+  import("./screens/InterestTab.jsx").then((m) => ({ default: m.InterestTab }))
+);
+const TryoutsPortal = lazy(() =>
+  import("./screens/TryoutsPortal.jsx").then((m) => ({
+    default: m.TryoutsPortal,
+  }))
+);
+const InGameView = lazy(() =>
+  import("./screens/InGameView.jsx").then((m) => ({ default: m.InGameView }))
+);
+
+// Suspense fallback used while a lazy-loaded screen chunk is fetching.
+// Kept dead-simple and consistent across every route — a centered
+// spinner so layout doesn't reflow when the chunk arrives.
+const ScreenLoader = () => (
+  <div className="flex items-center justify-center py-16 text-ink-3">
+    <Icons.Refresh className="w-5 h-5 animate-spin" />
+  </div>
+);
+
 /* ============================================================================
    SECTION 2 · Firebase setup — see ./firebase.js
    SECTION 3 · Pure helpers — see ./utils/helpers.js
@@ -101,6 +147,23 @@ import {
 /* ============================================================================
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
+
+// Pull a display-able last name from a Firebase auth user. Eval rounds
+// are tagged with this at save time so the head's "Mike · 2026-05-23"
+// label survives across devices and stale auth profiles. Falls back to
+// the email local-part, then to "Coach", before ever leaving the field
+// blank.
+const lastNameOfUser = (u) => {
+  const dn = (u?.displayName || "").trim();
+  if (dn) {
+    const parts = dn.split(/\s+/).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  const email = (u?.email || "").trim();
+  const local = email.split("@")[0];
+  if (local) return local;
+  return "Coach";
+};
 
 const authDiag = (event, details = {}) => {
   if (typeof console === "undefined") return;
@@ -193,7 +256,7 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
         return (
           <div
             key={t.id}
-            className="relative bg-white rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
+            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
             role="status"
           >
             <span
@@ -208,12 +271,12 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
             </span>
             <div className="flex-1 min-w-0">
               {t.title && (
-                <div className="t-button text-slate-900" style={{ fontSize: "12px" }}>
+                <div className="t-button text-ink" style={{ fontSize: "12px" }}>
                   {t.title}
                 </div>
               )}
               {t.message && (
-                <div className="text-[11.5px] font-semibold text-slate-600 mt-0.5 leading-snug">
+                <div className="text-[11.5px] font-semibold text-ink-2 mt-0.5 leading-snug">
                   {t.message}
                 </div>
               )}
@@ -225,7 +288,7 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
                   t.action.onClick();
                   dismiss(t.id);
                 }}
-                className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-slate-50"
+                className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
                 style={{
                   color: tone.actionColor,
                   borderColor: tone.actionBorder,
@@ -238,7 +301,7 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
               type="button"
               onClick={() => dismiss(t.id)}
               aria-label="Dismiss"
-              className="shrink-0 w-[22px] h-[22px] grid place-items-center text-slate-400 hover:text-slate-700 rounded-md"
+              className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
             >
               <Icons.X className="w-3 h-3" />
             </button>
@@ -398,24 +461,15 @@ const TeamProvider = ({ children }) => {
       async (snap) => {
         let data = snap.exists() ? snap.data() : null;
         if (!data || !data.teams || data.teams.length === 0) {
-          // If the user arrived via ?join= we should NOT auto-create
-          // a default team yet. Wait for the pending join redemption first so
-          // brand-new assistants land in the intended team.
-          const hasPendingJoinFlow =
-            typeof window !== "undefined" &&
-            Boolean(
-              sessionStorage.getItem("pendingJoin") ||
-              new URLSearchParams(window.location.search).get("join")
-            );
-          if (hasPendingJoinFlow) {
-            setLoadingTeams(false);
-            return;
-          }
-
-          // Bootstrap: create first team for this user. Guard so we don't
-          // create duplicate teams if rules/network temporarily reject the
-          // user settings write and this snapshot retries.
-          await bootstrapDefaultTeam();
+          // No teams yet for this user. The MainShell renders <WelcomeChooser>
+          // off the empty `teams` list so the coach explicitly picks Join vs
+          // Create. We no longer force-create "My Team" here — that produced a
+          // throwaway team for anyone whose actual intent was to join via the
+          // 6-char code. The ?join= redemption flow still goes through
+          // bootstrapDefaultTeam() as a fallback when its lookup fails (see the
+          // join effect below).
+          setTeams([]);
+          setActiveTeamId(null);
           setLoadingTeams(false);
           return;
         }
@@ -435,7 +489,7 @@ const TeamProvider = ({ children }) => {
       }
     );
     return () => unsub();
-  }, [authReady, user, toast, bootstrapDefaultTeam]);
+  }, [authReady, user, toast]);
 
   // Subscribe to active team document
   useEffect(() => {
@@ -532,6 +586,30 @@ const TeamProvider = ({ children }) => {
                 };
               });
             }
+            // v5 — catcher unification. Catcher is now just "C" in
+            // comfortablePositions; the separate isCatcher flag is gone. The
+            // v4 auto-fill had set comfortablePositions to every position a
+            // kid wasn't *restricted* from — which, for the common case of no
+            // restrictions, marked the ENTIRE roster as catcher-eligible. Undo
+            // that: a "C" already in the list came from that auto-fill (the UI
+            // never let a coach add C), so re-derive real catcher status from
+            // the legacy primaryPosition; otherwise honor the explicit
+            // isCatcher checkbox. Then encode the result as "C" in the list.
+            if (stored < 5) {
+              migratedPlayers = migratedPlayers.map((p) => {
+                if (!p) return p;
+                const comfort = Array.isArray(p.comfortablePositions)
+                  ? p.comfortablePositions
+                  : [];
+                const isCatcher = comfort.includes("C")
+                  ? p.primaryPosition === "C"
+                  : p.isCatcher === true;
+                const next = comfort.filter((pos) => pos !== "C");
+                if (isCatcher) next.push("C");
+                const { isCatcher: _dropped, ...rest } = p;
+                return { ...rest, comfortablePositions: next };
+              });
+            }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
               players: migratedPlayers,
@@ -540,12 +618,22 @@ const TeamProvider = ({ children }) => {
             setTeamData({
               ...DEFAULT_TEAM_DATA,
               ...raw,
+              // Coerce core collections to arrays: a malformed doc with
+              // players/games set to null would otherwise override the
+              // DEFAULT_TEAM_DATA [] and crash the many .map/.find call
+              // sites downstream.
+              games: Array.isArray(raw.games) ? raw.games : [],
               evaluationEvents: migratedEvents,
               players: migratedPlayers,
               evalSchemaVersion: EVAL_SCHEMA_VERSION,
             });
           } else {
-            setTeamData({ ...DEFAULT_TEAM_DATA, ...raw });
+            setTeamData({
+              ...DEFAULT_TEAM_DATA,
+              ...raw,
+              players: Array.isArray(raw.players) ? raw.players : [],
+              games: Array.isArray(raw.games) ? raw.games : [],
+            });
           }
         }
         setLoadingActive(false);
@@ -680,6 +768,11 @@ const TeamProvider = ({ children }) => {
         photoUrl: form.photoUrl || "",
         present: true,
         restrictions: [],
+        // Catcher is just "C" in this list — a new player isn't a catcher
+        // until the coach adds C to their comfortable positions.
+        comfortablePositions: Array.isArray(form.comfortablePositions)
+          ? form.comfortablePositions
+          : [],
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
       };
@@ -1686,7 +1779,7 @@ const TeamProvider = ({ children }) => {
 
   const createTeam = useCallback(
     async (name) => {
-      if (!user || !name.trim()) return;
+      if (!user || !name.trim()) return false;
       const id = "team-" + Math.random().toString(36).substring(2, 10);
       setSyncStatus("Creating");
       try {
@@ -1721,6 +1814,7 @@ const TeamProvider = ({ children }) => {
         );
         toast.push({ kind: "success", title: "Team created" });
         setSyncStatus("");
+        return true;
       } catch (e) {
         setSyncStatus("");
         toast.push({
@@ -1728,12 +1822,14 @@ const TeamProvider = ({ children }) => {
           title: "Could not create team",
           message: e.message,
         });
+        return false;
       }
     },
     [user, teams, toast]
   );
 
-  const advanceSeason = useCallback(() => {
+  const advanceSeason = useCallback((opts = {}) => {
+    const { skipConfirm = false, tryoutsToPromote = [] } = opts;
     const computed = computeNextSeason(teamData.currentSeason);
     if (!computed) {
       toast.push({
@@ -1755,7 +1851,7 @@ const TeamProvider = ({ children }) => {
       runsScored = 0,
       runsAllowed = 0;
     for (const g of teamData.games) {
-      if (g.status !== "final") continue;
+      if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;
@@ -1771,11 +1867,12 @@ const TeamProvider = ({ children }) => {
     const archivedFormat = teamData.pitchingFormat;
     const playerCount = teamData.players.length;
 
-    // Split current roster by playerStatus. Returning + undefined keep
-    // their slot; released + declined are archived (stats keep flowing
-    // into pastSeasons) but dropped from the next roster.
-    const isDropped = (p) =>
-      p.playerStatus === "released" || p.playerStatus === "declined";
+    // Split current roster by the returning Y/N answer (with legacy
+    // playerStatus fallback via isReturning). Returners keep their
+    // slot; non-returners (explicit returning:false OR legacy
+    // released/declined) are archived but dropped from the next
+    // roster.
+    const isDropped = (p) => !isReturning(p);
     const droppedCount = teamData.players.filter(isDropped).length;
     // Tryout accepts ride on the same `team.players` array with
     // playerStatus === "accepted" — they join the new roster directly.
@@ -1810,7 +1907,12 @@ const TeamProvider = ({ children }) => {
       `\n\n` +
       `This cannot be undone.`;
 
-    if (!window.confirm(confirmMsg)) return;
+    // The AdvanceSeasonModal already walked the head through every
+    // marking and showed a full summary, so the window.confirm here is
+    // a duplicate gate when the call came from the wizard. Direct
+    // callers (anywhere besides the modal) still see the confirm
+    // dialog.
+    if (!skipConfirm && !window.confirm(confirmMsg)) return;
 
     const nowIso = new Date().toISOString();
 
@@ -1844,20 +1946,60 @@ const TeamProvider = ({ children }) => {
         };
       });
 
+    // Tryout signups selected for promotion become full Player rows on
+    // the new roster. Mirrors acceptTryout's mapping but bulk and at
+    // advance-time. Every tryout signup is cleared from the team
+    // afterward — they don't carry over to the new season regardless of
+    // whether they were promoted (interest signups are untouched).
+    const promotionSet = new Set(tryoutsToPromote);
+    const promotedPlayers = (teamData.tryoutSignups || [])
+      .filter((s) => promotionSet.has(s.id))
+      .map((s) => ({
+        id: "p-" + Math.random().toString(36).slice(2, 10),
+        name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
+        number: s.tryoutNumber || s.number || "",
+        dob: s.dob || "",
+        bats: s.bats || "R",
+        throws: s.throws || "R",
+        comfortablePositions: [
+          ...(Array.isArray(s.comfortablePositions) ? s.comfortablePositions : []).filter(
+            (p) => p !== "C"
+          ),
+          ...(s.isCatcher === true ? ["C"] : []),
+        ],
+        parentName: s.parentName || "",
+        email: s.email || "",
+        phone: s.phone || "",
+        present: true,
+        playerStatus: "returning",
+        pastSeasons: [],
+        stats: blankStats(),
+        pitching: { recentPitches: 0, lastPitchDate: null },
+        tryoutSignupId: s.id,
+      }));
+
     updateTeam({
       currentSeason: nextSeason,
       teamAge: newAgeGroup,
-      players: updatedPlayers,
+      players: [...updatedPlayers, ...promotedPlayers],
       games: [],
       evaluationEvents: [],
+      tryoutSignups: [],
+      tryoutsOpen: false,
       lastSeasonAdvanceAt: nowIso,
     });
     toast.push({
       kind: "success",
       title: `Advanced to ${nextSeason}`,
-      message: shouldBump
-        ? `Age group is now ${newAgeGroup}.`
-        : `Age group stays ${newAgeGroup}.`,
+      message:
+        (shouldBump
+          ? `Age group is now ${newAgeGroup}.`
+          : `Age group stays ${newAgeGroup}.`) +
+        (promotedPlayers.length > 0
+          ? ` ${promotedPlayers.length} tryout${
+              promotedPlayers.length === 1 ? "" : "s"
+            } promoted to roster.`
+          : ""),
     });
   }, [teamData, updateTeam, toast]);
 
@@ -1922,6 +2064,7 @@ const TeamProvider = ({ children }) => {
     exportRosterCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
+    setPlayerReturning,
     importBackup,
   } = useImportExportFlows({ teamData, updateTeam, activeTeamId, toast });
 
@@ -2002,15 +2145,11 @@ const TeamProvider = ({ children }) => {
     const inputs = uiBridge.current.getInputs?.();
     const grades = inputs?.teamEvalGrades || {};
     const selectedRoundId = inputs?.selectedRoundId || null;
-    const newRoundLabel = (inputs?.newRoundLabel || "").trim();
     if (!user) return;
 
-    const myEvents = teamData.evaluationEvents.filter(
-      (e) => e.coachRole === "Head" && e.evaluatorId === user.uid
-    );
-
     if (selectedRoundId) {
-      // Editing an existing round — update its grades, keep its label/date/id
+      // Editing an existing round — update its grades, keep its
+      // label/date/id/evaluatorName intact.
       const next = teamData.evaluationEvents.map((e) =>
         e.id === selectedRoundId ? { ...e, grades } : e
       );
@@ -2019,19 +2158,16 @@ const TeamProvider = ({ children }) => {
       return selectedRoundId;
     }
 
-    // Creating a new round — label it with the active due date when a cadence
-    // window is open (falling back to today off-cadence) so the round lines up
-    // with the reminder's "already done" window and the banner clears cleanly.
+    // Creating a new round. Denormalize the coach's last name onto the
+    // event so reads across devices don't need an auth roundtrip.
     const today = getLocalDateString();
-    const roundDate = evalRoundDateFor(teamData, user.uid, "Head", today);
-    const roundNumber = myEvents.length + 1;
-    const label = newRoundLabel || `Eval ${roundNumber} (${roundDate})`;
+    const evaluatorName = lastNameOfUser(user);
     const newEvent = {
       id: "ev-" + Math.random().toString(36).substring(2, 10),
       date: roundDate,
       coachRole: "Head",
       evaluatorId: user.uid,
-      label,
+      evaluatorName,
       grades,
     };
     updateTeam({
@@ -2040,7 +2176,7 @@ const TeamProvider = ({ children }) => {
     toast.push({
       kind: "success",
       title: "Eval saved",
-      message: label,
+      message: `${evaluatorName} · ${today}`,
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
@@ -2074,7 +2210,7 @@ const TeamProvider = ({ children }) => {
           date: roundDate,
           coachRole: "Assistant",
           evaluatorId: user.uid,
-          label: `Assistant Eval · ${today}`,
+          evaluatorName: lastNameOfUser(user),
           grades,
         };
         nextEvents = [...(teamData.evaluationEvents || []), newEvent];
@@ -2193,11 +2329,65 @@ const TeamProvider = ({ children }) => {
   const deleteTryoutSignup = useCallback(
     (id) => {
       if (!id) return;
-      if (!window.confirm("Delete this tryout signup?")) return;
+      // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
       const next = (teamData.tryoutSignups || []).filter((s) => s.id !== id);
       updateTeam({ tryoutSignups: next });
     },
     [teamData.tryoutSignups, updateTeam]
+  );
+
+  // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
+  // in the InterestTab UI so there's no native confirm prompt here.
+  const deleteInterestSignup = useCallback(
+    (id) => {
+      if (!id) return;
+      const next = (teamData.interestSignups || []).filter((s) => s.id !== id);
+      updateTeam({ interestSignups: next });
+    },
+    [teamData.interestSignups, updateTeam]
+  );
+
+  // Promote an interest-survey lead into a real tryout signup. Useful
+  // when tryouts open and the HC wants to seed the signup list from
+  // standing interest. Copies fields, marks status:"tryout", removes
+  // the source lead from interestSignups in the same write.
+  const convertInterestToTryout = useCallback(
+    (id) => {
+      if (!id) return;
+      const lead = (teamData.interestSignups || []).find((s) => s.id === id);
+      if (!lead) return;
+      const signup = {
+        id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+        submittedAt: new Date().toISOString(),
+        firstName: lead.firstName,
+        lastName: lead.lastName,
+        dob: lead.dob || "",
+        parentName: lead.parentName || "",
+        email: lead.email || "",
+        phone: lead.phone || "",
+        currentTeam: lead.currentTeam || "",
+        comfortablePositions: [
+          ...(Array.isArray(lead.comfortablePositions) ? lead.comfortablePositions : []).filter(
+            (p) => p !== "C"
+          ),
+          ...(lead.isCatcher === true ? ["C"] : []),
+        ],
+        notes: lead.notes || "",
+        status: "tryout",
+      };
+      updateTeam({
+        tryoutSignups: [...(teamData.tryoutSignups || []), signup],
+        interestSignups: (teamData.interestSignups || []).filter(
+          (s) => s.id !== id
+        ),
+      });
+      toast.push({
+        kind: "success",
+        title: "Moved to tryouts",
+        message: `${lead.firstName} ${lead.lastName}`.trim(),
+      });
+    },
+    [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast]
   );
 
   // Tryout grades live in team.evaluationEvents alongside roster
@@ -2219,7 +2409,7 @@ const TeamProvider = ({ children }) => {
         evaluatorId: user.uid,
         label: `Tryout · ${signupId}`,
         tryoutSignupId: signupId,
-        grades: { __signup__: { ...grades } },
+        grades: { signup: { ...grades } },
       };
       const next = existing
         ? teamData.evaluationEvents.map((e) =>
@@ -2246,8 +2436,12 @@ const TeamProvider = ({ children }) => {
         dob: signup.dob || "",
         bats: signup.bats || "R",
         throws: signup.throws || "R",
-        comfortablePositions: signup.comfortablePositions || [],
-        isCatcher: signup.isCatcher === true,
+        comfortablePositions: [
+          ...(Array.isArray(signup.comfortablePositions) ? signup.comfortablePositions : []).filter(
+            (p) => p !== "C"
+          ),
+          ...(signup.isCatcher === true ? ["C"] : []),
+        ],
         parentName: signup.parentName || "",
         email: signup.email || "",
         phone: signup.phone || "",
@@ -2312,20 +2506,51 @@ const TeamProvider = ({ children }) => {
   // Derive the current user's REAL role on the active team — separate from
   // currentRole so the override toggle UI can render even when the visible
   // role has been flipped to "assistant".
-  // Owner is always head; coachRoles[uid] takes precedence otherwise; a
-  // legacy team without an ownerId treats the current user as head (the
-  // auto-claim effect below writes ownerId so this fallback is one-time).
+  //
+  // Rules:
+  //   - ownerId === user.uid  → head (definitive)
+  //   - coachRoles[uid] === "head" → head
+  //   - coachRoles[uid] === "assistant" → assistant
+  //   - missing ownerId AND user is the sole member → head (legacy unclaimed
+  //     team that this user is migrating)
+  //   - everything else → assistant
+  //
+  // The old "missing ownerId → head" fallback was unconditionally generous
+  // and let a second user who joined a legacy team see themselves as head
+  // until their auto-claim raced ahead of the original head's. The sole-
+  // member gate below closes that hole — once anyone else is in members[],
+  // role resolution must come from ownerId or coachRoles, not a hopeful
+  // default.
   const realRole = useMemo(() => {
     if (!user) return "head";
-    if (!teamData.ownerId) return "head";
     if (user.uid === teamData.ownerId) return "head";
     const explicit = teamData.coachRoles?.[user.uid];
     if (explicit === "head") return "head";
     if (explicit === "assistant") return "assistant";
-    // Other legacy members fall through to assistant; the head coach can
-    // promote them via Settings → Coach Roles.
+    if (!teamData.ownerId) {
+      const members = Array.isArray(teamData.members) ? teamData.members : [];
+      const others = members.filter((uid) => uid && uid !== user.uid);
+      if (others.length === 0) return "head";
+    }
     return "assistant";
-  }, [user, teamData.ownerId, teamData.coachRoles]);
+  }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
+
+  // True only when teamData carries enough signal for realRole to be
+  // trustworthy. During the window between login and the first team
+  // snapshot, teamData is the empty DEFAULT_TEAM_DATA and realRole
+  // falls through to "head" via the legacy sole-member claim path —
+  // that's the source of the "assistant briefly sees Head Coach
+  // Dashboard then transfers" report. Gating role-sensitive routes
+  // on this flag keeps the eval route in a loader until role lands.
+  const roleResolved = useMemo(() => {
+    if (!user) return false;
+    return Boolean(
+      teamData.ownerId ||
+        (teamData.coachRoles &&
+          Object.keys(teamData.coachRoles).length > 0) ||
+        (Array.isArray(teamData.members) && teamData.members.length > 0)
+    );
+  }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
 
   // Visible role for the rest of the app. Only the head coach can flip
   // themselves to assistant; assistants can never escalate.
@@ -2335,18 +2560,36 @@ const TeamProvider = ({ children }) => {
   }, [realRole, viewAsRole]);
 
   // Auto-claim + persist legacy teams. Runs once per session per team
-  // when ownerId is missing. After Firestore acknowledges the write,
-  // subsequent loads see ownerId populated and this effect is a no-op.
-  // The session-level ref guards against re-firing during the brief
-  // window between the write and the next snapshot — the user shouldn't
-  // see a toast about it on every page reload.
+  // when ownerId is missing AND there is no plausible existing owner.
+  //
+  // The gate matters: if `members` contains anyone besides the current user,
+  // or any coachRoles entry exists, the team has already been "touched" by
+  // someone else — claiming ownership here would race ahead of the real
+  // head's auto-claim and silently demote them. That regression is exactly
+  // what knocked the original head out of their own team and is the root
+  // cause this commit is fixing.
+  //
+  // After Firestore acknowledges the write, subsequent loads see ownerId
+  // populated and this effect is a no-op. The session-level ref guards
+  // against re-firing during the brief window between the write and the
+  // next snapshot — the user shouldn't see a toast about it on every page
+  // reload.
   useEffect(() => {
     if (!authReady || !user || !activeTeamId) return;
     if (loadingActive) return;
     if (teamData.ownerId) return;
     if (migrationAttemptedRef.current.has(activeTeamId)) return;
-    migrationAttemptedRef.current.add(activeTeamId);
     const members = Array.isArray(teamData.members) ? teamData.members : [];
+    const otherMembers = members.filter((uid) => uid && uid !== user.uid);
+    const hasCoachRoles =
+      teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0;
+    if (otherMembers.length > 0 || hasCoachRoles) {
+      // Someone else has been here. Don't claim — the real head needs to
+      // recover via Settings → Coach Roles (or, if they truly never set
+      // ownerId, via the Firebase Console).
+      return;
+    }
+    migrationAttemptedRef.current.add(activeTeamId);
     const nextMembers = members.includes(user.uid)
       ? members
       : [...members, user.uid];
@@ -2360,6 +2603,7 @@ const TeamProvider = ({ children }) => {
     activeTeamId,
     teamData.ownerId,
     teamData.members,
+    teamData.coachRoles,
     loadingActive,
   ]);
 
@@ -2601,7 +2845,7 @@ const TeamProvider = ({ children }) => {
       runsScored = 0,
       runsAllowed = 0;
     for (const g of teamData.games) {
-      if (g.status !== "final") continue;
+      if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;
@@ -2614,6 +2858,21 @@ const TeamProvider = ({ children }) => {
     return { wins, losses, ties, runsScored, runsAllowed };
   }, [teamData.games]);
 
+  // True when a signed-in user has no teams yet AND there's no pending
+  // ?join= flow in progress — that's the gate for showing the WelcomeChooser.
+  const hasPendingJoinFlow =
+    typeof window !== "undefined" &&
+    Boolean(
+      sessionStorage.getItem("pendingJoin") ||
+        new URLSearchParams(window.location.search).get("join")
+    );
+  const needsWelcomeChooser =
+    !!user &&
+    authReady &&
+    !loadingTeams &&
+    teams.length === 0 &&
+    !hasPendingJoinFlow;
+
   // Memoized context value — only changes when actual data does
   const value = useMemo(
     () => ({
@@ -2624,10 +2883,12 @@ const TeamProvider = ({ children }) => {
       authReady,
       syncStatus,
       loading: loadingTeams || loadingActive,
+      needsWelcomeChooser,
       genError,
       setGenError,
       record,
       currentRole,
+      roleResolved,
       realRole,
       viewAsRole,
       setViewAsRole,
@@ -2665,6 +2926,7 @@ const TeamProvider = ({ children }) => {
       exportRosterCsv,
       exportNewPlayersCsv,
       setPlayerStatus,
+      setPlayerReturning,
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
@@ -2679,6 +2941,8 @@ const TeamProvider = ({ children }) => {
       appendTryoutSignup,
       updateTryoutSignup,
       deleteTryoutSignup,
+      deleteInterestSignup,
+      convertInterestToTryout,
       acceptTryout,
       saveTryoutEvaluation,
       saveLineupTemplate,
@@ -2698,9 +2962,11 @@ const TeamProvider = ({ children }) => {
       syncStatus,
       loadingTeams,
       loadingActive,
+      needsWelcomeChooser,
       genError,
       record,
       currentRole,
+      roleResolved,
       realRole,
       viewAsRole,
       setViewAsRole,
@@ -2736,6 +3002,7 @@ const TeamProvider = ({ children }) => {
       exportRosterCsv,
       exportNewPlayersCsv,
       setPlayerStatus,
+      setPlayerReturning,
       importBackup,
       deleteTeamCmd,
       leaveTeamCmd,
@@ -2750,6 +3017,8 @@ const TeamProvider = ({ children }) => {
       appendTryoutSignup,
       updateTryoutSignup,
       deleteTryoutSignup,
+      deleteInterestSignup,
+      convertInterestToTryout,
       acceptTryout,
       saveTryoutEvaluation,
       saveLineupTemplate,
@@ -2830,8 +3099,6 @@ const UIProvider = ({ children }) => {
   // Eval round selection: null = creating a new round, otherwise = id of an
   // existing eval event being viewed/edited.
   const [selectedRoundId, setSelectedRoundId] = useState(null);
-  // Label for a new round (only used when selectedRoundId === null).
-  const [newRoundLabel, setNewRoundLabel] = useState("");
   // Player whose eval trend modal is currently open (null = closed)
   const [evalTrendPlayerId, setEvalTrendPlayerId] = useState(null);
 
@@ -2892,8 +3159,16 @@ const UIProvider = ({ children }) => {
     const localUnsaved =
       localLineupJson !== loadedGameRef.current.lineupJson ||
       localBattingJson !== loadedGameRef.current.battingJson;
+    // The remote snapshot already matches what we have locally — this is our
+    // OWN save echoing back (or another device landing on the identical
+    // lineup), NOT a conflict. Adopt it silently. Without this guard the
+    // warning fired on every save you made, since loadedGameRef still held
+    // the pre-edit version.
+    const remoteMatchesLocal =
+      remoteLineupJson === localLineupJson &&
+      remoteBattingJson === localBattingJson;
 
-    if (!localUnsaved) {
+    if (!localUnsaved || remoteMatchesLocal) {
       loadedGameRef.current = {
         id: game.id,
         lineupJson: remoteLineupJson,
@@ -3060,7 +3335,6 @@ const UIProvider = ({ children }) => {
           lineupQualityPenalty,
           teamEvalGrades,
           selectedRoundId,
-          newRoundLabel,
         };
       },
       applyResult: ({
@@ -3153,8 +3427,6 @@ const UIProvider = ({ children }) => {
       setTeamEvalGrades,
       selectedRoundId,
       setSelectedRoundId,
-      newRoundLabel,
-      setNewRoundLabel,
       evalTrendPlayerId,
       setEvalTrendPlayerId,
     }),
@@ -3192,7 +3464,6 @@ const UIProvider = ({ children }) => {
       newCoachForm,
       teamEvalGrades,
       selectedRoundId,
-      newRoundLabel,
       evalTrendPlayerId,
     ]
   );
@@ -3212,6 +3483,7 @@ const MainShell = () => {
   
   const {
     team,
+    teams,
     user,
     authReady,
     loading,
@@ -3221,6 +3493,10 @@ const MainShell = () => {
     regenerateBatting,
     regenerateDefense,
     currentRole,
+    roleResolved,
+    needsWelcomeChooser,
+    createTeam,
+    joinTeamByCode,
   } = useTeam();
   const {
     viewingPlayerId,
@@ -3249,6 +3525,11 @@ const MainShell = () => {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  // Counts consecutive "popup-closed-by-user" dismissals so the second one
+  // can surface a tip about third-party cookies / in-app browsers. Reset to
+  // 0 on a successful sign-in, or when we fall back to redirect (different
+  // failure mode, different remedy already shown by that path).
+  const popupDismissCountRef = useRef(0);
 
   // Keep the sign-in button disabled across the gap between
   // signInWithPopup resolving and onAuthStateChanged firing — otherwise
@@ -3258,11 +3539,19 @@ const MainShell = () => {
     if (user) setIsSigningIn(false);
   }, [user]);
 
+  // Only auto-open the onboarding tour once the user actually has a team to
+  // see — otherwise the WelcomeChooser (which is non-dismissible) and the
+  // tutorial scrim end up stacked on top of each other on first sign-in.
   useEffect(() => {
-    if (authReady && user && !onboardingHasBeenCompleted()) {
+    if (
+      authReady &&
+      user &&
+      teams.length > 0 &&
+      !onboardingHasBeenCompleted()
+    ) {
       setTutorialOpen(true);
     }
-  }, [authReady, user]);
+  }, [authReady, user, teams.length]);
 
   // Global keyboard shortcuts. Disabled while typing in form fields. Active
   // anywhere in the app:
@@ -3348,8 +3637,26 @@ const MainShell = () => {
 
   if (!authReady || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-slate-500 font-black uppercase tracking-widest text-sm flex items-center gap-3">
+      <div className="min-h-screen flex items-center justify-center bg-app">
+        <div className="text-ink-3 font-black uppercase tracking-widest text-sm flex items-center gap-3">
+          <Icons.Refresh className="w-5 h-5 animate-spin" /> Loading…
+        </div>
+      </div>
+    );
+  }
+
+  // After the auth + teams + active-team-doc gates clear, there's still
+  // a brief window where teamData has just become non-default but the
+  // role-resolution memo hasn't seen ownerId/coachRoles yet. During that
+  // window realRole falls through to the "head" branch via the legacy
+  // sole-member claim path — that's why assistant coaches reported
+  // seeing the Head Coach Dashboard flash on first sign-in across the
+  // whole app (not just /evaluation). Hold the shell behind the same
+  // loader until role is trustworthy.
+  if (user && teams.length > 0 && !roleResolved) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-app">
+        <div className="text-ink-3 font-black uppercase tracking-widest text-sm flex items-center gap-3">
           <Icons.Refresh className="w-5 h-5 animate-spin" /> Loading…
         </div>
       </div>
@@ -3403,11 +3710,22 @@ const MainShell = () => {
             authDiag("popup_start");
             await signInWithPopup(auth, provider);
             authDiag("popup_success");
+            popupDismissCountRef.current = 0;
             clearRedirectPending();
           } catch (e) {
             const code = e?.code || "";
             if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
               authDiag("popup_dismissed", { code: code || null });
+              popupDismissCountRef.current += 1;
+              if (popupDismissCountRef.current >= 2) {
+                // Two dismissals in a row strongly suggests a browser-level
+                // block (third-party cookies disabled, in-app webview, etc.)
+                // rather than the user genuinely changing their mind. Surface
+                // the remediation tip instead of staying silent.
+                setGenError(
+                  "If the Google popup keeps closing right away, allow third-party cookies for lineupgenerator-79159.firebaseapp.com, or open this app directly in Safari/Chrome."
+                );
+              }
               setIsSigningIn(false);
               return;
             }
@@ -3426,6 +3744,7 @@ const MainShell = () => {
                 }
                 markRedirectPending();
                 authDiag("redirect_start", { source: "popup_fallback" });
+                popupDismissCountRef.current = 0;
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError) {
@@ -3468,6 +3787,14 @@ const MainShell = () => {
     icon: Icons.Users,
     label: "Tryouts",
   };
+  // Head-only "Interest" tab. Only surfaces in the nav when the team
+  // has at least one interest signup (otherwise it's just a dead
+  // pixel for coaches who don't use the feature). The route stays
+  // accessible regardless so heads can find it via direct URL.
+  const interestButton =
+    !isAssistant && (team?.interestSignups?.length ?? 0) > 0
+      ? { id: "interest", icon: Icons.Clipboard, label: "Interest" }
+      : null;
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
@@ -3481,12 +3808,13 @@ const MainShell = () => {
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
+        ...(interestButton ? [interestButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         { id: "settings", icon: Icons.Settings, label: "Settings" },
       ];
 
   return (
-    <div className="min-h-screen bg-slate-50 print:bg-white">
+    <div className="min-h-screen bg-app print:bg-surface">
       <AppHeader />
       <TabBarNav
         activeTab={activeTab}
@@ -3494,6 +3822,7 @@ const MainShell = () => {
         navButtons={navButtons}
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
+        <Suspense fallback={<ScreenLoader />}>
         <Routes>
           <Route path="/" element={<HomeTab />} />
           <Route path="/roster" element={<RosterTab />} />
@@ -3501,12 +3830,24 @@ const MainShell = () => {
           <Route path="/schedule/*" element={<ScheduleTab />} />
           <Route
             path="/evaluation"
-            element={isAssistant ? <AssistantEvalTab /> : <EvaluationTab />}
+            element={
+              !roleResolved
+                ? <ScreenLoader />
+                : isAssistant
+                ? <AssistantEvalTab />
+                : <EvaluationTab />
+            }
           />
           <Route
             path="/tryouts"
             element={
               tryoutsVisible ? <TryoutsTab /> : <Navigate to="/" replace />
+            }
+          />
+          <Route
+            path="/interest"
+            element={
+              isAssistant ? <Navigate to="/" replace /> : <InterestTab />
             }
           />
           <Route
@@ -3518,15 +3859,23 @@ const MainShell = () => {
           <Route path="/in-game/:gameId" element={<div className="hidden" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </Suspense>
       </main>
       <SharedModals />
       {viewingPlayerId && <PlayerProfileModal />}
       <AddPlayerModal />
       <PastSeasonImportModal />
-      <InGameView />
+      <Suspense fallback={null}>
+        <InGameView />
+      </Suspense>
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
+      />
+      <WelcomeChooser
+        open={needsWelcomeChooser}
+        onCreate={createTeam}
+        onJoin={joinTeamByCode}
       />
       <CommandPalette
         open={paletteOpen}
@@ -3561,10 +3910,12 @@ const App = () => {
   ) {
     return (
       <ToastProvider>
-        <Routes>
-          <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<ScreenLoader />}>
+          <Routes>
+            <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </ToastProvider>
     );
   }

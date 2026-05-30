@@ -1,0 +1,72 @@
+# Deploys the repo's firestore.rules to the production Firebase project on
+# every push to main, after validating that the rules file parses.
+#
+# Required GitHub repository secrets (Settings → Secrets and variables →
+# Actions):
+#   FIREBASE_SERVICE_ACCOUNT_JSON  — full JSON content of a service-account
+#                                    key with the "Firebase Rules Admin"
+#                                    role on the `lineupgenerator-79159`
+#                                    project.
+#
+# See docs/firebase-rules-rollout.md for the one-time service-account
+# creation steps and the per-PR validation matrix.
+
+name: Deploy Firestore Rules
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - firestore.rules
+      - firebase.json
+      - .github/workflows/deploy-firestore-rules.yml
+  workflow_dispatch:
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools@latest
+
+      - name: Set up Java (Firestore emulator runtime)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Boot the Firestore emulator using a fake project id so no real
+      # credentials are needed for the parse check. The emulator parses
+      # firestore.rules on startup and exits non-zero if the file is
+      # syntactically invalid or references undefined functions.
+      - name: Validate rules parse (emulator)
+        run: |
+          firebase emulators:exec \
+            --only firestore \
+            --project demo-rules-validate \
+            "echo 'Firestore rules parse OK'"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+
+      - name: Deploy Firestore rules
+        run: |
+          firebase deploy \
+            --only firestore:rules \
+            --project lineupgenerator-79159 \
+            --non-interactive \
+            --force
