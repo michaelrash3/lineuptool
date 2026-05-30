@@ -1273,6 +1273,10 @@ const TeamProvider = ({ children }) => {
         positionLock: currentGame.positionLock || teamData.positionLock,
         battingSize: currentGame.battingSize || teamData.battingSize,
         pitchingFormat: currentGame.pitchingFormat || teamData.pitchingFormat,
+        catcherMaxInnings:
+          currentGame.catcherMaxInnings || teamData.catcherMaxInnings,
+        catcherConsecutive:
+          currentGame.catcherConsecutive ?? teamData.catcherConsecutive,
         seed,
         relaxFairness,
         isBigGame: currentGame.isBigGame === true,
@@ -1345,6 +1349,8 @@ const TeamProvider = ({ children }) => {
       teamData.positionLock,
       teamData.battingSize,
       teamData.pitchingFormat,
+      teamData.catcherMaxInnings,
+      teamData.catcherConsecutive,
       toast,
     ]
   );
@@ -1410,6 +1416,10 @@ const TeamProvider = ({ children }) => {
       defenseSize: currentGame.defenseSize || teamData.defenseSize,
       positionLock: currentGame.positionLock || teamData.positionLock,
       battingSize: currentGame.battingSize || teamData.battingSize,
+      catcherMaxInnings:
+        currentGame.catcherMaxInnings || teamData.catcherMaxInnings,
+      catcherConsecutive:
+        currentGame.catcherConsecutive ?? teamData.catcherConsecutive,
       seed: Date.now() + Math.floor(Math.random() * 1e6),
       relaxFairness: currentGame.applySeasonalFairness === false,
       isBigGame: currentGame.isBigGame === true,
@@ -1460,6 +1470,8 @@ const TeamProvider = ({ children }) => {
     teamData.defenseSize,
     teamData.positionLock,
     teamData.battingSize,
+    teamData.catcherMaxInnings,
+    teamData.catcherConsecutive,
     toast,
   ]);
 
@@ -1715,6 +1727,10 @@ const TeamProvider = ({ children }) => {
         battingSize: persistedGame?.battingSize || teamData.battingSize,
         pitchingFormat:
           persistedGame?.pitchingFormat || teamData.pitchingFormat,
+        catcherMaxInnings:
+          persistedGame?.catcherMaxInnings || teamData.catcherMaxInnings,
+        catcherConsecutive:
+          persistedGame?.catcherConsecutive ?? teamData.catcherConsecutive,
         isBigGame: persistedGame?.isBigGame === true,
         seed: Date.now() & 0xffffffff,
         relaxFairness: true,

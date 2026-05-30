@@ -4,6 +4,7 @@ import {
   calcPitcherScore,
   getPitcherPoolSize,
   isCatcherEligible,
+  resolveCatcherPolicy,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -94,6 +95,9 @@ const buildLineup = (opts = {}) => {
     battingSize: opts.battingSize || "roster",
     seed: opts.seed ?? 42,
     isBigGame: opts.isBigGame || false,
+    catcherMaxInnings: opts.catcherMaxInnings,
+    catcherConsecutive: opts.catcherConsecutive,
+    pitchingFormat: opts.pitchingFormat,
   });
 };
 
@@ -291,6 +295,241 @@ describe("catcher eligibility (C in comfortablePositions)", () => {
     expect(
       isCatcherEligible({ comfortablePositions: ["C"], restrictions: ["C"] })
     ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Catcher playing-time team setting (catcherMaxInnings + catcherConsecutive).
+// "auto" preserves legacy behavior; an explicit cap hard-limits how many
+// innings any one kid catches and (when consecutive) keeps them back-to-back.
+// ---------------------------------------------------------------------------
+
+// Innings (0-based) a given player caught.
+const catchingInnings = (lineup, playerId) =>
+  lineup
+    .map((inn, i) => (inn.C?.id === playerId ? i : -1))
+    .filter((i) => i >= 0);
+
+// Map of catcherId -> sorted innings caught, for every kid who caught.
+const catcherInningMap = (lineup) => {
+  const m = new Map();
+  lineup.forEach((inn, i) => {
+    const id = inn.C?.id;
+    if (!id) return;
+    if (!m.has(id)) m.set(id, []);
+    m.get(id).push(i);
+  });
+  return m;
+};
+
+const isContiguous = (sorted) =>
+  sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
+
+describe("resolveCatcherPolicy", () => {
+  test("auto preserves legacy defense-size behavior", () => {
+    // 10-fielder with a full roster → back-to-back pairs (cap 2), lenient.
+    expect(resolveCatcherPolicy("auto", true, "10", 12)).toEqual({
+      cap: 2,
+      consecutive: true,
+      enforceCap: false,
+    });
+    // 9-fielder → cap 3, no continuity, lenient.
+    expect(resolveCatcherPolicy("auto", true, "9", 12)).toEqual({
+      cap: 3,
+      consecutive: false,
+      enforceCap: false,
+    });
+    // 10-fielder but fewer than 10 present → no continuity (legacy gate).
+    expect(resolveCatcherPolicy("auto", true, "10", 9)).toEqual({
+      cap: 2,
+      consecutive: false,
+      enforceCap: false,
+    });
+    // undefined setting defaults to auto.
+    expect(resolveCatcherPolicy(undefined, undefined, "9", 12).cap).toBe(3);
+  });
+
+  test("explicit cap enforces and honors the consecutive toggle", () => {
+    expect(resolveCatcherPolicy("2", true, "9", 12)).toEqual({
+      cap: 2,
+      consecutive: true,
+      enforceCap: true,
+    });
+    expect(resolveCatcherPolicy("2", false, "10", 12)).toEqual({
+      cap: 2,
+      consecutive: false,
+      enforceCap: true,
+    });
+    // Missing toggle defaults consecutive ON for an explicit cap.
+    expect(resolveCatcherPolicy("3", undefined, "9", 12).consecutive).toBe(true);
+  });
+
+  test("none removes the cap", () => {
+    expect(resolveCatcherPolicy("none", true, "9", 12)).toEqual({
+      cap: Infinity,
+      consecutive: false,
+      enforceCap: false,
+    });
+  });
+});
+
+describe("catcher max-innings setting (engine)", () => {
+  // 12 players, all catcher-eligible by default (makePlayer clears C).
+  const roster = () => makeRoster(12);
+
+  test("cap 2 back-to-back: no kid catches >2 innings, 9-fielder", () => {
+    const result = buildLineup({
+      players: roster(),
+      defenseSize: "9",
+      catcherMaxInnings: "2",
+      catcherConsecutive: true,
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    const m = catcherInningMap(result.lineup);
+    for (const [, innings] of m) {
+      expect(innings.length).toBeLessThanOrEqual(2);
+      expect(isContiguous(innings)).toBe(true);
+    }
+  });
+
+  test("cap 2 back-to-back: 9-fielder catcher changes every 2 innings", () => {
+    // With continuity + cap 2 over 6 innings we expect 3 distinct catchers
+    // covering pairs (0,1)(2,3)(4,5).
+    const result = buildLineup({
+      players: roster(),
+      defenseSize: "9",
+      catcherMaxInnings: "2",
+      catcherConsecutive: true,
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    expect([0, 1].map((i) => result.lineup[i].C?.id)).toEqual([
+      result.lineup[0].C?.id,
+      result.lineup[0].C?.id,
+    ]);
+    // Pair boundaries: inning 1 and 2 are different catchers.
+    expect(result.lineup[1].C?.id).not.toBe(result.lineup[2].C?.id);
+    expect(result.lineup[3].C?.id).not.toBe(result.lineup[4].C?.id);
+  });
+
+  test("cap 3 back-to-back: blocks of three contiguous innings", () => {
+    const result = buildLineup({
+      players: roster(),
+      defenseSize: "9",
+      catcherMaxInnings: "3",
+      catcherConsecutive: true,
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    const m = catcherInningMap(result.lineup);
+    for (const [, innings] of m) {
+      expect(innings.length).toBeLessThanOrEqual(3);
+      expect(isContiguous(innings)).toBe(true);
+    }
+    // (0,1,2) one catcher, (3,4,5) another.
+    expect(result.lineup[0].C?.id).toBe(result.lineup[2].C?.id);
+    expect(result.lineup[3].C?.id).toBe(result.lineup[5].C?.id);
+    expect(result.lineup[2].C?.id).not.toBe(result.lineup[3].C?.id);
+  });
+
+  test("cap 2 consecutive OFF: cap respected, innings need not be adjacent", () => {
+    const result = buildLineup({
+      players: roster(),
+      defenseSize: "9",
+      catcherMaxInnings: "2",
+      catcherConsecutive: false,
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    const m = catcherInningMap(result.lineup);
+    for (const [, innings] of m) {
+      expect(innings.length).toBeLessThanOrEqual(2);
+    }
+  });
+
+  test("cap 2 also applies in 10-fielder mode", () => {
+    const result = buildLineup({
+      players: roster(),
+      defenseSize: "10",
+      catcherMaxInnings: "2",
+      catcherConsecutive: true,
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    const m = catcherInningMap(result.lineup);
+    for (const [, innings] of m) {
+      expect(innings.length).toBeLessThanOrEqual(2);
+      expect(isContiguous(innings)).toBe(true);
+    }
+  });
+
+  test("too few catcher-eligible kids under an explicit cap errors clearly", () => {
+    // Only 2 kids cleared for C, 6 innings, cap 2 → need 3 catchers.
+    const players = makeRoster(12).map((p, i) =>
+      i < 2
+        ? p
+        : makePlayer(p.id, p.name, {
+            comfortablePositions: ALL_POSITIONS.filter((x) => x !== "C"),
+          })
+    );
+    const result = buildLineup({
+      players,
+      defenseSize: "9",
+      catcherMaxInnings: "2",
+      catcherConsecutive: true,
+      totalInnings: 6,
+    });
+    expect(result.error).toMatch(/catcher-eligible/i);
+    expect(result.error).toMatch(/3/);
+  });
+
+  test("no limit: builds and does not impose the catcher-count fast-fail", () => {
+    // Only 2 catcher-eligible kids over 6 innings. An explicit cap of 2 would
+    // need 3 catchers and error; "none" removes the cap so it must build.
+    const players = makeRoster(12).map((p, i) =>
+      i < 2
+        ? p
+        : makePlayer(p.id, p.name, {
+            comfortablePositions: ALL_POSITIONS.filter((x) => x !== "C"),
+          })
+    );
+    const result = buildLineup({
+      players,
+      defenseSize: "9",
+      catcherMaxInnings: "none",
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    // Every fielded inning has a catcher, drawn from the 2 eligible kids.
+    for (const inn of result.lineup) {
+      expect(["p0", "p1"]).toContain(inn.C?.id);
+    }
+    // With no cap, at least one of them catches more than the default 3.
+    const total =
+      catchingInnings(result.lineup, "p0").length +
+      catchingInnings(result.lineup, "p1").length;
+    expect(total).toBe(6);
+  });
+
+  test("auto with a single catcher still works (legacy lenient reuse)", () => {
+    // 10-fielder, one eligible catcher → legacy behavior reuses them across
+    // pairs rather than erroring (no behavior change for existing teams).
+    const players = makeRoster(12).map((p, i) =>
+      i === 0
+        ? p
+        : makePlayer(p.id, p.name, {
+            comfortablePositions: ALL_POSITIONS.filter((x) => x !== "C"),
+          })
+    );
+    const result = buildLineup({
+      players,
+      defenseSize: "10",
+      catcherMaxInnings: "auto",
+      totalInnings: 6,
+    });
+    expect(result.error).toBeUndefined();
+    expect(catchingInnings(result.lineup, "p0").length).toBe(6);
   });
 });
 
@@ -1416,6 +1655,72 @@ describe("8U fuzz / soak — engine never fails or violates invariants", () => {
 
       const v = validateLineup(result, cfg);
       expect(v).toEqual([]);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Catcher-cap fuzz: explicit cap + back-to-back across many random rosters.
+// Either the engine errors (genuinely too few catchers for the cap) OR it
+// builds a lineup that NEVER exceeds the cap and keeps each catcher's innings
+// contiguous, on top of all the base invariants.
+// ---------------------------------------------------------------------------
+describe("catcher-cap fuzz — explicit cap is never violated", () => {
+  const CASES = 40;
+  for (let s = 1; s <= CASES; s++) {
+    const r = seededRand(s * 13 + 1);
+    const size = 9 + Math.floor(r() * 7); // 9..15
+    const defenseSize = r() < 0.5 ? "9" : "10";
+    const cap = 2 + Math.floor(r() * 2); // 2 or 3
+    const consecutive = r() < 0.7;
+    const totalInnings = 6;
+    const players = makeFuzzRoster(size, s * 29 + 5);
+
+    test(`seed=${s} n=${size} def=${defenseSize} cap=${cap}${
+      consecutive ? " B2B" : ""
+    }`, () => {
+      const result = generateLineup({
+        activePlayers: players,
+        allPlayers: players,
+        games: [],
+        evaluationEvents: [],
+        currentGame: { id: `g-ccap-${s}`, date: "2026-05-01" },
+        totalInnings,
+        leagueRuleSet: "USSSA",
+        teamAge: "8U",
+        defenseSize,
+        positionLock: "0",
+        battingSize: "roster",
+        seed: s * 31 + 7,
+        catcherMaxInnings: String(cap),
+        catcherConsecutive: consecutive,
+      });
+
+      const eligible = players.filter((p) => isCatcherEligible(p)).length;
+      const required = Math.ceil(totalInnings / cap);
+      if (eligible < required) {
+        expect(result.error).toMatch(/catcher-eligible/i);
+        return;
+      }
+
+      expect(result.error).toBeUndefined();
+      // Base invariants still hold.
+      expect(
+        validateLineup(result, {
+          totalInnings,
+          players,
+          size,
+          defenseSize,
+          positionLock: "0",
+          leagueRuleSet: "USSSA",
+        })
+      ).toEqual([]);
+      // Cap + continuity.
+      const m = catcherInningMap(result.lineup);
+      for (const [, innings] of m) {
+        expect(innings.length).toBeLessThanOrEqual(cap);
+        if (consecutive) expect(isContiguous(innings)).toBe(true);
+      }
     });
   }
 });

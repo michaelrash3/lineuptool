@@ -159,4 +159,10 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   tertiaryColor: "#ffffff",
   teamAge: "8U",
   positionLock: "1",
+  // Catcher playing time. "auto" preserves the legacy behavior (10-fielder
+  // back-to-back pairs, 9-fielder cap of 3). Coaches can set an explicit cap
+  // ("1".."6" or "none"); `catcherConsecutive` keeps those innings
+  // back-to-back and is only consulted once an explicit cap is chosen.
+  catcherMaxInnings: "auto",
+  catcherConsecutive: true,
 });

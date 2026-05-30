@@ -274,6 +274,12 @@ export interface EngineInput {
   seed?: number;
   isBigGame?: boolean;
   pitchingFormat?: string;
+  // Catcher playing-time policy. "auto" (default) preserves the legacy
+  // defense-size-driven behavior; "1".."6" sets a hard per-kid innings cap;
+  // "none" removes the cap. `catcherConsecutive` (only consulted for an
+  // explicit cap) forces a catcher's innings to be back-to-back.
+  catcherMaxInnings?: string;
+  catcherConsecutive?: boolean;
   // Mid-game removal regeneration. When `fromInning > 0`, the engine pre-fills
   // innings `0..fromInning-1` from `currentLineup` and seeds its per-player
   // state from those placements, so the catcher 2-inning cap / P-cap / OF
