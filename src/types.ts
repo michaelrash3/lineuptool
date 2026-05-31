@@ -211,8 +211,8 @@ export interface CsvImportResult {
 
 /* ============================================================================
    Lineup engine — typed surface (Phase 8 TS conversion).
-   The engine emits these shapes and consumers (App.jsx, ScheduleTab.jsx,
-   EvaluationTab.jsx) read them. Kept intentionally permissive in places where
+   The engine emits these shapes and consumers (App.jsx, ScheduleTab,
+   EvaluationTab) read them. Kept intentionally permissive in places where
    the engine's runtime accepts looser shapes than strict TS would prefer.
    ============================================================================ */
 

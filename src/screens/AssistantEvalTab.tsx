@@ -14,8 +14,8 @@ import { getActivePositionList } from "../lineupEngine";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 
-const buildEmptyGrades = (players, categories) => {
-  const out = {};
+const buildEmptyGrades = (players: any, categories: any) => {
+  const out: Record<string, any> = {};
   for (const p of players || []) {
     out[p.id] = {};
     for (const c of categories) out[p.id][c.id] = DEFAULT_GRADE;
@@ -49,7 +49,7 @@ export const AssistantEvalTab = memo(() => {
     if (includeKidPitchAddons) base.push(...EVAL_GROUPS_KID_PITCH_ADDONS);
     return base;
   }, [includeKidPitchAddons]);
-  const [grades, setGrades] = useState({});
+  const [grades, setGrades] = useState<Record<string, any>>({});
   const [activeGroup, setActiveGroup] = useState("Hitting");
   // Inline read-only view of a past round. Null = grading form is active.
   const [viewingPastRoundId, setViewingPastRoundId] = useState(null);
@@ -62,13 +62,13 @@ export const AssistantEvalTab = memo(() => {
     const today = getLocalDateString();
     const mine = (evaluationEvents || [])
       .filter(
-        (e) => e.coachRole === "Assistant" && e.evaluatorId === user.uid
+        (e: any) => e.coachRole === "Assistant" && e.evaluatorId === user.uid
       )
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-    const todayRound = mine.find((e) => e.date === today);
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const todayRound = mine.find((e: any) => e.date === today);
     const seed = todayRound?.grades || mine[0]?.grades || null;
     if (seed) {
-      const next = {};
+      const next: Record<string, any> = {};
       for (const p of players || []) {
         next[p.id] = { ...(seed[p.id] || {}) };
         for (const c of activeCategories) {
@@ -89,38 +89,38 @@ export const AssistantEvalTab = memo(() => {
     if (!user) return [];
     return (evaluationEvents || [])
       .filter(
-        (e) => e.coachRole === "Assistant" && e.evaluatorId === user.uid
+        (e: any) => e.coachRole === "Assistant" && e.evaluatorId === user.uid
       )
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [user, evaluationEvents]);
 
   const viewingPastRound = useMemo(() => {
     if (!viewingPastRoundId) return null;
-    return myRounds.find((r) => r.id === viewingPastRoundId) || null;
+    return myRounds.find((r: any) => r.id === viewingPastRoundId) || null;
   }, [viewingPastRoundId, myRounds]);
 
-  const setPlayerGrade = useCallback((playerId, categoryId, value) => {
+  const setPlayerGrade = useCallback((playerId: any, categoryId: any, value: any) => {
     setGrades((prev) => ({
       ...prev,
       [playerId]: { ...(prev[playerId] || {}), [categoryId]: value },
     }));
   }, []);
 
-  const setPlayerNotes = useCallback((playerId, notes) => {
+  const setPlayerNotes = useCallback((playerId: any, notes: any) => {
     setGrades((prev) => ({
       ...prev,
       [playerId]: { ...(prev[playerId] || {}), notes },
     }));
   }, []);
 
-  const togglePlayerPosition = useCallback((playerId, pos) => {
+  const togglePlayerPosition = useCallback((playerId: any, pos: any) => {
     setGrades((prev) => {
       const cur = prev[playerId] || {};
       const list = Array.isArray(cur.suggestedPositions)
         ? cur.suggestedPositions
         : [];
       const next = list.includes(pos)
-        ? list.filter((p) => p !== pos)
+        ? list.filter((p: any) => p !== pos)
         : [...list, pos];
       return {
         ...prev,
@@ -142,9 +142,9 @@ export const AssistantEvalTab = memo(() => {
   // how coaches verbally call kids on the field. Numeric sort with name
   // as a tiebreaker; unnumbered players sink to the bottom.
   const orderedPlayers = (players || [])
-    .filter((p) => p.present !== false)
+    .filter((p: any) => p.present !== false)
     .slice()
-    .sort((a, b) => {
+    .sort((a: any, b: any) => {
       const na = parseInt(a.number, 10);
       const nb = parseInt(b.number, 10);
       const aValid = Number.isFinite(na);
@@ -183,7 +183,7 @@ export const AssistantEvalTab = memo(() => {
           </button>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {orderedPlayers.map((p) => (
+          {orderedPlayers.map((p: any) => (
             <EvalGradeCard
               key={`past-${p.id}`}
               player={p}
@@ -224,7 +224,7 @@ export const AssistantEvalTab = memo(() => {
             </span>
           </div>
           <div className="space-y-1.5">
-            {myRounds.slice(0, 5).map((r) => {
+            {myRounds.slice(0, 5).map((r: any) => {
               const playerCount = Object.keys(r.grades || {}).length;
               return (
                 <button
@@ -284,7 +284,7 @@ export const AssistantEvalTab = memo(() => {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {orderedPlayers.map((p) => (
+              {orderedPlayers.map((p: any) => (
                 <EvalGradeCard
                   key={p.id}
                   player={p}

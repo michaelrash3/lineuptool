@@ -20,7 +20,7 @@ import { Icons } from "../icons";
  * swaps). When set, the matching cell gets a yellow ring on both views.
  */
 export const LineupGrid = memo(
-  ({ lineup, positions, swapSelection, onCellClick }) => {
+  ({ lineup, positions, swapSelection, onCellClick }: any) => {
     // When onCellClick is omitted (assistant role), cells become no-op
     // taps — visuals unchanged, swaps short-circuit.
     const safeCellClick = onCellClick || (() => {});
@@ -29,7 +29,7 @@ export const LineupGrid = memo(
     const safeMobileInning = Math.min(mobileInning, totalInnings - 1);
     const inn = lineup[safeMobileInning];
 
-    const cellIsSelected = (innIdx, pos, playerId) => {
+    const cellIsSelected = (innIdx: any, pos: any, playerId?: any) => {
       if (!swapSelection) return false;
       if (swapSelection.innIdx !== innIdx) return false;
       if (pos === "BENCH") {
@@ -49,7 +49,7 @@ export const LineupGrid = memo(
           <div className="px-3 pt-3 pb-2 bg-surface border-b border-line/50">
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
               <span className="t-eyebrow mr-1 shrink-0">Inning</span>
-              {lineup.map((_, idx) => {
+              {lineup.map((_: any, idx: any) => {
                 const isActive = idx === safeMobileInning;
                 return (
                   <button
@@ -83,7 +83,7 @@ export const LineupGrid = memo(
           {/* Position rows for the selected inning */}
           <div className="px-3 py-3 bg-surface">
             <div className="flex flex-col gap-2">
-              {positions.map((pos) => {
+              {positions.map((pos: any) => {
                 const pAtPos = inn?.[pos];
                 const sel = cellIsSelected(safeMobileInning, pos);
                 return (
@@ -136,7 +136,7 @@ export const LineupGrid = memo(
               </div>
               <div className="flex flex-wrap gap-2">
                 {inn?.BENCH?.length ? (
-                  inn.BENCH.map((p) => {
+                  inn.BENCH.map((p: any) => {
                     const sel = cellIsSelected(safeMobileInning, "BENCH", p.id);
                     return (
                       <button
@@ -174,7 +174,7 @@ export const LineupGrid = memo(
                 <th className="p-4 print:p-2 font-black text-[11px] uppercase tracking-widest text-center w-20 print:w-12 sticky left-0 z-20 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-ink-3 bg-surface print:bg-line print:text-ink border-r border-line/50">
                   Pos
                 </th>
-                {lineup.map((_, idx) => (
+                {lineup.map((_: any, idx: any) => (
                   <th
                     key={`inn-${idx}-${lineup.length}`}
                     className="p-4 print:p-2 border-r border-line/50 font-black text-[11px] uppercase tracking-widest text-center min-w-[140px] print:min-w-0 text-ink"
@@ -185,7 +185,7 @@ export const LineupGrid = memo(
               </tr>
             </thead>
             <tbody>
-              {positions.map((pos) => (
+              {positions.map((pos: any) => (
                 <tr
                   key={pos}
                   className="border-b border-line/50 hover:bg-surface-2 break-inside-avoid transition-colors"
@@ -193,7 +193,7 @@ export const LineupGrid = memo(
                   <td className="p-3 print:p-1.5 font-black text-sm border-r border-line/50 sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none text-center bg-surface print:bg-transparent text-ink">
                     {pos}
                   </td>
-                  {lineup.map((inning, idx) => {
+                  {lineup.map((inning: any, idx: any) => {
                     const pAtPos = inning[pos];
                     const isSelected = cellIsSelected(idx, pos);
                     return (
@@ -231,13 +231,13 @@ export const LineupGrid = memo(
                 <td className="p-3 print:p-1.5 font-black text-[10px] sticky left-0 z-10 shadow-[2px_0_5px_rgba(0,0,0,0.05)] print:static print:shadow-none uppercase tracking-widest text-center text-ink-3 bg-surface print:bg-transparent border-r border-line/50">
                   Bench
                 </td>
-                {lineup.map((inning, idx) => (
+                {lineup.map((inning: any, idx: any) => (
                   <td
                     key={`bench-${idx}-${lineup.length}`}
                     className="p-3 print:p-1 align-top border-r border-line/50 min-w-[140px] print:min-w-0"
                   >
                     <div className="flex flex-col gap-2 items-center">
-                      {inning.BENCH?.map((p) => {
+                      {inning.BENCH?.map((p: any) => {
                         const isSelected = cellIsSelected(idx, "BENCH", p.id);
                         return (
                           <button

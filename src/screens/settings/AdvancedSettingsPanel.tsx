@@ -1,6 +1,6 @@
 import React from "react";
 
-export const StorageUsagePanel = ({ team }) => {
+export const StorageUsagePanel = ({ team }: any) => {
   const FIRESTORE_LIMIT = 1048576; // 1 MB in bytes
   let docSize = 0;
   try {
@@ -37,7 +37,7 @@ export const StorageUsagePanel = ({ team }) => {
   );
 };
 
-export const TeamManagementPanel = ({ teams, leaveTeamCmd, deleteTeamCmd }) => (
+export const TeamManagementPanel = ({ teams, leaveTeamCmd, deleteTeamCmd }: any) => (
   <div className="pt-6 border-t border-line/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div>
       <h4 className="font-bold text-ink text-sm">Team Management</h4>

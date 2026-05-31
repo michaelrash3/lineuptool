@@ -10,7 +10,7 @@ import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
-import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel.jsx";
+import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel";
 
 // One row per team color: swatch (native color picker) + hex text input.
 // Typing a valid #rrggbb commits on every keystroke; invalid input is

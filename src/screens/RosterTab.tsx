@@ -23,7 +23,7 @@ const FILTER_CHIPS = [
 // where catcher is just "C" in the list — with legacy `primaryPosition`
 // kept as a last-resort fallback so teams that haven't been migrated
 // still see something useful in the filter.
-const playerComfortable = (player, pos) => {
+const playerComfortable = (player: any, pos: any) => {
   const list = Array.isArray(player.comfortablePositions)
     ? player.comfortablePositions
     : null;
@@ -34,7 +34,7 @@ const playerComfortable = (player, pos) => {
   return player.primaryPosition === pos;
 };
 
-const playerMatchesFilter = (player, filterId) => {
+const playerMatchesFilter = (player: any, filterId: any) => {
   switch (filterId) {
     case "present":
       return player.present !== false;
@@ -60,7 +60,7 @@ const playerMatchesFilter = (player, filterId) => {
   }
 };
 
-const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag }) => {
+const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag }: any) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
   const positionTag = player.primaryPosition || "—";
@@ -218,7 +218,7 @@ export const RosterTab = memo(() => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState(() => new Set());
 
-  const toggleFilter = (id) => {
+  const toggleFilter = (id: any) => {
     setActiveFilters((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -314,7 +314,7 @@ export const RosterTab = memo(() => {
                 placeholder="Search players by name…"
                 aria-label="Search roster"
                 className="w-full pl-9 pr-9 py-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:border-transparent text-sm font-bold text-ink shadow-sm transition-shadow"
-                style={{ "--tw-ring-color": "var(--team-primary)" }}
+                style={{ "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties}
               />
               {searchQuery && (
                 <button

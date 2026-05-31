@@ -3,7 +3,7 @@ import { Icons } from "../icons";
 import { formatGameDateDisplay } from "../utils/helpers";
 import { shareLineupCard } from "../lineup/lineupCard";
 import { useTeam, useUI, useToast } from "../contexts";
-import { ScoreEditor } from "./ScheduleTab.jsx";
+import { ScoreEditor } from "./ScheduleTab";
 
 export const InGameView = memo(() => {
   const {
@@ -33,8 +33,8 @@ export const InGameView = memo(() => {
   // Two-tap confirm for mid-game removal: first tap arms the row,
   // second tap commits. Replaces a blocking window.confirm — keeps
   // the coach inside the modal context.
-  const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState(null);
-  const [pendingRestorePlayerId, setPendingRestorePlayerId] = useState(null);
+  const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState<string | null>(null);
+  const [pendingRestorePlayerId, setPendingRestorePlayerId] = useState<string | null>(null);
 
   // ----- Coalesce in-game tap-swap writes -----
   // Each tap previously fired its own setDoc, so a flurry of swaps became
@@ -47,12 +47,12 @@ export const InGameView = memo(() => {
   // These hooks must live above the early returns below so React sees
   // the same hook order on every render — the rules-of-hooks invariant.
   const [pendingLineup, setPendingLineup] = useState(null);
-  const flushTimerRef = useRef(null);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Resolve the live game without an early return so downstream hooks
   // still execute on null-game renders. The actual null/missing-game
   // bailouts happen below the hook block.
-  const game = inGameId ? team.games.find((g) => g.id === inGameId) : null;
+  const game = inGameId ? team.games.find((g: any) => g.id === inGameId) : null;
   const gameId = game?.id ?? null;
 
   const flush = useCallback(() => {
@@ -172,7 +172,7 @@ export const InGameView = memo(() => {
   // Bump a score by ±1, clamped to 0. Writes through updateGame directly
   // (no debounce) since score updates are infrequent and the coach wants
   // immediate persistence in case the page is closed mid-edit.
-  const adjustScore = (which, delta) => {
+  const adjustScore = (which: any, delta: any) => {
     if (!canEdit) return;
     const current = (which === "team" ? game.teamScore : game.opponentScore) ?? 0;
     const next = Math.max(0, current + delta);
@@ -187,7 +187,7 @@ export const InGameView = memo(() => {
   // spot is left null so the coach can swap in a bench kid manually
   // (which is consistent with how a real coach handles a sub on the
   // field — the umpire/scorekeeper waits while you pick a replacement).
-  const removePlayerMidGame = (playerId, reason = "injury") => {
+  const removePlayerMidGame = (playerId: any, reason = "injury") => {
     // Flush any in-flight optimistic edits first so the engine rebuild sees
     // the latest lineup state (not a stale Firestore copy).
     setPendingLineup((cur) => {
@@ -235,10 +235,10 @@ export const InGameView = memo(() => {
   // Update a specific inning's lineup with a patch. Writes go through the
   // optimistic pendingLineup state and the flush is debounced so rapid taps
   // coalesce into one Firestore write.
-  const patchInning = (idx, patch) => {
+  const patchInning = (idx: any, patch: any) => {
     setPendingLineup((cur) => {
       const base = cur ?? game.lineup;
-      return base.map((existingInn, i) => {
+      return base.map((existingInn: any, i: any) => {
         if (i !== idx) return existingInn;
         return { ...existingInn, ...patch };
       });
@@ -252,7 +252,7 @@ export const InGameView = memo(() => {
   // performSwap (preserves undo history + haptic feedback). Finds the
   // chosen player's current cell — field position or bench — and
   // hands it to performSwap as the "second" selection.
-  const assignPitcher = (playerId) => {
+  const assignPitcher = (playerId: any) => {
     const innNow = pendingLineup
       ? pendingLineup[currentInning]
       : liveLineup[currentInning];
@@ -266,7 +266,7 @@ export const InGameView = memo(() => {
       }
     }
     if (!sourceSel) {
-      const onBench = (innNow.BENCH || []).find((p) => p?.id === playerId);
+      const onBench = (innNow.BENCH || []).find((p: any) => p?.id === playerId);
       if (onBench) sourceSel = { type: "bench", playerId };
     }
     if (!sourceSel) return;
@@ -276,7 +276,7 @@ export const InGameView = memo(() => {
   };
 
   // Perform a swap and record undo info.
-  const performSwap = (firstSel, secondSel) => {
+  const performSwap = (firstSel: any, secondSel: any) => {
     const undoEntry = {
       inning: currentInning,
       first: firstSel,
@@ -285,18 +285,18 @@ export const InGameView = memo(() => {
     const lineupInning = { ...liveLineup[currentInning] };
     lineupInning.BENCH = [...(lineupInning.BENCH || [])];
 
-    const getPlayer = (sel) => {
+    const getPlayer = (sel: any) => {
       if (sel.type === "position") return lineupInning[sel.pos];
       // bench
-      return lineupInning.BENCH.find((p) => p.id === sel.playerId);
+      return lineupInning.BENCH.find((p: any) => p.id === sel.playerId);
     };
 
-    const setPlayer = (sel, player) => {
+    const setPlayer = (sel: any, player: any) => {
       if (sel.type === "position") {
         lineupInning[sel.pos] = player;
       } else {
         // bench: replace the player at this id
-        lineupInning.BENCH = lineupInning.BENCH.map((p) =>
+        lineupInning.BENCH = lineupInning.BENCH.map((p: any) =>
           p.id === sel.playerId ? player : p
         );
       }
@@ -312,8 +312,8 @@ export const InGameView = memo(() => {
     // Catcher is opt-in: never let a manual swap drop a player into C
     // unless "C" is in their comfortable positions. Slots carry slim
     // players, so resolve the roster player by id to read the list.
-    const clearedToCatch = (slim) => {
-      const rp = (team?.players || []).find((p) => p.id === slim?.id);
+    const clearedToCatch = (slim: any) => {
+      const rp = (team?.players || []).find((p: any) => p.id === slim?.id);
       const list = Array.isArray(rp?.comfortablePositions)
         ? rp.comfortablePositions
         : [];
@@ -349,7 +349,7 @@ export const InGameView = memo(() => {
     tapHaptic();
   };
 
-  const handleTap = (sel) => {
+  const handleTap = (sel: any) => {
     // Assistants can't move players around — short-circuit any tap.
     if (!canEdit) return;
     // If nothing selected → select this one
@@ -377,14 +377,14 @@ export const InGameView = memo(() => {
     const lineupInning = { ...liveLineup[entry.inning] };
     lineupInning.BENCH = [...(lineupInning.BENCH || [])];
 
-    const getPlayer = (sel) => {
+    const getPlayer = (sel: any) => {
       if (sel.type === "position") return lineupInning[sel.pos];
-      return lineupInning.BENCH.find((p) => p.id === sel.playerId);
+      return lineupInning.BENCH.find((p: any) => p.id === sel.playerId);
     };
-    const setPlayer = (sel, player) => {
+    const setPlayer = (sel: any, player: any) => {
       if (sel.type === "position") lineupInning[sel.pos] = player;
       else
-        lineupInning.BENCH = lineupInning.BENCH.map((p) =>
+        lineupInning.BENCH = lineupInning.BENCH.map((p: any) =>
           p.id === sel.playerId ? player : p
         );
     };
@@ -403,7 +403,7 @@ export const InGameView = memo(() => {
     setInGameSelection(null);
   };
 
-  const isCellSelected = (sel) => {
+  const isCellSelected = (sel: any) => {
     if (!inGameSelection) return false;
     if (inGameSelection.type !== sel.type) return false;
     if (sel.type === "position") return inGameSelection.pos === sel.pos;
@@ -616,10 +616,10 @@ export const InGameView = memo(() => {
           // Available pool: present players not yet used, eligible by rest rules
           const targetDate = game.date || new Date().toISOString().slice(0, 10);
           const presentPlayers = team.players.filter(
-            (p) =>
+            (p: any) =>
               (game.attendance?.[p.id] !== false) && !usedPitcherIds.has(p.id)
           );
-          const availablePitchers = presentPlayers.filter((p) => {
+          const availablePitchers = presentPlayers.filter((p: any) => {
             const pitching = p.pitching;
             if (!pitching?.lastPitchDate || !pitching.recentPitches) return true;
             const recent = pitching.recentPitches;
@@ -628,7 +628,7 @@ export const InGameView = memo(() => {
               "9U": 75, "10U": 75, "11U to 12U": 85,
               "13U to 14U": 95, "15U to 18U": 105,
             };
-            const max = maxByAge[ageGroup] ?? 105;
+            const max = (maxByAge as any)[ageGroup] ?? 105;
             if (recent >= max) return false;
             const diffDays = Math.floor(
               (new Date(targetDate).getTime() -
@@ -641,7 +641,7 @@ export const InGameView = memo(() => {
           });
 
           const pitchCounts = game.pitchCounts || {};
-          const updatePitchCount = (playerId, val) => {
+          const updatePitchCount = (playerId: any, val: any) => {
             const next = { ...(game.pitchCounts || {}) };
             const num = parseInt(val, 10);
             if (Number.isFinite(num) && num >= 0) {
@@ -708,7 +708,7 @@ export const InGameView = memo(() => {
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
-                    {availablePitchers.map((player) => (
+                    {availablePitchers.map((player: any) => (
                       <button
                         key={player.id}
                         type="button"
@@ -798,12 +798,12 @@ export const InGameView = memo(() => {
                 }`}
                 style={
                   selected
-                    ? {
+                    ? ({
                         borderColor: "var(--team-primary)",
                         // The ring color is the team primary at low opacity so
                         // it reads as a soft highlight, not a hard outline.
                         "--tw-ring-color": "var(--team-primary-15)",
-                      }
+                      } as React.CSSProperties)
                     : undefined
                 }
               >
@@ -844,7 +844,7 @@ export const InGameView = memo(() => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {benchKids.map((player) => {
+            {benchKids.map((player: any) => {
               const sel = { type: "bench", playerId: player.id };
               const selected = isCellSelected(sel);
               return (
@@ -860,10 +860,10 @@ export const InGameView = memo(() => {
                   }`}
                   style={
                     selected
-                      ? {
+                      ? ({
                           borderColor: "var(--team-primary)",
                           "--tw-ring-color": "var(--team-primary-15)",
-                        }
+                        } as React.CSSProperties)
                       : undefined
                   }
                 >
@@ -918,7 +918,7 @@ export const InGameView = memo(() => {
               game={game}
               primaryColor={primaryColor}
               tertiaryColor={tertiaryColor}
-              onSave={(ts, os, inningsPlayed) => {
+              onSave={(ts: any, os: any, inningsPlayed: any) => {
                 finalizeGame(game.id, ts, os, inningsPlayed);
                 setShowEndGameScore(false);
                 close();
@@ -1019,9 +1019,9 @@ export const InGameView = memo(() => {
                     Already removed
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    {Object.entries(game.midGameRemovals).map(([pid, info]) => {
+                    {Object.entries((game.midGameRemovals || {}) as Record<string, any>).map(([pid, info]: [string, any]) => {
                       const player =
-                        team.players.find((q) => q.id === pid) || { name: "(unknown)" };
+                        team.players.find((q: any) => q.id === pid) || { name: "(unknown)" };
                       const armed = pendingRestorePlayerId === pid;
                       return (
                         <div

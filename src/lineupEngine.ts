@@ -1,6 +1,6 @@
 // @ts-nocheck — pragmatic first-pass TS conversion (per the Phase 8 plan).
 // The public-surface function signatures below are fully typed against
-// src/types.ts, so consumers (App.jsx, ScheduleTab.jsx, EvaluationTab.jsx,
+// src/types.ts, so consumers (App.jsx, ScheduleTab, EvaluationTab,
 // lineupEngine.test.js) see strict input/output contracts. The 2,200-line
 // internal soup is intentionally left unchecked in this PR — tightening the
 // internal types is iterative follow-up work backed by the 178-test safety

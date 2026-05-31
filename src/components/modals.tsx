@@ -911,7 +911,7 @@ export const StatTrendModal = memo(
   }
 );
 
-/* EvalTrendModal — see ./screens/EvaluationTab.jsx */
+/* EvalTrendModal — see ./screens/EvaluationTab */
 
 // Compact per-stat trend grid for the PlayerProfileModal. One panel per
 // tracked stat (AVG / OPS / OBP / H / RBI / HR) showing current value,
