@@ -1,6 +1,6 @@
 import React, { memo, useState, useEffect, useMemo, useCallback } from "react";
 import { Icons } from "../icons";
-import { useTeam, useToast } from "../contexts.js";
+import { useTeam, useToast } from "../contexts";
 import {
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,

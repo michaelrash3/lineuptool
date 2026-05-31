@@ -1,9 +1,9 @@
 // Small reusable presentational components extracted from App.jsx Section 8.
-// All consumers go through useTeam/useUI from ../contexts.js.
+// All consumers go through useTeam/useUI from ../contexts.
 
 import React, { memo, useMemo } from "react";
 import { formatStat } from "../utils/helpers";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 
 export const LeaderboardCard = memo(
   ({

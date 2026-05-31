@@ -1,6 +1,6 @@
 import React, { memo, useState, useMemo } from "react";
 import { Icons } from "../icons";
-import { useTeam } from "../contexts.js";
+import { useTeam } from "../contexts";
 import { calculateBaseballAge } from "../utils/helpers";
 
 // Player Interest Survey leads (year-round). Head-only screen.

@@ -2,7 +2,7 @@ import React, { memo } from "react";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
-import { useTeam, useUI, useToast } from "../contexts.js";
+import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge, Eyebrow } from "./shared.jsx";
 import { useTheme } from "../hooks/useTheme";
 

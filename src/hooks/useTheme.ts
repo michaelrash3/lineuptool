@@ -6,25 +6,28 @@ import { useCallback, useEffect, useState } from "react";
 // public/index.html so there's no flash on load; this hook keeps it in sync
 // after hydration and reacts to OS changes when in "system" mode.
 
-const STORAGE_KEY = "cc.theme";
-const MODES = ["light", "dark", "system"];
+export type ThemeMode = "light" | "dark" | "system";
+export type ResolvedTheme = "light" | "dark";
 
-const prefersDark = () =>
+const STORAGE_KEY = "cc.theme";
+const MODES: ThemeMode[] = ["light", "dark", "system"];
+
+const prefersDark = (): boolean =>
   typeof window !== "undefined" &&
-  window.matchMedia &&
+  !!window.matchMedia &&
   window.matchMedia("(prefers-color-scheme: dark)").matches;
 
-const readStored = () => {
+const readStored = (): ThemeMode => {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    return MODES.includes(v) ? v : "system";
+    return v && (MODES as string[]).includes(v) ? (v as ThemeMode) : "system";
   } catch {
     return "system";
   }
 };
 
 // Resolve a mode to the concrete theme and write it to the root element.
-const applyTheme = (mode) => {
+const applyTheme = (mode: ThemeMode): void => {
   if (typeof document === "undefined") return;
   const dark = mode === "dark" || (mode === "system" && prefersDark());
   const root = document.documentElement;
@@ -32,8 +35,15 @@ const applyTheme = (mode) => {
   else root.removeAttribute("data-theme");
 };
 
-export function useTheme() {
-  const [mode, setMode] = useState(readStored);
+export interface UseThemeResult {
+  mode: ThemeMode;
+  setMode: React.Dispatch<React.SetStateAction<ThemeMode>>;
+  resolved: ResolvedTheme;
+  toggle: () => void;
+}
+
+export function useTheme(): UseThemeResult {
+  const [mode, setMode] = useState<ThemeMode>(readStored);
 
   // Apply on mount + whenever the mode changes, and persist.
   useEffect(() => {
@@ -54,7 +64,7 @@ export function useTheme() {
   }, [mode]);
 
   // The concrete theme currently showing (resolves "system").
-  const resolved =
+  const resolved: ResolvedTheme =
     mode === "dark" || (mode === "system" && prefersDark()) ? "dark" : "light";
 
   // Simple toggle for an icon button: light → dark → light. (Long-press / a

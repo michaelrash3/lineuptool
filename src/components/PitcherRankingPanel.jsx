@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 import {
   checkPitchEligibility,
   getCombinedGrades,

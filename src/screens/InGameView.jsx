@@ -2,7 +2,7 @@ import React, { memo, useState, useRef, useCallback, useEffect } from "react";
 import { Icons } from "../icons";
 import { formatGameDateDisplay } from "../utils/helpers";
 import { shareLineupCard } from "../lineup/lineupCard";
-import { useTeam, useUI, useToast } from "../contexts.js";
+import { useTeam, useUI, useToast } from "../contexts";
 import { ScoreEditor } from "./ScheduleTab.jsx";
 
 export const InGameView = memo(() => {

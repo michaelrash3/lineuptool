@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { Button, Eyebrow } from "./shared.jsx";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 
 // Bumped from v1 → v2 when the tour switched from passive descriptions to
 // action-oriented walkthrough with per-step CTAs. v3 adds the tryouts /

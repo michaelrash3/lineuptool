@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 import { isGameFinalized } from "../utils/helpers";
 
 // Lightweight fuzzy match: case-insensitive substring score. Returns -1 if

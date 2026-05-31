@@ -6,7 +6,7 @@ import {
   suggestPlayerMatch,
 } from "../utils/helpers";
 import { computeNextSeason } from "../constants/ui";
-import { useTeam, useUI, useToast } from "../contexts.js";
+import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal.jsx";

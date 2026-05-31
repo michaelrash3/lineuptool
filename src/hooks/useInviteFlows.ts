@@ -1,6 +1,29 @@
 import { useCallback } from "react";
 import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
 import { appId, db } from "../firebase";
+import type { ToastContextValue } from "../types";
+
+interface AuthUser {
+  uid: string;
+}
+
+interface TeamEntry {
+  id: string;
+  name?: string;
+}
+
+interface UseInviteFlowsArgs {
+  user: AuthUser | null | undefined;
+  teams: TeamEntry[];
+  updateTeam: (patch: Record<string, unknown>) => void;
+  switchTeam: (id: string) => void;
+  toast: ToastContextValue;
+}
+
+interface JoinResult {
+  ok: boolean;
+  retryable?: boolean;
+}
 
 export const useInviteFlows = ({
   user,
@@ -8,7 +31,7 @@ export const useInviteFlows = ({
   updateTeam,
   switchTeam,
   toast,
-}) => {
+}: UseInviteFlowsArgs) => {
   const regenerateJoinCode = useCallback(() => {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
@@ -18,7 +41,7 @@ export const useInviteFlows = ({
   }, [updateTeam]);
 
   const joinTeamByCode = useCallback(
-    async (rawCode) => {
+    async (rawCode: string): Promise<JoinResult> => {
       if (!user || !rawCode) return { ok: false, retryable: true };
       const code = String(rawCode).trim().toUpperCase();
       const codeRe = /^[A-HJ-NP-Z2-9]{6}$/;
@@ -29,9 +52,10 @@ export const useInviteFlows = ({
       try {
         for (const t of teams) {
           const snap = await getDoc(doc(db, "artifacts", appId, "public", "data", "teams", t.id));
-          if (snap.exists() && (snap.data().joinCode || "") === code) {
+          const sd = snap.exists() ? (snap.data() as any) : null;
+          if (sd && (sd.joinCode || "") === code) {
             switchTeam(t.id);
-            toast.push({ kind: "success", title: `Already a member of ${snap.data().name || "this team"}` });
+            toast.push({ kind: "success", title: `Already a member of ${sd.name || "this team"}` });
             return { ok: true };
           }
         }
@@ -42,7 +66,7 @@ export const useInviteFlows = ({
           return { ok: false, retryable: false };
         }
         const teamDoc = snap.docs[0];
-        const data = teamDoc.data();
+        const data = teamDoc.data() as any;
         const members = Array.isArray(data.members) ? data.members : [];
         const nextMembers = members.includes(user.uid) ? members : [...members, user.uid];
         const nextCoachRoles = {
@@ -63,7 +87,7 @@ export const useInviteFlows = ({
         switchTeam(teamDoc.id);
         toast.push({ kind: "success", title: `Joined ${data.name || "team"}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
         return { ok: true };
-      } catch (err) {
+      } catch (err: any) {
         // Log the underlying error so a coach reporting "I can't join" can
         // share a console snapshot — most join failures are silently caught
         // here and the toast was too vague to act on.
@@ -71,8 +95,8 @@ export const useInviteFlows = ({
           // eslint-disable-next-line no-console
           console.error("[joinTeamByCode] failed:", err);
         }
-        const code = err?.code || "";
-        const isPermission = code === "permission-denied";
+        const errCode = err?.code || "";
+        const isPermission = errCode === "permission-denied";
         toast.push({
           kind: "error",
           title: "Couldn't join",
