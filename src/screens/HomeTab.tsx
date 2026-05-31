@@ -427,7 +427,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
                   onClick={startGame}
                   className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg bg-green-600 text-white hover:bg-green-700"
                 >
-                  <Icons.Play className="w-4 h-4" /> Start Game
+                  <Icons.Forward className="w-4 h-4" /> Start Game
                 </button>
               ) : (
                 // No lineup yet — you can't start, so making one is the
