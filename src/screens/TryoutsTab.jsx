@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam, useToast } from "../contexts.js";
+import { useTeam, useToast } from "../contexts";
 import { EvalGradeCard } from "../components/EvalGradeCard.jsx";
 import {
   getActivePositionList,

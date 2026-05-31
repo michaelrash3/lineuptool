@@ -6,7 +6,7 @@ import {
   buildSeasonBenchImbalance,
   isGameFinalized,
 } from "../utils/helpers";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard } from "../components/shared.jsx";
 import { checkPitchEligibility } from "../lineupEngine";
 

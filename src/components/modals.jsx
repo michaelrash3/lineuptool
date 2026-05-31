@@ -10,7 +10,7 @@ import {
 } from "../utils/helpers";
 import { AGE_TIERS } from "../constants/ui";
 import { getActivePositionList } from "../lineupEngine";
-import { useTeam, useUI, useToast } from "../contexts.js";
+import { useTeam, useUI, useToast } from "../contexts";
 import { PlayerAvatar, cropImageTo256DataURL } from "./shared.jsx";
 
 

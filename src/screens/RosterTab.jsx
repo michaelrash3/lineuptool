@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 import { PlayerAvatar } from "../components/shared.jsx";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel.jsx";
 

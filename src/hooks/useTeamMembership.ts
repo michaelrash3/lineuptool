@@ -1,8 +1,26 @@
 import { useCallback } from "react";
 
-export const useTeamMembership = ({ teamData, updateTeam, user }) => {
+interface AuthUser {
+  uid: string;
+}
+
+interface UseTeamMembershipArgs {
+  teamData: {
+    ownerId?: string;
+    coachRoles?: Record<string, string>;
+    members?: string[];
+  } & Record<string, unknown>;
+  updateTeam: (patch: Record<string, unknown>) => void;
+  user: AuthUser | null | undefined;
+}
+
+export const useTeamMembership = ({
+  teamData,
+  updateTeam,
+  user,
+}: UseTeamMembershipArgs) => {
   const setCoachRole = useCallback(
-    (uid, role) => {
+    (uid: string, role: string) => {
       if (!uid || uid === teamData.ownerId) return;
       if (role !== "head" && role !== "assistant") return;
       const next = { ...(teamData.coachRoles || {}), [uid]: role };

@@ -19,7 +19,7 @@ import {
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
 import { calculateTotalScore } from "../lineupEngine";
-import { useTeam, useUI } from "../contexts.js";
+import { useTeam, useUI } from "../contexts";
 import { evalPromptStatus } from "../utils/helpers";
 
 // 11 standard positions surfaced as a per-player chip row so the coach

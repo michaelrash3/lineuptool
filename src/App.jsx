@@ -35,7 +35,7 @@ import {
   useToast,
   useTeam,
   useUI,
-} from "./contexts.js";
+} from "./contexts";
 import { SharedModals } from "./components/shared.jsx";
 import {
   OnboardingTutorial,
@@ -315,9 +315,9 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
 });
 
 /* ============================================================================
-   SECTION 6 · TeamContext   — see ./contexts.js
-   SECTION 7 · UIContext     — see ./contexts.js
-   The hooks (useToast / useTeam / useUI) live in ./contexts.js so screens
+   SECTION 6 · TeamContext   — see ./contexts
+   SECTION 7 · UIContext     — see ./contexts
+   The hooks (useToast / useTeam / useUI) live in ./contexts so screens
    can import them without dragging the providers.
 ============================================================================ */
 

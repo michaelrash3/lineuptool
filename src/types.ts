@@ -169,6 +169,33 @@ export interface Toast {
   dismiss?: (id: string) => void;
 }
 
+// ---- React context value shapes ------------------------------------------
+// A toast notification request. `kind` defaults to "info"; "warn" is used for
+// soft fallbacks (e.g. one-game-balance lineups).
+export interface ToastInput {
+  kind?: "success" | "error" | "info" | "warn";
+  title: string;
+  message?: string;
+  duration?: number;
+  action?: { label: string; onClick: () => void };
+}
+
+export interface ToastContextValue {
+  push: (t: ToastInput) => void;
+  dismiss: (id: number | string) => void;
+}
+
+// The Team/UI providers expose large bags of state, setters, and command
+// functions (see App.jsx). They're typed permissively for now and meant to be
+// enriched field-by-field as the screen/component files migrate to TS.
+export interface TeamContextValue {
+  [key: string]: unknown;
+}
+
+export interface UIContextValue {
+  [key: string]: unknown;
+}
+
 export interface CsvImportRow {
   csvName: string;
   number: string;

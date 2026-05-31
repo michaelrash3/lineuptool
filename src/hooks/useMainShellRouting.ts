@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 
-const TAB_TO_PATH = {
+const TAB_TO_PATH: Record<string, string> = {
   home: "/",
   roster: "/roster",
   schedule: "/schedule",
@@ -10,12 +10,23 @@ const TAB_TO_PATH = {
   settings: "/settings",
 };
 
-const pathToTab = (pathname) => {
+const pathToTab = (pathname: string): string => {
   if (!pathname || pathname === "/") return "home";
   const first = pathname.split("/").filter(Boolean)[0];
   if (first === "in-game") return "schedule";
   return first || "home";
 };
+
+interface UseMainShellRoutingArgs {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  inGameId: string | null;
+  setInGameId: (id: string | null) => void;
+  isAssistant: boolean;
+  tryoutsOpen: boolean;
+  location: { pathname: string };
+  navigate: (path: string) => void;
+}
 
 export const useMainShellRouting = ({
   activeTab,
@@ -26,7 +37,7 @@ export const useMainShellRouting = ({
   tryoutsOpen,
   location,
   navigate,
-}) => {
+}: UseMainShellRoutingArgs) => {
   const tabOrder = useMemo(
     () =>
       isAssistant
