@@ -2,7 +2,7 @@ import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
-import { PlayerAvatar } from "../components/shared.jsx";
+import { PlayerAvatar } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);

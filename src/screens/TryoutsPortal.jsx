@@ -11,7 +11,7 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
-import { Button, Eyebrow } from "../components/shared.jsx";
+import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
 const getTryoutAgeLabel = (teamAge) => {

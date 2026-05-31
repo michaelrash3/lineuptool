@@ -16,7 +16,7 @@ export const LeaderboardCard = memo(
     primaryColor,
     tertiaryColor,
     onPlayerClick,
-  }) => {
+  }: any) => {
     const sorted = useMemo(() => {
       return [...players]
         .filter((p) => {
@@ -90,7 +90,7 @@ export const LeaderboardCard = memo(
 
 /* Compact W-L record. `variant`: "compact" (header) | "full" (home/schedule). */
 export const RecordBadge = memo(
-  ({ record, variant = "compact", primaryColor, tertiaryColor }) => {
+  ({ record, variant = "compact", primaryColor, tertiaryColor }: any) => {
     const { wins, losses, ties, runsScored, runsAllowed } = record || {
       wins: 0,
       losses: 0,
@@ -137,7 +137,7 @@ export const RecordBadge = memo(
    Design-system primitives — Coach's Card handoff
    ============================================================================ */
 
-export const GlassCard = ({ accent = false, className = "", children, ...rest }) => (
+export const GlassCard = ({ accent = false, className = "", children, ...rest }: any) => (
   <div
     className={`glass-card ${className}`}
     {...rest}
@@ -152,13 +152,13 @@ export const GlassCard = ({ accent = false, className = "", children, ...rest })
   </div>
 );
 
-export const Eyebrow = ({ className = "", children, ...rest }) => (
+export const Eyebrow = ({ className = "", children, ...rest }: any) => (
   <span className={`t-eyebrow ${className}`} {...rest}>
     {children}
   </span>
 );
 
-const getPlayerInitials = (name) => {
+const getPlayerInitials = (name: string) => {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -174,7 +174,7 @@ const getPlayerInitials = (name) => {
 // Size is a Tailwind-compatible pixel measure; the wrapper takes care of
 // rounding + shadow + border.
 export const PlayerAvatar = memo(
-  ({ player, size = 40, className = "", showNumber = false }) => {
+  ({ player, size = 40, className = "", showNumber = false }: any) => {
     const photo = player?.photoUrl;
     const initials = getPlayerInitials(player?.name);
     const dim = { width: size, height: size };
@@ -236,7 +236,7 @@ export const PlayerAvatar = memo(
 // that's persisted inline on the player record — the app does not use
 // Cloud Storage (Spark-plan compatible), so photos live alongside the
 // rest of the player document in Firestore.
-export const cropImageTo256DataURL = (file) =>
+export const cropImageTo256DataURL = (file: File) =>
   new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
     const reader = new FileReader();
@@ -276,12 +276,12 @@ export const cropImageTo256DataURL = (file) =>
           );
         }
       };
-      img.src = reader.result;
+      img.src = reader.result as string;
     };
     reader.readAsDataURL(file);
   });
 
-export const StatTile = ({ label, value, className = "" }) => (
+export const StatTile = ({ label, value, className = "" }: any) => (
   <div
     className={`bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl ${className}`}
   >
@@ -290,7 +290,7 @@ export const StatTile = ({ label, value, className = "" }) => (
   </div>
 );
 
-const CHIP_VARIANTS = {
+const CHIP_VARIANTS: Record<string, { bg: string; color: string; border: string }> = {
   primary: { bg: "var(--team-primary)", color: "var(--team-tertiary)", border: "transparent" },
   success: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
   danger: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
@@ -299,7 +299,7 @@ const CHIP_VARIANTS = {
   slate: { bg: "#f1f5f9", color: "#334155", border: "#e2e8f0" },
 };
 
-export const Chip = ({ variant = "slate", className = "", children, ...rest }) => {
+export const Chip = ({ variant = "slate", className = "", children, ...rest }: any) => {
   const v = CHIP_VARIANTS[variant] || CHIP_VARIANTS.slate;
   return (
     <span
@@ -312,13 +312,13 @@ export const Chip = ({ variant = "slate", className = "", children, ...rest }) =
   );
 };
 
-const BUTTON_SIZE = {
+const BUTTON_SIZE: Record<string, string> = {
   sm: "px-3 py-2 text-[11px]",
   md: "px-5 py-2.5 text-xs",
   lg: "px-6 py-3 text-xs",
 };
 
-const BUTTON_VARIANTS = {
+const BUTTON_VARIANTS: Record<string, { className: string; style: React.CSSProperties }> = {
   primary: {
     className: "shadow-md hover:-translate-y-0.5 hover:shadow-xl",
     style: { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" },
@@ -350,7 +350,7 @@ export const Button = ({
   type = "button",
   children,
   ...rest
-}) => {
+}: any) => {
   const v = BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary;
   return (
     <button
@@ -372,7 +372,7 @@ export const Button = ({
 export const FORM_INPUT_CLASS =
   "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
 
-export const FORM_INPUT_RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
+export const FORM_INPUT_RING_STYLE = { "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties;
 
 // Drop-in <Modal> shell. Standardizes backdrop, panel chrome, optional
 // accent strip, and the close-on-backdrop / Escape behaviors so new modals
@@ -390,10 +390,10 @@ export const Modal = ({
   closeOnEscape = true,
   children,
   footer,
-}) => {
+}: any) => {
   React.useEffect(() => {
     if (!open || !closeOnEscape || !onClose) return undefined;
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();

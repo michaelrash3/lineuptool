@@ -11,7 +11,7 @@ import {
 import { AGE_TIERS } from "../constants/ui";
 import { getActivePositionList } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { PlayerAvatar, cropImageTo256DataURL } from "./shared.jsx";
+import { PlayerAvatar, cropImageTo256DataURL } from "./shared";
 
 
 const PROFILE_SECTIONS = [
@@ -59,7 +59,7 @@ const STATS_TAB_KEYS = [
 // `label`: shown on cards/chart axes
 // `category`: groups stats; pitching is hidden for non-Kid Pitch seasons
 // `higherIsBetter`: used for the trend arrow direction
-const STAT_META = {
+const STAT_META: Record<string, any> = {
   ops: {
     label: "OPS",
     kind: "decimal",
@@ -165,7 +165,7 @@ const STAT_META = {
 // Format a stat value for display. Returns "—" for missing/zero values when
 // appropriate (so a kid with 0 HR shows as 0, but a kid with no AVG shows as —).
 
-export const formatStatValue = (key, value) => {
+export const formatStatValue = (key: any, value: any) => {
   if (value === null || value === undefined) return "—";
   const meta = STAT_META[key];
   if (!meta) return String(value);
@@ -210,9 +210,9 @@ export const PastSeasonImportModal = memo(() => {
     pastSeasonImport;
   const { players, primaryColor, tertiaryColor } = team;
 
-  const setField = (patch) =>
+  const setField = (patch: any) =>
     setPastSeasonImport({ ...pastSeasonImport, ...patch });
-  const setAssignment = (csvName, value) =>
+  const setAssignment = (csvName: any, value: any) =>
     setField({ assignments: { ...assignments, [csvName]: value } });
 
   const close = () => setPastSeasonImport(null);
@@ -355,7 +355,7 @@ export const PastSeasonImportModal = memo(() => {
               <div className="col-span-5">From CSV</div>
               <div className="col-span-7">Assign To</div>
             </div>
-            {rows.map((row) => {
+            {rows.map((row: any) => {
               const value = assignments[row.csvName] || "skip";
               const isSkip = value === "skip";
               return (
@@ -385,7 +385,7 @@ export const PastSeasonImportModal = memo(() => {
                     >
                       <option value="skip">Skip this row</option>
                       <optgroup label="Match to existing player">
-                        {players.map((p) => {
+                        {players.map((p: any) => {
                           // Allow the current selection plus any unassigned player
                           const taken =
                             usedPlayerIds.has(p.id) && p.id !== value;
@@ -436,7 +436,7 @@ export const PastSeasonImportModal = memo(() => {
 
 /* PastSeasonForm — used inline for Add and Edit of a single past-season entry. */
 const PastSeasonForm = memo(
-  ({ initial, primaryColor, tertiaryColor, onSave, onCancel, onDelete }) => {
+  ({ initial, primaryColor, tertiaryColor, onSave, onCancel, onDelete }: any) => {
     const [season, setSeason] = useState(initial?.season || "");
     const [ageGroup, setAgeGroup] = useState(initial?.ageGroup || "");
     const [pitchingFormat, setPitchingFormat] = useState(
@@ -447,9 +447,9 @@ const PastSeasonForm = memo(
       ...(initial?.stats || {}),
     }));
 
-    const setStat = (key, raw) => {
+    const setStat = (key: any, raw: any) => {
       const n = parseFloat(raw);
-      setStats((s) => ({ ...s, [key]: Number.isNaN(n) ? 0 : n }));
+      setStats((s: any) => ({ ...s, [key]: Number.isNaN(n) ? 0 : n }));
     };
     const showPitching = pitchingFormat === "Kid Pitch";
 
@@ -573,14 +573,14 @@ export const StatTrendModal = memo(
     primaryColor,
     tertiaryColor,
     onClose,
-  }) => {
+  }: any) => {
     if (!statKey) return null;
     const meta = STAT_META[statKey];
     if (!meta) return null;
 
     // Build a chronological data series. Each entry: { season, ageGroup, value, isCurrent }.
     // Sort: by year ascending, then Spring before Fall within a year.
-    const seasonSortKey = (label) => {
+    const seasonSortKey = (label: any) => {
       if (!label) return 99999;
       const m = String(label).match(/(spring|fall)\s+(\d{4})/i);
       if (!m) return 99999;
@@ -661,11 +661,11 @@ export const StatTrendModal = memo(
       if (yMin < 0) yMin = 0;
     }
 
-    const xPos = (i) =>
+    const xPos = (i: number) =>
       series.length === 1
         ? ML + innerW / 2
         : ML + (i / (series.length - 1)) * innerW;
-    const yPos = (v) => MT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
+    const yPos = (v: number) => MT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
 
     // Axis ticks: 4-5 evenly spaced on Y
     const yTicks = [];
@@ -813,7 +813,7 @@ export const StatTrendModal = memo(
                         >
                           {s.season.replace(
                             /^(\w+)\s+(\d{4})$/,
-                            (_, sn, yr) => `${sn.slice(0, 3)} '${yr.slice(2)}`
+                            (_: any, sn: string, yr: string) => `${sn.slice(0, 3)} '${yr.slice(2)}`
                           )}
                         </text>
                         {s.ageGroup && (
@@ -928,12 +928,12 @@ const RECENT_MOVEMENT_TRACKED = [
   { key: "hr", label: "HR", decimals: 0 },
 ];
 
-const fmtTrendVal = (v, decimals) =>
+const fmtTrendVal = (v: any, decimals: any) =>
   decimals > 0
     ? Number(v || 0).toFixed(decimals).replace(/^0\./, ".")
     : String(Math.round(Number(v) || 0));
 
-const fmtTrendDelta = (delta, decimals) => {
+const fmtTrendDelta = (delta: any, decimals: any) => {
   if (delta === 0) return "0";
   const sign = delta > 0 ? "+" : "";
   return decimals > 0
@@ -943,7 +943,7 @@ const fmtTrendDelta = (delta, decimals) => {
 
 // Inline SVG sparkline. Uses team-primary color via currentColor on the
 // stroke so it retints with the team theme.
-const Sparkline = memo(({ values }) => {
+const Sparkline = memo(({ values }: any) => {
   if (!values || values.length < 2) return null;
   const w = 40;
   const h = 16;
@@ -951,7 +951,7 @@ const Sparkline = memo(({ values }) => {
   const max = Math.max(...values);
   const span = max - min || 1;
   const pts = values
-    .map((v, i) => {
+    .map((v: any, i: number) => {
       const x = (i / (values.length - 1)) * w;
       const y = h - ((v - min) / span) * h;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
@@ -977,7 +977,7 @@ const Sparkline = memo(({ values }) => {
   );
 });
 
-const RecentMovementPanel = memo(({ player }) => {
+const RecentMovementPanel = memo(({ player }: any) => {
   const history = Array.isArray(player.statsHistory) ? player.statsHistory : [];
   if (history.length === 0) {
     return (
@@ -994,7 +994,7 @@ const RecentMovementPanel = memo(({ player }) => {
   // Series = past snapshots + live stats. Sparkline uses the last
   // WINDOW+1 values so it shows the full trajectory the delta covers.
   const liveStats = player.stats || {};
-  const series = [...history.map((h) => h.stats || {}), liveStats];
+  const series = [...history.map((h: any) => h.stats || {}), liveStats];
   const windowed = series.slice(-Math.min(RECENT_MOVEMENT_WINDOW + 1, series.length));
 
   return (
@@ -1073,7 +1073,7 @@ export const PlayerProfileModal = memo(() => {
     defenseSize,
   } = team;
   const [activeSection, setActiveSection] = useState("general");
-  const scrollContainerRef = useRef(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Scroll-spy: as the user scrolls the modal body, highlight the section
   // nav chip for whichever section is currently nearest the top.
@@ -1112,17 +1112,17 @@ export const PlayerProfileModal = memo(() => {
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
-  const [trendStatKey, setTrendStatKey] = useState(null); // key of stat whose year-over-year chart is open
+  const [trendStatKey, setTrendStatKey] = useState<string | null>(null); // key of stat whose year-over-year chart is open
   const [addingPastSeason, setAddingPastSeason] = useState(false);
-  const [editingPastSeasonId, setEditingPastSeasonId] = useState(null);
+  const [editingPastSeasonId, setEditingPastSeasonId] = useState<string | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
-  const photoInputRef = useRef(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Aggregate fielding history across FINAL games only (matches engine fairness logic).
   // Returns { byPosition: {P: 4, C: 2, ...}, bench, firstInningBench, totalDefensive,
   //           gamesPlayed, gamesAvailable }.
   const inningsBreakdown = useMemo(() => {
-    const byPosition = {};
+    const byPosition: Record<string, number> = {};
     let bench = 0;
     let firstInningBench = 0;
     let totalDefensive = 0;
@@ -1142,11 +1142,11 @@ export const PlayerProfileModal = memo(() => {
     // Look up the player record on the current roster so we can use the
     // orphan-id-aware matcher. If the modal is open for an id that no
     // longer exists on the roster (rare), fall back to a minimal stub.
-    const currentPlayer = (players || []).find((p) => p.id === pid) || {
+    const currentPlayer = (players || []).find((p: any) => p.id === pid) || {
       id: pid,
     };
-    const livePlayerIds = new Set((players || []).map((p) => p.id));
-    const matches = (slot) =>
+    const livePlayerIds = new Set<string>((players || []).map((p: any) => p.id));
+    const matches = (slot: any) =>
       lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
 
     // A game counts as "finalized" for stat aggregation if either:
@@ -1206,14 +1206,14 @@ export const PlayerProfileModal = memo(() => {
   // Per-game timeline for this player. Final games only, sorted by date desc.
   // Each entry: { id, date, opponent, result, score, positions, batOrder, benchInnings, totalInnings }
   const timeline = useMemo(() => {
-    const out = [];
+    const out: any[] = [];
     const pid = viewingPlayerId;
     if (!pid) return out;
-    const currentPlayer = (players || []).find((p) => p.id === pid) || {
+    const currentPlayer = (players || []).find((p: any) => p.id === pid) || {
       id: pid,
     };
-    const livePlayerIds = new Set((players || []).map((p) => p.id));
-    const matches = (slot) =>
+    const livePlayerIds = new Set<string>((players || []).map((p: any) => p.id));
+    const matches = (slot: any) =>
       lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
     // Same predicate as the aggregation above — see isGameFinalized().
     for (const g of games || []) {
@@ -1221,7 +1221,7 @@ export const PlayerProfileModal = memo(() => {
       if (!g.lineup?.length) continue;
       if (g.attendance?.[pid] === false) continue;
 
-      const positionsPlayed = {};
+      const positionsPlayed: Record<string, number> = {};
       let benchInnings = 0;
       let totalInnings = 0;
       for (const inning of g.lineup) {
@@ -1266,7 +1266,7 @@ export const PlayerProfileModal = memo(() => {
     return out;
   }, [games, players, viewingPlayerId]);
 
-  const player = players.find((p) => p.id === viewingPlayerId);
+  const player = players.find((p: any) => p.id === viewingPlayerId);
   if (!player) return null;
 
   // Defense-size-aware active position list. 10-defender setups use
@@ -1316,7 +1316,7 @@ export const PlayerProfileModal = memo(() => {
                     title: "Photo Updated",
                     message: `${player.name}'s photo is live.`,
                   });
-                } catch (err) {
+                } catch (err: any) {
                   toast.push({
                     kind: "error",
                     title: "Upload Failed",
@@ -1369,7 +1369,7 @@ export const PlayerProfileModal = memo(() => {
                   setEditingPlayerName(false);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") e.target.blur();
+                  if (e.key === "Enter") (e.target as HTMLElement).blur();
                   if (e.key === "Escape") setEditingPlayerName(false);
                 }}
                 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-ink mb-1 w-full p-2 -ml-2 border border-line outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl bg-surface shadow-inner"
@@ -1561,7 +1561,7 @@ export const PlayerProfileModal = memo(() => {
                         key={pos}
                         onClick={() => {
                           const next = active
-                            ? list.filter((p) => p !== pos)
+                            ? list.filter((p: any) => p !== pos)
                             : [...list, pos];
                           updatePlayer(player.id, {
                             comfortablePositions: next,
@@ -1797,7 +1797,7 @@ export const PlayerProfileModal = memo(() => {
                     primaryColor={primaryColor}
                     tertiaryColor={tertiaryColor}
                     onCancel={() => setAddingPastSeason(false)}
-                    onSave={(entry) => {
+                    onSave={(entry: any) => {
                       addPastSeason(player.id, entry);
                       setAddingPastSeason(false);
                     }}
@@ -1811,7 +1811,7 @@ export const PlayerProfileModal = memo(() => {
                   </div>
                 ) : (
                   <div className="space-y-2 mt-3">
-                    {(player.pastSeasons || []).map((entry) => {
+                    {(player.pastSeasons || []).map((entry: any) => {
                       const isEditing = editingPastSeasonId === entry.id;
                       if (isEditing) {
                         return (
@@ -1821,7 +1821,7 @@ export const PlayerProfileModal = memo(() => {
                             primaryColor={primaryColor}
                             tertiaryColor={tertiaryColor}
                             onCancel={() => setEditingPastSeasonId(null)}
-                            onSave={(patch) => {
+                            onSave={(patch: any) => {
                               updatePastSeason(player.id, entry.id, patch);
                               setEditingPastSeasonId(null);
                             }}
@@ -1959,7 +1959,9 @@ export const PlayerProfileModal = memo(() => {
                   ) : (
                     <div className="border-t border-line divide-y divide-line max-h-72 overflow-y-auto custom-scrollbar">
                       {timeline.map((g) => {
-                        const positions = Object.entries(g.positions)
+                        const positions = Object.entries(
+                          (g.positions || {}) as Record<string, number>
+                        )
                           .sort((a, b) => b[1] - a[1])
                           .map(([p, c]) => `${p}×${c}`)
                           .join(" ");
@@ -2290,10 +2292,11 @@ export const AddPlayerModal = memo(() => {
     number: "",
     bats: "R",
     throws: "R",
+    primaryPosition: "",
   });
-  const [photoFile, setPhotoFile] = useState(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState("");
-  const photoInputRef = useRef(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   if (!isAddingPlayer) return null;
 
@@ -2310,7 +2313,7 @@ export const AddPlayerModal = memo(() => {
     setPhotoPreview("");
   };
 
-  const submit = async (e) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
     const id = addPlayer(form);

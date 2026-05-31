@@ -10,7 +10,7 @@ import {
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { RecordBadge } from "../components/shared.jsx";
+import { RecordBadge } from "../components/shared";
 import { LineupGrid } from "./LineupGrid.jsx";
 
 export const ScoreEditor = memo(

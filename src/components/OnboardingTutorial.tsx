@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { Button, Eyebrow } from "./shared.jsx";
+import { Button, Eyebrow } from "./shared";
 import { useTeam, useUI } from "../contexts";
 
 // Bumped from v1 → v2 when the tour switched from passive descriptions to
@@ -40,7 +40,7 @@ export const resetOnboarding = () => {
 // Step numbering is applied AFTER this array is built (see attachStepNumbers)
 // so the "Step N of M" eyebrows always match the actual numbered-step count —
 // no more hand-maintained "of 7" labels that drift when steps are added.
-const buildSteps = (ctx) => {
+const buildSteps = (ctx: any) => {
   const { hasGameToday, hasPlayers, hasGames } = ctx;
   return [
     {
@@ -167,17 +167,17 @@ const buildSteps = (ctx) => {
 
 // Stamp "Step N of M" onto each numbered step. M is the count of numbered
 // steps, so adding/removing a step keeps the labels correct automatically.
-const attachStepNumbers = (steps) => {
-  const total = steps.filter((s) => s.numbered).length;
+const attachStepNumbers = (steps: any[]) => {
+  const total = steps.filter((s: any) => s.numbered).length;
   let n = 0;
-  return steps.map((s) => {
+  return steps.map((s: any) => {
     if (!s.numbered) return s;
     n += 1;
     return { ...s, eyebrow: `Step ${n} of ${total}` };
   });
 };
 
-export const OnboardingTutorial = ({ open, onClose }) => {
+export const OnboardingTutorial = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const { team } = useTeam();
   const ui = useUI();
   const [step, setStep] = useState(0);
@@ -201,7 +201,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
       hasPlayers: players.length > 0,
       hasGames: games.length > 0,
       hasGameToday: games.some(
-        (g) => g.date === today && g.status !== "final" && g.status !== "postponed"
+        (g: any) => g.date === today && g.status !== "final" && g.status !== "postponed"
       ),
       setActiveTab: ui.setActiveTab,
       setIsAddingPlayer: ui.setIsAddingPlayer,
@@ -213,7 +213,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
 
   useEffect(() => {
     if (!open) return undefined;
-    const handler = (e) => {
+    const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         close();
@@ -232,7 +232,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
   const current = steps[step];
   const Icon = current.icon;
   const isLast = step === steps.length - 1;
-  const runCta = (cta) => {
+  const runCta = (cta: any) => {
     cta.run();
     // CTA navigates somewhere; close the tour so the user actually sees
     // the destination rather than the modal scrim over it.
@@ -270,7 +270,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
           <p className="t-body mb-5 leading-relaxed">{current.body}</p>
           {current.cta && current.cta.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-7">
-              {current.cta.map((c) =>
+              {current.cta.map((c: any) =>
                 c.primary ? (
                   <Button key={c.label} onClick={() => runCta(c)}>
                     {c.label}
@@ -288,7 +288,7 @@ export const OnboardingTutorial = ({ open, onClose }) => {
             </div>
           )}
           <div className="flex items-center justify-center gap-1.5 mb-6">
-            {steps.map((_, i) => (
+            {steps.map((_: any, i: number) => (
               <span
                 key={i}
                 className="h-1.5 rounded-full transition-all"
