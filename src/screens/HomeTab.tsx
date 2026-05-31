@@ -286,6 +286,19 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
     setScoringGameId(game.id);
     setActiveTab("schedule");
   };
+  // Drop straight into live In-Game mode from the dashboard — the one-tap
+  // gameday action once a lineup exists.
+  const startGame = () => {
+    setInGameId(game.id);
+    setInGameInning(0);
+    setInGameSelection(null);
+    setInGameUndoStack([]);
+  };
+  // On gameday the dashboard flips into "Start Game" mode: the live in-game
+  // launch becomes the headline CTA and lineup/score edits drop to secondary
+  // outline chips. Until a lineup exists you can't start, so "Plan Lineup"
+  // takes the headline slot instead.
+  const isGameDay = dayDiff === 0 && !isFinal;
   const result = isFinal
     ? game.teamScore > game.opponentScore
       ? "win"
@@ -395,20 +408,8 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
           </div>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
-          {dayDiff === 0 && !isFinal && game.lineup && (
-            <button
-              onClick={() => {
-                setInGameId(game.id);
-                setInGameInning(0);
-                setInGameSelection(null);
-                setInGameUndoStack([]);
-              }}
-              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg bg-green-600 text-white hover:bg-green-700"
-            >
-              <Icons.Refresh className="w-4 h-4" /> In-Game
-            </button>
-          )}
           {isAssistant ? (
+            // Assistants can't author or run a game — only peek at the plan.
             game.lineup && (
               <button
                 onClick={openInSchedule}
@@ -418,7 +419,47 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
                 <Icons.Clipboard className="w-4 h-4" /> Gameplan
               </button>
             )
+          ) : isGameDay ? (
+            <>
+              {game.lineup ? (
+                // Headline gameday CTA — straight into live In-Game mode.
+                <button
+                  onClick={startGame}
+                  className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg bg-green-600 text-white hover:bg-green-700"
+                >
+                  <Icons.Play className="w-4 h-4" /> Start Game
+                </button>
+              ) : (
+                // No lineup yet — you can't start, so making one is the
+                // headline action.
+                <button
+                  onClick={openInSchedule}
+                  className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg"
+                  style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+                >
+                  <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
+                </button>
+              )}
+              {/* Secondary gameday actions — demoted to outline chips so the
+                  headline CTA stays the obvious one-tap. */}
+              {game.lineup && (
+                <button
+                  onClick={openInSchedule}
+                  className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                >
+                  <Icons.Edit className="w-4 h-4" /> Edit Lineup
+                </button>
+              )}
+              <button
+                onClick={openScoreEditor}
+                className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+              >
+                <Icons.FileText className="w-4 h-4" /> Final Score
+              </button>
+            </>
           ) : (
+            // Prep mode (game is still days out) — building the lineup is the
+            // primary action.
             <button
               onClick={openInSchedule}
               className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
@@ -433,14 +474,6 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
                   <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
                 </>
               )}
-            </button>
-          )}
-          {dayDiff === 0 && !isFinal && (
-            <button
-              onClick={openScoreEditor}
-              className="flex-1 sm:flex-none text-xs px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
-            >
-              <Icons.FileText className="w-4 h-4" /> Final Score
             </button>
           )}
         </div>

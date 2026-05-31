@@ -132,7 +132,7 @@ const buildSteps = (ctx: any) => {
       numbered: true,
       title: "Run In-Game mode",
       icon: Icons.Forward,
-      body: "On gameday, open In-Game from the Home dashboard. Tap any cell to swap players; the red Alert button handles mid-game injuries and re-balances the remaining innings automatically.",
+      body: "On gameday, tap Start Game on the Home dashboard. Tap any cell to swap players; the red Alert button handles mid-game injuries and re-balances the remaining innings automatically.",
       cta: hasGameToday
         ? [
             {
