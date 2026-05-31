@@ -21,8 +21,8 @@ const STATUS_PILLS = {
   declined: { label: "Declined", className: "bg-rose-50 border-rose-200 text-rose-800" },
 };
 
-const StatusPill = memo(({ status }) => {
-  const cfg = STATUS_PILLS[status || "tryout"] || STATUS_PILLS.tryout;
+const StatusPill = memo(({ status }: any) => {
+  const cfg = (STATUS_PILLS as any)[status || "tryout"] || STATUS_PILLS.tryout;
   return (
     <span
       className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${cfg.className}`}
@@ -36,7 +36,7 @@ const StatusPill = memo(({ status }) => {
 // pull the LARGEST eligible age from it. If the signup's baseball age
 // exceeds that ceiling, flag them. Heads still see + can grade the kid
 // — this is a visual nudge, not a block.
-const teamAgeCeiling = (teamAgeStr) => {
+const teamAgeCeiling = (teamAgeStr: any) => {
   if (!teamAgeStr) return null;
   const nums = String(teamAgeStr)
     .match(/\d+/g)
@@ -46,7 +46,7 @@ const teamAgeCeiling = (teamAgeStr) => {
   return Math.max(...nums);
 };
 
-const tryoutIsTooOld = (signup, team) => {
+const tryoutIsTooOld = (signup: any, team: any) => {
   const ceiling = teamAgeCeiling(team?.teamAge);
   if (ceiling == null) return false;
   const age = calculateBaseballAge(signup?.dob, team?.currentSeason);
@@ -61,24 +61,24 @@ const tryoutIsTooOld = (signup, team) => {
 // up into Will Make / On The Bubble / Likely Cut piles. Too-old kids
 // are surfaced separately regardless of grade. Ungraded kids surface
 // as "not yet evaluated" so the head knows to grade them first.
-const computeRosterBuckets = (team, evaluationEvents, tryoutSignups) => {
+const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: any) => {
   const rosterCap = Number(team?.rosterCap) || 12;
   const returners = (team?.players || []).filter(
-    (p) =>
+    (p: any) =>
       p.playerStatus !== "released" &&
       p.playerStatus !== "declined" &&
       p.playerStatus !== "accepted"
   );
   const slotsRemaining = Math.max(0, rosterCap - returners.length);
 
-  const scoreOfSignup = (signup) => {
+  const scoreOfSignup = (signup: any) => {
     const ev = (evaluationEvents || []).find(
-      (e) => e.tryoutSignupId === signup.id
+      (e: any) => e.tryoutSignupId === signup.id
     );
     const grade = ev?.grades?.signup ?? ev?.grades?.["__signup__"];
     if (!grade) return null;
     return Object.values(grade).reduce(
-      (sum, v) => sum + (typeof v === "number" ? v : 0),
+      (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
       0
     );
   };
@@ -119,10 +119,10 @@ const computeRosterBuckets = (team, evaluationEvents, tryoutSignups) => {
 // Bottom-N + positional-fit impact analysis. Returning roster is the
 // current team.players excluding any with status === "released" /
 // "declined" / "accepted" (accepted are the tryouts themselves).
-const computeImpact = (signup, team, evaluationEvents) => {
+const computeImpact = (signup: any, team: any, evaluationEvents: any) => {
   const rosterCap = Number(team.rosterCap) || 12;
   const returners = (team.players || []).filter(
-    (p) =>
+    (p: any) =>
       p.playerStatus !== "released" &&
       p.playerStatus !== "declined" &&
       p.playerStatus !== "accepted"
@@ -130,17 +130,17 @@ const computeImpact = (signup, team, evaluationEvents) => {
   // Combined grades cover ONLY current roster players via getCombinedGrades.
   // For each returner, sum the eval scores; sort descending.
   const grades = getCombinedGrades(evaluationEvents || [], returners);
-  const scoreOf = (p) => {
+  const scoreOf = (p: any) => {
     const g = grades[p.id];
     if (!g) return 0;
     return Object.values(g).reduce(
-      (sum, v) => sum + (typeof v === "number" ? v : 0),
+      (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
       0
     );
   };
   const ranked = returners
-    .map((p) => ({ p, score: scoreOf(p) }))
-    .sort((a, b) => b.score - a.score);
+    .map((p: any) => ({ p, score: scoreOf(p) }))
+    .sort((a: any, b: any) => b.score - a.score);
   const nth = ranked[rosterCap - 1];
   const cutoff = nth?.score ?? 0;
   const wouldBumpName = nth?.p?.name || null;
@@ -149,12 +149,12 @@ const computeImpact = (signup, team, evaluationEvents) => {
   // graded them via team.evaluationEvents entries that reference the
   // signup id. Until grades exist we surface "not graded yet".
   const tryoutEvent = (evaluationEvents || []).find(
-    (e) => e.tryoutSignupId === signup.id
+    (e: any) => e.tryoutSignupId === signup.id
   );
   const tryoutGrade = tryoutEvent?.grades?.signup ?? tryoutEvent?.grades?.["__signup__"];
   const tryoutScore = tryoutGrade
     ? Object.values(tryoutGrade).reduce(
-        (sum, v) => sum + (typeof v === "number" ? v : 0),
+        (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
         0
       )
     : null;
@@ -164,13 +164,13 @@ const computeImpact = (signup, team, evaluationEvents) => {
   const positionalFit = [];
   const positions = signup.comfortablePositions || [];
   for (const pos of positions) {
-    const count = returners.filter((p) =>
+    const count = returners.filter((p: any) =>
       (p.comfortablePositions || []).includes(pos)
     ).length;
     if (count < 3) positionalFit.push({ pos, returnerCount: count });
   }
   if (signup.isCatcher) {
-    const catcherCount = returners.filter((p) =>
+    const catcherCount = returners.filter((p: any) =>
       (p.comfortablePositions || []).includes("C")
     ).length;
     if (catcherCount < 2)
@@ -193,7 +193,7 @@ const computeImpact = (signup, team, evaluationEvents) => {
 // after the RosterDecisionsPanel on the Evaluation tab. Reads the
 // roster object built by computeRosterBuckets above; render-only,
 // no internal state.
-const TeamImpactPanel = memo(({ roster }) => {
+const TeamImpactPanel = memo(({ roster }: any) => {
   const buckets = [
     {
       key: "make",
@@ -260,7 +260,7 @@ const TeamImpactPanel = memo(({ roster }) => {
                 <div className="text-[10px] italic opacity-70">—</div>
               ) : (
                 <ul className="space-y-0.5">
-                  {b.items.map(({ signup, score }) => (
+                  {b.items.map(({ signup, score }: any) => (
                     <li
                       key={signup.id}
                       className="flex items-baseline justify-between gap-2 text-[11px]"
@@ -338,12 +338,12 @@ export const TryoutsTab = memo(() => {
   const filtered = useMemo(() => {
     let list = tryoutSignups || [];
     if (statusFilter !== "all") {
-      list = list.filter((s) => (s.status || "tryout") === statusFilter);
+      list = list.filter((s: any) => (s.status || "tryout") === statusFilter);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
-        (s) =>
+        (s: any) =>
           `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
           (s.email || "").toLowerCase().includes(q) ||
           (s.parentName || "").toLowerCase().includes(q)
@@ -352,8 +352,8 @@ export const TryoutsTab = memo(() => {
     return list
       .slice()
       .sort(
-        (a, b) =>
-          new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0)
+        (a: any, b: any) =>
+          new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
       );
   }, [tryoutSignups, statusFilter, search]);
 
@@ -382,7 +382,7 @@ export const TryoutsTab = memo(() => {
   }, [roster]);
   const noShowCount = useMemo(
     () =>
-      (tryoutSignups || []).filter((s) => s.present === false).length,
+      (tryoutSignups || []).filter((s: any) => s.present === false).length,
     [tryoutSignups]
   );
 
@@ -396,23 +396,23 @@ export const TryoutsTab = memo(() => {
   );
 
   const openSignup = openSignupId
-    ? (tryoutSignups || []).find((s) => s.id === openSignupId)
+    ? (tryoutSignups || []).find((s: any) => s.id === openSignupId)
     : null;
 
   // Local grade state for the currently-open signup card.
-  const [localGrades, setLocalGrades] = useState({});
+  const [localGrades, setLocalGrades] = useState<Record<string, any>>({});
   React.useEffect(() => {
     if (!openSignupId || !user) {
       setLocalGrades({});
       return;
     }
     const ev = (evaluationEvents || []).find(
-      (e) =>
+      (e: any) =>
         e.tryoutSignupId === openSignupId &&
         e.evaluatorId === user.uid
     );
-    const seed = ev?.grades?.signup ?? ev?.grades?.["__signup__"] ?? {};
-    const next = {};
+    const seed: Record<string, any> = ev?.grades?.signup ?? ev?.grades?.["__signup__"] ?? {};
+    const next: Record<string, any> = {};
     for (const c of activeCategories) next[c.id] = seed[c.id] ?? EVAL_SCALE_DEFAULT;
     if (seed.notes) next.notes = seed.notes;
     if (Array.isArray(seed.suggestedPositions))
@@ -420,11 +420,11 @@ export const TryoutsTab = memo(() => {
     setLocalGrades(next);
   }, [openSignupId, user, evaluationEvents, activeCategories]);
 
-  const setLocalGrade = (_pid, catId, value) =>
+  const setLocalGrade = (_pid: any, catId: any, value: any) =>
     setLocalGrades((prev) => ({ ...prev, [catId]: value }));
-  const setLocalNotes = (_pid, notes) =>
+  const setLocalNotes = (_pid: any, notes: any) =>
     setLocalGrades((prev) => ({ ...prev, notes }));
-  const toggleLocalPos = (_pid, pos) =>
+  const toggleLocalPos = (_pid: any, pos: any) =>
     setLocalGrades((prev) => {
       const list = Array.isArray(prev.suggestedPositions)
         ? prev.suggestedPositions
@@ -432,7 +432,7 @@ export const TryoutsTab = memo(() => {
       return {
         ...prev,
         suggestedPositions: list.includes(pos)
-          ? list.filter((p) => p !== pos)
+          ? list.filter((p: any) => p !== pos)
           : [...list, pos],
       };
     });
@@ -447,7 +447,7 @@ export const TryoutsTab = memo(() => {
     toast.push({ kind: "success", title: "Tryout eval saved" });
   };
 
-  const sendOfferLetter = async (signup) => {
+  const sendOfferLetter = async (signup: any) => {
     if (!signup.email) {
       toast.push({ kind: "error", title: "No email on this signup" });
       return;
@@ -580,13 +580,13 @@ export const TryoutsTab = memo(() => {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((s) => {
+          {filtered.map((s: any) => {
             const impact = isHead
               ? computeImpact(s, team, evaluationEvents)
               : null;
             const expanded = openSignupId === s.id;
             const bucket = bucketBySignupId.get(s.id);
-            const bucketCfg = bucket ? BUCKET_BADGES[bucket] : null;
+            const bucketCfg = bucket ? (BUCKET_BADGES as any)[bucket] : null;
             const presence = s.present; // true | false | undefined
             return (
               <div
@@ -863,7 +863,7 @@ export const TryoutsTab = memo(() => {
                   type="button"
                   onClick={() => {
                     const noShows = (tryoutSignups || []).filter(
-                      (s) => s.present === false
+                      (s: any) => s.present === false
                     );
                     for (const s of noShows) {
                       deleteTryoutSignup?.(s.id);

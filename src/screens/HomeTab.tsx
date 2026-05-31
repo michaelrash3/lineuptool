@@ -13,7 +13,7 @@ import { checkPitchEligibility } from "../lineupEngine";
 // Dismissible banner that nudges the current coach to submit an eval round
 // when the cadence (preseason or biweekly) is active.
 const EvalPromptBanner = memo(
-  ({ kind, isHead, primaryColor, onStart, dueDate }) => {
+  ({ kind, isHead, primaryColor, onStart, dueDate }: any) => {
     const [dismissed, setDismissed] = useState(false);
     if (dismissed) return null;
     const dueLabel = dueDate ? formatGameDateDisplay(dueDate) : "";
@@ -107,7 +107,7 @@ const PITCHING_STATS = [
    - Use --team-* CSS vars so it retints with team theme
    - Bigger date+opponent line, clearer day-state chip
 =========================================================================== */
-const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
+const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
   const { team, currentRole } = useTeam();
   // Assistants can't author a lineup, so swap the dual-state CTA for a
   // single read-only "Gameplan" view-button that only appears once the
@@ -140,7 +140,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
 
   // Deep-link to a specific game's editor in the Schedule tab (mirrors the
   // hero card's CTA, reused by the compact "no game this week" state).
-  const goToGame = (g) => {
+  const goToGame = (g: any) => {
     setSelectedGameId(g.id);
     setOpponentName(g.opponent);
     setLineup(g.lineup || null);
@@ -151,7 +151,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
 
   // Compact fallback card — keeps the "Next Game" slot anchored (never blank)
   // when there's no game inside the prep window. Same chrome as the hero card.
-  const renderCompact = ({ title, subtitle, cta }) => (
+  const renderCompact = ({ title, subtitle, cta }: any) => (
     <div className="relative rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
       <div
         className="absolute inset-y-0 left-0 w-1.5"
@@ -197,18 +197,18 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
 
   const upcoming = useMemo(() => {
     const eligible = (games || [])
-      .filter((g) => (g.status || "scheduled") !== "postponed")
+      .filter((g: any) => (g.status || "scheduled") !== "postponed")
       // Once a score is entered the game is "in the books" — drop it so the
       // card advances to the next game to prep, however far out it is.
-      .filter((g) => !isGameFinalized(g))
-      .filter((g) => g.date && g.date >= todayStr)
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .filter((g: any) => !isGameFinalized(g))
+      .filter((g: any) => g.date && g.date >= todayStr)
+      .sort((a: any, b: any) => a.date.localeCompare(b.date));
     if (eligible.length === 0) return null;
     const next = eligible[0];
     const dayDiff = Math.round(
-      (new Date(next.date) - new Date(todayStr)) / 86400000
+      (new Date(next.date).getTime() - new Date(todayStr).getTime()) / 86400000
     );
-    const sameDayCount = eligible.filter((g) => g.date === next.date).length;
+    const sameDayCount = eligible.filter((g: any) => g.date === next.date).length;
     return { game: next, dayDiff, sameDayCount };
   }, [games, todayStr]);
 
@@ -455,7 +455,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
    freeform for each tile's content.
 =========================================================================== */
 const InsightTile = memo(
-  ({ icon: Icon, title, accent = "slate", onClick, ctaLabel, children }) => {
+  ({ icon: Icon, title, accent = "slate", onClick, ctaLabel, children }: any) => {
     const ACCENT_STYLES = {
       primary: { halo: "var(--team-primary-15)", text: "var(--team-primary)" },
       success: { halo: "#dcfce7", text: "#15803d" },
@@ -464,7 +464,7 @@ const InsightTile = memo(
       info: { halo: "#dbeafe", text: "#1d4ed8" },
       slate: { halo: "#e2e8f0", text: "#475569" },
     };
-    const styles = ACCENT_STYLES[accent] || ACCENT_STYLES.slate;
+    const styles = (ACCENT_STYLES as any)[accent] || ACCENT_STYLES.slate;
     return (
       <div className="bg-surface rounded-2xl shadow-card border border-line overflow-hidden flex flex-col">
         <div className="px-4 py-3 border-b border-line bg-surface flex items-center gap-3">
@@ -496,7 +496,7 @@ const InsightTile = memo(
    PitcherAvailabilityTile — Kid Pitch only. Counts how many rostered
    pitchers are eligible today by the engine's checkPitchEligibility rules.
 =========================================================================== */
-const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster }) => {
+const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster }: any) => {
   const stats = useMemo(() => {
     let eligible = 0;
     let resting = 0;
@@ -572,7 +572,7 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
    RecentMovementTile — uses player.statsHistory (per PR #37). Surfaces the
    top mover and top regressor across the roster's most recent transitions.
 =========================================================================== */
-const RecentMovementTile = memo(({ players, onPlayerClick }) => {
+const RecentMovementTile = memo(({ players, onPlayerClick }: any) => {
   const movers = useMemo(() => {
     const all = [];
     for (const p of players || []) {
@@ -603,7 +603,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
     );
   }
 
-  const fmt = (n) => (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
+  const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
 
   return (
     <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
@@ -611,7 +611,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
         {movers.topMover && (
           <button
             type="button"
-            onClick={() => onPlayerClick?.(movers.topMover.player.id)}
+            onClick={() => onPlayerClick?.(movers.topMover!.player.id)}
             className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-win-bg/40 border border-line/80 hover:bg-win-bg transition-colors shadow-sm"
           >
             <span className="t-body-bold text-emerald-900 truncate">
@@ -625,7 +625,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
         {movers.topRegressor && (
           <button
             type="button"
-            onClick={() => onPlayerClick?.(movers.topRegressor.player.id)}
+            onClick={() => onPlayerClick?.(movers.topRegressor!.player.id)}
             className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-loss-bg/40 border border-line/80 hover:bg-loss-bg transition-colors shadow-sm"
           >
             <span className="t-body-bold text-rose-900 truncate">
@@ -646,7 +646,7 @@ const RecentMovementTile = memo(({ players, onPlayerClick }) => {
    most recent evaluation rounds. Mirrors InsightsPanel logic from
    EvaluationTab without rendering the heavy round-comparison UI.
 =========================================================================== */
-const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
+const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }: any) => {
   const flags = useMemo(() => {
     if (!Array.isArray(evaluationEvents) || evaluationEvents.length < 2) {
       return { top: null, bottom: null };
@@ -656,7 +656,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
     );
     const latest = sorted[0];
     const prev = sorted[1];
-    const avgUniversal = (g) => {
+    const avgUniversal = (g: any) => {
       if (!g) return null;
       const keys = [
         "contact",
@@ -694,7 +694,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
 
   if (!flags.top && !flags.bottom) return null;
 
-  const fmt = (n) => (n >= 0 ? "+" : "") + n.toFixed(1);
+  const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(1);
 
   return (
     <InsightTile
@@ -734,19 +734,19 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }) => {
    TeamTrendTile — last-5 W/L sparkline + run differential, derived from
    finalized games in `team.games`.
 =========================================================================== */
-const TeamTrendTile = memo(({ games }) => {
+const TeamTrendTile = memo(({ games }: any) => {
   const data = useMemo(() => {
     const finals = (games || [])
       .filter(isGameFinalized)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
     const last5 = finals.slice(-5);
-    const results = last5.map((g) => {
+    const results = last5.map((g: any) => {
       if (g.teamScore > g.opponentScore) return "W";
       if (g.teamScore < g.opponentScore) return "L";
       return "T";
     });
     const diff = last5.reduce(
-      (acc, g) => acc + (g.teamScore - g.opponentScore),
+      (acc: any, g: any) => acc + (g.teamScore - g.opponentScore),
       0
     );
     return { results, diff, count: last5.length };
@@ -758,13 +758,13 @@ const TeamTrendTile = memo(({ games }) => {
     <InsightTile icon={Icons.Bat} title="Last 5 Games" accent="primary">
       <div className="flex items-baseline gap-3 mb-3">
         <span className="t-stat-num text-ink">
-          {data.results.filter((r) => r === "W").length}
+          {data.results.filter((r: any) => r === "W").length}
           <span className="text-ink-3 text-2xl">-</span>
-          {data.results.filter((r) => r === "L").length}
-          {data.results.filter((r) => r === "T").length > 0 && (
+          {data.results.filter((r: any) => r === "L").length}
+          {data.results.filter((r: any) => r === "T").length > 0 && (
             <>
               <span className="text-ink-3 text-2xl">-</span>
-              {data.results.filter((r) => r === "T").length}
+              {data.results.filter((r: any) => r === "T").length}
             </>
           )}
         </span>
@@ -782,7 +782,7 @@ const TeamTrendTile = memo(({ games }) => {
         </span>
       </div>
       <div className="flex items-center gap-1.5">
-        {data.results.map((r, i) => (
+        {data.results.map((r: any, i: any) => (
           <span
             key={i}
             className={`flex-1 h-7 rounded-md grid place-items-center t-button text-white ${
@@ -805,7 +805,7 @@ const TeamTrendTile = memo(({ games }) => {
 /* ===========================================================================
    Empty-state CTAs surfaced when the roster or schedule is blank.
 =========================================================================== */
-const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) => (
+const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }: any) => (
   <div className="rounded-2xl bg-surface border border-line shadow-card p-8 text-center">
     <div className="inline-flex p-3 rounded-2xl bg-surface-2 mb-4">
       <Icon className="w-7 h-7 text-ink-3" />
@@ -834,11 +834,11 @@ const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }) =>
    spot kids who keep falling behind and decide whether to nudge it (e.g.
    move someone to a Big Game position for a game).
 =========================================================================== */
-const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
+const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
   const rows = React.useMemo(() => {
     const imbalance = buildSeasonBenchImbalance(games, "", players);
     return (players || [])
-      .map((p) => {
+      .map((p: any) => {
         const data =
           imbalance.get(p.id) || {
             totalDefense: 0,
@@ -851,10 +851,10 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
           gamesAttended: data.gamesAttended,
         };
       })
-      .filter((r) => r.gamesAttended > 0);
+      .filter((r: any) => r.gamesAttended > 0);
   }, [players, games]);
 
-  const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
+  const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
   if (rows.length === 0) {
     return (
       <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
@@ -887,7 +887,7 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }) => {
     .filter((r) => r.delta <= -1)
     .slice(-2)
     .reverse();
-  const renderRow = ({ player, delta }) => {
+  const renderRow = ({ player, delta }: any) => {
     const rounded = Math.round(delta);
     const isOver = rounded > 0;
     return (
@@ -977,9 +977,9 @@ export const HomeTab = memo(() => {
     tertiaryColor,
   } = team;
   const activeTeamName =
-    teams.find((t) => t.id === activeTeamId)?.name || "TEAM";
-  const headCoaches = coaches.filter((c) => c.role === "Head Coach");
-  const assistantCoaches = coaches.filter((c) => c.role === "Assistant Coach");
+    teams.find((t: any) => t.id === activeTeamId)?.name || "TEAM";
+  const headCoaches = coaches.filter((c: any) => c.role === "Head Coach");
+  const assistantCoaches = coaches.filter((c: any) => c.role === "Assistant Coach");
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -999,7 +999,7 @@ export const HomeTab = memo(() => {
   const seasonHero = useMemo(() => {
     const finals = (games || [])
       .filter(isGameFinalized)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
     let runsFor = 0;
     let runsAgainst = 0;
     for (const g of finals) {
@@ -1008,7 +1008,7 @@ export const HomeTab = memo(() => {
     }
     const form = finals
       .slice(-5)
-      .map((g) =>
+      .map((g: any) =>
         g.teamScore > g.opponentScore
           ? "W"
           : g.teamScore < g.opponentScore
@@ -1123,7 +1123,7 @@ export const HomeTab = memo(() => {
               <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-75 mr-1">
                 Form
               </span>
-              {seasonHero.form.map((r, i) => (
+              {seasonHero.form.map((r: any, i: any) => (
                 <span
                   key={i}
                   className={`w-6 h-6 rounded grid place-items-center text-[10px] font-black ${
@@ -1177,7 +1177,7 @@ export const HomeTab = memo(() => {
                 Head Coach
               </span>
               <span className="text-sm font-bold text-ink">
-                {headCoaches.map((c) => c.name).join(", ")}
+                {headCoaches.map((c: any) => c.name).join(", ")}
               </span>
             </div>
           )}
@@ -1187,7 +1187,7 @@ export const HomeTab = memo(() => {
                 Assistant Coaches
               </span>
               <span className="text-sm font-bold text-ink">
-                {assistantCoaches.map((c) => c.name).join(", ")}
+                {assistantCoaches.map((c: any) => c.name).join(", ")}
               </span>
             </div>
           )}
@@ -1255,7 +1255,7 @@ export const HomeTab = memo(() => {
 // hidden subsets) but the card density is tight so the whole section
 // stays compact.
 const LeaderboardsSection = memo(
-  ({ players, isKidPitch, primaryColor, tertiaryColor, onPlayerClick }) => {
+  ({ players, isKidPitch, primaryColor, tertiaryColor, onPlayerClick }: any) => {
     const tabs = useMemo(() => {
       const out = [
         { id: "offense", label: "Offensive", icon: Icons.Bat, stats: HITTING_STATS },
@@ -1268,7 +1268,7 @@ const LeaderboardsSection = memo(
       ];
       // Only show Pitching tab when at least one player has pitched (any IP).
       const anyPitches = (players || []).some(
-        (p) => Number(p.stats?.ip) > 0 || Number(p.stats?.totalPitches) > 0
+        (p: any) => Number(p.stats?.ip) > 0 || Number(p.stats?.totalPitches) > 0
       );
       if (isKidPitch && anyPitches) {
         out.push({

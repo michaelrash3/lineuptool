@@ -14,7 +14,7 @@ import { auth, appId, db } from "../firebase";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
-const getTryoutAgeLabel = (teamAge) => {
+const getTryoutAgeLabel = (teamAge: any) => {
   const n = Number.parseInt(String(teamAge || "").replace(/[^0-9]/g, ""), 10);
   if (Number.isNaN(n)) return "Next Season";
   return `${n + 1}U`;
@@ -23,7 +23,7 @@ const getTryoutAgeLabel = (teamAge) => {
 // 8U plays 10 defenders → LF, LCF, RCF, RF (LC + RC cover center, no
 // lone CF). 9U+ plays 9 defenders → LF, CF, RF. Anything younger than
 // 8U or unknown defaults to the 8U layout.
-const getOutfieldPositions = (tryoutAgeLabel) => {
+const getOutfieldPositions = (tryoutAgeLabel: any) => {
   const n = Number.parseInt(
     String(tryoutAgeLabel || "").replace(/[^0-9]/g, ""),
     10
@@ -34,13 +34,13 @@ const getOutfieldPositions = (tryoutAgeLabel) => {
 };
 
 
-const normalizeForMatch = (v) =>
+const normalizeForMatch = (v: any) =>
   String(v || "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
-const hasDuplicateSignup = (signups, form) => {
+const hasDuplicateSignup = (signups: any, form: any) => {
   const fFirst = normalizeForMatch(form.firstName);
   const fLast = normalizeForMatch(form.lastName);
   const fEmail = String(form.email || "").trim().toLowerCase();
@@ -60,9 +60,9 @@ const hasDuplicateSignup = (signups, form) => {
 // feels branded instead of using a generic Tailwind blue ring.
 const INPUT_BASE =
   "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
-const RING_STYLE = { "--tw-ring-color": "var(--team-primary)" };
+const RING_STYLE = { "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties;
 
-const PortalShell = ({ children, accent = true }) => (
+const PortalShell = ({ children, accent = true }: any) => (
   <div className="min-h-screen bg-app relative overflow-hidden">
     {accent && (
       <div
@@ -74,7 +74,7 @@ const PortalShell = ({ children, accent = true }) => (
   </div>
 );
 
-const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }) => {
+const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
   const toneStyle =
     tone === "error"
       ? "border-rose-200"
@@ -122,15 +122,15 @@ export const TryoutsPortal = () => {
   const [phase, setPhase] = useState("loading");
   // "interest" → standing share link → year-round interest survey.
   // "tryout"   → per-date slug → tryout signup with date pinned.
-  const [mode, setMode] = useState(null);
+  const [mode, setMode] = useState<string | null>(null);
   // Pinned tryout date (only meaningful in tryout mode). Parents no
   // longer pick a date — the slug determines it. Removes the long-
   // standing bug where the date dropdown surfaced stale dates left
   // over on the team after the HC removed them.
   const [pinnedDate, setPinnedDate] = useState("");
-  const [team, setTeam] = useState(null);
-  const [teamDocId, setTeamDocId] = useState(null);
-  const [error, setError] = useState(null);
+  const [team, setTeam] = useState<any>(null);
+  const [teamDocId, setTeamDocId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   // Guards the submit button — parents on flaky wifi could otherwise
   // double-tap and the duplicate-signup check would still let one slip
   // through (the second write fires before the first one's arrayUnion
@@ -144,7 +144,7 @@ export const TryoutsPortal = () => {
     bats: "R",
     throws: "R",
     currentTeam: "",
-    comfortablePositions: [],
+    comfortablePositions: [] as string[],
     parentName: "",
     email: "",
     phone: "",
@@ -159,7 +159,7 @@ export const TryoutsPortal = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const applyThemeColors = (data) => {
+    const applyThemeColors = (data: any) => {
       const root = document.documentElement;
       if (data.primaryColor) root.style.setProperty("--team-primary", data.primaryColor);
       if (data.secondaryColor) root.style.setProperty("--team-secondary", data.secondaryColor);
@@ -225,7 +225,7 @@ export const TryoutsPortal = () => {
     };
   }, [linkSlug]);
 
-  const togglePos = (pos) =>
+  const togglePos = (pos: any) =>
     setForm((prev) => ({
       ...prev,
       comfortablePositions: prev.comfortablePositions.includes(pos)
@@ -233,7 +233,7 @@ export const TryoutsPortal = () => {
         : [...prev.comfortablePositions, pos],
     }));
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e?.preventDefault?.();
     if (submitting) return;
     // Common required fields (player name + parent contact). Both modes
@@ -269,7 +269,7 @@ export const TryoutsPortal = () => {
           ...form,
         };
         await updateDoc(
-          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId),
+          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
           { tryoutSignups: arrayUnion(signup) }
         );
       } else {
@@ -289,7 +289,7 @@ export const TryoutsPortal = () => {
           notes: form.notes || "",
         };
         await updateDoc(
-          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId),
+          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
           { interestSignups: arrayUnion(lead) }
         );
       }
@@ -620,7 +620,7 @@ export const TryoutsPortal = () => {
   );
 };
 
-const Field = ({ label, className = "", children }) => (
+const Field = ({ label, className = "", children }: any) => (
   <label className={`block ${className}`}>
     <span className="block t-label mb-1.5">{label}</span>
     {children}

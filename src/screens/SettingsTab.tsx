@@ -17,7 +17,7 @@ import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSetti
 // ignored, and the field snaps back to the stored value on blur.
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }) => {
+const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
   const [draft, setDraft] = useState(val);
   // Keep draft in sync when the underlying team value changes externally
   // (e.g. another tab edits the team or the user picks via the swatch).
@@ -76,7 +76,7 @@ const TryoutsSettingsPanel = memo(
     completeTryouts,
     setRosterCap,
     toast,
-  }) => {
+  }: any) => {
     const shareId = team.tryoutShareId;
     const open = team.tryoutsOpen === true;
     const phase = team.tryoutsPhase || (open ? "open" : "intake_closed");
@@ -107,8 +107,7 @@ const TryoutsSettingsPanel = memo(
                 {shareUrl}
               </code>
               <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg
-                  value={shareUrl}
+                <QRCodeImg                  value={shareUrl || ""}
                   size={120}
                   downloadable
                   filename={`${team.name || "team"}-player-interest-qr`}
@@ -240,7 +239,7 @@ const TryoutsSettingsPanel = memo(
 );
 
 
-const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
+const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }: any) => {
   const [date, setDate] = useState("");
   const slug = team.tryoutDateSlug || "";
   const url =
@@ -278,8 +277,7 @@ const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
         <>
           <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">{url}</code>
           <div className="flex items-start gap-3 flex-wrap">
-            <QRCodeImg
-              value={url}
+            <QRCodeImg              value={url}
               size={120}
               downloadable
               filename={`${team.name || "team"}-tryouts-${date || "qr"}`}
@@ -310,7 +308,7 @@ const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }) => {
 
 // Team Join Code panel. Shows the persistent 6-char code anyone can
 // use to join the team as an assistant. HC regenerates to rotate.
-const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
+const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
   const code = team.joinCode || "";
   const url =
     code && typeof window !== "undefined"
@@ -319,7 +317,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
   // In-app replacement for the window.confirm prompt that previously
   // guarded code rotation. Modal matches the patterns in #131 / #132.
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const copy = async (text, label) => {
+  const copy = async (text: any, label: any) => {
     try {
       await navigator.clipboard.writeText(text);
       toast.push({ kind: "success", title: `${label} copied` });
@@ -380,8 +378,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
             </button>
           </div>
           <div className="flex items-start gap-3 flex-wrap pt-1">
-            <QRCodeImg
-              value={url}
+            <QRCodeImg              value={url}
               size={120}
               downloadable
               filename={`${team.name || "team"}-join-code-${code}`}
@@ -458,7 +455,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }) => {
 // Diagnostics — head-only triage tool. Surfaces the Firestore truth
 // for the active team alongside the current Auth UID so account /
 // data-linkage problems are visible without DevTools.
-const DiagnosticsPanel = memo(({ team, user, activeTeamId }) => {
+const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
   const [open, setOpen] = React.useState(false);
   const uid = user?.uid || "(not signed in)";
   const ownerId = team?.ownerId || "(none)";
@@ -529,7 +526,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }) => {
                   if (typeof window !== "undefined") {
                     window.location.reload();
                   }
-                } catch (err) {
+                } catch (err: any) {
                   // Surface but don't crash — user can hard-refresh if needed.
                   // eslint-disable-next-line no-alert
                   alert(
@@ -564,7 +561,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }) => {
   );
 });
 
-const Row = ({ label, value, badge, badgeKind }) => (
+const Row = ({ label, value, badge, badgeKind }: any) => (
   <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-3">
     <span className="text-ink-3 shrink-0 font-bold uppercase tracking-widest text-[10px]">
       {label}
@@ -671,12 +668,12 @@ export const SettingsTab = memo(() => {
 
   // Past-season CSV import: parse the file, open the review modal.
   const startPastSeasonImport = useCallback(
-    (e) => {
+    (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = parseGameChangerPastSeasonCsv(ev.target.result);
+      reader.onload = (ev: ProgressEvent<FileReader>) => {
+        const result = parseGameChangerPastSeasonCsv(String(ev.target?.result ?? ""));
         if (result.error) {
           toast.push({
             kind: "error",
@@ -690,7 +687,7 @@ export const SettingsTab = memo(() => {
           return;
         }
         // Pre-populate assignments with auto-suggested matches
-        const assignments = {};
+        const assignments: Record<string, any> = {};
         for (const row of result.rows) {
           assignments[row.csvName] =
             suggestPlayerMatch(row.csvName, players) || "skip";
@@ -746,7 +743,7 @@ export const SettingsTab = memo(() => {
             ))}
           </div>
           <p className="mt-3 text-[11px] text-ink-3 font-medium">
-            {settingsMenuDescriptions[settingsMenu]}
+            {(settingsMenuDescriptions as any)[settingsMenu]}
           </p>
         </div>
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
@@ -983,7 +980,7 @@ export const SettingsTab = memo(() => {
                 <Icons.Users className="w-4 h-4" /> Coaching Staff
               </h3>
               <div className="space-y-3 mb-4">
-                {coaches.map((c) => (
+                {coaches.map((c: any) => (
                   <div
                     key={c.id}
                     className="flex justify-between items-center bg-surface p-3 border border-line rounded-xl shadow-sm"
@@ -1084,8 +1081,8 @@ export const SettingsTab = memo(() => {
               </p>
               <div className="space-y-2 mb-2">
                 {(team.members || [])
-                  .filter((uid) => uid !== team.ownerId)
-                  .map((uid) => {
+                  .filter((uid: any) => uid !== team.ownerId)
+                  .map((uid: any) => {
                     const role =
                       team.coachRoles?.[uid] === "head" ? "head" : "assistant";
                     const isMe = user && uid === user.uid;
@@ -1117,7 +1114,7 @@ export const SettingsTab = memo(() => {
                       </div>
                     );
                   })}
-                {(team.members || []).filter((uid) => uid !== team.ownerId)
+                {(team.members || []).filter((uid: any) => uid !== team.ownerId)
                   .length === 0 && (
                   <p className="text-[11px] text-ink-3 font-medium italic">
                     No other coaches have joined yet.
