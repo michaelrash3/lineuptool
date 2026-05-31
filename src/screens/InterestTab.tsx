@@ -14,7 +14,7 @@ export const InterestTab = memo(() => {
   const isHead = currentRole !== "assistant";
   const leads = useMemo(() => {
     return [...(team?.interestSignups || [])].sort(
-      (a, b) => new Date(b.submittedAt) - new Date(a.submittedAt)
+      (a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
   }, [team?.interestSignups]);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -67,7 +67,7 @@ export const InterestTab = memo(() => {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, email, current team…"
               className="flex-1 px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2"
-              style={{ "--tw-ring-color": "var(--team-primary)" }}
+              style={{ "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties}
             />
             <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3 tabular-nums shrink-0">
               {visible.length} / {leads.length}
@@ -92,7 +92,7 @@ export const InterestTab = memo(() => {
             <div className="flex flex-col gap-2">
               {visible.map((lead) => {
                 const armed = pendingDeleteId === lead.id;
-                const age = calculateBaseballAge(lead.dob);
+                const age = calculateBaseballAge(lead.dob, team?.currentSeason);
                 return (
                   <div
                     key={lead.id}
@@ -124,7 +124,7 @@ export const InterestTab = memo(() => {
                       {Array.isArray(lead.comfortablePositions) &&
                         lead.comfortablePositions.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
-                            {lead.comfortablePositions.map((p) => (
+                            {lead.comfortablePositions.map((p: any) => (
                               <span
                                 key={p}
                                 className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface-2 text-ink"

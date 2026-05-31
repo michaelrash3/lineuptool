@@ -11,10 +11,10 @@ import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge } from "../components/shared";
-import { LineupGrid } from "./LineupGrid.jsx";
+import { LineupGrid } from "./LineupGrid";
 
 export const ScoreEditor = memo(
-  ({ game, primaryColor, tertiaryColor, onSave, onClear, onCancel }) => {
+  ({ game, primaryColor, tertiaryColor, onSave, onClear, onCancel }: any) => {
     const [ts, setTs] = useState(game.teamScore ?? "");
     const [os, setOs] = useState(game.opponentScore ?? "");
     // Innings played defaults to the current lineup length (or 6 if there's no
@@ -23,8 +23,8 @@ export const ScoreEditor = memo(
     const initialInningsPlayed = game.lineup?.length || lineupMaxInnings;
     const [inningsPlayed, setInningsPlayed] = useState(initialInningsPlayed);
 
-    const tsNum = ts === "" ? null : parseInt(ts, 10);
-    const osNum = os === "" ? null : parseInt(os, 10);
+    const tsNum = ts === "" ? NaN : parseInt(ts, 10);
+    const osNum = os === "" ? NaN : parseInt(os, 10);
     const valid =
       Number.isFinite(tsNum) &&
       tsNum >= 0 &&
@@ -213,7 +213,7 @@ export const ScheduleTab = memo(() => {
   // banner anchored under the templates dropdown.
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState("");
-  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState(null);
+  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<string | null>(null);
 
   // Sort games by ISO date string once per games-array change instead of on
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
@@ -227,7 +227,7 @@ export const ScheduleTab = memo(() => {
     [games]
   );
 
-  const currentGame = games.find((g) => g.id === selectedGameId);
+  const currentGame = games.find((g: any) => g.id === selectedGameId);
 
   // Game editor view
   if (selectedGameId && currentGame) {
@@ -251,7 +251,7 @@ export const ScheduleTab = memo(() => {
     const gameType = currentGame.gameType || "league";
 
     const presentPlayers = players.filter(
-      (p) => currentGameAttendance[p.id] !== false
+      (p: any) => currentGameAttendance[p.id] !== false
     );
     const presentCount = presentPlayers.length;
 
@@ -382,14 +382,14 @@ export const ScheduleTab = memo(() => {
                       >
                         <option value="">Templates…</option>
                         <optgroup label="Apply">
-                          {(team.lineupTemplates || []).map((tpl) => (
+                          {(team.lineupTemplates || []).map((tpl: any) => (
                             <option key={`a-${tpl.id}`} value={`apply:${tpl.id}`}>
                               {tpl.name}
                             </option>
                           ))}
                         </optgroup>
                         <optgroup label="Delete">
-                          {(team.lineupTemplates || []).map((tpl) => (
+                          {(team.lineupTemplates || []).map((tpl: any) => (
                             <option key={`d-${tpl.id}`} value={`delete:${tpl.id}`}>
                               ✕ {tpl.name}
                             </option>
@@ -666,7 +666,7 @@ export const ScheduleTab = memo(() => {
             {(() => {
               const imbalance = buildSeasonBenchImbalance(games, currentGame.id, players);
               const rows = presentPlayers
-                .map((p) => {
+                .map((p: any) => {
                   const data = imbalance.get(p.id) || {
                     totalDefense: 0,
                     expectedDefense: 0,
@@ -678,9 +678,9 @@ export const ScheduleTab = memo(() => {
                     gamesAttended: data.gamesAttended,
                   };
                 })
-                .sort((a, b) => b.delta - a.delta);
+                .sort((a: any, b: any) => b.delta - a.delta);
               // Hide if everyone is within 1 inning of their fair share
-              const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
+              const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
               if (!anyImbalance) return null;
               return (
                 <div className="bg-surface border border-line rounded-xl p-3 mt-3">
@@ -689,7 +689,7 @@ export const ScheduleTab = memo(() => {
                     Innings Played This Season
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
-                    {rows.map((r) => {
+                    {rows.map((r: any) => {
                       const rounded = Math.round(r.delta);
                       const isOver = rounded > 0;
                       const isUnder = rounded < 0;
@@ -761,7 +761,7 @@ export const ScheduleTab = memo(() => {
                         const target = parseInt(e.target.value, 10);
                         if (!Number.isFinite(target) || target < 1) return;
                         if (target === currentInningsPlayed) return;
-                        const updates = {};
+                        const updates: Record<string, any> = {};
                         if (target < currentInningsPlayed) {
                           if (!currentGame.originalLineup) {
                             updates.originalLineup = currentGame.lineup;
@@ -808,7 +808,7 @@ export const ScheduleTab = memo(() => {
                   </h3>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {players.map((p) => (
+                  {players.map((p: any) => (
                     <button
                       key={p.id}
                       onClick={() =>
@@ -896,7 +896,7 @@ export const ScheduleTab = memo(() => {
                             }`}
                           >
                             <option value="">Auto Assign</option>
-                            {presentPlayers.map((p) => {
+                            {presentPlayers.map((p: any) => {
                               const isAssignedElsewhere = Object.entries(
                                 firstInningLineup
                               ).some(([pP, pI]) => pI === p.id && pP !== pos);
@@ -1038,7 +1038,7 @@ export const ScheduleTab = memo(() => {
                   </h3>
                 </div>
                 <div className="flex flex-col gap-3 max-w-2xl">
-                  {battingLineup.map((p, idx) => (
+                  {battingLineup.map((p: any, idx: any) => (
                     <div
                       key={`batter_${idx}`}
                       className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
@@ -1502,7 +1502,7 @@ export const ScheduleTab = memo(() => {
                         game={game}
                         primaryColor={primaryColor}
                         tertiaryColor={tertiaryColor}
-                        onSave={(ts, os, inningsPlayed) => {
+                        onSave={(ts: any, os: any, inningsPlayed: any) => {
                           finalizeGame(game.id, ts, os, inningsPlayed);
                           setScoringGameId(null);
                         }}
@@ -1590,7 +1590,7 @@ export const ScheduleTab = memo(() => {
 
       {pendingDeleteTemplateId && (() => {
         const tpl = (team.lineupTemplates || []).find(
-          (t) => t.id === pendingDeleteTemplateId
+          (t: any) => t.id === pendingDeleteTemplateId
         );
         const name = tpl?.name || "this template";
         return (

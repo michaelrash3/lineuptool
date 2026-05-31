@@ -96,40 +96,40 @@ import {
 // React.lazy needs — every screen here exports its component as a named
 // const, not a default.
 const HomeTab = lazy(() =>
-  import("./screens/HomeTab.jsx").then((m) => ({ default: m.HomeTab }))
+  import("./screens/HomeTab").then((m) => ({ default: m.HomeTab }))
 );
 const RosterTab = lazy(() =>
-  import("./screens/RosterTab.jsx").then((m) => ({ default: m.RosterTab }))
+  import("./screens/RosterTab").then((m) => ({ default: m.RosterTab }))
 );
 const ScheduleTab = lazy(() =>
-  import("./screens/ScheduleTab.jsx").then((m) => ({ default: m.ScheduleTab }))
+  import("./screens/ScheduleTab").then((m) => ({ default: m.ScheduleTab }))
 );
 const EvaluationTab = lazy(() =>
-  import("./screens/EvaluationTab.jsx").then((m) => ({
+  import("./screens/EvaluationTab").then((m) => ({
     default: m.EvaluationTab,
   }))
 );
 const SettingsTab = lazy(() =>
-  import("./screens/SettingsTab.jsx").then((m) => ({ default: m.SettingsTab }))
+  import("./screens/SettingsTab").then((m) => ({ default: m.SettingsTab }))
 );
 const AssistantEvalTab = lazy(() =>
-  import("./screens/AssistantEvalTab.jsx").then((m) => ({
+  import("./screens/AssistantEvalTab").then((m) => ({
     default: m.AssistantEvalTab,
   }))
 );
 const TryoutsTab = lazy(() =>
-  import("./screens/TryoutsTab.jsx").then((m) => ({ default: m.TryoutsTab }))
+  import("./screens/TryoutsTab").then((m) => ({ default: m.TryoutsTab }))
 );
 const InterestTab = lazy(() =>
-  import("./screens/InterestTab.jsx").then((m) => ({ default: m.InterestTab }))
+  import("./screens/InterestTab").then((m) => ({ default: m.InterestTab }))
 );
 const TryoutsPortal = lazy(() =>
-  import("./screens/TryoutsPortal.jsx").then((m) => ({
+  import("./screens/TryoutsPortal").then((m) => ({
     default: m.TryoutsPortal,
   }))
 );
 const InGameView = lazy(() =>
-  import("./screens/InGameView.jsx").then((m) => ({ default: m.InGameView }))
+  import("./screens/InGameView").then((m) => ({ default: m.InGameView }))
 );
 
 // Suspense fallback used while a lazy-loaded screen chunk is fetching.
@@ -330,23 +330,23 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 10 · HomeTab — see ./screens/HomeTab.jsx
+   SECTION 10 · HomeTab — see ./screens/HomeTab
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 11 · RosterTab — see ./screens/RosterTab.jsx
+   SECTION 11 · RosterTab — see ./screens/RosterTab
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 12 · ScheduleTab — see ./screens/ScheduleTab.jsx (also includes ScoreEditor)
+   SECTION 12 · ScheduleTab — see ./screens/ScheduleTab (also includes ScoreEditor)
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 13 · EvaluationTab + RosterDecisionsPanel — see ./screens/EvaluationTab.jsx
+   SECTION 13 · EvaluationTab + RosterDecisionsPanel — see ./screens/EvaluationTab
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 14 · SettingsTab — see ./screens/SettingsTab.jsx
+   SECTION 14 · SettingsTab — see ./screens/SettingsTab
 ============================================================================ */
 
 /* ============================================================================
@@ -3519,7 +3519,7 @@ const UIProvider = ({ children }) => {
 };
 
 /* ============================================================================
-   SECTION 18.5 · InGameView — see ./screens/InGameView.jsx
+   SECTION 18.5 · InGameView — see ./screens/InGameView
 ============================================================================ */
 
 /* ============================================================================
