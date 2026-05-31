@@ -541,7 +541,7 @@ export const useImportExportFlows = ({
 
   const exportNewPlayersCsv = useCallback(() => {
     const incoming = (teamData.players || []).filter(
-      (p) => p.playerStatus === "accepted"
+      (p: any) => p.playerStatus === "accepted"
     );
     if (incoming.length === 0) {
       toast.push({
