@@ -20,8 +20,14 @@ export const EVAL_SUGGESTED_POSITIONS = [
   "RF",
 ];
 
+interface GradeChipRowProps {
+  value: number;
+  onChange: (n: number) => void;
+  ariaLabel?: string;
+}
+
 // The 1–5 chip row reused everywhere a coach picks a grade.
-export const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
+export const GradeChipRow = memo(({ value, onChange, ariaLabel }: GradeChipRowProps) => (
   <div
     className="flex items-center gap-1.5 flex-wrap"
     role="radiogroup"
@@ -69,6 +75,23 @@ export const GradeChipRow = memo(({ value, onChange, ariaLabel }) => (
 // Per-player card used in the assistant eval tab + head EvaluationTab grid.
 // All write callbacks are optional; when omitted the card renders read-only
 // (used for showing past assistant submissions to the head coach).
+interface EvalCategory {
+  id: string;
+  label: string;
+}
+
+interface EvalGradeCardProps {
+  player: { id: string; name: string; number?: string | number };
+  grades?: Record<string, any> | null;
+  activeCategories: EvalCategory[];
+  onGradeChange?: (playerId: string, categoryId: string, value: number) => void;
+  onPositionToggle?: (playerId: string, pos: string) => void;
+  onNotesChange?: (playerId: string, notes: string) => void;
+  readOnly?: boolean;
+  rightSlot?: React.ReactNode;
+  positions?: string[];
+}
+
 export const EvalGradeCard = memo(
   ({
     player,
@@ -83,7 +106,7 @@ export const EvalGradeCard = memo(
     // superset for back-compat; callers that know team.defenseSize should
     // pass `getActivePositionList(team.defenseSize)` from lineupEngine.
     positions = EVAL_SUGGESTED_POSITIONS,
-  }) => {
+  }: EvalGradeCardProps) => {
     const playerGrades = grades || {};
     return (
       <div className="bg-surface border border-line rounded-lg shadow-sm overflow-hidden">

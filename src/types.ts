@@ -186,14 +186,16 @@ export interface ToastContextValue {
 }
 
 // The Team/UI providers expose large bags of state, setters, and command
-// functions (see App.jsx). They're typed permissively for now and meant to be
-// enriched field-by-field as the screen/component files migrate to TS.
+// functions (see App.jsx). They use an `any` index signature so consumers
+// migrating to TS can destructure/use them without friction; individual
+// fields are meant to be promoted to real types incrementally (e.g.
+// `team: Team`, `currentRole: CoachRole`) as the providers themselves move.
 export interface TeamContextValue {
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export interface UIContextValue {
-  [key: string]: unknown;
+  [key: string]: any;
 }
 
 export interface CsvImportRow {

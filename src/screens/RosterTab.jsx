@@ -3,7 +3,7 @@ import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { PlayerAvatar } from "../components/shared.jsx";
-import { PitcherRankingPanel } from "../components/PitcherRankingPanel.jsx";
+import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
 const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);

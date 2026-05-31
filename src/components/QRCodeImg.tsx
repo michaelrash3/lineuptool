@@ -4,7 +4,7 @@ import QRCode from "qrcode";
 // Slugify the value into a filesystem-friendly default filename when
 // the caller doesn't pass one explicitly. "https://x.com/foo" →
 // "x-com-foo". Falls back to a generic "qr-code" if nothing usable.
-const defaultFilename = (value) => {
+const defaultFilename = (value: unknown): string => {
   const slug = String(value || "")
     .replace(/^https?:\/\//i, "")
     .replace(/[^a-z0-9]+/gi, "-")
@@ -26,6 +26,16 @@ const defaultFilename = (value) => {
 // Errors (qrcode rejecting the value for some reason) render an empty
 // placeholder rather than throwing — the surrounding copy-link UI is
 // still usable.
+interface QRCodeImgProps {
+  value: string;
+  size?: number;
+  className?: string;
+  downloadable?: boolean;
+  filename?: string;
+  downloadSize?: number;
+  downloadLabel?: string;
+}
+
 export const QRCodeImg = ({
   value,
   size = 120,
@@ -34,7 +44,7 @@ export const QRCodeImg = ({
   filename,
   downloadSize = 512,
   downloadLabel = "Download PNG",
-}) => {
+}: QRCodeImgProps) => {
   const [dataUrl, setDataUrl] = useState("");
 
   useEffect(() => {

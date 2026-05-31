@@ -7,7 +7,7 @@ import {
   calcPitcherScore,
 } from "../lineupEngine";
 
-const ageNumOf = (age) => {
+const ageNumOf = (age: string | undefined): number => {
   const nums = (age || "").match(/\d+/g);
   if (!nums || nums.length === 0) return 8;
   return parseInt(nums[nums.length - 1], 10);
@@ -15,7 +15,7 @@ const ageNumOf = (age) => {
 
 // Days until eligible to pitch again (0 = today). Returns null when the
 // player has no recent pitching activity (always eligible).
-const daysUntilEligible = (player, teamAge) => {
+const daysUntilEligible = (player: any, teamAge: string): number | null => {
   const pitching = player.pitching || {};
   const last = pitching.lastPitchDate;
   if (!last || !pitching.recentPitches) return null;
@@ -29,7 +29,7 @@ const daysUntilEligible = (player, teamAge) => {
   return null;
 };
 
-const formatPitchDate = (iso) => {
+const formatPitchDate = (iso: string | undefined | null): string => {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
@@ -56,7 +56,7 @@ export const PitcherRankingPanel = memo(() => {
   const ranked = useMemo(() => {
     if (!eligible || !combinedGrades) return [];
     const todayStr = new Date().toISOString().slice(0, 10);
-    return (players || [])
+    return ((players || []) as any[])
       .map((p) => {
         const g = combinedGrades[p.id] || {};
         const score = calcPitcherScore(g);
