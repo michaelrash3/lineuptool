@@ -232,15 +232,20 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
       subtitle: `Next: vs ${game.opponent} · ${formatGameDateDisplay(
         game.date
       )} · in ${dayDiff} days`,
-      cta: (
-        <button
-          onClick={() => goToGame(game)}
-          className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
-          style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-        >
-          <Icons.Clipboard className="w-4 h-4" /> View
-        </button>
-      ),
+      // Mirror the Schedule list's `(canEdit || game.lineup)` guard: an
+      // assistant can only open a game once the head has set a lineup.
+      // Without this, the View CTA would deep-link them into the game
+      // editor's ungated setup controls before any lineup exists.
+      cta:
+        !isAssistant || game.lineup ? (
+          <button
+            onClick={() => goToGame(game)}
+            className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+            style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+          >
+            <Icons.Clipboard className="w-4 h-4" /> View
+          </button>
+        ) : null,
     });
   }
 
