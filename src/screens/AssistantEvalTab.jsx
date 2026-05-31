@@ -9,7 +9,7 @@ import {
   getLocalDateString,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
-import { EvalGradeCard } from "../components/EvalGradeCard.jsx";
+import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList } from "../lineupEngine";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;

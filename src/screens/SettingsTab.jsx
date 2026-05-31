@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { QRCodeImg } from "../components/QRCodeImg.jsx";
+import { QRCodeImg } from "../components/QRCodeImg";
 import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
