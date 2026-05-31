@@ -2567,7 +2567,7 @@ const TeamProvider = ({ children }: any) => {
   // member gate below closes that hole — once anyone else is in members[],
   // role resolution must come from ownerId or coachRoles, not a hopeful
   // default.
-  const realRole = useMemo(() => {
+  const realRole = useMemo<"head" | "assistant">(() => {
     if (!user) return "head";
     if (user.uid === teamData.ownerId) return "head";
     const explicit = teamData.coachRoles?.[user.uid];
@@ -2600,7 +2600,7 @@ const TeamProvider = ({ children }: any) => {
 
   // Visible role for the rest of the app. Only the head coach can flip
   // themselves to assistant; assistants can never escalate.
-  const currentRole = useMemo(() => {
+  const currentRole = useMemo<"head" | "assistant">(() => {
     if (realRole === "head" && viewAsRole === "assistant") return "assistant";
     return realRole;
   }, [realRole, viewAsRole]);

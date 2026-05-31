@@ -185,16 +185,31 @@ export interface ToastContextValue {
   dismiss: (id: number | string) => void;
 }
 
+export type CoachRole = "head" | "assistant";
+
 // The Team/UI providers expose large bags of state, setters, and command
-// functions (see App.jsx). They use an `any` index signature so consumers
-// migrating to TS can destructure/use them without friction; individual
-// fields are meant to be promoted to real types incrementally (e.g.
-// `team: Team`, `currentRole: CoachRole`) as the providers themselves move.
+// functions (see App.tsx). The most-used fields are typed here; the long tail
+// of command functions / setters stays permissive via the `any` index
+// signature and is promoted to real signatures incrementally.
 export interface TeamContextValue {
+  // `team` (the full team-data bag) stays `any` for now via the index
+  // signature — promoting it to `Team` is a dedicated follow-up because the
+  // optional/unknown fields ripple into every consumer. The API surface
+  // below is the high-value, low-cascade tightening.
+  currentRole: CoachRole;
+  realRole: CoachRole;
+  updateTeam: (patch: Partial<Team>) => void;
+  switchTeam: (id: string) => void | Promise<void>;
+  createTeam: (name?: string) => void | Promise<any>;
   [key: string]: any;
 }
 
 export interface UIContextValue {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+  selectedGameId: string | null;
+  setSelectedGameId: (id: string | null) => void;
+  openPlayerProfile: (id: string) => void;
   [key: string]: any;
 }
 
