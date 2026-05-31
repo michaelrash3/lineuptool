@@ -7,24 +7,42 @@ import {
   parsePercent,
 } from "../utils/helpers";
 import { getLocalDateString } from "../constants/ui";
+import type { ToastContextValue } from "../types";
 
-export const csvEscape = (val) => {
+export const csvEscape = (val: unknown): string => {
   if (val == null) return "";
   const s = String(val);
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 };
 
+// teamData carries more fields at runtime than the strict Team interface
+// models (coachContacts, lastCsvImportDate, etc.). Typed permissively for now
+// and meant to tighten as the data model is fully modeled in TS.
+interface UseImportExportFlowsArgs {
+  teamData: any;
+  updateTeam: (patch: Record<string, unknown>) => void;
+  activeTeamId: string;
+  toast: ToastContextValue;
+}
 
-export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast }) => {
+const fileText = (ev: ProgressEvent<FileReader>): string =>
+  String(ev.target?.result ?? "");
+
+export const useImportExportFlows = ({
+  teamData,
+  updateTeam,
+  activeTeamId,
+  toast,
+}: UseImportExportFlowsArgs) => {
   const uploadScheduleCsv = useCallback(
-    (e) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
-          const text = ev.target.result;
+          const text = fileText(ev);
           const rows = parseCsvRecords(text);
           if (rows.length < 2) throw new Error("File appears to be empty.");
           const headers = rows[0].map((h) =>
@@ -35,7 +53,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
             (h) => h.includes("opponent") || h.includes("home/away")
           );
           if (dateIdx === -1) throw new Error("Could not find a date column.");
-          const newGames = [];
+          const newGames: any[] = [];
           for (let i = 1; i < rows.length; i++) {
             const cols = rows[i];
             const rawDate = cols[dateIdx];
@@ -65,7 +83,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
             kind: "success",
             title: `Imported ${newGames.length} games`,
           });
-        } catch (err) {
+        } catch (err: any) {
           toast.push({
             kind: "error",
             title: "Schedule import failed",
@@ -80,14 +98,14 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
   );
 
   const uploadStatsCsv = useCallback(
-    (e) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
           // Strip UTF-8 BOM if present (GameChanger exports include one)
-          const text = ev.target.result.replace(/^\uFEFF/, "");
+          const text = fileText(ev).replace(/^\uFEFF/, "");
           const rows = parseCsvRecords(text);
           if (rows.length < 2) throw new Error("Empty file.");
 
@@ -126,11 +144,11 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
             );
           }
 
-          const next = [...teamData.players];
+          const next: any[] = [...teamData.players];
           // Coach rows from TeamSnap are skipped from the roster but
           // captured here so the head coach has real coach contact
           // info (not parent emails) on file. Deduped by email.
-          const nextCoachContacts = [...(teamData.coachContacts || [])];
+          const nextCoachContacts: any[] = [...(teamData.coachContacts || [])];
           let updated = 0,
             added = 0,
             skipped = 0,
@@ -195,7 +213,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
 
             if (isTeamSnap) {
               // Roster info only — never touch stats or pitching
-              const rosterFields = {};
+              const rosterFields: Record<string, string> = {};
               if (idx.num !== -1 && cols[idx.num])
                 rosterFields.number = cols[idx.num];
               if (idx.dob !== -1 && cols[idx.dob])
@@ -236,22 +254,22 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
 
             // GameChanger path — stats only.
             // Build a stats patch with ONLY fields actually present in this CSV.
-            const statsPatch = {};
-            const setNum = (key, colIdx) => {
+            const statsPatch: Record<string, number> = {};
+            const setNum = (key: string, colIdx: number) => {
               if (colIdx === -1) return;
               const raw = cols[colIdx];
               if (raw === undefined || raw === "" || raw === "-") return;
               const n = parseFloat(raw);
               if (!Number.isNaN(n)) statsPatch[key] = n;
             };
-            const setInt = (key, colIdx) => {
+            const setInt = (key: string, colIdx: number) => {
               if (colIdx === -1) return;
               const raw = cols[colIdx];
               if (raw === undefined || raw === "" || raw === "-") return;
               const n = parseInt(raw, 10);
               if (!Number.isNaN(n)) statsPatch[key] = n;
             };
-            const setPct = (key, colIdx) => {
+            const setPct = (key: string, colIdx: number) => {
               if (colIdx === -1) return;
               const raw = cols[colIdx];
               if (raw === undefined || raw === "" || raw === "-") return;
@@ -354,7 +372,11 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
           const isMachinePitchTeam = teamFmt.includes("machine");
           const prevImportDate = teamData.lastCsvImportDate || "";
           const todayIso = new Date().toISOString().slice(0, 10);
-          const sanityWarnings = [];
+          const sanityWarnings: Array<{
+            name: string;
+            csvDelta: number;
+            manualDelta: number;
+          }> = [];
           if (!isMachinePitchTeam) {
             for (let pi = 0; pi < next.length; pi++) {
               const newPlayer = next[pi];
@@ -400,7 +422,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
             }
           }
 
-          const patch = {
+          const patch: Record<string, any> = {
             players: next,
             lastCsvImportDate: todayIso,
           };
@@ -429,7 +451,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
               message: `CSV shows +${w.csvDelta} pitches since last import; you entered ${w.manualDelta}. Off by ${Math.abs(w.csvDelta - w.manualDelta)}.`,
             });
           }
-        } catch (err) {
+        } catch (err: any) {
           toast.push({
             kind: "error",
             title: "CSV import failed",
@@ -459,13 +481,13 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
   // be uploaded straight back into LineupTool or into a league portal.
   // Column choices mirror buildCsvHeaderIndex's TeamSnap detection
   // (Contact 1 Name / Jersey Number / Email / etc).
-  const csvEscape = (val) => {
+  const csvEscape = (val: unknown): string => {
     if (val == null) return "";
     const s = String(val);
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };
-  const playersToCsv = useCallback((players) => {
+  const playersToCsv = useCallback((players: any[]) => {
     const headers = [
       "First",
       "Last",
@@ -498,7 +520,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
     return [headers.map(csvEscape).join(","), ...rows].join("\r\n");
   }, []);
 
-  const downloadCsv = (filename, csvText) => {
+  const downloadCsv = (filename: string, csvText: string) => {
     const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -519,7 +541,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
 
   const exportNewPlayersCsv = useCallback(() => {
     const incoming = (teamData.players || []).filter(
-      (p) => p.playerStatus === "accepted"
+      (p: any) => p.playerStatus === "accepted"
     );
     if (incoming.length === 0) {
       toast.push({
@@ -547,8 +569,8 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
   // the Returning Y/N toggle in AdvanceSeasonModal uses
   // setPlayerReturning below instead so it writes the explicit boolean.
   const setPlayerStatus = useCallback(
-    (playerId, status) => {
-      const next = (teamData.players || []).map((p) =>
+    (playerId: string, status: string) => {
+      const next = (teamData.players || []).map((p: any) =>
         p.id === playerId ? { ...p, playerStatus: status } : p
       );
       updateTeam({ players: next });
@@ -561,8 +583,8 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
   // legacy playerStatus reads at read-time so existing rosters work
   // unchanged.
   const setPlayerReturning = useCallback(
-    (playerId, value) => {
-      const next = (teamData.players || []).map((p) =>
+    (playerId: string, value: boolean) => {
+      const next = (teamData.players || []).map((p: any) =>
         p.id === playerId ? { ...p, returning: value === true } : p
       );
       updateTeam({ players: next });
@@ -571,7 +593,7 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
   );
 
   const importBackup = useCallback(
-    (e) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       if (!window.confirm("Replace this team's data with the backup file?")) {
@@ -579,12 +601,12 @@ export const useImportExportFlows = ({ teamData, updateTeam, activeTeamId, toast
         return;
       }
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
-          const data = JSON.parse(ev.target.result);
+          const data = JSON.parse(fileText(ev));
           updateTeam(data);
           toast.push({ kind: "success", title: "Backup restored" });
-        } catch (err) {
+        } catch (err: any) {
           toast.push({
             kind: "error",
             title: "Could not parse backup",
