@@ -36,11 +36,11 @@ import {
   useTeam,
   useUI,
 } from "./contexts";
-import { SharedModals } from "./components/shared.jsx";
+import { SharedModals } from "./components/shared";
 import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
-} from "./components/OnboardingTutorial.jsx";
+} from "./components/OnboardingTutorial";
 import {
   useLocation,
   useNavigate,
@@ -48,18 +48,18 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { CommandPalette } from "./components/CommandPalette.jsx";
-import { WelcomeChooser } from "./components/WelcomeChooser.jsx";
+import { CommandPalette } from "./components/CommandPalette";
+import { WelcomeChooser } from "./components/WelcomeChooser";
 import {
   LoginScreen,
   AppHeader,
   TabBarNav,
-} from "./components/Chrome.jsx";
+} from "./components/Chrome";
 import {
   PlayerProfileModal,
   AddPlayerModal,
   PastSeasonImportModal,
-} from "./components/modals.jsx";
+} from "./components/modals";
 import {
   normalizeDateToIso,
   slimGame,

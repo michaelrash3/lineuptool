@@ -3,7 +3,7 @@ import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
 import { useTeam, useUI, useToast } from "../contexts";
-import { RecordBadge, Eyebrow } from "./shared.jsx";
+import { RecordBadge, Eyebrow } from "./shared";
 import { useTheme } from "../hooks/useTheme";
 
 // Light/dark toggle — sun in dark mode (tap to go light), moon in light mode.
@@ -35,7 +35,7 @@ export const LoginScreen = ({
   onEmailSignIn,
   genError,
   isSigningIn = false,
-}) => (
+}: any) => (
   <div
     className="min-h-screen flex flex-col items-center justify-center p-6 bg-app relative overflow-hidden"
   >
@@ -164,7 +164,7 @@ export const AppHeader = memo(() => {
       if (typeof window !== "undefined") {
         window.location.reload();
       }
-    } catch (err) {
+    } catch (err: any) {
       // Surface failure via toast instead of window.alert; let the user
       // decide whether to retry or reload manually.
       setSigningOut(false);
@@ -178,7 +178,7 @@ export const AppHeader = memo(() => {
     }
   };
   const activeTeamName =
-    teams.find((t) => t.id === activeTeamId)?.name || "TEAM";
+    teams.find((t: any) => t.id === activeTeamId)?.name || "TEAM";
   const subtitle =
     currentRole === "assistant"
       ? "Assistant Coach View"
@@ -246,7 +246,7 @@ export const AppHeader = memo(() => {
             onChange={(e) => switchTeam(e.target.value)}
             className="p-3 outline-none flex-1 sm:w-64 text-sm font-black uppercase tracking-wider cursor-pointer rounded-xl bg-surface hover:bg-surface-2 transition-colors border border-line shadow-sm"
           >
-            {teams.map((t) => (
+            {teams.map((t: any) => (
               <option key={t.id} value={t.id}>
                 {t.name}
               </option>
@@ -443,12 +443,12 @@ export const AppHeader = memo(() => {
   );
 });
 
-export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }) => {
+export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => {
   return (
     <div className="bg-surface border-b border-line print:hidden relative z-10 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
-          {navButtons.map((btn) => {
+          {navButtons.map((btn: any) => {
             const Icon = btn.icon;
             const isActive = activeTab === btn.id;
             // Settings is the only right-pushed tab (per design spec).

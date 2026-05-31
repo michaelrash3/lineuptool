@@ -7,7 +7,7 @@ import {
   isGameFinalized,
 } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
-import { LeaderboardCard } from "../components/shared.jsx";
+import { LeaderboardCard } from "../components/shared";
 import { checkPitchEligibility } from "../lineupEngine";
 
 // Dismissible banner that nudges the current coach to submit an eval round

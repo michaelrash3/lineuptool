@@ -9,7 +9,7 @@ import { computeNextSeason } from "../constants/ui";
 import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
-import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal.jsx";
+import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
 import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel.jsx";
 
 // One row per team color: swatch (native color picker) + hex text input.

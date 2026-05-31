@@ -6,7 +6,7 @@ import { isGameFinalized } from "../utils/helpers";
 // Lightweight fuzzy match: case-insensitive substring score. Returns -1 if
 // the query has zero characters present in the candidate; otherwise lower
 // is better (matched index of the query inside the haystack).
-const fuzzyScore = (haystack, needle) => {
+const fuzzyScore = (haystack: string, needle: string): number => {
   if (!needle) return 0;
   const h = (haystack || "").toLowerCase();
   const n = needle.toLowerCase();
@@ -25,7 +25,12 @@ const fuzzyScore = (haystack, needle) => {
   return score + 1000;
 };
 
-export const CommandPalette = ({ open, onClose }) => {
+interface CommandPaletteProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
   const { team, currentRole } = useTeam();
   const isAssistant = currentRole === "assistant";
   const {
@@ -37,8 +42,8 @@ export const CommandPalette = ({ open, onClose }) => {
   } = useUI();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
-  const inputRef = useRef(null);
-  const listRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Reset every time the palette opens fresh.
   useEffect(() => {
@@ -206,7 +211,7 @@ export const CommandPalette = ({ open, onClose }) => {
     onClose();
   }, [results, activeIdx, onClose]);
 
-  const onKeyDown = (e) => {
+  const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setActiveIdx((i) => Math.min(results.length - 1, i + 1));

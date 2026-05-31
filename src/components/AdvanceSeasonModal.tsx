@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { Button, Eyebrow } from "./shared.jsx";
+import { Button, Eyebrow } from "./shared";
 
 // Two-step "Advance to next season" wizard. Replaces the previous flow
 // where the head had to mark each player Returning / Released on the
@@ -19,13 +19,13 @@ const STATUS_RETURNING = "returning";
 const STATUS_RELEASED = "released";
 const STATUS_ACCEPTED = "accepted";
 
-const isAccepted = (p) => p?.playerStatus === STATUS_ACCEPTED;
+const isAccepted = (p: any) => p?.playerStatus === STATUS_ACCEPTED;
 
 // Resolve the player's Returning Y/N answer with the same fallback
 // logic as isReturning() in helpers — the explicit `returning` boolean
 // wins, then legacy playerStatus. Yields STATUS_RETURNING /
 // STATUS_RELEASED / STATUS_ACCEPTED for downstream bucket counting.
-const effectiveStatus = (p) => {
+const effectiveStatus = (p: any) => {
   if (isAccepted(p)) return STATUS_ACCEPTED;
   if (p?.returning === false) return STATUS_RELEASED;
   if (p?.returning === true) return STATUS_RETURNING;
@@ -43,7 +43,7 @@ export const AdvanceSeasonModal = memo(
     onConfirm,
     setPlayerStatus, // legacy; kept in the prop list for back-compat
     setPlayerReturning,
-  }) => {
+  }: any) => {
     const [busy, setBusy] = useState(false);
     // Tryout signups the HC has decided to bring forward into the new
     // roster. Default: none (zero-knowledge — the HC has to explicitly
@@ -65,7 +65,7 @@ export const AdvanceSeasonModal = memo(
     }, [players]);
 
     const togglablePlayers = useMemo(
-      () => players.filter((p) => !isAccepted(p)),
+      () => players.filter((p: any) => !isAccepted(p)),
       [players]
     );
 
@@ -91,7 +91,7 @@ export const AdvanceSeasonModal = memo(
     // Bulk-set the Returning Y/N answer. Writes the explicit boolean
     // via setPlayerReturning when available; falls back to the legacy
     // setPlayerStatus("returning"/"released") string-writer otherwise.
-    const setAll = (status) => {
+    const setAll = (status: string) => {
       for (const p of togglablePlayers) {
         if (effectiveStatus(p) !== status) {
           if (setPlayerReturning) {
@@ -102,7 +102,7 @@ export const AdvanceSeasonModal = memo(
         }
       }
     };
-    const setOne = (id, status) => {
+    const setOne = (id: string, status: string) => {
       if (setPlayerReturning) {
         setPlayerReturning(id, status === STATUS_RETURNING);
       } else {
@@ -110,7 +110,7 @@ export const AdvanceSeasonModal = memo(
       }
     };
 
-    const toggleSignup = (id) => {
+    const toggleSignup = (id: string) => {
       setPromoteIds((prev) => {
         const next = new Set(prev);
         if (next.has(id)) next.delete(id);
@@ -119,7 +119,7 @@ export const AdvanceSeasonModal = memo(
       });
     };
 
-    const setAllSignups = (on) => {
+    const setAllSignups = (on: boolean) => {
       setPromoteIds(
         on ? new Set(sortedSignups.map((s) => s.id)) : new Set()
       );
@@ -215,7 +215,7 @@ export const AdvanceSeasonModal = memo(
               </p>
             ) : (
               <ul className="space-y-2">
-                {players.map((p) => {
+                {players.map((p: any) => {
                   const status = effectiveStatus(p);
                   const accepted = status === STATUS_ACCEPTED;
                   const returning = status === STATUS_RETURNING;

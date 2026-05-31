@@ -7,7 +7,7 @@ import {
   Eyebrow,
   FORM_INPUT_CLASS,
   FORM_INPUT_RING_STYLE,
-} from "./shared.jsx";
+} from "./shared";
 
 // First-run modal shown when a signed-in user has no teams yet.
 // Replaces the previous "auto-create My Team" bootstrap so a coach who
@@ -19,10 +19,16 @@ import {
 // section's button is wired. The modal is intentionally NOT dismissible
 // (no X, no backdrop, no Esc): a signed-in user with zero teams has
 // nothing to fall back to.
-export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
+interface WelcomeChooserProps {
+  open: boolean;
+  onCreate?: (name: string) => Promise<any> | any;
+  onJoin?: (code: string) => Promise<any> | any;
+}
+
+export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) => {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(null); // "create" | "join" | null
+  const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [error, setError] = useState("");
   // In-app sign-out confirmation. Replaces window.confirm so first-run
   // users don't get a 1995-looking dialog over the polished modal.
@@ -55,7 +61,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
   const codeValid = /^[A-HJ-NP-Z2-9]{6}$/.test(codeNormalized);
   const trimmedName = name.trim();
 
-  const handleJoin = async (e) => {
+  const handleJoin = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!codeValid || busy) return;
     setBusy("join");
@@ -76,7 +82,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }) => {
     }
   };
 
-  const handleCreate = async (e) => {
+  const handleCreate = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (busy) return;
     setBusy("create");
