@@ -127,6 +127,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     setInGameInning,
     setInGameSelection,
     setInGameUndoStack,
+    setIsAddingGame,
   } = useUI();
 
   const { games, leagueRuleSet, pitchingFormat } = team;
@@ -137,9 +138,69 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     return d.toISOString().split("T")[0];
   }, []);
 
+  // Deep-link to a specific game's editor in the Schedule tab (mirrors the
+  // hero card's CTA, reused by the compact "no game this week" state).
+  const goToGame = (g) => {
+    setSelectedGameId(g.id);
+    setOpponentName(g.opponent);
+    setLineup(g.lineup || null);
+    setBattingLineup(g.battingLineup || null);
+    setCurrentGameAttendance(g.attendance || {});
+    setActiveTab("schedule");
+  };
+
+  // Compact fallback card — keeps the "Next Game" slot anchored (never blank)
+  // when there's no game inside the prep window. Same chrome as the hero card.
+  const renderCompact = ({ title, subtitle, cta }) => (
+    <div className="relative rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
+      <div
+        className="absolute inset-y-0 left-0 w-1.5"
+        style={{ backgroundColor: primaryColor }}
+      />
+      <div className="p-5 sm:p-6 pl-6 sm:pl-7 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-4 min-w-0">
+          <div
+            className="p-3 rounded-xl shrink-0"
+            style={{ backgroundColor: `${primaryColor}15` }}
+          >
+            <Icons.Calendar className="w-6 h-6" style={{ color: primaryColor }} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
+              Next Game
+            </div>
+            <h3 className="font-black text-lg sm:text-xl text-ink uppercase tracking-tight leading-tight">
+              {title}
+            </h3>
+            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1">
+              {subtitle}
+            </p>
+          </div>
+        </div>
+        {cta}
+      </div>
+    </div>
+  );
+
+  const addGameBtn = !isAssistant ? (
+    <button
+      onClick={() => {
+        setActiveTab("schedule");
+        setIsAddingGame(true);
+      }}
+      className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+      style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+    >
+      <Icons.Plus className="w-4 h-4" /> Add Game
+    </button>
+  ) : null;
+
   const upcoming = useMemo(() => {
     const eligible = (games || [])
       .filter((g) => (g.status || "scheduled") !== "postponed")
+      // Once a score is entered the game is "in the books" — drop it so the
+      // card advances to the next game to prep, however far out it is.
+      .filter((g) => !isGameFinalized(g))
       .filter((g) => g.date && g.date >= todayStr)
       .sort((a, b) => a.date.localeCompare(b.date));
     if (eligible.length === 0) return null;
@@ -147,23 +208,62 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     const dayDiff = Math.round(
       (new Date(next.date) - new Date(todayStr)) / 86400000
     );
-    if (dayDiff > 7) return null;
     const sameDayCount = eligible.filter((g) => g.date === next.date).length;
     return { game: next, dayDiff, sameDayCount };
   }, [games, todayStr]);
 
-  if (!upcoming) return null;
+  // No upcoming game (every scheduled game has a score, or none are ahead).
+  // Keep the Dashboard anchored with a compact prompt instead of vanishing.
+  if (!upcoming) {
+    return renderCompact({
+      title: "No upcoming games",
+      subtitle: "Every scheduled game is in the books.",
+      cta: addGameBtn,
+    });
+  }
 
   const { game, dayDiff, sameDayCount } = upcoming;
+
+  // Outside the one-week prep window the "Next Game" hero would be premature,
+  // so show a compact line with the matchup + date instead (never blank).
+  if (dayDiff > 7) {
+    return renderCompact({
+      title: "No game this week",
+      subtitle: `Next: vs ${game.opponent} · ${formatGameDateDisplay(
+        game.date
+      )} · in ${dayDiff} days`,
+      cta: (
+        <button
+          onClick={() => goToGame(game)}
+          className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+          style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+        >
+          <Icons.Clipboard className="w-4 h-4" /> View
+        </button>
+      ),
+    });
+  }
+
   const isFinal = isGameFinalized(game);
+
+  // At-a-glance attendance state for the next game, so the coach doesn't build
+  // a lineup before confirming who's coming. `attendance` maps playerId→bool;
+  // an empty map means nobody's been marked yet (everyone defaults present).
+  const attMap = game.attendance || {};
+  const attMarked = Object.keys(attMap).length;
+  const attOut = Object.values(attMap).filter((v) => v === false).length;
 
   let whenLabel;
   if (dayDiff === 0) whenLabel = "Today";
   else if (dayDiff === 1) whenLabel = "Tomorrow";
-  else {
+  else if (dayDiff <= 6) {
     const [y, m, d] = game.date.split("-");
     const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
     whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
+  } else {
+    // More than a week out — a weekday name alone is ambiguous, so show the
+    // distance. The full date still appears on the line below.
+    whenLabel = `In ${dayDiff} days`;
   }
   const fullDate = formatGameDateDisplay(game.date);
   // Scoreboard-style date block (MON / DD).
@@ -176,14 +276,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
     : "";
   const dayNum = gd ? String(Number(gd)) : "";
 
-  const openInSchedule = () => {
-    setSelectedGameId(game.id);
-    setOpponentName(game.opponent);
-    setLineup(game.lineup || null);
-    setBattingLineup(game.battingLineup || null);
-    setCurrentGameAttendance(game.attendance || {});
-    setActiveTab("schedule");
-  };
+  const openInSchedule = () => goToGame(game);
   const openScoreEditor = () => {
     setScoringGameId(game.id);
     setActiveTab("schedule");
@@ -252,6 +345,25 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }) => {
               {!isFinal && !game.lineup && (
                 <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
                   Lineup Needed
+                </span>
+              )}
+              {/* Attendance state. Shows who's out at a glance; nudges the
+                  coach to set attendance during prep (only when none marked
+                  and there's no lineup yet, to avoid nagging coaches who
+                  don't track it). */}
+              {!isFinal && attOut > 0 && (
+                <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line tabular-nums">
+                  {attOut} Out
+                </span>
+              )}
+              {!isFinal && attMarked > 0 && attOut === 0 && (
+                <span className="bg-win-bg text-win text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
+                  All In
+                </span>
+              )}
+              {!isFinal && attMarked === 0 && !game.lineup && (
+                <span className="bg-surface-2 text-ink-3 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
+                  Set Attendance
                 </span>
               )}
             </div>
