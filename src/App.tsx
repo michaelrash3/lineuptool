@@ -155,7 +155,7 @@ const ScreenLoader = () => (
 // label survives across devices and stale auth profiles. Falls back to
 // the email local-part, then to "Coach", before ever leaving the field
 // blank.
-const lastNameOfUser = (u) => {
+const lastNameOfUser = (u: any) => {
   const dn = (u?.displayName || "").trim();
   if (dn) {
     const parts = dn.split(/\s+/).filter(Boolean);
@@ -167,7 +167,7 @@ const lastNameOfUser = (u) => {
   return "Coach";
 };
 
-const authDiag = (event, details = {}) => {
+const authDiag = (event: any, details = {}) => {
   if (typeof console === "undefined") return;
   console.info("[auth-diag]", event, {
     ts: new Date().toISOString(),
@@ -178,16 +178,16 @@ const authDiag = (event, details = {}) => {
 /* ============================================================================
    SECTION 5 · Toast system (replaces scattered setGenerationError)
 ============================================================================ */
-const ToastProvider = ({ children }) => {
-  const [toasts, setToasts] = useState([]);
+const ToastProvider = ({ children }: any) => {
+  const [toasts, setToasts] = useState<any[]>([]);
   const counter = useRef(0);
 
-  const dismiss = useCallback((id) => {
+  const dismiss = useCallback((id: any) => {
     setToasts((cur) => cur.filter((t) => t.id !== id));
   }, []);
 
   const push = useCallback(
-    (toast) => {
+    (toast: any) => {
       counter.current += 1;
       const id = counter.current;
       const t = { id, kind: "info", duration: 4000, ...toast };
@@ -241,19 +241,19 @@ const TOAST_TONES = {
   },
 };
 
-const toastIcon = (kind) => {
+const toastIcon = (kind: any) => {
   if (kind === "success") return Icons.Check;
   if (kind === "error") return Icons.Alert;
   if (kind === "warn") return Icons.Alert;
   return Icons.Cloud;
 };
 
-const ToastContainer = memo(({ toasts, dismiss }) => {
+const ToastContainer = memo(({ toasts, dismiss }: any) => {
   if (toasts.length === 0) return null;
   return (
     <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden">
-      {toasts.map((t) => {
-        const tone = TOAST_TONES[t.kind] || TOAST_TONES.info;
+      {toasts.map((t: any) => {
+        const tone = (TOAST_TONES as any)[t.kind] || TOAST_TONES.info;
         const Icon = toastIcon(t.kind);
         return (
           <div
@@ -358,22 +358,22 @@ const ToastContainer = memo(({ toasts, dismiss }) => {
    SECTION 17 · TeamProvider — owns team state, Firebase subscriptions, actions
    This replaces the prop-drilled state/actions object in the original.
 ============================================================================ */
-const TeamProvider = ({ children }) => {
+const TeamProvider = ({ children }: any) => {
   const toast = useToast();
 
   // Auth + team-list state
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [teams, setTeams] = useState([]);
-  const [activeTeamId, setActiveTeamId] = useState(null);
-  const [teamData, setTeamData] = useState(DEFAULT_TEAM_DATA);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [activeTeamId, setActiveTeamId] = useState<any>(null);
+  const [teamData, setTeamData] = useState<any>(DEFAULT_TEAM_DATA);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
   const [genError, setGenError] = useState(""); // login screen only
 
-  const previousLineupRef = useRef(null);
-  const persistTeamRef = useRef(null);
+  const previousLineupRef = useRef<any>(null);
+  const persistTeamRef = useRef<any>(null);
   // Per-session set of team ids we've already attempted to auto-claim.
   // Prevents the legacy-owner migration effect from re-firing every time
   // Firestore emits a fresh snapshot before ownerId is reflected back.
@@ -401,7 +401,7 @@ const TeamProvider = ({ children }) => {
       setTeams([{ id, name: "My Team" }]);
       setActiveTeamId(id);
       return id;
-    } catch (e) {
+    } catch (e: any) {
       bootstrapAttemptedRef.current = false;
       toast.push({
         kind: "error",
@@ -417,11 +417,11 @@ const TeamProvider = ({ children }) => {
     let cancelled = false;
     (async () => {
       try {
-        const tokenFromHost = (typeof window !== "undefined" && window.__initial_auth_token) || null;
+        const tokenFromHost = (typeof window !== "undefined" && (window as any).__initial_auth_token) || null;
         if (tokenFromHost) {
           await signInWithCustomToken(auth, tokenFromHost);
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn("Custom token sign-in failed", e);
       }
       const unsub = onAuthStateChanged(auth, async (u) => {
@@ -513,11 +513,11 @@ const TeamProvider = ({ children }) => {
       activeTeamId
     );
     let unsub = () => {};
-    let retryTimeout = null;
+    let retryTimeout: any = null;
     let cancelled = false;
     let permissionRetried = false;
 
-    const handleSnap = (snap) => {
+    const handleSnap = (snap: any) => {
       if (cancelled) return;
       if (snap.exists()) {
           const raw = snap.data();
@@ -530,15 +530,15 @@ const TeamProvider = ({ children }) => {
           if (stored < EVAL_SCHEMA_VERSION) {
             let migratedEvents = raw.evaluationEvents || [];
             if (stored >= 2 && stored < 3) {
-              migratedEvents = migratedEvents.map((ev) => {
+              migratedEvents = migratedEvents.map((ev: any) => {
                 if (!ev?.grades) return ev;
-                const nextGrades = {};
+                const nextGrades: Record<string, any> = {};
                 for (const [pid, grade] of Object.entries(ev.grades)) {
                   if (!grade || typeof grade !== "object") {
                     nextGrades[pid] = grade;
                     continue;
                   }
-                  const out = {};
+                  const out: Record<string, any> = {};
                   for (const [k, v] of Object.entries(grade)) {
                     if (typeof v === "number" && Number.isFinite(v)) {
                       out[k] = Math.max(1, Math.min(5, Math.round(v / 2)));
@@ -561,7 +561,7 @@ const TeamProvider = ({ children }) => {
                 "P", "C", "1B", "2B", "3B", "SS",
                 "LF", "LCF", "CF", "RCF", "RF",
               ];
-              migratedPlayers = migratedPlayers.map((p) => {
+              migratedPlayers = migratedPlayers.map((p: any) => {
                 if (!p) return p;
                 if (
                   Array.isArray(p.comfortablePositions) &&
@@ -598,7 +598,7 @@ const TeamProvider = ({ children }) => {
             // the legacy primaryPosition; otherwise honor the explicit
             // isCatcher checkbox. Then encode the result as "C" in the list.
             if (stored < 5) {
-              migratedPlayers = migratedPlayers.map((p) => {
+              migratedPlayers = migratedPlayers.map((p: any) => {
                 if (!p) return p;
                 const comfort = Array.isArray(p.comfortablePositions)
                   ? p.comfortablePositions
@@ -606,7 +606,7 @@ const TeamProvider = ({ children }) => {
                 const isCatcher = comfort.includes("C")
                   ? p.primaryPosition === "C"
                   : p.isCatcher === true;
-                const next = comfort.filter((pos) => pos !== "C");
+                const next = comfort.filter((pos: any) => pos !== "C");
                 if (isCatcher) next.push("C");
                 const { isCatcher: _dropped, ...rest } = p;
                 return { ...rest, comfortablePositions: next };
@@ -653,7 +653,7 @@ const TeamProvider = ({ children }) => {
     // rules engine yet. Swallow the first permission-denied error and
     // re-subscribe after a short delay; only surface a toast if the
     // retry also fails.
-    const handleErr = (err) => {
+    const handleErr = (err: any) => {
       if (cancelled) return;
       if (err?.code === "permission-denied" && !permissionRetried) {
         permissionRetried = true;
@@ -685,7 +685,7 @@ const TeamProvider = ({ children }) => {
 
   // Helper: write a partial update to the active team document
   const persistTeam = useCallback(
-    async (updates) => {
+    async (updates: any) => {
       if (!activeTeamId) return;
       // Slim any games being persisted — strip embedded player objects down
       // to {id, name, number} to stay under the Firestore 1MB document limit.
@@ -709,7 +709,7 @@ const TeamProvider = ({ children }) => {
         await setDoc(ref, toPersist, { merge: true });
         setSyncStatus("Synced");
         setTimeout(() => setSyncStatus(""), 1500);
-      } catch (e) {
+      } catch (e: any) {
         setSyncStatus("");
         toast.push({ kind: "error", title: "Save failed", message: e.message });
       }
@@ -724,8 +724,8 @@ const TeamProvider = ({ children }) => {
   }, [persistTeam]);
 
   const updateTeam = useCallback(
-    (updates) => {
-      setTeamData((prev) => ({ ...prev, ...updates })); // optimistic
+    (updates: any) => {
+      setTeamData((prev: any) => ({ ...prev, ...updates })); // optimistic
       persistTeam(updates);
     },
     [persistTeam]
@@ -744,7 +744,7 @@ const TeamProvider = ({ children }) => {
     const teamAge = _teamAge;
     const defenseSize = _defenseSize;
     const pitchingFormat = _pitchingFormat;
-    const updates = {};
+    const updates: Record<string, any> = {};
     if (leagueRuleSet === "NKB") {
       if (["6U", "7U", "8U"].includes(teamAge)) {
         if (defenseSize !== "10") updates.defenseSize = "10";
@@ -765,7 +765,7 @@ const TeamProvider = ({ children }) => {
   }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam]);
   // ----- Roster actions -----
   const addPlayer = useCallback(
-    (form) => {
+    (form: any) => {
       const id =
         form.id || "p-" + Math.random().toString(36).substring(2, 10);
       const newPlayer = {
@@ -792,8 +792,8 @@ const TeamProvider = ({ children }) => {
   );
 
   const updatePlayer = useCallback(
-    (id, updates) => {
-      const next = teamData.players.map((p) =>
+    (id: any, updates: any) => {
+      const next = teamData.players.map((p: any) =>
         p.id === id ? { ...p, ...updates } : p
       );
       updateTeam({ players: next });
@@ -802,8 +802,8 @@ const TeamProvider = ({ children }) => {
   );
 
   const updatePlayerNested = useCallback(
-    (id, key, updates) => {
-      const next = teamData.players.map((p) =>
+    (id: any, key: any, updates: any) => {
+      const next = teamData.players.map((p: any) =>
         p.id === id ? { ...p, [key]: { ...(p[key] || {}), ...updates } } : p
       );
       updateTeam({ players: next });
@@ -812,7 +812,7 @@ const TeamProvider = ({ children }) => {
   );
 
   const removePlayer = useCallback(
-    (id) => {
+    (id: any) => {
       if (!window.confirm("Remove this player from the roster?")) return;
 
       // Snapshot the pre-delete shapes for Undo. A mistap here cascades
@@ -822,16 +822,16 @@ const TeamProvider = ({ children }) => {
       const prevPlayers = teamData.players;
       const prevGames = teamData.games || [];
       const prevEvents = teamData.evaluationEvents || [];
-      const removedPlayer = prevPlayers.find((p) => p.id === id);
+      const removedPlayer = prevPlayers.find((p: any) => p.id === id);
 
       // Strip the player out of every shape that holds player references.
-      const stripFromInning = (inning) => {
+      const stripFromInning = (inning: any) => {
         if (!inning || typeof inning !== "object") return inning;
-        const out = {};
+        const out: Record<string, any> = {};
         for (const pos in inning) {
           if (pos === "BENCH") {
             out.BENCH = (inning.BENCH || []).filter(
-              (p) => p && p.id !== id
+              (p: any) => p && p.id !== id
             );
           } else {
             const slot = inning[pos];
@@ -841,14 +841,14 @@ const TeamProvider = ({ children }) => {
         return out;
       };
 
-      const stripFromGame = (g) => {
+      const stripFromGame = (g: any) => {
         const next = { ...g };
         if (Array.isArray(g.lineup)) next.lineup = g.lineup.map(stripFromInning);
         if (Array.isArray(g.originalLineup))
           next.originalLineup = g.originalLineup.map(stripFromInning);
         if (Array.isArray(g.battingLineup))
           next.battingLineup = g.battingLineup.filter(
-            (p) => p && p.id !== id
+            (p: any) => p && p.id !== id
           );
         if (g.attendance && id in g.attendance) {
           const { [id]: _dropAtt, ...rest } = g.attendance;
@@ -861,14 +861,14 @@ const TeamProvider = ({ children }) => {
         return next;
       };
 
-      const stripFromEvent = (ev) => {
+      const stripFromEvent = (ev: any) => {
         if (!ev?.grades || !(id in ev.grades)) return ev;
         const { [id]: _dropG, ...rest } = ev.grades;
         return { ...ev, grades: rest };
       };
 
       updateTeam({
-        players: prevPlayers.filter((p) => p.id !== id),
+        players: prevPlayers.filter((p: any) => p.id !== id),
         games: prevGames.map(stripFromGame),
         evaluationEvents: prevEvents.map(stripFromEvent),
       });
@@ -902,8 +902,8 @@ const TeamProvider = ({ children }) => {
 
   // Add a past-season entry to a single player.
   const addPastSeason = useCallback(
-    (playerId, entry) => {
-      const next = teamData.players.map((p) => {
+    (playerId: any, entry: any) => {
+      const next = teamData.players.map((p: any) => {
         if (p.id !== playerId) return p;
         const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
         const newEntry = {
@@ -929,10 +929,10 @@ const TeamProvider = ({ children }) => {
   );
 
   const updatePastSeason = useCallback(
-    (playerId, entryId, patch) => {
-      const next = teamData.players.map((p) => {
+    (playerId: any, entryId: any, patch: any) => {
+      const next = teamData.players.map((p: any) => {
         if (p.id !== playerId) return p;
-        const past = (p.pastSeasons || []).map((e) => {
+        const past = (p.pastSeasons || []).map((e: any) => {
           if (e.id !== entryId) return e;
           // Stats merge field-by-field; everything else replaces
           return {
@@ -951,16 +951,16 @@ const TeamProvider = ({ children }) => {
   );
 
   const removePastSeason = useCallback(
-    (playerId, entryId) => {
+    (playerId: any, entryId: any) => {
       if (
         !window.confirm("Remove this past season entry? This cannot be undone.")
       )
         return;
-      const next = teamData.players.map((p) => {
+      const next = teamData.players.map((p: any) => {
         if (p.id !== playerId) return p;
         return {
           ...p,
-          pastSeasons: (p.pastSeasons || []).filter((e) => e.id !== entryId),
+          pastSeasons: (p.pastSeasons || []).filter((e: any) => e.id !== entryId),
         };
       });
       updateTeam({ players: next });
@@ -972,7 +972,7 @@ const TeamProvider = ({ children }) => {
   // { playerId, season, ageGroup, pitchingFormat, stats }. Adds one entry per
   // assignment to the matching player.
   const bulkAddPastSeasons = useCallback(
-    (assignments) => {
+    (assignments: any) => {
       if (!assignments || assignments.length === 0) return;
       const byPlayer = new Map();
       for (const a of assignments) {
@@ -994,7 +994,7 @@ const TeamProvider = ({ children }) => {
         });
         byPlayer.set(a.playerId, list);
       }
-      const next = teamData.players.map((p) => {
+      const next = teamData.players.map((p: any) => {
         const adds = byPlayer.get(p.id);
         if (!adds) return p;
         return { ...p, pastSeasons: [...(p.pastSeasons || []), ...adds] };
@@ -1006,7 +1006,7 @@ const TeamProvider = ({ children }) => {
 
   // ----- Coach actions -----
   const addCoach = useCallback(
-    (form) => {
+    (form: any) => {
       if (!form.name.trim()) return;
       const newCoach = {
         id: "c-" + Math.random().toString(36).substring(2, 10),
@@ -1019,15 +1019,15 @@ const TeamProvider = ({ children }) => {
   );
 
   const removeCoach = useCallback(
-    (id) => {
-      updateTeam({ coaches: teamData.coaches.filter((c) => c.id !== id) });
+    (id: any) => {
+      updateTeam({ coaches: teamData.coaches.filter((c: any) => c.id !== id) });
     },
     [teamData.coaches, updateTeam]
   );
 
   // ----- Game actions -----
   const addGame = useCallback(
-    (form) => {
+    (form: any) => {
       if (!form.date || !form.opponent.trim()) {
         toast.push({
           kind: "warn",
@@ -1058,7 +1058,7 @@ const TeamProvider = ({ children }) => {
   );
 
   const updateGame = useCallback(
-    (gameId, updates) => {
+    (gameId: any, updates: any) => {
       // Defend against callers that pass empty/invalid dates from a cleared
       // input field. An empty `date` would break every `games.sort((a,b) =>
       // new Date(a.date) - new Date(b.date))` comparator and the upcoming-game
@@ -1075,7 +1075,7 @@ const TeamProvider = ({ children }) => {
         }
       }
       if (Object.keys(safeUpdates).length === 0) return;
-      const next = teamData.games.map((g) =>
+      const next = teamData.games.map((g: any) =>
         g.id === gameId ? { ...g, ...safeUpdates } : g
       );
       updateTeam({ games: next });
@@ -1090,7 +1090,7 @@ const TeamProvider = ({ children }) => {
   // nothing to commit). Caller is responsible for combining this with their
   // own game updates and writing both via updateTeam.
   const commitPitchCountsToPlayers = useCallback(
-    (game) => {
+    (game: any) => {
       const pitchCounts = game?.pitchCounts || {};
       const pitchedPlayerIds = Object.keys(pitchCounts).filter(
         (pid) => Number.isFinite(pitchCounts[pid]) && pitchCounts[pid] > 0
@@ -1098,7 +1098,7 @@ const TeamProvider = ({ children }) => {
       if (pitchedPlayerIds.length === 0 || !game.date) {
         return teamData.players;
       }
-      return teamData.players.map((p) => {
+      return teamData.players.map((p: any) => {
         if (!pitchedPlayerIds.includes(p.id)) return p;
         return {
           ...p,
@@ -1118,11 +1118,11 @@ const TeamProvider = ({ children }) => {
   // their warm-up tosses or innings before the call; their counts should
   // count toward rest just like a finalized game.
   const postponeGame = useCallback(
-    (gameId) => {
-      const game = teamData.games.find((g) => g.id === gameId);
+    (gameId: any) => {
+      const game = teamData.games.find((g: any) => g.id === gameId);
       if (!game) return;
       const nextPlayers = commitPitchCountsToPlayers(game);
-      const nextGames = teamData.games.map((g) =>
+      const nextGames = teamData.games.map((g: any) =>
         g.id === gameId
           ? {
               ...g,
@@ -1153,10 +1153,10 @@ const TeamProvider = ({ children }) => {
   //    pull from `originalLineup` if it has enough entries.
   //  - If `inningsPlayed` matches current length, no lineup change is made.
   const finalizeGame = useCallback(
-    (gameId, teamScore, opponentScore, inningsPlayed) => {
-      const game = teamData.games.find((g) => g.id === gameId);
+    (gameId: any, teamScore: any, opponentScore: any, inningsPlayed: any) => {
+      const game = teamData.games.find((g: any) => g.id === gameId);
       if (!game) return;
-      const gameUpdates = {
+      const gameUpdates: Record<string, any> = {
         teamScore,
         opponentScore,
         status: "final",
@@ -1185,7 +1185,7 @@ const TeamProvider = ({ children }) => {
       const nextPlayers = commitPitchCountsToPlayers(game);
       const playersChanged = nextPlayers !== teamData.players;
       if (playersChanged) {
-        const nextGames = teamData.games.map((g) =>
+        const nextGames = teamData.games.map((g: any) =>
           g.id === gameId ? { ...g, ...gameUpdates } : g
         );
         updateTeam({ players: nextPlayers, games: nextGames });
@@ -1197,11 +1197,11 @@ const TeamProvider = ({ children }) => {
   );
 
   const deleteSavedGame = useCallback(
-    (gameId) => {
+    (gameId: any) => {
       if (!window.confirm("Delete this game?")) return;
       const prevGames = teamData.games;
-      const removed = prevGames.find((g) => g.id === gameId);
-      updateTeam({ games: prevGames.filter((g) => g.id !== gameId) });
+      const removed = prevGames.find((g: any) => g.id === gameId);
+      updateTeam({ games: prevGames.filter((g: any) => g.id !== gameId) });
       toast.push({
         kind: "success",
         title: "Game deleted",
@@ -1221,10 +1221,10 @@ const TeamProvider = ({ children }) => {
   // ----- Lineup generation (uses the engine) -----
   // The UI sets these via useUI() and we read them at call time via a ref pattern,
   // but to keep things simple we pass them in to a closure exposed via a ref.
-  const uiBridge = useRef({ getInputs: () => null, applyResult: () => {} });
+  const uiBridge = useRef<any>({ getInputs: () => null, applyResult: () => {} });
 
   const _runGenerate = useCallback(
-    (seed, options = {}) => {
+    (seed: any, options: any = {}) => {
       const inputs = uiBridge.current.getInputs();
       if (!inputs) return;
       const {
@@ -1247,7 +1247,7 @@ const TeamProvider = ({ children }) => {
           : gameSaysRelaxed;
 
       const presentPlayers = teamData.players.filter(
-        (p) => currentGameAttendance[p.id] !== false
+        (p: any) => currentGameAttendance[p.id] !== false
       );
       if (presentPlayers.length < 7) {
         toast.push({
@@ -1414,7 +1414,7 @@ const TeamProvider = ({ children }) => {
       return;
     }
     const presentPlayers = teamData.players.filter(
-      (p) => currentGameAttendance[p.id] !== false
+      (p: any) => currentGameAttendance[p.id] !== false
     );
     if (presentPlayers.length < 7) {
       toast.push({
@@ -1519,7 +1519,7 @@ const TeamProvider = ({ children }) => {
       return;
     }
     const presentPlayers = teamData.players.filter(
-      (p) => currentGameAttendance[p.id] !== false
+      (p: any) => currentGameAttendance[p.id] !== false
     );
     if (presentPlayers.length < 1) {
       toast.push({ kind: "error", title: "No players present to bat" });
@@ -1626,7 +1626,7 @@ const TeamProvider = ({ children }) => {
   // repeating opponents). Capped at 10 templates per team to keep the doc
   // size in check.
   const saveLineupTemplate = useCallback(
-    (name) => {
+    (name: any) => {
       const inputs = uiBridge.current.getInputs();
       const { lineup, battingLineup } = inputs || {};
       if (!lineup) {
@@ -1659,9 +1659,9 @@ const TeamProvider = ({ children }) => {
   // Stored lineups reference players by id; we leave them as-is and let
   // the editor flag any roster-gone players visually.
   const applyLineupTemplate = useCallback(
-    (templateId) => {
+    (templateId: any) => {
       const tpl = (teamData.lineupTemplates || []).find(
-        (t) => t.id === templateId
+        (t: any) => t.id === templateId
       );
       if (!tpl) return;
       uiBridge.current.applyTemplate?.(tpl);
@@ -1675,9 +1675,9 @@ const TeamProvider = ({ children }) => {
   );
 
   const deleteLineupTemplate = useCallback(
-    (templateId) => {
+    (templateId: any) => {
       const next = (teamData.lineupTemplates || []).filter(
-        (t) => t.id !== templateId
+        (t: any) => t.id !== templateId
       );
       updateTeam({ lineupTemplates: next });
     },
@@ -1690,13 +1690,13 @@ const TeamProvider = ({ children }) => {
   // static), and record the removal so the engine's fairness math prorates
   // their played innings.
   const removePlayerMidGame = useCallback(
-    (playerId, opts = {}) => {
+    (playerId: any, opts: any = {}) => {
       const { fromInning = 0, reason = "injury" } = opts;
       const inputs = uiBridge.current.getInputs?.() || {};
       const game =
         inputs.currentGame ||
         (teamData.games || []).find(
-          (g) => g.id === (opts.gameId || teamData?.inGameId)
+          (g: any) => g.id === (opts.gameId || teamData?.inGameId)
         );
       const gameId = game?.id || opts.gameId;
       if (!gameId) {
@@ -1705,7 +1705,7 @@ const TeamProvider = ({ children }) => {
       }
       // Re-read the game from teamData to make sure we have the latest
       // persisted lineup (InGameView passes its pendingLineup via opts).
-      const persistedGame = (teamData.games || []).find((g) => g.id === gameId);
+      const persistedGame = (teamData.games || []).find((g: any) => g.id === gameId);
       const existingLineup = opts.currentLineup || persistedGame?.lineup || [];
       const existingBatting =
         opts.currentBatting || persistedGame?.battingLineup || [];
@@ -1722,7 +1722,7 @@ const TeamProvider = ({ children }) => {
       // for this game: present (or no attendance flag) AND not previously
       // removed AND not the player we're removing now.
       const attendance = persistedGame?.attendance || {};
-      const activePlayers = (teamData.players || []).filter((p) => {
+      const activePlayers = (teamData.players || []).filter((p: any) => {
         if (!p?.id) return false;
         if (p.id === playerId) return false;
         if (existingRemovals[p.id]) return false;
@@ -1774,7 +1774,7 @@ const TeamProvider = ({ children }) => {
         ? result.lineup
         : existingLineup;
       const nextBatting = (existingBatting || []).filter(
-        (p) => p && p.id !== playerId
+        (p: any) => p && p.id !== playerId
       );
       const nextRemovals = {
         ...existingRemovals,
@@ -1788,7 +1788,7 @@ const TeamProvider = ({ children }) => {
       });
 
       const removedPlayer = (teamData.players || []).find(
-        (p) => p.id === playerId
+        (p: any) => p.id === playerId
       );
       toast.push({
         kind: "success",
@@ -1804,7 +1804,7 @@ const TeamProvider = ({ children }) => {
 
   // ----- Team management -----
   const switchTeam = useCallback(
-    async (id) => {
+    async (id: any) => {
       setActiveTeamId(id);
       if (!user) return;
       try {
@@ -1818,7 +1818,7 @@ const TeamProvider = ({ children }) => {
           "teams"
         );
         await setDoc(ref, { activeTeamId: id }, { merge: true });
-      } catch (e) {
+      } catch (e: any) {
         /* non-fatal */
       }
     },
@@ -1826,7 +1826,7 @@ const TeamProvider = ({ children }) => {
   );
 
   const createTeam = useCallback(
-    async (name) => {
+    async (name: any) => {
       if (!user || !name.trim()) return false;
       const id = "team-" + Math.random().toString(36).substring(2, 10);
       setSyncStatus("Creating");
@@ -1863,7 +1863,7 @@ const TeamProvider = ({ children }) => {
         toast.push({ kind: "success", title: "Team created" });
         setSyncStatus("");
         return true;
-      } catch (e) {
+      } catch (e: any) {
         setSyncStatus("");
         toast.push({
           kind: "error",
@@ -1876,7 +1876,7 @@ const TeamProvider = ({ children }) => {
     [user, teams, toast]
   );
 
-  const advanceSeason = useCallback((opts = {}) => {
+  const advanceSeason = useCallback((opts: any = {}) => {
     const { skipConfirm = false, tryoutsToPromote = [] } = opts;
     const computed = computeNextSeason(teamData.currentSeason);
     if (!computed) {
@@ -1920,12 +1920,12 @@ const TeamProvider = ({ children }) => {
     // slot; non-returners (explicit returning:false OR legacy
     // released/declined) are archived but dropped from the next
     // roster.
-    const isDropped = (p) => !isReturning(p);
+    const isDropped = (p: any) => !isReturning(p);
     const droppedCount = teamData.players.filter(isDropped).length;
     // Tryout accepts ride on the same `team.players` array with
     // playerStatus === "accepted" — they join the new roster directly.
     const acceptedCount = teamData.players.filter(
-      (p) => p.playerStatus === "accepted"
+      (p: any) => p.playerStatus === "accepted"
     ).length;
 
     // Confirmation
@@ -1968,8 +1968,8 @@ const TeamProvider = ({ children }) => {
     // ones marked Released/Declined; reset surviving statuses to
     // "returning" so the next cycle starts clean.
     const updatedPlayers = teamData.players
-      .filter((p) => !isDropped(p))
-      .map((p) => {
+      .filter((p: any) => !isDropped(p))
+      .map((p: any) => {
         const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
         // Only archive if there's something meaningful (skip totally-empty stat objects)
         const stats = p.stats || blankStats();
@@ -2001,8 +2001,8 @@ const TeamProvider = ({ children }) => {
     // whether they were promoted (interest signups are untouched).
     const promotionSet = new Set(tryoutsToPromote);
     const promotedPlayers = (teamData.tryoutSignups || [])
-      .filter((s) => promotionSet.has(s.id))
-      .map((s) => ({
+      .filter((s: any) => promotionSet.has(s.id))
+      .map((s: any) => ({
         id: "p-" + Math.random().toString(36).slice(2, 10),
         name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
         number: s.tryoutNumber || s.number || "",
@@ -2011,7 +2011,7 @@ const TeamProvider = ({ children }) => {
         throws: s.throws || "R",
         comfortablePositions: [
           ...(Array.isArray(s.comfortablePositions) ? s.comfortablePositions : []).filter(
-            (p) => p !== "C"
+            (p: any) => p !== "C"
           ),
           ...(s.isCatcher === true ? ["C"] : []),
         ],
@@ -2052,7 +2052,7 @@ const TeamProvider = ({ children }) => {
   }, [teamData, updateTeam, toast]);
 
   const uploadLogo = useCallback(
-    (e) => {
+    (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
       if (file.size > 1024 * 1024) {
@@ -2064,7 +2064,7 @@ const TeamProvider = ({ children }) => {
         return;
       }
       const reader = new FileReader();
-      reader.onload = (ev) => {
+      reader.onload = (ev: any) => {
         const dataUrl = ev.target.result;
         // Firestore caps a single document at ~1,048,487 bytes. Base64 also
         // inflates the binary by ~1.33×, so a 1 MB image becomes ~1.33 MB of
@@ -2140,7 +2140,7 @@ const TeamProvider = ({ children }) => {
         { merge: true }
       );
       toast.push({ kind: "success", title: "Team deleted" });
-    } catch (e) {
+    } catch (e: any) {
       toast.push({ kind: "error", title: "Delete failed", message: e.message });
     }
   }, [user, teams, activeTeamId, toast]);
@@ -2161,7 +2161,7 @@ const TeamProvider = ({ children }) => {
       const snap = await getDoc(teamRef);
       if (snap.exists()) {
         const data = snap.data();
-        const members = (data.members || []).filter((u) => u !== user.uid);
+        const members = (data.members || []).filter((u: any) => u !== user.uid);
         await setDoc(teamRef, { members }, { merge: true });
       }
       const remaining = teams.filter((t) => t.id !== activeTeamId);
@@ -2180,7 +2180,7 @@ const TeamProvider = ({ children }) => {
         { merge: true }
       );
       toast.push({ kind: "success", title: "Left team" });
-    } catch (e) {
+    } catch (e: any) {
       toast.push({
         kind: "error",
         title: "Could not leave",
@@ -2198,7 +2198,7 @@ const TeamProvider = ({ children }) => {
     if (selectedRoundId) {
       // Editing an existing round — update its grades, keep its
       // label/date/id/evaluatorName intact.
-      const next = teamData.evaluationEvents.map((e) =>
+      const next = teamData.evaluationEvents.map((e: any) =>
         e.id === selectedRoundId ? { ...e, grades } : e
       );
       updateTeam({ evaluationEvents: next });
@@ -2237,18 +2237,18 @@ const TeamProvider = ({ children }) => {
   // satisfies, and the upsert key uses that same date so a second submission
   // inside the same window updates the round in place instead of duplicating.
   const saveAssistantEvaluation = useCallback(
-    (grades) => {
+    (grades: any) => {
       if (!user) return;
       const roundDate = evalRoundDateForSave();
       const existing = (teamData.evaluationEvents || []).find(
-        (e) =>
+        (e: any) =>
           e.coachRole === "Assistant" &&
           e.evaluatorId === user.uid &&
           e.date === roundDate
       );
       let nextEvents;
       if (existing) {
-        nextEvents = teamData.evaluationEvents.map((e) =>
+        nextEvents = teamData.evaluationEvents.map((e: any) =>
           e.id === existing.id ? { ...e, grades } : e
         );
       } else {
@@ -2275,10 +2275,10 @@ const TeamProvider = ({ children }) => {
   // can clean up rounds entered in error — their own, or any assistant's
   // submission. Splices from team.evaluationEvents by id.
   const deleteEvaluation = useCallback(
-    (roundId) => {
+    (roundId: any) => {
       if (!roundId) return;
       const next = (teamData.evaluationEvents || []).filter(
-        (e) => e.id !== roundId
+        (e: any) => e.id !== roundId
       );
       updateTeam({ evaluationEvents: next });
       toast.push({
@@ -2304,7 +2304,7 @@ const TeamProvider = ({ children }) => {
 
 
   const generateTryoutDateLink = useCallback(
-    (rawDate) => {
+    (rawDate: any) => {
       const date = String(rawDate || "").trim();
       if (!date) return null;
       const base = String(activeTeamId || "").replace(/[^a-zA-Z0-9_-]/g, "");
@@ -2324,7 +2324,7 @@ const TeamProvider = ({ children }) => {
   );
 
   const setTryoutsOpen = useCallback(
-    (open) => {
+    (open: any) => {
       updateTeam({
         tryoutsOpen: !!open,
         tryoutsPhase: open ? "open" : "intake_closed",
@@ -2338,7 +2338,7 @@ const TeamProvider = ({ children }) => {
   }, [updateTeam]);
 
   const setRosterCap = useCallback(
-    (cap) => {
+    (cap: any) => {
       const n = parseInt(cap, 10);
       if (!Number.isFinite(n) || n <= 0) return;
       updateTeam({ rosterCap: n });
@@ -2347,7 +2347,7 @@ const TeamProvider = ({ children }) => {
   );
 
   const appendTryoutSignup = useCallback(
-    (signup) => {
+    (signup: any) => {
       const id =
         signup.id || "ts-" + Math.random().toString(36).slice(2, 10);
       const entry = {
@@ -2364,8 +2364,8 @@ const TeamProvider = ({ children }) => {
   );
 
   const updateTryoutSignup = useCallback(
-    (id, patch) => {
-      const next = (teamData.tryoutSignups || []).map((s) =>
+    (id: any, patch: any) => {
+      const next = (teamData.tryoutSignups || []).map((s: any) =>
         s.id === id ? { ...s, ...patch } : s
       );
       updateTeam({ tryoutSignups: next });
@@ -2374,10 +2374,10 @@ const TeamProvider = ({ children }) => {
   );
 
   const deleteTryoutSignup = useCallback(
-    (id) => {
+    (id: any) => {
       if (!id) return;
       // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
-      const next = (teamData.tryoutSignups || []).filter((s) => s.id !== id);
+      const next = (teamData.tryoutSignups || []).filter((s: any) => s.id !== id);
       updateTeam({ tryoutSignups: next });
     },
     [teamData.tryoutSignups, updateTeam]
@@ -2386,9 +2386,9 @@ const TeamProvider = ({ children }) => {
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
   // in the InterestTab UI so there's no native confirm prompt here.
   const deleteInterestSignup = useCallback(
-    (id) => {
+    (id: any) => {
       if (!id) return;
-      const next = (teamData.interestSignups || []).filter((s) => s.id !== id);
+      const next = (teamData.interestSignups || []).filter((s: any) => s.id !== id);
       updateTeam({ interestSignups: next });
     },
     [teamData.interestSignups, updateTeam]
@@ -2399,9 +2399,9 @@ const TeamProvider = ({ children }) => {
   // standing interest. Copies fields, marks status:"tryout", removes
   // the source lead from interestSignups in the same write.
   const convertInterestToTryout = useCallback(
-    (id) => {
+    (id: any) => {
       if (!id) return;
-      const lead = (teamData.interestSignups || []).find((s) => s.id === id);
+      const lead = (teamData.interestSignups || []).find((s: any) => s.id === id);
       if (!lead) return;
       const signup = {
         id: `ts-${Math.random().toString(36).slice(2, 10)}`,
@@ -2415,7 +2415,7 @@ const TeamProvider = ({ children }) => {
         currentTeam: lead.currentTeam || "",
         comfortablePositions: [
           ...(Array.isArray(lead.comfortablePositions) ? lead.comfortablePositions : []).filter(
-            (p) => p !== "C"
+            (p: any) => p !== "C"
           ),
           ...(lead.isCatcher === true ? ["C"] : []),
         ],
@@ -2425,7 +2425,7 @@ const TeamProvider = ({ children }) => {
       updateTeam({
         tryoutSignups: [...(teamData.tryoutSignups || []), signup],
         interestSignups: (teamData.interestSignups || []).filter(
-          (s) => s.id !== id
+          (s: any) => s.id !== id
         ),
       });
       toast.push({
@@ -2441,11 +2441,11 @@ const TeamProvider = ({ children }) => {
   // evals but carry `tryoutSignupId` so getCombinedGrades ignores them
   // when scoring the roster. One event per (evaluator, signup).
   const saveTryoutEvaluation = useCallback(
-    (signupId, grades, coachRole) => {
+    (signupId: any, grades: any, coachRole: any) => {
       if (!user || !signupId) return;
       const date = new Date().toISOString().slice(0, 10);
       const existing = (teamData.evaluationEvents || []).find(
-        (e) =>
+        (e: any) =>
           e.tryoutSignupId === signupId && e.evaluatorId === user.uid
       );
       const event = {
@@ -2459,7 +2459,7 @@ const TeamProvider = ({ children }) => {
         grades: { signup: { ...grades } },
       };
       const next = existing
-        ? teamData.evaluationEvents.map((e) =>
+        ? teamData.evaluationEvents.map((e: any) =>
             e.id === existing.id ? event : e
           )
         : [...(teamData.evaluationEvents || []), event];
@@ -2472,8 +2472,8 @@ const TeamProvider = ({ children }) => {
   // a corresponding entry in team.players with playerStatus = "accepted"
   // so PR L's advanceSeason picks them up automatically.
   const acceptTryout = useCallback(
-    (id) => {
-      const signup = (teamData.tryoutSignups || []).find((s) => s.id === id);
+    (id: any) => {
+      const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === id);
       if (!signup) return;
       const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim();
       const player = {
@@ -2485,7 +2485,7 @@ const TeamProvider = ({ children }) => {
         throws: signup.throws || "R",
         comfortablePositions: [
           ...(Array.isArray(signup.comfortablePositions) ? signup.comfortablePositions : []).filter(
-            (p) => p !== "C"
+            (p: any) => p !== "C"
           ),
           ...(signup.isCatcher === true ? ["C"] : []),
         ],
@@ -2497,7 +2497,7 @@ const TeamProvider = ({ children }) => {
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
       };
-      const nextSignups = (teamData.tryoutSignups || []).map((s) =>
+      const nextSignups = (teamData.tryoutSignups || []).map((s: any) =>
         s.id === id ? { ...s, status: "accepted" } : s
       );
       const nextPlayers = [...(teamData.players || []), player];
@@ -2521,7 +2521,6 @@ const TeamProvider = ({ children }) => {
   } = useInviteFlows({
     user,
     teams,
-    teamData,
     updateTeam,
     switchTeam,
     toast,
@@ -2540,7 +2539,7 @@ const TeamProvider = ({ children }) => {
       return null;
     }
   });
-  const setViewAsRole = useCallback((next) => {
+  const setViewAsRole = useCallback((next: any) => {
     setViewAsRoleState(next);
     try {
       if (next) window.sessionStorage.setItem("lineuptool.viewAsRole", next);
@@ -2576,7 +2575,7 @@ const TeamProvider = ({ children }) => {
     if (explicit === "assistant") return "assistant";
     if (!teamData.ownerId) {
       const members = Array.isArray(teamData.members) ? teamData.members : [];
-      const others = members.filter((uid) => uid && uid !== user.uid);
+      const others = members.filter((uid: any) => uid && uid !== user.uid);
       if (others.length === 0) return "head";
     }
     return "assistant";
@@ -2627,7 +2626,7 @@ const TeamProvider = ({ children }) => {
     if (teamData.ownerId) return;
     if (migrationAttemptedRef.current.has(activeTeamId)) return;
     const members = Array.isArray(teamData.members) ? teamData.members : [];
-    const otherMembers = members.filter((uid) => uid && uid !== user.uid);
+    const otherMembers = members.filter((uid: any) => uid && uid !== user.uid);
     const hasCoachRoles =
       teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0;
     if (otherMembers.length > 0 || hasCoachRoles) {
@@ -2681,7 +2680,7 @@ const TeamProvider = ({ children }) => {
         ? `${window.location.origin}${window.location.pathname}#/evaluation`
         : "/evaluation";
     const subject = `[${teamName}] Eval round due`;
-    const buildBody = (recipientName) =>
+    const buildBody = (recipientName: any) =>
       [
         `Hi ${recipientName || "coach"},`,
         "",
@@ -2703,7 +2702,7 @@ const TeamProvider = ({ children }) => {
       // Fall back to skipping: we can't look up emails for legacy
       // members without a contact entry.
       const c = contacts.find(
-        (cc) =>
+        (cc: any) =>
           cc.uid === uid ||
           (cc.email &&
             (teamData.coachRoles || {})[uid] === "assistant" &&
@@ -2798,7 +2797,7 @@ const TeamProvider = ({ children }) => {
           clearRedirectPending();
           setGenError("Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.");
         }
-      } catch (e) {
+      } catch (e: any) {
         if (cancelled) return;
         authDiag("redirect_result_error", { code: e?.code || null, message: e?.message || null });
         clearRedirectPending();
@@ -2838,7 +2837,7 @@ const TeamProvider = ({ children }) => {
         clearEmailLinkParams();
         authDiag("email_link_success");
         setGenError("");
-      } catch (e) {
+      } catch (e: any) {
         if (cancelled) return;
         authDiag("email_link_error", { code: e?.code || null, message: e?.message || null });
         if (e?.code === "auth/invalid-action-code" || e?.code === "auth/expired-action-code") {
@@ -3086,7 +3085,7 @@ const TeamProvider = ({ children }) => {
    Bridges back to TeamProvider through `uiBridge` ref so generate/save can
    read the current UI state without re-rendering on every keystroke.
 ============================================================================ */
-const UIProvider = ({ children }) => {
+const UIProvider = ({ children }: any) => {
   const team = useTeam();
   const toast = useToast();
 
@@ -3099,7 +3098,7 @@ const UIProvider = ({ children }) => {
   });
 
   // Schedule tab state
-  const [selectedGameId, setSelectedGameId] = useState(null);
+  const [selectedGameId, setSelectedGameId] = useState<any>(null);
   const [isAddingGame, setIsAddingGame] = useState(false);
   const [newGameForm, setNewGameForm] = useState({
     date: getLocalDateString(),
@@ -3107,21 +3106,21 @@ const UIProvider = ({ children }) => {
     leagueRuleSet: "USSSA",
     pitchingFormat: "Kid Pitch",
   });
-  const [scoringGameId, setScoringGameId] = useState(null); // game whose score is being entered inline
-  const [inGameId, setInGameId] = useState(null); // game currently in In-Game mode
+  const [scoringGameId, setScoringGameId] = useState<any>(null); // game whose score is being entered inline
+  const [inGameId, setInGameId] = useState<any>(null); // game currently in In-Game mode
   const [inGameInning, setInGameInning] = useState(0); // current inning during in-game mode (0-indexed)
-  const [inGameSelection, setInGameSelection] = useState(null); // { type: "position"|"bench", pos?, playerId } — first tap of a swap pair
-  const [inGameUndoStack, setInGameUndoStack] = useState([]); // last swap undo data
+  const [inGameSelection, setInGameSelection] = useState<any>(null); // { type: "position"|"bench", pos?, playerId } — first tap of a swap pair
+  const [inGameUndoStack, setInGameUndoStack] = useState<any[]>([]); // last swap undo data
   const [activeTab, setActiveTab] = useState("home");
-  const [pastSeasonImport, setPastSeasonImport] = useState(null); // null when closed; { rows, season, ageGroup, pitchingFormat, assignments } when open
-  const [currentGameAttendance, setCurrentGameAttendance] = useState({});
-  const [firstInningLineup, setFirstInningLineup] = useState({});
-  const [lineup, setLineup] = useState(null);
-  const [battingLineup, setBattingLineup] = useState(null);
+  const [pastSeasonImport, setPastSeasonImport] = useState<any>(null); // null when closed; { rows, season, ageGroup, pitchingFormat, assignments } when open
+  const [currentGameAttendance, setCurrentGameAttendance] = useState<any>({});
+  const [firstInningLineup, setFirstInningLineup] = useState<any>({});
+  const [lineup, setLineup] = useState<any>(null);
+  const [battingLineup, setBattingLineup] = useState<any>(null);
   // Penalty score emitted by the engine for the current in-editor lineup
   // (null when no generated lineup is in scope). Lower = better.
-  const [lineupQualityPenalty, setLineupQualityPenalty] = useState(null);
-  const [swapSelection, setSwapSelection] = useState(null);
+  const [lineupQualityPenalty, setLineupQualityPenalty] = useState<any>(null);
+  const [swapSelection, setSwapSelection] = useState<any>(null);
   const [gameSaved, setGameSaved] = useState(false);
   const [opponentName, setOpponentName] = useState("");
 
@@ -3132,7 +3131,7 @@ const UIProvider = ({ children }) => {
 
   // Roster/profile state
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
-  const [viewingPlayerId, setViewingPlayerId] = useState(null);
+  const [viewingPlayerId, setViewingPlayerId] = useState<any>(null);
 
   // Coach state
   const [isAddingCoach, setIsAddingCoach] = useState(false);
@@ -3142,12 +3141,12 @@ const UIProvider = ({ children }) => {
   });
 
   // Eval state
-  const [teamEvalGrades, setTeamEvalGrades] = useState({});
+  const [teamEvalGrades, setTeamEvalGrades] = useState<any>({});
   // Eval round selection: null = creating a new round, otherwise = id of an
   // existing eval event being viewed/edited.
-  const [selectedRoundId, setSelectedRoundId] = useState(null);
+  const [selectedRoundId, setSelectedRoundId] = useState<any>(null);
   // Player whose eval trend modal is currently open (null = closed)
-  const [evalTrendPlayerId, setEvalTrendPlayerId] = useState(null);
+  const [evalTrendPlayerId, setEvalTrendPlayerId] = useState<any>(null);
 
   // Sync attendance/firstInning/lineup with the selected game
   const gamesRef = useRef(team.team.games);
@@ -3160,14 +3159,14 @@ const UIProvider = ({ children }) => {
   // against the live `team.team.games` reference — so we can tell whether
   // the *user* edited locally vs. whether a *remote* snapshot changed the
   // game underneath us.
-  const loadedGameRef = useRef(null);
+  const loadedGameRef = useRef<any>(null);
 
   useEffect(() => {
     if (!selectedGameId) {
       loadedGameRef.current = null;
       return;
     }
-    const game = gamesRef.current.find((g) => g.id === selectedGameId);
+    const game = gamesRef.current.find((g: any) => g.id === selectedGameId);
     if (!game) return;
     loadedGameRef.current = {
       id: game.id,
@@ -3191,7 +3190,7 @@ const UIProvider = ({ children }) => {
   useEffect(() => {
     if (!selectedGameId || !loadedGameRef.current) return;
     if (loadedGameRef.current.id !== selectedGameId) return;
-    const game = team.team.games.find((g) => g.id === selectedGameId);
+    const game = team.team.games.find((g: any) => g.id === selectedGameId);
     if (!game) return;
 
     const remoteLineupJson = JSON.stringify(game.lineup || null);
@@ -3246,14 +3245,14 @@ const UIProvider = ({ children }) => {
   // deleted (locally or via a remote snapshot). Without this, the UI would
   // try to render against a non-existent game until the next interaction.
   useEffect(() => {
-    const ids = new Set(team.team.games.map((g) => g.id));
+    const ids = new Set(team.team.games.map((g: any) => g.id));
     if (selectedGameId && !ids.has(selectedGameId)) setSelectedGameId(null);
     if (scoringGameId && !ids.has(scoringGameId)) setScoringGameId(null);
     if (inGameId && !ids.has(inGameId)) setInGameId(null);
   }, [team.team.games, selectedGameId, scoringGameId, inGameId]);
   // When players list changes, fill in attendance defaults
   useEffect(() => {
-    setCurrentGameAttendance((prev) => {
+    setCurrentGameAttendance((prev: any) => {
       const next = { ...prev };
       let changed = false;
       for (const p of team.team.players) {
@@ -3273,10 +3272,10 @@ const UIProvider = ({ children }) => {
   useEffect(() => {
     if (!team.user) return;
     const mine = team.team.evaluationEvents
-      .filter((e) => e.coachRole === "Head" && e.evaluatorId === team.user.uid)
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
+      .filter((e: any) => e.coachRole === "Head" && e.evaluatorId === team.user.uid)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
     if (selectedRoundId) {
-      const target = mine.find((e) => e.id === selectedRoundId);
+      const target = mine.find((e: any) => e.id === selectedRoundId);
       if (target?.grades) setTeamEvalGrades(target.grades);
     } else {
       // Pre-fill with the latest round's grades when starting a new round
@@ -3286,7 +3285,7 @@ const UIProvider = ({ children }) => {
 
   // Lineup edits (swap / add inning / remove inning / reorder batters)
   const handleCellClick = useCallback(
-    (innIdx, pos, player) => {
+    (innIdx: any, pos: any, player: any) => {
       if (!swapSelection) {
         if (player) setSwapSelection({ innIdx, pos, player });
         return;
@@ -3299,9 +3298,9 @@ const UIProvider = ({ children }) => {
         setSwapSelection(null);
         return;
       }
-      setLineup((cur) => {
+      setLineup((cur: any) => {
         if (!cur) return cur;
-        const next = cur.map((inn) => ({
+        const next = cur.map((inn: any) => ({
           ...inn,
           BENCH: inn.BENCH ? [...inn.BENCH] : [],
         }));
@@ -3311,11 +3310,11 @@ const UIProvider = ({ children }) => {
         if (swapSelection.pos === "BENCH" && pos === "BENCH") return cur;
         if (swapSelection.pos === "BENCH") {
           // a is on bench, b is in pos (or pos empty)
-          slot.BENCH = slot.BENCH.filter((p) => p.id !== a.id);
+          slot.BENCH = slot.BENCH.filter((p: any) => p.id !== a.id);
           if (b) slot.BENCH.push(b);
           slot[pos] = a;
         } else if (pos === "BENCH") {
-          slot.BENCH = slot.BENCH.filter((p) => p.id !== b?.id);
+          slot.BENCH = slot.BENCH.filter((p: any) => p.id !== b?.id);
           slot.BENCH.push(a);
           slot[swapSelection.pos] = null;
         } else {
@@ -3346,8 +3345,8 @@ const UIProvider = ({ children }) => {
     setLineup(lineup.slice(0, -1));
   }, [lineup]);
 
-  const moveBatter = useCallback((idx, delta) => {
-    setBattingLineup((cur) => {
+  const moveBatter = useCallback((idx: any, delta: any) => {
+    setBattingLineup((cur: any) => {
       if (!cur) return cur;
       const target = idx + delta;
       if (target < 0 || target >= cur.length) return cur;
@@ -3357,7 +3356,7 @@ const UIProvider = ({ children }) => {
     });
   }, []);
 
-  const openPlayerProfile = useCallback((id) => setViewingPlayerId(id), []);
+  const openPlayerProfile = useCallback((id: any) => setViewingPlayerId(id), []);
 
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
   // owned by TeamProvider; mutating it during render would be a
@@ -3369,7 +3368,7 @@ const UIProvider = ({ children }) => {
     uiBridgeRef.current = {
       getInputs: () => {
         const currentGame = team.team.games.find(
-          (g) => g.id === selectedGameId
+          (g: any) => g.id === selectedGameId
         );
         return {
           currentGame,
@@ -3388,7 +3387,7 @@ const UIProvider = ({ children }) => {
         lineup: newLineup,
         battingLineup: newBatting,
         qualityPenalty,
-      }) => {
+      }: any) => {
         setLineup(newLineup);
         setBattingLineup(newBatting);
         setLineupQualityPenalty(
@@ -3397,7 +3396,7 @@ const UIProvider = ({ children }) => {
         setSwapSelection(null);
         setGameSaved(false);
       },
-      applyTemplate: (tpl) => {
+      applyTemplate: (tpl: any) => {
         if (!tpl) return;
         setLineup(tpl.lineup || null);
         setBattingLineup(tpl.battingLineup || null);
@@ -3609,7 +3608,7 @@ const MainShell = () => {
   //   Esc  → close tutorial / does not handle modals here (each owns its own)
   useEffect(() => {
     if (!authReady || !user) return undefined;
-    const onKey = (e) => {
+    const onKey = (e: any) => {
       const target = e.target;
       const inField =
         target &&
@@ -3742,7 +3741,7 @@ const MainShell = () => {
           try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
-            if (authEnv?.isInApp) {
+            if ((authEnv as any)?.isInApp) {
               if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                 clearRedirectPending();
                 setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
@@ -3759,7 +3758,7 @@ const MainShell = () => {
             authDiag("popup_success");
             popupDismissCountRef.current = 0;
             clearRedirectPending();
-          } catch (e) {
+          } catch (e: any) {
             const code = e?.code || "";
             if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
               authDiag("popup_dismissed", { code: code || null });
@@ -3794,7 +3793,7 @@ const MainShell = () => {
                 popupDismissCountRef.current = 0;
                 await signInWithRedirect(auth, provider);
                 return;
-              } catch (redirectError) {
+              } catch (redirectError: any) {
                 authDiag("redirect_fallback_error", { code: redirectError?.code || null, message: redirectError?.message || null });
                 setGenError(redirectError?.message || "Sign-in failed");
                 setIsSigningIn(false);
@@ -3820,7 +3819,7 @@ const MainShell = () => {
             window.localStorage.setItem("emailForSignIn", email);
             authDiag("email_link_sent", { email });
             setGenError("Email sign-in link sent. Check your inbox and open it on this device.");
-          } catch (e) {
+          } catch (e: any) {
             authDiag("email_link_send_error", { code: e?.code || null, message: e?.message || null });
             setGenError(e?.message || "Could not send email sign-in link");
           }
