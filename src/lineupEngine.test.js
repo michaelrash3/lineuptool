@@ -1001,6 +1001,101 @@ describe("position restrictions", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Left-handed-throwing infield penalty (2B / SS / 3B)
+// ---------------------------------------------------------------------------
+
+describe("lefty-throwing infield penalty (2B/SS/3B)", () => {
+  test("a lefty is strongly biased away from 2B/SS/3B", () => {
+    // One left-handed thrower in an otherwise right-handed roster (13 kids, 10
+    // fielders). The penalty is a SOFT score term, not a hard block — a tight
+    // roster can still strand the lefty there rather than fail to field a
+    // team. So we assert the BIAS: across many seeds the lefty lands at the
+    // three throwing-angle-hostile infield spots far below the 3-of-10 (=30%)
+    // positional baseline. 1B (a natural lefty spot) and the outfield absorb
+    // the lefty instead.
+    const players = [
+      makePlayer("lefty", "Lefty", { throws: "L" }),
+      ...makeRoster(12).map((p) => ({ ...p, throws: "R" })),
+    ];
+    let fieldInn = 0;
+    let infieldInn = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const result = buildLineup({
+        players,
+        leagueRuleSet: "USSSA",
+        teamAge: "8U",
+        defenseSize: "10",
+        seed,
+      });
+      expect(result.error).toBeUndefined();
+      for (const pos of positionsOf(result.lineup, "lefty")) {
+        if (pos === null) continue; // benched
+        fieldInn++;
+        if (pos === "2B" || pos === "SS" || pos === "3B") infieldInn++;
+      }
+    }
+    expect(fieldInn).toBeGreaterThan(0);
+    // Well under the 30% you'd expect if the lefty were placed blind.
+    expect(infieldInn / fieldInn).toBeLessThan(0.2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Player-side positional scarcity ("some kids have few positions")
+// ---------------------------------------------------------------------------
+
+describe("positional-scarcity reservation (reserve flexible kids for holes)", () => {
+  test("a low-flexibility kid wins a contested slot over a do-anything kid", () => {
+    // 3B is open to exactly two kids: a corner-limited kid (cleared only for
+    // 3B/RF) and a play-anywhere kid. The flexible kid even has the STRONGER
+    // arm, so the arm-strength bias alone would hand them 3B. The scarcity
+    // reservation flips it: seat the limited kid at 3B and reserve the
+    // do-anything kid to plug the remaining holes. Asserted on inning 0 where
+    // no rotation history clouds the decision.
+    const others = makeRoster(9).map((p) => ({
+      ...p,
+      // Everyone else can play anywhere EXCEPT 3B, so 3B has only two takers.
+      comfortablePositions: ALL_POSITIONS.filter((x) => x !== "3B"),
+    }));
+    const corner = makePlayer("corner", "Corner", {
+      comfortablePositions: ["3B", "RF"],
+    });
+    const flex = makePlayer("flex", "Flex"); // cleared everywhere
+    const players = [corner, flex, ...others];
+
+    const result = buildLineup({
+      players,
+      teamAge: "8U",
+      defenseSize: "10",
+      seed: 7,
+      // Give the flexible kid the stronger arm so, absent the reservation,
+      // the 3B arm bias would pick them instead.
+      evaluationEvents: [
+        headEval({ flex: { armStrength: 9 }, corner: { armStrength: 3 } }),
+      ],
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.lineup[0]["3B"]?.id).toBe("corner");
+  });
+
+  test("vanilla rosters are unaffected (constant offset on every candidate)", () => {
+    // When everyone is cleared everywhere the reservation adds the same offset
+    // to all candidates, so it can't change any decision — the lineup is still
+    // valid and complete.
+    const players = makeRoster(11);
+    const result = buildLineup({ players, seed: 99 });
+    expect(result.error).toBeUndefined();
+    expect(result.lineup).toHaveLength(6);
+    for (const inn of result.lineup) {
+      for (const pos of ["P", "C", "1B", "2B", "3B", "SS"]) {
+        expect(inn[pos]).toBeTruthy();
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Batting order — NKB youth strategy + re-roll variance
 // ---------------------------------------------------------------------------
 

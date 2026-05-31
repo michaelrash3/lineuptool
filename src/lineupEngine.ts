@@ -579,6 +579,23 @@ function leftyInfieldPenalty(rules: string, age: string): number {
   return LEFTY_PENALTY[`${rules}|${age}`] ?? 50;
 }
 
+// ---------- Positional-scarcity reservation ----------
+// Two kinds of scarcity drive a good defensive rotation:
+//   1. Position-side ("holes"): a slot only a few present kids are cleared
+//      for. Handled by the posScarcity ordering in tryBuildLineup — the
+//      hardest-to-fill positions are assigned first so they never get
+//      stranded.
+//   2. Player-side ("kids with few positions"): a glove-limited kid cleared
+//      for, say, only 1B/RF. When such a kid AND a play-anywhere kid are both
+//      eligible for the slot being filled, we want to seat the less-flexible
+//      kid here and reserve the do-anything kid to plug the remaining holes.
+// SCARCITY_RESERVE_WEIGHT scores that second dimension: each extra position a
+// candidate is eligible for adds a small "save them for elsewhere" penalty, so
+// the least-flexible eligible kid wins the slot. Fair mode only — Big Game
+// pins strong kids to premium spots by skill, and the 200-attempt retry loop
+// already guards feasibility there.
+const SCARCITY_RESERVE_WEIGHT = 2;
+
 // ---------- Seeded PRNG ----------
 function mulberry32(seed: number): () => number {
   let s = seed >>> 0;
@@ -2223,6 +2240,26 @@ function tryBuildLineup(ctx: any): any {
       ? new Set(["1B", "SS", "3B"])
       : new Set(["P", "SS", "3B", "C", "1B"]);
 
+  // Per-player positional flexibility: how many of THIS game's positions a
+  // kid is actually eligible to field (catcher counts only when the kid is
+  // cleared for C). Drives the scarcity-reservation nudge in
+  // pickBestForPosition so a kid who can play few spots gets seated at one of
+  // them before a do-anything kid is parked there, leaving the flexible kid to
+  // plug the remaining holes. Computed once — it doesn't change inning to
+  // inning.
+  const positionFlexibility = new Map();
+  for (const p of profiled) {
+    let n = 0;
+    for (const pos of positionsToFill) {
+      if (pos === "C") {
+        if (isCatcherEligible(p)) n++;
+        continue;
+      }
+      if (!isPositionBlocked(p, pos)) n++;
+    }
+    positionFlexibility.set(p.id, n);
+  }
+
   const state = new Map();
   for (const p of profiled) {
     state.set(p.id, { bench: 0, positions: Object.create(null), history: [] });
@@ -2581,6 +2618,7 @@ function tryBuildLineup(ctx: any): any {
           catcherCap,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
+          positionFlexibility,
         });
         if (!candidate) {
           return {
@@ -2771,6 +2809,7 @@ function pickBestForPosition(opts: any): any {
     catcherCap,
     rand,
     premiumPositions,
+    positionFlexibility,
   } = opts;
 
   // Premium positions are computed once in tryBuildLineup and passed in.
@@ -2951,6 +2990,21 @@ function pickBestForPosition(opts: any): any {
         : null;
       if (comfort && comfort.length > 0 && comfort.includes(pos)) {
         score -= 3;
+      }
+    }
+
+    // FAIR MODE positional-scarcity reservation: among the kids eligible for
+    // this slot, prefer the one cleared for the FEWEST positions and reserve
+    // the do-anything kids to fill the remaining holes. A single-position kid
+    // adds nothing; each extra position a candidate can field adds a small
+    // "save them for elsewhere" penalty. Vanilla rosters (everyone eligible
+    // everywhere) get an identical offset on every candidate, so this only
+    // shifts decisions when kids actually differ in flexibility. Big Game is
+    // skipped — it pins strong kids to premium spots by skill instead.
+    if (!isBigGame && positionFlexibility) {
+      const flex = positionFlexibility.get(p.id);
+      if (typeof flex === "number") {
+        score += Math.max(0, flex - 1) * SCARCITY_RESERVE_WEIGHT;
       }
     }
 
