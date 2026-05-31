@@ -1,11 +1,11 @@
-// @ts-nocheck — pragmatic first-pass TS conversion (per the Phase 8 plan).
-// The public-surface function signatures below are fully typed against
-// src/types.ts, so consumers (App.jsx, ScheduleTab, EvaluationTab,
-// lineupEngine.test.js) see strict input/output contracts. The 2,200-line
-// internal soup is intentionally left unchecked in this PR — tightening the
-// internal types is iterative follow-up work backed by the 178-test safety
-// net + the fuzz suite. Removing this directive is the explicit goal of the
-// next engine-types PR.
+// The public-surface function signatures are fully typed against src/types.ts,
+// so consumers (App.tsx, ScheduleTab, EvaluationTab, lineupEngine.test.js) see
+// strict input/output contracts. As of the engine-types PR this file is fully
+// type-checked (the `@ts-nocheck` directive is gone): the internal logic uses
+// pragmatic `any` at the genuinely heterogeneous boundaries (lineup/state
+// maps, profile bags) but is otherwise type-safe, backed by the 320-test
+// suite + fuzz invariants. Tightening those remaining `any`s is optional
+// follow-up.
 //
 // lineupEngine.ts
 // =============================================================================
@@ -41,6 +41,7 @@ import type {
   PlayerProfile,
   PlayerStats,
   Position,
+  SlimPlayer,
 } from "./types";
 
 // ---------- Constants ----------
@@ -740,7 +741,7 @@ const IDENTITY_RESOLVER = (id?: string) => id;
 
 function buildPositionHistory(
   games: Game[],
-  currentGameId?: string,
+  currentGameId?: string | null,
   resolveId: (
     id?: string,
     name?: string
@@ -777,7 +778,7 @@ function buildPositionHistory(
 
 function buildFirstInningBenchHistory(
   games: Game[],
-  currentGameId?: string,
+  currentGameId?: string | null,
   resolveId: (
     id?: string,
     name?: string
@@ -789,7 +790,7 @@ function buildFirstInningBenchHistory(
     if (!isFinalizedGame(g)) continue;
     const firstBench = g.lineup[0]?.BENCH;
     if (!firstBench) continue;
-    for (const bp of firstBench) {
+    for (const bp of (firstBench as any[])) {
       // attendance is keyed by the id stored at game time, so check it on
       // the original slot id; tally under the resolved (current) id.
       if (g.attendance?.[bp.id] === false) continue;
@@ -810,7 +811,7 @@ function buildFirstInningBenchHistory(
 // Returns Map<playerId, { extraSits: number }>.
 function buildExtraSitHistory(
   games: Game[],
-  currentGameId?: string,
+  currentGameId?: string | null,
   resolveId: (
     id?: string,
     name?: string
@@ -828,11 +829,11 @@ function buildExtraSitHistory(
     // weren't there). NKB rules treat them as "skip in batting without
     // penalty," and for fairness purposes their bench/play count must
     // be prorated to the innings they actually played.
-    const removedFrom = (pid) => {
-      const r = g.midGameRemovals?.[pid];
+    const removedFrom = (pid: any) => {
+      const r: any = (g.midGameRemovals as any)?.[pid];
       return Number.isFinite(r?.fromInning) ? r.fromInning : null;
     };
-    const isActiveAtInning = (pid, inn) => {
+    const isActiveAtInning = (pid: any, inn: any) => {
       if (g.attendance?.[pid] === false) return false;
       const rf = removedFrom(pid);
       if (rf !== null && inn >= rf) return false;
@@ -852,13 +853,13 @@ function buildExtraSitHistory(
     for (const inning of g.lineup) {
       for (const pos in inning) {
         if (pos === "BENCH") continue;
-        const p = inning[pos];
+        const p: any = inning[pos];
         if (p) {
           attending.add(p.id);
           idName.set(p.id, p.name);
         }
       }
-      for (const bp of inning.BENCH || []) {
+      for (const bp of (inning.BENCH || []) as any[]) {
         if (g.attendance?.[bp.id] === false) continue;
         attending.add(bp.id);
         idName.set(bp.id, bp.name);
@@ -899,7 +900,7 @@ function buildExtraSitHistory(
     for (const id of attending) benchCount.set(id, 0);
     for (let i = 0; i < innings; i++) {
       const inning = g.lineup[i];
-      for (const bp of inning.BENCH || []) {
+      for (const bp of (inning.BENCH || []) as any[]) {
         if (!isActiveAtInning(bp.id, i)) continue;
         if (benchCount.has(bp.id)) {
           benchCount.set(bp.id, benchCount.get(bp.id) + 1);
@@ -980,7 +981,7 @@ export function generateBattingOrder(
   profiledPlayers: any[],
   battingSize: string,
   opts: { seed?: number; leagueRuleSet?: string; teamAge?: string } = {}
-): { order: any[]; reasons: Array<{ role: string; note: string }> } {
+): any[] {
   const { leagueRuleSet, teamAge, seed } = opts;
   const total = profiledPlayers.length;
   const count =
@@ -998,10 +999,10 @@ export function generateBattingOrder(
   for (const p of profiledPlayers) {
     factor.set(p.id, 1 + (rand() * 2 - 1) * JITTER);
   }
-  const score = (p, key) => (p.profile[key] || 0) * factor.get(p.id);
+  const score = (p: any, key: any) => (p.profile[key] || 0) * factor.get(p.id);
   // OPS lives on raw stats, not in the precomputed profile, so wrap it the
   // same way for jittered selection (only used by the youth strategy).
-  const opsScore = (p) => (+p.stats?.ops || 0) * factor.get(p.id);
+  const opsScore = (p: any) => (+p.stats?.ops || 0) * factor.get(p.id);
 
   const byOverall = [...profiledPlayers].sort(
     (a, b) => score(b, "overallScore") - score(a, "overallScore")
@@ -1010,7 +1011,7 @@ export function generateBattingOrder(
   const order = new Array(count).fill(null);
   const reasons = new Array(count).fill("");
 
-  function takeBest(scoreKey) {
+  function takeBest(scoreKey: any) {
     if (pool.length === 0) return null;
     let bestIdx = 0;
     for (let i = 1; i < pool.length; i++) {
@@ -1029,7 +1030,7 @@ export function generateBattingOrder(
     return pool.splice(bestIdx, 1)[0];
   }
 
-  function place(idx, player, role, note) {
+  function place(idx: any, player: any, role: any, note: any) {
     if (player && idx < count) {
       order[idx] = player;
       reasons[idx] = { role, note };
@@ -1089,7 +1090,7 @@ export function generateBattingOrder(
 
     // Tail: descending by composite youthScore (leadoff + contact + OPS).
     // No `powerScore`  HR/SLG/RBI are noise at this age.
-    const youthScore = (p) =>
+    const youthScore = (p: any) =>
       score(p, "leadoffScore") + score(p, "contactScore") + opsScore(p) * 100;
     pool.sort((a, b) => youthScore(b) - youthScore(a));
     let descIdx = 0;
@@ -1176,9 +1177,9 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
     activePlayers,
     allPlayers,
     evaluationEvents = [],
-    leagueRuleSet,
-    teamAge,
-    battingSize,
+    leagueRuleSet = "USSSA",
+    teamAge = "8U",
+    battingSize = "roster",
     seed,
   } = input;
 
@@ -1204,9 +1205,9 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
   // Mirror the effective stats decoration that generateLineup applies, so
   // the UI sees the same structured `battingReason` shape regardless of
   // which entry point produced the order.
-  battingLineup.forEach((player) => {
+  battingLineup.forEach((player: any) => {
     if (!player || !player.battingReason) return;
-    const eff = getEffectiveStats(player);
+    const eff: any = getEffectiveStats(player);
     if (eff.__blended && eff.__blendWeights?.current < 0.95) {
       player.battingReason.blendNote = `Stats blended (current ${Math.round(
         eff.__blendWeights.current * 100
@@ -1233,16 +1234,16 @@ export function generateLineup(input: EngineInput): EngineResult {
   const {
     activePlayers,
     allPlayers,
-    games,
-    evaluationEvents,
+    games = [],
+    evaluationEvents = [],
     currentGame,
     firstInningOverridesById = {},
-    totalInnings,
-    leagueRuleSet,
-    teamAge,
-    defenseSize,
-    positionLock,
-    battingSize,
+    totalInnings = 6,
+    leagueRuleSet = "USSSA",
+    teamAge = "8U",
+    defenseSize = "10",
+    positionLock = "0",
+    battingSize = "roster",
     seed,
     // When true, ignore the cumulative seasonal fairness pressure
     // (priorExtraSits). Useful when constraints have stacked up and the
@@ -1297,7 +1298,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   const targetDateStr =
     currentGame?.date || new Date().toISOString().split("T")[0];
 
-  const combinedGrades = getCombinedGrades(evaluationEvents, allPlayers);
+  const combinedGrades = getCombinedGrades(evaluationEvents, allPlayers || activePlayers);
 
   // D4 — pitcher pool. For 9U+ Kid Pitch we rank the staff by
   // `calcPitcherScore` (eval-driven), filter to those eligible to pitch
@@ -1407,9 +1408,9 @@ export function generateLineup(input: EngineInput): EngineResult {
   // including role/note appropriate for the chosen strategy (capped vs Tango).
   // We only need to add the recency blend note here, since that depends on
   // info computed in profiles, not in the order builder.
-  battingLineup.forEach((player) => {
+  battingLineup.forEach((player: any) => {
     if (!player || !player.battingReason) return;
-    const eff = getEffectiveStats(player);
+    const eff: any = getEffectiveStats(player);
     if (eff.__blended && eff.__blendWeights?.current < 0.95) {
       player.battingReason.blendNote = `Stats blended (current ${Math.round(
         eff.__blendWeights.current * 100
@@ -1485,7 +1486,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   const MAX_ATTEMPTS = 200;
 
   // Try generation with given history maps. Returns { lineup, penalty } or null.
-  const runAttempts = (firstInnHx, seasonHx) => {
+  const runAttempts = (firstInnHx: any, seasonHx: any) => {
     let bestLineup = null;
     let bestPenalty = Infinity;
     let bestLockRelaxed = [];
@@ -1686,7 +1687,7 @@ function precomputeBenchSchedule(opts: any): any {
     for (const p of profiled) if (!isPositionBlocked(p, pos)) n++;
     posSupply.set(pos, n);
   }
-  const scarcityDrain = (p) => {
+  const scarcityDrain = (p: any) => {
     let drain = 0;
     for (const [pos, supply] of posSupply) {
       if (supply > 0 && !isPositionBlocked(p, pos)) drain += 1 / supply;
@@ -1939,7 +1940,7 @@ function precomputeBenchSchedule(opts: any): any {
       const blockSize = block.length;
       const involvesInning0 = block.includes(0);
 
-      const isAvailable = (p) => {
+      const isAvailable = (p: any) => {
         if (involvesInning0) {
           const lockedPos = firstInningLockedPos.get(p.id);
           // If you forced them to play a specific spot that IS NOT catcher in
@@ -1963,7 +1964,7 @@ function precomputeBenchSchedule(opts: any): any {
         return true;
       };
 
-      const unused = (p) => (catcherInnTotals.get(p.id) || 0) === 0;
+      const unused = (p: any) => (catcherInnTotals.get(p.id) || 0) === 0;
 
       // 1. Unused primary catcher, then 2. unused secondary catcher — always
       // prefer spreading the work across distinct kids first.
@@ -2073,7 +2074,7 @@ function precomputeBenchSchedule(opts: any): any {
       // minSits to take an extra "overflow" sit by raising their target.
       // (Rare edge case.)
       const overflow = profiled.filter(
-        (p) =>
+        (p: any) =>
           !alreadyBenched.has(p.id) &&
           !offFieldByInning[inn].has(p.id) &&
           !(inn === 0 && firstInningMustPlay.has(p.id)) &&
@@ -2281,7 +2282,7 @@ function tryBuildLineup(ctx: any): any {
   // policy is NOT consecutive (legacy 9-fielder, or an explicit cap with the
   // toggle off) there are no blocks and the catcher is picked fresh each
   // inning by pickBestForPosition under the per-kid cap.
-  let catcherInningBlocks = null;
+  let catcherInningBlocks: any = null;
   if (
     catcherConsecutive &&
     Number.isFinite(catcherCap) &&
@@ -2326,7 +2327,7 @@ function tryBuildLineup(ctx: any): any {
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
   const { schedule: benchSchedule, catcherByInning } = sched;
 
-  const lineup = [];
+  const lineup: any[] = [];
   // Innings (1-based) where the rotation lock was relaxed to avoid stranding
   // a scarce position. Surfaced so the UI can note it instead of failing.
   const lockRelaxedInnings = [];
@@ -2405,12 +2406,12 @@ function tryBuildLineup(ctx: any): any {
     // season fairness entirely). Per-player state (positions/history/bench)
     // is mutated only AFTER a slot set is committed below, so building twice
     // here is side-effect free.
-    const buildSlots = (useLock) => {
-      const inningSlots = {};
+    const buildSlots = (useLock: any) => {
+      const inningSlots: Record<string, any> = {};
       if (inn === 0) {
         for (const pos in firstInningOverridesById) {
           const pid = firstInningOverridesById[pos];
-          const player = profiled.find((p) => p.id === pid);
+          const player = profiled.find((p: any) => p.id === pid);
           if (!player || !positionsToFill.includes(pos)) continue;
           if (benchedSet.has(pid))
             return {
@@ -2431,7 +2432,7 @@ function tryBuildLineup(ctx: any): any {
 
       const used = new Set(Object.values(inningSlots).map((p) => p.id));
       const remainingPositions = positionsToFill.filter(
-        (pos) => !inningSlots[pos]
+        (pos: any) => !inningSlots[pos]
       );
 
       // Consecutive-catcher mode: catcher is fixed by the precomputed schedule
@@ -2439,7 +2440,7 @@ function tryBuildLineup(ctx: any): any {
       if (catcherInningBlocks && !inningSlots["C"]) {
         const catcherId = catcherByInning.get(inn);
         if (catcherId) {
-          const catcher = profiled.find((p) => p.id === catcherId);
+          const catcher = profiled.find((p: any) => p.id === catcherId);
           if (
             catcher &&
             !benchedSet.has(catcherId) &&
@@ -2548,7 +2549,7 @@ function tryBuildLineup(ctx: any): any {
       // with no candidate for (say) RF at inning 3 because the OF rotation
       // lock or "can't play same spot back-to-back" rule eliminated every
       // remaining kid.
-      const posScarcity = remainingPositions.map((pos) => {
+      const posScarcity = remainingPositions.map((pos: any) => {
         let count = 0;
         for (const p of profiled) {
           if (used.has(p.id) || benchedSet.has(p.id)) continue;
@@ -2586,7 +2587,7 @@ function tryBuildLineup(ctx: any): any {
       });
 
       // Sort by fewest eligible candidates first. Tie-breaker is random.
-      posScarcity.sort((a, b) => {
+      posScarcity.sort((a: any, b: any) => {
         if (a.count !== b.count) return a.count - b.count;
         return a.r - b.r;
       });
@@ -2652,7 +2653,7 @@ function tryBuildLineup(ctx: any): any {
       }
     }
     if (!built.ok) return { ok: false, failure: built.failure };
-    const inningSlots = built.inningSlots;
+    const inningSlots: Record<string, any> = (built as any).inningSlots;
 
     const benchList = [];
     for (const p of profiled) {
