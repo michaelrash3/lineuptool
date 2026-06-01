@@ -54,12 +54,20 @@ export const useImportExportFlows = ({
           );
           if (dateIdx === -1) throw new Error("Could not find a date column.");
           const newGames: any[] = [];
+          // Rows that carried a date value we couldn't parse. Blank rows
+          // (trailing newlines, empty cells) are ignored silently; a row with
+          // a real-but-unrecognized date is surfaced so the coach knows some
+          // games didn't import instead of the drop being invisible.
+          let skipped = 0;
           for (let i = 1; i < rows.length; i++) {
             const cols = rows[i];
-            const rawDate = cols[dateIdx];
+            const rawDate = (cols[dateIdx] || "").trim();
             if (!rawDate) continue;
             const isoDate = normalizeDateToIso(rawDate);
-            if (!isoDate) continue;
+            if (!isoDate) {
+              skipped++;
+              continue;
+            }
             const opp = oppIdx !== -1 ? cols[oppIdx] : "TBD";
             newGames.push({
               id: "g-" + Math.random().toString(36).substring(2, 10),
@@ -81,7 +89,15 @@ export const useImportExportFlows = ({
           updateTeam({ games: [...teamData.games, ...newGames] });
           toast.push({
             kind: "success",
-            title: `Imported ${newGames.length} games`,
+            title: `Imported ${newGames.length} game${
+              newGames.length === 1 ? "" : "s"
+            }`,
+            message:
+              skipped > 0
+                ? `Skipped ${skipped} row${
+                    skipped === 1 ? "" : "s"
+                  } with an unrecognized date.`
+                : undefined,
           });
         } catch (err: any) {
           toast.push({
