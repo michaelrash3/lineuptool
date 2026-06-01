@@ -1,5 +1,6 @@
 import React from "react";
 import { Icons } from "../icons";
+import { reportError } from "../utils/errorReporter";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -44,10 +45,12 @@ export class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // Keep a console trail for support/debugging — the on-screen detail is
-    // intentionally terse.
-    // eslint-disable-next-line no-console
-    console.error("[ErrorBoundary] screen crashed:", error, info.componentStack);
+    // Route through the central reporter (console trail + any configured sink).
+    // The on-screen detail stays intentionally terse.
+    reportError(error, {
+      source: "ErrorBoundary",
+      componentStack: info.componentStack,
+    });
   }
 
   handleRetry = () => {
