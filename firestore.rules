@@ -130,18 +130,16 @@ service cloud.firestore {
                     && request.auth.uid in nextMembers()
                     && coachRolesSelfJoinValid();
 
-      // Public tryouts path (anonymous auth included):
-      // - read themed team info while tryouts are open, OR whenever a
-      //   tryoutShareId is set on the team (the standing share URL
-      //   now resolves to the year-round Player Interest Survey, so
-      //   parents need read access outside the tryouts-open window).
+      // Public tryouts write path (anonymous auth included):
       // - append to tryoutSignups only while tryouts are open.
       // - append to interestSignups any time (interest is collected
       //   year-round; there's no "interest-open" flag).
-      allow read: if isSignedIn()
-                  && (resource.data.tryoutsOpen == true
-                      || resource.data.tryoutShareId != null);
-
+      // NOTE: there is deliberately NO public *read* of the full team doc.
+      // The Tryouts Portal reads branding + tryout config from the sanitized
+      // teamPublic mirror (below) instead, so anonymous parents never see
+      // evaluations, other families' signups, member UIDs, or the join code.
+      // These writes don't require read access — rules evaluate resource.data
+      // server-side — so signups continue to work.
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
                     && request.resource.data.diff(resource.data)
@@ -153,6 +151,29 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['interestSignups']);
+    }
+
+    // Sanitized public mirror of a team, maintained by the coach client
+    // (see buildPublicMirror in src/utils/helpers.ts). Holds only branding +
+    // tryout config — never roster, schedule, evaluations, signups, members,
+    // ownerId, coachRoles, or joinCode. The Tryouts Portal (anonymous auth)
+    // reads it; only members of the underlying team may write it.
+    match /artifacts/{appId}/public/data/teamPublic/{teamId} {
+      function mainTeam() {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isTeamMember() {
+        return request.auth != null && (
+          mainTeam().ownerId == request.auth.uid ||
+          (mainTeam().members != null
+            && request.auth.uid in mainTeam().members)
+        );
+      }
+
+      // Anonymous portal visitors (signed in anonymously) may read the mirror.
+      allow read: if request.auth != null;
+      // Only a member of the real team can create/update/delete the mirror.
+      allow write: if isTeamMember();
     }
   }
 }

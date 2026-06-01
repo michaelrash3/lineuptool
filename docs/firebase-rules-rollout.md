@@ -104,11 +104,13 @@ Expected: signed-in caller can discover team by `joinCode` and add self to `memb
 - Confirm arbitrary field edits by non-member do not succeed.
 
 ### 4) Public Tryouts Portal
-Expected: anonymous/signed-in parent can submit `tryoutSignups` only while tryouts are open.
+Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit `tryoutSignups` only while tryouts are open — but can NOT read the full team doc.
 
 - Open `/tryouts-portal/:slug`.
+- Confirm the page loads branding (name/colors/logo) from the `teamPublic` mirror.
 - Submit valid signup.
-- Confirm `tryoutSignups` append succeeds.
+- Confirm `tryoutSignups` append to the real team doc succeeds.
+- As an anonymous user, attempt a direct read of `artifacts/{appId}/public/data/teams/{teamId}` — confirm it is DENIED (no more full-doc leak of evals/PII/joinCode).
 - Confirm unrelated field edits are denied.
 
 ### 5) Tryouts closed
@@ -117,6 +119,14 @@ Expected: portal submission blocked once `tryoutsOpen` is false.
 - Toggle tryouts closed in Settings.
 - Retry signup submit.
 - Confirm denial/error path is shown.
+
+### 7) Public mirror isolation (added with the tryout-portal privacy fix)
+Expected: the `teamPublic` mirror is readable by any signed-in (incl. anonymous) caller, but writable only by a member of the underlying team.
+
+- As an anonymous portal user, read `artifacts/{appId}/public/data/teamPublic/{teamId}` — confirm success.
+- As an anonymous (non-member) user, attempt to write that mirror doc — confirm denial (`isTeamMember` `get()` on the real team fails).
+- As a team member, change a branding field in the app and confirm the mirror updates (the client effect upserts it).
+- Confirm the mirror never contains `players`, `games`, `evaluationEvents`, `tryoutSignups`, `interestSignups`, `members`, `ownerId`, `coachRoles`, or `joinCode`.
 
 ### 6) Ownership protection (added with the takeover-race fix)
 Expected: non-owners cannot rewrite `ownerId` or remove other members. The current owner can. A team with no existing `ownerId` AND no other members can still be claimed by its sole member (legacy auto-claim).
@@ -128,6 +138,29 @@ Expected: non-owners cannot rewrite `ownerId` or remove other members. The curre
 - As an assistant, remove only themselves from `members[]` — confirm success (leave-team).
 - On a freshly created team with no `ownerId` and only the caller in `members`, write `{ownerId: caller.uid}` — confirm success (legitimate auto-claim path; covers legacy unclaimed teams).
 - On a team with `ownerId` already set, attempt a delete as a non-owner member — confirm denial. As the owner — confirm success.
+
+## Sequencing the tryout-portal privacy fix
+
+The portal now reads a sanitized `teamPublic` mirror instead of the full team
+doc, and the rules drop the old broad public read. Because the rules
+auto-deploy on merge to `main`, **the mirror-writing client must reach
+production before (or with) the rules tightening**, or existing share links
+will 404 until each team's mirror exists.
+
+The coach client writes/backfills a team's mirror automatically the moment any
+member loads that team (the `buildPublicMirror` effect in `App.tsx`). To roll
+out safely:
+
+1. Ship the client (mirror write + portal read switch) and let coaches open the
+   app so mirrors backfill. The old rules still allow the portal to work in the
+   meantime.
+2. Once mirrors are populated, allow the `firestore.rules` change to deploy
+   (the removal of the broad public read + the new `teamPublic` block).
+3. Smoke-test an existing share link end-to-end after the rules land.
+
+If you must land both at once, expect a short window where a share link for a
+team whose mirror hasn't been written yet shows "Link not found" until a coach
+opens the app.
 
 ## Rollback
 

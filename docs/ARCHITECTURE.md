@@ -38,6 +38,25 @@ Per-user selector document: which teams this user belongs to and which one is ac
 { teams: { id, name }[], activeTeamId: string }
 ```
 
+### `artifacts/{appId}/public/data/teamPublic/{teamId}`
+
+A **sanitized public mirror** of the team, maintained by the coach client. The
+Tryouts Portal is an anonymous-auth surface, but Firestore rules grant read
+access per *document*, not per field — so letting the portal read the full team
+doc would expose evaluations, other families' contact info, member UIDs, and the
+join code. Instead the portal reads this mirror, which carries only branding +
+tryout config. The projection (the allowlist) is `buildPublicMirror` in
+`src/utils/helpers.ts`: `name`, the color triplet, `logoUrl`, `currentSeason`,
+`teamAge`, `tryoutsOpen`, `tryoutsPhase`, `tryoutShareId`, `tryoutDateSlug`,
+`tryoutDates`. It **never** contains roster, schedule, evaluations, signups,
+members, ownerId, coachRoles, or joinCode.
+
+The mirror is upserted by an effect in `TeamProvider` (`App.tsx`) whenever a
+member's active team changes a mirrored field; a JSON guard skips no-op writes,
+and the first snapshot backfills the doc for teams created before the mirror
+existed. Signups still write to the real team doc by id — those updates don't
+require client read access, so they work without exposing the doc.
+
 ### Photos
 
 Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` field of each player object. `cropImageTo256DataURL` in `src/components/shared.jsx` covers a chosen file to a 256×256 JPEG at ~0.78 quality (~15 KB each); 30 players × 15 KB ≈ 450 KB inline, comfortably under the Firestore 1 MB document cap. The app does **not** initialize Cloud Storage — that keeps the project on the Firebase Spark plan and avoids the separate rules rollout. Existing photos uploaded to Cloud Storage during earlier releases continue to render from their old URLs; new uploads land inline.
@@ -95,7 +114,7 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 1. **Owner/member**: full read/write (`allow read, write: if isMember(resource.data)`)
 2. **Bootstrap**: `allow create` when `ownerId` matches the caller — used by `createTeam` and the `bootstrapDefaultTeam` fallback
 3. **Join by code**: `allow update` when only `members` + `coachRoles` change and the team has a `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.js`
-4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` — used by `TryoutsPortal.jsx` (anonymous-auth)
+4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public *read* of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
 
 User settings docs are uid-scoped: `allow read, write: if request.auth.uid == uid`.
 

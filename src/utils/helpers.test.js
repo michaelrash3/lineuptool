@@ -12,6 +12,7 @@ import {
   isGameFinalized,
   buildSeasonBenchImbalance,
   gamesDueForReminder,
+  buildPublicMirror,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -751,5 +752,81 @@ describe("gamesDueForReminder", () => {
     );
     expect(due.map((g) => g.id)).toEqual(["today", "tom"]);
     expect(due[0].date).toBe("2026-05-10");
+  });
+});
+
+describe("buildPublicMirror", () => {
+  const fullTeam = {
+    name: "Sharks",
+    primaryColor: "#111111",
+    secondaryColor: "#222222",
+    tertiaryColor: "#333333",
+    logoUrl: "data:image/jpeg;base64,abc",
+    currentSeason: "Spring 2026",
+    teamAge: "10U",
+    tryoutsOpen: true,
+    tryoutsPhase: "open",
+    tryoutShareId: "share123",
+    tryoutDateSlug: "2026-05-01",
+    tryoutDates: ["2026-05-01", "", "2026-05-08"],
+    // Sensitive — must never appear in the mirror:
+    players: [{ id: "p1", name: "Kid", stats: {} }],
+    games: [{ id: "g1" }],
+    evaluationEvents: [{ id: "e1", grades: {} }],
+    tryoutSignups: [{ email: "parent@example.com" }],
+    interestSignups: [{ email: "lead@example.com" }],
+    members: ["uid-1", "uid-2"],
+    ownerId: "uid-1",
+    coachRoles: { "uid-1": "head" },
+    joinCode: "ABC234",
+  };
+
+  it("carries only the allowlisted branding + tryout config", () => {
+    const mirror = buildPublicMirror(fullTeam);
+    expect(mirror).toEqual({
+      name: "Sharks",
+      primaryColor: "#111111",
+      secondaryColor: "#222222",
+      tertiaryColor: "#333333",
+      logoUrl: "data:image/jpeg;base64,abc",
+      currentSeason: "Spring 2026",
+      teamAge: "10U",
+      tryoutsOpen: true,
+      tryoutsPhase: "open",
+      tryoutShareId: "share123",
+      tryoutDateSlug: "2026-05-01",
+      tryoutDates: ["2026-05-01", "2026-05-08"],
+    });
+  });
+
+  it("never leaks sensitive fields", () => {
+    const mirror = buildPublicMirror(fullTeam);
+    for (const sensitive of [
+      "players",
+      "games",
+      "evaluationEvents",
+      "tryoutSignups",
+      "interestSignups",
+      "members",
+      "ownerId",
+      "coachRoles",
+      "joinCode",
+    ]) {
+      expect(mirror).not.toHaveProperty(sensitive);
+    }
+  });
+
+  it("produces a stable shape for an empty/never-shared team", () => {
+    const mirror = buildPublicMirror({});
+    expect(mirror.tryoutShareId).toBeNull();
+    expect(mirror.tryoutDateSlug).toBeNull();
+    expect(mirror.tryoutsOpen).toBe(false);
+    expect(mirror.tryoutDates).toEqual([]);
+    expect(mirror.name).toBe("");
+  });
+
+  it("handles null/undefined input without throwing", () => {
+    expect(() => buildPublicMirror(null)).not.toThrow();
+    expect(buildPublicMirror(undefined).tryoutDates).toEqual([]);
   });
 });

@@ -116,6 +116,55 @@ export const slimGame = <T extends Partial<Game>>(g: T | null | undefined): T | 
   return next;
 };
 
+// ----------------------------------------------------------------------------
+// Public team mirror.
+//
+// The Tryouts Portal is an anonymous-auth surface, but Firestore rules grant
+// read access per *document*, not per field — so letting the portal read the
+// full team doc would expose evaluations, other families' contact info, member
+// UIDs, and the join code. Instead the coach app maintains a sanitized mirror
+// doc (artifacts/{appId}/public/data/teamPublic/{teamId}) that the portal reads
+// for branding + tryout config. This projection is the allowlist: only fields
+// listed here ever reach an anonymous reader. Never add roster, schedule,
+// evaluations, signups, members, ownerId, coachRoles, or joinCode.
+// ----------------------------------------------------------------------------
+
+export interface PublicTeamMirror {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  tertiaryColor: string;
+  logoUrl: string;
+  currentSeason: string;
+  teamAge: string;
+  tryoutsOpen: boolean;
+  tryoutsPhase: string;
+  tryoutShareId: string | null;
+  tryoutDateSlug: string | null;
+  tryoutDates: string[];
+}
+
+export const buildPublicMirror = (
+  team: Record<string, any> | null | undefined
+): PublicTeamMirror => ({
+  name: team?.name || "",
+  primaryColor: team?.primaryColor || "",
+  secondaryColor: team?.secondaryColor || "",
+  tertiaryColor: team?.tertiaryColor || "",
+  logoUrl: team?.logoUrl || "",
+  currentSeason: team?.currentSeason || "",
+  teamAge: team?.teamAge || "",
+  tryoutsOpen: team?.tryoutsOpen === true,
+  tryoutsPhase: team?.tryoutsPhase || "",
+  // Null (not omitted) so a team that has never shared still produces a stable
+  // doc; equality queries on these fields simply won't match a null.
+  tryoutShareId: team?.tryoutShareId || null,
+  tryoutDateSlug: team?.tryoutDateSlug || null,
+  tryoutDates: Array.isArray(team?.tryoutDates)
+    ? (team!.tryoutDates as string[]).filter(Boolean)
+    : [],
+});
+
 // Recursively remove undefined values from an object/array tree. Firestore
 // rejects documents containing undefined (only null and missing keys are
 // valid). Scrub the data right before save.
