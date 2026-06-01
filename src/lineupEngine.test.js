@@ -5,6 +5,8 @@ import {
   getPitcherPoolSize,
   isCatcherEligible,
   resolveCatcherPolicy,
+  maxPitchesForAge,
+  checkPitchEligibility,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -2033,3 +2035,44 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// Pitch limits + eligibility (shared by InGameView, PitcherRankingPanel, card)
+// ---------------------------------------------------------------------------
+describe("maxPitchesForAge", () => {
+  it("returns the configured limit per age tier", () => {
+    expect(maxPitchesForAge("8U")).toBe(50);
+    expect(maxPitchesForAge("9U")).toBe(75);
+    expect(maxPitchesForAge("10U")).toBe(75);
+    expect(maxPitchesForAge("11U to 12U")).toBe(85);
+    expect(maxPitchesForAge("13U to 14U")).toBe(95);
+    expect(maxPitchesForAge("15U to 18U")).toBe(105);
+  });
+
+  it("defaults to 105 for an unknown age", () => {
+    expect(maxPitchesForAge("unknown")).toBe(105);
+  });
+});
+
+describe("checkPitchEligibility", () => {
+  const pitcher = (recentPitches, lastPitchDate) => ({
+    id: "p",
+    pitching: { recentPitches, lastPitchDate },
+  });
+
+  it("is eligible when the pitcher has never pitched", () => {
+    expect(checkPitchEligibility(pitcher(0, null), "2026-05-10", "10U")).toBe(true);
+  });
+
+  it("is ineligible at or over the age limit", () => {
+    // 10U limit is 75.
+    expect(checkPitchEligibility(pitcher(75, "2026-05-09"), "2026-05-10", "10U")).toBe(false);
+  });
+
+  it("requires rest days scaled to the recent count", () => {
+    // 60 pitches => 3 days rest required. 2 days later: not yet eligible.
+    expect(checkPitchEligibility(pitcher(60, "2026-05-08"), "2026-05-10", "10U")).toBe(false);
+    // 4 days later: eligible.
+    expect(checkPitchEligibility(pitcher(60, "2026-05-08"), "2026-05-12", "10U")).toBe(true);
+  });
+});

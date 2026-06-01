@@ -1,6 +1,7 @@
 import React, { memo, useState, useRef, useCallback, useEffect } from "react";
 import { Icons } from "../icons";
 import { formatGameDateDisplay } from "../utils/helpers";
+import { checkPitchEligibility, maxPitchesForAge } from "../lineupEngine";
 import { shareLineupCard } from "../lineup/lineupCard";
 import { useTeam, useUI, useToast } from "../contexts";
 import { ScoreEditor } from "./ScheduleTab";
@@ -619,33 +620,29 @@ export const InGameView = memo(() => {
             (p: any) =>
               (game.attendance?.[p.id] !== false) && !usedPitcherIds.has(p.id)
           );
-          const availablePitchers = presentPlayers.filter((p: any) => {
-            const pitching = p.pitching;
-            if (!pitching?.lastPitchDate || !pitching.recentPitches) return true;
-            const recent = pitching.recentPitches;
-            if (recent === 0) return true;
-            const maxByAge = {
-              "9U": 75, "10U": 75, "11U to 12U": 85,
-              "13U to 14U": 95, "15U to 18U": 105,
-            };
-            const max = (maxByAge as any)[ageGroup] ?? 105;
-            if (recent >= max) return false;
-            const diffDays = Math.floor(
-              (new Date(targetDate).getTime() -
-                new Date(pitching.lastPitchDate).getTime()) /
-                86_400_000
-            );
-            const restNeeded =
-              recent >= 66 ? 4 : recent >= 51 ? 3 : recent >= 36 ? 2 : recent >= 21 ? 1 : 0;
-            return diffDays > restNeeded;
-          });
+          // Eligibility (rest rules + age pitch limit) lives in the engine —
+          // use it directly so this view can't drift from the canonical rules.
+          const availablePitchers = presentPlayers.filter((p: any) =>
+            checkPitchEligibility(p, targetDate, ageGroup)
+          );
 
           const pitchCounts = game.pitchCounts || {};
+          const pitchLimit = maxPitchesForAge(ageGroup);
           const updatePitchCount = (playerId: any, val: any) => {
             const next = { ...(game.pitchCounts || {}) };
             const num = parseInt(val, 10);
             if (Number.isFinite(num) && num >= 0) {
               next[playerId] = num;
+              // Warn (don't block) when a count exceeds the age pitch limit —
+              // a safety guardrail the coach can still override for accuracy.
+              if (num > pitchLimit) {
+                const p = team.players.find((pl: any) => pl.id === playerId);
+                toast.push({
+                  kind: "warn",
+                  title: "Over pitch limit",
+                  message: `${p?.name || "Pitcher"} at ${num} exceeds the ${ageGroup} limit of ${pitchLimit}.`,
+                });
+              }
             } else if (val === "") {
               delete next[playerId];
             }
@@ -681,6 +678,7 @@ export const InGameView = memo(() => {
                           <input
                             type="number"
                             min="0"
+                            max={pitchLimit}
                             inputMode="numeric"
                             value={pitchCounts[player.id] ?? ""}
                             onChange={(e) =>

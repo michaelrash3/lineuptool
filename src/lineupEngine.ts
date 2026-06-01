@@ -485,7 +485,7 @@ export const PITCH_LIMITS: Record<string, number> = {
   "15U to 18U": 105,
 };
 
-function maxPitchesForAge(age: string): number {
+export function maxPitchesForAge(age: string): number {
   return PITCH_LIMITS[age] ?? 105;
 }
 function requiredRestDays(p: number): number {
