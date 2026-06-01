@@ -50,6 +50,7 @@ import {
 } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette";
 import { WelcomeChooser } from "./components/WelcomeChooser";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   LoginScreen,
   AppHeader,
@@ -3906,6 +3907,7 @@ const MainShell = () => {
       />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
+        <ErrorBoundary resetKey={location.pathname}>
         <Routes>
           <Route path="/" element={<HomeTab />} />
           <Route path="/roster" element={<RosterTab />} />
@@ -3942,6 +3944,7 @@ const MainShell = () => {
           <Route path="/in-game/:gameId" element={<div className="hidden" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
         </Suspense>
       </main>
       <SharedModals />
@@ -3994,10 +3997,12 @@ const App = () => {
     return (
       <ToastProvider>
         <Suspense fallback={<ScreenLoader />}>
-          <Routes>
-            <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </Suspense>
       </ToastProvider>
     );
