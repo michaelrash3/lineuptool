@@ -13,6 +13,14 @@ import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
 import { LogoColorModal } from "../components/LogoColorModal";
 import { extractLogoPalette } from "../components/shared";
 import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel";
+import {
+  getReminderPrefs,
+  setReminderPrefs,
+  requestNotificationPermission,
+  notificationsSupported,
+  notificationPermission,
+  ReminderPrefs,
+} from "../hooks/useScheduleReminders";
 
 // One row per team color: swatch (native color picker) + hex text input.
 // Typing a valid #rrggbb commits on every keystroke; invalid input is
@@ -583,6 +591,142 @@ const Row = ({ label, value, badge, badgeKind }: any) => (
   </div>
 );
 
+// Opt-in game-day reminders. Preferences live per-device in localStorage
+// (see useScheduleReminders); there's no backend, so reminders only fire while
+// the app is open. This panel just toggles the preference and walks the coach
+// through the browser permission prompt.
+const GameRemindersPanel = memo(({ toast }: any) => {
+  const supported = notificationsSupported();
+  const [prefs, setPrefs] = useState<ReminderPrefs>(getReminderPrefs);
+  const [permission, setPermission] = useState<NotificationPermission>(
+    notificationPermission()
+  );
+
+  const persist = useCallback((next: ReminderPrefs) => {
+    setPrefs(next);
+    setReminderPrefs(next);
+  }, []);
+
+  const ensurePermission = useCallback(async (): Promise<boolean> => {
+    const result = await requestNotificationPermission();
+    setPermission(result);
+    if (result !== "granted") {
+      toast.push({
+        kind: "warn",
+        title: "Notifications blocked",
+        message:
+          "Allow notifications for this site in your browser to get game reminders.",
+      });
+    }
+    return result === "granted";
+  }, [toast]);
+
+  const toggleEnabled = useCallback(async () => {
+    if (!prefs.enabled) {
+      if (permission !== "granted") {
+        const granted = await ensurePermission();
+        if (!granted) return;
+      }
+      persist({ ...prefs, enabled: true });
+      toast.push({ kind: "success", title: "Game reminders on" });
+    } else {
+      persist({ ...prefs, enabled: false });
+    }
+  }, [prefs, permission, ensurePermission, persist, toast]);
+
+  if (!supported) {
+    return (
+      <div>
+        <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
+          <Icons.Bell className="w-4 h-4" /> Game Reminders
+        </h3>
+        <p className="text-[12px] text-ink-3 font-medium">
+          This browser doesn't support notifications, so game reminders aren't
+          available here.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
+        <Icons.Bell className="w-4 h-4" /> Game Reminders
+      </h3>
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-bold text-ink">
+              Remind me about upcoming games
+            </div>
+            <p className="text-[11px] text-ink-3 font-medium mt-0.5 max-w-md">
+              A notification fires while the app is open. Reminders are per
+              device and won't fire reliably when the app is fully closed
+              (especially on iPhone).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={toggleEnabled}
+            aria-pressed={prefs.enabled}
+            className={`shrink-0 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
+              prefs.enabled
+                ? "bg-emerald-600 text-white border-emerald-600"
+                : "bg-surface text-ink-2 border-line hover:bg-surface-2"
+            }`}
+          >
+            {prefs.enabled ? "On" : "Off"}
+          </button>
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+            When to remind
+          </label>
+          <div className="flex gap-2">
+            {[
+              { id: "morning_of", label: "Morning of" },
+              { id: "day_before", label: "Day before" },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                disabled={!prefs.enabled}
+                onClick={() =>
+                  persist({ ...prefs, leadTime: opt.id as ReminderPrefs["leadTime"] })
+                }
+                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  prefs.leadTime === opt.id
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-surface text-ink-2 border-line hover:bg-surface-2"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {permission === "denied" && (
+          <p className="text-[11px] text-rose-600 font-semibold">
+            Notifications are blocked for this site. Re-enable them in your
+            browser's site settings to receive reminders.
+          </p>
+        )}
+        {permission === "default" && !prefs.enabled && (
+          <button
+            type="button"
+            onClick={ensurePermission}
+            className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-colors"
+          >
+            Enable notifications
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -685,6 +829,7 @@ export const SettingsTab = memo(() => {
   }, [team?.currentSeason]);
   const settingsMenuItems = [
     { id: "team", label: "Team" },
+    { id: "reminders", label: "Reminders" },
     { id: "tryouts", label: "Tryouts" },
     { id: "staff", label: "Staff" },
     { id: "imports", label: "Imports" },
@@ -692,6 +837,7 @@ export const SettingsTab = memo(() => {
   ];
   const settingsMenuDescriptions = {
     team: "Core game defaults, season identity, and visual branding.",
+    reminders: "Opt-in game-day notifications on this device.",
     tryouts: "Tryout portal controls, share links, and roster cap behavior.",
     staff: "Coaching roster, roles, and join-code controls.",
     imports: "CSV imports plus backup/export/restore operations.",
@@ -780,6 +926,7 @@ export const SettingsTab = memo(() => {
         </div>
         <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
           <div className="space-y-10">
+            {settingsMenu === "reminders" && <GameRemindersPanel toast={toast} />}
             {settingsMenu === "team" && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
