@@ -76,6 +76,7 @@ import { useMainShellRouting } from "./hooks/useMainShellRouting";
 import { useTeamMembership } from "./hooks/useTeamMembership";
 import { useInviteFlows } from "./hooks/useInviteFlows";
 import { useImportExportFlows } from "./hooks/useImportExportFlows";
+import { useScheduleReminders } from "./hooks/useScheduleReminders";
 import {
   getLocalDateString,
   bumpAgeTier,
@@ -3567,6 +3568,9 @@ const MainShell = () => {
     location,
     navigate,
   });
+
+  // Client-side game-day reminders while the app is open (opt-in via Settings).
+  useScheduleReminders();
 
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);

@@ -1065,3 +1065,87 @@ export const emailPromptStatus = (
     reason: null,
   };
 };
+
+// ============================================================================
+// Game-day reminders — client-side, wall-clock based.
+//
+// Coaches opt in (per device) to a local notification ahead of upcoming
+// games. The app has no backend scheduler (Spark plan, no Cloud Functions),
+// so reminders are computed on the client whenever the app is open and fired
+// via the Notification API. This helper is the pure core: given the schedule
+// and the current time, it returns the games whose reminder window is open
+// right now. The hook layer (useScheduleReminders) handles permission,
+// dedupe, and the actual Notification call.
+//
+// Games store `date` as YYYY-MM-DD with no timezone, so the comparison is
+// done against the coach's *local* calendar day — mirroring the upcoming-game
+// filter on the Home dashboard.
+// ============================================================================
+
+export type ReminderLeadTime = "morning_of" | "day_before";
+
+export interface DueGameReminder {
+  id: string;
+  // Normalized YYYY-MM-DD of the game.
+  date: string;
+  opponent: string;
+  // Human-readable date for the notification body.
+  displayDate: string;
+  // 0 when the game is today, 1 when it is tomorrow.
+  daysUntil: number;
+  // "Today" / "Tomorrow" — convenience label for notification copy.
+  whenLabel: string;
+}
+
+const LEAD_DAYS: Record<ReminderLeadTime, number> = {
+  morning_of: 0,
+  day_before: 1,
+};
+
+// Pure: returns the games that should trigger a reminder at `now` for the
+// chosen lead time. A game is in-window when it is not finalized or
+// postponed, has a parseable date, and falls between today and `leadDays`
+// days out (inclusive). The lower bound is today so a "day before" reminder
+// still fires on game day if the coach didn't open the app the day prior.
+// Dedupe across repeated calls is the caller's job (see useScheduleReminders).
+export const gamesDueForReminder = (
+  games:
+    | Array<{
+        id?: string;
+        date?: string;
+        opponent?: string;
+        status?: string;
+        teamScore?: number | string | null;
+        opponentScore?: number | string | null;
+      }>
+    | null
+    | undefined,
+  leadTime: ReminderLeadTime,
+  now: Date = new Date()
+): DueGameReminder[] => {
+  if (!Array.isArray(games) || games.length === 0) return [];
+  const leadDays = LEAD_DAYS[leadTime] ?? 0;
+  const todayLocal = isoToLocalDate(dateToIsoLocal(now));
+
+  const due: DueGameReminder[] = [];
+  for (const game of games) {
+    if (!game || !game.id) continue;
+    if ((game.status || "scheduled") === "postponed") continue;
+    if (isGameFinalized(game)) continue;
+    const iso = normalizeDateToIso(game.date);
+    if (!iso) continue;
+    const daysUntil = Math.round(
+      (isoToLocalDate(iso).getTime() - todayLocal.getTime()) / MS_PER_DAY
+    );
+    if (daysUntil < 0 || daysUntil > leadDays) continue;
+    due.push({
+      id: game.id,
+      date: iso,
+      opponent: (game.opponent || "").trim() || "TBD",
+      displayDate: formatGameDateDisplay(iso),
+      daysUntil,
+      whenLabel: daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : iso,
+    });
+  }
+  return due.sort((a, b) => a.date.localeCompare(b.date));
+};

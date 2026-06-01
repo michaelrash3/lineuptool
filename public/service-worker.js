@@ -15,7 +15,7 @@
 // Versioned cache name. Bumping it forces every old cache entry to be
 // dropped on the next activate cycle (use when the SW logic itself
 // changes — static asset hashes already handle per-deploy invalidation).
-const CACHE_NAME = "coachs-card-shell-v1";
+const CACHE_NAME = "coachs-card-shell-v2";
 
 // Pre-cached on install so a brand-new visitor can still cold-start
 // the SPA on a flight or a no-signal field after their first online
@@ -43,6 +43,24 @@ self.addEventListener("activate", (event) => {
         )
       )
       .then(() => self.clients.claim())
+  );
+});
+
+// Game-day reminders post notifications through the SW (see
+// src/hooks/useScheduleReminders.ts). Clicking one focuses an existing app
+// window when possible, otherwise opens the Schedule tab.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        for (const client of clientList) {
+          if ("focus" in client) return client.focus();
+        }
+        if (self.clients.openWindow) return self.clients.openWindow("/schedule");
+        return undefined;
+      })
   );
 });
 

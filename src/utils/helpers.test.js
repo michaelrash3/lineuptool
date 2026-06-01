@@ -11,6 +11,7 @@ import {
   lineupSlotMatchesPlayer,
   isGameFinalized,
   buildSeasonBenchImbalance,
+  gamesDueForReminder,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -668,5 +669,87 @@ describe("restampEvalDueDates", () => {
   it("returns [] for non-array input", () => {
     expect(restampEvalDueDates(null)).toEqual([]);
     expect(restampEvalDueDates(undefined)).toEqual([]);
+  });
+});
+
+describe("gamesDueForReminder", () => {
+  // Fix "now" to a local-noon anchor so the local-calendar-day math is stable
+  // regardless of the machine's timezone.
+  const now = new Date(2026, 4, 10, 12, 0, 0); // 2026-05-10 local
+  const iso = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const today = iso(now);
+  const tomorrow = iso(new Date(2026, 4, 11));
+  const yesterday = iso(new Date(2026, 4, 9));
+  const dayAfter = iso(new Date(2026, 4, 12));
+
+  it("returns [] for empty / non-array input", () => {
+    expect(gamesDueForReminder(null, "morning_of", now)).toEqual([]);
+    expect(gamesDueForReminder([], "day_before", now)).toEqual([]);
+  });
+
+  it("morning_of fires only for games today", () => {
+    const due = gamesDueForReminder(
+      [
+        { id: "today", date: today, opponent: "Rays" },
+        { id: "tom", date: tomorrow, opponent: "Cubs" },
+      ],
+      "morning_of",
+      now
+    );
+    expect(due.map((g) => g.id)).toEqual(["today"]);
+    expect(due[0].whenLabel).toBe("Today");
+    expect(due[0].daysUntil).toBe(0);
+    expect(due[0].opponent).toBe("Rays");
+  });
+
+  it("day_before fires for today and tomorrow (catch-up window)", () => {
+    const due = gamesDueForReminder(
+      [
+        { id: "today", date: today },
+        { id: "tom", date: tomorrow },
+        { id: "later", date: dayAfter },
+      ],
+      "day_before",
+      now
+    );
+    expect(due.map((g) => g.id)).toEqual(["today", "tom"]);
+    expect(due.find((g) => g.id === "tom").whenLabel).toBe("Tomorrow");
+  });
+
+  it("skips finalized, postponed, past, and undated games", () => {
+    const due = gamesDueForReminder(
+      [
+        { id: "final", date: today, status: "final" },
+        { id: "scored", date: today, teamScore: 5, opponentScore: 3 },
+        { id: "postponed", date: today, status: "postponed" },
+        { id: "past", date: yesterday },
+        { id: "nodate", date: "" },
+        { id: "garbled", date: "not-a-date" },
+        { id: "ok", date: today, opponent: "" },
+      ],
+      "day_before",
+      now
+    );
+    expect(due.map((g) => g.id)).toEqual(["ok"]);
+    // Missing opponent falls back to TBD.
+    expect(due[0].opponent).toBe("TBD");
+  });
+
+  it("normalizes slash dates and sorts by date", () => {
+    const due = gamesDueForReminder(
+      [
+        { id: "tom", date: "05/11/2026" },
+        { id: "today", date: "5/10/26" },
+      ],
+      "day_before",
+      now
+    );
+    expect(due.map((g) => g.id)).toEqual(["today", "tom"]);
+    expect(due[0].date).toBe("2026-05-10");
   });
 });
