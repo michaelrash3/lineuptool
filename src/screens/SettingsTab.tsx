@@ -4,6 +4,7 @@ import { QRCodeImg } from "../components/QRCodeImg";
 import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
+  buildScheduleIcs,
 } from "../utils/helpers";
 import { computeNextSeason } from "../constants/ui";
 import { useTeam, useUI, useToast } from "../contexts";
@@ -596,6 +597,7 @@ const Row = ({ label, value, badge, badgeKind }: any) => (
 // the app is open. This panel just toggles the preference and walks the coach
 // through the browser permission prompt.
 const GameRemindersPanel = memo(({ toast }: any) => {
+  const { team } = useTeam();
   const supported = notificationsSupported();
   const [prefs, setPrefs] = useState<ReminderPrefs>(getReminderPrefs);
   const [permission, setPermission] = useState<NotificationPermission>(
@@ -634,16 +636,62 @@ const GameRemindersPanel = memo(({ toast }: any) => {
     }
   }, [prefs, permission, ensurePermission, persist, toast]);
 
+  // Export the schedule as an .ics so coaches get reliable native calendar
+  // reminders even when the app is closed (works regardless of notification
+  // support, which is why it lives outside the supported/unsupported branch).
+  const exportCalendar = useCallback(() => {
+    const ics = buildScheduleIcs(team?.games, team?.name);
+    if (!ics.includes("BEGIN:VEVENT")) {
+      toast.push({
+        kind: "info",
+        title: "No upcoming games",
+        message: "Add games to the schedule first.",
+      });
+      return;
+    }
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(team?.name || "team")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .toLowerCase()}-schedule.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.push({
+      kind: "success",
+      title: "Calendar file downloaded",
+      message: "Open it to add your games to your calendar app.",
+    });
+  }, [team, toast]);
+
+  const calendarExport = (
+    <div className="pt-1">
+      <button
+        type="button"
+        onClick={exportCalendar}
+        className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-colors inline-flex items-center gap-2"
+      >
+        <Icons.Calendar className="w-3.5 h-3.5" /> Add games to calendar (.ics)
+      </button>
+      <p className="text-[11px] text-ink-3 font-medium mt-1.5 max-w-md">
+        Exports your upcoming games so your phone or desktop calendar can remind
+        you — even when the app is closed.
+      </p>
+    </div>
+  );
+
   if (!supported) {
     return (
       <div>
         <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
           <Icons.Bell className="w-4 h-4" /> Game Reminders
         </h3>
-        <p className="text-[12px] text-ink-3 font-medium">
-          This browser doesn't support notifications, so game reminders aren't
-          available here.
+        <p className="text-[12px] text-ink-3 font-medium mb-4">
+          This browser doesn't support notifications, but you can still add your
+          games to a calendar.
         </p>
+        {calendarExport}
       </div>
     );
   }
@@ -722,6 +770,8 @@ const GameRemindersPanel = memo(({ toast }: any) => {
             Enable notifications
           </button>
         )}
+
+        <div className="pt-3 border-t border-line/50">{calendarExport}</div>
       </div>
     </div>
   );
