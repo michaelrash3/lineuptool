@@ -34,6 +34,7 @@ import {
   Sun,
   Moon,
   Bell,
+  Palette,
 } from "lucide-react";
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -156,4 +157,5 @@ export const Icons: Record<string, IconComponent> = {
   Sun,
   Moon,
   Bell,
+  Palette,
 };
