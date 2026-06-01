@@ -281,6 +281,119 @@ export const cropImageTo256DataURL = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+// Pull the dominant colors out of a logo so we can suggest team colors.
+// Mirrors cropImageTo256DataURL's FileReader → Image → <canvas> approach,
+// but instead of re-encoding the image we read its pixels and bucket them.
+//
+// `src` may be a data URL string (uploadLogo already produces one) or a
+// File. Returns up to `count` distinct #rrggbb colors ordered by how much
+// of the logo they cover. On ANY failure it resolves to [] rather than
+// rejecting — color suggestion is a nicety and must never break the upload.
+const toHex = (n: number) => n.toString(16).padStart(2, "0");
+const rgbToHex = (r: number, g: number, b: number) =>
+  `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+
+export const extractLogoPalette = (
+  src: string | File,
+  count = 6
+): Promise<string[]> =>
+  new Promise((resolve) => {
+    const run = (dataUrl: string) => {
+      const img = new Image();
+      img.onerror = () => resolve([]);
+      img.onload = () => {
+        try {
+          // Downscale to a small canvas — we only need relative color
+          // frequencies, and 48×48 keeps the pixel loop fast.
+          const SIZE = 48;
+          const canvas = document.createElement("canvas");
+          canvas.width = SIZE;
+          canvas.height = SIZE;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve([]);
+          const ratio = Math.min(SIZE / img.width, SIZE / img.height) || 1;
+          const w = Math.max(1, Math.round(img.width * ratio));
+          const h = Math.max(1, Math.round(img.height * ratio));
+          ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+          const { data } = ctx.getImageData(0, 0, SIZE, SIZE);
+
+          // Bucket near-identical shades together by quantizing each channel
+          // to 32-level steps. Track a running sum per bucket so we can emit
+          // the average (truer) color rather than the rounded bucket key.
+          const STEP = 32;
+          const buckets = new Map<
+            string,
+            { count: number; r: number; g: number; b: number }
+          >();
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+            if (a < 125) continue; // skip transparent logo backgrounds
+            if (r > 240 && g > 240 && b > 240) continue; // skip near-white bg
+            const key = `${Math.round(r / STEP)}-${Math.round(
+              g / STEP
+            )}-${Math.round(b / STEP)}`;
+            const cur = buckets.get(key);
+            if (cur) {
+              cur.count++;
+              cur.r += r;
+              cur.g += g;
+              cur.b += b;
+            } else {
+              buckets.set(key, { count: 1, r, g, b });
+            }
+          }
+
+          const sorted = Array.from(buckets.values())
+            .sort((x, y) => y.count - x.count)
+            .map((bk) =>
+              rgbToHex(
+                Math.round(bk.r / bk.count),
+                Math.round(bk.g / bk.count),
+                Math.round(bk.b / bk.count)
+              )
+            );
+
+          // Drop colors that are perceptually too close to one already
+          // chosen so the suggested swatches feel distinct.
+          const picked: string[] = [];
+          const hexToRgb = (hex: string) => [
+            parseInt(hex.slice(1, 3), 16),
+            parseInt(hex.slice(3, 5), 16),
+            parseInt(hex.slice(5, 7), 16),
+          ];
+          for (const hex of sorted) {
+            const [r, g, b] = hexToRgb(hex);
+            const tooClose = picked.some((p) => {
+              const [pr, pg, pb] = hexToRgb(p);
+              return (
+                Math.abs(pr - r) + Math.abs(pg - g) + Math.abs(pb - b) < 48
+              );
+            });
+            if (!tooClose) picked.push(hex);
+            if (picked.length >= count) break;
+          }
+          resolve(picked);
+        } catch {
+          // getImageData throws on a tainted canvas, etc. — degrade quietly.
+          resolve([]);
+        }
+      };
+      img.src = dataUrl;
+    };
+
+    if (typeof src === "string") {
+      run(src);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => resolve([]);
+    reader.onload = () => run(reader.result as string);
+    reader.readAsDataURL(src);
+  });
+
 export const StatTile = ({ label, value, className = "" }: any) => (
   <div
     className={`bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl ${className}`}
