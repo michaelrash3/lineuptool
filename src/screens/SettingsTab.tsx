@@ -10,6 +10,8 @@ import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
+import { LogoColorModal } from "../components/LogoColorModal";
+import { extractLogoPalette } from "../components/shared";
 import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel";
 
 // One row per team color: swatch (native color picker) + hex text input.
@@ -642,6 +644,36 @@ export const SettingsTab = memo(() => {
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
   const [settingsMenu, setSettingsMenu] = useState("team");
   const [advanceSeasonOpen, setAdvanceSeasonOpen] = useState(false);
+  // Colors pulled from the logo, surfaced in LogoColorModal so the coach can
+  // assign them to Primary / Secondary / Tertiary.
+  const [logoColors, setLogoColors] = useState<{
+    open: boolean;
+    palette: string[];
+  }>({ open: false, palette: [] });
+
+  // Wrap the existing uploadLogo: keep all its size-limit guards, then pull
+  // the logo's dominant colors and (if any) open the color-assignment modal.
+  // Extraction failures must never block the upload — extractLogoPalette
+  // resolves to [] rather than throwing.
+  const handleLogoUpload = useCallback(
+    (e: any) => {
+      uploadLogo(e);
+      const file = e.target.files?.[0];
+      if (!file) return;
+      extractLogoPalette(file).then((palette) => {
+        if (palette.length > 0) setLogoColors({ open: true, palette });
+      });
+    },
+    [uploadLogo]
+  );
+
+  // Re-run extraction on the already-saved logo for the manual trigger.
+  const pullColorsFromLogo = useCallback(() => {
+    if (!logoUrl) return;
+    extractLogoPalette(logoUrl).then((palette) => {
+      setLogoColors({ open: true, palette });
+    });
+  }, [logoUrl]);
 
   // Pre-compute the next-season label so the modal header can render
   // it without the user pressing the button first. computeNextSeason
@@ -1328,10 +1360,19 @@ export const SettingsTab = memo(() => {
                         type="file"
                         accept="image/*"
                         className="sr-only"
-                        onChange={uploadLogo}
+                        onChange={handleLogoUpload}
                       />
                     </label>
                   </div>
+                  {logoUrl && (
+                    <button
+                      type="button"
+                      onClick={pullColorsFromLogo}
+                      className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink bg-surface border border-line rounded-lg px-3 py-1.5 shadow-sm hover:bg-surface-2 transition-colors"
+                    >
+                      <Icons.Palette className="w-3 h-3" /> Pull colors from logo
+                    </button>
+                  )}
                   <p className="text-[10px] text-ink-3 mt-2 font-medium">
                     PNG/JPG up to 1 MB. Stored inline in your team document.
                   </p>
@@ -1486,6 +1527,16 @@ export const SettingsTab = memo(() => {
           setAdvanceSeasonOpen(false);
           advanceSeason({ skipConfirm: true, tryoutsToPromote });
         }}
+      />
+
+      {/* Suggest team colors pulled from the uploaded logo */}
+      <LogoColorModal
+        open={logoColors.open}
+        onClose={() => setLogoColors((p) => ({ ...p, open: false }))}
+        logoUrl={logoUrl}
+        palette={logoColors.palette}
+        current={{ primaryColor, secondaryColor, tertiaryColor }}
+        onApply={(colors) => updateTeam(colors)}
       />
     </div>
   );
