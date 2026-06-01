@@ -20,6 +20,7 @@
         ],
         "jsx": "react-jsx",
         "types": [
+            "node",
             "react",
             "react-dom",
             "jest"
