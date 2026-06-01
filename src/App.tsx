@@ -70,6 +70,7 @@ import {
   restampEvalDueDates,
   isReturning,
   isGameFinalized,
+  buildPublicMirror,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
@@ -375,6 +376,9 @@ const TeamProvider = ({ children }: any) => {
 
   const previousLineupRef = useRef<any>(null);
   const persistTeamRef = useRef<any>(null);
+  // JSON of the last public-mirror projection we wrote, so we only re-upsert
+  // the sanitized teamPublic doc when a mirrored field actually changes.
+  const lastMirrorRef = useRef<string>("");
   // Per-session set of team ids we've already attempted to auto-claim.
   // Prevents the legacy-owner migration effect from re-firing every time
   // Firestore emits a fresh snapshot before ownerId is reflected back.
@@ -723,6 +727,35 @@ const TeamProvider = ({ children }: any) => {
   useEffect(() => {
     persistTeamRef.current = persistTeam;
   }, [persistTeam]);
+
+  // Keep the sanitized public mirror in sync with the active team. Only a
+  // member ever runs this (it's their active team), which satisfies the
+  // teamPublic write rule. It also backfills the mirror for teams created
+  // before this feature: the first snapshot writes it. Writing a sibling doc
+  // doesn't retrigger the team subscription, so there's no loop, and the JSON
+  // guard skips writes when no mirrored field changed.
+  useEffect(() => {
+    if (!activeTeamId || !teamData) return;
+    const mirror = buildPublicMirror(teamData);
+    const key = activeTeamId + ":" + JSON.stringify(mirror);
+    if (key === lastMirrorRef.current) return;
+    lastMirrorRef.current = key;
+    const ref = doc(
+      db,
+      "artifacts",
+      appId,
+      "public",
+      "data",
+      "teamPublic",
+      activeTeamId
+    );
+    setDoc(ref, { ...mirror, updatedAt: Date.now() }, { merge: true }).catch(
+      () => {
+        // A failed mirror write shouldn't disrupt the app; retry on next change.
+        lastMirrorRef.current = "";
+      }
+    );
+  }, [activeTeamId, teamData]);
 
   const updateTeam = useCallback(
     (updates: any) => {

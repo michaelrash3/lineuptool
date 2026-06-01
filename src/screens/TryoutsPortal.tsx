@@ -34,27 +34,6 @@ const getOutfieldPositions = (tryoutAgeLabel: any) => {
 };
 
 
-const normalizeForMatch = (v: any) =>
-  String(v || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-
-const hasDuplicateSignup = (signups: any, form: any) => {
-  const fFirst = normalizeForMatch(form.firstName);
-  const fLast = normalizeForMatch(form.lastName);
-  const fEmail = String(form.email || "").trim().toLowerCase();
-  const fDate = String(form.tryoutDate || "").trim();
-  if (!fFirst || !fLast || !fEmail) return false;
-  return (Array.isArray(signups) ? signups : []).some((s) => {
-    const sFirst = normalizeForMatch(s?.firstName);
-    const sLast = normalizeForMatch(s?.lastName);
-    const sEmail = String(s?.email || "").trim().toLowerCase();
-    const sDate = String(s?.tryoutDate || "").trim();
-    return sFirst === fFirst && sLast === fLast && sEmail === fEmail && sDate === fDate;
-  });
-};
-
 // Shared focus-ring + radius recipe applied to every input/select/textarea
 // in this surface. Pulls the ring color from the team's primary so the form
 // feels branded instead of using a generic Tailwind blue ring.
@@ -170,12 +149,22 @@ export const TryoutsPortal = () => {
         await signInAnonymously(auth);
       } catch {}
       try {
-        const teamsRef = collection(db, "artifacts", appId, "public", "data", "teams");
+        // Read the sanitized public mirror — never the full team doc. The
+        // mirror carries only branding + tryout config (see buildPublicMirror);
+        // signups are still written to the real team doc by id below.
+        const mirrorRef = collection(
+          db,
+          "artifacts",
+          appId,
+          "public",
+          "data",
+          "teamPublic"
+        );
         // Standing share link → interest survey (always valid).
         // Per-date link → tryout signup (gated on tryoutsOpen).
         const [shareSnap, dateSnap] = await Promise.all([
-          getDocs(query(teamsRef, where("tryoutShareId", "==", linkSlug))),
-          getDocs(query(teamsRef, where("tryoutDateSlug", "==", linkSlug))),
+          getDocs(query(mirrorRef, where("tryoutShareId", "==", linkSlug))),
+          getDocs(query(mirrorRef, where("tryoutDateSlug", "==", linkSlug))),
         ]);
         if (cancelled) return;
 
@@ -247,12 +236,10 @@ export const TryoutsPortal = () => {
 
     if (mode === "tryout") {
       if (!form.currentTeam.trim()) return setError("Current team is required.");
-      const forDedup = { ...form, tryoutDate: pinnedDate };
-      if (hasDuplicateSignup(team?.tryoutSignups, forDedup)) {
-        return setError(
-          "Looks like this player is already registered for that date with this email."
-        );
-      }
+      // The old client-side duplicate-signup pre-check read the team's full
+      // signup list, which the public mirror intentionally no longer exposes
+      // (it's other families' PII). The `submitting` guard still prevents
+      // double-taps; coaches can de-dupe genuine repeats in the app.
     }
 
     setError(null);
