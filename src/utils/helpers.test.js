@@ -13,6 +13,7 @@ import {
   buildSeasonBenchImbalance,
   gamesDueForReminder,
   buildPublicMirror,
+  buildScheduleIcs,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -828,5 +829,63 @@ describe("buildPublicMirror", () => {
   it("handles null/undefined input without throwing", () => {
     expect(() => buildPublicMirror(null)).not.toThrow();
     expect(buildPublicMirror(undefined).tryoutDates).toEqual([]);
+  });
+});
+
+describe("buildScheduleIcs", () => {
+  const now = new Date(Date.UTC(2026, 4, 1, 12, 0, 0)); // fixed DTSTAMP anchor
+
+  it("emits a sorted all-day VEVENT per eligible game", () => {
+    const ics = buildScheduleIcs(
+      [
+        { id: "g2", date: "2026-05-08", opponent: "Cubs" },
+        { id: "g1", date: "05/01/2026", opponent: "Rays", time: "5:30 PM" },
+      ],
+      "Hawks",
+      now
+    );
+    expect(ics.startsWith("BEGIN:VCALENDAR\r\n")).toBe(true);
+    expect(ics.trimEnd().endsWith("END:VCALENDAR")).toBe(true);
+    // Two events, sorted by date (g1 before g2).
+    const uids = [...ics.matchAll(/UID:(.+)/g)].map((m) => m[1].trim());
+    expect(uids).toEqual(["game-g1@coachscard", "game-g2@coachscard"]);
+    expect(ics).toContain("DTSTART;VALUE=DATE:20260501");
+    // All-day DTEND is exclusive (next day).
+    expect(ics).toContain("DTEND;VALUE=DATE:20260502");
+    expect(ics).toContain("SUMMARY:Hawks vs Rays (5:30 PM)");
+    expect(ics).toContain("DTSTAMP:20260501T120000Z");
+  });
+
+  it("omits finalized, postponed, and undated games", () => {
+    const ics = buildScheduleIcs(
+      [
+        { id: "done", date: "2026-05-01", status: "final" },
+        { id: "scored", date: "2026-05-02", teamScore: 5, opponentScore: 3 },
+        { id: "pp", date: "2026-05-03", status: "postponed" },
+        { id: "nodate", date: "" },
+        { id: "ok", date: "2026-05-04", opponent: "Sox" },
+      ],
+      "Hawks",
+      now
+    );
+    const uids = [...ics.matchAll(/UID:(.+)/g)].map((m) => m[1].trim());
+    expect(uids).toEqual(["game-ok@coachscard"]);
+  });
+
+  it("escapes commas in the summary and defaults a missing opponent", () => {
+    const ics = buildScheduleIcs(
+      [{ id: "g", date: "2026-05-01" }],
+      "Hawks, AAA",
+      now
+    );
+    expect(ics).toContain("SUMMARY:Hawks\\, AAA vs TBD");
+  });
+
+  it("returns a valid empty calendar for no eligible games", () => {
+    const ics = buildScheduleIcs([], "Hawks", now);
+    expect(ics).toContain("BEGIN:VCALENDAR");
+    expect(ics).toContain("END:VCALENDAR");
+    expect(ics).not.toContain("BEGIN:VEVENT");
+    expect(() => buildScheduleIcs(null, null, now)).not.toThrow();
   });
 });
