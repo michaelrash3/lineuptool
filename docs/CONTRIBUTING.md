@@ -25,8 +25,8 @@ There's no eslint config beyond `react-app`; the toolchain is plain Create React
 
 ## Testing
 
-- Pure logic in `src/lineupEngine.ts` and `src/utils/helpers.ts` has unit tests (188 cases today). New pure helpers should land with tests in `*.test.js` next to the source.
-- UI components don't have a regression harness yet. For UI changes, screenshot the before/after in the PR.
+- Pure logic in `src/lineupEngine.ts` and `src/utils/helpers.ts` has unit tests. New pure helpers should land with tests in `*.test.js` next to the source.
+- React Testing Library is wired up (`@testing-library/react` + `jest-dom`, auto-loaded via `src/setupTests.ts`). Component and hook tests live in `*.test.tsx` next to the source. Use `renderWithProviders` from `src/test-utils.tsx` to render anything that consumes the Toast/Team/UI contexts; mock Firebase with `jest.mock` (see `src/hooks/useInviteFlows.test.tsx`). Screenshot before/after for visual changes the DOM assertions don't cover.
 - When you touch a Firestore-rule-sensitive path, also walk the validation matrix in `docs/firebase-rules-rollout.md` against the emulator before merging.
 
 ## When to update which doc
