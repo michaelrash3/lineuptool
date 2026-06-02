@@ -61,8 +61,8 @@ describe("useGameCrud", () => {
     act(() => result.current.finalizeGame("g1", 1, 0, 6));
     const patch = updateTeam.mock.calls[0][0];
     expect(patch.players[0].pitching).toMatchObject({ recentPitches: 40, lastPitchDate: "2026-05-01" });
-    // The outing is also recorded in the rolling history log.
-    expect(patch.players[0].pitching.log).toEqual([{ date: "2026-05-01", pitches: 40 }]);
+    // The outing is also recorded in the rolling history log, keyed by game id.
+    expect(patch.players[0].pitching.log).toEqual([{ date: "2026-05-01", pitches: 40, gameId: "g1" }]);
   });
 
   it("postponeGame clears scores and marks postponed", () => {

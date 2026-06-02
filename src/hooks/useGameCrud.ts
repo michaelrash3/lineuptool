@@ -94,8 +94,9 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         return {
           ...p,
           // Sets recentPitches/lastPitchDate (unchanged) and appends the outing
-          // to the pitcher's rolling history log.
-          pitching: recordPitchingOuting(p.pitching, game.date, pitchCounts[p.id]),
+          // to the pitcher's rolling history log, keyed by game id so same-date
+          // doubleheaders keep separate entries.
+          pitching: recordPitchingOuting(p.pitching, game.date, pitchCounts[p.id], game.id),
         };
       });
     },
