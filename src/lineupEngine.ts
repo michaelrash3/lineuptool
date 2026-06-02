@@ -516,6 +516,83 @@ export function checkPitchEligibility(
   return diffDays > requiredRestDays(recent);
 }
 
+export interface PitcherAvailability {
+  id: string;
+  name: string;
+  number?: string;
+  // ready: can pitch on the game date. resting: eligible later (daysUntilReady).
+  // maxed: at the per-outing pitch ceiling until their next recorded outing.
+  status: "ready" | "resting" | "maxed";
+  recentPitches: number;
+  lastPitchDate: string | null;
+  maxPitches: number;
+  daysUntilReady: number | null;
+}
+
+// Pitching plan/availability for a single upcoming game date. Considers players
+// cleared to pitch (comfortablePositions includes "P") and classifies each
+// against the age rest rules. Ready arms come first (freshest first) so a coach
+// can line up a rotation; resting arms follow with days-until-ready, then maxed.
+// Pure; mirrors checkPitchEligibility's UTC day math.
+export function buildPitchingPlan(
+  players: Player[] | null | undefined,
+  gameDateStr: string,
+  ageGroup: string
+): PitcherAvailability[] {
+  const maxP = maxPitchesForAge(ageGroup);
+  const pool = (players || []).filter(
+    (p: any) =>
+      Array.isArray(p.comfortablePositions) &&
+      p.comfortablePositions.includes("P")
+  );
+  const base = new Date(gameDateStr).getTime();
+  const out: PitcherAvailability[] = pool.map((p: any) => {
+    const pitching = p.pitching || {};
+    const recent = Number(pitching.recentPitches) || 0;
+    const last = pitching.lastPitchDate || null;
+    let status: PitcherAvailability["status"];
+    let daysUntilReady: number | null = null;
+    if (checkPitchEligibility(p, gameDateStr, ageGroup)) {
+      status = "ready";
+    } else if (recent >= maxP) {
+      status = "maxed";
+    } else {
+      status = "resting";
+      for (let d = 1; d <= 14; d++) {
+        const probeStr = new Date(base + d * 86_400_000)
+          .toISOString()
+          .slice(0, 10);
+        if (checkPitchEligibility(p, probeStr, ageGroup)) {
+          daysUntilReady = d;
+          break;
+        }
+      }
+    }
+    return {
+      id: p.id,
+      name: p.name,
+      number: p.number,
+      status,
+      recentPitches: recent,
+      lastPitchDate: last,
+      maxPitches: maxP,
+      daysUntilReady,
+    };
+  });
+  const rank = { ready: 0, resting: 1, maxed: 2 };
+  return out.sort((a, b) => {
+    if (rank[a.status] !== rank[b.status]) return rank[a.status] - rank[b.status];
+    if (a.status === "ready") {
+      if (a.recentPitches !== b.recentPitches)
+        return a.recentPitches - b.recentPitches;
+      return (a.lastPitchDate || "").localeCompare(b.lastPitchDate || "");
+    }
+    if (a.status === "resting")
+      return (a.daysUntilReady || 0) - (b.daysUntilReady || 0);
+    return 0;
+  });
+}
+
 // ---------- Pitcher scoring (Round 2 spec) ----------
 // Eval-driven, with control weighted highest because dropped-3rd-strike
 // and walk damage are the usual differentiators at 9U+ Kid Pitch.
