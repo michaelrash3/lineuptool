@@ -74,4 +74,20 @@ describe("ScheduleTab", () => {
     await userEvent.click(screen.getByRole("button", { name: /save/i }));
     expect(teamValue.addGame).toHaveBeenCalledWith(newGameForm);
   });
+
+  it("deletes a game from its row action (interaction)", async () => {
+    const { teamValue } = renderWithProviders(<ScheduleTab />, {
+      team: {
+        team: {
+          ...baseTeam,
+          games: [{ id: "g1", date: "2026-05-01", opponent: "Rays", status: "scheduled" }],
+        },
+        record: { wins: 0, losses: 0, ties: 0 },
+        currentRole: "head",
+        deleteSavedGame: jest.fn(),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Delete game" }));
+    expect(teamValue.deleteSavedGame).toHaveBeenCalledWith("g1");
+  });
 });

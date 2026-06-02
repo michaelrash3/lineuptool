@@ -303,6 +303,92 @@ export const buildSeasonBenchImbalance = (
   return out;
 };
 
+// ============================================================================
+// Season position variety — how many innings each player has logged at each
+// defensive position across finalized games. Many youth leagues expect (or
+// require) coaches to rotate kids through different spots; this surfaces who's
+// been stuck at one position and who's never seen the infield/outfield, so the
+// rotation can be evened out. Mirrors buildSeasonBenchImbalance's id-coalescing
+// so a deleted-and-re-added player's history isn't stranded under an orphan id.
+// ============================================================================
+
+export const INFIELD_POSITIONS = ["1B", "2B", "3B", "SS"];
+export const OUTFIELD_POSITIONS = ["LF", "CF", "RF", "LCF", "RCF"];
+export const BATTERY_POSITIONS = ["P", "C"];
+
+export interface PositionVarietyEntry {
+  // innings logged at each position, e.g. { SS: 8, "2B": 3 }
+  byPosition: Record<string, number>;
+  totalDefense: number;
+  distinctPositions: number;
+  infieldInnings: number;
+  outfieldInnings: number;
+  batteryInnings: number;
+}
+
+export const buildSeasonPositionVariety = (
+  games: Game[] | null | undefined,
+  players?: Array<{ id?: string; name?: string }> | null
+): Map<PlayerId, PositionVarietyEntry> => {
+  const out = new Map<PlayerId, PositionVarietyEntry>();
+  const roster = players || [];
+  const livePlayerIds = new Set(
+    roster.map((p) => p.id).filter((id): id is string => !!id)
+  );
+  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const resolveSlotId = (
+    slot: { id?: string; name?: string } | null | undefined
+  ): string | undefined => {
+    if (!slot || !slot.id) return slot?.id;
+    if (livePlayerIds.has(slot.id)) return slot.id;
+    const slotName = norm(slot.name);
+    if (slotName) {
+      const match = roster.find((p) => p.id && norm(p.name) === slotName);
+      if (match?.id) return match.id;
+    }
+    return slot.id;
+  };
+
+  const infield = new Set(INFIELD_POSITIONS);
+  const outfield = new Set(OUTFIELD_POSITIONS);
+  const battery = new Set(BATTERY_POSITIONS);
+
+  for (const g of games || []) {
+    if (!isGameFinalized(g)) continue;
+    if (!g.lineup?.length) continue;
+    for (const inning of g.lineup) {
+      for (const pos in inning) {
+        if (pos === "BENCH") continue;
+        const slot = inning[pos] as SlimPlayer | undefined;
+        if (!slot) continue;
+        const rid = resolveSlotId(slot);
+        if (!rid) continue;
+        let entry = out.get(rid);
+        if (!entry) {
+          entry = {
+            byPosition: {},
+            totalDefense: 0,
+            distinctPositions: 0,
+            infieldInnings: 0,
+            outfieldInnings: 0,
+            batteryInnings: 0,
+          };
+          out.set(rid, entry);
+        }
+        entry.byPosition[pos] = (entry.byPosition[pos] || 0) + 1;
+        entry.totalDefense += 1;
+        if (infield.has(pos)) entry.infieldInnings += 1;
+        else if (outfield.has(pos)) entry.outfieldInnings += 1;
+        else if (battery.has(pos)) entry.batteryInnings += 1;
+      }
+    }
+  }
+  for (const entry of out.values()) {
+    entry.distinctPositions = Object.keys(entry.byPosition).length;
+  }
+  return out;
+};
+
 // Resolve "is this player coming back" across the legacy playerStatus
 // enum + the new returning boolean field. Order of precedence:
 //   1. p.returning === false  → No  (explicit opt-out)
@@ -1307,6 +1393,29 @@ export const buildScheduleIcs = (
 // the same game updates rather than duplicates), sorted newest-first, and
 // capped so the team document stays small.
 // ============================================================================
+
+// Firestore caps a single document at 1 MiB. The whole team lives in one doc
+// (no subcollections), so as rosters / schedules / evals / pitching logs grow
+// it can creep toward the cap — at which point a write silently fails. These
+// let the client estimate the serialized size and warn before that happens.
+export const FIRESTORE_DOC_LIMIT_BYTES = 1_048_576;
+export const DOC_SIZE_WARN_RATIO = 0.9;
+
+// Approximate the serialized (UTF-8) byte size of a value as it would be
+// stored. Pure; returns 0 for unserializable input rather than throwing.
+export const estimateDocSizeBytes = (value: unknown): number => {
+  let str: string;
+  try {
+    str = JSON.stringify(value) ?? "";
+  } catch {
+    return 0;
+  }
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(str).length;
+  }
+  // Fallback: count UTF-8 bytes without TextEncoder.
+  return unescape(encodeURIComponent(str)).length;
+};
 
 export interface PitchingOuting {
   date: string;

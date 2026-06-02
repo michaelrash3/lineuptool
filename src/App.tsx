@@ -70,6 +70,9 @@ import {
   isReturning,
   isGameFinalized,
   buildPublicMirror,
+  estimateDocSizeBytes,
+  FIRESTORE_DOC_LIMIT_BYTES,
+  DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
@@ -364,6 +367,13 @@ const TeamProvider = ({ children }: any) => {
   // and passed to the lineup/eval action hooks + exposed on the context value.
   const uiBridge = useRef<any>({ getInputs: () => null, applyResult: () => {} });
   const persistTeamRef = useRef<any>(null);
+  // Latest team data, readable from persistTeam without widening its deps —
+  // used only to estimate the doc size for the storage-headroom guard.
+  const teamDataRef = useRef<any>(teamData);
+  teamDataRef.current = teamData;
+  // One-shot guard so the "approaching storage limit" warning fires once per
+  // session instead of on every save once the doc is large.
+  const docSizeWarnedRef = useRef(false);
   // JSON of the last public-mirror projection we wrote, so we only re-upsert
   // the sanitized teamPublic doc when a mirrored field actually changes.
   const lastMirrorRef = useRef<string>("");
@@ -688,6 +698,36 @@ const TeamProvider = ({ children }: any) => {
       }
       // Scrub any undefined values from the tree — Firestore rejects them.
       toPersist = scrubUndefined(toPersist);
+
+      // Storage-headroom guard: the whole team is one Firestore doc (1 MiB cap).
+      // Estimate the post-merge size (games slimmed as they will be stored) and
+      // warn once when nearing the limit so a coach can archive old seasons
+      // before a write silently fails.
+      if (!docSizeWarnedRef.current) {
+        const prev = teamDataRef.current || {};
+        const mergedGames = Array.isArray(toPersist.games)
+          ? toPersist.games
+          : Array.isArray(prev.games)
+          ? prev.games.map(slimGame)
+          : [];
+        const estimated = estimateDocSizeBytes({
+          ...prev,
+          ...toPersist,
+          games: mergedGames,
+        });
+        if (estimated > FIRESTORE_DOC_LIMIT_BYTES * DOC_SIZE_WARN_RATIO) {
+          docSizeWarnedRef.current = true;
+          toast.push({
+            kind: "warn",
+            title: "Team data is getting large",
+            message: `Using ${Math.round(
+              estimated / 1024
+            )} KB of the ~1 MB limit. Consider archiving old seasons (Advance Season) to free space.`,
+            duration: 0,
+          });
+        }
+      }
+
       setSyncStatus("Saving");
       try {
         const ref = doc(
