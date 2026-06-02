@@ -15,6 +15,7 @@ import {
   buildPublicMirror,
   buildScheduleIcs,
   recordPitchingOuting,
+  summarizePitchingWorkload,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -929,5 +930,28 @@ describe("recordPitchingOuting", () => {
   it("preserves other pitching fields", () => {
     const out = recordPitchingOuting({ someFlag: true }, "2026-05-01", 10);
     expect(out.someFlag).toBe(true);
+  });
+});
+
+describe("summarizePitchingWorkload", () => {
+  it("returns zeros for a pitcher with no log", () => {
+    expect(summarizePitchingWorkload(null)).toEqual({ outings: 0, totalPitches: 0, maxPitches: 0, lastDate: null });
+    expect(summarizePitchingWorkload({ recentPitches: 5 })).toMatchObject({ outings: 0, totalPitches: 0 });
+  });
+
+  it("sums totals, tracks the high, and the latest date", () => {
+    const pitching = {
+      log: [
+        { date: "2026-05-08", pitches: 55 },
+        { date: "2026-05-01", pitches: 40 },
+        { date: "2026-04-20", pitches: 12 },
+      ],
+    };
+    expect(summarizePitchingWorkload(pitching)).toEqual({
+      outings: 3,
+      totalPitches: 107,
+      maxPitches: 55,
+      lastDate: "2026-05-08",
+    });
   });
 });
