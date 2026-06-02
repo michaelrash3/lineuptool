@@ -4,6 +4,7 @@ import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { PlayerAvatar } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
+import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
@@ -260,6 +261,7 @@ export const RosterTab = memo(() => {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <PitcherRankingPanel />
+      <PitchingPlanPanel />
       <PositionVarietyPanel />
       <div className="glass-card">
         <div

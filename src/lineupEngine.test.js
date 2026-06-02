@@ -7,6 +7,7 @@ import {
   resolveCatcherPolicy,
   maxPitchesForAge,
   checkPitchEligibility,
+  buildPitchingPlan,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -2074,5 +2075,49 @@ describe("checkPitchEligibility", () => {
     expect(checkPitchEligibility(pitcher(60, "2026-05-08"), "2026-05-10", "10U")).toBe(false);
     // 4 days later: eligible.
     expect(checkPitchEligibility(pitcher(60, "2026-05-08"), "2026-05-12", "10U")).toBe(true);
+  });
+});
+
+describe("buildPitchingPlan", () => {
+  const P = (id, opts = {}) => ({
+    id,
+    name: id,
+    comfortablePositions: opts.positions || ["P"],
+    pitching: { recentPitches: opts.recent || 0, lastPitchDate: opts.last || null },
+  });
+
+  it("classifies ready / resting / maxed against the game date and age rules", () => {
+    const players = [
+      P("ready", { recent: 0 }),
+      // 60 pitches needs 3 days rest; only 2 days before the game -> resting.
+      P("resting", { recent: 60, last: "2026-05-08" }),
+      // 80 >= 10U limit (75) -> maxed.
+      P("maxed", { recent: 80, last: "2026-05-01" }),
+      // Not cleared to pitch -> excluded from the pool.
+      P("fielder", { positions: ["SS"] }),
+    ];
+    const plan = buildPitchingPlan(players, "2026-05-10", "10U");
+
+    expect(plan.map((r) => r.id)).toEqual(["ready", "resting", "maxed"]); // fielder excluded, sorted
+    const byId = Object.fromEntries(plan.map((r) => [r.id, r]));
+    expect(byId.ready.status).toBe("ready");
+    expect(byId.resting.status).toBe("resting");
+    expect(byId.resting.daysUntilReady).toBe(2);
+    expect(byId.maxed.status).toBe("maxed");
+    expect(byId.ready.maxPitches).toBe(75);
+  });
+
+  it("returns an empty plan when no one is cleared to pitch", () => {
+    expect(buildPitchingPlan([P("a", { positions: ["1B"] })], "2026-05-10", "10U")).toEqual([]);
+    expect(buildPitchingPlan(null, "2026-05-10", "10U")).toEqual([]);
+  });
+
+  it("orders ready arms freshest-first (fewest recent pitches, longest rest)", () => {
+    const players = [
+      P("tired", { recent: 20, last: "2026-05-01" }), // ready (20<21 rest=0) but more recent
+      P("fresh", { recent: 0 }),
+    ];
+    const plan = buildPitchingPlan(players, "2026-05-10", "10U");
+    expect(plan.map((r) => r.id)).toEqual(["fresh", "tired"]);
   });
 });
