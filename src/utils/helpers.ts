@@ -1308,6 +1308,29 @@ export const buildScheduleIcs = (
 // capped so the team document stays small.
 // ============================================================================
 
+// Firestore caps a single document at 1 MiB. The whole team lives in one doc
+// (no subcollections), so as rosters / schedules / evals / pitching logs grow
+// it can creep toward the cap — at which point a write silently fails. These
+// let the client estimate the serialized size and warn before that happens.
+export const FIRESTORE_DOC_LIMIT_BYTES = 1_048_576;
+export const DOC_SIZE_WARN_RATIO = 0.9;
+
+// Approximate the serialized (UTF-8) byte size of a value as it would be
+// stored. Pure; returns 0 for unserializable input rather than throwing.
+export const estimateDocSizeBytes = (value: unknown): number => {
+  let str: string;
+  try {
+    str = JSON.stringify(value) ?? "";
+  } catch {
+    return 0;
+  }
+  if (typeof TextEncoder !== "undefined") {
+    return new TextEncoder().encode(str).length;
+  }
+  // Fallback: count UTF-8 bytes without TextEncoder.
+  return unescape(encodeURIComponent(str)).length;
+};
+
 export interface PitchingOuting {
   date: string;
   pitches: number;
