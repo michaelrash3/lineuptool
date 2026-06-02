@@ -206,13 +206,15 @@ export const RosterDecisionsPanel = memo(() => {
       const statsAbsent = statsRatio == null;
       const evalAbsent = latestEvalAvg == null;
 
-      // 1) Younger group — playing up + clear struggle signal + not on the rise.
+      // 1) Cut / Drop a Division — playing up + clear struggle signal + not
+      //    on the rise. Age-driven: only kids younger than the team's tier
+      //    are eligible, and only when eval/stats say they're over-matched.
       if (playingUp && !stronglyImproving) {
         if (evalDeepBelowBar || statsWayBelowBar) {
           bucket = "younger";
           if (evalDeepBelowBar) {
             rationale.push(
-              `Eval avg ${latestEvalAvg.toFixed(1)} ≤ 2.5 at the higher tier`
+              `Eval avg ${latestEvalAvg.toFixed(1)} ≤ 2.5 — over-matched at this tier`
             );
           }
           if (statsWayBelowBar) {
@@ -220,7 +222,9 @@ export const RosterDecisionsPanel = memo(() => {
               `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`
             );
           }
-          rationale.push(`Eligible for younger group (age ${baseballAge})`);
+          rationale.push(
+            `Playing up at age ${baseballAge} — better matched to a younger division`
+          );
         }
       }
 
@@ -302,8 +306,9 @@ export const RosterDecisionsPanel = memo(() => {
     // standing is more than one standard deviation below the team mean.
     // There is NO hard cap -- the distribution itself decides, so a
     // tightly-bunched team can flag nobody and only genuine outliers ever
-    // surface. Anyone tempered off moves to "strong" (good standing); the
-    // "younger" bucket is untouched.
+    // surface. Anyone tempered off becomes a "fit" (solid standing — they
+    // hold the team line without standing out); the earned "strong" tier and
+    // the age-based "younger" (Cut / Drop a Division) bucket are untouched.
     //
     // Composite standing: eval (1-5) and stats (OPS ratio, 1.0 = team avg)
     // each normalized to 0-1, blended 60/40 toward the eval. Null when we
@@ -336,10 +341,18 @@ export const RosterDecisionsPanel = memo(() => {
       // perfScore drives the within-bucket card sort below (was never set).
       x.d.perfScore = x.c != null ? x.c : mean;
       if (x.d.bucket !== "watch") continue;
-      // Keep flagged only if genuinely below the team line AND we have data.
+      // Keep flagged as Development Focus only if genuinely below the team
+      // line AND we have data. Everyone else is a solid "Fit" — Strong Fit
+      // is earned above, so the middle of the roster lands here.
       if (x.c != null && x.c < belowLine) continue;
-      x.d.bucket = "strong";
-      if (x.c != null) x.d.rationale = ["In good standing with the group"];
+      x.d.bucket = "fit";
+      if (x.c != null) {
+        x.d.rationale = [
+          x.c >= mean
+            ? "Solid contributor — at or above the team line"
+            : "Holding the team line — steady, just not a standout",
+        ];
+      }
     }
 
     return decisionRows;
@@ -349,12 +362,15 @@ export const RosterDecisionsPanel = memo(() => {
 
   const byBucket = {
     strong: decisions.filter((d: any) => d.bucket === "strong"),
+    fit: decisions.filter((d: any) => d.bucket === "fit"),
     watch: decisions.filter((d: any) => d.bucket === "watch"),
     younger: decisions.filter((d: any) => d.bucket === "younger"),
   };
 
-  // Sort each bucket by perfScore descending (strong) or ascending (watch/younger)
+  // Best-standing first for the healthy groups (Strong Fit / Fit); weakest
+  // first for the groups that need a decision (Development Focus / Cut-Drop).
   byBucket.strong.sort((a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
+  byBucket.fit.sort((a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
   byBucket.watch.sort((a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
   byBucket.younger.sort((a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
 
@@ -434,15 +450,12 @@ export const RosterDecisionsPanel = memo(() => {
             <h2 className="text-xl font-black text-ink uppercase tracking-wider">
               Roster Decisions
             </h2>
-            <p className="text-[10px] font-extrabold uppercase tracking-widest mt-1 text-ink-3">
-              Advisory only — flagged relative to your team, no fixed cap
-            </p>
           </div>
         </div>
       </div>
 
-      <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Strong Fit */}
+      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Strong Fit — earned positive signal across eval + stats */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-win mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -450,7 +463,7 @@ export const RosterDecisionsPanel = memo(() => {
           </div>
           {byBucket.strong.length === 0 ? (
             <p className="text-[11px] text-ink-3 italic font-medium px-1">
-              No players in this group yet.
+              No standouts flagged yet.
             </p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -459,7 +472,27 @@ export const RosterDecisionsPanel = memo(() => {
           )}
         </div>
 
-        {/* Development Focus */}
+        {/* Fit — solid contributors holding the team line, not standouts */}
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: primaryColor }}
+            />
+            Fit ({byBucket.fit.length})
+          </div>
+          {byBucket.fit.length === 0 ? (
+            <p className="text-[11px] text-ink-3 italic font-medium px-1">
+              No players in this group yet.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {byBucket.fit.map(renderCard)}
+            </div>
+          )}
+        </div>
+
+        {/* Development Focus — genuinely below the team line, needs work */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-warnfg mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
@@ -476,11 +509,11 @@ export const RosterDecisionsPanel = memo(() => {
           )}
         </div>
 
-        {/* Better Suited for Younger Group */}
+        {/* Cut / Drop a Division — playing up + over-matched for their age */}
         <div>
-          <div className="text-[11px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-ink-3" />
-            Better Suited for Younger ({byBucket.younger.length})
+          <div className="text-[11px] font-black uppercase tracking-widest text-loss mb-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            Cut / Drop a Division ({byBucket.younger.length})
           </div>
           {byBucket.younger.length === 0 ? (
             <p className="text-[11px] text-ink-3 italic font-medium px-1">

@@ -219,11 +219,17 @@ export const ScheduleTab = memo(() => {
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
   // ISO YYYY-MM-DD is lexicographically equivalent to chronological, so
   // string compare beats new Date(...) - new Date(...) on cost.
+  // Finalized games sink to the bottom — the coach's working set is the
+  // upcoming/unplayed games, so keep those up top and park completed ones
+  // below them (still date-sorted within each group).
   const sortedGames = useMemo(
     () =>
-      [...games].sort((a, b) =>
-        (a.date || "").localeCompare(b.date || "")
-      ),
+      [...games].sort((a, b) => {
+        const aFinal = isGameFinalized(a) ? 1 : 0;
+        const bFinal = isGameFinalized(b) ? 1 : 0;
+        if (aFinal !== bFinal) return aFinal - bFinal;
+        return (a.date || "").localeCompare(b.date || "");
+      }),
     [games]
   );
 

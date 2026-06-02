@@ -12,10 +12,13 @@ on:
     branches-ignore:
       - main
 
-# Cancel superseded runs on the same ref so a quick re-push doesn't queue
-# redundant builds.
+# Cancel superseded runs on the same branch so a quick re-push doesn't queue
+# redundant builds. Keying on the branch name (not github.ref) also collapses
+# the push + pull_request double-trigger into one run: for a push head_ref is
+# empty so it falls back to ref_name, and for a PR head_ref is that same branch
+# — so both events share a group and cancel-in-progress keeps just one.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
