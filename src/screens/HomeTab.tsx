@@ -1117,8 +1117,8 @@ export const HomeTab = memo(() => {
               <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] opacity-80">
                 {activeTeamName}
               </div>
-              <div className="flex items-baseline gap-3 mt-2">
-                <span className="font-black tabular-nums leading-none text-[3.25rem] sm:text-6xl">
+              <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2">
+                <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl">
                   {record.wins}
                   <span className="opacity-50">–</span>
                   {record.losses}
