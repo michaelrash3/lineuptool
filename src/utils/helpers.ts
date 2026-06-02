@@ -1311,23 +1311,44 @@ export const buildScheduleIcs = (
 export interface PitchingOuting {
   date: string;
   pitches: number;
+  // The game this outing came from. Outings are deduped by gameId so two
+  // games on the SAME date (doubleheaders) each keep their own entry, while
+  // re-finalizing the same game updates in place. Legacy entries (written
+  // before this field existed) have no gameId and are matched by date.
+  gameId?: string;
 }
 
 const PITCHING_LOG_CAP = 12;
 
 // Pure: returns a new `pitching` object with recentPitches/lastPitchDate set to
 // the given outing (unchanged semantics) and the outing recorded in `log`.
+// `gameId` keys the log entry so same-date doubleheaders stay distinct; when
+// omitted (legacy callers) the prior entry on that date is replaced as before.
 export const recordPitchingOuting = (
   pitching: Record<string, any> | null | undefined,
   date: string,
-  pitches: number
+  pitches: number,
+  gameId?: string
 ): Record<string, any> => {
   const base = pitching || {};
-  const prior: PitchingOuting[] = Array.isArray(base.log)
-    ? base.log.filter((o: any) => o && o.date && o.date !== date)
-    : [];
-  const log = [...prior, { date, pitches }]
-    .sort((a, b) => b.date.localeCompare(a.date))
+  const all: PitchingOuting[] = Array.isArray(base.log) ? base.log : [];
+  const prior = all.filter((o: any) => {
+    if (!o || !o.date) return false;
+    // With a gameId, only the same game's entry is replaced — other outings
+    // (including a different game on the same date) are preserved.
+    if (gameId) return o.gameId !== gameId;
+    // Legacy path: no gameId, dedupe by date.
+    return o.date !== date;
+  });
+  const entry: PitchingOuting = gameId
+    ? { date, pitches, gameId }
+    : { date, pitches };
+  const log = [...prior, entry]
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        String(b.gameId || "").localeCompare(String(a.gameId || ""))
+    )
     .slice(0, PITCHING_LOG_CAP);
   return { ...base, recentPitches: pitches, lastPitchDate: date, log };
 };

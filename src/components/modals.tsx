@@ -1643,9 +1643,9 @@ export const PlayerProfileModal = memo(() => {
                           Outing History
                         </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {player.pitching.log.map((o: any) => (
+                          {player.pitching.log.map((o: any, i: number) => (
                             <span
-                              key={o.date}
+                              key={o.gameId || `${o.date}-${i}`}
                               className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink tabular-nums"
                               title={`${o.pitches} pitches`}
                             >

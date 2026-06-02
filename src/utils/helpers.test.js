@@ -931,6 +931,32 @@ describe("recordPitchingOuting", () => {
     const out = recordPitchingOuting({ someFlag: true }, "2026-05-01", 10);
     expect(out.someFlag).toBe(true);
   });
+
+  it("keeps separate entries for two games on the same date (doubleheader)", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 30, "g1");
+    p = recordPitchingOuting(p, "2026-05-01", 25, "g2");
+    expect(p.log).toEqual([
+      { date: "2026-05-01", pitches: 25, gameId: "g2" },
+      { date: "2026-05-01", pitches: 30, gameId: "g1" },
+    ]);
+    expect(p.recentPitches).toBe(25);
+  });
+
+  it("updates in place when the same game is re-finalized (by gameId)", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 30, "g1");
+    p = recordPitchingOuting(p, "2026-05-01", 42, "g1");
+    expect(p.log).toEqual([{ date: "2026-05-01", pitches: 42, gameId: "g1" }]);
+  });
+
+  it("preserves a legacy date-keyed entry when a new game is added that day", () => {
+    // Legacy entry has no gameId (written before keying by game).
+    const legacy = { log: [{ date: "2026-05-01", pitches: 20 }] };
+    const out = recordPitchingOuting(legacy, "2026-05-01", 33, "g2");
+    expect(out.log).toEqual([
+      { date: "2026-05-01", pitches: 33, gameId: "g2" },
+      { date: "2026-05-01", pitches: 20 },
+    ]);
+  });
 });
 
 describe("summarizePitchingWorkload", () => {
