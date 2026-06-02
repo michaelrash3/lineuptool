@@ -389,6 +389,96 @@ export const buildSeasonPositionVariety = (
   return out;
 };
 
+// ============================================================================
+// Season summary — record, run differential, current streak, and a recent
+// game log, computed from finalized games. A season-at-a-glance for coaches.
+// ============================================================================
+
+export interface SeasonGameResult {
+  id: string;
+  date: string;
+  opponent: string;
+  teamScore: number;
+  opponentScore: number;
+  result: "W" | "L" | "T";
+}
+
+export interface SeasonSummary {
+  wins: number;
+  losses: number;
+  ties: number;
+  gamesPlayed: number;
+  runsFor: number;
+  runsAgainst: number;
+  runDiff: number;
+  // Current streak from the most recent finalized game; ties reset it.
+  streakType: "W" | "L" | null;
+  streakCount: number;
+  // Finalized games, most recent first.
+  results: SeasonGameResult[];
+}
+
+export const buildSeasonSummary = (
+  games: Game[] | null | undefined
+): SeasonSummary => {
+  const finalized = (games || [])
+    .filter((g) => isGameFinalized(g))
+    .map((g): SeasonGameResult => {
+      const ts = Number(g.teamScore) || 0;
+      const os = Number(g.opponentScore) || 0;
+      return {
+        id: g.id,
+        date: normalizeDateToIso(g.date) || (g.date as string) || "",
+        opponent: (g.opponent || "").trim() || "TBD",
+        teamScore: ts,
+        opponentScore: os,
+        result: ts > os ? "W" : ts < os ? "L" : "T",
+      };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  let wins = 0,
+    losses = 0,
+    ties = 0,
+    runsFor = 0,
+    runsAgainst = 0;
+  for (const r of finalized) {
+    if (r.result === "W") wins++;
+    else if (r.result === "L") losses++;
+    else ties++;
+    runsFor += r.teamScore;
+    runsAgainst += r.opponentScore;
+  }
+
+  // Current streak: walk back from the most recent game while the result
+  // matches; a tie ends any streak.
+  let streakType: "W" | "L" | null = null;
+  let streakCount = 0;
+  for (let i = finalized.length - 1; i >= 0; i--) {
+    const res = finalized[i].result;
+    if (res === "T") break;
+    if (streakType === null) {
+      streakType = res;
+      streakCount = 1;
+    } else if (res === streakType) {
+      streakCount++;
+    } else break;
+  }
+
+  return {
+    wins,
+    losses,
+    ties,
+    gamesPlayed: finalized.length,
+    runsFor,
+    runsAgainst,
+    runDiff: runsFor - runsAgainst,
+    streakType,
+    streakCount,
+    results: finalized.slice().reverse(),
+  };
+};
+
 // Resolve "is this player coming back" across the legacy playerStatus
 // enum + the new returning boolean field. Order of precedence:
 //   1. p.returning === false  → No  (explicit opt-out)
