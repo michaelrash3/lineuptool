@@ -8,6 +8,7 @@ import {
 } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard } from "../components/shared";
+import { GameLogPanel } from "../components/GameLogPanel";
 import { checkPitchEligibility } from "../lineupEngine";
 
 // Dismissible banner that nudges the current coach to submit an eval round
@@ -1200,6 +1201,9 @@ export const HomeTab = memo(() => {
           )}
         </div>
       </div>
+
+      {/* Per-game results log */}
+      <GameLogPanel />
 
       {/* Coaches */}
       {(headCoaches.length > 0 || assistantCoaches.length > 0) && (

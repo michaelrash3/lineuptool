@@ -19,6 +19,7 @@ import {
   estimateDocSizeBytes,
   FIRESTORE_DOC_LIMIT_BYTES,
   buildSeasonPositionVariety,
+  buildSeasonSummary,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -1047,5 +1048,53 @@ describe("buildSeasonPositionVariety", () => {
     const m = buildSeasonPositionVariety([g], [{ id: "p1", name: "Ava Rivera" }]);
     expect(m.get("p1").byPosition).toEqual({ SS: 1 });
     expect(m.has("old1")).toBe(false);
+  });
+});
+
+describe("buildSeasonSummary", () => {
+  const g = (id, date, opp, ts, os) => ({
+    id, date, opponent: opp, status: "final", teamScore: ts, opponentScore: os,
+  });
+
+  it("tallies record, runs, run differential, and games played", () => {
+    const s = buildSeasonSummary([
+      g("a", "2026-05-01", "Rays", 5, 3),
+      g("b", "2026-05-08", "Cubs", 2, 6),
+      g("c", "2026-05-15", "Sox", 4, 4),
+      { id: "d", date: "2026-05-22", status: "scheduled" }, // not finalized -> ignored
+    ]);
+    expect(s).toMatchObject({ wins: 1, losses: 1, ties: 1, gamesPlayed: 3, runsFor: 11, runsAgainst: 13, runDiff: -2 });
+  });
+
+  it("computes the current win/loss streak from the most recent game, reset by ties", () => {
+    const won = buildSeasonSummary([
+      g("a", "2026-05-01", "A", 1, 0),
+      g("b", "2026-05-02", "B", 3, 2),
+      g("c", "2026-05-03", "C", 5, 1),
+    ]);
+    expect(won).toMatchObject({ streakType: "W", streakCount: 3 });
+
+    const tieReset = buildSeasonSummary([
+      g("a", "2026-05-01", "A", 1, 0),
+      g("b", "2026-05-02", "B", 2, 2), // tie
+      g("c", "2026-05-03", "C", 0, 4), // loss (most recent)
+    ]);
+    expect(tieReset).toMatchObject({ streakType: "L", streakCount: 1 });
+  });
+
+  it("returns recent results most-recent-first with W/L/T", () => {
+    const s = buildSeasonSummary([
+      g("a", "2026-05-01", "Rays", 5, 3),
+      g("b", "2026-05-08", "Cubs", 2, 6),
+    ]);
+    expect(s.results.map((r) => [r.opponent, r.result])).toEqual([
+      ["Cubs", "L"],
+      ["Rays", "W"],
+    ]);
+  });
+
+  it("is empty/zeroed when there are no finalized games", () => {
+    const s = buildSeasonSummary([{ id: "x", status: "scheduled" }]);
+    expect(s).toMatchObject({ gamesPlayed: 0, wins: 0, runDiff: 0, streakType: null, streakCount: 0, results: [] });
   });
 });
