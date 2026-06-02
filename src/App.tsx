@@ -66,7 +66,6 @@ import {
   scrubUndefined,
   blankStats,
   emailPromptStatus,
-  evalRoundDateForSave,
   restampEvalDueDates,
   isReturning,
   isGameFinalized,
@@ -82,6 +81,7 @@ import { useGameCrud } from "./hooks/useGameCrud";
 import { usePlayerCrud } from "./hooks/usePlayerCrud";
 import { usePastSeasonCrud } from "./hooks/usePastSeasonCrud";
 import { useTryoutFlows } from "./hooks/useTryoutFlows";
+import { useEvaluationCrud } from "./hooks/useEvaluationCrud";
 import {
   getLocalDateString,
   bumpAgeTier,
@@ -155,23 +155,6 @@ const ScreenLoader = () => (
 /* ============================================================================
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
-
-// Pull a display-able last name from a Firebase auth user. Eval rounds
-// are tagged with this at save time so the head's "Mike · 2026-05-23"
-// label survives across devices and stale auth profiles. Falls back to
-// the email local-part, then to "Coach", before ever leaving the field
-// blank.
-const lastNameOfUser = (u: any) => {
-  const dn = (u?.displayName || "").trim();
-  if (dn) {
-    const parts = dn.split(/\s+/).filter(Boolean);
-    if (parts.length > 0) return parts[parts.length - 1];
-  }
-  const email = (u?.email || "").trim();
-  const local = email.split("@")[0];
-  if (local) return local;
-  return "Coach";
-};
 
 const authDiag = (event: any, details = {}) => {
   if (typeof console === "undefined") return;
@@ -1806,105 +1789,12 @@ const TeamProvider = ({ children }: any) => {
     }
   }, [user, teams, activeTeamId, toast]);
 
-  const saveTeamEvaluation = useCallback(() => {
-    const inputs = uiBridge.current.getInputs?.();
-    const grades = inputs?.teamEvalGrades || {};
-    const selectedRoundId = inputs?.selectedRoundId || null;
-    if (!user) return;
-
-    if (selectedRoundId) {
-      // Editing an existing round — update its grades, keep its
-      // label/date/id/evaluatorName intact.
-      const next = teamData.evaluationEvents.map((e: any) =>
-        e.id === selectedRoundId ? { ...e, grades } : e
-      );
-      updateTeam({ evaluationEvents: next });
-      toast.push({ kind: "success", title: "Eval updated" });
-      return selectedRoundId;
-    }
-
-    // Creating a new round. Stamp it with the calendar due date it satisfies
-    // (not the literal day) so rounds line up with the cadence schedule, and
-    // denormalize the coach's last name so reads across devices don't need an
-    // auth roundtrip.
-    const roundDate = evalRoundDateForSave();
-    const evaluatorName = lastNameOfUser(user);
-    const newEvent = {
-      id: "ev-" + Math.random().toString(36).substring(2, 10),
-      date: roundDate,
-      coachRole: "Head",
-      evaluatorId: user.uid,
-      evaluatorName,
-      grades,
-    };
-    updateTeam({
-      evaluationEvents: [...teamData.evaluationEvents, newEvent],
-    });
-    toast.push({
-      kind: "success",
-      title: "Eval saved",
-      message: `${evaluatorName} · ${roundDate}`,
-    });
-    // Return the created id so callers can lock onto this round for edits.
-    return newEvent.id;
-  }, [user, teamData.evaluationEvents, updateTeam, toast]);
-
-  // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
-  // upsert behavior — the round is stamped with the calendar due date it
-  // satisfies, and the upsert key uses that same date so a second submission
-  // inside the same window updates the round in place instead of duplicating.
-  const saveAssistantEvaluation = useCallback(
-    (grades: any) => {
-      if (!user) return;
-      const roundDate = evalRoundDateForSave();
-      const existing = (teamData.evaluationEvents || []).find(
-        (e: any) =>
-          e.coachRole === "Assistant" &&
-          e.evaluatorId === user.uid &&
-          e.date === roundDate
-      );
-      let nextEvents;
-      if (existing) {
-        nextEvents = teamData.evaluationEvents.map((e: any) =>
-          e.id === existing.id ? { ...e, grades } : e
-        );
-      } else {
-        const newEvent = {
-          id: "ev-" + Math.random().toString(36).substring(2, 10),
-          date: roundDate,
-          coachRole: "Assistant",
-          evaluatorId: user.uid,
-          evaluatorName: lastNameOfUser(user),
-          grades,
-        };
-        nextEvents = [...(teamData.evaluationEvents || []), newEvent];
-      }
-      updateTeam({ evaluationEvents: nextEvents });
-      toast.push({
-        kind: "success",
-        title: "Submitted to head coach",
-      });
-    },
-    [user, teamData.evaluationEvents, updateTeam, toast]
-  );
-
-  // Drop an evaluation round (any role). HC-callable so the head coach
-  // can clean up rounds entered in error — their own, or any assistant's
-  // submission. Splices from team.evaluationEvents by id.
-  const deleteEvaluation = useCallback(
-    (roundId: any) => {
-      if (!roundId) return;
-      const next = (teamData.evaluationEvents || []).filter(
-        (e: any) => e.id !== roundId
-      );
-      updateTeam({ evaluationEvents: next });
-      toast.push({
-        kind: "success",
-        title: "Eval round deleted",
-      });
-    },
-    [teamData.evaluationEvents, updateTeam, toast]
-  );
+  // ----- Evaluation CRUD ----- (extracted to src/hooks/useEvaluationCrud.ts)
+  const {
+    saveTeamEvaluation,
+    saveAssistantEvaluation,
+    deleteEvaluation,
+  } = useEvaluationCrud({ teamData, updateTeam, toast, user, uiBridge });
 
   // ─── Tryouts (PR M) ───────────────────────────────────────────────
   // Public sign-up flow lives at /tryouts/:shareId and writes to
