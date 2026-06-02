@@ -37,4 +37,13 @@ describe("RosterTab", () => {
     });
     expect(screen.getByText("No Roster Found")).toBeInTheDocument();
   });
+
+  it("opens a player's profile when their name is tapped (interaction)", async () => {
+    const { uiValue } = renderWithProviders(<RosterTab />, {
+      team: { team: { players, games: [] }, currentRole: "head" },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Ava Rivera" }));
+    expect(uiValue.openPlayerProfile).toHaveBeenCalledWith("p1");
+  });
 });
