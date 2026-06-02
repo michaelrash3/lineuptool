@@ -1296,3 +1296,38 @@ export const buildScheduleIcs = (
   lines.push("END:VCALENDAR");
   return lines.join("\r\n") + "\r\n";
 };
+
+// ============================================================================
+// Pitching outing history.
+//
+// recentPitches/lastPitchDate model only the *most recent* outing (what the
+// rest-day rules need). This keeps a rolling log of recent outings on the
+// pitcher so coaches can see season pitch-count history. Additive: a pitcher
+// with no `log` simply starts one. Entries are deduped by date (re-finalizing
+// the same game updates rather than duplicates), sorted newest-first, and
+// capped so the team document stays small.
+// ============================================================================
+
+export interface PitchingOuting {
+  date: string;
+  pitches: number;
+}
+
+const PITCHING_LOG_CAP = 12;
+
+// Pure: returns a new `pitching` object with recentPitches/lastPitchDate set to
+// the given outing (unchanged semantics) and the outing recorded in `log`.
+export const recordPitchingOuting = (
+  pitching: Record<string, any> | null | undefined,
+  date: string,
+  pitches: number
+): Record<string, any> => {
+  const base = pitching || {};
+  const prior: PitchingOuting[] = Array.isArray(base.log)
+    ? base.log.filter((o: any) => o && o.date && o.date !== date)
+    : [];
+  const log = [...prior, { date, pitches }]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, PITCHING_LOG_CAP);
+  return { ...base, recentPitches: pitches, lastPitchDate: date, log };
+};
