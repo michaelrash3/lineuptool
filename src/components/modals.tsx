@@ -7,6 +7,7 @@ import {
   blankStats,
   lineupSlotMatchesPlayer,
   isGameFinalized,
+  summarizePitchingWorkload,
 } from "../utils/helpers";
 import { AGE_TIERS } from "../constants/ui";
 import { getActivePositionList } from "../lineupEngine";
@@ -1626,6 +1627,18 @@ export const PlayerProfileModal = memo(() => {
                   {Array.isArray(player.pitching?.log) &&
                     player.pitching.log.length > 0 && (
                       <div className="mt-4">
+                        {(() => {
+                          const w = summarizePitchingWorkload(player.pitching);
+                          return (
+                            <div className="text-[11px] font-bold text-ink-2 mb-2">
+                              Season workload:{" "}
+                              <span className="tabular-nums">{w.totalPitches}</span> pitches
+                              over <span className="tabular-nums">{w.outings}</span>{" "}
+                              outing{w.outings === 1 ? "" : "s"} (high{" "}
+                              <span className="tabular-nums">{w.maxPitches}</span>)
+                            </div>
+                          );
+                        })()}
                         <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                           Outing History
                         </div>

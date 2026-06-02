@@ -1331,3 +1331,29 @@ export const recordPitchingOuting = (
     .slice(0, PITCHING_LOG_CAP);
   return { ...base, recentPitches: pitches, lastPitchDate: date, log };
 };
+
+export interface PitchingWorkload {
+  outings: number;
+  totalPitches: number;
+  maxPitches: number;
+  lastDate: string | null;
+}
+
+// Pure: summarize a pitcher's logged outings into season-workload totals.
+// Safe for pitchers with no log (returns zeros). Used to surface at-a-glance
+// workload alongside the per-outing history.
+export const summarizePitchingWorkload = (
+  pitching: { log?: PitchingOuting[] } | null | undefined
+): PitchingWorkload => {
+  const log = Array.isArray(pitching?.log) ? pitching!.log! : [];
+  let totalPitches = 0;
+  let maxPitches = 0;
+  let lastDate: string | null = null;
+  for (const o of log) {
+    const n = Number(o?.pitches) || 0;
+    totalPitches += n;
+    if (n > maxPitches) maxPitches = n;
+    if (o?.date && (!lastDate || o.date > lastDate)) lastDate = o.date;
+  }
+  return { outings: log.length, totalPitches, maxPitches, lastDate };
+};
