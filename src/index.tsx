@@ -5,9 +5,13 @@ import "./styles.css";
 // @ts-ignore - App.jsx is plain JS without type declarations
 import App from "./App";
 import { initErrorReporting } from "./utils/errorReporter";
+import { initSentry } from "./utils/sentry";
 
 // Capture errors thrown outside React's render path (async, promise rejections).
 initErrorReporting();
+// Forward reported errors to Sentry when REACT_APP_SENTRY_DSN is configured
+// (no-ops and pulls in no SDK otherwise).
+initSentry();
 
 const rootElement = document.getElementById("root")!;
 const root = ReactDOM.createRoot(rootElement);

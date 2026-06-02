@@ -1623,6 +1623,25 @@ export const PlayerProfileModal = memo(() => {
                       />
                     </div>
                   </div>
+                  {Array.isArray(player.pitching?.log) &&
+                    player.pitching.log.length > 0 && (
+                      <div className="mt-4">
+                        <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Outing History
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {player.pitching.log.map((o: any) => (
+                            <span
+                              key={o.date}
+                              className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink tabular-nums"
+                              title={`${o.pitches} pitches`}
+                            >
+                              {formatGameDateDisplay(o.date)} · {o.pitches}P
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                 </div>
               )}
             </div>

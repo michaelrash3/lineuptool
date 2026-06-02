@@ -14,6 +14,7 @@ import {
   gamesDueForReminder,
   buildPublicMirror,
   buildScheduleIcs,
+  recordPitchingOuting,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -887,5 +888,46 @@ describe("buildScheduleIcs", () => {
     expect(ics).toContain("END:VCALENDAR");
     expect(ics).not.toContain("BEGIN:VEVENT");
     expect(() => buildScheduleIcs(null, null, now)).not.toThrow();
+  });
+});
+
+describe("recordPitchingOuting", () => {
+  it("starts a log and sets most-recent fields for a first outing", () => {
+    const out = recordPitchingOuting(null, "2026-05-01", 40);
+    expect(out).toMatchObject({ recentPitches: 40, lastPitchDate: "2026-05-01" });
+    expect(out.log).toEqual([{ date: "2026-05-01", pitches: 40 }]);
+  });
+
+  it("appends new outings newest-first", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 40);
+    p = recordPitchingOuting(p, "2026-05-08", 55);
+    expect(p.log).toEqual([
+      { date: "2026-05-08", pitches: 55 },
+      { date: "2026-05-01", pitches: 40 },
+    ]);
+    expect(p.recentPitches).toBe(55);
+  });
+
+  it("dedupes by date so re-finalizing a game updates the entry", () => {
+    let p = recordPitchingOuting(null, "2026-05-01", 40);
+    p = recordPitchingOuting(p, "2026-05-01", 48);
+    expect(p.log).toEqual([{ date: "2026-05-01", pitches: 48 }]);
+  });
+
+  it("caps the log at 12 entries", () => {
+    let p = null;
+    for (let i = 1; i <= 15; i++) {
+      const d = `2026-05-${String(i).padStart(2, "0")}`;
+      p = recordPitchingOuting(p, d, i);
+    }
+    expect(p.log).toHaveLength(12);
+    // Newest retained, oldest dropped.
+    expect(p.log[0].date).toBe("2026-05-15");
+    expect(p.log[p.log.length - 1].date).toBe("2026-05-04");
+  });
+
+  it("preserves other pitching fields", () => {
+    const out = recordPitchingOuting({ someFlag: true }, "2026-05-01", 10);
+    expect(out.someFlag).toBe(true);
   });
 });

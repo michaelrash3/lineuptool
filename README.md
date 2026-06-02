@@ -26,6 +26,8 @@ npm run build      # production CRA build into ./build
 
 Firebase configuration is read at runtime from `src/firebase.ts`. For local development against a real project you need a populated `.env` (see `docs/firebase-webapp-configuration.md`); for emulator-driven testing follow `docs/firebase-rules-rollout.md`.
 
+Error monitoring is optional: set `REACT_APP_SENTRY_DSN` in the build environment to forward reported errors (ErrorBoundary catches + global handlers) to Sentry. When unset, no Sentry SDK is loaded and reporting just logs to the console.
+
 ## Documentation
 
 - **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — data model, client layout, state flow, EVAL schema migrations

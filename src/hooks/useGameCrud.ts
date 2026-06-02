@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { normalizeDateToIso } from "../utils/helpers";
+import { normalizeDateToIso, recordPitchingOuting } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
@@ -93,11 +93,9 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         if (!pitchedPlayerIds.includes(p.id)) return p;
         return {
           ...p,
-          pitching: {
-            ...(p.pitching || {}),
-            recentPitches: pitchCounts[p.id],
-            lastPitchDate: game.date,
-          },
+          // Sets recentPitches/lastPitchDate (unchanged) and appends the outing
+          // to the pitcher's rolling history log.
+          pitching: recordPitchingOuting(p.pitching, game.date, pitchCounts[p.id]),
         };
       });
     },
