@@ -16,6 +16,8 @@ import {
   buildScheduleIcs,
   recordPitchingOuting,
   summarizePitchingWorkload,
+  estimateDocSizeBytes,
+  FIRESTORE_DOC_LIMIT_BYTES,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -979,5 +981,27 @@ describe("summarizePitchingWorkload", () => {
       maxPitches: 55,
       lastDate: "2026-05-08",
     });
+  });
+});
+
+describe("estimateDocSizeBytes", () => {
+  it("measures UTF-8 byte length of the serialized value", () => {
+    expect(estimateDocSizeBytes({})).toBe(2); // "{}"
+    expect(estimateDocSizeBytes({ a: "x" })).toBe(JSON.stringify({ a: "x" }).length);
+  });
+
+  it("counts multi-byte characters as multiple bytes", () => {
+    // "é" is 2 UTF-8 bytes; JSON adds the surrounding quotes (2 bytes).
+    expect(estimateDocSizeBytes("é")).toBe(4);
+  });
+
+  it("returns 0 for unserializable input rather than throwing", () => {
+    const circular = {};
+    circular.self = circular;
+    expect(estimateDocSizeBytes(circular)).toBe(0);
+  });
+
+  it("exposes the Firestore 1 MiB document cap", () => {
+    expect(FIRESTORE_DOC_LIMIT_BYTES).toBe(1048576);
   });
 });

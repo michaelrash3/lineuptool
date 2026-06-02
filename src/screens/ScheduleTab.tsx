@@ -952,6 +952,7 @@ export const ScheduleTab = memo(() => {
                     <button
                       onClick={removeInning}
                       disabled={lineup.length <= 1}
+                      aria-label="Remove inning"
                       className="px-4 py-2.5 hover:bg-surface-2 disabled:opacity-50 transition-colors text-ink-2"
                     >
                       <Icons.Minus className="w-4 h-4" />
@@ -961,6 +962,7 @@ export const ScheduleTab = memo(() => {
                     </span>
                     <button
                       onClick={addInning}
+                      aria-label="Add inning"
                       className="px-4 py-2.5 hover:bg-surface-2 transition-colors text-ink-2"
                     >
                       <Icons.Plus className="w-4 h-4" />
@@ -1490,6 +1492,7 @@ export const ScheduleTab = memo(() => {
                         {canEdit && (
                           <button
                             onClick={() => deleteSavedGame(game.id)}
+                            aria-label="Delete game"
                             className="text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
