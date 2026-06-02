@@ -1136,14 +1136,14 @@ export const ScheduleTab = memo(() => {
             Schedule & Lineups
           </h2>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
             <RecordBadge record={record} variant="full" />
           )}
           {canEdit && (
             <button
               onClick={() => setIsAddingGame(true)}
-              className="flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+              className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
               <Icons.Plus className="w-4 h-4" /> Add Game
@@ -1333,7 +1333,7 @@ export const ScheduleTab = memo(() => {
                               Today
                             </span>
                           )}
-                          <h3 className="t-card-title leading-tight">
+                          <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight leading-tight text-ink">
                             VS. {game.opponent}
                           </h3>
                           {isFinal ? (
@@ -1369,12 +1369,16 @@ export const ScheduleTab = memo(() => {
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex items-center gap-2">
-                          <Icons.Clock className="w-3.5 h-3.5" />{" "}
-                          {formatGameDateDisplay(game.date)}{" "}
+                        <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <Icons.Clock className="w-3.5 h-3.5 shrink-0" />{" "}
+                          <span className="whitespace-nowrap">
+                            {formatGameDateDisplay(game.date)}
+                          </span>{" "}
                           <span className="text-ink-3">|</span>{" "}
-                          {game.leagueRuleSet || leagueRuleSet}{" "}
-                          {game.pitchingFormat || pitchingFormat}
+                          <span className="whitespace-nowrap">
+                            {game.leagueRuleSet || leagueRuleSet}{" "}
+                            {game.pitchingFormat || pitchingFormat}
+                          </span>
                         </p>
                         
                           <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1425,7 +1429,7 @@ export const ScheduleTab = memo(() => {
 
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto flex-wrap justify-end">
+                      <div className="flex items-stretch gap-2 sm:gap-3 w-full sm:w-auto flex-wrap justify-end">
                         {(canEdit || game.lineup) && (
                           <button
                             onClick={() => {
@@ -1435,7 +1439,7 @@ export const ScheduleTab = memo(() => {
                               setBattingLineup(game.battingLineup || null);
                               setCurrentGameAttendance(game.attendance || {});
                             }}
-                            className="flex-1 sm:flex-none text-xs px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                            className="flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
                           >
                             {!canEdit ? (
                               <Icons.Clipboard className="w-4 h-4" />
@@ -1459,7 +1463,7 @@ export const ScheduleTab = memo(() => {
                               setInGameSelection(null);
                               setInGameUndoStack([]);
                             }}
-                            className="flex-1 sm:flex-none text-xs px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                            className="flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
                           >
                             <Icons.Refresh className="w-4 h-4" /> In-Game
                           </button>
@@ -1469,7 +1473,7 @@ export const ScheduleTab = memo(() => {
                             onClick={() =>
                               setScoringGameId(isEnteringScore ? null : game.id)
                             }
-                            className={`flex-1 sm:flex-none text-xs px-5 py-3 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border ${
+                            className={`flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border whitespace-nowrap ${
                               isFinal
                                 ? "bg-surface text-ink border-line hover:bg-surface-2"
                                 : "text-white border-transparent hover:-translate-y-0.5"
@@ -1490,7 +1494,8 @@ export const ScheduleTab = memo(() => {
                         {canEdit && (
                           <button
                             onClick={() => deleteSavedGame(game.id)}
-                            className="text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
+                            aria-label="Delete game"
+                            className="shrink-0 flex items-center justify-center text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
                           </button>

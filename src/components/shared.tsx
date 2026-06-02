@@ -100,34 +100,37 @@ export const RecordBadge = memo(
     if (variant === "compact") {
       return (
         <span
-          className="text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm border border-line tabular-nums"
+          className="text-[11px] font-black uppercase tracking-widest px-3 py-1 rounded-lg shadow-sm border border-line tabular-nums whitespace-nowrap"
           style={{ backgroundColor: primaryColor, color: tertiaryColor }}
         >
           {wl}
         </span>
       );
     }
+    // Scoreboard strip — three equal cells (Record / RS / RA) stacked
+    // label-over-number. Fills the row on mobile (w-full) and shrinks to
+    // content on larger screens. tabular-nums + whitespace-nowrap keep the
+    // W-L value from breaking at its hyphens into a vertical stack.
+    const cells: Array<{ label: string; value: React.ReactNode }> = [
+      { label: "Record", value: wl },
+      { label: "RS", value: runsScored ?? 0 },
+      { label: "RA", value: runsAllowed ?? 0 },
+    ];
     return (
-      <div className="inline-flex items-center gap-3 bg-surface px-4 py-2.5 rounded-xl border border-line shadow-sm">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-          Record
-        </span>
-        <span className="text-base font-black tabular-nums text-ink">
-          {wl}
-        </span>
-        <span className="h-4 w-px bg-slate-300" />
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-          RS
-        </span>
-        <span className="text-sm font-black tabular-nums text-ink">
-          {runsScored}
-        </span>
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-          RA
-        </span>
-        <span className="text-sm font-black tabular-nums text-ink">
-          {runsAllowed}
-        </span>
+      <div className="flex w-full sm:w-auto items-stretch divide-x divide-line rounded-xl border border-line bg-surface shadow-sm overflow-hidden">
+        {cells.map(({ label, value }) => (
+          <div
+            key={label}
+            className="flex-1 sm:flex-none flex flex-col items-center justify-center gap-1 px-4 py-2 sm:min-w-[64px]"
+          >
+            <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 leading-none">
+              {label}
+            </span>
+            <span className="text-base font-black tabular-nums text-ink leading-none whitespace-nowrap">
+              {value}
+            </span>
+          </div>
+        ))}
       </div>
     );
   }
