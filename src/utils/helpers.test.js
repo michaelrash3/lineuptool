@@ -18,6 +18,7 @@ import {
   summarizePitchingWorkload,
   estimateDocSizeBytes,
   FIRESTORE_DOC_LIMIT_BYTES,
+  buildSeasonPositionVariety,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -1003,5 +1004,48 @@ describe("estimateDocSizeBytes", () => {
 
   it("exposes the Firestore 1 MiB document cap", () => {
     expect(FIRESTORE_DOC_LIMIT_BYTES).toBe(1048576);
+  });
+});
+
+describe("buildSeasonPositionVariety", () => {
+  const inning = (assign) => ({ ...assign, BENCH: [] });
+  // p1: SS both innings (infield only); p2: LF then CF (outfield only);
+  // p3: P then C (battery).
+  const finalGame = {
+    id: "g1",
+    status: "final",
+    teamScore: 5,
+    opponentScore: 3,
+    lineup: [
+      inning({ SS: { id: "p1" }, LF: { id: "p2" }, P: { id: "p3" } }),
+      inning({ SS: { id: "p1" }, CF: { id: "p2" }, C: { id: "p3" } }),
+    ],
+  };
+
+  it("tallies innings per position across finalized games", () => {
+    const m = buildSeasonPositionVariety([finalGame], [
+      { id: "p1" }, { id: "p2" }, { id: "p3" },
+    ]);
+    expect(m.get("p1").byPosition).toEqual({ SS: 2 });
+    expect(m.get("p1")).toMatchObject({ totalDefense: 2, distinctPositions: 1, infieldInnings: 2, outfieldInnings: 0 });
+    expect(m.get("p2")).toMatchObject({ outfieldInnings: 2, infieldInnings: 0, distinctPositions: 2 });
+    expect(m.get("p3")).toMatchObject({ batteryInnings: 2, distinctPositions: 2 });
+  });
+
+  it("ignores non-finalized games and bench slots", () => {
+    const scheduled = { id: "g2", status: "scheduled", lineup: [inning({ SS: { id: "p1" } })] };
+    const m = buildSeasonPositionVariety([scheduled], [{ id: "p1" }]);
+    expect(m.size).toBe(0);
+  });
+
+  it("coalesces a re-added player's history by name onto the live id", () => {
+    // Lineup baked an old id "old1"; live roster has the player under "p1".
+    const g = {
+      id: "g3", status: "final", teamScore: 1, opponentScore: 0,
+      lineup: [inning({ SS: { id: "old1", name: "Ava Rivera" } })],
+    };
+    const m = buildSeasonPositionVariety([g], [{ id: "p1", name: "Ava Rivera" }]);
+    expect(m.get("p1").byPosition).toEqual({ SS: 1 });
+    expect(m.has("old1")).toBe(false);
   });
 });
