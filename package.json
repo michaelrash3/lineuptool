@@ -9,6 +9,7 @@
   ],
   "main": "src/index.tsx",
   "dependencies": {
+    "@sentry/react": "^8.55.2",
     "eslint-plugin-react-hooks": "7.1.1",
     "firebase": "12.12.0",
     "jspdf": "^2.5.2",
