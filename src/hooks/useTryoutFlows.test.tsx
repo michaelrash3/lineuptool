@@ -73,4 +73,44 @@ describe("useTryoutFlows", () => {
     expect(patch.interestSignups).toEqual([]);
     expect(patch.tryoutSignups[0]).toMatchObject({ firstName: "Mia", lastName: "Stone" });
   });
+
+  it("deleteTryoutSignup removes a single signup", () => {
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    });
+    act(() => result.current.deleteTryoutSignup("b"));
+    expect(updateTeam).toHaveBeenCalledWith({
+      tryoutSignups: [{ id: "a" }, { id: "c" }],
+    });
+  });
+
+  it("deleteTryoutSignups removes ALL given ids in a single write", () => {
+    // Regression guard: looping deleteTryoutSignup over no-shows only removed
+    // the last one (each call filtered the same stale array, and the optimistic
+    // merge kept the last write). The bulk helper must drop every id at once.
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+    });
+    let removed = 0;
+    act(() => {
+      removed = result.current.deleteTryoutSignups(["b", "d"]);
+    });
+    expect(removed).toBe(2);
+    expect(updateTeam).toHaveBeenCalledTimes(1);
+    expect(updateTeam).toHaveBeenCalledWith({
+      tryoutSignups: [{ id: "a" }, { id: "c" }],
+    });
+  });
+
+  it("deleteTryoutSignups is a no-op (no write) when nothing matches", () => {
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "a" }],
+    });
+    let removed = -1;
+    act(() => {
+      removed = result.current.deleteTryoutSignups(["zzz"]);
+    });
+    expect(removed).toBe(0);
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
 });

@@ -45,10 +45,14 @@ export const ScoreEditor = memo(
         <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap">
             <div className="w-full sm:w-28">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+              <label
+                htmlFor={`score-ours-${game.id}`}
+                className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+              >
                 Our Score
               </label>
               <input
+                id={`score-ours-${game.id}`}
                 type="number"
                 min="0"
                 inputMode="numeric"
@@ -59,10 +63,14 @@ export const ScoreEditor = memo(
               />
             </div>
             <div className="w-full sm:w-28">
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+              <label
+                htmlFor={`score-opp-${game.id}`}
+                className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+              >
                 Opp. Score
               </label>
               <input
+                id={`score-opp-${game.id}`}
                 type="number"
                 min="0"
                 inputMode="numeric"
@@ -73,10 +81,14 @@ export const ScoreEditor = memo(
             </div>
             {game.lineup?.length > 0 && (
               <div className="w-full sm:w-32">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <label
+                  htmlFor={`score-innings-${game.id}`}
+                  className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5"
+                >
                   Innings Played
                 </label>
                 <select
+                  id={`score-innings-${game.id}`}
                   value={inningsPlayed}
                   onChange={(e) => setInningsPlayed(parseInt(e.target.value, 10))}
                   className="w-full p-2.5 bg-surface border border-line text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm tabular-nums text-center cursor-pointer"
@@ -91,6 +103,11 @@ export const ScoreEditor = memo(
             )}
             {valid && (
               <div
+                role="status"
+                aria-live="polite"
+                aria-label={`Result: ${
+                  result === "win" ? "Win" : result === "loss" ? "Loss" : "Tie"
+                }`}
                 className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest shadow-sm self-end mb-0.5 ${
                   result === "win"
                     ? "bg-win-bg text-win border border-line"
