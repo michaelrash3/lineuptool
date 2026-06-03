@@ -43,13 +43,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Surface known high/critical-severity advisories. Non-blocking for now
-      # (continue-on-error) so a new upstream CVE doesn't wedge unrelated PRs;
-      # the log still flags anything worth patching. Tighten to blocking once
-      # the dependency tree is clean.
+      # Fail the build on new high/critical advisories. The tree is clean as of
+      # the jspdf 4 upgrade, so this is now a hard gate (was advisory while the
+      # react-router / protobufjs / dompurify issues were still outstanding).
       - name: Security audit
         run: npm audit --audit-level=high
-        continue-on-error: true
 
       - name: Typecheck
         run: npx tsc --noEmit
