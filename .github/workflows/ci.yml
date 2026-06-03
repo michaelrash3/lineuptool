@@ -1,24 +1,27 @@
-# Runs the app's typecheck, unit tests, and production build on every PR and
-# on pushes to feature branches. Mirrors the local pre-push checks documented
-# in docs/CONTRIBUTING.md (CI=true promotes CRA warnings to errors). The
-# existing deploy-firestore-rules workflow stays separate — it only touches
-# rules on pushes to main.
+# Runs the app's typecheck, unit tests, and production build on pushes to
+# feature branches. Mirrors the local pre-push checks documented in
+# docs/CONTRIBUTING.md (CI=true promotes CRA warnings to errors). The existing
+# deploy-firestore-rules workflow stays separate — it only touches rules on
+# pushes to main.
+#
+# Trigger is push-only (no pull_request): for a same-repo branch, the push
+# event already runs CI and GitHub shows that check on any PR for the same head
+# commit, so adding pull_request would only fire a second, redundant run that
+# concurrency then cancels — leaving a noisy "cancelled" check. Push-only keeps
+# exactly one run per commit. (A fork PR wouldn't get CI this way; not a concern
+# for this private single-repo project.)
 
 name: CI
 
 on:
-  pull_request:
   push:
     branches-ignore:
       - main
 
 # Cancel superseded runs on the same branch so a quick re-push doesn't queue
-# redundant builds. Keying on the branch name (not github.ref) also collapses
-# the push + pull_request double-trigger into one run: for a push head_ref is
-# empty so it falls back to ref_name, and for a PR head_ref is that same branch
-# — so both events share a group and cancel-in-progress keeps just one.
+# redundant builds.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref_name }}
+  group: ci-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
