@@ -1,5 +1,8 @@
 import { useCallback } from "react";
-import { normalizeDateToIso, recordPitchingOuting } from "../utils/helpers";
+import { deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
+import { appId, db } from "../firebase";
+import { normalizeDateToIso, recordPitchingOuting, slimGame } from "../utils/helpers";
+import { reportError } from "../utils/errorReporter";
 import type { ToastContextValue } from "../types";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
@@ -8,15 +11,39 @@ import type { ToastContextValue } from "../types";
 // writes through the injected updateTeam. Lineup generation, templates, and
 // in-game player removal stay in App.tsx because they reach into the engine and
 // UI refs.
+//
+// Phase 3 migration: games live in the games subcollection (tagged `_sub` when
+// merged in). New games are created there; edits/deletes route to the source —
+// the game's own doc (slimmed like the legacy array writes) or the legacy root
+// array (rebuilt from non-`_sub` entries). Pitch-count commits write players
+// separately (players aren't migrated).
 interface UseGameCrudArgs {
   // teamData carries more fields at runtime than the strict Team interface
   // models; typed permissively to mirror the App.tsx provider.
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
+  activeTeamId: string | null | undefined;
 }
 
-export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) => {
+export const useGameCrud = ({ teamData, updateTeam, toast, activeTeamId }: UseGameCrudArgs) => {
+  const gameDoc = useCallback(
+    (id: string) =>
+      doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!, "games", id),
+    [activeTeamId]
+  );
+  const legacyGames = useCallback(
+    () => (teamData.games || []).filter((g: any) => !g?._sub),
+    [teamData.games]
+  );
+  const reportGameError = useCallback(
+    (op: string, err: unknown) => {
+      reportError(err, { source: `useGameCrud.${op}` });
+      toast.push({ kind: "error", title: "Save failed", message: "Check your connection and try again." });
+    },
+    [toast]
+  );
+
   const addGame = useCallback(
     (form: any) => {
       if (!form.date || !form.opponent.trim()) {
@@ -43,9 +70,13 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         teamScore: null,
         opponentScore: null,
       };
-      updateTeam({ games: [...teamData.games, newGame] });
+      // New games are created in the subcollection (slimmed, like every stored
+      // game). The team subscription rehydrates it into teamData.games.
+      setDoc(gameDoc(newGame.id), slimGame(newGame as any) as any).catch((err) =>
+        reportGameError("addGame", err)
+      );
     },
-    [teamData, updateTeam, toast]
+    [teamData.defenseSize, teamData.battingSize, teamData.positionLock, gameDoc, toast, reportGameError]
   );
 
   const updateGame = useCallback(
@@ -66,12 +97,22 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         }
       }
       if (Object.keys(safeUpdates).length === 0) return;
-      const next = teamData.games.map((g: any) =>
+      const game = (teamData.games || []).find((g: any) => g.id === gameId);
+      if (game?._sub) {
+        // slimGame slims any lineup/battingLineup/originalLineup present in the
+        // patch (it no-ops on keys it doesn't recognize), matching how the
+        // legacy array path is slimmed by persistTeam.
+        updateDoc(gameDoc(gameId), slimGame(safeUpdates) as any).catch((err) =>
+          reportGameError("updateGame", err)
+        );
+        return;
+      }
+      const next = legacyGames().map((g: any) =>
         g.id === gameId ? { ...g, ...safeUpdates } : g
       );
       updateTeam({ games: next });
     },
-    [teamData.games, updateTeam]
+    [teamData.games, legacyGames, gameDoc, updateTeam, reportGameError]
   );
 
   // Helper: push the game's pitch counts to each pitcher's player record.
@@ -109,27 +150,17 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
   // count toward rest just like a finalized game.
   const postponeGame = useCallback(
     (gameId: any) => {
-      const game = teamData.games.find((g: any) => g.id === gameId);
+      const game = (teamData.games || []).find((g: any) => g.id === gameId);
       if (!game) return;
       const nextPlayers = commitPitchCountsToPlayers(game);
-      const nextGames = teamData.games.map((g: any) =>
-        g.id === gameId
-          ? {
-              ...g,
-              status: "postponed",
-              teamScore: null,
-              opponentScore: null,
-            }
-          : g
-      );
-      const playersChanged = nextPlayers !== teamData.players;
-      if (playersChanged) {
-        updateTeam({ players: nextPlayers, games: nextGames });
-      } else {
-        updateTeam({ games: nextGames });
-      }
+      if (nextPlayers !== teamData.players) updateTeam({ players: nextPlayers });
+      updateGame(gameId, {
+        status: "postponed",
+        teamScore: null,
+        opponentScore: null,
+      });
     },
-    [teamData.games, teamData.players, commitPitchCountsToPlayers, updateTeam]
+    [teamData.games, teamData.players, commitPitchCountsToPlayers, updateGame, updateTeam]
   );
 
   // Finalize a game: set score, mark final, and trim/restore the lineup to
@@ -171,17 +202,11 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         }
       }
 
-      // Commit any pitch counts entered for this game to the player records.
+      // Commit any pitch counts entered for this game to the player records,
+      // then write the game updates (routed to its doc or the legacy array).
       const nextPlayers = commitPitchCountsToPlayers(game);
-      const playersChanged = nextPlayers !== teamData.players;
-      if (playersChanged) {
-        const nextGames = teamData.games.map((g: any) =>
-          g.id === gameId ? { ...g, ...gameUpdates } : g
-        );
-        updateTeam({ players: nextPlayers, games: nextGames });
-      } else {
-        updateGame(gameId, gameUpdates);
-      }
+      if (nextPlayers !== teamData.players) updateTeam({ players: nextPlayers });
+      updateGame(gameId, gameUpdates);
     },
     [teamData.games, teamData.players, updateGame, updateTeam, commitPitchCountsToPlayers]
   );
@@ -189,23 +214,44 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
   const deleteSavedGame = useCallback(
     (gameId: any) => {
       if (!window.confirm("Delete this game?")) return;
-      const prevGames = teamData.games;
-      const removed = prevGames.find((g: any) => g.id === gameId);
-      updateTeam({ games: prevGames.filter((g: any) => g.id !== gameId) });
+      const removed = (teamData.games || []).find((g: any) => g.id === gameId);
+      if (!removed) return;
+      if (removed._sub) {
+        const { _sub, ...restore } = removed;
+        deleteDoc(gameDoc(gameId)).catch((err) => reportGameError("deleteSavedGame", err));
+        toast.push({
+          kind: "success",
+          title: "Game deleted",
+          message: removed.opponent
+            ? `vs ${removed.opponent} — tap Undo to restore.`
+            : "Tap Undo to restore.",
+          duration: 10000,
+          action: {
+            label: "Undo",
+            onClick: () =>
+              setDoc(gameDoc(gameId), slimGame(restore) as any).catch((err) =>
+                reportGameError("deleteSavedGame.undo", err)
+              ),
+          },
+        } as any);
+        return;
+      }
+      const prevLegacy = legacyGames();
+      updateTeam({ games: prevLegacy.filter((g: any) => g.id !== gameId) });
       toast.push({
         kind: "success",
         title: "Game deleted",
-        message: removed?.opponent
+        message: removed.opponent
           ? `vs ${removed.opponent} — tap Undo to restore.`
           : "Tap Undo to restore.",
         duration: 10000,
         action: {
           label: "Undo",
-          onClick: () => updateTeam({ games: prevGames }),
+          onClick: () => updateTeam({ games: prevLegacy }),
         },
       } as any);
     },
-    [teamData.games, updateTeam, toast]
+    [teamData.games, legacyGames, gameDoc, updateTeam, toast, reportGameError]
   );
 
   return { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame };
