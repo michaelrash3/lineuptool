@@ -13,15 +13,15 @@ Quick reference for working on Lineup Tool. Pair this with `ARCHITECTURE.md` for
 
 ```bash
 npm install
-npm start              # dev server at http://localhost:3000
-npm test               # interactive Jest watch
-CI=true npm test -- --watchAll=false
-CI=true npm run build
+npm start              # Vite dev server at http://localhost:3000
+npm run test:watch     # Vitest watch mode
+npm test               # one-shot test run (vitest run)
+npm run build          # production Vite build into ./dist
 ```
 
-The CRA build runs with `CI=true` in PRs, which promotes warnings to errors. Run it locally before pushing if you've touched a lot of JSX — it catches the unused-import and exhaustive-deps cases that the watch-mode Jest output hides.
+CI runs the typecheck (`tsc --noEmit`), the test suite (`npm test`), and the production build (`npm run build`) on every push. Run them locally before pushing.
 
-There's no eslint config beyond `react-app`; the toolchain is plain Create React App. There's no formatter pinned, so match the surrounding style of whatever file you touch.
+There's no formatter pinned, so match the surrounding style of whatever file you touch.
 
 ## Testing
 

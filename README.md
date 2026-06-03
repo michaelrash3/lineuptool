@@ -6,27 +6,28 @@ A youth-baseball coaching app for head and assistant coaches: build inning-by-in
 
 ## Tech stack
 
-- **React 18** + **TypeScript** scaffold (Create React App)
+- **React 18** + **TypeScript**, built with **Vite**
 - **Firebase 12** — Auth + Firestore (Spark plan; no Cloud Storage — player photos are stored inline as data URLs)
 - **react-router-dom 6** for routing (tabs + public Tryouts Portal)
 - **Tailwind CSS 3** for styling, with the design tokens centralized in `src/styles.css`
 - **lucide-react** for iconography (see `src/icons.tsx`)
 - **jspdf** for lineup card PDF export
-- **react-scripts** test/build pipeline (Jest + JSDOM)
+- **Vitest** (jsdom) test runner
 
 ## Quickstart
 
 ```bash
 npm install
-npm start          # dev server on http://localhost:3000
-npm test           # interactive Jest watch mode
-CI=true npm test -- --watchAll=false   # one-shot CI run (188 tests today)
-npm run build      # production CRA build into ./build
+npm start          # Vite dev server on http://localhost:3000 (alias: npm run dev)
+npm run test:watch # Vitest watch mode
+npm test           # one-shot test run (vitest run)
+npm run build      # production Vite build into ./dist
+npm run preview    # serve the production build locally
 ```
 
 Firebase configuration is read at runtime from `src/firebase.ts`. For local development against a real project you need a populated `.env` (see `docs/firebase-webapp-configuration.md`); for emulator-driven testing follow `docs/firebase-rules-rollout.md`.
 
-Error monitoring is optional: set `REACT_APP_SENTRY_DSN` in the build environment to forward reported errors (ErrorBoundary catches + global handlers) to Sentry. When unset, no Sentry SDK is loaded and reporting just logs to the console.
+Error monitoring is optional: set `VITE_SENTRY_DSN` in the build environment to forward reported errors (ErrorBoundary catches + global handlers) to Sentry. When unset, no Sentry SDK is loaded and reporting just logs to the console.
 
 ## Documentation
 
