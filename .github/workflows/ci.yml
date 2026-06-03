@@ -1,8 +1,7 @@
-# Runs the app's typecheck, unit tests, and production build on pushes to
-# feature branches. Mirrors the local pre-push checks documented in
-# docs/CONTRIBUTING.md (CI=true promotes CRA warnings to errors). The existing
-# deploy-firestore-rules workflow stays separate — it only touches rules on
-# pushes to main.
+# Runs the app's typecheck, unit tests (Vitest), and production build (Vite) on
+# pushes to feature branches. Mirrors the local pre-push checks documented in
+# docs/CONTRIBUTING.md. The existing deploy-firestore-rules workflow stays
+# separate — it only touches rules on pushes to main.
 #
 # Trigger is push-only (no pull_request): for a same-repo branch, the push
 # event already runs CI and GitHub shows that check on any PR for the same head
@@ -56,7 +55,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Unit tests
-        run: npm test -- --watchAll=false
+        run: npm test
         env:
           CI: true
 

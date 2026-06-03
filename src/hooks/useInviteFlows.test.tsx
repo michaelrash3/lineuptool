@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { getDocs, setDoc } from "firebase/firestore";
 import { useInviteFlows } from "./useInviteFlows";
@@ -5,15 +6,17 @@ import { makeToast } from "../test-utils";
 
 // Stub the Firebase module so importing the hook doesn't initialize a real
 // app, and stub firestore so each test controls getDoc/getDocs/setDoc.
-jest.mock("../firebase", () => ({ appId: "lineup-app", db: {} }));
-jest.mock("firebase/firestore", () => ({
-  collection: jest.fn(() => ({})),
-  doc: jest.fn(() => ({})),
-  getDoc: jest.fn(),
-  getDocs: jest.fn(),
-  query: jest.fn(() => ({})),
-  setDoc: jest.fn(() => Promise.resolve()),
-  where: jest.fn(() => ({})),
+// vi.mock is hoisted above the imports above (Vitest transform), so these run
+// before useInviteFlows pulls in the real modules.
+vi.mock("../firebase", () => ({ appId: "lineup-app", db: {} }));
+vi.mock("firebase/firestore", () => ({
+  collection: vi.fn(() => ({})),
+  doc: vi.fn(() => ({})),
+  getDoc: vi.fn(),
+  getDocs: vi.fn(),
+  query: vi.fn(() => ({})),
+  setDoc: vi.fn(() => Promise.resolve()),
+  where: vi.fn(() => ({})),
 }));
 
 const mockGetDocs = getDocs as jest.Mock;

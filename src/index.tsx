@@ -9,7 +9,7 @@ import { initSentry } from "./utils/sentry";
 
 // Capture errors thrown outside React's render path (async, promise rejections).
 initErrorReporting();
-// Forward reported errors to Sentry when REACT_APP_SENTRY_DSN is configured
+// Forward reported errors to Sentry when VITE_SENTRY_DSN is configured
 // (no-ops and pulls in no SDK otherwise).
 initSentry();
 
@@ -28,7 +28,7 @@ root.render(
 // Development bundles change with every HMR push, so caching them just
 // gets in the way. See public/service-worker.js for the strategy.
 if (
-  process.env.NODE_ENV === "production" &&
+  import.meta.env.PROD &&
   typeof navigator !== "undefined" &&
   "serviceWorker" in navigator
 ) {

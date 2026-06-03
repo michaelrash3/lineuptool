@@ -23,7 +23,8 @@
             "node",
             "react",
             "react-dom",
-            "jest"
+            "jest",
+            "vite/client"
         ],
         "skipLibCheck": true,
         "isolatedModules": true,
