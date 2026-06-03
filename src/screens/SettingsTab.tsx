@@ -5,6 +5,7 @@ import {
   parseGameChangerPastSeasonCsv,
   suggestPlayerMatch,
   buildScheduleIcs,
+  normalizeTryoutDateLinks,
 } from "../utils/helpers";
 import { computeNextSeason } from "../constants/ui";
 import { useTeam, useUI, useToast } from "../contexts";
@@ -285,18 +286,57 @@ const TryoutsSettingsPanel = memo(
 );
 
 
+// One generated per-date link: its own URL, copy button, and QR. Each link
+// pins its OWN date (resolved server-side via the slug→date mapping), so a
+// coach can hand the right link/QR to the right tryout-date crowd.
+const TryoutDateLinkRow = memo(({ team, link, toast }: any) => {
+  const url =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/tryouts-portal/${link.slug}`
+      : "";
+  return (
+    <div className="bg-app border border-line rounded-lg p-2.5 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-black text-ink tabular-nums">
+          {link.date || "—"}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            if (navigator.clipboard && url) {
+              navigator.clipboard.writeText(url);
+              toast.push({ kind: "success", title: "Date link copied", message: link.date });
+            }
+          }}
+          className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+        >
+          Copy
+        </button>
+      </div>
+      <code className="block text-[11px] text-ink break-all font-mono bg-surface border border-line rounded-md p-2">
+        {url}
+      </code>
+      <QRCodeImg
+        value={url}
+        size={108}
+        downloadable
+        filename={`${team.name || "team"}-tryouts-${link.date || "qr"}`}
+      />
+    </div>
+  );
+});
+
 const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }: any) => {
   const [date, setDate] = useState("");
-  const slug = team.tryoutDateSlug || "";
-  const url =
-    slug && typeof window !== "undefined"
-      ? `${window.location.origin}/tryouts-portal/${slug}`
-      : "";
+  // Every persisted per-date link, newest last. normalizeTryoutDateLinks folds
+  // in legacy single-slug teams (tryoutDateSlug only) so they still render one
+  // row instead of vanishing.
+  const links = normalizeTryoutDateLinks(team);
 
   return (
     <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
       <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-        Tryout date link
+        Tryout date links
       </div>
       <div className="flex gap-2 items-end">
         <div className="flex-1">
@@ -311,7 +351,7 @@ const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }: any) 
               toast.push({ kind: "warn", title: "Enter a tryout date first" });
               return;
             }
-            toast.push({ kind: "success", title: "Date link generated" });
+            toast.push({ kind: "success", title: "Date link generated", message: date });
           }}
           className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -319,35 +359,28 @@ const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }: any) 
           Generate Link
         </button>
       </div>
-      {url ? (
+      {links.length > 0 ? (
         <>
-          <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">{url}</code>
-          <div className="flex items-start gap-3 flex-wrap">
-            <QRCodeImg              value={url}
-              size={120}
-              downloadable
-              filename={`${team.name || "team"}-tryouts-${date || "qr"}`}
-            />
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <button
-                type="button"
-                onClick={() => {
-                  if (navigator.clipboard) {
-                    navigator.clipboard.writeText(url);
-                    toast.push({ kind: "success", title: "Date link copied" });
-                  }
-                }}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-              >
-                Copy Date Link
-              </button>
-              <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                Scan to open the signup page on a phone — useful at the field.
-              </p>
-            </div>
+          <p className="text-[10px] font-medium text-ink-3 leading-snug">
+            Each link opens the signup form with that date pinned — scan or share
+            the one for the matching tryout date.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {links.map((link) => (
+              <TryoutDateLinkRow
+                key={link.slug}
+                team={team}
+                link={link}
+                toast={toast}
+              />
+            ))}
           </div>
         </>
-      ) : null}
+      ) : (
+        <p className="text-[10px] font-medium text-ink-3 leading-snug">
+          No date links yet. Pick a date above and generate one.
+        </p>
+      )}
     </div>
   );
 });
