@@ -37,6 +37,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Install firebase-tools
         run: npm install -g firebase-tools@latest
@@ -57,6 +61,12 @@ jobs:
             --only firestore \
             --project demo-rules-validate \
             "echo 'Firestore rules parse OK'"
+
+      # Gate the production deploy on the behavioral rule tests, not just a
+      # parse check — a syntactically valid but wrong rule (e.g. one that
+      # re-opens the join-code read leak) must never reach production.
+      - name: Firestore rules tests
+        run: npm run test:rules
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2

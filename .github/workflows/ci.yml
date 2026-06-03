@@ -64,3 +64,42 @@ jobs:
         run: npm run build
         env:
           CI: true
+
+  # Firestore security-rule tests against the emulator. Kept as a separate job
+  # (and out of `npm test`) so the fast jsdom unit suite never waits on the
+  # emulator/Java toolchain, and a rules regression is reported as its own
+  # distinct check.
+  rules-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Java (Firestore emulator runtime)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install firebase-tools
+        run: npm install -g firebase-tools@latest
+
+      # `test:rules` wraps Vitest in `firebase emulators:exec --only firestore`,
+      # which boots the emulator, runs firestore-tests/, and tears it down.
+      - name: Firestore rules tests
+        run: npm run test:rules
+        env:
+          CI: true
