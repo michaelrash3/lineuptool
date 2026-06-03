@@ -1,5 +1,5 @@
-# Runs the app's typecheck, unit tests (Vitest), and production build (Vite) on
-# pushes to feature branches. Mirrors the local pre-push checks documented in
+# Runs the app's typecheck, lint, unit tests (Vitest), and production build
+# (Vite) on pushes to feature branches. Mirrors the local pre-push checks in
 # docs/CONTRIBUTING.md. The existing deploy-firestore-rules workflow stays
 # separate — it only touches rules on pushes to main.
 #
@@ -53,6 +53,9 @@ jobs:
 
       - name: Typecheck
         run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
 
       - name: Unit tests
         run: npm test
