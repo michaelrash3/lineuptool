@@ -64,34 +64,50 @@ If/when these become contended (e.g. multiple assistants entering evals
 simultaneously), prefer per-entry subcollection docs (below) over array
 transactions.
 
-## Deferred: move high-growth data to subcollections
+## Migrating high-growth data to subcollections
 
-Full subcollection migration was **deliberately not** attempted in this pass: the
-signup arrays are read across many coach-side surfaces (TryoutsTab, InterestTab,
-tryout evaluations keyed by `tryoutSignupId`, accept-to-roster, CSV export), and
-moving them in one shot is a large, risky rewrite. The safest practical subset
-(rule hardening + atomic appends) shipped instead.
-
-Suggested phased plan, highest value first:
-
-### Phase 1 — public signups → subcollections (highest growth + public-write)
+### Phase 1 — public signups → subcollections ✅ SHIPPED
 
 ```
 artifacts/{appId}/public/data/teams/{teamId}/tryoutSignups/{signupId}
 artifacts/{appId}/public/data/teams/{teamId}/interestSignups/{leadId}
 ```
 
-- **Rules:** validate `create` of a single doc (field allowlist + length caps)
-  instead of array diffs; deny public `update`/`delete`. This is simpler and
-  stricter than the array-diff rules and removes the per-doc size pressure
-  entirely.
-- **Portal write:** `setDoc(doc(collection, signupId), payload)` instead of
-  `arrayUnion`.
-- **Coach read:** `onSnapshot(collection(...))` merged with any legacy
-  root-array entries for back-compat (see below).
-- **Back-compat:** keep reading legacy `team.tryoutSignups` /
-  `team.interestSignups` and present the union; a one-time per-team migration
-  can copy legacy array entries into the subcollection and then clear the array.
+Done in this change set:
+
+- **Rules:** the subcollection blocks in `firestore.rules` validate a single
+  `create` (key allowlist + per-field length caps, mirroring `SIGNUP_LIMITS`),
+  gate tryout creates on `tryoutsOpen` and interest creates on a `tryoutShareId`,
+  and restrict read/update/delete to team members. One doc per write removes the
+  array-replace/multi-add surface entirely. The legacy root-array
+  `appendsExactlyOne` rules are **kept** for rollout back-compat (a cached old
+  client still arrayUnion-ing onto the root doc keeps working).
+- **Portal write:** `TryoutsPortal` `setDoc`s a single signup doc into the
+  subcollection instead of `arrayUnion` onto the root team doc.
+- **Coach read:** `App.tsx` subscribes to both subcollections, tags each entry
+  with `_sub` (its collection name), and merges them with the legacy root arrays
+  into `effectiveTeam.tryoutSignups` / `interestSignups` (the value the rest of
+  the app consumes).
+- **Coach mutations:** `useTryoutFlows` routes every mutation by `_sub` — a
+  subcollection entry is edited/deleted as its own doc; a legacy root-array entry
+  is rewritten from the non-`_sub` slice only (so subcollection items are never
+  folded back into the root doc). `advanceSeason` clears the legacy array and
+  deletes the subcollection signup docs.
+- **Back-compat:** legacy root-array signups still render and remain editable;
+  no data move is forced.
+- **Tests:** `firestore-tests/rules.test.ts` (emulator) covers public
+  create-while-open, closed-denied, disallowed-field/oversized-field denials, and
+  member-only read/update/delete. `useTryoutFlows.test.tsx` and
+  `TryoutsPortal.test.tsx` cover the client routing.
+
+Remaining (optional) Phase 1 cleanup, not yet done:
+
+- **Legacy-array drain.** Teams created before this change still hold signups in
+  the root arrays. They keep working via the merge, but a one-time per-team
+  migration (copy each legacy array entry into the subcollection, then clear the
+  array) would fully retire the root arrays. Defer until needed; it's a
+  destructive bulk write best run as an admin script (cf.
+  `scripts/backfill-team-invites.mjs`).
 
 ### Phase 2 — evaluations → subcollection
 

@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
-  arrayUnion,
   collection,
   doc,
   getDocs,
   query,
-  updateDoc,
+  setDoc,
   where,
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
@@ -299,23 +298,39 @@ export const TryoutsPortal = () => {
 
     try {
       if (mode === "tryout") {
+        const id = `ts-${Math.random().toString(36).slice(2, 10)}`;
         const signup = {
-          id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+          id,
           submittedAt: new Date().toISOString(),
           status: "tryout",
           tryoutAge: tryoutAgeLabel,
           tryoutDate: pinnedDate,
           ...cleanForm,
         };
-        await updateDoc(
-          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-          { tryoutSignups: arrayUnion(signup) }
+        // Phase 1 migration: write to the tryoutSignups subcollection (one doc
+        // per signup) instead of arrayUnion onto the root team doc. Keeps the
+        // root doc under the 1 MiB cap and lets the rules validate a single
+        // create. The coach client reads this collection + any legacy array.
+        await setDoc(
+          doc(
+            db,
+            "artifacts",
+            appId,
+            "public",
+            "data",
+            "teams",
+            teamDocId!,
+            "tryoutSignups",
+            id
+          ),
+          signup
         );
       } else {
-        // Interest mode — separate array; smaller payload (no
-        // bats/throws/jersey-number/currentTeam-required at this stage).
+        // Interest mode — smaller payload (no bats/throws/jersey-number/
+        // currentTeam-required at this stage).
+        const id = `int-${Math.random().toString(36).slice(2, 10)}`;
         const lead = {
-          id: `int-${Math.random().toString(36).slice(2, 10)}`,
+          id,
           submittedAt: new Date().toISOString(),
           firstName: cleanForm.firstName,
           lastName: cleanForm.lastName,
@@ -327,9 +342,19 @@ export const TryoutsPortal = () => {
           comfortablePositions: form.comfortablePositions || [],
           notes: cleanForm.notes,
         };
-        await updateDoc(
-          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-          { interestSignups: arrayUnion(lead) }
+        await setDoc(
+          doc(
+            db,
+            "artifacts",
+            appId,
+            "public",
+            "data",
+            "teams",
+            teamDocId!,
+            "interestSignups",
+            id
+          ),
+          lead
         );
       }
       setPhase("sent");

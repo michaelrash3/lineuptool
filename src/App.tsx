@@ -21,6 +21,7 @@ import {
 } from "firebase/auth";
 import {
   doc,
+  collection,
   setDoc,
   getDoc,
   onSnapshot,
@@ -372,6 +373,12 @@ const TeamProvider = ({ children }: any) => {
   const [teams, setTeams] = useState<any[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<any>(null);
   const [teamData, setTeamData] = useState<any>(DEFAULT_TEAM_DATA);
+  // Phase 1 signup migration: public signups live in per-team subcollections.
+  // We subscribe to them separately and merge into teamData for reads (see the
+  // effectiveTeam memo). Each entry is tagged `_sub` with its collection name so
+  // coach mutations can route to the right doc.
+  const [subTryoutSignups, setSubTryoutSignups] = useState<any[]>([]);
+  const [subInterestSignups, setSubInterestSignups] = useState<any[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
@@ -706,6 +713,52 @@ const TeamProvider = ({ children }: any) => {
       unsub();
     };
   }, [activeTeamId, toast]);
+
+  // Subscribe to the public signup subcollections for the active team and tag
+  // each entry with its source collection (`_sub`). A permission/read error
+  // (e.g. an anonymous portal context, or pre-membership-propagation) just
+  // yields an empty list rather than surfacing an error — the legacy root-array
+  // signups still render.
+  useEffect(() => {
+    if (!activeTeamId) {
+      setSubTryoutSignups([]);
+      setSubInterestSignups([]);
+      return;
+    }
+    const base = ["artifacts", appId, "public", "data", "teams", activeTeamId] as const;
+    const mapDocs = (snap: any, kind: string) =>
+      snap.docs.map((d: any) => ({ ...d.data(), id: d.id, _sub: kind }));
+    const unsubT = onSnapshot(
+      collection(db, ...base, "tryoutSignups"),
+      (snap) => setSubTryoutSignups(mapDocs(snap, "tryoutSignups")),
+      () => setSubTryoutSignups([])
+    );
+    const unsubI = onSnapshot(
+      collection(db, ...base, "interestSignups"),
+      (snap) => setSubInterestSignups(mapDocs(snap, "interestSignups")),
+      () => setSubInterestSignups([])
+    );
+    return () => {
+      unsubT();
+      unsubI();
+    };
+  }, [activeTeamId]);
+
+  // Team as the rest of the app consumes it: the root team doc with the signup
+  // subcollections merged into the legacy arrays. Identity is preserved when
+  // there are no subcollection signups so existing memo deps don't churn.
+  const effectiveTeam = useMemo(() => {
+    if (subTryoutSignups.length === 0 && subInterestSignups.length === 0) {
+      return teamData;
+    }
+    const rawTryout = Array.isArray(teamData.tryoutSignups) ? teamData.tryoutSignups : [];
+    const rawInterest = Array.isArray(teamData.interestSignups) ? teamData.interestSignups : [];
+    return {
+      ...teamData,
+      tryoutSignups: [...rawTryout, ...subTryoutSignups],
+      interestSignups: [...rawInterest, ...subInterestSignups],
+    };
+  }, [teamData, subTryoutSignups, subInterestSignups]);
 
   // Helper: write a partial update to the active team document. Resolves to
   // `true` on success and `false` on failure so optimistic callers (updateTeam)
@@ -1202,7 +1255,8 @@ const TeamProvider = ({ children }: any) => {
     // afterward — they don't carry over to the new season regardless of
     // whether they were promoted (interest signups are untouched).
     const promotionSet = new Set(tryoutsToPromote);
-    const promotedPlayers = (teamData.tryoutSignups || [])
+    // Promote from the merged list so subcollection signups are eligible too.
+    const promotedPlayers = (effectiveTeam.tryoutSignups || [])
       .filter((s: any) => promotionSet.has(s.id))
       .map((s: any) => ({
         id: "p-" + Math.random().toString(36).slice(2, 10),
@@ -1238,6 +1292,25 @@ const TeamProvider = ({ children }: any) => {
       tryoutsOpen: false,
       lastSeasonAdvanceAt: nowIso,
     });
+    // Tryout signups don't carry into the new season. Clearing the root array
+    // above handles legacy entries; subcollection signups are deleted per-doc.
+    if (activeTeamId) {
+      for (const s of subTryoutSignups) {
+        deleteDoc(
+          doc(
+            db,
+            "artifacts",
+            appId,
+            "public",
+            "data",
+            "teams",
+            activeTeamId,
+            "tryoutSignups",
+            s.id
+          )
+        ).catch(() => {});
+      }
+    }
     toast.push({
       kind: "success",
       title: `Advanced to ${nextSeason}`,
@@ -1251,7 +1324,7 @@ const TeamProvider = ({ children }: any) => {
             } promoted to roster.`
           : ""),
     });
-  }, [teamData, updateTeam, toast]);
+  }, [teamData, effectiveTeam, subTryoutSignups, activeTeamId, updateTeam, toast]);
 
   const uploadLogo = useCallback(
     (e: any) => {
@@ -1415,7 +1488,7 @@ const TeamProvider = ({ children }: any) => {
     convertInterestToTryout,
     saveTryoutEvaluation,
     acceptTryout,
-  } = useTryoutFlows({ teamData, updateTeam, toast, user, activeTeamId });
+  } = useTryoutFlows({ teamData: effectiveTeam, updateTeam, toast, user, activeTeamId });
 
   const { setCoachRole } = useTeamMembership({ teamData, updateTeam, user });
   const {
@@ -1827,7 +1900,7 @@ const TeamProvider = ({ children }: any) => {
   // Memoized context value — only changes when actual data does
   const value = useMemo(
     () => ({
-      team: teamData,
+      team: effectiveTeam,
       teams,
       activeTeamId,
       user,
@@ -1909,7 +1982,7 @@ const TeamProvider = ({ children }: any) => {
       joinTeamByCode,
     }),
     [
-      teamData,
+      effectiveTeam,
       teams,
       activeTeamId,
       user,
