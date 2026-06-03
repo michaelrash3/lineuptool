@@ -3,6 +3,7 @@ import { Icons } from "../icons";
 import { formatGameDateDisplay } from "../utils/helpers";
 import { checkPitchEligibility, maxPitchesForAge } from "../lineupEngine";
 import { shareLineupCard } from "../lineup/lineupCard";
+import { applySwap, getPlayerAt, isCatcherBlocked } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { ScoreEditor } from "./ScheduleTab";
 
@@ -276,61 +277,28 @@ export const InGameView = memo(() => {
     performSwap({ type: "position", pos: "P" }, sourceSel);
   };
 
-  // Perform a swap and record undo info.
+  // Resolve from the roster whether a slim player is cleared to catch
+  // (C is opt-in: in comfortablePositions and not restricted).
+  const clearedToCatch = (slim: any) => {
+    const rp = (team?.players || []).find((p: any) => p.id === slim?.id);
+    const list = Array.isArray(rp?.comfortablePositions)
+      ? rp.comfortablePositions
+      : [];
+    const restr = Array.isArray(rp?.restrictions) ? rp.restrictions : [];
+    return list.includes("C") && !restr.includes("C");
+  };
+
+  // Perform a swap and record undo info. The pure transform + catcher-block
+  // check live in ../lineup/inGameSwap; this keeps the side effects.
   const performSwap = (firstSel: any, secondSel: any) => {
-    const undoEntry = {
-      inning: currentInning,
-      first: firstSel,
-      second: secondSel,
-    };
-    const lineupInning = { ...liveLineup[currentInning] };
-    lineupInning.BENCH = [...(lineupInning.BENCH || [])];
-
-    const getPlayer = (sel: any) => {
-      if (sel.type === "position") return lineupInning[sel.pos];
-      // bench
-      return lineupInning.BENCH.find((p: any) => p.id === sel.playerId);
-    };
-
-    const setPlayer = (sel: any, player: any) => {
-      if (sel.type === "position") {
-        lineupInning[sel.pos] = player;
-      } else {
-        // bench: replace the player at this id
-        lineupInning.BENCH = lineupInning.BENCH.map((p: any) =>
-          p.id === sel.playerId ? player : p
-        );
-      }
-    };
-
-    const playerA = getPlayer(firstSel);
-    const playerB = getPlayer(secondSel);
+    const liveInning = liveLineup[currentInning];
+    const playerA = getPlayerAt(liveInning, firstSel);
+    const playerB = getPlayerAt(liveInning, secondSel);
     if (!playerA || !playerB) {
       setInGameSelection(null);
       return;
     }
-
-    // Catcher is opt-in: never let a manual swap drop a player into C
-    // unless "C" is in their comfortable positions. Slots carry slim
-    // players, so resolve the roster player by id to read the list.
-    const clearedToCatch = (slim: any) => {
-      const rp = (team?.players || []).find((p: any) => p.id === slim?.id);
-      const list = Array.isArray(rp?.comfortablePositions)
-        ? rp.comfortablePositions
-        : [];
-      const restr = Array.isArray(rp?.restrictions) ? rp.restrictions : [];
-      return list.includes("C") && !restr.includes("C");
-    };
-    // After the swap, firstSel receives playerB and secondSel receives
-    // playerA — flag if either lands at C while not cleared.
-    const blocked =
-      (firstSel.type === "position" &&
-        firstSel.pos === "C" &&
-        !clearedToCatch(playerB)) ||
-      (secondSel.type === "position" &&
-        secondSel.pos === "C" &&
-        !clearedToCatch(playerA));
-    if (blocked) {
+    if (isCatcherBlocked(firstSel, secondSel, playerA, playerB, clearedToCatch)) {
       toast.push({
         kind: "error",
         title: "Not a catcher",
@@ -340,12 +308,19 @@ export const InGameView = memo(() => {
       setInGameSelection(null);
       return;
     }
-
-    setPlayer(firstSel, playerB);
-    setPlayer(secondSel, playerA);
-
-    patchInning(currentInning, lineupInning);
-    setInGameUndoStack([undoEntry, ...inGameUndoStack].slice(0, 5));
+    const next = applySwap(liveInning, firstSel, secondSel);
+    if (!next) {
+      setInGameSelection(null);
+      return;
+    }
+    patchInning(currentInning, next);
+    // Snapshot the pre-swap inning for undo. (Replaying the swap to undo it
+    // breaks for bench cells — the player's id moves off the bench — so we
+    // restore the prior inning state directly. applySwap is immutable, so
+    // liveInning is untouched and safe to keep.)
+    setInGameUndoStack(
+      [{ inning: currentInning, prevInning: liveInning }, ...inGameUndoStack].slice(0, 5)
+    );
     setInGameSelection(null);
     tapHaptic();
   };
@@ -374,32 +349,8 @@ export const InGameView = memo(() => {
   const undo = () => {
     if (inGameUndoStack.length === 0) return;
     const entry = inGameUndoStack[0];
-    // Re-do the swap (it's symmetric — swapping again undoes it)
-    const lineupInning = { ...liveLineup[entry.inning] };
-    lineupInning.BENCH = [...(lineupInning.BENCH || [])];
-
-    const getPlayer = (sel: any) => {
-      if (sel.type === "position") return lineupInning[sel.pos];
-      return lineupInning.BENCH.find((p: any) => p.id === sel.playerId);
-    };
-    const setPlayer = (sel: any, player: any) => {
-      if (sel.type === "position") lineupInning[sel.pos] = player;
-      else
-        lineupInning.BENCH = lineupInning.BENCH.map((p: any) =>
-          p.id === sel.playerId ? player : p
-        );
-    };
-
-    // To undo, we need to find the players who are CURRENTLY at the swap positions.
-    // But the player IDs in entry.first/second referred to the originals — after the
-    // swap, the locations now contain the OTHER player. So we just swap again.
-    const playerA = getPlayer(entry.first);
-    const playerB = getPlayer(entry.second);
-    if (playerA && playerB) {
-      setPlayer(entry.first, playerB);
-      setPlayer(entry.second, playerA);
-      patchInning(entry.inning, lineupInning);
-    }
+    // Restore the snapshot captured before the swap.
+    if (entry.prevInning) patchInning(entry.inning, entry.prevInning);
     setInGameUndoStack(inGameUndoStack.slice(1));
     setInGameSelection(null);
   };
