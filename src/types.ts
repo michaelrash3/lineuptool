@@ -145,6 +145,9 @@ export interface Team {
   primaryColor?: string;
   secondaryColor?: string;
   tertiaryColor?: string;
+  // Inline team logo as a data URL (Spark-plan: no Cloud Storage). Rendered on
+  // the lineup card and the public Tryouts Portal.
+  logoUrl?: string;
   players?: Player[];
   games?: Game[];
   // Tryouts (PR M)
