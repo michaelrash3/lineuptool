@@ -426,7 +426,7 @@ export const ScheduleTab = memo(() => {
           </div>
 
           
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-line">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-line">
               <div className="w-full col-span-2 md:col-span-1">
                 <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Date

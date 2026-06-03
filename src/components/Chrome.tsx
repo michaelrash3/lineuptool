@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
@@ -14,6 +14,8 @@ const ThemeToggle = () => {
     <button
       type="button"
       onClick={toggle}
+      role="switch"
+      aria-checked={isDark}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Light mode" : "Dark mode"}
       className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
@@ -120,6 +122,37 @@ export const LoginScreen = ({
     </p>
   </div>
 );
+
+// Thin banner shown when the device drops offline. Firestore's IndexedDB
+// persistence keeps the app working — this just tells the coach their edits
+// will sync once they're back (e.g. patchy connectivity at the field). The
+// service worker already serves the cached shell, so the app itself stays up.
+export const OfflineBanner = memo(() => {
+  const [offline, setOffline] = useState(
+    typeof navigator !== "undefined" && navigator.onLine === false
+  );
+  useEffect(() => {
+    const goOnline = () => setOffline(false);
+    const goOffline = () => setOffline(true);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+  if (!offline) return null;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="print:hidden bg-amber-500 text-amber-950 text-xs font-black uppercase tracking-widest text-center px-4 py-1.5 flex items-center justify-center gap-2"
+    >
+      <Icons.Cloud className="w-3.5 h-3.5" />
+      You're offline — changes will sync when you reconnect
+    </div>
+  );
+});
 
 export const AppHeader = memo(() => {
   const {
@@ -395,6 +428,9 @@ export const AppHeader = memo(() => {
           onClick={() => !signingOut && setSignOutOpen(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sign-out-title"
             className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -403,7 +439,10 @@ export const AppHeader = memo(() => {
               style={{ backgroundColor: "var(--team-primary)" }}
             />
             <div className="p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
+              <h3
+                id="sign-out-title"
+                className="text-lg font-black uppercase tracking-tight text-ink mb-1"
+              >
                 Sign out?
               </h3>
               <p className="text-sm text-ink-2 font-medium mb-5">
@@ -445,7 +484,10 @@ export const AppHeader = memo(() => {
 
 export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => {
   return (
-    <div className="bg-surface border-b border-line print:hidden relative z-10 shadow-sm">
+    <nav
+      aria-label="Primary"
+      className="bg-surface border-b border-line print:hidden relative z-10 shadow-sm"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
           {navButtons.map((btn: any) => {
@@ -460,6 +502,7 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => 
               <button
                 key={btn.id}
                 onClick={() => setActiveTab(btn.id)}
+                aria-current={isActive ? "page" : undefined}
                 className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
                   isActive
                     ? "shadow-sm"
@@ -481,6 +524,6 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => 
           })}
         </div>
       </div>
-    </div>
+    </nav>
   );
 });
