@@ -47,16 +47,26 @@ export const LineupGrid = memo(
         <div className="sm:hidden print:hidden">
           {/* Inning tab strip */}
           <div className="px-3 pt-3 pb-2 bg-surface border-b border-line/50">
-            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-              <span className="t-eyebrow mr-1 shrink-0">Inning</span>
+            <div
+              role="tablist"
+              aria-label="Select inning to view"
+              className="flex items-center gap-2 overflow-x-auto scrollbar-hide"
+            >
+              <span className="t-eyebrow mr-1 shrink-0" aria-hidden="true">
+                Inning
+              </span>
               {lineup.map((_: any, idx: any) => {
                 const isActive = idx === safeMobileInning;
                 return (
                   <button
                     key={`m-inn-${idx}`}
                     type="button"
+                    role="tab"
+                    id={`inning-tab-${idx}`}
+                    aria-selected={isActive}
+                    aria-controls="inning-panel"
+                    aria-label={`Inning ${idx + 1}`}
                     onClick={() => setMobileInning(idx)}
-                    aria-pressed={isActive}
                     className="px-3.5 py-2 t-button rounded-lg transition-all shrink-0 border"
                     style={
                       isActive
@@ -81,7 +91,12 @@ export const LineupGrid = memo(
           </div>
 
           {/* Position rows for the selected inning */}
-          <div className="px-3 py-3 bg-surface">
+          <div
+            id="inning-panel"
+            role="tabpanel"
+            aria-label={`Inning ${safeMobileInning + 1} lineup`}
+            className="px-3 py-3 bg-surface"
+          >
             <div className="flex flex-col gap-2">
               {positions.map((pos: any) => {
                 const pAtPos = inn?.[pos];
@@ -146,7 +161,7 @@ export const LineupGrid = memo(
                           safeCellClick(safeMobileInning, "BENCH", p)
                         }
                         aria-pressed={sel}
-                        className={`px-3 py-2 text-sm font-bold border rounded-lg transition-all min-h-[40px] ${
+                        className={`px-3 py-2 text-sm font-bold border rounded-lg transition-all min-h-[44px] ${
                           sel
                             ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md"
                             : "bg-surface border-line text-ink active:bg-app"

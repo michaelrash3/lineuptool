@@ -1172,7 +1172,7 @@ export const HomeTab = memo(() => {
             </div>
           )}
 
-          <div className="grid grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
             {[
               { k: "Runs For", v: seasonHero.runsFor },
               { k: "Against", v: seasonHero.runsAgainst },

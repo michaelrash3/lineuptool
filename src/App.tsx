@@ -55,6 +55,7 @@ import {
   LoginScreen,
   AppHeader,
   TabBarNav,
+  OfflineBanner,
 } from "./components/Chrome";
 import {
   PlayerProfileModal,
@@ -2667,6 +2668,7 @@ const MainShell = () => {
 
   return (
     <div className="min-h-screen bg-app print:bg-surface">
+      <OfflineBanner />
       <AppHeader />
       <TabBarNav
         activeTab={activeTab}

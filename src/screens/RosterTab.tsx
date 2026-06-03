@@ -338,7 +338,7 @@ export const RosterTab = memo(() => {
                     type="button"
                     onClick={() => toggleFilter(chip.id)}
                     aria-pressed={isActive}
-                    className="t-button px-3 py-1.5 rounded-full border transition-all"
+                    className="t-button px-3 py-1.5 min-h-[44px] inline-flex items-center rounded-full border transition-all"
                     style={
                       isActive
                         ? {
@@ -361,7 +361,7 @@ export const RosterTab = memo(() => {
                 <button
                   type="button"
                   onClick={clearAll}
-                  className="t-button px-3 py-1.5 rounded-full text-ink-3 hover:text-ink hover:bg-surface"
+                  className="t-button px-3 py-1.5 min-h-[44px] inline-flex items-center rounded-full text-ink-3 hover:text-ink hover:bg-surface"
                 >
                   Clear All
                 </button>
