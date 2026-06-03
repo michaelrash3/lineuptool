@@ -19,7 +19,6 @@ vi.mock("firebase/firestore", () => ({
   arrayUnion: vi.fn((v) => ({ __arrayUnion: v })),
 }));
 
-// eslint-disable-next-line import/first
 import { TryoutsPortal } from "./TryoutsPortal";
 
 const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
