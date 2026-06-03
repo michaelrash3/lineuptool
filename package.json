@@ -1,11 +1,15 @@
 {
-  "name": "react-typescript",
+  "name": "coachs-card",
   "version": "1.0.0",
-  "description": "React and TypeScript example starter project",
+  "description": "Youth baseball lineup, roster, schedule, and tryout management app",
   "keywords": [
-    "typescript",
+    "baseball",
+    "lineup",
+    "roster",
+    "coaching",
+    "tryouts",
     "react",
-    "starter"
+    "typescript"
   ],
   "main": "src/index.tsx",
   "dependencies": {
@@ -20,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^14.3.1",
     "@testing-library/user-event": "^14.6.1",
@@ -47,7 +52,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run --config firestore-tests/vitest.config.ts\""
   },
   "engines": {
     "node": ">=20"

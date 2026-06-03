@@ -43,6 +43,25 @@ service cloud.firestore {
         return key in resource.data ? resource.data[key].size() : 0;
       }
 
+      // The existing signup array (or an empty list when the field is absent).
+      function prevSignups(key) {
+        return key in resource.data ? resource.data[key] : [];
+      }
+
+      // True when the write appends EXACTLY ONE entry to `key` and leaves every
+      // prior entry in place:
+      //   - size grows by exactly one (no multi-add, no shrink), and
+      //   - every previous element is still present (no remove/replace), and
+      //   - the array never exceeds the DoS ceiling.
+      // toSet().hasAll(prev) is the documented append-only pattern: a public
+      // caller can arrayUnion a single new signup but can't drop or rewrite the
+      // other families' entries already on the doc.
+      function appendsExactlyOne(key) {
+        return request.resource.data[key].size() == prevSignupCount(key) + 1
+          && request.resource.data[key].size() <= MAX_SIGNUPS()
+          && request.resource.data[key].toSet().hasAll(prevSignups(key).toSet());
+      }
+
       function ownerIdUnchanged() {
         return !changedKeys().hasAny(['ownerId']);
       }
@@ -125,8 +144,14 @@ service cloud.firestore {
       // ownerId is set to their UID.
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
 
-      // Team join code lookup/read path.
-      allow read: if isSignedIn() && resource.data.joinCode != null;
+      // NOTE: there is deliberately NO "read if a join code exists" rule here.
+      // The old `allow read: if isSignedIn() && resource.data.joinCode != null;`
+      // leaked the ENTIRE private team doc (roster, evaluations, every family's
+      // signup PII, member UIDs, ownerId) to any signed-in user who merely knew
+      // a code existed. Join-code resolution now goes through the sanitized
+      // /teamInvites/{code} lookup doc below, which exposes only teamId +
+      // teamName; the constrained self-join update rule still lets the invited
+      // user add themselves to this team doc without reading it.
 
       // Join-code self-join path. Caller may only modify members + coachRoles,
       // can never shrink the members list, and must add themselves as a
@@ -153,29 +178,27 @@ service cloud.firestore {
       // These writes don't require read access — rules evaluate resource.data
       // server-side — so signups continue to work.
       //
-      // Growth caps: hasOnly() alone would let an anonymous caller REPLACE the
-      // whole array with an arbitrarily large payload (cost/DoS abuse). Firestore
-      // rules can't validate individual arrayUnion elements, but they can bound
-      // the array: each write may add at most one entry and the list may never
-      // exceed MAX_SIGNUPS. prevSignupCount() defaults to 0 when the field is
-      // absent (first-ever signup), so the first append is allowed.
+      // Growth + integrity caps: a `hasOnly()` + size bound alone would still
+      // let an anonymous caller REPLACE the array with a same-or-smaller payload
+      // (dropping or rewriting other families' entries). appendsExactlyOne()
+      // requires the size to grow by exactly one AND every prior entry to
+      // survive (toSet().hasAll(prev)), so a public write can only ever tack on
+      // a single new signup — never remove, replace, or multi-add. The empty
+      // prev set (first-ever signup) trivially satisfies hasAll, so the first
+      // append is allowed.
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['tryoutSignups'])
-                    && request.resource.data.tryoutSignups.size()
-                         <= prevSignupCount('tryoutSignups') + 1
-                    && request.resource.data.tryoutSignups.size() <= MAX_SIGNUPS();
+                    && appendsExactlyOne('tryoutSignups');
 
       allow update: if isSignedIn()
                     && resource.data.tryoutShareId != null
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
                          .hasOnly(['interestSignups'])
-                    && request.resource.data.interestSignups.size()
-                         <= prevSignupCount('interestSignups') + 1
-                    && request.resource.data.interestSignups.size() <= MAX_SIGNUPS();
+                    && appendsExactlyOne('interestSignups');
     }
 
     // Sanitized public mirror of a team, maintained by the coach client
@@ -199,6 +222,35 @@ service cloud.firestore {
       allow read: if request.auth != null;
       // Only a member of the real team can create/update/delete the mirror.
       allow write: if isTeamMember();
+    }
+
+    // Sanitized invite lookup, keyed by join code. Replaces the old "read the
+    // whole team doc if it has a join code" rule: a code-holder resolves the
+    // code to a teamId + teamName here (nothing private), then performs the
+    // constrained self-join update against the real team doc. Maintained by the
+    // coach client (see regenerateJoinCode / invite backfill in App.tsx).
+    match /artifacts/{appId}/public/data/teamInvites/{code} {
+      function teamData(teamId) {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isMemberOfTeam(teamId) {
+        return request.auth != null
+          && (teamData(teamId).ownerId == request.auth.uid
+              || (teamData(teamId).members != null
+                  && request.auth.uid in teamData(teamId).members));
+      }
+
+      // Any signed-in user may read an invite to resolve a join code. The doc
+      // is sanitized — only teamId, teamName, and updatedAt.
+      allow read: if request.auth != null;
+      // Only a member of the referenced team may create/update the invite, and
+      // the teamId it points at must be one the caller actually belongs to (so
+      // a code can't be squatted to redirect joiners at someone else's team).
+      allow create, update: if request.auth != null
+        && request.resource.data.teamId is string
+        && isMemberOfTeam(request.resource.data.teamId);
+      // Code rotation deletes the stale invite; limited to a team member.
+      allow delete: if request.auth != null && isMemberOfTeam(resource.data.teamId);
     }
   }
 }

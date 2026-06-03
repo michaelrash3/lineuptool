@@ -17,6 +17,7 @@ import {
   isValidEmail,
   isSafeCssColor,
   isSafeImageUrl,
+  resolveTryoutDateForSlug,
 } from "../utils/helpers";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -192,9 +193,15 @@ export const TryoutsPortal = () => {
           "teamPublic"
         );
         // Standing share link → interest survey (always valid).
-        // Per-date link → tryout signup (gated on tryoutsOpen).
-        const [shareSnap, dateSnap] = await Promise.all([
+        // Per-date link → tryout signup (gated on tryoutsOpen). New teams
+        // expose every per-date slug in `tryoutDateSlugs` (array-contains
+        // lookup); legacy teams only carried a single `tryoutDateSlug`, so we
+        // fall back to the equality query for them.
+        const [shareSnap, dateArraySnap, legacyDateSnap] = await Promise.all([
           getDocs(query(mirrorRef, where("tryoutShareId", "==", linkSlug))),
+          getDocs(
+            query(mirrorRef, where("tryoutDateSlugs", "array-contains", linkSlug))
+          ),
           getDocs(query(mirrorRef, where("tryoutDateSlug", "==", linkSlug))),
         ]);
         if (cancelled) return;
@@ -210,6 +217,7 @@ export const TryoutsPortal = () => {
           return;
         }
 
+        const dateSnap = !dateArraySnap.empty ? dateArraySnap : legacyDateSnap;
         if (!dateSnap.empty) {
           const teamDoc = dateSnap.docs[0];
           const data = teamDoc.data();
@@ -218,12 +226,9 @@ export const TryoutsPortal = () => {
             setPhase("error");
             return;
           }
-          // Date is pinned to the slug's matched date — no chooser.
-          const configuredDates = Array.isArray(data.tryoutDates)
-            ? data.tryoutDates.filter(Boolean)
-            : [];
-          const matched = configuredDates.find((d) => String(d).trim() === linkSlug);
-          setPinnedDate(matched || configuredDates[0] || "");
+          // Date is pinned to the slug via the explicit mapping (with a legacy
+          // fallback for teams that predate it) — never a parent-picked chooser.
+          setPinnedDate(resolveTryoutDateForSlug(data, linkSlug));
           setTeam(data);
           setTeamDocId(teamDoc.id);
           applyThemeColors(data);

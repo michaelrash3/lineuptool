@@ -25,6 +25,8 @@ import {
   getDoc,
   onSnapshot,
   deleteDoc,
+  updateDoc,
+  arrayRemove,
 } from "firebase/firestore";
 import { Icons } from "./icons";
 import { auth, db, appId } from "./firebase";
@@ -71,6 +73,7 @@ import {
   isReturning,
   isGameFinalized,
   buildPublicMirror,
+  revertOptimisticUpdate,
   estimateDocSizeBytes,
   FIRESTORE_DOC_LIMIT_BYTES,
   DOC_SIZE_WARN_RATIO,
@@ -390,6 +393,11 @@ const TeamProvider = ({ children }: any) => {
   // JSON of the last public-mirror projection we wrote, so we only re-upsert
   // the sanitized teamPublic doc when a mirrored field actually changes.
   const lastMirrorRef = useRef<string>("");
+  // One-shot guard so the "public page may be stale" warning fires once per
+  // failure streak rather than on every team change while the mirror is down.
+  const mirrorWarnedRef = useRef(false);
+  // True when the most recent mirror write failed (public tryout page stale).
+  const [mirrorStale, setMirrorStale] = useState(false);
   // Per-session set of team ids we've already attempted to auto-claim.
   // Prevents the legacy-owner migration effect from re-firing every time
   // Firestore emits a fresh snapshot before ownerId is reflected back.
@@ -699,10 +707,13 @@ const TeamProvider = ({ children }: any) => {
     };
   }, [activeTeamId, toast]);
 
-  // Helper: write a partial update to the active team document
+  // Helper: write a partial update to the active team document. Resolves to
+  // `true` on success and `false` on failure so optimistic callers (updateTeam)
+  // can roll back. Pass `{ silent: true }` to suppress the built-in failure
+  // toast when the caller surfaces its own (e.g. a rollback + retry message).
   const persistTeam = useCallback(
-    async (updates: any) => {
-      if (!activeTeamId) return;
+    async (updates: any, opts?: { silent?: boolean }): Promise<boolean> => {
+      if (!activeTeamId) return false;
       // Slim any games being persisted — strip embedded player objects down
       // to {id, name, number} to stay under the Firestore 1MB document limit.
       let toPersist = updates;
@@ -755,9 +766,13 @@ const TeamProvider = ({ children }: any) => {
         await setDoc(ref, toPersist, { merge: true });
         setSyncStatus("Synced");
         setTimeout(() => setSyncStatus(""), 1500);
+        return true;
       } catch (e: any) {
         setSyncStatus("");
-        toast.push({ kind: "error", title: "Save failed", message: e.message });
+        if (!opts?.silent) {
+          toast.push({ kind: "error", title: "Save failed", message: e.message });
+        }
+        return false;
       }
     },
     [activeTeamId, toast]
@@ -769,41 +784,144 @@ const TeamProvider = ({ children }: any) => {
     persistTeamRef.current = persistTeam;
   }, [persistTeam]);
 
-  // Keep the sanitized public mirror in sync with the active team. Only a
-  // member ever runs this (it's their active team), which satisfies the
-  // teamPublic write rule. It also backfills the mirror for teams created
-  // before this feature: the first snapshot writes it. Writing a sibling doc
-  // doesn't retrigger the team subscription, so there's no loop, and the JSON
-  // guard skips writes when no mirrored field changed.
+  // Write the sanitized public mirror for the active team. Only a member ever
+  // runs this (it's their active team), which satisfies the teamPublic write
+  // rule. Reads the freshest team via teamDataRef so the callback stays stable.
+  // Returns whether the write succeeded (or was a no-op). `force` bypasses the
+  // unchanged-projection guard for a manual resync.
+  const writePublicMirror = useCallback(
+    async (opts?: { force?: boolean }): Promise<boolean> => {
+      const team = teamDataRef.current;
+      if (!activeTeamId || !team) return false;
+      const mirror = buildPublicMirror(team);
+      const key = activeTeamId + ":" + JSON.stringify(mirror);
+      if (!opts?.force && key === lastMirrorRef.current) return true;
+      const ref = doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "teamPublic",
+        activeTeamId
+      );
+      try {
+        await setDoc(ref, { ...mirror, updatedAt: Date.now() }, { merge: true });
+        lastMirrorRef.current = key;
+        setMirrorStale(false);
+        return true;
+      } catch (err) {
+        // A failed mirror write shouldn't disrupt the app, but the coach's
+        // public tryout page is now stale — surface it (below) and retry on the
+        // next change by clearing the dedupe key.
+        lastMirrorRef.current = "";
+        setMirrorStale(true);
+        return false;
+      }
+    },
+    [activeTeamId]
+  );
+
+  // Manual repair path for a stale public mirror (wired into Settings →
+  // Tryouts). Forces a fresh write even if the projection looks unchanged.
+  const resyncPublicMirror = useCallback(async (): Promise<boolean> => {
+    mirrorWarnedRef.current = false;
+    const ok = await writePublicMirror({ force: true });
+    toast.push(
+      ok
+        ? { kind: "success", title: "Public tryout page resynced" }
+        : {
+            kind: "error",
+            title: "Resync failed",
+            message: "Couldn't update the public page. Check your connection and try again.",
+          }
+    );
+    return ok;
+  }, [writePublicMirror, toast]);
+
+  // Keep the public mirror in sync as the team changes. Backfills the mirror
+  // for teams created before this feature (first snapshot writes it). Writing a
+  // sibling doc doesn't retrigger the team subscription, so there's no loop. A
+  // persistent failure raises one non-blocking warning toast with a Resync
+  // action so coaches know their public page may be out of date.
   useEffect(() => {
     if (!activeTeamId || !teamData) return;
-    const mirror = buildPublicMirror(teamData);
-    const key = activeTeamId + ":" + JSON.stringify(mirror);
-    if (key === lastMirrorRef.current) return;
-    lastMirrorRef.current = key;
+    void writePublicMirror().then((ok) => {
+      if (ok || mirrorWarnedRef.current) return;
+      mirrorWarnedRef.current = true;
+      toast.push({
+        kind: "warn",
+        title: "Public tryout page may be out of date",
+        message:
+          "We couldn't update the page parents see. Your private data is safe; the public copy just didn't refresh.",
+        duration: 0,
+        action: { label: "Resync", onClick: () => void resyncPublicMirror() },
+      });
+    });
+  }, [activeTeamId, teamData, writePublicMirror, resyncPublicMirror, toast]);
+
+  // Backfill the sanitized invite-lookup doc for the active team. Teams created
+  // before the /teamInvites path existed still carry their joinCode on the team
+  // doc but have no lookup doc, so a code-holder couldn't resolve it (the full
+  // team read is no longer permitted). The active coach is a member, so this
+  // idempotent write satisfies the teamInvites create rule and lets joins work
+  // for legacy teams. Guarded so it fires once per (team, code).
+  const lastInviteBackfillRef = useRef("");
+  useEffect(() => {
+    if (!activeTeamId || !user) return;
+    const code = String(teamData?.joinCode || "").trim().toUpperCase();
+    if (!code) return;
+    const key = `${activeTeamId}:${code}`;
+    if (lastInviteBackfillRef.current === key) return;
+    lastInviteBackfillRef.current = key;
     const ref = doc(
       db,
       "artifacts",
       appId,
       "public",
       "data",
-      "teamPublic",
-      activeTeamId
+      "teamInvites",
+      code
     );
-    setDoc(ref, { ...mirror, updatedAt: Date.now() }, { merge: true }).catch(
-      () => {
-        // A failed mirror write shouldn't disrupt the app; retry on next change.
-        lastMirrorRef.current = "";
-      }
-    );
-  }, [activeTeamId, teamData]);
+    setDoc(ref, {
+      teamId: activeTeamId,
+      teamName: teamData?.name || "",
+      updatedAt: Date.now(),
+    }).catch(() => {
+      // Retry on next change; a missing invite doc only blocks NEW joiners.
+      lastInviteBackfillRef.current = "";
+    });
+  }, [activeTeamId, user, teamData?.joinCode, teamData?.name]);
 
   const updateTeam = useCallback(
     (updates: any) => {
-      setTeamData((prev: any) => ({ ...prev, ...updates })); // optimistic
-      persistTeam(updates);
+      // Snapshot the prior value of every key we're about to optimistically
+      // overwrite so a failed save can be rolled back. teamDataRef holds the
+      // freshest committed state without widening this callback's deps.
+      const prev = teamDataRef.current || {};
+      const prevValues: Record<string, unknown> = {};
+      for (const k of Object.keys(updates)) prevValues[k] = prev[k];
+
+      setTeamData((p: any) => ({ ...p, ...updates })); // optimistic
+      void persistTeam(updates, { silent: true }).then((ok) => {
+        if (ok) return;
+        // Persistence failed: revert the optimistic patch (but only for keys
+        // the user hasn't since changed — see revertOptimisticUpdate) so the UI
+        // never silently retains state Firestore rejected, and offer a retry.
+        setTeamData((cur: any) => revertOptimisticUpdate(cur, updates, prevValues));
+        toast.push({
+          kind: "error",
+          title: "Save failed — change reverted",
+          message: "We couldn't save that change. Check your connection and try again.",
+          duration: 0,
+          action: {
+            label: "Retry",
+            onClick: () => updateTeam(updates),
+          },
+        });
+      });
     },
-    [persistTeam]
+    [persistTeam, toast]
   );
 
   // Auto-correct defenseSize on age/league change. BATCHED into a single write.
@@ -1242,12 +1360,10 @@ const TeamProvider = ({ children }: any) => {
         "teams",
         activeTeamId
       );
-      const snap = await getDoc(teamRef);
-      if (snap.exists()) {
-        const data = snap.data();
-        const members = (data.members || []).filter((u: any) => u !== user.uid);
-        await setDoc(teamRef, { members }, { merge: true });
-      }
+      // Atomic self-removal: arrayRemove drops only this user without a
+      // read-modify-write of the whole members array, so a concurrent join
+      // can't be clobbered. The selfRemoveOnly() rule permits exactly this.
+      await updateDoc(teamRef, { members: arrayRemove(user.uid) });
       const remaining = teams.filter((t) => t.id !== activeTeamId);
       const userRef = doc(
         db,
@@ -1308,6 +1424,8 @@ const TeamProvider = ({ children }: any) => {
   } = useInviteFlows({
     user,
     teams,
+    activeTeamId,
+    teamData,
     updateTeam,
     switchTeam,
     toast,
@@ -1726,6 +1844,9 @@ const TeamProvider = ({ children }: any) => {
       viewAsRole,
       setViewAsRole,
       uiBridge, // private — used by UIProvider
+      // public mirror sync status + manual repair (Settings → Tryouts)
+      mirrorStale,
+      resyncPublicMirror,
       // actions
       updateTeam,
       addPlayer,
@@ -1804,6 +1925,8 @@ const TeamProvider = ({ children }: any) => {
       realRole,
       viewAsRole,
       setViewAsRole,
+      mirrorStale,
+      resyncPublicMirror,
       updateTeam,
       addPlayer,
       updatePlayer,
