@@ -138,9 +138,10 @@ const drawAvatar = (
   ctx.restore();
 };
 
-// Internal canvas-build args carry the preloaded photo map.
+// Internal canvas-build args carry the preloaded photo map + team logo.
 interface CanvasArgs extends RenderArgs {
   photos: Map<string, HTMLImageElement>;
+  logo?: HTMLImageElement | null;
 }
 
 const buildLineupCanvasInternal = ({
@@ -148,6 +149,7 @@ const buildLineupCanvasInternal = ({
   team,
   formatDate,
   photos,
+  logo,
 }: CanvasArgs): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
@@ -265,18 +267,42 @@ const buildLineupCanvasInternal = ({
   ctx.fillStyle = "#f8fafc";
   ctx.fillRect(0, 0, W, H);
 
+  // ---- Watermark: faint full-card team logo behind all content ----
+  if (logo && logo.width > 0 && logo.height > 0) {
+    const wmMax = Math.min(W, H) * 0.6;
+    const r = Math.min(wmMax / logo.width, wmMax / logo.height);
+    const lw = logo.width * r;
+    const lh = logo.height * r;
+    ctx.save();
+    ctx.globalAlpha = 0.05;
+    ctx.drawImage(logo, (W - lw) / 2, (H - lh) / 2, lw, lh);
+    ctx.restore();
+  }
+
   // ---- Header band (team color) ----
   const primary = team?.primaryColor || "#1e293b";
   const tertiary = team?.tertiaryColor || "#ffffff";
   ctx.fillStyle = primary;
   ctx.fillRect(0, 0, W, headerH);
+
+  // Team logo at the header-left; the title block shifts right to make room.
+  let headerTextX = PAD;
+  if (logo && logo.width > 0 && logo.height > 0) {
+    const box = 64;
+    const r = Math.min(box / logo.width, box / logo.height);
+    const lw = logo.width * r;
+    const lh = logo.height * r;
+    ctx.drawImage(logo, PAD, (headerH - lh) / 2, lw, lh);
+    headerTextX = PAD + lw + 14;
+  }
+
   ctx.fillStyle = tertiary;
   ctx.font = "900 22px system-ui, -apple-system, Segoe UI, sans-serif";
   ctx.textBaseline = "top";
-  ctx.fillText((team?.name || "TEAM").toUpperCase(), PAD, 18);
+  ctx.fillText((team?.name || "TEAM").toUpperCase(), headerTextX, 18);
   ctx.font = "700 14px system-ui, -apple-system, Segoe UI, sans-serif";
   const opp = (game.opponent || "OPPONENT").toUpperCase();
-  ctx.fillText(`VS ${opp}`, PAD, 48);
+  ctx.fillText(`VS ${opp}`, headerTextX, 48);
 
   // Right column: season (top), record (middle, bold), date•time (bottom).
   // Each line is right-aligned against the header's right padding.
@@ -483,8 +509,13 @@ export const buildLineupCanvas = async ({
   team,
   formatDate,
 }: RenderArgs): Promise<HTMLCanvasElement> => {
-  const photos = await preloadPhotos(game, team);
-  return buildLineupCanvasInternal({ game, team, formatDate, photos });
+  // Player photos + the team logo load in parallel (both best-effort: a failed
+  // load resolves null and is simply skipped).
+  const [photos, logo] = await Promise.all([
+    preloadPhotos(game, team),
+    team?.logoUrl ? loadImage(team.logoUrl) : Promise.resolve(null),
+  ]);
+  return buildLineupCanvasInternal({ game, team, formatDate, photos, logo });
 };
 
 // PNG blob wrapper — canonical "render" for image-share flows.
