@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, setDoc, updateDoc } from "firebase/firestore";
 import { appId, db } from "../firebase";
-import { blankStats } from "../utils/helpers";
+import { blankStats, slimGame } from "../utils/helpers";
 import { reportError } from "../utils/errorReporter";
 import type { ToastContextValue } from "../types";
 
@@ -31,6 +31,19 @@ export const usePlayerCrud = ({
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, "evaluationEvents", eventId),
         { grades }
       ).catch((err) => reportError(err, { source: "usePlayerCrud.writeSubEventGrades" }));
+    },
+    [activeTeamId]
+  );
+  // Overwrite a games-subcollection doc (used when stripping a deleted player
+  // out of a game that lives in the subcollection rather than the root array).
+  const writeSubGame = useCallback(
+    (game: any) => {
+      if (!activeTeamId) return;
+      const { _sub, ...clean } = game;
+      setDoc(
+        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, "games", clean.id),
+        slimGame(clean) as any
+      ).catch((err) => reportError(err, { source: "usePlayerCrud.writeSubGame" }));
     },
     [activeTeamId]
   );
@@ -137,23 +150,35 @@ export const usePlayerCrud = ({
         return { ...ev, grades: rest };
       };
 
-      // Evaluations may be split across the legacy root array and the
-      // evaluationEvents subcollection. Strip the deleted player's grades from
-      // both: the legacy slice rides along in the single updateTeam below; each
-      // affected subcollection round is patched on its own doc (and captured so
-      // Undo can restore its original grades).
+      // Evaluations and games may each be split across a legacy root array and a
+      // subcollection. Strip the deleted player from both: the legacy slices
+      // ride along in the single updateTeam below; each affected subcollection
+      // doc is rewritten on its own (and captured so Undo can restore it).
       const legacyEvents = prevEvents.filter((e: any) => !e?._sub);
       const subEvents = prevEvents.filter((e: any) => e?._sub);
       const affectedSubEvents = subEvents.filter(
         (e: any) => e?.grades && id in e.grades
       );
+
+      const legacyGames = prevGames.filter((g: any) => !g?._sub);
+      const subGames = prevGames.filter((g: any) => g?._sub);
+      const affectedSubGames: Array<{ before: any; after: any }> = [];
+      for (const g of subGames) {
+        const { _sub, ...clean } = g;
+        const after = stripFromGame(clean);
+        if (JSON.stringify(after) !== JSON.stringify(clean)) {
+          affectedSubGames.push({ before: clean, after });
+        }
+      }
+
       for (const ev of affectedSubEvents) {
         writeSubEventGrades(ev.id, stripFromEvent(ev).grades);
       }
+      for (const g of affectedSubGames) writeSubGame(g.after);
 
       updateTeam({
         players: prevPlayers.filter((p: any) => p.id !== id),
-        games: prevGames.map(stripFromGame),
+        games: legacyGames.map(stripFromGame),
         evaluationEvents: legacyEvents.map(stripFromEvent),
       });
 
@@ -170,9 +195,10 @@ export const usePlayerCrud = ({
             for (const ev of affectedSubEvents) {
               writeSubEventGrades(ev.id, ev.grades);
             }
+            for (const g of affectedSubGames) writeSubGame(g.before);
             updateTeam({
               players: prevPlayers,
-              games: prevGames,
+              games: legacyGames,
               evaluationEvents: legacyEvents,
             });
           },
@@ -184,6 +210,7 @@ export const usePlayerCrud = ({
       teamData.games,
       teamData.evaluationEvents,
       writeSubEventGrades,
+      writeSubGame,
       updateTeam,
       toast,
     ]

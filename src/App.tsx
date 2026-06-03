@@ -377,6 +377,7 @@ const MERGED_SUBCOLLECTIONS: SubcollectionName[] = [
   "tryoutSignups",
   "interestSignups",
   "evaluationEvents",
+  "games",
 ];
 
 const TeamProvider = ({ children }: any) => {
@@ -1078,7 +1079,7 @@ const TeamProvider = ({ children }: any) => {
 
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
-    useGameCrud({ teamData, updateTeam, toast });
+    useGameCrud({ teamData: effectiveTeam, updateTeam, toast, activeTeamId });
 
   // ----- Lineup actions ----- (extracted to src/hooks/useLineupActions.ts)
   const {
@@ -1092,7 +1093,7 @@ const TeamProvider = ({ children }: any) => {
     applyLineupTemplate,
     deleteLineupTemplate,
     removePlayerMidGame,
-  } = useLineupActions({ teamData, updateTeam, updateGame, persistTeam, toast, uiBridge, previousLineupRef });
+  } = useLineupActions({ teamData: effectiveTeam, updateTeam, updateGame, persistTeam, toast, uiBridge, previousLineupRef });
 
   // ----- Team management -----
   const switchTeam = useCallback(
@@ -1335,6 +1336,7 @@ const TeamProvider = ({ children }: any) => {
       const clearedSubcollections: SubcollectionName[] = [
         "tryoutSignups",
         "evaluationEvents",
+        "games",
       ];
       for (const name of clearedSubcollections) {
         for (const s of subData[name] || []) {
@@ -1422,7 +1424,7 @@ const TeamProvider = ({ children }: any) => {
     setPlayerStatus,
     setPlayerReturning,
     importBackup,
-  } = useImportExportFlows({ teamData, updateTeam, activeTeamId, toast });
+  } = useImportExportFlows({ teamData: effectiveTeam, updateTeam, activeTeamId, toast });
 
   const deleteTeamCmd = useCallback(async () => {
     if (!user || teams.length <= 1) return;

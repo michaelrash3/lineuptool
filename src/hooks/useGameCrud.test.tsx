@@ -1,6 +1,23 @@
+import { vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { useGameCrud } from "./useGameCrud";
 import { makeToast } from "../test-utils";
+
+// Games now live in a subcollection, so the hook imports firebase. Stub it;
+// encode doc paths for source-routing assertions.
+vi.mock("../firebase", () => ({ appId: "app", db: {} }));
+vi.mock("../utils/errorReporter", () => ({ reportError: vi.fn() }));
+vi.mock("firebase/firestore", () => ({
+  doc: vi.fn((_db: any, ...path: string[]) => ({ path: path.join("/") })),
+  setDoc: vi.fn(() => Promise.resolve()),
+  updateDoc: vi.fn(() => Promise.resolve()),
+  deleteDoc: vi.fn(() => Promise.resolve()),
+}));
+
+const mockSetDoc = setDoc as unknown as ReturnType<typeof vi.fn>;
+const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
+const mockDeleteDoc = deleteDoc as unknown as ReturnType<typeof vi.fn>;
 
 const setup = (teamOver: any = {}) => {
   const updateTeam = jest.fn();
@@ -14,18 +31,26 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useGameCrud({ teamData, updateTeam, toast })
+    useGameCrud({ teamData, updateTeam, toast, activeTeamId: "team-1" })
   );
   return { result, updateTeam, toast };
 };
 
+beforeEach(() => {
+  mockSetDoc.mockClear();
+  mockUpdateDoc.mockClear();
+  mockDeleteDoc.mockClear();
+});
+
 describe("useGameCrud", () => {
-  it("addGame appends a scheduled game", () => {
+  it("addGame creates a scheduled game in the subcollection", () => {
     const { result, updateTeam } = setup();
     act(() => result.current.addGame({ date: "2026-05-01", opponent: " Rays ", leagueRuleSet: "USSSA", pitchingFormat: "Kid Pitch" }));
-    const games = updateTeam.mock.calls[0][0].games;
-    expect(games).toHaveLength(1);
-    expect(games[0]).toMatchObject({ date: "2026-05-01", opponent: "Rays", status: "scheduled" });
+    expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    const [ref, game] = mockSetDoc.mock.calls[0];
+    expect(ref.path).toContain("/games/");
+    expect(game).toMatchObject({ date: "2026-05-01", opponent: "Rays", status: "scheduled" });
+    expect(updateTeam).not.toHaveBeenCalled();
   });
 
   it("addGame warns and does not persist when date/opponent missing", () => {
@@ -85,5 +110,47 @@ describe("useGameCrud", () => {
       expect.objectContaining({ title: "Game deleted", action: expect.objectContaining({ label: "Undo" }) })
     );
     confirmSpy.mockRestore();
+  });
+
+  // ---- subcollection routing (Phase 3 games migration) --------------------
+
+  it("updateGame patches a subcollection game on its own doc (slimmed)", () => {
+    const { result, updateTeam } = setup({
+      games: [{ id: "g1", _sub: "games", date: "2026-05-01" }],
+    });
+    act(() => result.current.updateGame("g1", { opponent: "Jays" }));
+    expect(mockUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: expect.stringContaining("/games/g1") }),
+      expect.objectContaining({ opponent: "Jays" })
+    );
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
+
+  it("deleteSavedGame deletes a subcollection game via its doc", () => {
+    const { result, updateTeam } = setup({
+      games: [{ id: "g1", _sub: "games", opponent: "Rays" }],
+    });
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    act(() => result.current.deleteSavedGame("g1"));
+    expect(mockDeleteDoc.mock.calls[0][0].path).toContain("/games/g1");
+    expect(updateTeam).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it("finalizeGame on a subcollection game writes players (array) and the game doc", () => {
+    const { result, updateTeam } = setup({
+      games: [{ id: "g1", _sub: "games", date: "2026-05-01", lineup: null, pitchCounts: { p1: 40 } }],
+      players: [{ id: "p1", name: "Ace", pitching: { recentPitches: 0, lastPitchDate: null } }],
+    });
+    act(() => result.current.finalizeGame("g1", 1, 0, 6));
+    // Players still go to the root array…
+    expect(updateTeam).toHaveBeenCalledWith(
+      expect.objectContaining({ players: expect.any(Array) })
+    );
+    // …and the game status flips on its subcollection doc.
+    expect(mockUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: expect.stringContaining("/games/g1") }),
+      expect.objectContaining({ status: "final", teamScore: 1, opponentScore: 0 })
+    );
   });
 });

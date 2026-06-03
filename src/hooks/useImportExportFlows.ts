@@ -1,13 +1,22 @@
 import { useCallback } from "react";
+import { doc, setDoc } from "firebase/firestore";
+import { appId, db } from "../firebase";
 import {
   blankStats,
   buildCsvHeaderIndex,
   normalizeDateToIso,
   parseCsvRecords,
   parsePercent,
+  slimGame,
 } from "../utils/helpers";
+import { reportError } from "../utils/errorReporter";
 import { getLocalDateString } from "../constants/ui";
 import type { ToastContextValue } from "../types";
+
+// Strip the client-only `_sub` source tag from merged subcollection entries so
+// exports/serialization carry clean data.
+const stripSub = (arr: any): any[] =>
+  (Array.isArray(arr) ? arr : []).map(({ _sub, ...rest }: any) => rest);
 
 export const csvEscape = (val: unknown): string => {
   if (val == null) return "";
@@ -86,7 +95,14 @@ export const useImportExportFlows = ({
               opponentScore: null,
             });
           }
-          updateTeam({ games: [...teamData.games, ...newGames] });
+          // New games go to the games subcollection (one doc each, slimmed),
+          // not the root array — keeps the team doc small on bulk imports.
+          for (const g of newGames) {
+            setDoc(
+              doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, "games", g.id),
+              slimGame(g) as any
+            ).catch((err) => reportError(err, { source: "uploadScheduleCsv" }));
+          }
           toast.push({
             kind: "success",
             title: `Imported ${newGames.length} game${
@@ -110,7 +126,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast]
+    [teamData, toast, activeTeamId]
   );
 
   const uploadStatsCsv = useCallback(
@@ -482,7 +498,17 @@ export const useImportExportFlows = ({
   );
 
   const exportBackup = useCallback(() => {
-    const blob = new Blob([JSON.stringify(teamData, null, 2)], {
+    // Capture the full team including subcollection-backed arrays, with the
+    // client-only `_sub` tags stripped so the backup is clean and re-importable.
+    const backup = {
+      ...teamData,
+      tryoutSignups: stripSub(teamData.tryoutSignups),
+      interestSignups: stripSub(teamData.interestSignups),
+      evaluationEvents: stripSub(teamData.evaluationEvents),
+      games: stripSub(teamData.games),
+      players: stripSub(teamData.players),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
