@@ -17,8 +17,9 @@ This guide makes `firestore.rules` reproducible from the repo and safe to roll o
 `.github/workflows/deploy-firestore-rules.yml` runs on every push to `main` whose diff touches `firestore.rules`, `firebase.json`, or the workflow itself. The job:
 
 1. Boots the Firestore emulator with a fake project id and parses `firestore.rules` — fails fast if the rules don't compile.
-2. Authenticates to Google Cloud using the `FIREBASE_SERVICE_ACCOUNT_JSON` repo secret.
-3. Runs `firebase deploy --only firestore:rules --project lineupgenerator-79159`.
+2. Runs the behavioral rule suite (`npm run test:rules`, `firestore-tests/`) against the emulator — a syntactically valid but wrong rule (e.g. re-opening the join-code read leak) fails the deploy here instead of shipping.
+3. Authenticates to Google Cloud using the `FIREBASE_SERVICE_ACCOUNT_JSON` repo secret.
+4. Runs `firebase deploy --only firestore:rules --project lineupgenerator-79159`.
 
 GitHub Actions is free for this kind of usage (the public-repo allowance covers it many times over) and `firestore:rules` deploys are free on the Firebase Spark plan, so the workflow has no marginal cost.
 
@@ -194,6 +195,24 @@ If you must land both at once, expect a short window where a share link for a
 team whose mirror hasn't been written yet shows "Link not found" until a coach
 opens the app.
 
+## Sequencing the join-code privacy fix
+
+The same backfill concern applies to join codes. The rules removed the broad
+"read the full team doc if it has a join code" allowance; codes now resolve
+through the sanitized `teamInvites/{code}` lookup doc. Existing teams have a
+`joinCode` on the team doc but **no invite doc yet**, so until one exists a new
+coach entering that code gets "Code not recognized".
+
+Two backfill paths, use either or both:
+
+1. **Lazy (automatic).** The coach client writes the invite doc the moment any
+   member opens that team (the invite-backfill effect in `App.tsx`). Most active
+   teams self-heal within a session.
+2. **Proactive (admin script).** Run `scripts/backfill-team-invites.mjs` with a
+   service account to populate `teamInvites` for every team with a `joinCode` in
+   one pass — useful so codes keep working for teams whose coaches haven't
+   reopened the app. See the script header for usage; supports `--dry-run`.
+
 ## Rollback
 
 If deployed rules break access:
@@ -206,4 +225,11 @@ If deployed rules break access:
 
 - Keep this file and `firestore.rules` updated in the same PR.
 - Deploy rules in low-risk windows (not immediately before games).
-- After deploy, smoke-test owner, assistant, and tryout portal immediately.
+- After deploy, smoke-test immediately:
+  - **Owner/assistant:** open the app, edit roster/schedule/settings, confirm saves.
+  - **Join code:** redeem a current 6-char code from a non-member account →
+    confirm join succeeds and the full team doc is NOT directly readable.
+  - **Tryout portal:** open a per-date share link → confirm it loads from the
+    mirror and a submitted signup lands with the correct pinned date.
+  - **Public abuse:** confirm an anonymous write that removes/replaces existing
+    signups is denied (only single appends succeed).
