@@ -39,15 +39,27 @@ export const useTryoutFlows = ({
       const slug = `${base || "team"}-${date}-${rand}`;
       const dates = Array.isArray(teamData.tryoutDates) ? teamData.tryoutDates : [];
       const nextDates = dates.includes(date) ? dates : [...dates, date];
+      // Persist an explicit slug→date mapping so the portal pins the exact date
+      // this link was generated for. We append (never replace): a date can be
+      // regenerated to mint a fresh slug while previously printed QR codes keep
+      // resolving to their original date. `tryoutDateSlug` is still written for
+      // backward compatibility with the legacy single-slug portal/mirror path.
+      const existingLinks = Array.isArray(teamData.tryoutDateLinks)
+        ? teamData.tryoutDateLinks.filter(
+            (l: any) => l && l.slug && l.date && l.slug !== slug
+          )
+        : [];
+      const nextLinks = [...existingLinks, { slug, date }];
       updateTeam({
         tryoutDateSlug: slug,
         tryoutDates: nextDates,
+        tryoutDateLinks: nextLinks,
         tryoutsOpen: true,
         tryoutsPhase: "open",
       });
       return slug;
     },
-    [activeTeamId, teamData.tryoutDates, updateTeam]
+    [activeTeamId, teamData.tryoutDates, teamData.tryoutDateLinks, updateTeam]
   );
 
   const setTryoutsOpen = useCallback(

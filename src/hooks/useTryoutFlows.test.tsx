@@ -30,6 +30,34 @@ describe("useTryoutFlows", () => {
     );
   });
 
+  it("generateTryoutDateLink pins each generated slug to its own date", () => {
+    // First date.
+    const { result, updateTeam } = setup({ tryoutDates: [], tryoutDateLinks: [] });
+    let slugA = "";
+    act(() => { slugA = result.current.generateTryoutDateLink("2026-04-10")!; });
+    const patchA = updateTeam.mock.calls[0][0];
+    expect(slugA).toContain("2026-04-10");
+    expect(patchA.tryoutDateSlug).toBe(slugA);
+    expect(patchA.tryoutDates).toEqual(["2026-04-10"]);
+    expect(patchA.tryoutDateLinks).toEqual([{ slug: slugA, date: "2026-04-10" }]);
+
+    // Second date on a team that already carries the first link — the mapping
+    // must ACCUMULATE so the first slug keeps resolving to its original date.
+    const { result: r2, updateTeam: u2 } = setup({
+      tryoutDates: ["2026-04-10"],
+      tryoutDateLinks: [{ slug: slugA, date: "2026-04-10" }],
+    });
+    let slugB = "";
+    act(() => { slugB = r2.current.generateTryoutDateLink("2026-05-22")!; });
+    const patchB = u2.mock.calls[0][0];
+    expect(slugB).not.toBe(slugA);
+    expect(patchB.tryoutDates).toEqual(["2026-04-10", "2026-05-22"]);
+    expect(patchB.tryoutDateLinks).toEqual([
+      { slug: slugA, date: "2026-04-10" },
+      { slug: slugB, date: "2026-05-22" },
+    ]);
+  });
+
   it("setTryoutsOpen / completeTryouts toggle phase", () => {
     const { result, updateTeam } = setup();
     act(() => result.current.setTryoutsOpen(false));

@@ -129,6 +129,11 @@ export const slimGame = <T extends Partial<Game>>(g: T | null | undefined): T | 
 // evaluations, signups, members, ownerId, coachRoles, or joinCode.
 // ----------------------------------------------------------------------------
 
+export interface TryoutDateLink {
+  slug: string;
+  date: string;
+}
+
 export interface PublicTeamMirror {
   name: string;
   primaryColor: string;
@@ -142,28 +147,128 @@ export interface PublicTeamMirror {
   tryoutShareId: string | null;
   tryoutDateSlug: string | null;
   tryoutDates: string[];
+  // Explicit slug→date mapping so the public portal can pin a signup to the
+  // exact tryout date its link was generated for. `tryoutDateLinks` is the
+  // canonical list; `tryoutDateBySlug` is an O(1) lookup of the same data;
+  // `tryoutDateSlugs` exists purely so the portal can resolve a link with a
+  // single `array-contains` query. These carry only slug + ISO date — no
+  // roster, signup, or member data — so they're safe in the public mirror.
+  tryoutDateLinks: TryoutDateLink[];
+  tryoutDateBySlug: Record<string, string>;
+  tryoutDateSlugs: string[];
 }
+
+// Normalize a team's per-date tryout links into the canonical slug→date shape.
+// New teams persist `tryoutDateLinks` directly (see generateTryoutDateLink).
+// Legacy teams only carried a single `tryoutDateSlug` + a `tryoutDates` array,
+// with the date embedded inside the slug (`<team>-<YYYY-MM-DD>-<rand>`); we
+// recover the intended date by matching a configured date that appears in the
+// slug, falling back to the first configured date. Pure.
+export const normalizeTryoutDateLinks = (
+  team: Record<string, any> | null | undefined
+): TryoutDateLink[] => {
+  const seen = new Set<string>();
+  const out: TryoutDateLink[] = [];
+  const push = (slug: unknown, date: unknown) => {
+    const s = String(slug || "").trim();
+    const d = String(date || "").trim();
+    if (!s || !d || seen.has(s)) return;
+    seen.add(s);
+    out.push({ slug: s, date: d });
+  };
+
+  if (Array.isArray(team?.tryoutDateLinks)) {
+    for (const link of team!.tryoutDateLinks) {
+      push(link?.slug, link?.date);
+    }
+  }
+
+  // Legacy single-slug fallback (only if not already represented).
+  const legacySlug = String(team?.tryoutDateSlug || "").trim();
+  if (legacySlug && !seen.has(legacySlug)) {
+    const configured = Array.isArray(team?.tryoutDates)
+      ? (team!.tryoutDates as unknown[]).map((d) => String(d).trim()).filter(Boolean)
+      : [];
+    const embedded = configured.find((d) => legacySlug.includes(d));
+    push(legacySlug, embedded || configured[0] || "");
+  }
+
+  return out;
+};
+
+// Resolve the tryout date a given portal slug should pin a signup to. Prefers
+// the explicit mapping; falls back to deriving from a legacy slug, then to the
+// first configured date. Returns "" when nothing resolves. Pure.
+export const resolveTryoutDateForSlug = (
+  source: Record<string, any> | null | undefined,
+  slug: string | null | undefined
+): string => {
+  const s = String(slug || "").trim();
+  if (!s) return "";
+  const map = source?.tryoutDateBySlug;
+  if (map && typeof map === "object" && typeof map[s] === "string" && map[s]) {
+    return map[s];
+  }
+  for (const link of normalizeTryoutDateLinks(source)) {
+    if (link.slug === s) return link.date;
+  }
+  const configured = Array.isArray(source?.tryoutDates)
+    ? (source!.tryoutDates as unknown[]).map((d) => String(d).trim()).filter(Boolean)
+    : [];
+  // Last-ditch legacy: a configured date embedded in the slug, else the first.
+  return configured.find((d) => s.includes(d)) || configured[0] || "";
+};
 
 export const buildPublicMirror = (
   team: Record<string, any> | null | undefined
-): PublicTeamMirror => ({
-  name: team?.name || "",
-  primaryColor: team?.primaryColor || "",
-  secondaryColor: team?.secondaryColor || "",
-  tertiaryColor: team?.tertiaryColor || "",
-  logoUrl: team?.logoUrl || "",
-  currentSeason: team?.currentSeason || "",
-  teamAge: team?.teamAge || "",
-  tryoutsOpen: team?.tryoutsOpen === true,
-  tryoutsPhase: team?.tryoutsPhase || "",
-  // Null (not omitted) so a team that has never shared still produces a stable
-  // doc; equality queries on these fields simply won't match a null.
-  tryoutShareId: team?.tryoutShareId || null,
-  tryoutDateSlug: team?.tryoutDateSlug || null,
-  tryoutDates: Array.isArray(team?.tryoutDates)
-    ? (team!.tryoutDates as string[]).filter(Boolean)
-    : [],
-});
+): PublicTeamMirror => {
+  const links = normalizeTryoutDateLinks(team);
+  const tryoutDateBySlug: Record<string, string> = {};
+  for (const link of links) tryoutDateBySlug[link.slug] = link.date;
+  return {
+    name: team?.name || "",
+    primaryColor: team?.primaryColor || "",
+    secondaryColor: team?.secondaryColor || "",
+    tertiaryColor: team?.tertiaryColor || "",
+    logoUrl: team?.logoUrl || "",
+    currentSeason: team?.currentSeason || "",
+    teamAge: team?.teamAge || "",
+    tryoutsOpen: team?.tryoutsOpen === true,
+    tryoutsPhase: team?.tryoutsPhase || "",
+    // Null (not omitted) so a team that has never shared still produces a stable
+    // doc; equality queries on these fields simply won't match a null.
+    tryoutShareId: team?.tryoutShareId || null,
+    tryoutDateSlug: team?.tryoutDateSlug || null,
+    tryoutDates: Array.isArray(team?.tryoutDates)
+      ? (team!.tryoutDates as string[]).filter(Boolean)
+      : [],
+    tryoutDateLinks: links,
+    tryoutDateBySlug,
+    tryoutDateSlugs: links.map((l) => l.slug),
+  };
+};
+
+// Roll back an optimistic team patch after its persistence failed. For each key
+// the patch touched, restore the prior value — but only when the live state
+// still holds the exact value we optimistically set (reference identity). A
+// concurrent edit that replaced the field after our optimistic write must not
+// be clobbered by a late-arriving rollback, so those keys are left alone.
+// Returns the same reference when nothing needs reverting. Pure.
+export const revertOptimisticUpdate = <T extends Record<string, any>>(
+  current: T,
+  attempted: Record<string, unknown>,
+  prevValues: Record<string, unknown>
+): T => {
+  const next: Record<string, any> = { ...current };
+  let changed = false;
+  for (const key of Object.keys(attempted)) {
+    if (Object.is(current[key], attempted[key])) {
+      next[key] = prevValues[key];
+      changed = true;
+    }
+  }
+  return changed ? (next as T) : current;
+};
 
 // Recursively remove undefined values from an object/array tree. Firestore
 // rejects documents containing undefined (only null and missing keys are

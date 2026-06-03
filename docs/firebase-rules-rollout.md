@@ -70,6 +70,29 @@ If you have the CLI installed and authenticated:
 firebase deploy --only firestore:rules --project lineupgenerator-79159
 ```
 
+## Automated rule tests (`npm run test:rules`)
+
+`firestore-tests/rules.test.ts` exercises the security rules against the
+emulator with `@firebase/rules-unit-testing`. Run them with:
+
+```bash
+npm run test:rules
+```
+
+This wraps Vitest in `firebase emulators:exec --only firestore`, so it needs:
+
+- **`firebase-tools`** on the PATH (e.g. `npm i -g firebase-tools`, or run the
+  script via `npx firebase ...`). It is intentionally **not** a project
+  dependency to keep `npm install` lean.
+- A **Java runtime** (the Firestore emulator is a Java process).
+
+The suite is excluded from the default `npm test` (a pure jsdom unit run) so the
+unit suite stays emulator-free. Coverage includes: non-member vs member team
+reads, the removed join-code full-doc read, assistant `ownerId`/member-removal
+denials, owner delete, sanitized invite read + self-join (only the joining user,
+only a real role), public append-exactly-one vs remove/replace/multi-add/closed
+denials, and public mirror read/write access.
+
 ## Local emulator test loop
 
 Start emulators against `firestore.rules`:
@@ -97,11 +120,16 @@ Expected: read/write allowed on team doc, but only app-allowed actions should be
 - Confirm assistant cannot reach head-only settings routes in UI.
 
 ### 3) Join by team code
-Expected: signed-in caller can discover team by `joinCode` and add self to `members` + `coachRoles` only.
+Expected: signed-in caller resolves the code via the sanitized
+`teamInvites/{code}` lookup (only `teamId`/`teamName`/`updatedAt`), then adds
+self to `members` + own `coachRoles` entry only. A non-member can NOT read the
+full team doc just because a code exists (that rule was removed).
 
 - Use a valid 6-char code.
-- Confirm join succeeds.
-- Confirm arbitrary field edits by non-member do not succeed.
+- Confirm the invite lookup exposes only sanitized fields.
+- Confirm join succeeds (self only, role `assistant`/`head`).
+- Confirm a non-member cannot read the full team doc, add a different user, set
+  a bogus role, or edit arbitrary fields.
 
 ### 4) Public Tryouts Portal
 Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit `tryoutSignups` only while tryouts are open — but can NOT read the full team doc.
@@ -110,6 +138,10 @@ Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror 
 - Confirm the page loads branding (name/colors/logo) from the `teamPublic` mirror.
 - Submit valid signup.
 - Confirm `tryoutSignups` append to the real team doc succeeds.
+- Confirm the per-date link pins the signup to ITS slug's date (not the first
+  configured date) via the `tryoutDateBySlug` map in the mirror.
+- Confirm a public write that removes, replaces, or multi-adds signups is
+  DENIED — only an append-exactly-one (`arrayUnion`) is allowed.
 - As an anonymous user, attempt a direct read of `artifacts/{appId}/public/data/teams/{teamId}` — confirm it is DENIED (no more full-doc leak of evals/PII/joinCode).
 - Confirm unrelated field edits are denied.
 

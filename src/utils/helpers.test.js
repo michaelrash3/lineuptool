@@ -13,6 +13,9 @@ import {
   buildSeasonBenchImbalance,
   gamesDueForReminder,
   buildPublicMirror,
+  resolveTryoutDateForSlug,
+  normalizeTryoutDateLinks,
+  revertOptimisticUpdate,
   buildScheduleIcs,
   recordPitchingOuting,
   summarizePitchingWorkload,
@@ -808,7 +811,34 @@ describe("buildPublicMirror", () => {
       tryoutShareId: "share123",
       tryoutDateSlug: "2026-05-01",
       tryoutDates: ["2026-05-01", "2026-05-08"],
+      // Derived from the legacy single-slug field — slug/date only, no PII.
+      tryoutDateLinks: [{ slug: "2026-05-01", date: "2026-05-01" }],
+      tryoutDateBySlug: { "2026-05-01": "2026-05-01" },
+      tryoutDateSlugs: ["2026-05-01"],
     });
+  });
+
+  it("carries the explicit per-date link mapping for new teams", () => {
+    const mirror = buildPublicMirror({
+      ...fullTeam,
+      tryoutDateSlug: "sharks-2026-05-08-zz9",
+      tryoutDateLinks: [
+        { slug: "sharks-2026-05-01-aa1", date: "2026-05-01" },
+        { slug: "sharks-2026-05-08-zz9", date: "2026-05-08" },
+      ],
+    });
+    expect(mirror.tryoutDateLinks).toEqual([
+      { slug: "sharks-2026-05-01-aa1", date: "2026-05-01" },
+      { slug: "sharks-2026-05-08-zz9", date: "2026-05-08" },
+    ]);
+    expect(mirror.tryoutDateBySlug).toEqual({
+      "sharks-2026-05-01-aa1": "2026-05-01",
+      "sharks-2026-05-08-zz9": "2026-05-08",
+    });
+    expect(mirror.tryoutDateSlugs).toEqual([
+      "sharks-2026-05-01-aa1",
+      "sharks-2026-05-08-zz9",
+    ]);
   });
 
   it("never leaks sensitive fields", () => {
@@ -840,6 +870,92 @@ describe("buildPublicMirror", () => {
   it("handles null/undefined input without throwing", () => {
     expect(() => buildPublicMirror(null)).not.toThrow();
     expect(buildPublicMirror(undefined).tryoutDates).toEqual([]);
+  });
+});
+
+describe("resolveTryoutDateForSlug", () => {
+  const team = {
+    tryoutDates: ["2026-04-10", "2026-05-22"],
+    tryoutDateLinks: [
+      { slug: "hawks-2026-04-10-aaa", date: "2026-04-10" },
+      { slug: "hawks-2026-05-22-bbb", date: "2026-05-22" },
+    ],
+    tryoutDateBySlug: {
+      "hawks-2026-04-10-aaa": "2026-04-10",
+      "hawks-2026-05-22-bbb": "2026-05-22",
+    },
+  };
+
+  it("pins each slug to its OWN date (never the first configured date)", () => {
+    expect(resolveTryoutDateForSlug(team, "hawks-2026-05-22-bbb")).toBe(
+      "2026-05-22"
+    );
+    expect(resolveTryoutDateForSlug(team, "hawks-2026-04-10-aaa")).toBe(
+      "2026-04-10"
+    );
+  });
+
+  it("falls back to the link list when no bySlug map is present", () => {
+    const legacyish = { tryoutDateLinks: team.tryoutDateLinks };
+    expect(resolveTryoutDateForSlug(legacyish, "hawks-2026-05-22-bbb")).toBe(
+      "2026-05-22"
+    );
+  });
+
+  it("recovers a legacy single-slug team's date from the embedded date", () => {
+    // Pre-mapping teams only had tryoutDateSlug + tryoutDates; the date is in
+    // the slug. We must still resolve the embedded date, not configured[0].
+    const legacy = {
+      tryoutDateSlug: "team-1-2026-05-22-xyz",
+      tryoutDates: ["2026-04-10", "2026-05-22"],
+    };
+    expect(
+      resolveTryoutDateForSlug(legacy, "team-1-2026-05-22-xyz")
+    ).toBe("2026-05-22");
+  });
+
+  it("returns '' for an unknown/blank slug", () => {
+    expect(resolveTryoutDateForSlug(team, "")).toBe("");
+    expect(resolveTryoutDateForSlug(null, "x")).toBe("");
+  });
+});
+
+describe("normalizeTryoutDateLinks", () => {
+  it("dedupes by slug and drops malformed entries", () => {
+    const links = normalizeTryoutDateLinks({
+      tryoutDateLinks: [
+        { slug: "a", date: "2026-04-10" },
+        { slug: "a", date: "2026-04-10" }, // dup slug
+        { slug: "", date: "2026-04-10" }, // no slug
+        { slug: "b", date: "" }, // no date
+        { slug: "c", date: "2026-05-22" },
+      ],
+    });
+    expect(links).toEqual([
+      { slug: "a", date: "2026-04-10" },
+      { slug: "c", date: "2026-05-22" },
+    ]);
+  });
+});
+
+describe("revertOptimisticUpdate", () => {
+  it("restores prior values for keys still holding the attempted value", () => {
+    const attempted = { name: "New", tryoutsOpen: true };
+    const prevValues = { name: "Old", tryoutsOpen: false };
+    const current = { name: "New", tryoutsOpen: true, other: 1 };
+    expect(revertOptimisticUpdate(current, attempted, prevValues)).toEqual({
+      name: "Old",
+      tryoutsOpen: false,
+      other: 1,
+    });
+  });
+
+  it("does not clobber a key the user changed after the optimistic write", () => {
+    const attempted = { name: "New" };
+    const prevValues = { name: "Old" };
+    // User typed again — current.name is a different reference/value now.
+    const current = { name: "Newer" };
+    expect(revertOptimisticUpdate(current, attempted, prevValues)).toBe(current);
   });
 });
 

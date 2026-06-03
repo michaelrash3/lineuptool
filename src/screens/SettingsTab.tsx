@@ -86,6 +86,8 @@ const TryoutsSettingsPanel = memo(
     setTryoutsOpen,
     completeTryouts,
     setRosterCap,
+    mirrorStale,
+    resyncPublicMirror,
     toast,
   }: any) => {
     const shareId = team.tryoutShareId;
@@ -169,6 +171,39 @@ const TryoutsSettingsPanel = memo(
             generateTryoutDateLink={generateTryoutDateLink}
             toast={toast}
           />
+
+          {/* Public-page sync status + manual repair. The portal parents see is
+              a sanitized mirror written client-side; if that write fails the
+              coach's links/branding can go stale silently. Surface it and offer
+              a one-tap resync. */}
+          <div
+            className={`bg-surface border rounded-xl p-3 flex items-start gap-3 ${
+              mirrorStale ? "border-amber-300" : "border-line"
+            }`}
+          >
+            <Icons.Alert
+              className={`w-4 h-4 mt-0.5 shrink-0 ${
+                mirrorStale ? "text-amber-500" : "text-ink-3"
+              }`}
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] font-black uppercase tracking-widest text-ink">
+                Public page sync
+              </div>
+              <p className="text-[10px] font-medium text-ink-3 leading-snug">
+                {mirrorStale
+                  ? "The public tryout/interest page may be out of date. Resync to push your latest branding and dates."
+                  : "Parents see a sanitized copy of your branding + tryout dates. Resync if a link or logo looks stale."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => resyncPublicMirror?.()}
+              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 shrink-0"
+            >
+              Resync
+            </button>
+          </div>
 
           <label className="flex items-center justify-between bg-surface border border-line rounded-xl p-3 cursor-pointer">
             <div>
@@ -795,6 +830,8 @@ export const SettingsTab = memo(() => {
     completeTryouts,
     setRosterCap,
     regenerateJoinCode,
+    mirrorStale,
+    resyncPublicMirror,
     uploadLogo,
     uploadScheduleCsv,
     uploadStatsCsv,
@@ -1287,6 +1324,8 @@ export const SettingsTab = memo(() => {
               setTryoutsOpen={setTryoutsOpen}
               completeTryouts={completeTryouts}
               setRosterCap={setRosterCap}
+              mirrorStale={mirrorStale}
+              resyncPublicMirror={resyncPublicMirror}
               toast={toast}
             />
             )}

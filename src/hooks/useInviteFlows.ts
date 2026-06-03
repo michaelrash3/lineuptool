@@ -1,6 +1,14 @@
 import { useCallback } from "react";
-import { collection, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import {
+  arrayUnion,
+  deleteDoc,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { appId, db } from "../firebase";
+import { reportError } from "../utils/errorReporter";
 import type { ToastContextValue } from "../types";
 
 interface AuthUser {
@@ -15,6 +23,8 @@ interface TeamEntry {
 interface UseInviteFlowsArgs {
   user: AuthUser | null | undefined;
   teams: TeamEntry[];
+  activeTeamId: string | null | undefined;
+  teamData: { name?: string; joinCode?: string } & Record<string, unknown>;
   updateTeam: (patch: Record<string, unknown>) => void;
   switchTeam: (id: string) => void;
   toast: ToastContextValue;
@@ -25,20 +35,60 @@ interface JoinResult {
   retryable?: boolean;
 }
 
+// Path to the sanitized invite-lookup doc for a given join code. Holds only
+// { teamId, teamName, updatedAt } — never the private team doc.
+const inviteRef = (code: string) =>
+  doc(db, "artifacts", appId, "public", "data", "teamInvites", code);
+
+const teamRef = (teamId: string) =>
+  doc(db, "artifacts", appId, "public", "data", "teams", teamId);
+
 export const useInviteFlows = ({
   user,
   teams,
+  activeTeamId,
+  teamData = {},
   updateTeam,
   switchTeam,
   toast,
 }: UseInviteFlowsArgs) => {
+  // Mint a fresh join code, rotate the sanitized invite doc, and invalidate the
+  // previous one. The code is still written onto the team doc (via updateTeam)
+  // for backward compatibility and because the self-join rule gates on it.
   const regenerateJoinCode = useCallback(() => {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
     for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    const prevCode = String(teamData.joinCode || "").trim().toUpperCase();
     updateTeam({ joinCode: code });
+    // Best-effort invite-doc maintenance: a failure here never blocks the code
+    // change (the legacy on-team-doc code still works), but we surface it so a
+    // coach knows the public lookup may be stale.
+    if (activeTeamId) {
+      void (async () => {
+        try {
+          await setDoc(inviteRef(code), {
+            teamId: activeTeamId,
+            teamName: teamData.name || "",
+            updatedAt: Date.now(),
+          });
+          // Invalidate the old code's lookup so a rotated code stops resolving.
+          if (prevCode && prevCode !== code) {
+            await deleteDoc(inviteRef(prevCode)).catch(() => {});
+          }
+        } catch (err) {
+          reportError(err, { source: "useInviteFlows.regenerateJoinCode" });
+          toast.push({
+            kind: "warn",
+            title: "Code updated, but invite link may lag",
+            message:
+              "The new code works, but we couldn't refresh the shareable invite lookup. Try regenerating again if joins fail.",
+          });
+        }
+      })();
+    }
     return code;
-  }, [updateTeam]);
+  }, [activeTeamId, teamData.joinCode, teamData.name, updateTeam, toast]);
 
   const joinTeamByCode = useCallback(
     async (rawCode: string): Promise<JoinResult> => {
@@ -50,42 +100,53 @@ export const useInviteFlows = ({
         return { ok: false, retryable: false };
       }
       try {
+        // Already a member of a team carrying this code? These are teams the
+        // caller already belongs to, so reading their docs is permitted.
         for (const t of teams) {
-          const snap = await getDoc(doc(db, "artifacts", appId, "public", "data", "teams", t.id));
+          const snap = await getDoc(teamRef(t.id));
           const sd = snap.exists() ? (snap.data() as any) : null;
-          if (sd && (sd.joinCode || "") === code) {
+          if (sd && String(sd.joinCode || "").toUpperCase() === code) {
             switchTeam(t.id);
             toast.push({ kind: "success", title: `Already a member of ${sd.name || "this team"}` });
             return { ok: true };
           }
         }
-        const q = query(collection(db, "artifacts", appId, "public", "data", "teams"), where("joinCode", "==", code));
-        const snap = await getDocs(q);
-        if (snap.empty) {
+
+        // Resolve the code through the sanitized invite lookup — never a query
+        // against the private team docs. Exposes only teamId + teamName.
+        const inviteSnap = await getDoc(inviteRef(code));
+        if (!inviteSnap.exists()) {
           toast.push({ kind: "error", title: "Code not recognized" });
           return { ok: false, retryable: false };
         }
-        const teamDoc = snap.docs[0];
-        const data = teamDoc.data() as any;
-        const members = Array.isArray(data.members) ? data.members : [];
-        const nextMembers = members.includes(user.uid) ? members : [...members, user.uid];
-        const nextCoachRoles = {
-          ...(data.coachRoles || {}),
-          [user.uid]: data.coachRoles?.[user.uid] === "head" ? "head" : "assistant",
-        };
-        await setDoc(doc(db, "artifacts", appId, "public", "data", "teams", teamDoc.id), { members: nextMembers, coachRoles: nextCoachRoles }, { merge: true });
+        const invite = inviteSnap.data() as any;
+        const teamId = String(invite.teamId || "");
+        const teamName = String(invite.teamName || "") || "Joined Team";
+        if (!teamId) {
+          toast.push({ kind: "error", title: "Code not recognized" });
+          return { ok: false, retryable: false };
+        }
+
+        // Atomic self-join: arrayUnion adds the caller without read-modify-write
+        // of the whole members array (no lost concurrent joins), and the dotted
+        // path sets only this user's coachRoles entry. Both are exactly what the
+        // self-join security rule permits — the joiner never reads the team doc.
+        await updateDoc(teamRef(teamId), {
+          members: arrayUnion(user.uid),
+          [`coachRoles.${user.uid}`]: "assistant",
+        });
 
         // Persist membership in user settings so re-login/reload keeps the
         // joined team in the selector instead of dropping back to a bootstrap
         // team.
         const userRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
-        const nextEntry = { id: teamDoc.id, name: data.name || "Joined Team" };
-        const exists = teams.some((t) => t.id === teamDoc.id);
+        const nextEntry = { id: teamId, name: teamName };
+        const exists = teams.some((t) => t.id === teamId);
         const nextTeams = exists ? teams : [...teams, nextEntry];
-        await setDoc(userRef, { teams: nextTeams, activeTeamId: teamDoc.id }, { merge: true });
+        await setDoc(userRef, { teams: nextTeams, activeTeamId: teamId }, { merge: true });
 
-        switchTeam(teamDoc.id);
-        toast.push({ kind: "success", title: `Joined ${data.name || "team"}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
+        switchTeam(teamId);
+        toast.push({ kind: "success", title: `Joined ${teamName}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
         return { ok: true };
       } catch (err: any) {
         // Log the underlying error so a coach reporting "I can't join" can

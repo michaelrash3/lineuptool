@@ -122,6 +122,12 @@ dist
 # Firebase cache directory
 .firebase/
 
+# Firebase emulator debug logs (from `npm run test:rules`)
+firebase-debug.log
+firestore-debug.log
+*-debug.log
+firebase-export-*
+
 # TernJS port file
 .tern-port
 
