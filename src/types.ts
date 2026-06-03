@@ -164,6 +164,37 @@ export interface Team {
   // who has the code can join the team as an assistant coach. The HC
   // can regenerate it (rotating all existing codes) from Settings.
   joinCode?: string;
+
+  // ----- Season / game configuration (mirrors DEFAULT_TEAM_DATA) -----
+  currentSeason?: string;
+  teamAge?: string;
+  leagueRuleSet?: string;
+  pitchingFormat?: string;
+  defenseSize?: string;
+  battingSize?: string;
+  inningsCount?: string;
+
+  // ----- Evaluations -----
+  evaluationEvents?: EvaluationEvent[];
+  evalSchemaVersion?: number;
+  lastEvalEmailedAt?: string;
+  emailEvalRemindersDisabled?: boolean;
+
+  // ----- Membership / ownership (mirrors firestore.rules) -----
+  ownerId?: string;
+  members?: string[];
+  coachRoles?: Record<string, string>;
+  coachContacts?: Array<{ id?: string; name?: string; email?: string }>;
+
+  // ----- Tryouts config -----
+  tryoutDates?: string[];
+
+  // The long tail of dynamic/rarely-typed fields (templates, past seasons,
+  // mid-game removals, catcher limits, etc.) stays permissive and is promoted
+  // to explicit fields incrementally. Note: typing the full bag onto
+  // TeamContextValue.team (replacing the `any` index signature there) cascades
+  // ~160 type errors across consumers, so that tightening is intentionally a
+  // separate, incremental effort — this just makes the known fields accurate.
   [key: string]: unknown;
 }
 
