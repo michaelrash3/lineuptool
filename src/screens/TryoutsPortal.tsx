@@ -11,6 +11,14 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
+import {
+  SIGNUP_LIMITS,
+  clampText,
+  isValidEmail,
+  isSafeCssColor,
+  isSafeImageUrl,
+} from "../utils/helpers";
+import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
 
@@ -154,14 +162,23 @@ export const TryoutsPortal = () => {
     let cancelled = false;
     const applyThemeColors = (data: any) => {
       const root = document.documentElement;
-      if (data.primaryColor) root.style.setProperty("--team-primary", data.primaryColor);
-      if (data.secondaryColor) root.style.setProperty("--team-secondary", data.secondaryColor);
-      if (data.tertiaryColor) root.style.setProperty("--team-tertiary", data.tertiaryColor);
+      // Only honor team-supplied colors that are valid CSS color literals —
+      // guards against smuggling extra declarations through branding values.
+      if (isSafeCssColor(data.primaryColor))
+        root.style.setProperty("--team-primary", data.primaryColor);
+      if (isSafeCssColor(data.secondaryColor))
+        root.style.setProperty("--team-secondary", data.secondaryColor);
+      if (isSafeCssColor(data.tertiaryColor))
+        root.style.setProperty("--team-tertiary", data.tertiaryColor);
     };
     const init = async () => {
       try {
         await signInAnonymously(auth);
-      } catch {}
+      } catch (err) {
+        // Non-fatal: the public mirror is world-readable, so the page can still
+        // load. Log for diagnostics in case auth is consistently failing.
+        reportError(err, { source: "TryoutsPortal.signInAnonymously" });
+      }
       try {
         // Read the sanitized public mirror — never the full team doc. The
         // mirror carries only branding + tryout config (see buildPublicMirror);
@@ -217,7 +234,8 @@ export const TryoutsPortal = () => {
 
         setError("Link not found or has been deactivated.");
         setPhase("error");
-      } catch {
+      } catch (err) {
+        reportError(err, { source: "TryoutsPortal.init", linkSlug });
         setError("Couldn't load this team's page. The link may be invalid or your network may be down.");
         setPhase("error");
       }
@@ -245,6 +263,8 @@ export const TryoutsPortal = () => {
       return setError("Player first + last name are required.");
     if (!form.email.trim())
       return setError("Parent email is required so we can reach you.");
+    if (!isValidEmail(form.email))
+      return setError("Please enter a valid parent email address.");
     if (!form.phone.trim())
       return setError("Parent phone number is required.");
 
@@ -259,6 +279,19 @@ export const TryoutsPortal = () => {
     setError(null);
     setSubmitting(true);
 
+    // Trim + length-clamp every free-text field before it leaves the browser.
+    // The inputs are anonymous/untrusted; this bounds the stored payload.
+    const cleanForm = {
+      ...form,
+      firstName: clampText(form.firstName, SIGNUP_LIMITS.name),
+      lastName: clampText(form.lastName, SIGNUP_LIMITS.name),
+      parentName: clampText(form.parentName, SIGNUP_LIMITS.name),
+      currentTeam: clampText(form.currentTeam, SIGNUP_LIMITS.name),
+      email: clampText(form.email, SIGNUP_LIMITS.email),
+      phone: clampText(form.phone, SIGNUP_LIMITS.phone),
+      notes: clampText(form.notes, SIGNUP_LIMITS.notes),
+    };
+
     try {
       if (mode === "tryout") {
         const signup = {
@@ -267,7 +300,7 @@ export const TryoutsPortal = () => {
           status: "tryout",
           tryoutAge: tryoutAgeLabel,
           tryoutDate: pinnedDate,
-          ...form,
+          ...cleanForm,
         };
         await updateDoc(
           doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
@@ -279,15 +312,15 @@ export const TryoutsPortal = () => {
         const lead = {
           id: `int-${Math.random().toString(36).slice(2, 10)}`,
           submittedAt: new Date().toISOString(),
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
+          firstName: cleanForm.firstName,
+          lastName: cleanForm.lastName,
           dob: form.dob || "",
-          parentName: form.parentName || "",
-          email: form.email.trim(),
-          phone: form.phone.trim(),
-          currentTeam: form.currentTeam || "",
+          parentName: cleanForm.parentName,
+          email: cleanForm.email,
+          phone: cleanForm.phone,
+          currentTeam: cleanForm.currentTeam,
           comfortablePositions: form.comfortablePositions || [],
-          notes: form.notes || "",
+          notes: cleanForm.notes,
         };
         await updateDoc(
           doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
@@ -295,7 +328,8 @@ export const TryoutsPortal = () => {
         );
       }
       setPhase("sent");
-    } catch {
+    } catch (err) {
+      reportError(err, { source: "TryoutsPortal.handleSubmit", mode });
       setError(
         "Submission failed — please retry, or contact the team's head coach directly."
       );
@@ -355,11 +389,14 @@ export const TryoutsPortal = () => {
     );
   }
 
+  // Only render team-supplied logos that are https or inline image data URLs.
+  const safeLogoUrl = isSafeImageUrl(team?.logoUrl) ? team.logoUrl : null;
+
   return (
     <PortalShell>
-      {team?.logoUrl && (
+      {safeLogoUrl && (
         <img
-          src={team.logoUrl}
+          src={safeLogoUrl}
           alt=""
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 m-auto w-[120vw] max-w-[1100px] opacity-[0.10]"
@@ -367,9 +404,9 @@ export const TryoutsPortal = () => {
         />
       )}
       <header className="text-center mb-7">
-        {team?.logoUrl && (
+        {safeLogoUrl && (
           <img
-            src={team.logoUrl}
+            src={safeLogoUrl}
             alt={team.name}
             className="w-20 h-20 mx-auto mb-3 object-contain"
           />

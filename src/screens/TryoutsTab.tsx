@@ -12,6 +12,7 @@ import {
 } from "../constants/ui";
 import { sendGmailMessage, buildMailtoUrl } from "../integrations/gmailSend";
 import { calculateBaseballAge } from "../utils/helpers";
+import { reportError } from "../utils/errorReporter";
 import { auth } from "../firebase";
 
 const STATUS_PILLS = {
@@ -312,6 +313,7 @@ export const TryoutsTab = memo(() => {
     currentRole,
     updateTryoutSignup,
     deleteTryoutSignup,
+    deleteTryoutSignups,
     acceptTryout,
     saveTryoutEvaluation,
   } = useTeam();
@@ -487,8 +489,10 @@ export const TryoutsTab = memo(() => {
         kind: "success",
         title: `Offer sent to ${signup.firstName}`,
       });
-    } catch {
-      // Fall back to mailto so the offer still goes out.
+    } catch (err) {
+      // Gmail send failed — log it (a consistent failure usually means OAuth
+      // scope/config drift), then fall back to mailto so the offer still goes out.
+      reportError(err, { source: "TryoutsTab.sendOffer", signupId: signup.id });
       if (typeof window !== "undefined") {
         window.open(buildMailtoUrl(signup.email, subject, body), "_blank");
       }
@@ -862,17 +866,17 @@ export const TryoutsTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => {
-                    const noShows = (tryoutSignups || []).filter(
-                      (s: any) => s.present === false
-                    );
-                    for (const s of noShows) {
-                      deleteTryoutSignup?.(s.id);
-                    }
+                    const noShowIds = (tryoutSignups || [])
+                      .filter((s: any) => s.present === false)
+                      .map((s: any) => s.id);
+                    // Single bulk write — looping deleteTryoutSignup would only
+                    // remove the last one (optimistic merge keeps last write).
+                    const removed = deleteTryoutSignups?.(noShowIds) ?? 0;
                     setEndTryoutOpen(false);
                     toast.push({
                       kind: "success",
-                      title: `${noShows.length} no-show${
-                        noShows.length === 1 ? "" : "s"
+                      title: `${removed} no-show${
+                        removed === 1 ? "" : "s"
                       } removed`,
                     });
                   }}
