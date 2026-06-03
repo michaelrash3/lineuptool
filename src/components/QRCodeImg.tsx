@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
-import QRCode from "qrcode";
+
+// `qrcode` is imported dynamically at point-of-use so the library only loads
+// when a QR code is actually rendered/downloaded (share-link surfaces), instead
+// of riding along in every chunk that pulls in this component.
 
 // Slugify the value into a filesystem-friendly default filename when
 // the caller doesn't pass one explicitly. "https://x.com/foo" →
@@ -53,12 +56,15 @@ export const QRCodeImg = ({
       setDataUrl("");
       return () => {};
     }
-    QRCode.toDataURL(value, {
-      width: size,
-      margin: 1,
-      errorCorrectionLevel: "M",
-      color: { dark: "#0f172a", light: "#ffffff" },
-    })
+    import("qrcode")
+      .then((m) =>
+        m.default.toDataURL(value, {
+          width: size,
+          margin: 1,
+          errorCorrectionLevel: "M",
+          color: { dark: "#0f172a", light: "#ffffff" },
+        })
+      )
       .then((url) => {
         if (!cancelled) setDataUrl(url);
       })
@@ -76,6 +82,7 @@ export const QRCodeImg = ({
   const handleDownload = useCallback(async () => {
     if (!value) return;
     try {
+      const QRCode = (await import("qrcode")).default;
       const hiResUrl = await QRCode.toDataURL(value, {
         width: downloadSize,
         margin: 2,
