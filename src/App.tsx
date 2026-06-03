@@ -138,6 +138,18 @@ const InGameView = lazy(() =>
   import("./screens/InGameView").then((m) => ({ default: m.InGameView }))
 );
 
+// Screen labels used to build the dynamic browser-tab title
+// ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
+const TAB_TITLE_LABELS: Record<string, string> = {
+  home: "Dashboard",
+  roster: "Roster",
+  schedule: "Schedule",
+  evaluation: "Evaluation",
+  tryouts: "Tryouts",
+  interest: "Interest",
+  settings: "Settings",
+};
+
 // Suspense fallback used while a lazy-loaded screen chunk is fetching.
 // Kept dead-simple and consistent across every route — a centered
 // spinner so layout doesn't reflow when the chunk arrives.
@@ -1926,6 +1938,21 @@ const UIProvider = ({ children }: any) => {
   useEffect(() => {
     gamesRef.current = team.team.games;
   }, [team.team.games]);
+
+  // Dynamic browser-tab title: "<Team Name> · <Screen>" so the tab (and any
+  // bookmark) reflects which team and screen the coach is on. Falls back to
+  // the brand name before a team has loaded. The public Tryouts Portal sets
+  // its own title (see TryoutsPortal) — this provider doesn't wrap it.
+  const teamName = team.team?.name;
+  useEffect(() => {
+    const screen = inGameId ? "In-Game" : TAB_TITLE_LABELS[activeTab] || "";
+    const name = (teamName || "").trim();
+    document.title = name
+      ? screen
+        ? `${name} · ${screen}`
+        : name
+      : "Coach's Card";
+  }, [teamName, activeTab, inGameId]);
 
   // Snapshot of the game data we last loaded into local editor state, used
   // by the conflict-detection effect below. We compare against this — not

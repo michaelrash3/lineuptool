@@ -130,6 +130,20 @@ export const TryoutsPortal = () => {
     notes: "",
   });
 
+  // Team-specific browser-tab title so a shared portal link reads as
+  // "<Team> Tryouts" / "<Team> Interest List" rather than the generic brand.
+  // Restored to the brand on unmount so navigating back into the app is clean.
+  useEffect(() => {
+    const name = (team?.name || "").trim();
+    if (name) {
+      document.title =
+        mode === "interest" ? `${name} Interest List` : `${name} Tryouts`;
+    }
+    return () => {
+      document.title = "Coach's Card";
+    };
+  }, [team?.name, mode]);
+
   const tryoutAgeLabel = useMemo(() => getTryoutAgeLabel(team?.teamAge), [team?.teamAge]);
   const positions = useMemo(() => {
     const outfield = getOutfieldPositions(tryoutAgeLabel);
