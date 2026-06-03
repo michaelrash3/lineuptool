@@ -44,25 +44,19 @@ Two sanitized sibling docs already exist and are **not** affected by this plan:
   concurrent join/leave can't be lost. Public portal signups already used
   `arrayUnion`.
 
-## Whole-array writes intentionally left in place (for now)
+## Whole-array writes — current state
 
-These still write a full replacement array built from local state. They are
-**single-coach, low-concurrency** edit paths (one head coach editing their own
-roster/schedule/evals in the app), so the lost-update risk is low and the
-churn/risk of converting them is high. Documented here so the trade-off is
-explicit rather than accidental:
+The high-growth arrays (`tryoutSignups`, `interestSignups`, `evaluationEvents`,
+`games`) have been migrated to per-entry subcollection writes (Phases 1–3
+below); coach-side edits route per-doc, so concurrent edits to different
+entries no longer clobber each other.
+
+Two whole-array writes remain by design:
 
 | Field | Writer(s) | Why left as a whole-array write |
 | --- | --- | --- |
-| `players` | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance). |
-| `games` | `useGameCrud`, lineup/finalize flows | Same; games are also slimmed (`slimGame`) on write, which assumes a full array. |
-| `evaluationEvents` | `useEvaluationCrud`, `saveTryoutEvaluation` | Upsert-by-key semantics over the whole list; concurrency is one evaluator at a time per round. |
+| `players` | `usePlayerCrud`, `acceptTryout`, `advanceSeason`, pitch-count commits, stats import, `usePastSeasonCrud` | **Bounded** (~roster size) so no doc-size pressure, and edited only by signed-in staff at low concurrency. Migrating it is all risk, no benefit — see Phase 4 below. |
 | `coachRoles` (head-initiated `setCoachRole`) | `useTeamMembership` | Owner-only; the **self-join** path already uses the atomic dotted write. |
-| `tryoutSignups` / `interestSignups` (coach-side edits) | `useTryoutFlows` (delete, bulk-delete, convert, accept) | Coach-side mutations; the **public append** path is `arrayUnion` and is the high-frequency, untrusted one. |
-
-If/when these become contended (e.g. multiple assistants entering evals
-simultaneously), prefer per-entry subcollection docs (below) over array
-transactions.
 
 ## Migrating high-growth data to subcollections
 
@@ -100,30 +94,87 @@ Done in this change set:
   member-only read/update/delete. `useTryoutFlows.test.tsx` and
   `TryoutsPortal.test.tsx` cover the client routing.
 
-Remaining (optional) Phase 1 cleanup, not yet done:
+**Legacy-array drain — SHIPPED.** A one-time, member-only effect in `App.tsx`
+(`drainedSignupsRef`) copies any pre-migration root-array tryout/interest
+signups into their subcollections and clears the root arrays, so existing teams
+fully retire their root signup arrays on next load.
 
-- **Legacy-array drain.** Teams created before this change still hold signups in
-  the root arrays. They keep working via the merge, but a one-time per-team
-  migration (copy each legacy array entry into the subcollection, then clear the
-  array) would fully retire the root arrays. Defer until needed; it's a
-  destructive bulk write best run as an admin script (cf.
-  `scripts/backfill-team-invites.mjs`).
-
-### Phase 2 — evaluations → subcollection
+### Phase 2 — evaluations → subcollection ✅ SHIPPED
 
 ```
 artifacts/{appId}/public/data/teams/{teamId}/evaluationEvents/{eventId}
 ```
 
-Keyed by the existing upsert id; resolves the multi-evaluator concurrency note
-above. Tryout grades (those carrying `tryoutSignupId`) move alongside roster
-rounds.
+Done in this change set:
 
-### Phase 3 — games, then players → subcollections
+- **Rules:** member-only `evaluationEvents/{id}` (coach data, not public-write).
+- **`useEvaluationCrud`** routes by `_sub`: new rounds create a subcollection
+  doc; edits/deletes hit the doc or rebuild the legacy root slice.
+- **`useTryoutFlows.saveTryoutEvaluation`** writes tryout grades to the
+  subcollection (they're `evaluationEvents` carrying `tryoutSignupId`).
+- **`usePlayerCrud.removePlayer`** strips a deleted player's grades from both
+  the legacy array and each affected subcollection round (per-doc), with Undo
+  restoring both.
+- **`advanceSeason`** clears evaluations (root array + subcollection docs).
+- The load-time eval schema migration stays root-only — it upgrades legacy
+  root-array rounds; new subcollection rounds are born at the current schema.
+- New rounds are created in the subcollection; legacy root-array rounds keep
+  working via the merge (no forced bulk drain of eval data).
 
-Largest blast radius (lineup engine, stats aggregation, season advance, CSV
-import/export all read the full arrays). Migrate last, behind a read-compat
-shim that prefers the subcollection and falls back to the root array.
+### Phase 3 — games → subcollection ✅ SHIPPED
+
+```
+artifacts/{appId}/public/data/teams/{teamId}/games/{gameId}
+```
+
+Done in this change set:
+
+- **Rules:** member-only `games/{id}`.
+- **`useGameCrud`** routes by `_sub`: new games create a slimmed subcollection
+  doc; `updateGame`/`finalize`/`postpone`/`delete` patch or delete the game's
+  own doc, or rebuild the legacy root slice. Pitch-count commits write players
+  separately. All lineup-save paths flow through `updateGame`, so they route
+  automatically.
+- **`usePlayerCrud.removePlayer`** strips a deleted player out of affected
+  subcollection game docs (per-doc), with Undo restoring them.
+- **`useImportExportFlows`:** schedule import writes game docs to the
+  subcollection; stats reconciliation reads the merged game list; backup export
+  captures the full team (subcollections included) with `_sub` tags stripped.
+- **`advanceSeason`** clears games (root array + subcollection docs).
+- Games are still slimmed (`slimGame`) on every write — per-doc now, matching
+  the prior whole-array slimming.
+
+### Phase 4 — players → subcollection (DEFERRED, by design)
+
+The `players/{id}` rule and the App-side subscription are in place, but players
+are intentionally **not** merged/migrated (`players` is absent from
+`MERGED_SUBCOLLECTIONS`), so the roster still lives on the root team document.
+
+Rationale — this is the one array where the migration is **all risk, no
+benefit**:
+
+- **No size benefit.** Unlike signups/games/evals, the roster is *bounded*
+  (~15–25 players/team) and doesn't grow over a season. It contributes a small,
+  fixed slice of the team doc, so moving it does nothing for the 1 MiB cap (the
+  whole point of this migration).
+- **Widest, most dangerous write surface.** ~12 distinct whole-array player
+  writes would each need source-routing, several in game-day/season-critical
+  paths: `usePlayerCrud` (add/update/updateNested/remove), `acceptTryout`,
+  `advanceSeason` (full roster rebuild: archive stats, drop released, promote
+  tryouts), `useGameCrud` pitch-count commits (finalize + postpone),
+  `useImportExportFlows` stats import, and `usePastSeasonCrud` (3 writers).
+- **No end-to-end safety net** in CI (unit + emulator rules only), so a subtle
+  reconciliation bug in `advanceSeason` (e.g. a surviving player not re-written,
+  or a dropped player's doc left behind) would corrupt a roster with no test to
+  catch it.
+
+If players are ever migrated, do it as its own dedicated, staging-tested effort:
+introduce a single `reconcilePlayers(next, prevSub)` helper (upsert sub docs,
+delete removed sub docs, write the legacy slice to the root array) and route
+*every* writer above through it; new players (`addPlayer`, `acceptTryout`,
+promotions) `setDoc` straight to the subcollection. Roster order is display-
+sorted (RosterTab) and batting order is separate (`battingLineup`), so no
+explicit `order` field is required.
 
 ### Cross-cutting constraints
 
