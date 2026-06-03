@@ -45,7 +45,7 @@ export const useTryoutFlows = ({
   // given kind — used to rebuild the array on a legacy-entry mutation without
   // re-folding subcollection items back into the root doc.
   const legacyArray = useCallback(
-    (kind: SignupKind) =>
+    (kind: string) =>
       (teamData[kind] || []).filter((s: any) => !s?._sub),
     [teamData]
   );
@@ -305,14 +305,22 @@ export const useTryoutFlows = ({
         tryoutSignupId: signupId,
         grades: { signup: { ...grades } },
       };
-      const next = existing
-        ? teamData.evaluationEvents.map((e: any) =>
-            e.id === existing.id ? event : e
-          )
-        : [...(teamData.evaluationEvents || []), event];
-      updateTeam({ evaluationEvents: next });
+      // Tryout grades are evaluationEvents — write to that subcollection (the
+      // new canonical store). An existing legacy (root-array) round is updated
+      // in place via the array; otherwise create/update the subcollection doc.
+      if (existing && !existing._sub) {
+        const next = legacyArray("evaluationEvents").map((e: any) =>
+          e.id === existing.id ? event : e
+        );
+        updateTeam({ evaluationEvents: next });
+      } else {
+        setDoc(
+          doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, "evaluationEvents", event.id),
+          scrubUndefined(event) as any
+        ).catch((err) => reportSubError("saveTryoutEvaluation", err));
+      }
     },
-    [user, teamData.evaluationEvents, updateTeam]
+    [user, teamData.evaluationEvents, legacyArray, activeTeamId, updateTeam, reportSubError]
   );
 
   // Accept-offer flow. Flips signup.status to "accepted" AND creates

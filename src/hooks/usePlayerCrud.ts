@@ -1,5 +1,8 @@
 import { useCallback } from "react";
+import { doc, updateDoc } from "firebase/firestore";
+import { appId, db } from "../firebase";
 import { blankStats } from "../utils/helpers";
+import { reportError } from "../utils/errorReporter";
 import type { ToastContextValue } from "../types";
 
 // Roster/player CRUD extracted from App.tsx's TeamProvider. Pure persistence
@@ -9,13 +12,28 @@ interface UsePlayerCrudArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
+  activeTeamId: string | null | undefined;
 }
 
 export const usePlayerCrud = ({
   teamData,
   updateTeam,
   toast,
+  activeTeamId,
 }: UsePlayerCrudArgs) => {
+  // Update an evaluationEvents subcollection doc's grades (used when a deleted
+  // player's grades must be stripped from a round that lives in the
+  // subcollection rather than the legacy root array).
+  const writeSubEventGrades = useCallback(
+    (eventId: string, grades: any) => {
+      if (!activeTeamId) return;
+      updateDoc(
+        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, "evaluationEvents", eventId),
+        { grades }
+      ).catch((err) => reportError(err, { source: "usePlayerCrud.writeSubEventGrades" }));
+    },
+    [activeTeamId]
+  );
   const addPlayer = useCallback(
     (form: any) => {
       const id =
@@ -119,10 +137,24 @@ export const usePlayerCrud = ({
         return { ...ev, grades: rest };
       };
 
+      // Evaluations may be split across the legacy root array and the
+      // evaluationEvents subcollection. Strip the deleted player's grades from
+      // both: the legacy slice rides along in the single updateTeam below; each
+      // affected subcollection round is patched on its own doc (and captured so
+      // Undo can restore its original grades).
+      const legacyEvents = prevEvents.filter((e: any) => !e?._sub);
+      const subEvents = prevEvents.filter((e: any) => e?._sub);
+      const affectedSubEvents = subEvents.filter(
+        (e: any) => e?.grades && id in e.grades
+      );
+      for (const ev of affectedSubEvents) {
+        writeSubEventGrades(ev.id, stripFromEvent(ev).grades);
+      }
+
       updateTeam({
         players: prevPlayers.filter((p: any) => p.id !== id),
         games: prevGames.map(stripFromGame),
-        evaluationEvents: prevEvents.map(stripFromEvent),
+        evaluationEvents: legacyEvents.map(stripFromEvent),
       });
 
       toast.push({
@@ -134,12 +166,16 @@ export const usePlayerCrud = ({
         duration: 10000,
         action: {
           label: "Undo",
-          onClick: () =>
+          onClick: () => {
+            for (const ev of affectedSubEvents) {
+              writeSubEventGrades(ev.id, ev.grades);
+            }
             updateTeam({
               players: prevPlayers,
               games: prevGames,
-              evaluationEvents: prevEvents,
-            }),
+              evaluationEvents: legacyEvents,
+            });
+          },
         },
       } as any);
     },
@@ -147,6 +183,7 @@ export const usePlayerCrud = ({
       teamData.players,
       teamData.games,
       teamData.evaluationEvents,
+      writeSubEventGrades,
       updateTeam,
       toast,
     ]

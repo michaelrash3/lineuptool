@@ -376,6 +376,7 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
 const MERGED_SUBCOLLECTIONS: SubcollectionName[] = [
   "tryoutSignups",
   "interestSignups",
+  "evaluationEvents",
 ];
 
 const TeamProvider = ({ children }: any) => {
@@ -1048,7 +1049,7 @@ const TeamProvider = ({ children }: any) => {
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
-    usePlayerCrud({ teamData, updateTeam, toast });
+    usePlayerCrud({ teamData: effectiveTeam, updateTeam, toast, activeTeamId });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
   const { addPastSeason, updatePastSeason, removePastSeason, bulkAddPastSeasons } =
@@ -1328,23 +1329,19 @@ const TeamProvider = ({ children }: any) => {
       tryoutsOpen: false,
       lastSeasonAdvanceAt: nowIso,
     });
-    // Tryout signups don't carry into the new season. Clearing the root array
-    // above handles legacy entries; subcollection signups are deleted per-doc.
+    // The arrays cleared above only empty the legacy root copies. Anything that
+    // has migrated to a subcollection must be deleted per-doc too.
     if (activeTeamId) {
-      for (const s of subData.tryoutSignups || []) {
-        deleteDoc(
-          doc(
-            db,
-            "artifacts",
-            appId,
-            "public",
-            "data",
-            "teams",
-            activeTeamId,
-            "tryoutSignups",
-            s.id
-          )
-        ).catch(() => {});
+      const clearedSubcollections: SubcollectionName[] = [
+        "tryoutSignups",
+        "evaluationEvents",
+      ];
+      for (const name of clearedSubcollections) {
+        for (const s of subData[name] || []) {
+          deleteDoc(
+            doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, name, s.id)
+          ).catch(() => {});
+        }
       }
     }
     toast.push({
@@ -1360,7 +1357,7 @@ const TeamProvider = ({ children }: any) => {
             } promoted to roster.`
           : ""),
     });
-  }, [teamData, effectiveTeam, subData.tryoutSignups, activeTeamId, updateTeam, toast]);
+  }, [teamData, effectiveTeam, subData, activeTeamId, updateTeam, toast]);
 
   const uploadLogo = useCallback(
     (e: any) => {
@@ -1503,7 +1500,7 @@ const TeamProvider = ({ children }: any) => {
     saveTeamEvaluation,
     saveAssistantEvaluation,
     deleteEvaluation,
-  } = useEvaluationCrud({ teamData, updateTeam, toast, user, uiBridge });
+  } = useEvaluationCrud({ teamData: effectiveTeam, updateTeam, toast, user, uiBridge, activeTeamId });
 
   // ─── Tryouts (PR M) ───────────────────────────────────────────────
   // Public sign-up flow lives at /tryouts/:shareId and writes to

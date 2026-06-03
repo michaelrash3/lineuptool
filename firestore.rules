@@ -319,5 +319,20 @@ service cloud.firestore {
                  'comfortablePositions', 'notes'
                ]));
     }
+
+    // Coach-only high-growth subcollections (Phase 2/3 of the migration):
+    // evaluations, games, and roster players. These are NOT public-write — only
+    // members of the team read or mutate them — so the rule is simply
+    // member-gated; per-document field validation is the client's job (trusted
+    // coaches, same as the legacy root-array writes were).
+    match /artifacts/{appId}/public/data/teams/{teamId}/evaluationEvents/{eventId} {
+      allow read, write: if isSignupTeamMember(appId, teamId);
+    }
+    match /artifacts/{appId}/public/data/teams/{teamId}/games/{gameId} {
+      allow read, write: if isSignupTeamMember(appId, teamId);
+    }
+    match /artifacts/{appId}/public/data/teams/{teamId}/players/{playerId} {
+      allow read, write: if isSignupTeamMember(appId, teamId);
+    }
   }
 }
