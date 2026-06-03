@@ -20,6 +20,11 @@ import {
   FIRESTORE_DOC_LIMIT_BYTES,
   buildSeasonPositionVariety,
   buildSeasonSummary,
+  clampText,
+  isValidEmail,
+  isSafeCssColor,
+  isSafeImageUrl,
+  SIGNUP_LIMITS,
 } from "./helpers";
 
 describe("CSV helpers", () => {
@@ -1096,5 +1101,49 @@ describe("buildSeasonSummary", () => {
   it("is empty/zeroed when there are no finalized games", () => {
     const s = buildSeasonSummary([{ id: "x", status: "scheduled" }]);
     expect(s).toMatchObject({ gamesPlayed: 0, wins: 0, runDiff: 0, streakType: null, streakCount: 0, results: [] });
+  });
+});
+
+describe("public-form input hygiene", () => {
+  it("clampText trims and hard-caps length", () => {
+    expect(clampText("  hi  ", 50)).toBe("hi");
+    expect(clampText("abcdef", 3)).toBe("abc");
+    expect(clampText(null, 5)).toBe("");
+    expect(clampText(undefined, 5)).toBe("");
+  });
+
+  it("isValidEmail accepts plausible addresses and rejects junk", () => {
+    expect(isValidEmail("a@b.co")).toBe(true);
+    expect(isValidEmail("  parent@example.com ")).toBe(true);
+    expect(isValidEmail("nope")).toBe(false);
+    expect(isValidEmail("a@b")).toBe(false);
+    expect(isValidEmail("a b@c.com")).toBe(false);
+    expect(isValidEmail("")).toBe(false);
+  });
+
+  it("isSafeCssColor allows hex/rgb/hsl and blocks injection", () => {
+    expect(isSafeCssColor("#2563eb")).toBe(true);
+    expect(isSafeCssColor("#abc")).toBe(true);
+    expect(isSafeCssColor("rgb(10, 20, 30)")).toBe(true);
+    expect(isSafeCssColor("hsl(200, 50%, 40%)")).toBe(true);
+    expect(isSafeCssColor("red; background: url(x)")).toBe(false);
+    expect(isSafeCssColor("expression(alert(1))")).toBe(false);
+    expect(isSafeCssColor("")).toBe(false);
+  });
+
+  it("isSafeImageUrl allows https + image data URLs, blocks the rest", () => {
+    expect(isSafeImageUrl("https://example.com/logo.png")).toBe(true);
+    expect(isSafeImageUrl("data:image/png;base64,AAAA")).toBe(true);
+    expect(isSafeImageUrl("data:image/svg+xml;base64,AAAA")).toBe(true);
+    expect(isSafeImageUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeImageUrl("http://insecure.example/logo.png")).toBe(false);
+    expect(isSafeImageUrl("data:text/html,<script>")).toBe(false);
+    expect(isSafeImageUrl("")).toBe(false);
+  });
+
+  it("exposes sane signup field limits", () => {
+    expect(SIGNUP_LIMITS.email).toBe(254);
+    expect(SIGNUP_LIMITS.name).toBeGreaterThan(0);
+    expect(SIGNUP_LIMITS.notes).toBeGreaterThanOrEqual(SIGNUP_LIMITS.name);
   });
 });

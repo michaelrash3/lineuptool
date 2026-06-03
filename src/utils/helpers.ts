@@ -1577,3 +1577,48 @@ export const summarizePitchingWorkload = (
   }
   return { outings: log.length, totalPitches, maxPitches, lastDate };
 };
+
+// ---------------------------------------------------------------------------
+// Public-form input hygiene.
+//
+// The Tryouts Portal accepts submissions from anonymous (unauthenticated)
+// visitors, so its inputs are untrusted. These keep payloads bounded — JSX
+// already escapes rendered text, but capping length avoids oversized writes,
+// PII-bloat in exports, and DoS-ish documents. The Firestore rules cap array
+// growth; this caps each entry's fields.
+// ---------------------------------------------------------------------------
+export const SIGNUP_LIMITS = {
+  name: 50, // first/last/parent/team names
+  email: 254, // RFC 5321 max
+  phone: 30,
+  notes: 500,
+} as const;
+
+// Trim and hard-clamp a free-text field to a max length.
+export const clampText = (value: unknown, max: number): string =>
+  String(value ?? "")
+    .trim()
+    .slice(0, max);
+
+// Pragmatic email shape check (not full RFC 5322) — "x@y.z" with no spaces.
+export const isValidEmail = (value: unknown): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
+
+// Whether a string is a safe CSS color to feed into setProperty — hex, rgb(a),
+// or hsl(a). Blocks attempts to smuggle extra declarations via team-supplied
+// branding colors (defense-in-depth; setProperty already rejects most junk).
+export const isSafeCssColor = (value: unknown): boolean => {
+  const v = String(value ?? "").trim();
+  return (
+    /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) ||
+    /^rgba?\(\s*[\d.,%\s/]+\)$/i.test(v) ||
+    /^hsla?\(\s*[\d.,%\s/deg]+\)$/i.test(v)
+  );
+};
+
+// Whether a logo URL is safe to render in an <img src>. Allows https and
+// inline image data URLs; rejects everything else (javascript:, other data:).
+export const isSafeImageUrl = (value: unknown): boolean => {
+  const v = String(value ?? "").trim();
+  return /^https:\/\//i.test(v) || /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(v);
+};

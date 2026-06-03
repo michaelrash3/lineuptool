@@ -110,6 +110,23 @@ export const useTryoutFlows = ({
     [teamData.tryoutSignups, updateTeam]
   );
 
+  // Bulk-remove signups in a SINGLE write. Calling deleteTryoutSignup() in a
+  // loop is buggy: each call filters the same closure-captured array and the
+  // optimistic merge keeps only the last write — so all-but-one survive. This
+  // filters every id out at once. Returns the number actually removed.
+  const deleteTryoutSignups = useCallback(
+    (ids: any[]) => {
+      const toRemove = new Set((ids || []).filter(Boolean));
+      if (toRemove.size === 0) return 0;
+      const current = teamData.tryoutSignups || [];
+      const next = current.filter((s: any) => !toRemove.has(s.id));
+      const removed = current.length - next.length;
+      if (removed > 0) updateTeam({ tryoutSignups: next });
+      return removed;
+    },
+    [teamData.tryoutSignups, updateTeam]
+  );
+
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
   // in the InterestTab UI so there's no native confirm prompt here.
   const deleteInterestSignup = useCallback(
@@ -250,6 +267,7 @@ export const useTryoutFlows = ({
     appendTryoutSignup,
     updateTryoutSignup,
     deleteTryoutSignup,
+    deleteTryoutSignups,
     deleteInterestSignup,
     convertInterestToTryout,
     saveTryoutEvaluation,

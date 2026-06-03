@@ -31,6 +31,18 @@ service cloud.firestore {
         return request.resource.data.diff(resource.data).affectedKeys();
       }
 
+      // Hard ceiling on public signup arrays — bounds the cost/DoS surface of
+      // the anonymous tryout/interest write paths below.
+      function MAX_SIGNUPS() {
+        return 2000;
+      }
+
+      // Size of an existing signup array, or 0 when the field is absent (so the
+      // very first append is permitted).
+      function prevSignupCount(key) {
+        return key in resource.data ? resource.data[key].size() : 0;
+      }
+
       function ownerIdUnchanged() {
         return !changedKeys().hasAny(['ownerId']);
       }
@@ -140,17 +152,30 @@ service cloud.firestore {
       // evaluations, other families' signups, member UIDs, or the join code.
       // These writes don't require read access — rules evaluate resource.data
       // server-side — so signups continue to work.
+      //
+      // Growth caps: hasOnly() alone would let an anonymous caller REPLACE the
+      // whole array with an arbitrarily large payload (cost/DoS abuse). Firestore
+      // rules can't validate individual arrayUnion elements, but they can bound
+      // the array: each write may add at most one entry and the list may never
+      // exceed MAX_SIGNUPS. prevSignupCount() defaults to 0 when the field is
+      // absent (first-ever signup), so the first append is allowed.
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
-                         .hasOnly(['tryoutSignups']);
+                         .hasOnly(['tryoutSignups'])
+                    && request.resource.data.tryoutSignups.size()
+                         <= prevSignupCount('tryoutSignups') + 1
+                    && request.resource.data.tryoutSignups.size() <= MAX_SIGNUPS();
 
       allow update: if isSignedIn()
                     && resource.data.tryoutShareId != null
                     && request.resource.data.diff(resource.data)
                          .affectedKeys()
-                         .hasOnly(['interestSignups']);
+                         .hasOnly(['interestSignups'])
+                    && request.resource.data.interestSignups.size()
+                         <= prevSignupCount('interestSignups') + 1
+                    && request.resource.data.interestSignups.size() <= MAX_SIGNUPS();
     }
 
     // Sanitized public mirror of a team, maintained by the coach client
