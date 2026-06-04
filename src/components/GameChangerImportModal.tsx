@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { Icons } from "../icons";
 import {
-  parseGameChangerIcs,
   isoInstantToLocalDate,
   type GcEvent,
 } from "../utils/icsParse";
+import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 
 // Import / sync a team's schedule from its GameChanger .ics calendar feed.
 // Flow: paste the feed URL -> Preview (fetched through /api/gc-schedule, which
@@ -53,19 +53,7 @@ export const GameChangerImportModal: React.FC<Props> = ({
     setError(null);
     setCandidates(null);
     try {
-      const res = await fetch(`/api/gc-schedule?url=${encodeURIComponent(url.trim())}`);
-      if (!res.ok) {
-        let msg = `Feed request failed (${res.status})`;
-        try {
-          const j = await res.json();
-          if (j?.error) msg = j.error;
-        } catch {
-          /* non-JSON error body */
-        }
-        throw new Error(msg);
-      }
-      const text = await res.text();
-      const events = parseGameChangerIcs(text);
+      const events = await fetchGcEvents(url);
       if (events.length === 0) {
         throw new Error("No games found in that calendar feed.");
       }
@@ -86,46 +74,17 @@ export const GameChangerImportModal: React.FC<Props> = ({
 
   const doImport = () => {
     if (!candidates) return;
-    const next = [...existingGames];
-    const indexByUid = new Map<string, number>();
-    next.forEach((g, i) => {
-      if (g?.gcUid) indexByUid.set(g.gcUid, i);
-    });
-
-    let added = 0;
-    let updated = 0;
-    for (const c of candidates) {
-      const patch = {
-        date: c.date,
-        opponent: c.event.opponent || "TBD",
-        isHome: c.event.isHome,
-        location: c.event.location || "",
-        gcUid: c.event.uid,
-      };
-      const existingIdx = c.event.uid ? indexByUid.get(c.event.uid) : undefined;
-      if (existingIdx != null) {
-        // Update schedule fields in place; preserve id, lineup, scores, status.
-        next[existingIdx] = { ...next[existingIdx], ...patch };
-        updated++;
-      } else {
-        next.push({
-          id: "g-" + Math.random().toString(36).substring(2, 10),
-          ...patch,
-          leagueRuleSet: team.leagueRuleSet,
-          pitchingFormat: team.pitchingFormat,
-          defenseSize: team.defenseSize,
-          battingSize: team.battingSize,
-          positionLock: team.positionLock,
-          lineup: null,
-          battingLineup: null,
-          attendance: {},
-          status: "scheduled",
-          teamScore: null,
-          opponentScore: null,
-        });
-        added++;
+    const { games: next, added, updated } = mergeGcEventsIntoGames(
+      existingGames,
+      candidates.map((c) => c.event),
+      {
+        leagueRuleSet: team.leagueRuleSet,
+        pitchingFormat: team.pitchingFormat,
+        defenseSize: team.defenseSize,
+        battingSize: team.battingSize,
+        positionLock: team.positionLock,
       }
-    }
+    );
 
     updateTeam({ games: next, gcCalendarUrl: url.trim() });
     toast.push({

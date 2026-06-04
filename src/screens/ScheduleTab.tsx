@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo } from "react";
+import React, { memo, useState, useMemo, useEffect } from "react";
 import { Icons } from "../icons";
 import {
   formatStat,
@@ -12,6 +12,7 @@ import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
+import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { LineupGrid } from "./LineupGrid";
 
 export const ScoreEditor = memo(
@@ -158,9 +159,16 @@ export const ScoreEditor = memo(
 );
 
 
+// Per-session, per-team throttle for the auto-sync-on-open: opening the
+// Schedule tab repeatedly within this window won't refetch the feed. Module
+// scope so it survives the tab's mount/unmount (routes mount fresh each visit).
+const gcAutoSyncedAt = new Map<string, number>();
+const GC_AUTOSYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
 export const ScheduleTab = memo(() => {
   const {
     team,
+    activeTeamId,
     addGame,
     updateGame,
     updateTeam,
@@ -234,6 +242,52 @@ export const ScheduleTab = memo(() => {
   const [saveTemplateName, setSaveTemplateName] = useState("");
   const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<string | null>(null);
   const [gcImportOpen, setGcImportOpen] = useState(false);
+
+  // Auto-sync the GameChanger schedule when the Schedule tab opens. Runs only
+  // when a feed URL is saved and the user can edit, throttled per team so
+  // re-opening the tab doesn't refetch constantly. Writes ONLY when something
+  // actually changed (mergeGcEventsIntoGames returns the same array otherwise),
+  // toasts only on a real change, and stays silent on errors so it never nags —
+  // the manual "Import from GameChanger" button still surfaces problems.
+  const gcFeedUrl = team?.gcCalendarUrl;
+  useEffect(() => {
+    if (!canEdit || !gcFeedUrl || !activeTeamId) return;
+    const now = Date.now();
+    if (now - (gcAutoSyncedAt.get(activeTeamId) || 0) < GC_AUTOSYNC_INTERVAL_MS) return;
+    gcAutoSyncedAt.set(activeTeamId, now);
+    let cancelled = false;
+    (async () => {
+      try {
+        const events = await fetchGcEvents(gcFeedUrl);
+        if (cancelled || events.length === 0) return;
+        const current = team?.games || [];
+        const { games, added, updated } = mergeGcEventsIntoGames(current, events, {
+          leagueRuleSet: team.leagueRuleSet,
+          pitchingFormat: team.pitchingFormat,
+          defenseSize: team.defenseSize,
+          battingSize: team.battingSize,
+          positionLock: team.positionLock,
+        });
+        if (cancelled || (added === 0 && updated === 0)) return;
+        updateTeam({ games });
+        toast.push({
+          kind: "success",
+          title: "Schedule synced",
+          message: `GameChanger: ${added} new, ${updated} updated.`,
+        });
+      } catch {
+        // Silent — don't nag on every open; manual import surfaces errors. On a
+        // failure, clear the throttle so the next open retries.
+        gcAutoSyncedAt.delete(activeTeamId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally keyed on team/feed identity, not the whole team object, so
+    // the post-sync games write doesn't re-trigger this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId, canEdit, gcFeedUrl]);
 
   // Sort games by ISO date string once per games-array change instead of on
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
