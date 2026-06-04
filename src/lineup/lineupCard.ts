@@ -7,6 +7,7 @@
 import { Game, SlimPlayer, Team, Toast } from "../types";
 import { isGameFinalized } from "../utils/helpers";
 import { PITCH_LIMITS } from "../lineupEngine";
+import { log } from "../utils/log";
 
 // Compute the team's W-L-T record from finalized games, for the share
 // card header. Uses the shared isGameFinalized() so it matches the
@@ -586,7 +587,7 @@ export const downloadLineupPdf = async ({ game, team, formatDate, toast }: Downl
       });
     }
   } catch (e) {
-    console.error("downloadLineupPdf failed", e);
+    log.error("downloadLineupPdf failed", e);
     if (toast) {
       toast.push({
         kind: "error",
@@ -641,7 +642,7 @@ export const shareLineupCard = async ({ game, team, formatDate, toast }: Downloa
       });
     }
   } catch (e) {
-    console.error("shareLineupCard failed", e);
+    log.error("shareLineupCard failed", e);
     if (toast) {
       toast.push({
         kind: "error",

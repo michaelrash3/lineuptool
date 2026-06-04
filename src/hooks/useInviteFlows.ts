@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { appId, db } from "../firebase";
 import { reportError } from "../utils/errorReporter";
+import { log } from "../utils/log";
 import type { ToastContextValue } from "../types";
 
 interface AuthUser {
@@ -152,10 +153,7 @@ export const useInviteFlows = ({
         // Log the underlying error so a coach reporting "I can't join" can
         // share a console snapshot — most join failures are silently caught
         // here and the toast was too vague to act on.
-        if (typeof console !== "undefined") {
-          // eslint-disable-next-line no-console
-          console.error("[joinTeamByCode] failed:", err);
-        }
+        log.error("[joinTeamByCode] failed:", err);
         const errCode = err?.code || "";
         const isPermission = errCode === "permission-denied";
         toast.push({
