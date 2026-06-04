@@ -986,40 +986,71 @@ const TeamProvider = ({ children }: any) => {
     [persistTeam, toast]
   );
 
-  // One-time per-team drain of legacy root-array signups into their
-  // subcollections. New signups already land in the subcollections (portal +
-  // coach creates); this migrates teams whose signups still sit on the root
-  // array so the root doc stops carrying them. Only a member runs it (their
-  // active team). Each entry is copied by id (idempotent; the merge de-dupes by
-  // id during the brief window before the array clear) and the root arrays are
-  // cleared only after every copy succeeds. A failure clears the guard so the
-  // next load retries.
-  const drainedSignupsRef = useRef(new Set<string>());
+  // One-time per-team drain of legacy root-array data into the migrated
+  // subcollections. New writes already land in the subcollections, but the
+  // legacy root copies of games and evaluations are only cleared on Advance
+  // Season — so a team that hasn't advanced keeps carrying every past game and
+  // eval round (plus signups) on the single ~1 MiB team doc. Once that doc hits
+  // the cap, EVERY save fails (a bare {defenseSize} merge write is valid and
+  // rules-allowed, so the only thing that can reject it is the doc-size limit),
+  // which is what produced the "change reverted" storm in production.
+  //
+  // Drain every migrated-and-merged collection (not players — that phase hasn't
+  // shipped): copy each entry into its subcollection by id (the merge de-dupes
+  // by id, subcollection winning, so there's no duplication or data loss during
+  // the brief overlap), then clear the drained root arrays in ONE write. That
+  // clearing write shrinks the document, so it's accepted even when the doc is
+  // currently over the cap — which is what unblocks saves again. A failure
+  // clears the guard so the next load retries.
+  const drainedRef = useRef(new Set<string>());
   useEffect(() => {
     if (!activeTeamId || !user) return;
-    if (drainedSignupsRef.current.has(activeTeamId)) return;
-    const rawTryout = (Array.isArray(teamData.tryoutSignups) ? teamData.tryoutSignups : [])
-      .filter((s: any) => s && !s._sub && s.id);
-    const rawInterest = (Array.isArray(teamData.interestSignups) ? teamData.interestSignups : [])
-      .filter((s: any) => s && !s._sub && s.id);
-    if (rawTryout.length === 0 && rawInterest.length === 0) return;
-    drainedSignupsRef.current.add(activeTeamId);
+    if (drainedRef.current.has(activeTeamId)) return;
+    const drainable: SubcollectionName[] = [
+      "tryoutSignups",
+      "interestSignups",
+      "evaluationEvents",
+      "games",
+    ];
+    const pending = drainable
+      .map((name) => ({
+        name,
+        legacy: (Array.isArray(teamData[name]) ? teamData[name] : []).filter(
+          (e: any) => e && !e._sub && e.id
+        ),
+      }))
+      .filter((c) => c.legacy.length > 0);
+    if (pending.length === 0) return;
+    drainedRef.current.add(activeTeamId);
     const base = ["artifacts", appId, "public", "data", "teams", activeTeamId] as const;
     (async () => {
       try {
-        for (const s of rawTryout) {
-          await setDoc(doc(db, ...base, "tryoutSignups", s.id), scrubUndefined(s) as any);
+        for (const { name, legacy } of pending) {
+          for (const entry of legacy) {
+            // Strip the read-only `_sub` tag; games are stored slimmed (the
+            // re-slim is idempotent for already-slim root entries).
+            const { _sub, ...rest } = entry as Record<string, any>;
+            const payload = name === "games" ? slimGame(rest as any) : rest;
+            await setDoc(doc(db, ...base, name, entry.id), scrubUndefined(payload) as any);
+          }
         }
-        for (const s of rawInterest) {
-          await setDoc(doc(db, ...base, "interestSignups", s.id), scrubUndefined(s) as any);
-        }
-        // Clear the root arrays only after every copy landed.
-        updateTeam({ tryoutSignups: [], interestSignups: [] });
+        // Clear every drained root array in one shrinking write.
+        const cleared: Record<string, any[]> = {};
+        for (const { name } of pending) cleared[name] = [];
+        updateTeam(cleared);
       } catch {
-        drainedSignupsRef.current.delete(activeTeamId); // retry next load
+        drainedRef.current.delete(activeTeamId); // retry next load
       }
     })();
-  }, [activeTeamId, user, teamData.tryoutSignups, teamData.interestSignups, updateTeam]);
+  }, [
+    activeTeamId,
+    user,
+    teamData.tryoutSignups,
+    teamData.interestSignups,
+    teamData.evaluationEvents,
+    teamData.games,
+    updateTeam,
+  ]);
 
   // Auto-correct defenseSize on age/league change. BATCHED into a single write.
   // We read the four relevant fields outside the effect so the dependency list
