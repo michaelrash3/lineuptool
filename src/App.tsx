@@ -825,6 +825,12 @@ const TeamProvider = ({ children }: any) => {
         return true;
       } catch (e: any) {
         setSyncStatus("");
+        // Always surface the real Firestore error (code + message), even on the
+        // silent path: optimistic callers (updateTeam) replace it with a generic
+        // "change reverted" toast, which hides whether the write was rejected by
+        // rules (permission-denied) or by the 1 MiB document-size cap
+        // (invalid-argument). Logging keeps a swallowed failure diagnosable.
+        log.warn("[persistTeam] write failed", (e && e.code) || "", e && e.message);
         if (!opts?.silent) {
           toast.push({ kind: "error", title: "Save failed", message: e.message });
         }
@@ -1023,6 +1029,15 @@ const TeamProvider = ({ children }: any) => {
   const _teamAge = teamData.teamAge;
   const _defenseSize = teamData.defenseSize;
   const _pitchingFormat = teamData.pitchingFormat;
+  // Guard against a self-perpetuating retry storm: updateTeam is optimistic and
+  // rolls back on a failed persist, which restores the very field this effect
+  // keys on (defenseSize/pitchingFormat) and would re-trigger the correction —
+  // an unbounded loop of failed writes + sticky "change reverted" toasts when
+  // persistence is failing (e.g. the team doc is over the 1 MiB cap). Remember
+  // the exact input tuple we last acted on and skip if it's unchanged; a revert
+  // returns the tuple to that value, so the loop can't re-arm. Any genuine
+  // league/age/size change produces a new tuple and still corrects.
+  const lastAutoCorrectRef = useRef("");
   useEffect(() => {
     const leagueRuleSet = _league;
     const teamAge = _teamAge;
@@ -1045,7 +1060,11 @@ const TeamProvider = ({ children }: any) => {
         updates.pitchingFormat = "Kid Pitch";
       }
     }
-    if (Object.keys(updates).length > 0) updateTeam(updates);
+    if (Object.keys(updates).length === 0) return;
+    const sig = `${leagueRuleSet}|${teamAge}|${defenseSize}|${pitchingFormat}`;
+    if (lastAutoCorrectRef.current === sig) return; // don't re-fire on revert
+    lastAutoCorrectRef.current = sig;
+    updateTeam(updates);
   }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam]);
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
