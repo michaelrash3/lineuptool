@@ -1235,13 +1235,16 @@ const TeamProvider = ({ children }: any) => {
       ? bumpAgeTier(teamData.teamAge)
       : teamData.teamAge;
 
-    // Compute team-level record from final games for the season being archived
+    // Compute team-level record from final games for the season being archived.
+    // Use the MERGED game list — teamData.games is the raw root array, which is
+    // empty once games have moved to the subcollection, so this must read the
+    // same merged view the rest of the app does or it archives a 0-0 record.
     let wins = 0,
       losses = 0,
       ties = 0,
       runsScored = 0,
       runsAllowed = 0;
-    for (const g of teamData.games) {
+    for (const g of effectiveTeam.games) {
       if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
@@ -1946,14 +1949,17 @@ const TeamProvider = ({ children }: any) => {
     });
   }, [authReady, user, loadingTeams, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
 
-  // Win-loss record derived from final games only.
+  // Win-loss record derived from final games only. Reads the MERGED game list
+  // (effectiveTeam), not the raw root array — games now live in the games
+  // subcollection, so teamData.games is empty once a team's legacy array has
+  // been drained. Reading the raw array here showed a 0-0 record after the drain.
   const record = useMemo(() => {
     let wins = 0,
       losses = 0,
       ties = 0,
       runsScored = 0,
       runsAllowed = 0;
-    for (const g of teamData.games) {
+    for (const g of effectiveTeam.games) {
       if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
@@ -1965,7 +1971,7 @@ const TeamProvider = ({ children }: any) => {
       else ties++;
     }
     return { wins, losses, ties, runsScored, runsAllowed };
-  }, [teamData.games]);
+  }, [effectiveTeam.games]);
 
   // True when a signed-in user has no teams yet AND there's no pending
   // ?join= flow in progress — that's the gate for showing the WelcomeChooser.
