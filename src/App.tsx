@@ -396,6 +396,14 @@ const TeamProvider = ({ children }: any) => {
   // rejected by rules (permission-denied), the size cap (resource-exhausted /
   // invalid-argument), or a real network drop (unavailable).
   const lastPersistErrorRef = useRef<{ code: string; message: string } | null>(null);
+  // The team id whose data is actually loaded into teamData. Stays null while
+  // the app shows the DEFAULT_TEAM_DATA placeholder (before any team loads) and
+  // during the brief window where activeTeamId is set but the team doc snapshot
+  // hasn't arrived yet. Effects that WRITE derived corrections (defenseSize
+  // auto-correct) gate on this so they never fire against placeholder data —
+  // which previously produced phantom "save failed" toasts (no activeTeamId yet)
+  // and risked writing default values onto a real team mid-load.
+  const loadedTeamIdRef = useRef<string | null>(null);
   // JSON of the last public-mirror projection we wrote, so we only re-upsert
   // the sanitized teamPublic doc when a mirrored field actually changes.
   const lastMirrorRef = useRef<string>("");
@@ -675,6 +683,9 @@ const TeamProvider = ({ children }: any) => {
             });
           }
         }
+        // Mark which team's data is now loaded so write-effects (auto-correct)
+        // can safely run against real data instead of the placeholder.
+        loadedTeamIdRef.current = activeTeamId;
         setLoadingActive(false);
     };
 
@@ -967,6 +978,13 @@ const TeamProvider = ({ children }: any) => {
   // produces a new tuple and still corrects.
   const lastAutoCorrectRef = useRef("");
   useEffect(() => {
+    // Only correct a REAL, loaded team. Before a team's doc has loaded,
+    // teamData is the DEFAULT_TEAM_DATA placeholder (USSSA / defenseSize "10"),
+    // which the USSSA branch below would "correct" to "9" — firing updateTeam
+    // either with no activeTeamId yet (a phantom "save failed" toast for a write
+    // that never reaches Firestore) or, mid-load, writing the placeholder value
+    // onto the real team. Gating on loadedTeamIdRef closes both holes.
+    if (!activeTeamId || loadedTeamIdRef.current !== activeTeamId) return;
     const leagueRuleSet = _league;
     const teamAge = _teamAge;
     const defenseSize = _defenseSize;
@@ -993,7 +1011,7 @@ const TeamProvider = ({ children }: any) => {
     if (lastAutoCorrectRef.current === sig) return; // don't re-fire on revert
     lastAutoCorrectRef.current = sig;
     updateTeam(updates);
-  }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam]);
+  }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam, activeTeamId, loadingActive]);
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
