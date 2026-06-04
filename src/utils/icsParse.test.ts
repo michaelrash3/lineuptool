@@ -1,0 +1,93 @@
+import { describe, it, expect } from "vitest";
+import { parseGameChangerIcs, isoInstantToLocalDate } from "./icsParse";
+
+// Real sample taken verbatim from a GameChanger Team Manager feed
+// (api.team-manager.gc.com .ics), trimmed to a few representative events:
+// an away game with a LOCATION, an away game without one, a home game, and a
+// home game whose opponent name contains spaces/qualifiers.
+const SAMPLE = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//com.gc/NONSGML GameChanger - Back End//EN
+X-WR-CALNAME:Trash Pandas 8u
+BEGIN:VEVENT
+UID:d99d8793-0262-4387-afe2-7da067087f90
+DTSTAMP:20260604T191535Z
+DTSTART:20260331T220000Z
+CLASS:PUBLIC
+SUMMARY:Trash Pandas 8u @ Grizzlies
+GEO:39.008077;-84.6322838
+LOCATION:St. Henry Athletic Complex\\nFlorence\\, KY\\, United States
+STATUS:CONFIRMED
+DTEND:20260401T000000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:c61589ab-835e-4fae-82dd-52304c214926
+DTSTART:20260414T220000Z
+SUMMARY:Trash Pandas 8u @ Griddy
+DTEND:20260415T000000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:b0f95ae9-9d98-4c25-b5be-1016ad160967
+DTSTART:20260416T220000Z
+SUMMARY:Trash Pandas 8u vs Eagles
+DTEND:20260417T000000Z
+END:VEVENT
+BEGIN:VEVENT
+UID:fce9a63f-331c-4e09-9afd-9397e5835fc0
+DTSTART:20260425T160000Z
+SUMMARY:Trash Pandas 8u vs NKYA Bandits 8u Smith
+DTEND:20260425T180000Z
+END:VEVENT
+END:VCALENDAR`;
+
+describe("parseGameChangerIcs", () => {
+  const events = parseGameChangerIcs(SAMPLE);
+
+  it("parses every VEVENT", () => {
+    expect(events).toHaveLength(4);
+  });
+
+  it("extracts the stable UID for de-duping", () => {
+    expect(events[0].uid).toBe("d99d8793-0262-4387-afe2-7da067087f90");
+  });
+
+  it("parses an away game (@) with opponent + location", () => {
+    const g = events[0];
+    expect(g.isHome).toBe(false);
+    expect(g.opponent).toBe("Grizzlies");
+    expect(g.startUtc).toBe("2026-03-31T22:00:00.000Z");
+    expect(g.endUtc).toBe("2026-04-01T00:00:00.000Z");
+    // \\n and \\, unescaped to a real newline + commas.
+    expect(g.location).toBe("St. Henry Athletic Complex\nFlorence, KY, United States");
+  });
+
+  it("parses an away game without a location", () => {
+    const g = events[1];
+    expect(g.isHome).toBe(false);
+    expect(g.opponent).toBe("Griddy");
+    expect(g.location).toBeNull();
+  });
+
+  it("parses a home game (vs)", () => {
+    const g = events[2];
+    expect(g.isHome).toBe(true);
+    expect(g.opponent).toBe("Eagles");
+  });
+
+  it("keeps multi-word opponent names intact", () => {
+    expect(events[3].opponent).toBe("NKYA Bandits 8u Smith");
+    expect(events[3].isHome).toBe(true);
+  });
+
+  it("returns [] for empty or non-calendar input", () => {
+    expect(parseGameChangerIcs("")).toEqual([]);
+    expect(parseGameChangerIcs("not a calendar")).toEqual([]);
+  });
+});
+
+describe("isoInstantToLocalDate", () => {
+  it("formats a midday-UTC instant to its calendar day (stable across US zones)", () => {
+    // 14:00Z stays June 6 in UTC and every US timezone — deterministic in CI.
+    expect(isoInstantToLocalDate("2026-06-06T14:00:00.000Z")).toBe("2026-06-06");
+  });
+});
