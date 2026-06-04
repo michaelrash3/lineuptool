@@ -284,6 +284,108 @@ export const cropImageTo256DataURL = (file: File) =>
     reader.readAsDataURL(file);
   });
 
+// Cache the one-time WebP-encode capability check.
+let _webpEncodeSupport: boolean | null = null;
+const canvasSupportsWebp = (): boolean => {
+  if (_webpEncodeSupport !== null) return _webpEncodeSupport;
+  try {
+    const c = document.createElement("canvas");
+    c.width = 1;
+    c.height = 1;
+    _webpEncodeSupport = c.toDataURL("image/webp").startsWith("data:image/webp");
+  } catch {
+    _webpEncodeSupport = false;
+  }
+  return _webpEncodeSupport;
+};
+
+// Byte cost of a data URL when stored in Firestore (the doc holds it as a
+// UTF-8 string, so the string length is the storage cost).
+const dataUrlBytes = (url: string): number => url.length;
+
+// Downscale + compress an image so a logo can ALWAYS be stored inline without
+// blowing the Firestore document limit — instead of rejecting an oversized
+// file, we shrink it to fit. An image already within `maxDim` and under
+// `targetBytes` is returned untouched (no needless quality loss). Otherwise it
+// is scaled to fit `maxDim` and re-encoded, preferring WebP (which keeps
+// transparency AND compresses; PNG is the fallback), stepping quality and then
+// dimensions down until the data URL fits `targetBytes`. Transparency is
+// preserved (no background fill), so PNG logos with alpha stay clean.
+export const downscaleImageToDataURL = (
+  file: File,
+  {
+    maxDim = 512,
+    targetBytes = 200_000,
+  }: { maxDim?: number; targetBytes?: number } = {}
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("No file"));
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onload = () => {
+      const original = reader.result as string;
+      const img = new Image();
+      img.onerror = () => reject(new Error("Invalid image"));
+      img.onload = () => {
+        const longest = Math.max(img.width, img.height) || 1;
+        // Already small enough in both dimensions and bytes — keep as-is.
+        if (longest <= maxDim && dataUrlBytes(original) <= targetBytes) {
+          resolve(original);
+          return;
+        }
+        const webp = canvasSupportsWebp();
+        // Encode at a target longest-edge size; return the smallest data URL we
+        // can make at that size (under target if possible, else best effort).
+        const encodeAt = (dim: number): string | null => {
+          const scale = Math.min(1, dim / longest);
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return null;
+          ctx.drawImage(img, 0, 0, w, h); // no fill -> preserve transparency
+          let best: string | null = null;
+          if (webp) {
+            for (const q of [0.85, 0.7, 0.55, 0.4]) {
+              const url = canvas.toDataURL("image/webp", q);
+              if (url && url !== "data:,") {
+                best = url;
+                if (dataUrlBytes(url) <= targetBytes) return url;
+              }
+            }
+          }
+          const png = canvas.toDataURL("image/png");
+          if (png && png !== "data:,") {
+            if (dataUrlBytes(png) <= targetBytes) return png;
+            if (!best || dataUrlBytes(png) < dataUrlBytes(best)) best = png;
+          }
+          return best;
+        };
+
+        let dim = Math.min(maxDim, longest);
+        let last: string | null = null;
+        for (let i = 0; i < 6; i++) {
+          const url = encodeAt(dim);
+          if (url) {
+            last = url;
+            if (dataUrlBytes(url) <= targetBytes) {
+              resolve(url);
+              return;
+            }
+          }
+          dim = Math.round(dim * 0.75);
+          if (dim < 48) break;
+        }
+        if (last) resolve(last);
+        else reject(new Error("Could not process image"));
+      };
+      img.src = original;
+    };
+    reader.readAsDataURL(file);
+  });
+
 // Pull the dominant colors out of a logo so we can suggest team colors.
 // Mirrors cropImageTo256DataURL's FileReader → Image → <canvas> approach,
 // but instead of re-encoding the image we read its pixels and bucket them.
