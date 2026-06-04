@@ -11,6 +11,7 @@ import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge } from "../components/shared";
+import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { LineupGrid } from "./LineupGrid";
 
 export const ScoreEditor = memo(
@@ -162,6 +163,7 @@ export const ScheduleTab = memo(() => {
     team,
     addGame,
     updateGame,
+    updateTeam,
     finalizeGame,
     postponeGame,
     deleteSavedGame,
@@ -231,6 +233,7 @@ export const ScheduleTab = memo(() => {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState("");
   const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<string | null>(null);
+  const [gcImportOpen, setGcImportOpen] = useState(false);
 
   // Sort games by ISO date string once per games-array change instead of on
   // every keystroke into newGameForm (which triggers a ScheduleTab re-render).
@@ -1167,6 +1170,14 @@ export const ScheduleTab = memo(() => {
           )}
           {canEdit && (
             <button
+              onClick={() => setGcImportOpen(true)}
+              className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+            >
+              <Icons.Calendar className="w-4 h-4" /> Import from GameChanger
+            </button>
+          )}
+          {canEdit && (
+            <button
               onClick={() => setIsAddingGame(true)}
               className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
@@ -1176,6 +1187,13 @@ export const ScheduleTab = memo(() => {
           )}
         </div>
       </div>
+      <GameChangerImportModal
+        open={gcImportOpen}
+        onClose={() => setGcImportOpen(false)}
+        team={team}
+        updateTeam={updateTeam}
+        toast={toast}
+      />
       {isAddingGame && (
         <div className="p-5 bg-surface border-b border-white/30 flex flex-col sm:flex-row gap-3">
           <input
