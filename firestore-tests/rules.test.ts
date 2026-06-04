@@ -381,32 +381,3 @@ describe("signup subcollections (Phase 1 migration)", () => {
     );
   });
 });
-
-describe("coach-only subcollections (evaluations, games, players)", () => {
-  const coachOnly = (kind: string, id: string) =>
-    ["artifacts", APP_ID, "public", "data", "teams", "team-1", kind, id] as const;
-
-  for (const kind of ["evaluationEvents", "games", "players"]) {
-    it(`lets a member create/read/update/delete a ${kind} doc`, async () => {
-      await assertSucceeds(
-        setDoc(doc(dbFor(ASSISTANT), ...coachOnly(kind, "x1")), { id: "x1", v: 1 })
-      );
-      await assertSucceeds(getDoc(doc(dbFor(ASSISTANT), ...coachOnly(kind, "x1"))));
-      await assertSucceeds(
-        updateDoc(doc(dbFor(ASSISTANT), ...coachOnly(kind, "x1")), { v: 2 })
-      );
-      await assertSucceeds(deleteDoc(doc(dbFor(ASSISTANT), ...coachOnly(kind, "x1"))));
-    });
-
-    it(`denies a non-member any access to a ${kind} doc`, async () => {
-      await testEnv.withSecurityRulesDisabled(async (ctx) => {
-        await setDoc(doc(ctx.firestore(), ...coachOnly(kind, "seed")), { id: "seed" });
-      });
-      await assertFails(getDoc(doc(dbFor(OUTSIDER), ...coachOnly(kind, "seed"))));
-      await assertFails(
-        setDoc(doc(dbFor(OUTSIDER), ...coachOnly(kind, "evil")), { id: "evil" })
-      );
-      await assertFails(deleteDoc(doc(dbFor(OUTSIDER), ...coachOnly(kind, "seed"))));
-    });
-  }
-});

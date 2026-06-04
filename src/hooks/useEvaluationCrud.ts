@@ -1,8 +1,5 @@
 import { useCallback } from "react";
-import { deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
-import { appId, db } from "../firebase";
-import { evalRoundDateForSave, scrubUndefined } from "../utils/helpers";
-import { reportError } from "../utils/errorReporter";
+import { evalRoundDateForSave } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Pull a display-able last name from a Firebase auth user. Eval rounds
@@ -31,7 +28,6 @@ interface UseEvaluationCrudArgs {
   toast: ToastContextValue;
   user: { uid: string; displayName?: string; email?: string } | null | undefined;
   uiBridge: { current: any };
-  activeTeamId: string | null | undefined;
 }
 
 export const useEvaluationCrud = ({
@@ -40,47 +36,7 @@ export const useEvaluationCrud = ({
   toast,
   user,
   uiBridge,
-  activeTeamId,
 }: UseEvaluationCrudArgs) => {
-  // Phase 2 migration: evaluation rounds live in the evaluationEvents
-  // subcollection (tagged `_sub` when merged in). New rounds are written there;
-  // edits/deletes of an existing round route to its source — its own doc, or the
-  // legacy root array (rebuilt from non-`_sub` entries so subcollection rounds
-  // are never folded back onto the team doc).
-  const evalDoc = useCallback(
-    (id: string) =>
-      doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!, "evaluationEvents", id),
-    [activeTeamId]
-  );
-  const legacyEvents = useCallback(
-    () => (teamData.evaluationEvents || []).filter((e: any) => !e?._sub),
-    [teamData.evaluationEvents]
-  );
-  const createEvent = useCallback(
-    (event: any) => {
-      setDoc(evalDoc(event.id), scrubUndefined(event) as any).catch((err) => {
-        reportError(err, { source: "useEvaluationCrud.createEvent" });
-        toast.push({ kind: "error", title: "Eval save failed", message: "Check your connection and try again." });
-      });
-    },
-    [evalDoc, toast]
-  );
-  const patchEvent = useCallback(
-    (entry: any, patch: Record<string, unknown>) => {
-      if (entry._sub) {
-        updateDoc(evalDoc(entry.id), patch as any).catch((err) => {
-          reportError(err, { source: "useEvaluationCrud.patchEvent" });
-          toast.push({ kind: "error", title: "Eval save failed", message: "Check your connection and try again." });
-        });
-        return;
-      }
-      const next = legacyEvents().map((e: any) =>
-        e.id === entry.id ? { ...e, ...patch } : e
-      );
-      updateTeam({ evaluationEvents: next });
-    },
-    [evalDoc, legacyEvents, updateTeam, toast]
-  );
   const saveTeamEvaluation = useCallback(() => {
     const inputs = uiBridge.current.getInputs?.();
     const grades = inputs?.teamEvalGrades || {};
@@ -90,10 +46,10 @@ export const useEvaluationCrud = ({
     if (selectedRoundId) {
       // Editing an existing round — update its grades, keep its
       // label/date/id/evaluatorName intact.
-      const existing = (teamData.evaluationEvents || []).find(
-        (e: any) => e.id === selectedRoundId
+      const next = teamData.evaluationEvents.map((e: any) =>
+        e.id === selectedRoundId ? { ...e, grades } : e
       );
-      if (existing) patchEvent(existing, { grades });
+      updateTeam({ evaluationEvents: next });
       toast.push({ kind: "success", title: "Eval updated" });
       return selectedRoundId;
     }
@@ -112,7 +68,9 @@ export const useEvaluationCrud = ({
       evaluatorName,
       grades,
     };
-    createEvent(newEvent);
+    updateTeam({
+      evaluationEvents: [...teamData.evaluationEvents, newEvent],
+    });
     toast.push({
       kind: "success",
       title: "Eval saved",
@@ -120,7 +78,7 @@ export const useEvaluationCrud = ({
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
-  }, [user, teamData.evaluationEvents, createEvent, patchEvent, toast, uiBridge]);
+  }, [user, teamData.evaluationEvents, updateTeam, toast, uiBridge]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
   // upsert behavior — the round is stamped with the calendar due date it
@@ -136,24 +94,29 @@ export const useEvaluationCrud = ({
           e.evaluatorId === user.uid &&
           e.date === roundDate
       );
+      let nextEvents;
       if (existing) {
-        patchEvent(existing, { grades });
+        nextEvents = teamData.evaluationEvents.map((e: any) =>
+          e.id === existing.id ? { ...e, grades } : e
+        );
       } else {
-        createEvent({
+        const newEvent = {
           id: "ev-" + Math.random().toString(36).substring(2, 10),
           date: roundDate,
           coachRole: "Assistant",
           evaluatorId: user.uid,
           evaluatorName: lastNameOfUser(user),
           grades,
-        });
+        };
+        nextEvents = [...(teamData.evaluationEvents || []), newEvent];
       }
+      updateTeam({ evaluationEvents: nextEvents });
       toast.push({
         kind: "success",
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, createEvent, patchEvent, toast]
+    [user, teamData.evaluationEvents, updateTeam, toast]
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach
@@ -162,24 +125,16 @@ export const useEvaluationCrud = ({
   const deleteEvaluation = useCallback(
     (roundId: any) => {
       if (!roundId) return;
-      const entry = (teamData.evaluationEvents || []).find(
-        (e: any) => e.id === roundId
+      const next = (teamData.evaluationEvents || []).filter(
+        (e: any) => e.id !== roundId
       );
-      if (!entry) return;
-      if (entry._sub) {
-        deleteDoc(evalDoc(roundId)).catch((err) => {
-          reportError(err, { source: "useEvaluationCrud.deleteEvaluation" });
-          toast.push({ kind: "error", title: "Delete failed", message: "Check your connection and try again." });
-        });
-      } else {
-        updateTeam({ evaluationEvents: legacyEvents().filter((e: any) => e.id !== roundId) });
-      }
+      updateTeam({ evaluationEvents: next });
       toast.push({
         kind: "success",
         title: "Eval round deleted",
       });
     },
-    [teamData.evaluationEvents, evalDoc, legacyEvents, updateTeam, toast]
+    [teamData.evaluationEvents, updateTeam, toast]
   );
 
   return {

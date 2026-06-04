@@ -1,33 +1,16 @@
-import { vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { updateDoc } from "firebase/firestore";
 import { usePlayerCrud } from "./usePlayerCrud";
 import { makeToast } from "../test-utils";
-
-// removePlayer may strip grades from subcollection eval docs, so the hook
-// imports firebase. Stub it; encode doc paths for assertions.
-vi.mock("../firebase", () => ({ appId: "app", db: {} }));
-vi.mock("../utils/errorReporter", () => ({ reportError: vi.fn() }));
-vi.mock("firebase/firestore", () => ({
-  doc: vi.fn((_db: any, ...path: string[]) => ({ path: path.join("/") })),
-  updateDoc: vi.fn(() => Promise.resolve()),
-}));
-
-const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
 
 const setup = (teamOver: any = {}) => {
   const updateTeam = jest.fn();
   const toast = makeToast();
   const teamData = { players: [], games: [], evaluationEvents: [], ...teamOver };
   const { result } = renderHook(() =>
-    usePlayerCrud({ teamData, updateTeam, toast, activeTeamId: "team-1" })
+    usePlayerCrud({ teamData, updateTeam, toast })
   );
   return { result, updateTeam, toast };
 };
-
-beforeEach(() => {
-  mockUpdateDoc.mockClear();
-});
 
 describe("usePlayerCrud", () => {
   it("addPlayer appends a player with defaults and returns the id", () => {
@@ -93,27 +76,6 @@ describe("usePlayerCrud", () => {
       // Undo restores all snapshots.
       const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
       expect(undo.label).toBe("Undo");
-      confirmSpy.mockRestore();
-    });
-
-    it("strips the player's grades from a SUBCOLLECTION eval round via its doc", () => {
-      const subTeam = {
-        players: [{ id: "p1", name: "Ava" }, { id: "p2", name: "Mia" }],
-        games: [],
-        evaluationEvents: [
-          { id: "e1", _sub: "evaluationEvents", grades: { p1: { hit: 3 }, p2: { hit: 4 } } },
-        ],
-      };
-      const { result, updateTeam } = setup(subTeam);
-      const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
-      act(() => result.current.removePlayer("p1"));
-      // The subcollection round is patched on its own doc, not the root array.
-      expect(mockUpdateDoc).toHaveBeenCalledWith(
-        expect.objectContaining({ path: expect.stringContaining("/evaluationEvents/e1") }),
-        { grades: { p2: { hit: 4 } } }
-      );
-      // The root-array evaluationEvents in the team write stays empty (no legacy).
-      expect(updateTeam.mock.calls[0][0].evaluationEvents).toEqual([]);
       confirmSpy.mockRestore();
     });
   });
