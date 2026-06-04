@@ -79,13 +79,6 @@ import {
   FIRESTORE_DOC_LIMIT_BYTES,
   DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
-import {
-  SUBCOLLECTION_NAMES,
-  mergeSubcollections,
-  type SubData,
-  type SubcollectionName,
-} from "./utils/subcollections";
-import { log } from "./utils/log";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
 import { useTeamMembership } from "./hooks/useTeamMembership";
@@ -180,8 +173,9 @@ const ScreenLoader = () => (
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
 
-const authDiag = (event: string, details: Record<string, unknown> = {}) => {
-  log.info("[auth-diag]", event, {
+const authDiag = (event: any, details = {}) => {
+  if (typeof console === "undefined") return;
+  console.info("[auth-diag]", event, {
     ts: new Date().toISOString(),
     ...details,
   });
@@ -370,16 +364,6 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
    SECTION 17 · TeamProvider — owns team state, Firebase subscriptions, actions
    This replaces the prop-drilled state/actions object in the original.
 ============================================================================ */
-// Subcollections that are actively merged into the team the app reads. A
-// collection is added here only once its coach-side write routing has migrated,
-// so reads never surface subcollection data the writers can't yet maintain.
-const MERGED_SUBCOLLECTIONS: SubcollectionName[] = [
-  "tryoutSignups",
-  "interestSignups",
-  "evaluationEvents",
-  "games",
-];
-
 const TeamProvider = ({ children }: any) => {
   const toast = useToast();
 
@@ -389,11 +373,12 @@ const TeamProvider = ({ children }: any) => {
   const [teams, setTeams] = useState<any[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<any>(null);
   const [teamData, setTeamData] = useState<any>(DEFAULT_TEAM_DATA);
-  // Subcollection-backed copies of the high-growth team arrays, keyed by
-  // collection name (docs tagged `_sub`). Merged into teamData for reads via the
-  // effectiveTeam memo. Each collection is enabled in MERGED_SUBCOLLECTIONS only
-  // once its coach-side write routing has been migrated.
-  const [subData, setSubData] = useState<SubData>({});
+  // Phase 1 signup migration: public signups live in per-team subcollections.
+  // We subscribe to them separately and merge into teamData for reads (see the
+  // effectiveTeam memo). Each entry is tagged `_sub` with its collection name so
+  // coach mutations can route to the right doc.
+  const [subTryoutSignups, setSubTryoutSignups] = useState<any[]>([]);
+  const [subInterestSignups, setSubInterestSignups] = useState<any[]>([]);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
@@ -468,7 +453,7 @@ const TeamProvider = ({ children }: any) => {
           await signInWithCustomToken(auth, tokenFromHost);
         }
       } catch (e: any) {
-        log.warn("Custom token sign-in failed", e);
+        console.warn("Custom token sign-in failed", e);
       }
       const unsub = onAuthStateChanged(auth, async (u) => {
         if (cancelled) return;
@@ -729,39 +714,51 @@ const TeamProvider = ({ children }: any) => {
     };
   }, [activeTeamId, toast]);
 
-  // Subscribe to every migrated subcollection for the active team and tag each
-  // doc with its source collection (`_sub`). A permission/read error (anonymous
-  // portal context, or pre-membership-propagation) just yields an empty list
-  // for that collection rather than surfacing an error — legacy root-array data
-  // still renders. Subscribing to all of them is cheap (empty collections cost
-  // nothing); whether a collection is actually merged is gated separately by
-  // MERGED_SUBCOLLECTIONS so a collection's reads only switch on with its
-  // write routing.
+  // Subscribe to the public signup subcollections for the active team and tag
+  // each entry with its source collection (`_sub`). A permission/read error
+  // (e.g. an anonymous portal context, or pre-membership-propagation) just
+  // yields an empty list rather than surfacing an error — the legacy root-array
+  // signups still render.
   useEffect(() => {
-    setSubData({});
-    if (!activeTeamId) return;
+    if (!activeTeamId) {
+      setSubTryoutSignups([]);
+      setSubInterestSignups([]);
+      return;
+    }
     const base = ["artifacts", appId, "public", "data", "teams", activeTeamId] as const;
-    const unsubs = SUBCOLLECTION_NAMES.map((name) =>
-      onSnapshot(
-        collection(db, ...base, name),
-        (snap) =>
-          setSubData((prev) => ({
-            ...prev,
-            [name]: snap.docs.map((d: any) => ({ ...d.data(), id: d.id, _sub: name })),
-          })),
-        () => setSubData((prev) => ({ ...prev, [name]: [] }))
-      )
+    const mapDocs = (snap: any, kind: string) =>
+      snap.docs.map((d: any) => ({ ...d.data(), id: d.id, _sub: kind }));
+    const unsubT = onSnapshot(
+      collection(db, ...base, "tryoutSignups"),
+      (snap) => setSubTryoutSignups(mapDocs(snap, "tryoutSignups")),
+      () => setSubTryoutSignups([])
     );
-    return () => unsubs.forEach((u) => u());
+    const unsubI = onSnapshot(
+      collection(db, ...base, "interestSignups"),
+      (snap) => setSubInterestSignups(mapDocs(snap, "interestSignups")),
+      () => setSubInterestSignups([])
+    );
+    return () => {
+      unsubT();
+      unsubI();
+    };
   }, [activeTeamId]);
 
-  // Team as the rest of the app consumes it: the root team doc with the migrated
-  // subcollections merged into the legacy arrays (de-duped by id). Identity is
-  // preserved when there's nothing to merge so existing memo deps don't churn.
-  const effectiveTeam = useMemo(
-    () => mergeSubcollections(teamData, subData, MERGED_SUBCOLLECTIONS),
-    [teamData, subData]
-  );
+  // Team as the rest of the app consumes it: the root team doc with the signup
+  // subcollections merged into the legacy arrays. Identity is preserved when
+  // there are no subcollection signups so existing memo deps don't churn.
+  const effectiveTeam = useMemo(() => {
+    if (subTryoutSignups.length === 0 && subInterestSignups.length === 0) {
+      return teamData;
+    }
+    const rawTryout = Array.isArray(teamData.tryoutSignups) ? teamData.tryoutSignups : [];
+    const rawInterest = Array.isArray(teamData.interestSignups) ? teamData.interestSignups : [];
+    return {
+      ...teamData,
+      tryoutSignups: [...rawTryout, ...subTryoutSignups],
+      interestSignups: [...rawInterest, ...subInterestSignups],
+    };
+  }, [teamData, subTryoutSignups, subInterestSignups]);
 
   // Helper: write a partial update to the active team document. Resolves to
   // `true` on success and `false` on failure so optimistic callers (updateTeam)
@@ -825,12 +822,6 @@ const TeamProvider = ({ children }: any) => {
         return true;
       } catch (e: any) {
         setSyncStatus("");
-        // Always surface the real Firestore error (code + message), even on the
-        // silent path: optimistic callers (updateTeam) replace it with a generic
-        // "change reverted" toast, which hides whether the write was rejected by
-        // rules (permission-denied) or by the 1 MiB document-size cap
-        // (invalid-argument). Logging keeps a swallowed failure diagnosable.
-        log.warn("[persistTeam] write failed", (e && e.code) || "", e && e.message);
         if (!opts?.silent) {
           toast.push({ kind: "error", title: "Save failed", message: e.message });
         }
@@ -986,72 +977,6 @@ const TeamProvider = ({ children }: any) => {
     [persistTeam, toast]
   );
 
-  // One-time per-team drain of legacy root-array data into the migrated
-  // subcollections. New writes already land in the subcollections, but the
-  // legacy root copies of games and evaluations are only cleared on Advance
-  // Season — so a team that hasn't advanced keeps carrying every past game and
-  // eval round (plus signups) on the single ~1 MiB team doc. Once that doc hits
-  // the cap, EVERY save fails (a bare {defenseSize} merge write is valid and
-  // rules-allowed, so the only thing that can reject it is the doc-size limit),
-  // which is what produced the "change reverted" storm in production.
-  //
-  // Drain every migrated-and-merged collection (not players — that phase hasn't
-  // shipped): copy each entry into its subcollection by id (the merge de-dupes
-  // by id, subcollection winning, so there's no duplication or data loss during
-  // the brief overlap), then clear the drained root arrays in ONE write. That
-  // clearing write shrinks the document, so it's accepted even when the doc is
-  // currently over the cap — which is what unblocks saves again. A failure
-  // clears the guard so the next load retries.
-  const drainedRef = useRef(new Set<string>());
-  useEffect(() => {
-    if (!activeTeamId || !user) return;
-    if (drainedRef.current.has(activeTeamId)) return;
-    const drainable: SubcollectionName[] = [
-      "tryoutSignups",
-      "interestSignups",
-      "evaluationEvents",
-      "games",
-    ];
-    const pending = drainable
-      .map((name) => ({
-        name,
-        legacy: (Array.isArray(teamData[name]) ? teamData[name] : []).filter(
-          (e: any) => e && !e._sub && e.id
-        ),
-      }))
-      .filter((c) => c.legacy.length > 0);
-    if (pending.length === 0) return;
-    drainedRef.current.add(activeTeamId);
-    const base = ["artifacts", appId, "public", "data", "teams", activeTeamId] as const;
-    (async () => {
-      try {
-        for (const { name, legacy } of pending) {
-          for (const entry of legacy) {
-            // Strip the read-only `_sub` tag; games are stored slimmed (the
-            // re-slim is idempotent for already-slim root entries).
-            const { _sub, ...rest } = entry as Record<string, any>;
-            const payload = name === "games" ? slimGame(rest as any) : rest;
-            await setDoc(doc(db, ...base, name, entry.id), scrubUndefined(payload) as any);
-          }
-        }
-        // Clear every drained root array in one shrinking write.
-        const cleared: Record<string, any[]> = {};
-        for (const { name } of pending) cleared[name] = [];
-        updateTeam(cleared);
-      } catch {
-        drainedRef.current.delete(activeTeamId); // retry next load
-      }
-    })();
-  }, [
-    activeTeamId,
-    user,
-    teamData.tryoutSignups,
-    teamData.interestSignups,
-    teamData.evaluationEvents,
-    teamData.games,
-    updateTeam,
-  ]);
-
   // Auto-correct defenseSize on age/league change. BATCHED into a single write.
   // We read the four relevant fields outside the effect so the dependency list
   // literally matches what's used (avoids the ESLint exhaustive-deps confusion
@@ -1060,15 +985,6 @@ const TeamProvider = ({ children }: any) => {
   const _teamAge = teamData.teamAge;
   const _defenseSize = teamData.defenseSize;
   const _pitchingFormat = teamData.pitchingFormat;
-  // Guard against a self-perpetuating retry storm: updateTeam is optimistic and
-  // rolls back on a failed persist, which restores the very field this effect
-  // keys on (defenseSize/pitchingFormat) and would re-trigger the correction —
-  // an unbounded loop of failed writes + sticky "change reverted" toasts when
-  // persistence is failing (e.g. the team doc is over the 1 MiB cap). Remember
-  // the exact input tuple we last acted on and skip if it's unchanged; a revert
-  // returns the tuple to that value, so the loop can't re-arm. Any genuine
-  // league/age/size change produces a new tuple and still corrects.
-  const lastAutoCorrectRef = useRef("");
   useEffect(() => {
     const leagueRuleSet = _league;
     const teamAge = _teamAge;
@@ -1091,16 +1007,12 @@ const TeamProvider = ({ children }: any) => {
         updates.pitchingFormat = "Kid Pitch";
       }
     }
-    if (Object.keys(updates).length === 0) return;
-    const sig = `${leagueRuleSet}|${teamAge}|${defenseSize}|${pitchingFormat}`;
-    if (lastAutoCorrectRef.current === sig) return; // don't re-fire on revert
-    lastAutoCorrectRef.current = sig;
-    updateTeam(updates);
+    if (Object.keys(updates).length > 0) updateTeam(updates);
   }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam]);
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
-    usePlayerCrud({ teamData: effectiveTeam, updateTeam, toast, activeTeamId });
+    usePlayerCrud({ teamData, updateTeam, toast });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
   const { addPastSeason, updatePastSeason, removePastSeason, bulkAddPastSeasons } =
@@ -1129,7 +1041,7 @@ const TeamProvider = ({ children }: any) => {
 
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
-    useGameCrud({ teamData: effectiveTeam, updateTeam, toast, activeTeamId });
+    useGameCrud({ teamData, updateTeam, toast });
 
   // ----- Lineup actions ----- (extracted to src/hooks/useLineupActions.ts)
   const {
@@ -1143,7 +1055,7 @@ const TeamProvider = ({ children }: any) => {
     applyLineupTemplate,
     deleteLineupTemplate,
     removePlayerMidGame,
-  } = useLineupActions({ teamData: effectiveTeam, updateTeam, updateGame, persistTeam, toast, uiBridge, previousLineupRef });
+  } = useLineupActions({ teamData, updateTeam, updateGame, persistTeam, toast, uiBridge, previousLineupRef });
 
   // ----- Team management -----
   const switchTeam = useCallback(
@@ -1235,16 +1147,13 @@ const TeamProvider = ({ children }: any) => {
       ? bumpAgeTier(teamData.teamAge)
       : teamData.teamAge;
 
-    // Compute team-level record from final games for the season being archived.
-    // Use the MERGED game list — teamData.games is the raw root array, which is
-    // empty once games have moved to the subcollection, so this must read the
-    // same merged view the rest of the app does or it archives a 0-0 record.
+    // Compute team-level record from final games for the season being archived
     let wins = 0,
       losses = 0,
       ties = 0,
       runsScored = 0,
       runsAllowed = 0;
-    for (const g of effectiveTeam.games) {
+    for (const g of teamData.games) {
       if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
@@ -1383,20 +1292,23 @@ const TeamProvider = ({ children }: any) => {
       tryoutsOpen: false,
       lastSeasonAdvanceAt: nowIso,
     });
-    // The arrays cleared above only empty the legacy root copies. Anything that
-    // has migrated to a subcollection must be deleted per-doc too.
+    // Tryout signups don't carry into the new season. Clearing the root array
+    // above handles legacy entries; subcollection signups are deleted per-doc.
     if (activeTeamId) {
-      const clearedSubcollections: SubcollectionName[] = [
-        "tryoutSignups",
-        "evaluationEvents",
-        "games",
-      ];
-      for (const name of clearedSubcollections) {
-        for (const s of subData[name] || []) {
-          deleteDoc(
-            doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, name, s.id)
-          ).catch(() => {});
-        }
+      for (const s of subTryoutSignups) {
+        deleteDoc(
+          doc(
+            db,
+            "artifacts",
+            appId,
+            "public",
+            "data",
+            "teams",
+            activeTeamId,
+            "tryoutSignups",
+            s.id
+          )
+        ).catch(() => {});
       }
     }
     toast.push({
@@ -1412,7 +1324,7 @@ const TeamProvider = ({ children }: any) => {
             } promoted to roster.`
           : ""),
     });
-  }, [teamData, effectiveTeam, subData, activeTeamId, updateTeam, toast]);
+  }, [teamData, effectiveTeam, subTryoutSignups, activeTeamId, updateTeam, toast]);
 
   const uploadLogo = useCallback(
     (e: any) => {
@@ -1477,7 +1389,7 @@ const TeamProvider = ({ children }: any) => {
     setPlayerStatus,
     setPlayerReturning,
     importBackup,
-  } = useImportExportFlows({ teamData: effectiveTeam, updateTeam, activeTeamId, toast });
+  } = useImportExportFlows({ teamData, updateTeam, activeTeamId, toast });
 
   const deleteTeamCmd = useCallback(async () => {
     if (!user || teams.length <= 1) return;
@@ -1555,7 +1467,7 @@ const TeamProvider = ({ children }: any) => {
     saveTeamEvaluation,
     saveAssistantEvaluation,
     deleteEvaluation,
-  } = useEvaluationCrud({ teamData: effectiveTeam, updateTeam, toast, user, uiBridge, activeTeamId });
+  } = useEvaluationCrud({ teamData, updateTeam, toast, user, uiBridge });
 
   // ─── Tryouts (PR M) ───────────────────────────────────────────────
   // Public sign-up flow lives at /tryouts/:shareId and writes to
@@ -1949,17 +1861,14 @@ const TeamProvider = ({ children }: any) => {
     });
   }, [authReady, user, loadingTeams, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
 
-  // Win-loss record derived from final games only. Reads the MERGED game list
-  // (effectiveTeam), not the raw root array — games now live in the games
-  // subcollection, so teamData.games is empty once a team's legacy array has
-  // been drained. Reading the raw array here showed a 0-0 record after the drain.
+  // Win-loss record derived from final games only.
   const record = useMemo(() => {
     let wins = 0,
       losses = 0,
       ties = 0,
       runsScored = 0,
       runsAllowed = 0;
-    for (const g of effectiveTeam.games) {
+    for (const g of teamData.games) {
       if (!isGameFinalized(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
@@ -1971,7 +1880,7 @@ const TeamProvider = ({ children }: any) => {
       else ties++;
     }
     return { wins, losses, ties, runsScored, runsAllowed };
-  }, [effectiveTeam.games]);
+  }, [teamData.games]);
 
   // True when a signed-in user has no teams yet AND there's no pending
   // ?join= flow in progress — that's the gate for showing the WelcomeChooser.

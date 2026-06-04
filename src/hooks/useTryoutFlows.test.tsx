@@ -107,11 +107,10 @@ describe("useTryoutFlows", () => {
     expect(toast.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "success" }));
   });
 
-  it("saveTryoutEvaluation writes a tryout eval round to the evaluationEvents subcollection", () => {
-    const { result } = setup();
+  it("saveTryoutEvaluation records a tryout eval event", () => {
+    const { result, updateTeam } = setup();
     act(() => result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"));
-    const [ref, ev] = mockSetDoc.mock.calls[0];
-    expect(ref.path).toContain("/evaluationEvents/");
+    const ev = updateTeam.mock.calls[0][0].evaluationEvents[0];
     expect(ev).toMatchObject({ tryoutSignupId: "s1", evaluatorId: "u1", coachRole: "Head" });
     expect(ev.grades.signup).toEqual({ fielding: 4 });
   });

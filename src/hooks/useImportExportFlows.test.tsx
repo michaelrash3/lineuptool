@@ -1,19 +1,6 @@
-import { vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { setDoc } from "firebase/firestore";
 import { csvEscape, useImportExportFlows } from "./useImportExportFlows";
 import { makeToast } from "../test-utils";
-
-// Schedule imports now write game docs to a subcollection, so the hook imports
-// firebase. Stub it; encode doc paths for assertions.
-vi.mock("../firebase", () => ({ appId: "app", db: {} }));
-vi.mock("../utils/errorReporter", () => ({ reportError: vi.fn() }));
-vi.mock("firebase/firestore", () => ({
-  doc: vi.fn((_db: any, ...path: string[]) => ({ path: path.join("/") })),
-  setDoc: vi.fn(() => Promise.resolve()),
-}));
-
-const mockSetDoc = setDoc as unknown as ReturnType<typeof vi.fn>;
 
 describe("csvEscape", () => {
   it("passes through plain values untouched", () => {
@@ -62,13 +49,9 @@ const setupScheduleImport = () => {
   return { run, updateTeam, toast };
 };
 
-beforeEach(() => {
-  mockSetDoc.mockClear();
-});
-
 describe("uploadScheduleCsv", () => {
-  it("imports valid rows to the games subcollection and surfaces unrecognized dates", async () => {
-    const { run, toast } = setupScheduleImport();
+  it("imports valid rows and surfaces rows with an unrecognized date", async () => {
+    const { run, updateTeam, toast } = setupScheduleImport();
     run(
       "Date,Opponent\n" +
         "2026-05-01,Rays\n" +
@@ -77,10 +60,10 @@ describe("uploadScheduleCsv", () => {
         ",NoDateRow\n" + // blank date -> ignored silently
         "\n" // trailing blank line -> ignored
     );
-    await waitFor(() => expect(mockSetDoc).toHaveBeenCalledTimes(2));
-    const opponents = mockSetDoc.mock.calls.map((c: any) => c[1].opponent);
-    expect(opponents).toEqual(["Rays", "Cubs"]);
-    expect(mockSetDoc.mock.calls[0][0].path).toContain("/games/");
+    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
+    const games = updateTeam.mock.calls[0][0].games;
+    expect(games).toHaveLength(2);
+    expect(games.map((g: any) => g.opponent)).toEqual(["Rays", "Cubs"]);
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "success",
@@ -91,16 +74,16 @@ describe("uploadScheduleCsv", () => {
   });
 
   it("omits the skipped message when every dated row parses", async () => {
-    const { run, toast } = setupScheduleImport();
+    const { run, updateTeam, toast } = setupScheduleImport();
     run("Date,Opponent\n2026-05-01,Rays\n");
-    await waitFor(() => expect(mockSetDoc).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Imported 1 game", message: undefined })
     );
   });
 
   it("errors when no date column is present", async () => {
-    const { run, toast } = setupScheduleImport();
+    const { run, updateTeam, toast } = setupScheduleImport();
     run("Team,Opponent\nUs,Them\n");
     await waitFor(() =>
       expect(toast.push).toHaveBeenCalledWith(
@@ -110,6 +93,6 @@ describe("uploadScheduleCsv", () => {
         })
       )
     );
-    expect(mockSetDoc).not.toHaveBeenCalled();
+    expect(updateTeam).not.toHaveBeenCalled();
   });
 });
