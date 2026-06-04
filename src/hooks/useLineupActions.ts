@@ -3,6 +3,7 @@ import {
   generateLineup as engineGenerateLineup,
   generateBattingOnly as engineGenerateBattingOnly,
 } from "../lineupEngine";
+import { log } from "../utils/log";
 import type { ToastContextValue } from "../types";
 
 // Lineup generation, undo, save, templates, and mid-game player removal —
@@ -120,7 +121,7 @@ export const useLineupActions = ({
       if (internallyRelaxed) {
         // Structured detail for diagnosis — surfaces the dominant strict-pass
         // failure (type/position/inning) alongside the coach-facing message.
-        console.warn("[lineup] strict fairness relaxed:", {
+        log.warn("[lineup] strict fairness relaxed:", {
           type: result.fairnessRelaxedType,
           reason: result.fairnessRelaxedReason,
         });

@@ -85,6 +85,7 @@ import {
   type SubData,
   type SubcollectionName,
 } from "./utils/subcollections";
+import { log } from "./utils/log";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
 import { useTeamMembership } from "./hooks/useTeamMembership";
@@ -179,9 +180,8 @@ const ScreenLoader = () => (
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
 
-const authDiag = (event: any, details = {}) => {
-  if (typeof console === "undefined") return;
-  console.info("[auth-diag]", event, {
+const authDiag = (event: string, details: Record<string, unknown> = {}) => {
+  log.info("[auth-diag]", event, {
     ts: new Date().toISOString(),
     ...details,
   });
@@ -468,7 +468,7 @@ const TeamProvider = ({ children }: any) => {
           await signInWithCustomToken(auth, tokenFromHost);
         }
       } catch (e: any) {
-        console.warn("Custom token sign-in failed", e);
+        log.warn("Custom token sign-in failed", e);
       }
       const unsub = onAuthStateChanged(auth, async (u) => {
         if (cancelled) return;

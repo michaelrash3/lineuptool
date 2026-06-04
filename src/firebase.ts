@@ -7,6 +7,7 @@ import {
   persistentMultipleTabManager,
   Firestore,
 } from "firebase/firestore";
+import { log } from "./utils/log";
 
 declare global {
   interface Window {
@@ -31,7 +32,7 @@ if (_hostFirebaseConfig) {
   try {
     parsedHostFirebaseConfig = JSON.parse(_hostFirebaseConfig) as FirebaseOptions;
   } catch (err) {
-    console.warn("Invalid host-injected Firebase config; falling back to local config.", err);
+    log.warn("Invalid host-injected Firebase config; falling back to local config.", err);
   }
 }
 
@@ -46,7 +47,7 @@ const firebaseConfig: FirebaseOptions = parsedHostFirebaseConfig
   : fallbackConfig;
 
 if (typeof window !== "undefined") {
-  console.info("[firebase] auth bootstrap", {
+  log.info("[firebase] auth bootstrap", {
     host: runtimeHostname || null,
     authDomain: firebaseConfig.authDomain || null,
     usingInjectedConfig: Boolean(parsedHostFirebaseConfig),
@@ -57,7 +58,7 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
 void setPersistence(auth, browserLocalPersistence).catch((err) => {
-  console.warn("Auth local persistence unavailable, falling back:", err);
+  log.warn("Auth local persistence unavailable, falling back:", err);
 });
 
 // Coaches use this app at fields with poor cell service. Initialize Firestore
@@ -72,7 +73,7 @@ try {
     }),
   });
 } catch (err) {
-  console.warn("Firestore persistent cache unavailable, falling back:", err);
+  log.warn("Firestore persistent cache unavailable, falling back:", err);
   _db = getFirestore(app);
 }
 export const db = _db;
