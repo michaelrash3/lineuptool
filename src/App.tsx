@@ -390,6 +390,12 @@ const TeamProvider = ({ children }: any) => {
   // One-shot guard so the "approaching storage limit" warning fires once per
   // session instead of on every save once the doc is large.
   const docSizeWarnedRef = useRef(false);
+  // Last Firestore write error from persistTeam, stashed so the optimistic
+  // updateTeam path can surface the real code/message in its toast instead of
+  // a generic "check your connection" line that hides whether the write was
+  // rejected by rules (permission-denied), the size cap (resource-exhausted /
+  // invalid-argument), or a real network drop (unavailable).
+  const lastPersistErrorRef = useRef<{ code: string; message: string } | null>(null);
   // JSON of the last public-mirror projection we wrote, so we only re-upsert
   // the sanitized teamPublic doc when a mirrored field actually changes.
   const lastMirrorRef = useRef<string>("");
@@ -766,11 +772,22 @@ const TeamProvider = ({ children }: any) => {
         await setDoc(ref, toPersist, { merge: true });
         setSyncStatus("Synced");
         setTimeout(() => setSyncStatus(""), 1500);
+        lastPersistErrorRef.current = null;
         return true;
       } catch (e: any) {
         setSyncStatus("");
+        const code = (e && e.code) || "";
+        const message = (e && e.message) || String(e);
+        lastPersistErrorRef.current = { code, message };
+        // Always log the real Firestore error, even on the silent path — the
+        // optimistic updateTeam caller replaces it with a generic revert toast.
+        console.error("[persistTeam] write failed", code, message);
         if (!opts?.silent) {
-          toast.push({ kind: "error", title: "Save failed", message: e.message });
+          toast.push({
+            kind: "error",
+            title: "Save failed",
+            message: code ? `${code}: ${message}` : message,
+          });
         }
         return false;
       }
@@ -909,10 +926,18 @@ const TeamProvider = ({ children }: any) => {
         // the user hasn't since changed — see revertOptimisticUpdate) so the UI
         // never silently retains state Firestore rejected, and offer a retry.
         setTeamData((cur: any) => revertOptimisticUpdate(cur, updates, prevValues));
+        // Surface the real Firestore error so the failure is self-diagnosing
+        // without a console: the code distinguishes a rules rejection
+        // (permission-denied) from the size cap (resource-exhausted /
+        // invalid-argument) from a network drop (unavailable).
+        const err = lastPersistErrorRef.current;
+        const detail = err
+          ? ` (${err.code || "error"}${err.message ? ": " + err.message : ""})`
+          : "";
         toast.push({
           kind: "error",
           title: "Save failed — change reverted",
-          message: "We couldn't save that change. Check your connection and try again.",
+          message: `We couldn't save that change. Check your connection and try again.${detail}`,
           duration: 0,
           action: {
             label: "Retry",
@@ -932,6 +957,15 @@ const TeamProvider = ({ children }: any) => {
   const _teamAge = teamData.teamAge;
   const _defenseSize = teamData.defenseSize;
   const _pitchingFormat = teamData.pitchingFormat;
+  // Guard against a self-perpetuating retry storm: updateTeam is optimistic and
+  // rolls back on a failed persist, which restores the very field this effect
+  // keys on (defenseSize/pitchingFormat) and would re-trigger the correction —
+  // an unbounded loop of failed writes + sticky "change reverted" toasts when
+  // persistence is failing for any reason. Remember the exact input tuple we
+  // last acted on and skip if it's unchanged; a revert returns the tuple to
+  // that value, so the loop can't re-arm. Any genuine league/age/size change
+  // produces a new tuple and still corrects.
+  const lastAutoCorrectRef = useRef("");
   useEffect(() => {
     const leagueRuleSet = _league;
     const teamAge = _teamAge;
@@ -954,7 +988,11 @@ const TeamProvider = ({ children }: any) => {
         updates.pitchingFormat = "Kid Pitch";
       }
     }
-    if (Object.keys(updates).length > 0) updateTeam(updates);
+    if (Object.keys(updates).length === 0) return;
+    const sig = `${leagueRuleSet}|${teamAge}|${defenseSize}|${pitchingFormat}`;
+    if (lastAutoCorrectRef.current === sig) return; // don't re-fire on revert
+    lastAutoCorrectRef.current = sig;
+    updateTeam(updates);
   }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam]);
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
