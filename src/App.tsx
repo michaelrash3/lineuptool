@@ -38,7 +38,7 @@ import {
   useTeam,
   useUI,
 } from "./contexts";
-import { SharedModals } from "./components/shared";
+import { SharedModals, downscaleImageToDataURL } from "./components/shared";
 import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
@@ -1313,52 +1313,48 @@ const TeamProvider = ({ children }: any) => {
     (e: any) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (file.size > 1024 * 1024) {
-        toast.push({
-          kind: "error",
-          title: "File too large",
-          message: "Logo must be under 1 MB.",
-        });
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev: any) => {
-        const dataUrl = ev.target.result;
-        // Firestore caps a single document at ~1,048,487 bytes. Base64 also
-        // inflates the binary by ~1.33×, so a 1 MB image becomes ~1.33 MB of
-        // JSON. Reject before writing if the merged team doc would exceed a
-        // safe ceiling — otherwise the write fails server-side and the
-        // user's logo silently doesn't stick.
-        const HARD_LIMIT = 900_000; // leave headroom for Firestore overhead
-        const SOFT_WARN = 750_000;
-        const approxSize = JSON.stringify({
-          ...teamData,
-          logoUrl: dataUrl,
-        }).length;
-        if (approxSize > HARD_LIMIT) {
+      // Instead of rejecting an oversized logo, auto-shrink it: downscale to a
+      // sensible logo size and re-encode (WebP when supported — keeps
+      // transparency and compresses well) so it always fits inline under the
+      // Firestore 1 MiB document cap. Images already small enough pass through
+      // untouched, so we never degrade a good logo.
+      downscaleImageToDataURL(file, { maxDim: 512, targetBytes: 200_000 })
+        .then((dataUrl: string) => {
+          const wasShrunk = dataUrl.length < (file.size || 0);
+          // Final safety net: even a shrunk logo can't save if the rest of the
+          // team doc is already near the cap. This should essentially never
+          // fire now, but warn rather than let the write silently fail.
+          const HARD_LIMIT = 900_000; // leave headroom for Firestore overhead
+          const approxSize = JSON.stringify({
+            ...teamData,
+            logoUrl: dataUrl,
+          }).length;
+          if (approxSize > HARD_LIMIT) {
+            toast.push({
+              kind: "error",
+              title: "Logo still too large to save",
+              message:
+                "Even after shrinking, your team data would exceed Firestore's 1 MB document limit. Try removing old data before adding a logo.",
+              duration: 8000,
+            });
+            return;
+          }
+          updateTeam({ logoUrl: dataUrl });
+          toast.push({
+            kind: "success",
+            title: wasShrunk ? "Logo resized & saved" : "Logo updated",
+            message: wasShrunk
+              ? "Your image was automatically compressed to fit."
+              : undefined,
+          });
+        })
+        .catch(() =>
           toast.push({
             kind: "error",
-            title: "Logo too large to save",
-            message:
-              "Combined with the rest of your team data this would exceed Firestore's 1 MB document limit. Please choose a smaller image.",
-            duration: 8000,
-          });
-          return;
-        }
-        if (approxSize > SOFT_WARN) {
-          toast.push({
-            kind: "warn",
-            title: "Logo accepted (close to limit)",
-            message:
-              "Your team document is large. Consider a smaller logo if saves start failing.",
-            duration: 7000,
-          });
-        }
-        updateTeam({ logoUrl: dataUrl });
-      };
-      reader.onerror = () =>
-        toast.push({ kind: "error", title: "Could not read file" });
-      reader.readAsDataURL(file);
+            title: "Could not process image",
+            message: "That file didn't look like a valid image.",
+          })
+        );
     },
     [teamData, updateTeam, toast]
   );
