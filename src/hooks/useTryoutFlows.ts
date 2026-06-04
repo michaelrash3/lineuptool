@@ -1,22 +1,11 @@
 import { useCallback } from "react";
-import { deleteDoc, doc, setDoc, updateDoc } from "firebase/firestore";
-import { appId, db } from "../firebase";
-import { blankStats, scrubUndefined } from "../utils/helpers";
-import { reportError } from "../utils/errorReporter";
+import { blankStats } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Tryout + interest-signup flows extracted from App.tsx's TeamProvider.
 // Share-link generation, open/close state, signup/lead CRUD, tryout
-// evaluations, and accept-to-roster.
-//
-// Phase 1 of the signup data migration (docs/firestore-data-migration.md):
-// public signups now live in per-team subcollections, not the root team-doc
-// arrays. The coach client merges both sources into teamData.tryoutSignups /
-// teamData.interestSignups, tagging subcollection entries with `_sub` (the
-// collection name). Every mutation here routes by that tag: a subcollection
-// entry is edited/removed as its own doc; a legacy root-array entry still goes
-// through the whole-array updateTeam path (rebuilt from the non-`_sub` entries
-// so subcollection items are never folded back into the root array).
+// evaluations, and accept-to-roster. Pure persistence via updateTeam; no
+// engine or UI-bridge coupling. Mirrors the useGameCrud/usePlayerCrud pattern.
 interface UseTryoutFlowsArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
@@ -25,8 +14,6 @@ interface UseTryoutFlowsArgs {
   activeTeamId: string;
 }
 
-type SignupKind = "tryoutSignups" | "interestSignups";
-
 export const useTryoutFlows = ({
   teamData,
   updateTeam,
@@ -34,33 +21,6 @@ export const useTryoutFlows = ({
   user,
   activeTeamId,
 }: UseTryoutFlowsArgs) => {
-  // Doc ref for a signup living in a subcollection.
-  const subDoc = useCallback(
-    (kind: SignupKind, id: string) =>
-      doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId, kind, id),
-    [activeTeamId]
-  );
-
-  // The legacy root-array slice (entries NOT sourced from a subcollection) for a
-  // given kind — used to rebuild the array on a legacy-entry mutation without
-  // re-folding subcollection items back into the root doc.
-  const legacyArray = useCallback(
-    (kind: SignupKind) =>
-      (teamData[kind] || []).filter((s: any) => !s?._sub),
-    [teamData]
-  );
-
-  const reportSubError = useCallback(
-    (op: string, err: unknown) => {
-      reportError(err, { source: `useTryoutFlows.${op}` });
-      toast.push({
-        kind: "error",
-        title: "Save failed",
-        message: "Couldn't update that signup. Check your connection and try again.",
-      });
-    },
-    [toast]
-  );
   const generateTryoutShareId = useCallback(() => {
     const id =
       Math.random().toString(36).slice(2, 8) +
@@ -125,92 +85,58 @@ export const useTryoutFlows = ({
     [updateTeam]
   );
 
-  // Coach-side manual add. Writes to the tryoutSignups subcollection (the new
-  // canonical store); the team subscription rehydrates it into teamData.
   const appendTryoutSignup = useCallback(
     (signup: any) => {
       const id =
         signup.id || "ts-" + Math.random().toString(36).slice(2, 10);
-      const { _sub, ...rest } = signup || {};
       const entry = {
+        id,
         submittedAt: signup.submittedAt || new Date().toISOString(),
         status: signup.status || "tryout",
-        ...rest,
-        id,
+        ...signup,
       };
-      setDoc(subDoc("tryoutSignups", id), scrubUndefined(entry) as any).catch(
-        (err) => reportSubError("appendTryoutSignup", err)
-      );
+      const next = [...(teamData.tryoutSignups || []), entry];
+      updateTeam({ tryoutSignups: next });
       return entry;
     },
-    [subDoc, reportSubError]
+    [teamData.tryoutSignups, updateTeam]
   );
 
   const updateTryoutSignup = useCallback(
     (id: any, patch: any) => {
-      if (!id) return;
-      const entry = (teamData.tryoutSignups || []).find((s: any) => s.id === id);
-      if (!entry) return;
-      if (entry._sub) {
-        updateDoc(subDoc(entry._sub as SignupKind, id), patch).catch((err) =>
-          reportSubError("updateTryoutSignup", err)
-        );
-        return;
-      }
-      const next = legacyArray("tryoutSignups").map((s: any) =>
+      const next = (teamData.tryoutSignups || []).map((s: any) =>
         s.id === id ? { ...s, ...patch } : s
       );
       updateTeam({ tryoutSignups: next });
     },
-    [teamData.tryoutSignups, legacyArray, subDoc, updateTeam, reportSubError]
+    [teamData.tryoutSignups, updateTeam]
   );
 
   const deleteTryoutSignup = useCallback(
     (id: any) => {
       if (!id) return;
       // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
-      const entry = (teamData.tryoutSignups || []).find((s: any) => s.id === id);
-      if (!entry) return;
-      if (entry._sub) {
-        deleteDoc(subDoc(entry._sub as SignupKind, id)).catch((err) =>
-          reportSubError("deleteTryoutSignup", err)
-        );
-        return;
-      }
-      const next = legacyArray("tryoutSignups").filter((s: any) => s.id !== id);
+      const next = (teamData.tryoutSignups || []).filter((s: any) => s.id !== id);
       updateTeam({ tryoutSignups: next });
     },
-    [teamData.tryoutSignups, legacyArray, subDoc, updateTeam, reportSubError]
+    [teamData.tryoutSignups, updateTeam]
   );
 
-  // Bulk-remove signups. Subcollection entries are deleted per-doc; the
-  // remaining legacy-array entries are rewritten in a SINGLE updateTeam (a
-  // per-call array filter in a loop would drop all-but-one under the optimistic
-  // merge). Returns the number targeted for removal.
+  // Bulk-remove signups in a SINGLE write. Calling deleteTryoutSignup() in a
+  // loop is buggy: each call filters the same closure-captured array and the
+  // optimistic merge keeps only the last write — so all-but-one survive. This
+  // filters every id out at once. Returns the number actually removed.
   const deleteTryoutSignups = useCallback(
     (ids: any[]) => {
       const toRemove = new Set((ids || []).filter(Boolean));
       if (toRemove.size === 0) return 0;
       const current = teamData.tryoutSignups || [];
-      const targets = current.filter((s: any) => toRemove.has(s.id));
-      if (targets.length === 0) return 0;
-      for (const t of targets) {
-        if (t._sub) {
-          deleteDoc(subDoc(t._sub as SignupKind, t.id)).catch((err) =>
-            reportSubError("deleteTryoutSignups", err)
-          );
-        }
-      }
-      const legacyTargets = targets.filter((s: any) => !s._sub);
-      if (legacyTargets.length > 0) {
-        const next = legacyArray("tryoutSignups").filter(
-          (s: any) => !toRemove.has(s.id)
-        );
-        updateTeam({ tryoutSignups: next });
-      }
-      return targets.length;
+      const next = current.filter((s: any) => !toRemove.has(s.id));
+      const removed = current.length - next.length;
+      if (removed > 0) updateTeam({ tryoutSignups: next });
+      return removed;
     },
-    [teamData.tryoutSignups, legacyArray, subDoc, updateTeam, reportSubError]
+    [teamData.tryoutSignups, updateTeam]
   );
 
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
@@ -218,32 +144,23 @@ export const useTryoutFlows = ({
   const deleteInterestSignup = useCallback(
     (id: any) => {
       if (!id) return;
-      const entry = (teamData.interestSignups || []).find((s: any) => s.id === id);
-      if (!entry) return;
-      if (entry._sub) {
-        deleteDoc(subDoc(entry._sub as SignupKind, id)).catch((err) =>
-          reportSubError("deleteInterestSignup", err)
-        );
-        return;
-      }
-      const next = legacyArray("interestSignups").filter((s: any) => s.id !== id);
+      const next = (teamData.interestSignups || []).filter((s: any) => s.id !== id);
       updateTeam({ interestSignups: next });
     },
-    [teamData.interestSignups, legacyArray, subDoc, updateTeam, reportSubError]
+    [teamData.interestSignups, updateTeam]
   );
 
-  // Promote an interest-survey lead into a real tryout signup. The new tryout
-  // signup is created in the tryoutSignups subcollection; the source lead is
-  // then removed from wherever it lives (its own subcollection doc, or the
-  // legacy interest array).
+  // Promote an interest-survey lead into a real tryout signup. Useful
+  // when tryouts open and the HC wants to seed the signup list from
+  // standing interest. Copies fields, marks status:"tryout", removes
+  // the source lead from interestSignups in the same write.
   const convertInterestToTryout = useCallback(
     (id: any) => {
       if (!id) return;
       const lead = (teamData.interestSignups || []).find((s: any) => s.id === id);
       if (!lead) return;
-      const signupId = `ts-${Math.random().toString(36).slice(2, 10)}`;
       const signup = {
-        id: signupId,
+        id: `ts-${Math.random().toString(36).slice(2, 10)}`,
         submittedAt: new Date().toISOString(),
         firstName: lead.firstName,
         lastName: lead.lastName,
@@ -261,27 +178,19 @@ export const useTryoutFlows = ({
         notes: lead.notes || "",
         status: "tryout",
       };
-      setDoc(subDoc("tryoutSignups", signupId), scrubUndefined(signup) as any).catch(
-        (err) => reportSubError("convertInterestToTryout", err)
-      );
-      if (lead._sub) {
-        deleteDoc(subDoc(lead._sub as SignupKind, id)).catch((err) =>
-          reportSubError("convertInterestToTryout", err)
-        );
-      } else {
-        updateTeam({
-          interestSignups: legacyArray("interestSignups").filter(
-            (s: any) => s.id !== id
-          ),
-        });
-      }
+      updateTeam({
+        tryoutSignups: [...(teamData.tryoutSignups || []), signup],
+        interestSignups: (teamData.interestSignups || []).filter(
+          (s: any) => s.id !== id
+        ),
+      });
       toast.push({
         kind: "success",
         title: "Moved to tryouts",
         message: `${lead.firstName} ${lead.lastName}`.trim(),
       });
     },
-    [teamData.interestSignups, legacyArray, subDoc, updateTeam, toast, reportSubError]
+    [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast]
   );
 
   // Tryout grades live in team.evaluationEvents alongside roster
@@ -344,27 +253,21 @@ export const useTryoutFlows = ({
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
       };
+      const nextSignups = (teamData.tryoutSignups || []).map((s: any) =>
+        s.id === id ? { ...s, status: "accepted" } : s
+      );
       const nextPlayers = [...(teamData.players || []), player];
-      if (signup._sub) {
-        // Player is added to the root roster; the signup status flips on its
-        // own subcollection doc.
-        updateTeam({ players: nextPlayers });
-        updateDoc(subDoc(signup._sub as SignupKind, id), {
-          status: "accepted",
-        }).catch((err) => reportSubError("acceptTryout", err));
-      } else {
-        const nextSignups = legacyArray("tryoutSignups").map((s: any) =>
-          s.id === id ? { ...s, status: "accepted" } : s
-        );
-        updateTeam({ tryoutSignups: nextSignups, players: nextPlayers });
-      }
+      updateTeam({
+        tryoutSignups: nextSignups,
+        players: nextPlayers,
+      });
       toast.push({
         kind: "success",
         title: `${name} accepted`,
         message: "Added to roster with status “accepted”. They join on Advance Season.",
       });
     },
-    [teamData.tryoutSignups, teamData.players, legacyArray, subDoc, updateTeam, toast, reportSubError]
+    [teamData.tryoutSignups, teamData.players, updateTeam, toast]
   );
 
   return {

@@ -1,7 +1,7 @@
 import { vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { getDocs, setDoc } from "firebase/firestore";
+import { getDocs, updateDoc } from "firebase/firestore";
 
 // Stub Firebase so the public portal renders without a real backend. vi.mock is
 // hoisted above the imports, so TryoutsPortal pulls in these stubs.
@@ -11,19 +11,18 @@ vi.mock("firebase/auth", () => ({
 }));
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
-  // Encode the doc path so assertions can verify signups land in the right
-  // subcollection.
-  doc: vi.fn((_db: any, ...path: string[]) => ({ path: path.join("/") })),
+  doc: vi.fn(() => ({})),
   getDocs: vi.fn(),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
-  setDoc: vi.fn(() => Promise.resolve()),
+  updateDoc: vi.fn(() => Promise.resolve()),
+  arrayUnion: vi.fn((v) => ({ __arrayUnion: v })),
 }));
 
 import { TryoutsPortal } from "./TryoutsPortal";
 
 const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
-const mockSetDoc = setDoc as unknown as ReturnType<typeof vi.fn>;
+const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
 
 // A standing share link → interest survey. First getDocs (shareId query)
 // returns the team mirror; second (dateSlug query) is empty.
@@ -92,7 +91,7 @@ const fill = (label: RegExp, value: string) =>
 
 beforeEach(() => {
   mockGetDocs.mockReset();
-  mockSetDoc.mockClear();
+  mockUpdateDoc.mockClear();
 });
 
 describe("TryoutsPortal submit validation", () => {
@@ -111,10 +110,10 @@ describe("TryoutsPortal submit validation", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/valid parent email/i);
-    expect(mockSetDoc).not.toHaveBeenCalled();
+    expect(mockUpdateDoc).not.toHaveBeenCalled();
   });
 
-  it("trims/clamps fields and writes the lead to the interestSignups subcollection", async () => {
+  it("trims/clamps fields and writes the signup once valid", async () => {
     renderPortal();
     await screen.findByText("Submit Interest");
 
@@ -124,9 +123,8 @@ describe("TryoutsPortal submit validation", () => {
     fill(/phone/i, "5551234");
     fireEvent.click(screen.getByText("Submit Interest"));
 
-    await waitFor(() => expect(mockSetDoc).toHaveBeenCalledTimes(1));
-    const [ref, lead] = mockSetDoc.mock.calls[0];
-    expect(ref.path).toContain("/interestSignups/");
+    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
+    const lead = mockUpdateDoc.mock.calls[0][1].interestSignups.__arrayUnion;
     expect(lead.firstName).toBe("Ava"); // trimmed
     expect(lead.email).toBe("parent@example.com");
   });
@@ -140,10 +138,8 @@ describe("TryoutsPortal per-date links", () => {
     fill(/email/i, "parent@example.com");
     fill(/phone/i, "5551234");
     fireEvent.click(screen.getByText("Submit Signup"));
-    await waitFor(() => expect(mockSetDoc).toHaveBeenCalledTimes(1));
-    const [ref, signup] = mockSetDoc.mock.calls[0];
-    expect(ref.path).toContain("/tryoutSignups/");
-    return signup;
+    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
+    return mockUpdateDoc.mock.calls[0][1].tryoutSignups.__arrayUnion;
   };
 
   it("pins the signup to the SECOND date's slug (not the first)", async () => {
