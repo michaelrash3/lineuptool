@@ -38,21 +38,6 @@ const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
   ["artifacts", APP_ID, "public", "data", "teamInvites", code] as const;
-const tryoutSubPath = (teamId: string, signupId: string) =>
-  ["artifacts", APP_ID, "public", "data", "teams", teamId, "tryoutSignups", signupId] as const;
-const interestSubPath = (teamId: string, leadId: string) =>
-  ["artifacts", APP_ID, "public", "data", "teams", teamId, "interestSignups", leadId] as const;
-
-const validTryout = (id: string) => ({
-  id,
-  submittedAt: new Date().toISOString(),
-  status: "tryout",
-  firstName: "New",
-  lastName: "Kid",
-  email: "p@example.com",
-  phone: "5551234",
-  currentTeam: "Comets",
-});
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
@@ -298,86 +283,6 @@ describe("public mirror", () => {
         { name: "Hawks 2" },
         { merge: true }
       )
-    );
-  });
-});
-
-describe("signup subcollections (Phase 1 migration)", () => {
-  it("lets a public visitor create a single tryout signup while open", async () => {
-    await assertSucceeds(
-      setDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "ts1")), validTryout("ts1"))
-    );
-  });
-
-  it("denies a public tryout signup create when tryouts are closed", async () => {
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
-        tryoutsOpen: false,
-      });
-    });
-    await assertFails(
-      setDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "ts1")), validTryout("ts1"))
-    );
-  });
-
-  it("denies a public tryout signup carrying a disallowed field", async () => {
-    await assertFails(
-      setDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "ts1")), {
-        ...validTryout("ts1"),
-        isAdmin: true, // not in the allowlist
-      })
-    );
-  });
-
-  it("denies a public tryout signup with an oversized field", async () => {
-    await assertFails(
-      setDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "ts1")), {
-        ...validTryout("ts1"),
-        notes: "x".repeat(501), // over the 500 cap
-      })
-    );
-  });
-
-  it("denies a public visitor reading, updating, or deleting signups", async () => {
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(
-        doc(ctx.firestore(), ...tryoutSubPath("team-1", "seed")),
-        validTryout("seed")
-      );
-    });
-    await assertFails(getDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "seed"))));
-    await assertFails(
-      updateDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "seed")), { status: "x" })
-    );
-    await assertFails(deleteDoc(doc(dbFor(OUTSIDER), ...tryoutSubPath("team-1", "seed"))));
-  });
-
-  it("lets a member read, update, and delete signups", async () => {
-    await testEnv.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(
-        doc(ctx.firestore(), ...tryoutSubPath("team-1", "seed")),
-        validTryout("seed")
-      );
-    });
-    await assertSucceeds(getDoc(doc(dbFor(ASSISTANT), ...tryoutSubPath("team-1", "seed"))));
-    await assertSucceeds(
-      updateDoc(doc(dbFor(ASSISTANT), ...tryoutSubPath("team-1", "seed")), {
-        status: "accepted",
-      })
-    );
-    await assertSucceeds(deleteDoc(doc(dbFor(ASSISTANT), ...tryoutSubPath("team-1", "seed"))));
-  });
-
-  it("lets a public visitor create an interest lead when a share id exists", async () => {
-    await assertSucceeds(
-      setDoc(doc(dbFor(OUTSIDER), ...interestSubPath("team-1", "il1")), {
-        id: "il1",
-        submittedAt: new Date().toISOString(),
-        firstName: "Lead",
-        lastName: "Kid",
-        email: "p@example.com",
-        phone: "5551234",
-      })
     );
   });
 });

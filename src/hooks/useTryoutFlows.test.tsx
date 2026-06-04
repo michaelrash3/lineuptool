@@ -1,23 +1,6 @@
-import { vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { useTryoutFlows } from "./useTryoutFlows";
 import { makeToast } from "../test-utils";
-
-// Signups now live in subcollections, so the hook imports firebase. Stub it so
-// no real app initializes, and encode doc paths for source-routing assertions.
-vi.mock("../firebase", () => ({ appId: "app", db: {} }));
-vi.mock("../utils/errorReporter", () => ({ reportError: vi.fn() }));
-vi.mock("firebase/firestore", () => ({
-  doc: vi.fn((_db: any, ...path: string[]) => ({ path: path.join("/") })),
-  setDoc: vi.fn(() => Promise.resolve()),
-  updateDoc: vi.fn(() => Promise.resolve()),
-  deleteDoc: vi.fn(() => Promise.resolve()),
-}));
-
-const mockSetDoc = setDoc as unknown as ReturnType<typeof vi.fn>;
-const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
-const mockDeleteDoc = deleteDoc as unknown as ReturnType<typeof vi.fn>;
 
 const setup = (teamOver: any = {}, user: any = { uid: "u1" }) => {
   const updateTeam = jest.fn();
@@ -35,12 +18,6 @@ const setup = (teamOver: any = {}, user: any = { uid: "u1" }) => {
   );
   return { result, updateTeam, toast };
 };
-
-beforeEach(() => {
-  mockSetDoc.mockClear();
-  mockUpdateDoc.mockClear();
-  mockDeleteDoc.mockClear();
-});
 
 describe("useTryoutFlows", () => {
   it("generateTryoutShareId opens tryouts and returns an id", () => {
@@ -115,17 +92,14 @@ describe("useTryoutFlows", () => {
     expect(ev.grades.signup).toEqual({ fielding: 4 });
   });
 
-  it("convertInterestToTryout writes the new tryout signup to the subcollection and drops the legacy lead", () => {
+  it("convertInterestToTryout moves a lead into tryoutSignups", () => {
     const { result, updateTeam } = setup({
       interestSignups: [{ id: "i1", firstName: "Mia", lastName: "Stone" }],
     });
     act(() => result.current.convertInterestToTryout("i1"));
-    // New tryout signup created as a subcollection doc.
-    const [ref, signup] = mockSetDoc.mock.calls[0];
-    expect(ref.path).toContain("/tryoutSignups/");
-    expect(signup).toMatchObject({ firstName: "Mia", lastName: "Stone", status: "tryout" });
-    // Legacy interest lead removed via the array path.
-    expect(updateTeam).toHaveBeenCalledWith({ interestSignups: [] });
+    const patch = updateTeam.mock.calls[0][0];
+    expect(patch.interestSignups).toEqual([]);
+    expect(patch.tryoutSignups[0]).toMatchObject({ firstName: "Mia", lastName: "Stone" });
   });
 
   it("deleteTryoutSignup removes a single signup", () => {
@@ -165,80 +139,6 @@ describe("useTryoutFlows", () => {
       removed = result.current.deleteTryoutSignups(["zzz"]);
     });
     expect(removed).toBe(0);
-    expect(updateTeam).not.toHaveBeenCalled();
-  });
-
-  // ---- subcollection routing (Phase 1 signup migration) -------------------
-
-  it("deletes a subcollection signup via deleteDoc, not the root array", () => {
-    const { result, updateTeam } = setup({
-      tryoutSignups: [{ id: "sub1", _sub: "tryoutSignups" }],
-    });
-    act(() => result.current.deleteTryoutSignup("sub1"));
-    expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
-    expect(mockDeleteDoc.mock.calls[0][0].path).toContain("/tryoutSignups/sub1");
-    expect(updateTeam).not.toHaveBeenCalled();
-  });
-
-  it("updates a subcollection signup via updateDoc, not the root array", () => {
-    const { result, updateTeam } = setup({
-      tryoutSignups: [{ id: "sub1", _sub: "tryoutSignups", status: "tryout" }],
-    });
-    act(() => result.current.updateTryoutSignup("sub1", { status: "reviewed" }));
-    expect(mockUpdateDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringContaining("/tryoutSignups/sub1") }),
-      { status: "reviewed" }
-    );
-    expect(updateTeam).not.toHaveBeenCalled();
-  });
-
-  it("acceptTryout flips a subcollection signup's status on its own doc and adds the player", () => {
-    const { result, updateTeam } = setup({
-      tryoutSignups: [{ id: "sub1", _sub: "tryoutSignups", firstName: "Ava", lastName: "Rivera" }],
-    });
-    act(() => result.current.acceptTryout("sub1"));
-    // Player added to the root roster…
-    expect(updateTeam).toHaveBeenCalledWith(
-      expect.objectContaining({ players: expect.any(Array) })
-    );
-    expect(updateTeam.mock.calls[0][0].tryoutSignups).toBeUndefined();
-    // …and the signup status flips on its subcollection doc.
-    expect(mockUpdateDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: expect.stringContaining("/tryoutSignups/sub1") }),
-      { status: "accepted" }
-    );
-  });
-
-  it("bulk delete splits subcollection deletes from a single legacy-array rewrite", () => {
-    const { result, updateTeam } = setup({
-      tryoutSignups: [
-        { id: "a" },
-        { id: "sub1", _sub: "tryoutSignups" },
-        { id: "c" },
-      ],
-    });
-    let removed = 0;
-    act(() => {
-      removed = result.current.deleteTryoutSignups(["a", "sub1"]);
-    });
-    expect(removed).toBe(2);
-    // The subcollection entry is deleted as a doc.
-    expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
-    expect(mockDeleteDoc.mock.calls[0][0].path).toContain("/tryoutSignups/sub1");
-    // The legacy array is rewritten ONCE, without the subcollection entry.
-    expect(updateTeam).toHaveBeenCalledTimes(1);
-    expect(updateTeam).toHaveBeenCalledWith({ tryoutSignups: [{ id: "c" }] });
-  });
-
-  it("appendTryoutSignup writes to the subcollection", () => {
-    const { result, updateTeam } = setup();
-    act(() => {
-      result.current.appendTryoutSignup({ firstName: "Sam" });
-    });
-    expect(mockSetDoc).toHaveBeenCalledTimes(1);
-    const [ref, doc] = mockSetDoc.mock.calls[0];
-    expect(ref.path).toContain("/tryoutSignups/");
-    expect(doc).toMatchObject({ firstName: "Sam", status: "tryout" });
     expect(updateTeam).not.toHaveBeenCalled();
   });
 });
