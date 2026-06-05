@@ -342,7 +342,7 @@ export const buildSeasonBenchImbalance = (
     // the previous `g.status && g.status !== "final"` filter silently
     // skipped them and coaches saw the Bench Equity tile miss past
     // finalized games.
-    if (!isGameFinalized(g)) continue;
+    if (!countsTowardStats(g)) continue;
     if (!g.lineup?.length) continue;
 
     const attending = new Set<PlayerId>();
@@ -459,7 +459,7 @@ export const buildSeasonPositionVariety = (
   const battery = new Set(BATTERY_POSITIONS);
 
   for (const g of games || []) {
-    if (!isGameFinalized(g)) continue;
+    if (!countsTowardStats(g)) continue;
     if (!g.lineup?.length) continue;
     for (const inning of g.lineup) {
       for (const pos in inning) {
@@ -527,7 +527,7 @@ export const buildSeasonSummary = (
   games: Game[] | null | undefined
 ): SeasonSummary => {
   const finalized = (games || [])
-    .filter((g) => isGameFinalized(g))
+    .filter((g) => countsTowardStats(g))
     .map((g): SeasonGameResult => {
       const ts = Number(g.teamScore) || 0;
       const os = Number(g.opponentScore) || 0;
@@ -651,6 +651,24 @@ export const isGameFinalized = (
   if (ts == null || ts === "" || os == null || os === "") return false;
   return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
 };
+
+// Whether a game contributes to CUMULATIVE totals — the W-L record, run
+// totals/form/streak, player stats, defensive-innings distribution, bench
+// equity, and the lineup engine's seasonal fairness. A scrimmage is finalizable
+// and lives on the schedule (so it's playable and keeps GameChanger's sync
+// happy) but is excluded from all of the above. Display/scheduling code keeps
+// using isGameFinalized() — a scrimmage is still a real, finalizable game.
+export const countsTowardStats = (
+  game:
+    | {
+        status?: string;
+        teamScore?: number | string | null;
+        opponentScore?: number | string | null;
+        isScrimmage?: boolean;
+      }
+    | null
+    | undefined
+): boolean => isGameFinalized(game) && !game?.isScrimmage;
 
 // The canonical set of positions a player can be marked comfortable with / be
 // evaluated on — always the 3-outfielder layout, independent of whether the

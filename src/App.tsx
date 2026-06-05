@@ -72,6 +72,7 @@ import {
   restampEvalDueDates,
   isReturning,
   isGameFinalized,
+  countsTowardStats,
   buildPublicMirror,
   revertOptimisticUpdate,
   estimateDocSizeBytes,
@@ -1157,7 +1158,7 @@ const TeamProvider = ({ children }: any) => {
       runsScored = 0,
       runsAllowed = 0;
     for (const g of teamData.games) {
-      if (!isGameFinalized(g)) continue;
+      if (!countsTowardStats(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;
@@ -1848,7 +1849,7 @@ const TeamProvider = ({ children }: any) => {
       runsScored = 0,
       runsAllowed = 0;
     for (const g of teamData.games) {
-      if (!isGameFinalized(g)) continue;
+      if (!countsTowardStats(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;
@@ -2069,6 +2070,7 @@ const UIProvider = ({ children }: any) => {
     opponent: "",
     leagueRuleSet: "USSSA",
     pitchingFormat: "Kid Pitch",
+    isScrimmage: false,
   });
   const [scoringGameId, setScoringGameId] = useState<any>(null); // game whose score is being entered inline
   const [inGameId, setInGameId] = useState<any>(null); // game currently in In-Game mode

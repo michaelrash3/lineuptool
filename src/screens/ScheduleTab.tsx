@@ -329,6 +329,7 @@ export const ScheduleTab = memo(() => {
     // 9U+ Kid Pitch — Pool spreads across the staff (top 5); Bracket
     // narrows to your aces (top 3); League is the regular-season default.
     const gameType = currentGame.gameType || "league";
+    const isScrimmage = currentGame.isScrimmage === true;
 
     const presentPlayers = players.filter(
       (p: any) => currentGameAttendance[p.id] !== false
@@ -650,6 +651,39 @@ export const ScheduleTab = memo(() => {
                 <option value="pool">Pool</option>
                 <option value="bracket">Bracket</option>
               </select>
+            </div>
+
+            {/* Scrimmage toggle — when ON, the game stays on the schedule and is
+                fully playable, but counts toward NOTHING: record, stats,
+                defensive innings, bench equity, and engine seasonal fairness all
+                ignore it. */}
+            <div className="bg-surface border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() =>
+                  updateGame(selectedGameId, { isScrimmage: !isScrimmage })
+                }
+                className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                  isScrimmage ? "bg-[var(--team-primary)]" : "bg-slate-300"
+                }`}
+                aria-label="Toggle scrimmage"
+              >
+                <span
+                  className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                    isScrimmage ? "left-5" : "left-0.5"
+                  }`}
+                />
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-black uppercase tracking-widest text-ink">
+                  Scrimmage {isScrimmage ? "ON" : "OFF"}
+                </div>
+                <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
+                  {isScrimmage
+                    ? "Doesn't count toward record, stats, innings, or bench equity."
+                    : "Off — this is a regular game that counts."}
+                </div>
+              </div>
             </div>
 
             {/* Big Game toggle — when ON, the engine builds the strongest
@@ -1314,6 +1348,17 @@ export const ScheduleTab = memo(() => {
               </>
             )}
           </select>
+          <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink whitespace-nowrap px-1">
+            <input
+              type="checkbox"
+              checked={newGameForm.isScrimmage}
+              onChange={(e) =>
+                setNewGameForm({ ...newGameForm, isScrimmage: e.target.checked })
+              }
+              className="w-4 h-4 accent-[var(--team-primary)]"
+            />
+            Scrimmage
+          </label>
           <button
             onClick={() => addGame(newGameForm)}
             className="font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
@@ -1433,6 +1478,11 @@ export const ScheduleTab = memo(() => {
                           <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight leading-tight text-ink">
                             VS. {game.opponent}
                           </h3>
+                          {game.isScrimmage && (
+                            <span className="t-chip bg-surface-2 text-ink-2 px-2 py-1 rounded-md border border-line-strong">
+                              Scrimmage
+                            </span>
+                          )}
                           {isFinal ? (
                             <span
                               className={`t-chip px-2.5 py-1 rounded-md border tabular-nums ${

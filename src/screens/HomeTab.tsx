@@ -5,6 +5,7 @@ import {
   evalPromptStatus,
   buildSeasonBenchImbalance,
   isGameFinalized,
+  countsTowardStats,
 } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard } from "../components/shared";
@@ -770,7 +771,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }: any) =
 const TeamTrendTile = memo(({ games }: any) => {
   const data = useMemo(() => {
     const finals = (games || [])
-      .filter(isGameFinalized)
+      .filter(countsTowardStats)
       .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
     const last5 = finals.slice(-5);
     const results = last5.map((g: any) => {
@@ -1031,7 +1032,7 @@ export const HomeTab = memo(() => {
   // shared isGameFinalized() so it agrees with the record badge + trend tile.
   const seasonHero = useMemo(() => {
     const finals = (games || [])
-      .filter(isGameFinalized)
+      .filter(countsTowardStats)
       .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
     let runsFor = 0;
     let runsAgainst = 0;

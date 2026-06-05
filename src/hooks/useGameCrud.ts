@@ -36,6 +36,7 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         defenseSize: teamData.defenseSize,
         battingSize: teamData.battingSize,
         positionLock: teamData.positionLock,
+        isScrimmage: !!form.isScrimmage,
         lineup: null,
         battingLineup: null,
         attendance: {},

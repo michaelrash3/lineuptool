@@ -784,6 +784,9 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
 // those, starving the fairness model of history.
 function isFinalizedGame(g: any): boolean {
   if (!g) return false;
+  // Scrimmages never feed seasonal fairness/rotation history — they don't
+  // count toward bench, defensive innings, or position distribution.
+  if (g.isScrimmage) return false;
   if (g.status === "final" || g.status === "completed") return true;
   const ts = g.teamScore;
   const os = g.opponentScore;
