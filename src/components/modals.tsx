@@ -896,6 +896,41 @@ export const PlayerProfileModal = memo(() => {
                   so a player is only ever seated at catcher when you select it
                   here.
                 </p>
+                {/* Quick group set/clear by positional grouping — a kid who
+                    plays anywhere in a group is one tap. Toggles the group. */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {[
+                    { name: "Corner IF", group: ["1B", "3B"] },
+                    { name: "Middle IF", group: ["2B", "SS"] },
+                    { name: "Outfield", group: ["LF", "CF", "RF"] },
+                  ].map(({ name, group }) => {
+                    const list = canonicalizePositionList(
+                      player.comfortablePositions
+                    );
+                    const allOn = group.every((p) => list.includes(p));
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          const next = allOn
+                            ? list.filter((p: string) => !group.includes(p))
+                            : Array.from(new Set([...list, ...group]));
+                          updatePlayer(player.id, {
+                            comfortablePositions: next,
+                          });
+                        }}
+                        className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-md border transition-all ${
+                          allOn
+                            ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                            : "bg-surface border-line-strong text-ink hover:bg-surface-2"
+                        }`}
+                      >
+                        {allOn ? `Clear ${name}` : `All ${name}`}
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
                   {positions.map((pos) => {
                     // Canonicalize so legacy LCF/RCF data lights up the CF chip,
