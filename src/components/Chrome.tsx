@@ -177,6 +177,8 @@ export const AppHeader = memo(() => {
   } = useUI();
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
+  // New teams must explicitly pick a type (Rec vs Tournament) — no default.
+  const [newTeamType, setNewTeamType] = React.useState<"" | "NKB" | "USSSA">("");
   // In-app sign-out confirmation. Replaces window.confirm + window.alert
   // so an assistant on a demoted/locked-out team gets the same polished
   // dialog as the rest of the app, not a 1995 native chrome.
@@ -362,7 +364,8 @@ export const AppHeader = memo(() => {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  createTeam(newTeamName);
+                  if (!newTeamType) return;
+                  createTeam(newTeamName, newTeamType);
                 }}
                 className="flex items-center gap-2 w-full"
               >
@@ -374,9 +377,22 @@ export const AppHeader = memo(() => {
                   placeholder="NEW TEAM NAME"
                   className="p-2 text-xs outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase bg-slate-900/50 text-white rounded-lg shadow-inner"
                 />
+                <select
+                  value={newTeamType}
+                  onChange={(e) =>
+                    setNewTeamType(e.target.value as "" | "NKB" | "USSSA")
+                  }
+                  title="Team type"
+                  className="p-2 text-xs bg-slate-900/50 text-white rounded-lg shadow-inner outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                >
+                  <option value="">Type…</option>
+                  <option value="NKB">Rec</option>
+                  <option value="USSSA">Tournament</option>
+                </select>
                 <button
                   type="submit"
-                  className="p-2 text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+                  disabled={!newTeamType}
+                  className="p-2 text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
                   style={{
                     backgroundColor: "var(--team-primary)",
                     color: "var(--team-tertiary)",

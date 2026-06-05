@@ -244,7 +244,10 @@ export interface TeamContextValue {
   realRole: CoachRole;
   updateTeam: (patch: Partial<Team>) => void;
   switchTeam: (id: string) => void | Promise<void>;
-  createTeam: (name?: string) => void | Promise<any>;
+  createTeam: (
+    name?: string,
+    leagueRuleSet?: "NKB" | "USSSA"
+  ) => void | Promise<any>;
   [key: string]: any;
 }
 
