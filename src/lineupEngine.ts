@@ -1332,6 +1332,16 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
 
 // ---------- Main generator ----------
 
+// Separate entry point for Tournament (competitive) games. It owns the
+// competitive STRATEGY — best-XI/premium defense, a per-game minimum-play floor
+// (in precomputeBenchSchedule), ability batting, and no fairness ledger — while
+// REUSING every shared SAFETY rail: catcher caps, pitcher rest / pitch-count
+// limits, position eligibility, and the per-inning assignment. The app routes
+// Tournament games here; Rec/Machine-Pitch games never enter it.
+export function buildCompetitiveLineup(input: EngineInput): EngineResult {
+  return generateLineup({ ...input, competitive: true });
+}
+
 export function generateLineup(input: EngineInput): EngineResult {
   const {
     activePlayers,
@@ -1357,6 +1367,11 @@ export function generateLineup(input: EngineInput): EngineResult {
     //   (8U: C/1B/SS, 9U+: P/SS/3B/C/1B)
     //  Weak players are pushed toward the OF
     isBigGame = false,
+    // Competitive (Tournament) mode — see EngineInput. Plays best-XI like Big
+    // Game, but swaps seasonal fairness for a per-game minimum-play floor and
+    // never reads/writes the fairness ledger. All catcher/pitch SAFETY rotation
+    // is reused unchanged.
+    competitive = false,
     // Mid-game rebuild path: when `fromInning > 0` and `currentLineup` is
     // provided, innings 0..fromInning-1 are pre-locked from currentLineup and
     // the engine only fills the remaining innings — seeding its per-player
@@ -1434,27 +1449,37 @@ export function generateLineup(input: EngineInput): EngineResult {
     profile: buildPlayerProfile(p, combinedGrades[p.id]),
   }));
 
-  // Big Game mode automatically relaxes seasonal fairness too
-  const effectiveRelax = relaxFairness || isBigGame;
+  // Big Game and Competitive both relax seasonal fairness (Competitive ignores
+  // the ledger entirely and uses a per-game floor instead).
+  const effectiveRelax = relaxFairness || isBigGame || competitive;
+
+  // Fairness ledger partition (hybrid teams): a game's playing-time history is
+  // only shared with games of the SAME mode. So Tournament (USSSA) games never
+  // add to — or draw from — the Rec fairness ledger, and vice-versa. (When
+  // competitive, the ledger is empty anyway via effectiveRelax; this also keeps
+  // a Rec game from counting Tournament games against its fairness.)
+  const ledgerGames = games.filter(
+    (g: any) => ((g.leagueRuleSet || leagueRuleSet) === "USSSA") === competitive
+  );
 
   // Resolver maps orphaned snapshot ids (from a roster delete+re-add) to the
   // current roster id, so season fairness/rotation history follows re-added
   // players instead of stranding it under their old ids.
   const resolveSlotId = buildSlotIdResolver(allPlayers || activePlayers);
   const positionHistory = buildPositionHistory(
-    games,
+    ledgerGames,
     currentGameId,
     resolveSlotId
   );
   const firstInningBenchHx = effectiveRelax
     ? new Map()
-    : buildFirstInningBenchHistory(games, currentGameId, resolveSlotId);
+    : buildFirstInningBenchHistory(ledgerGames, currentGameId, resolveSlotId);
   // Cumulative seasonal fairness pressure. When relaxed, we feed the solver
   // an empty history so this game's bench distribution doesn't get skewed by
   // accumulated debt  useful when the strict solver has failed.
   const benchHistory = effectiveRelax
     ? new Map()
-    : buildExtraSitHistory(games, currentGameId, resolveSlotId);
+    : buildExtraSitHistory(ledgerGames, currentGameId, resolveSlotId);
 
   // Mid-game rebuild fairness: when fromInning > 0 the engine replays
   // innings 0..fromInning-1 from currentLineup. Those replayed innings'
@@ -1612,7 +1637,9 @@ export function generateLineup(input: EngineInput): EngineResult {
         teamAge,
         targetDateStr,
         leftyPenalty,
-        isBigGame,
+        // Competitive plays best-XI like Big Game (premium-position pull).
+        isBigGame: isBigGame || competitive,
+        competitive,
         pitcherPoolIds,
         catcherPolicy,
         rand,
@@ -1763,6 +1790,7 @@ function precomputeBenchSchedule(opts: any): any {
     profiled,
     totalInnings,
     numToBench,
+    competitive = false,
     priorExtraSits,
     firstInningBenchHx,
     topHalfIds,
@@ -1962,6 +1990,38 @@ function precomputeBenchSchedule(opts: any): any {
         recipient.delta > recipients[rIdx + 1].delta
       )
         rIdx++;
+    }
+  }
+
+  // COMPETITIVE (Tournament) override: replace the fairness distribution with a
+  // minimum-play floor. The weakest defenders absorb the bench slots first, but
+  // every kid is capped at floor(totalInnings/2) sits — i.e. plays at least half
+  // — so strong kids hold the field while no one is buried. (Which specific
+  // innings each sits, plus the no-3-in-a-row spreading and all catcher safety,
+  // is handled by the shared scheduling pass below — unchanged.)
+  if (competitive) {
+    const cap = Math.max(1, Math.floor(totalInnings / 2));
+    for (const x of playerDeltas) targetSits.set(x.p.id, 0);
+    const weakestFirst = [...playerDeltas].sort(
+      (a, b) => a.defScore - b.defScore || a.rand - b.rand
+    );
+    let remaining = totalBenchSlots;
+    for (const x of weakestFirst) {
+      if (remaining <= 0) break;
+      const give = Math.min(cap, remaining);
+      targetSits.set(x.p.id, give);
+      remaining -= give;
+    }
+    // Pathological rosters (huge bench) where everyone hit the cap: spread the
+    // remainder round-robin so the totals still reconcile.
+    let guard = 0;
+    while (remaining > 0 && guard < 1000) {
+      for (const x of weakestFirst) {
+        if (remaining <= 0) break;
+        targetSits.set(x.p.id, targetSits.get(x.p.id) + 1);
+        remaining--;
+      }
+      guard++;
     }
   }
 
@@ -2414,6 +2474,7 @@ function tryBuildLineup(ctx: any): any {
     profiled,
     totalInnings,
     numToBench,
+    competitive: ctx.competitive,
     priorExtraSits: benchHistory,
     firstInningBenchHx,
     topHalfIds,
