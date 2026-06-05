@@ -8,7 +8,7 @@ import {
   isGameFinalized,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
-import { getPositionsForInning, getOffensiveScore } from "../lineupEngine";
+import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
@@ -336,21 +336,6 @@ export const ScheduleTab = memo(() => {
     // Rec-only knobs (Big Game, even-out-playing-time) don't apply and are hidden.
     const isTournamentGame =
       (currentGame.leagueRuleSet || leagueRuleSet) === "USSSA";
-
-    // One-tap "best bats up top": sort the current batting order strictly by
-    // offensive production (OPS/OBP/contact, via getOffensiveScore). Updates the
-    // working order like a manual reorder does — the coach still saves the game.
-    const applyOptimalBatting = () => {
-      if (!battingLineup) return;
-      const scoreOf = (slim: any) => {
-        const full = players.find((x: any) => x.id === slim?.id);
-        return getOffensiveScore(full?.stats);
-      };
-      const next = [...battingLineup].sort(
-        (a: any, b: any) => scoreOf(b) - scoreOf(a)
-      );
-      setBattingLineup(next);
-    };
 
     const presentPlayers = players.filter(
       (p: any) => currentGameAttendance[p.id] !== false
@@ -1170,25 +1155,13 @@ export const ScheduleTab = memo(() => {
 
             {battingLineup && (
               <div className="p-6 border-t border-line/80 print:hidden bg-transparent">
-                <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-line/50">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-full bg-surface border border-line shadow-sm">
-                      <Icons.Bat className="w-5 h-5 text-ink-2" />
-                    </div>
-                    <h3 className="text-lg font-black text-ink uppercase tracking-widest">
-                      Batting Order
-                    </h3>
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-line/50">
+                  <div className="p-2 rounded-full bg-surface border border-line shadow-sm">
+                    <Icons.Bat className="w-5 h-5 text-ink-2" />
                   </div>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={applyOptimalBatting}
-                      title="Sort best bats to the top by production (OPS/OBP)"
-                      className="shrink-0 py-2 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg bg-surface border border-line-strong text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-                    >
-                      Optimal Order
-                    </button>
-                  )}
+                  <h3 className="text-lg font-black text-ink uppercase tracking-widest">
+                    Batting Order
+                  </h3>
                 </div>
                 <div className="flex flex-col gap-3 max-w-2xl">
                   {battingLineup.map((p: any, idx: any) => (
