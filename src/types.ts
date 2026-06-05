@@ -364,6 +364,11 @@ export interface EngineInput {
   battingSize?: string;
   seed?: number;
   isBigGame?: boolean;
+  // Competitive (Tournament) mode: best-XI defense + a per-game minimum-play
+  // floor instead of seasonal fairness, and no fairness ledger. The app sets
+  // this for Tournament (USSSA) games; Rec games leave it false. Reuses all the
+  // shared safety rotation (catcher caps, pitcher rest/pitch limits).
+  competitive?: boolean;
   pitchingFormat?: string;
   // Catcher playing-time policy. "auto" (default) preserves the legacy
   // defense-size-driven behavior; "1".."6" sets a hard per-kid innings cap;

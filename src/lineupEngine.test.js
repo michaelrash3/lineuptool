@@ -2007,6 +2007,9 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
         games,
         evaluationEvents: ev,
         defenseSize: "9",
+        // Seasonal fairness is a Rec (NKB) concept — Tournament games don't
+        // share a ledger, so this fairness test runs as a Rec team.
+        leagueRuleSet: "NKB",
         seed,
         currentGame: { id: "g_new", date: "2026-05-01", opponent: "New" },
       });
@@ -2027,6 +2030,7 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
         games,
         evaluationEvents: ev,
         defenseSize: "9",
+        leagueRuleSet: "NKB",
         seed,
         currentGame: { id: "g_new", date: "2026-05-01", opponent: "New" },
       });

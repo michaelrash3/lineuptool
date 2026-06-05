@@ -332,6 +332,10 @@ export const ScheduleTab = memo(() => {
     // narrows to your aces (top 3); League is the regular-season default.
     const gameType = currentGame.gameType || "league";
     const isScrimmage = currentGame.isScrimmage === true;
+    // Tournament games run competitive (best-XI + minimum-play floor), so the
+    // Rec-only knobs (Big Game, even-out-playing-time) don't apply and are hidden.
+    const isTournamentGame =
+      (currentGame.leagueRuleSet || leagueRuleSet) === "USSSA";
 
     const presentPlayers = players.filter(
       (p: any) => currentGameAttendance[p.id] !== false
@@ -688,6 +692,8 @@ export const ScheduleTab = memo(() => {
               </div>
             </div>
 
+            {!isTournamentGame && (
+            <>
             {/* Big Game toggle — when ON, the engine builds the strongest
                 possible defense (premium positions get strong players) and
                 automatically ignores seasonal fairness. */}
@@ -771,6 +777,8 @@ export const ScheduleTab = memo(() => {
                 </div>
               </div>
             </div>
+            </>
+            )}
             </>
             )}
 

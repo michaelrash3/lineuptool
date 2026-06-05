@@ -77,6 +77,8 @@ export const useLineupActions = ({
         totalInnings:
           parseInt(currentGame.inningsCount || teamData.inningsCount, 10) || 6,
         leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+        competitive:
+          (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
         teamAge: teamData.teamAge,
         defenseSize: currentGame.defenseSize || teamData.defenseSize,
         positionLock: currentGame.positionLock || teamData.positionLock,
@@ -242,6 +244,8 @@ export const useLineupActions = ({
       totalInnings:
         parseInt(currentGame.inningsCount || teamData.inningsCount, 10) || 6,
       leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+      competitive:
+        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
       teamAge: teamData.teamAge,
       defenseSize: currentGame.defenseSize || teamData.defenseSize,
       positionLock: currentGame.positionLock || teamData.positionLock,
@@ -336,6 +340,8 @@ export const useLineupActions = ({
       allPlayers: teamData.players,
       evaluationEvents: teamData.evaluationEvents,
       leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+      competitive:
+        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
       teamAge: teamData.teamAge,
       battingSize: currentGame.battingSize || teamData.battingSize,
       seed: Date.now() + Math.floor(Math.random() * 1e6),
