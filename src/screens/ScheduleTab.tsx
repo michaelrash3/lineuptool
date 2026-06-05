@@ -14,6 +14,7 @@ import { RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { isoInstantToLocalTime } from "../utils/icsParse";
+import { leagueRuleSetLabel } from "../constants/ui";
 import { LineupGrid } from "./LineupGrid";
 
 export const ScoreEditor = memo(
@@ -543,8 +544,8 @@ export const ScheduleTab = memo(() => {
                   }}
                   className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
-                  <option value="USSSA">USSSA Baseball</option>
-                  <option value="NKB">Northern Kentucky Baseball (NKB)</option>
+                  <option value="USSSA">Tournament</option>
+                  <option value="NKB">Rec</option>
                 </select>
               </div>
               <div className="w-full">
@@ -716,7 +717,7 @@ export const ScheduleTab = memo(() => {
                 </div>
                 <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
                   {isBigGame
-                    ? "Strongest defense possible. Past games don't factor in."
+                    ? "Play your strongest for this game. Fairness is paused now, but the bench time still counts and gets made up in later Rec games."
                     : "Off — engine builds a normal lineup."}
                 </div>
               </div>
@@ -1323,8 +1324,8 @@ export const ScheduleTab = memo(() => {
             }}
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
           >
-            <option value="USSSA">USSSA</option>
-            <option value="NKB">NKB</option>
+            <option value="USSSA">Tournament</option>
+            <option value="NKB">Rec</option>
           </select>
           <select
             value={newGameForm.pitchingFormat}
@@ -1533,7 +1534,7 @@ export const ScheduleTab = memo(() => {
                           )}
                           <span className="text-ink-3">|</span>{" "}
                           <span className="whitespace-nowrap">
-                            {game.leagueRuleSet || leagueRuleSet}{" "}
+                            {leagueRuleSetLabel(game.leagueRuleSet || leagueRuleSet)}{" "}
                             {game.pitchingFormat || pitchingFormat}
                           </span>
                           {game.location && (

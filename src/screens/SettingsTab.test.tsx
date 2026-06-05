@@ -51,7 +51,7 @@ describe("SettingsTab", () => {
     });
     const leagueSelect = screen
       .getAllByRole("combobox")
-      .find((sel) => within(sel).queryByText("USSSA Baseball"));
+      .find((sel) => within(sel).queryByText("Tournament"));
     expect(leagueSelect).toBeTruthy();
     await userEvent.selectOptions(leagueSelect as HTMLSelectElement, "NKB");
     expect(teamValue.updateTeam).toHaveBeenCalledWith({ leagueRuleSet: "NKB" });

@@ -8,6 +8,7 @@ import {
   countsTowardStats,
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
+import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard } from "../components/shared";
 import { checkPitchEligibility } from "../lineupEngine";
@@ -401,7 +402,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
               )}
               <span className="text-ink-3">|</span>
               <span>
-                {game.leagueRuleSet || leagueRuleSet}{" "}
+                {leagueRuleSetLabel(game.leagueRuleSet || leagueRuleSet)}{" "}
                 {game.pitchingFormat || pitchingFormat}
               </span>
               {game.location && (
@@ -1163,7 +1164,7 @@ export const HomeTab = memo(() => {
                 {currentSeason}
               </div>
               <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">
-                {teamAge} · {leagueRuleSet}
+                {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
               </div>
             </div>
           </div>
