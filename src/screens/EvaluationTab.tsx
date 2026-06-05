@@ -26,6 +26,9 @@ import { evalPromptStatus } from "../utils/helpers";
 // can flag spots they think this kid should play. Stored on the eval
 // round as `grades[playerId].suggestedPositions`. Same vocabulary as
 // AssistantEvalModal so head + assistant inputs share a shape.
+// Canonical 3-outfielder model — evaluations never split center into LCF/RCF;
+// the lineup engine maps a CF-graded player onto those field slots when a
+// 10-fielder game is played.
 const SUGGESTED_POSITIONS = [
   "P",
   "C",
@@ -34,9 +37,7 @@ const SUGGESTED_POSITIONS = [
   "3B",
   "SS",
   "LF",
-  "LCF",
   "CF",
-  "RCF",
   "RF",
 ];
 

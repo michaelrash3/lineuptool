@@ -8,9 +8,10 @@ import {
   lineupSlotMatchesPlayer,
   isGameFinalized,
   summarizePitchingWorkload,
+  ROSTER_POSITIONS,
+  canonicalizePositionList,
 } from "../utils/helpers";
 import { AGE_TIERS } from "../constants/ui";
-import { getActivePositionList } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { PlayerAvatar, cropImageTo256DataURL } from "./shared";
 import {
@@ -613,10 +614,11 @@ export const PlayerProfileModal = memo(() => {
   const player = players.find((p: any) => p.id === viewingPlayerId);
   if (!player) return null;
 
-  // Defense-size-aware active position list. 10-defender setups use
-  // LCF + RCF (no lone CF — those two cover center together); 9-defender
-  // setups use CF alone. Matches `getActivePositionList` in lineupEngine.
-  const positions = getActivePositionList(defenseSize);
+  // Accepted positions always use the canonical 3-outfielder model (LF/CF/RF),
+  // independent of team size — the engine maps a CF-eligible player onto the
+  // LCF/RCF field slots in a 10-fielder game. Showing LCF/RCF here is what made
+  // a 10-fielder roster "restricted from CF" when playing 9-fielder games.
+  const positions = ROSTER_POSITIONS;
 
   const close = () => {
     setViewingPlayerId(null);
@@ -895,9 +897,11 @@ export const PlayerProfileModal = memo(() => {
                 </p>
                 <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
                   {positions.map((pos) => {
-                    const list = Array.isArray(player.comfortablePositions)
-                      ? player.comfortablePositions
-                      : [];
+                    // Canonicalize so legacy LCF/RCF data lights up the CF chip,
+                    // and every toggle re-saves the clean canonical list.
+                    const list = canonicalizePositionList(
+                      player.comfortablePositions
+                    );
                     const active = list.includes(pos);
                     const isCatcher = pos === "C";
                     return (
