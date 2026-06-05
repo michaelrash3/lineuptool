@@ -43,6 +43,7 @@ import type {
   Position,
   SlimPlayer,
 } from "./types";
+import { canonicalizeOutfield } from "./utils/helpers";
 
 // ---------- Constants ----------
 const POS_10: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
@@ -76,9 +77,18 @@ export function isPositionBlocked(
   const comfort = Array.isArray(p.comfortablePositions)
     ? p.comfortablePositions
     : null;
-  if (comfort && comfort.length > 0) return !comfort.includes(pos);
+  // Canonicalize outfield so a player who accepts CF is eligible for the LCF/RCF
+  // field slots in a 10-fielder game, and a player who accepts LCF/RCF (legacy
+  // data) is eligible for CF in a 9-fielder game. Corners (LF/RF) stay distinct.
+  if (comfort && comfort.length > 0) {
+    const target = canonicalizeOutfield(pos);
+    return !comfort.some((c) => canonicalizeOutfield(c) === target);
+  }
   const restr = Array.isArray(p.restrictions) ? p.restrictions : null;
-  if (restr && restr.length > 0) return restr.includes(pos);
+  if (restr && restr.length > 0) {
+    const target = canonicalizeOutfield(pos);
+    return restr.some((c) => canonicalizeOutfield(c) === target);
+  }
   return false;
 }
 
@@ -3066,7 +3076,11 @@ function pickBestForPosition(opts: any): any {
       const comfort = Array.isArray(p.comfortablePositions)
         ? p.comfortablePositions
         : null;
-      if (comfort && comfort.length > 0 && comfort.includes(pos)) {
+      if (
+        comfort &&
+        comfort.length > 0 &&
+        comfort.some((c: string) => canonicalizeOutfield(c) === canonicalizeOutfield(pos))
+      ) {
         score -= 3;
       }
     }

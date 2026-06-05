@@ -652,6 +652,39 @@ export const isGameFinalized = (
   return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
 };
 
+// The canonical set of positions a player can be marked comfortable with / be
+// evaluated on — always the 3-outfielder layout, independent of whether the
+// team fields 9 or 10. The engine maps CF onto LCF/RCF for 10-fielder games.
+export const ROSTER_POSITIONS = [
+  "P",
+  "C",
+  "1B",
+  "2B",
+  "3B",
+  "SS",
+  "LF",
+  "CF",
+  "RF",
+] as const;
+
+// Collapse the center-field field variants (LCF/RCF) to the canonical CF so
+// eligibility treats "plays center" as one thing regardless of 9- vs
+// 10-fielder alignment. Corner spots (LF/RF) stay distinct.
+export const canonicalizeOutfield = (pos: string): string =>
+  pos === "LCF" || pos === "RCF" ? "CF" : pos;
+
+// Normalize a player's accepted-position list to the canonical model: center
+// variants collapse to CF, de-duplicated, order preserved.
+export const canonicalizePositionList = (list: string[] | null | undefined): string[] => {
+  if (!Array.isArray(list)) return [];
+  const out: string[] = [];
+  for (const p of list) {
+    const c = canonicalizeOutfield(p);
+    if (!out.includes(c)) out.push(c);
+  }
+  return out;
+};
+
 export const lineupSlotMatchesPlayer = (
   slot: { id?: string; name?: string } | null | undefined,
   player: { id?: string; name?: string } | null | undefined,
