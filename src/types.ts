@@ -100,6 +100,12 @@ export interface Game {
   // is excluded from the record, all stats, defensive innings, bench equity,
   // and engine seasonal fairness.
   isScrimmage?: boolean;
+  // Imported from a GameChanger feed (see utils/gcSync). gcUid is the feed's
+  // stable per-game id used to de-dupe on re-sync.
+  gcUid?: string;
+  isHome?: boolean | null;
+  location?: string;
+  startUtc?: string; // ISO instant of first pitch; drives the displayed time
   [key: string]: unknown;
 }
 

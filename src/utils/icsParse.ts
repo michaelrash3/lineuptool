@@ -151,3 +151,12 @@ export const isoInstantToLocalDate = (iso: string): string => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+
+// Format a UTC ISO instant as a local clock time, e.g. "6:00 PM". Returns ""
+// for a missing/unparseable instant so callers can simply skip rendering it.
+export const isoInstantToLocalTime = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+};

@@ -68,6 +68,7 @@ export const mergeGcEventsIntoGames = (
   for (const ev of events) {
     const fields = {
       date: isoInstantToLocalDate(ev.startUtc),
+      startUtc: ev.startUtc,
       opponent: ev.opponent || "TBD",
       isHome: ev.isHome,
       location: ev.location || "",
@@ -78,6 +79,7 @@ export const mergeGcEventsIntoGames = (
       const g = next[existingIdx];
       const changed =
         g.date !== fields.date ||
+        g.startUtc !== fields.startUtc ||
         g.opponent !== fields.opponent ||
         g.isHome !== fields.isHome ||
         (g.location || "") !== fields.location;
