@@ -21,7 +21,7 @@ import {
 // nothing to fall back to.
 interface WelcomeChooserProps {
   open: boolean;
-  onCreate?: (name: string) => Promise<any> | any;
+  onCreate?: (name: string, leagueRuleSet?: "NKB" | "USSSA") => Promise<any> | any;
   onJoin?: (code: string) => Promise<any> | any;
 }
 
@@ -29,6 +29,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
+  const [teamType, setTeamType] = useState<"NKB" | "USSSA" | null>(null);
   const [error, setError] = useState("");
   // In-app sign-out confirmation. Replaces window.confirm so first-run
   // users don't get a 1995-looking dialog over the polished modal.
@@ -85,12 +86,16 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
   const handleCreate = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (busy) return;
+    if (!teamType) {
+      setError("Pick a team type — Rec or Tournament.");
+      return;
+    }
     setBusy("create");
     setError("");
     try {
       // Empty name falls back to "My Team" — matches the prior bootstrap default.
       const finalName = trimmedName || "My Team";
-      const result = await onCreate?.(finalName);
+      const result = await onCreate?.(finalName, teamType);
       if (result === false) {
         setError("We couldn't create your team. Please try again.");
       }
@@ -217,9 +222,45 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
                   Start a new team
                 </h3>
                 <p className="t-body text-xs mt-1">
-                  Name your team — you can change this any time in Settings.
+                  Name your team and pick a type — both changeable later in
+                  Settings.
                 </p>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {[
+                {
+                  v: "NKB" as const,
+                  label: "Rec",
+                  desc: "Everybody plays — fairness across the season.",
+                },
+                {
+                  v: "USSSA" as const,
+                  label: "Tournament",
+                  desc: "Competitive — best lineup, minimum-play floor.",
+                },
+              ].map((opt) => (
+                <button
+                  key={opt.v}
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setTeamType(opt.v);
+                  }}
+                  className={`text-left p-3 rounded-xl border transition-all ${
+                    teamType === opt.v
+                      ? "border-[var(--team-primary)] bg-surface-2 ring-2 ring-[var(--team-primary)]"
+                      : "border-line bg-surface hover:bg-surface-2"
+                  }`}
+                >
+                  <div className="t-h3 text-[13px] tracking-widest text-ink">
+                    {opt.label}
+                  </div>
+                  <div className="t-body text-[11px] text-ink-3 mt-1 leading-tight">
+                    {opt.desc}
+                  </div>
+                </button>
+              ))}
             </div>
             <div className="flex flex-col sm:flex-row items-stretch gap-2">
               <input

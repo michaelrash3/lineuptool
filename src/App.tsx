@@ -1142,7 +1142,7 @@ const TeamProvider = ({ children }: any) => {
   );
 
   const createTeam = useCallback(
-    async (name: any) => {
+    async (name: any, leagueRuleSet?: "NKB" | "USSSA") => {
       if (!user || !name.trim()) return false;
       const id = "team-" + Math.random().toString(36).substring(2, 10);
       setSyncStatus("Creating");
@@ -1158,6 +1158,10 @@ const TeamProvider = ({ children }: any) => {
         );
         await setDoc(teamRef, {
           ...DEFAULT_TEAM_DATA,
+          // The coach picks Rec (NKB) or Tournament (USSSA) at creation; this
+          // drives the play-style (fairness vs competitive) and the rules
+          // auto-config (defense size / pitching format).
+          leagueRuleSet: leagueRuleSet || DEFAULT_TEAM_DATA.leagueRuleSet,
           name: name.trim(),
           ownerId: user.uid,
           members: [user.uid],
