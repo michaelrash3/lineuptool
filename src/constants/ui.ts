@@ -18,36 +18,50 @@ export interface EvalCategory {
   label: string;
   group: EvalGroup;
   weight: number;
+  // Plain-English meaning shown in the grading UI so the rating is obvious.
+  description?: string;
   addOn?: "kidPitch"; // gating: only shown when pitchingFormat === "Kid Pitch"
 }
 
 export const EVAL_CATEGORIES: EvalCategory[] = [
   // Hitting
-  { id: "contact", label: "Contact", group: "Hitting", weight: 1.5 },
-  { id: "power", label: "Power", group: "Hitting", weight: 1.0 },
-  { id: "plateDiscipline", label: "Plate Discipline", group: "Hitting", weight: 1.0 },
-  { id: "approach", label: "Approach", group: "Hitting", weight: 1.5 },
+  { id: "contact", label: "Contact", group: "Hitting", weight: 1.5,
+    description: "Consistent contact — barrels it up, doesn't chase." },
+  { id: "power", label: "Power", group: "Hitting", weight: 1.0,
+    description: "Drives the ball; gap-to-gap, extra-base pop." },
+  { id: "approach", label: "Approach", group: "Hitting", weight: 2.5,
+    description: "Pitch selection, two-strike battles, situational hitting." },
   // Fielding
-  { id: "glove", label: "Glove", group: "Fielding", weight: 2.5 },
-  { id: "range", label: "Range", group: "Fielding", weight: 2.0 },
-  { id: "armStrength", label: "Arm Strength", group: "Fielding", weight: 1.5 },
-  { id: "armAccuracy", label: "Arm Accuracy", group: "Fielding", weight: 1.5 },
-  // Baserunning
-  { id: "baserunning", label: "Baserunning", group: "Baserunning", weight: 1.5 },
+  { id: "fielding", label: "Fielding", group: "Fielding", weight: 4.5,
+    description: "Clean hands, secures the ball, footwork & range to it." },
+  { id: "arm", label: "Arm", group: "Fielding", weight: 3.0,
+    description: "Throwing strength AND accuracy to the bag." },
+  // Athleticism
+  { id: "speedBaserunning", label: "Speed & Baserunning", group: "Baserunning", weight: 1.5,
+    description: "Foot speed, reads, smart aggression on the bases." },
   // Intangibles
-  { id: "baseballIQ", label: "Baseball IQ", group: "Intangibles", weight: 2.0 },
-  { id: "coachability", label: "Coachability", group: "Intangibles", weight: 1.0 },
+  { id: "baseballIQ", label: "Baseball IQ", group: "Intangibles", weight: 2.0,
+    description: "Knows where the ball goes; situational awareness." },
+  { id: "coachability", label: "Coachability", group: "Intangibles", weight: 3.0,
+    description: "Listens, adjusts, effort & attitude. Weighted heavily." },
   // Kid-Pitch add-ons: Pitching
-  { id: "velocity", label: "Velocity", group: "Pitching", weight: 1.0, addOn: "kidPitch" },
-  { id: "control", label: "Control", group: "Pitching", weight: 1.5, addOn: "kidPitch" },
-  { id: "command", label: "Command", group: "Pitching", weight: 1.0, addOn: "kidPitch" },
-  { id: "offSpeed", label: "Off-Speed", group: "Pitching", weight: 0.5, addOn: "kidPitch" },
-  { id: "composure", label: "Composure", group: "Pitching", weight: 1.0, addOn: "kidPitch" },
+  { id: "velocity", label: "Velocity", group: "Pitching", weight: 1.0, addOn: "kidPitch",
+    description: "Raw arm speed / how the ball jumps." },
+  { id: "strikes", label: "Strikes", group: "Pitching", weight: 2.5, addOn: "kidPitch",
+    description: "Throws strikes and commands the zone." },
+  { id: "offSpeed", label: "Off-Speed", group: "Pitching", weight: 0.5, addOn: "kidPitch",
+    description: "Has and can land a change/breaking ball." },
+  { id: "composure", label: "Composure", group: "Pitching", weight: 1.0, addOn: "kidPitch",
+    description: "Stays calm under pressure; bounces back." },
   // Kid-Pitch add-ons: Catching
-  { id: "receiving", label: "Receiving", group: "Catching", weight: 1.0, addOn: "kidPitch" },
-  { id: "blocking", label: "Blocking", group: "Catching", weight: 1.0, addOn: "kidPitch" },
-  { id: "popTime", label: "Pop Time", group: "Catching", weight: 1.0, addOn: "kidPitch" },
-  { id: "gameCalling", label: "Game Calling", group: "Catching", weight: 1.0, addOn: "kidPitch" },
+  { id: "receiving", label: "Receiving", group: "Catching", weight: 1.0, addOn: "kidPitch",
+    description: "Catches and frames cleanly; soft hands." },
+  { id: "blocking", label: "Blocking", group: "Catching", weight: 1.0, addOn: "kidPitch",
+    description: "Keeps balls in front; blocks the dirt." },
+  { id: "throwing", label: "Throwing", group: "Catching", weight: 1.0, addOn: "kidPitch",
+    description: "Quick transfer and arm to throw out runners." },
+  { id: "gameCalling", label: "Game Calling", group: "Catching", weight: 1.0, addOn: "kidPitch",
+    description: "Manages pitches, counts, and the defense." },
 ];
 
 export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
@@ -83,7 +97,12 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
 // (see evalRoundDateForSave) instead of the literal save day. The v6 migration
 // re-stamps existing roster rounds onto their nearest due date and drops the
 // older of any two rounds that collapse onto the same date.
-export const EVAL_SCHEMA_VERSION = 6;
+// v7 (2026-06) — leaner, youth-appropriate eval categories: Plate Discipline
+// folds into Approach; Glove+Range merge to Fielding; Arm Strength+Accuracy
+// merge to Arm; Baserunning → Speed & Baserunning; Control+Command → Strikes;
+// Pop Time → Throwing. The v7 migration averages merged grades and renames the
+// rest so prior eval history carries over. Coachability is weighted up.
+export const EVAL_SCHEMA_VERSION = 7;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [

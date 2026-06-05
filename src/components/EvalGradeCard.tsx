@@ -78,6 +78,7 @@ export const GradeChipRow = memo(({ value, onChange, ariaLabel }: GradeChipRowPr
 interface EvalCategory {
   id: string;
   label: string;
+  description?: string;
 }
 
 interface EvalGradeCardProps {
@@ -128,9 +129,14 @@ export const EvalGradeCard = memo(
             const value = playerGrades[cat.id] ?? DEFAULT_GRADE;
             return (
               <div key={cat.id}>
-                <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
                   {cat.label}
                 </div>
+                {cat.description && (
+                  <div className="text-[10px] font-medium text-ink-3 leading-tight mb-1.5">
+                    {cat.description}
+                  </div>
+                )}
                 {readOnly ? (
                   <div className="text-xl font-black tabular-nums text-ink">
                     {value}

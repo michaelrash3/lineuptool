@@ -235,13 +235,20 @@ const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
 // Backwards-compat aliases — read the v3 field if present, fall back to the
 // v1 alias (e.g. `glove` ← `fielding`), defaulting to the mid-grade. Each
 // takes a possibly-undefined grade record (legacy callers pass {} or null).
+// Each reads the fine-grained v3 field, falling back to the merged v7 field
+// (Glove/Range ← Fielding, Arm Strength/Accuracy ← Arm, Plate Discipline ←
+// Approach, Baserunning ← Speed & Baserunning) and finally older aliases, so
+// the engine's position scoring keeps working off the simplified coach grades.
 const gloveOf = (g: any): number => g?.glove ?? g?.fielding ?? 3;
 const rangeOf = (g: any): number => g?.range ?? g?.fielding ?? 3;
-const baserunningOf = (g: any): number => g?.baserunning ?? g?.speedAgility ?? 3;
+const armStrengthOf = (g: any): number => g?.armStrength ?? g?.arm ?? 3;
+const armAccuracyOf = (g: any): number => g?.armAccuracy ?? g?.arm ?? 3;
+const baserunningOf = (g: any): number =>
+  g?.baserunning ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
 const contactOf = (g: any): number => g?.contact ?? 3;
 const approachOf = (g: any): number => g?.approach ?? 3;
 const powerOf = (g: any): number => g?.power ?? 3;
-const plateDisciplineOf = (g: any): number => g?.plateDiscipline ?? 3;
+const plateDisciplineOf = (g: any): number => g?.plateDiscipline ?? g?.approach ?? 3;
 
 // ---------- Public helpers (re exported for the UI) ----------
 
@@ -293,8 +300,11 @@ export function getCombinedGrades(
     const readCat = (g: any, catId: string): number | null => {
       if (!g) return null;
       if (g[catId] != null) return g[catId];
+      // Bridge the merged v7 coach grades onto the fine-grained engine fields.
       if (catId === "glove" || catId === "range") return g.fielding ?? null;
-      if (catId === "baserunning") return g.speedAgility ?? null;
+      if (catId === "armStrength" || catId === "armAccuracy") return g.arm ?? null;
+      if (catId === "plateDiscipline") return g.approach ?? null;
+      if (catId === "baserunning") return g.speedBaserunning ?? g.speedAgility ?? null;
       return null;
     };
 
@@ -448,7 +458,9 @@ export function getOffensiveScore(stats?: PlayerStats | null): number {
 // total. Lives next to calculateTotalScore so a weight change here picks up
 // the matching divisor automatically.
 const TOTAL_SCORE_CATEGORY_WEIGHTS =
-  2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 1.0 + 1.5 + 1.0 + 1.0 + 1.5;
+  // glove + range + armStr + armAcc + baserunning + baseballIQ +
+  // coachability(3.0) + contact + power + plateDiscipline + approach
+  2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 3.0 + 1.5 + 1.0 + 1.0 + 1.5;
 // Max possible raw total = 5 × sum(category weights) + 10 (max offensive) × 2.
 const TOTAL_SCORE_MAX =
   5 * TOTAL_SCORE_CATEGORY_WEIGHTS + 10 * 2.0; // = 105
@@ -465,11 +477,11 @@ export function calculateTotalScore(
   const raw =
     gloveOf(grades) * 2.5 +
     rangeOf(grades) * 2.0 +
-    (grades.armStrength || 3) * 1.5 +
-    (grades.armAccuracy || 3) * 1.5 +
+    armStrengthOf(grades) * 1.5 +
+    armAccuracyOf(grades) * 1.5 +
     baserunningOf(grades) * 1.5 +
     (grades.baseballIQ || 3) * 2.0 +
-    (grades.coachability || 3) * 1.0 +
+    (grades.coachability || 3) * 3.0 +
     contactOf(grades) * 1.5 +
     powerOf(grades) * 1.0 +
     plateDisciplineOf(grades) * 1.0 +
@@ -759,8 +771,8 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
   const defensiveScore =
     gloveOf(g) * 2.0 +
     rangeOf(g) * 1.5 +
-    g.armStrength * 1.5 +
-    g.armAccuracy * 1.5 +
+    armStrengthOf(g) * 1.5 +
+    armAccuracyOf(g) * 1.5 +
     baserunningOf(g) * 1.5 +
     g.baseballIQ * 2.0;
 
