@@ -658,6 +658,63 @@ const TeamProvider = ({ children }: any) => {
             if (stored < 6) {
               migratedEvents = restampEvalDueDates(migratedEvents);
             }
+            // v7 — leaner eval categories. Remap each player's grades from the
+            // old fine-grained ids to the merged set: Plate Discipline folds
+            // into Approach, Glove+Range → Fielding, Arm Str+Acc → Arm,
+            // Baserunning → Speed & Baserunning, Control+Command → Strikes,
+            // Pop Time → Throwing. Merged pairs average their two old scores so
+            // prior history carries over; notes/non-numeric fields are kept.
+            if (stored < 7) {
+              const avgGrade = (a: any, b: any): number | undefined => {
+                const nums = [a, b].filter(
+                  (x) => typeof x === "number" && Number.isFinite(x)
+                );
+                if (nums.length === 0) return undefined;
+                return Math.max(
+                  1,
+                  Math.min(5, Math.round(nums.reduce((s, x) => s + x, 0) / nums.length))
+                );
+              };
+              const carry = [
+                "contact", "power", "baseballIQ", "coachability",
+                "velocity", "offSpeed", "composure",
+                "receiving", "blocking", "gameCalling",
+                // already-merged ids (idempotent if a round was partly migrated)
+                "approach", "fielding", "arm", "strikes", "speedBaserunning", "throwing",
+              ];
+              migratedEvents = migratedEvents.map((ev: any) => {
+                if (!ev?.grades) return ev;
+                const nextGrades: Record<string, any> = {};
+                for (const [pid, grade] of Object.entries(ev.grades)) {
+                  if (!grade || typeof grade !== "object") {
+                    nextGrades[pid] = grade;
+                    continue;
+                  }
+                  const g: any = grade;
+                  const out: Record<string, any> = {};
+                  for (const k of carry) {
+                    if (typeof g[k] === "number") out[k] = g[k];
+                  }
+                  const approach = avgGrade(g.approach, g.plateDiscipline);
+                  if (approach !== undefined) out.approach = approach;
+                  const fielding = avgGrade(g.glove, g.range);
+                  if (fielding !== undefined) out.fielding = fielding;
+                  const arm = avgGrade(g.armStrength, g.armAccuracy);
+                  if (arm !== undefined) out.arm = arm;
+                  const strikes = avgGrade(g.control, g.command);
+                  if (strikes !== undefined) out.strikes = strikes;
+                  if (typeof g.baserunning === "number")
+                    out.speedBaserunning = g.baserunning;
+                  if (typeof g.popTime === "number") out.throwing = g.popTime;
+                  // Preserve notes and any non-numeric fields.
+                  for (const [k, v] of Object.entries(g)) {
+                    if (typeof v !== "number") out[k] = v;
+                  }
+                  nextGrades[pid] = out;
+                }
+                return { ...ev, grades: nextGrades };
+              });
+            }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
               players: migratedPlayers,

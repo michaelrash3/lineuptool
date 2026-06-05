@@ -1589,11 +1589,18 @@ export const EvaluationTab = memo(() => {
                       {activeCategories.map((cat) => (
                         <div
                           key={cat.id}
-                          className="flex items-center justify-between gap-3"
+                          className="flex items-start justify-between gap-3"
                         >
-                          <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
-                            {cat.label}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 block">
+                              {cat.label}
+                            </span>
+                            {cat.description && (
+                              <span className="text-[10px] font-medium text-ink-3 leading-tight block mt-0.5">
+                                {cat.description}
+                              </span>
+                            )}
+                          </div>
                           <GradeChipRow
                             value={grades[cat.id]}
                             onChange={(v: any) =>
