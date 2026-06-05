@@ -6,7 +6,7 @@ import {
   suggestPlayerMatch,
   buildScheduleIcs,
 } from "../utils/helpers";
-import { computeNextSeason } from "../constants/ui";
+import { computeNextSeason, leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
@@ -1033,10 +1033,8 @@ export const SettingsTab = memo(() => {
                       }
                       className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
                     >
-                      <option value="USSSA">USSSA Baseball</option>
-                      <option value="NKB">
-                        Northern Kentucky Baseball (NKB)
-                      </option>
+                      <option value="USSSA">Tournament</option>
+                      <option value="NKB">Rec</option>
                     </select>
                   </div>
                   <div>
@@ -1173,7 +1171,7 @@ export const SettingsTab = memo(() => {
                   </div>
                   {isDefenseLocked ? (
                     <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
-                      Locked by {leagueRuleSet} rules
+                      Locked by {leagueRuleSetLabel(leagueRuleSet)} rules
                     </p>
                   ) : (
                     <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">

@@ -1,5 +1,12 @@
 // UI-only constants extracted from App.jsx Section 4.
 
+// League rule sets keep their stored values ("NKB" / "USSSA") so all rules
+// logic and existing data are unchanged, but they're SHOWN to coaches as
+// "Rec" and "Tournament" — which is also the play-style switch (Rec games use
+// the fairness/play-everyone engine; Tournament games run competitive).
+export const leagueRuleSetLabel = (rs?: string | null): string =>
+  rs === "USSSA" ? "Tournament" : rs === "NKB" ? "Rec" : rs || "";
+
 // Coach's Card v2 eval taxonomy.
 // 11 universal categories grouped into 4 buckets; pitching + catching are
 // Kid-Pitch add-ons (every player on Kid Pitch teams gets graded on them).
