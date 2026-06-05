@@ -11,13 +11,6 @@ const ageNumOf = (age: string | undefined): number => {
   return parseInt(nums[nums.length - 1], 10);
 };
 
-const formatDate = (iso: string | undefined | null): string => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-};
-
 // Next-game pitching plan: for the soonest upcoming game, classify each
 // pitcher (cleared for "P") as ready / resting / maxed against the age rest
 // rules, ready arms first so a coach can line up the rotation. Kid-Pitch 9U+
@@ -33,35 +26,32 @@ export const PitchingPlanPanel = memo(() => {
     /kid/i.test(pitchingFormat || "") &&
     ageNumOf(teamAge) >= 9;
 
-  const nextGame = useMemo(() => {
-    if (!eligible) return null;
+  // The next few upcoming games, soonest first, so a coach can plan a rotation
+  // across the weekend rather than one game at a time.
+  const upcoming = useMemo(() => {
+    if (!eligible) return [] as any[];
     const today = getLocalDateString();
     return (games || [])
       .filter((g: any) => (g.status || "scheduled") !== "postponed")
       .filter((g: any) => !isGameFinalized(g))
       .filter((g: any) => g.date && g.date >= today)
-      .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
+      .sort((a: any, b: any) => a.date.localeCompare(b.date))
+      .slice(0, 4);
   }, [eligible, games]);
 
-  const plan = useMemo(
-    () => (nextGame ? buildPitchingPlan(players || [], nextGame.date, teamAge) : []),
-    [nextGame, players, teamAge]
+  // Each upcoming game's availability snapshot, based on every pitcher's CURRENT
+  // recorded rest state (last outing + pitch count vs the age rest rules).
+  const rotation = useMemo(
+    () =>
+      upcoming.map((g: any) => ({
+        game: g,
+        plan: buildPitchingPlan(players || [], g.date, teamAge),
+      })),
+    [upcoming, players, teamAge]
   );
 
-  if (!eligible || !nextGame || plan.length === 0) return null;
-
-  const readyCount = plan.filter((p) => p.status === "ready").length;
-
-  const statusChip = (p: (typeof plan)[number]) => {
-    if (p.status === "ready")
-      return { label: `Up to ${p.maxPitches}`, cls: "bg-emerald-50 border-emerald-200 text-emerald-700" };
-    if (p.status === "resting")
-      return {
-        label: p.daysUntilReady ? `Ready in ${p.daysUntilReady}d` : "Resting",
-        cls: "bg-amber-100 border-amber-300 text-amber-800",
-      };
-    return { label: "At limit", cls: "bg-rose-50 border-rose-200 text-rose-700" };
-  };
+  if (!eligible || rotation.length === 0 || rotation[0].plan.length === 0)
+    return null;
 
   return (
     <div className="glass-card mb-6">
@@ -69,71 +59,99 @@ export const PitchingPlanPanel = memo(() => {
         className="h-1.5 w-full"
         style={{ backgroundColor: "var(--team-primary)" }}
       />
-      <div className="p-5 border-b border-line bg-surface flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="p-2 rounded-full"
-            style={{ backgroundColor: "var(--team-primary-15)" }}
-          >
-            <Icons.Pitch
-              className="w-5 h-5"
-              style={{ color: "var(--team-primary)" }}
-            />
-          </div>
-          <div>
-            <h2 className="t-h2">Next-Game Pitching</h2>
-            <p className="t-eyebrow text-ink-3 mt-0.5">
-              {nextGame.opponent ? `vs ${nextGame.opponent} · ` : ""}
-              {formatGameDateDisplay(nextGame.date)}
-            </p>
-          </div>
+      <div className="p-5 border-b border-line bg-surface flex items-center gap-3">
+        <div
+          className="p-2 rounded-full"
+          style={{ backgroundColor: "var(--team-primary-15)" }}
+        >
+          <Icons.Pitch
+            className="w-5 h-5"
+            style={{ color: "var(--team-primary)" }}
+          />
         </div>
-        <span className="t-eyebrow text-ink-3 hidden sm:inline whitespace-nowrap">
-          {readyCount} ready
-        </span>
+        <div>
+          <h2 className="t-h2">Pitching Rotation</h2>
+          <p className="t-eyebrow text-ink-3 mt-0.5">
+            Who's rested for each upcoming game
+          </p>
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-surface">
-            <tr className="text-[10px] font-black uppercase tracking-widest text-ink-3">
-              <th className="px-3 py-2">Pitcher</th>
-              <th className="px-3 py-2">Last outing</th>
-              <th className="px-3 py-2 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plan.map((p) => {
-              const chip = statusChip(p);
-              return (
-                <tr key={p.id} className="border-t border-line/60">
-                  <td className="px-3 py-2 font-bold text-ink whitespace-nowrap">
+      <div className="divide-y divide-line">
+        {rotation.map(({ game, plan }: any) => {
+          const ready = plan.filter((p: any) => p.status === "ready");
+          const resting = plan.filter((p: any) => p.status === "resting");
+          const maxed = plan.filter((p: any) => p.status === "maxed");
+          return (
+            <div key={game.id} className="p-4 sm:px-5">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="font-bold text-ink text-sm">
+                  {game.opponent ? `vs ${game.opponent}` : "Game"}
+                  <span className="text-ink-3 font-medium">
+                    {" · "}
+                    {formatGameDateDisplay(game.date)}
+                  </span>
+                </div>
+                <span className="t-eyebrow text-ink-3 whitespace-nowrap">
+                  {ready.length} ready
+                </span>
+              </div>
+              {ready.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {ready.map((p: any) => (
                     <button
+                      key={p.id}
                       type="button"
                       onClick={() => openPlayerProfile(p.id)}
-                      className="hover:text-team-primary transition-colors text-left"
+                      className="t-chip px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                      title={`Up to ${p.maxPitches} pitches`}
                     >
                       {p.number ? `#${p.number} ` : ""}
                       {p.name}
                     </button>
-                  </td>
-                  <td className="px-3 py-2 text-ink-2 tabular-nums whitespace-nowrap">
-                    {p.recentPitches > 0
-                      ? `${p.recentPitches} P · ${formatDate(p.lastPitchDate)}`
-                      : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <span
-                      className={`t-chip px-2 py-0.5 rounded-md border ${chip.cls} whitespace-nowrap`}
+                  ))}
+                </div>
+              ) : (
+                <div className="text-[11px] font-bold text-rose-600">
+                  No rested arms — everyone needs more rest by this date.
+                </div>
+              )}
+              {resting.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {resting.map((p: any) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => openPlayerProfile(p.id)}
+                      className="t-chip px-2 py-0.5 rounded-md border bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                      title="Resting"
                     >
-                      {chip.label}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {p.number ? `#${p.number} ` : ""}
+                      {p.name}
+                      {p.daysUntilReady ? ` · ${p.daysUntilReady}d` : ""}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {maxed.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {maxed.map((p: any) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => openPlayerProfile(p.id)}
+                      className="t-chip px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100 transition-colors whitespace-nowrap"
+                      title="At pitch limit until their next recorded outing"
+                    >
+                      {p.number ? `#${p.number} ` : ""}
+                      {p.name} · at limit
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

@@ -31,11 +31,11 @@ describe("PitchingPlanPanel", () => {
     renderWithProviders(<PitchingPlanPanel />, {
       team: { team: baseTeam(), currentRole: "head" },
     });
-    expect(screen.getByText("Next-Game Pitching")).toBeInTheDocument();
+    expect(screen.getByText("Pitching Rotation")).toBeInTheDocument();
     expect(screen.getByText(/vs Rays/)).toBeInTheDocument();
-    // Cleared pitcher ready; maxed pitcher flagged; fielder excluded.
+    // Cleared pitcher ready; maxed pitcher flagged "at limit"; fielder excluded.
     expect(screen.getByText("#1 Ace")).toBeInTheDocument();
-    expect(screen.getByText("At limit")).toBeInTheDocument();
+    expect(screen.getByText(/Maxed Out · at limit/)).toBeInTheDocument();
     expect(screen.queryByText("#3 Fielder")).not.toBeInTheDocument();
   });
 
