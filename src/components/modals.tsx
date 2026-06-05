@@ -7,6 +7,7 @@ import {
   blankStats,
   lineupSlotMatchesPlayer,
   isGameFinalized,
+  countsTowardStats,
   summarizePitchingWorkload,
   ROSTER_POSITIONS,
   canonicalizePositionList,
@@ -504,7 +505,7 @@ export const PlayerProfileModal = memo(() => {
     // Routes through the shared isGameFinalized() so all stat surfaces
     // (record, leaderboards, trend tile) agree on which games count.
     for (const g of games || []) {
-      if (!isGameFinalized(g)) continue;
+      if (!countsTowardStats(g)) continue;
       if (!g.lineup?.length) continue;
 
       // Did this player attend the game?
@@ -562,7 +563,7 @@ export const PlayerProfileModal = memo(() => {
       lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
     // Same predicate as the aggregation above — see isGameFinalized().
     for (const g of games || []) {
-      if (!isGameFinalized(g)) continue;
+      if (!countsTowardStats(g)) continue;
       if (!g.lineup?.length) continue;
       if (g.attendance?.[pid] === false) continue;
 

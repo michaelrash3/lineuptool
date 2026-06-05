@@ -96,6 +96,10 @@ export interface Game {
   originalLineup?: Inning[];
   attendance?: Record<PlayerId, boolean>;
   gameType?: GameType;
+  // Marks an exhibition/scrimmage: stays on the schedule and is playable, but
+  // is excluded from the record, all stats, defensive innings, bench equity,
+  // and engine seasonal fairness.
+  isScrimmage?: boolean;
   [key: string]: unknown;
 }
 

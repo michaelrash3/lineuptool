@@ -5,7 +5,7 @@
 // inconsistent across devices).
 
 import { Game, SlimPlayer, Team, Toast } from "../types";
-import { isGameFinalized } from "../utils/helpers";
+import { countsTowardStats } from "../utils/helpers";
 import { PITCH_LIMITS } from "../lineupEngine";
 
 // Compute the team's W-L-T record from finalized games, for the share
@@ -19,7 +19,7 @@ const computeRecord = (team?: Team | null): string | null => {
   let l = 0;
   let t = 0;
   for (const g of games) {
-    if (!isGameFinalized(g)) continue;
+    if (!countsTowardStats(g)) continue;
     const ts = Number(g.teamScore);
     const os = Number(g.opponentScore);
     if (!Number.isFinite(ts) || !Number.isFinite(os)) continue;
