@@ -13,6 +13,7 @@ import { useTeam, useUI, useToast } from "../contexts";
 import { RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
+import { isoInstantToLocalTime } from "../utils/icsParse";
 import { LineupGrid } from "./LineupGrid";
 
 export const ScoreEditor = memo(
@@ -1476,7 +1477,8 @@ export const ScheduleTab = memo(() => {
                             </span>
                           )}
                           <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight leading-tight text-ink">
-                            VS. {game.opponent}
+                            {game.isHome === false ? "@ " : "VS. "}
+                            {game.opponent}
                           </h3>
                           {game.isScrimmage && (
                             <span className="t-chip bg-surface-2 text-ink-2 px-2 py-1 rounded-md border border-line-strong">
@@ -1521,11 +1523,27 @@ export const ScheduleTab = memo(() => {
                           <span className="whitespace-nowrap">
                             {formatGameDateDisplay(game.date)}
                           </span>{" "}
+                          {isoInstantToLocalTime(game.startUtc) && (
+                            <>
+                              <span className="text-ink-3">·</span>{" "}
+                              <span className="whitespace-nowrap">
+                                {isoInstantToLocalTime(game.startUtc)}
+                              </span>{" "}
+                            </>
+                          )}
                           <span className="text-ink-3">|</span>{" "}
                           <span className="whitespace-nowrap">
                             {game.leagueRuleSet || leagueRuleSet}{" "}
                             {game.pitchingFormat || pitchingFormat}
                           </span>
+                          {game.location && (
+                            <>
+                              <span className="text-ink-3">|</span>{" "}
+                              <span className="normal-case tracking-normal">
+                                {String(game.location).split("\n")[0]}
+                              </span>
+                            </>
+                          )}
                         </p>
                         
                           <div className="mt-3 flex flex-wrap items-center gap-3">

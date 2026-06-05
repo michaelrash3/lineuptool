@@ -43,7 +43,15 @@ describe("mergeGcEventsIntoGames", () => {
 
   it("returns the SAME array reference when nothing changed (no needless write)", () => {
     const existing = [
-      { id: "g1", gcUid: "a", date: "2026-06-06", opponent: "Dirt Dobbers", isHome: true, location: "" },
+      {
+        id: "g1",
+        gcUid: "a",
+        date: "2026-06-06",
+        startUtc: "2026-06-06T14:00:00.000Z",
+        opponent: "Dirt Dobbers",
+        isHome: true,
+        location: "",
+      },
     ];
     const res = mergeGcEventsIntoGames(existing, [ev({ uid: "a" })], defaults);
     expect(res.added).toBe(0);

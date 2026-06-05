@@ -7,6 +7,7 @@ import {
   isGameFinalized,
   countsTowardStats,
 } from "../utils/helpers";
+import { isoInstantToLocalTime } from "../utils/icsParse";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard } from "../components/shared";
 import { checkPitchEligibility } from "../lineupEngine";
@@ -387,15 +388,30 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
               )}
             </div>
             <h3 className="font-black text-xl sm:text-2xl text-ink uppercase tracking-tight leading-tight">
-              VS. {game.opponent}
+              {game.isHome === false ? "@ " : "VS. "}
+              {game.opponent}
             </h3>
             <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
               <Icons.Clock className="w-3.5 h-3.5" /> {fullDate}
+              {isoInstantToLocalTime(game.startUtc) && (
+                <>
+                  <span className="text-ink-3">·</span>
+                  <span>{isoInstantToLocalTime(game.startUtc)}</span>
+                </>
+              )}
               <span className="text-ink-3">|</span>
               <span>
                 {game.leagueRuleSet || leagueRuleSet}{" "}
                 {game.pitchingFormat || pitchingFormat}
               </span>
+              {game.location && (
+                <>
+                  <span className="text-ink-3">|</span>
+                  <span className="normal-case tracking-normal">
+                    {String(game.location).split("\n")[0]}
+                  </span>
+                </>
+              )}
               {sameDayCount > 1 && (
                 <>
                   <span className="text-ink-3">|</span>
