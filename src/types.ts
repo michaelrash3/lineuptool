@@ -30,6 +30,36 @@ export interface PlayerStats {
   hard?: number;
   qab?: number;
   babip?: number;
+  // GameChanger advanced stats, section-namespaced to avoid the duplicate
+  // column names GameChanger reuses across Batting/Pitching/Fielding.
+  // Pitching (p*): control/efficiency, run prevention, bat-missing/weak contact,
+  // and (when tracked or hand-entered) velocity.
+  pIp?: number;
+  pBf?: number;
+  pStrikePct?: number; // S%
+  pFps?: number; // first-pitch strike %
+  pBbPerInn?: number;
+  pKbb?: number; // K/BB
+  pWhip?: number;
+  pEra?: number;
+  pBaa?: number; // batting avg against
+  pKbf?: number; // K/BF
+  pSwingMiss?: number; // SM%
+  pWeak?: number; // WEAK%
+  pHardPct?: number; // HHB% (hard-hit allowed)
+  pGoAo?: number; // ground/air out ratio
+  pTopMph?: number;
+  pFbMph?: number;
+  // Fielding (f*): reliability/range + catcher throwing/blocking.
+  fFpct?: number;
+  fErrors?: number;
+  fTc?: number;
+  fAssists?: number;
+  fPutouts?: number;
+  fCsPct?: number; // caught-stealing % (catcher)
+  fPb?: number; // passed balls
+  fSbAllowed?: number;
+  fSbAtt?: number;
   [key: string]: number | undefined;
 }
 

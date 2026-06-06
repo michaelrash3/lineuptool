@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import {
   blankStats,
   buildCsvHeaderIndex,
+  extractAdvancedStats,
   normalizeDateToIso,
   parseCsvRecords,
   parsePercent,
@@ -142,6 +143,9 @@ export const useImportExportFlows = ({
           const rawHeaders = rows[headerRowIndex].map((h) =>
             h.toLowerCase().trim()
           );
+          // Label row (when present) bounds the Batting/Pitching/Fielding
+          // sections for the advanced-stat extractor (see extractAdvancedStats).
+          const labelRow = headerRowIndex === 1 ? firstRow : undefined;
           const idx = buildCsvHeaderIndex(rawHeaders);
           if (idx.fn === -1 && idx.ln === -1)
             throw new Error("Could not find name columns.");
@@ -317,6 +321,10 @@ export const useImportExportFlows = ({
             setPct("hard", idx.hard);
             setPct("qab", idx.qab);
             setNum("babip", idx.babip);
+            Object.assign(
+              statsPatch,
+              extractAdvancedStats(labelRow, rawHeaders, cols)
+            );
 
             if (Object.keys(statsPatch).length === 0) continue;
 
