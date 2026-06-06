@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import {
   generateLineup as engineGenerateLineup,
   generateBattingOnly as engineGenerateBattingOnly,
+  resolvePitchRuleSet,
 } from "../lineupEngine";
 import type { ToastContextValue } from "../types";
 
@@ -80,6 +81,7 @@ export const useLineupActions = ({
         competitive:
           (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
         depthChart: teamData.depthChart,
+        pitchRuleSet: resolvePitchRuleSet({ pitchRuleSet: teamData.pitchRuleSet, customPitchLimit: teamData.customPitchLimit, customRestTiers: teamData.customRestTiers }),
         teamAge: teamData.teamAge,
         defenseSize: currentGame.defenseSize || teamData.defenseSize,
         positionLock: currentGame.positionLock || teamData.positionLock,
@@ -195,6 +197,9 @@ export const useLineupActions = ({
       teamData.catcherMaxInnings,
       teamData.catcherConsecutive,
       teamData.depthChart,
+      teamData.pitchRuleSet,
+      teamData.customPitchLimit,
+      teamData.customRestTiers,
       toast, uiBridge, previousLineupRef]
   );
 
@@ -258,6 +263,7 @@ export const useLineupActions = ({
       competitive:
         (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
       depthChart: teamData.depthChart,
+      pitchRuleSet: resolvePitchRuleSet({ pitchRuleSet: teamData.pitchRuleSet, customPitchLimit: teamData.customPitchLimit, customRestTiers: teamData.customRestTiers }),
       teamAge: teamData.teamAge,
       defenseSize: currentGame.defenseSize || teamData.defenseSize,
       positionLock: currentGame.positionLock || teamData.positionLock,
@@ -318,6 +324,9 @@ export const useLineupActions = ({
     teamData.catcherMaxInnings,
     teamData.catcherConsecutive,
     teamData.depthChart,
+    teamData.pitchRuleSet,
+    teamData.customPitchLimit,
+    teamData.customRestTiers,
     toast, uiBridge, previousLineupRef]);
 
   // Re-roll JUST the batting order. Defensive lineup, attendance, and

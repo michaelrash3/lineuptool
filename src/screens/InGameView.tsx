@@ -1,7 +1,11 @@
 import React, { memo, useState, useRef, useCallback, useEffect } from "react";
 import { Icons } from "../icons";
 import { formatGameDateDisplay } from "../utils/helpers";
-import { checkPitchEligibility, maxPitchesForAge } from "../lineupEngine";
+import {
+  checkPitchEligibility,
+  maxPitchesForAge,
+  resolvePitchRuleSet,
+} from "../lineupEngine";
 import { shareLineupCard } from "../lineup/lineupCard";
 import { applySwap, getPlayerAt, isCatcherBlocked } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
@@ -573,12 +577,13 @@ export const InGameView = memo(() => {
           );
           // Eligibility (rest rules + age pitch limit) lives in the engine —
           // use it directly so this view can't drift from the canonical rules.
+          const pitchRules = resolvePitchRuleSet(team);
           const availablePitchers = presentPlayers.filter((p: any) =>
-            checkPitchEligibility(p, targetDate, ageGroup)
+            checkPitchEligibility(p, targetDate, ageGroup, pitchRules)
           );
 
           const pitchCounts = game.pitchCounts || {};
-          const pitchLimit = maxPitchesForAge(ageGroup);
+          const pitchLimit = maxPitchesForAge(ageGroup, pitchRules);
           const updatePitchCount = (playerId: any, val: any) => {
             const next = { ...(game.pitchCounts || {}) };
             const num = parseInt(val, 10);

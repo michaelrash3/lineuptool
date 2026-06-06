@@ -1,7 +1,7 @@
 import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { buildPitchingPlan } from "../lineupEngine";
+import { buildPitchingPlan, resolvePitchRuleSet } from "../lineupEngine";
 import { isGameFinalized, formatGameDateDisplay } from "../utils/helpers";
 import { getLocalDateString } from "../constants/ui";
 
@@ -41,13 +41,14 @@ export const PitchingPlanPanel = memo(() => {
 
   // Each upcoming game's availability snapshot, based on every pitcher's CURRENT
   // recorded rest state (last outing + pitch count vs the age rest rules).
+  const pitchRules = useMemo(() => resolvePitchRuleSet(team), [team]);
   const rotation = useMemo(
     () =>
       upcoming.map((g: any) => ({
         game: g,
-        plan: buildPitchingPlan(players || [], g.date, teamAge),
+        plan: buildPitchingPlan(players || [], g.date, teamAge, pitchRules),
       })),
-    [upcoming, players, teamAge]
+    [upcoming, players, teamAge, pitchRules]
   );
 
   if (!eligible || rotation.length === 0 || rotation[0].plan.length === 0)

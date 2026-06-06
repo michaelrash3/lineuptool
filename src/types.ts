@@ -213,6 +213,12 @@ export interface Team {
   defenseSize?: string;
   battingSize?: string;
   inningsCount?: string;
+  // Pitch-count rule set: a preset id ("littleLeague", …) or "custom". Custom
+  // reads customPitchLimit (one daily max for the team's age) + optional
+  // customRestTiers. Absent = Little League / Pitch Smart default.
+  pitchRuleSet?: string;
+  customPitchLimit?: number;
+  customRestTiers?: Array<{ min: number; days: number }>;
 
   // Depth Chart manual overrides: position -> ordered player ids. When a
   // position has an entry, it defines the coach's chosen order; comfortable

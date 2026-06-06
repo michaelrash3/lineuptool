@@ -14,6 +14,7 @@ import {
   maxPitchesForAge,
   checkPitchEligibility,
   buildPitchingPlan,
+  resolvePitchRuleSet,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -2590,5 +2591,73 @@ describe("position importance P > C > 1B (Big Game)", () => {
     }
     expect(total).toBeGreaterThan(0);
     expect(spine / total).toBeGreaterThan(0.6);
+  });
+});
+
+describe("configurable pitch-count rule sets", () => {
+  test("resolvePitchRuleSet falls back to Little League; custom uses the team's limit", () => {
+    expect(resolvePitchRuleSet(undefined).id).toBe("littleLeague");
+    expect(resolvePitchRuleSet({}).id).toBe("littleLeague");
+    expect(resolvePitchRuleSet({ pitchRuleSet: "bogus" }).id).toBe("littleLeague");
+    expect(
+      resolvePitchRuleSet({ pitchRuleSet: "custom", customPitchLimit: 60 })
+        .fallbackLimit
+    ).toBe(60);
+    // custom with no limit set falls back to a safe default
+    expect(resolvePitchRuleSet({ pitchRuleSet: "custom" }).fallbackLimit).toBe(105);
+  });
+
+  test("maxPitchesForAge honors the rule set", () => {
+    expect(maxPitchesForAge("9U")).toBe(75); // default Little League
+    const custom = resolvePitchRuleSet({
+      pitchRuleSet: "custom",
+      customPitchLimit: 50,
+    });
+    expect(maxPitchesForAge("9U", custom)).toBe(50);
+    expect(maxPitchesForAge("nonsense")).toBe(105); // fallback
+  });
+
+  test("checkPitchEligibility changes with the rule set's daily max", () => {
+    const ll = resolvePitchRuleSet({});
+    const custom = resolvePitchRuleSet({
+      pitchRuleSet: "custom",
+      customPitchLimit: 50,
+    });
+    const p = { pitching: { recentPitches: 60, lastPitchDate: "2026-05-10" } };
+    // Far enough out that rest is satisfied: under LL (75) they're eligible,
+    // but over a custom 50 max they're maxed out.
+    expect(checkPitchEligibility(p, "2026-06-01", "9U", ll)).toBe(true);
+    expect(checkPitchEligibility(p, "2026-06-01", "9U", custom)).toBe(false);
+  });
+
+  test("custom rest tiers extend the required rest", () => {
+    const strict = resolvePitchRuleSet({
+      pitchRuleSet: "custom",
+      customPitchLimit: 100,
+      customRestTiers: [{ min: 20, days: 7 }],
+    });
+    const p = { pitching: { recentPitches: 25, lastPitchDate: "2026-05-10" } };
+    // 4 days later: standard LL would clear (>=21 needs 1 day), but the custom
+    // tier requires 7.
+    expect(checkPitchEligibility(p, "2026-05-14", "9U", resolvePitchRuleSet({}))).toBe(true);
+    expect(checkPitchEligibility(p, "2026-05-14", "9U", strict)).toBe(false);
+  });
+
+  test("buildPitchingPlan uses the rule set's max for maxed status", () => {
+    const players = [
+      {
+        id: "p1",
+        name: "Ace",
+        comfortablePositions: ["P"],
+        pitching: { recentPitches: 60, lastPitchDate: "2026-05-10" },
+      },
+    ];
+    const custom = resolvePitchRuleSet({
+      pitchRuleSet: "custom",
+      customPitchLimit: 50,
+    });
+    const plan = buildPitchingPlan(players, "2026-06-01", "9U", custom);
+    expect(plan[0].status).toBe("maxed");
+    expect(plan[0].maxPitches).toBe(50);
   });
 });
