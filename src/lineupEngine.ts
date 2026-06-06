@@ -802,6 +802,19 @@ function sampleLean(value: unknown, fullAt: number): number {
   return 0.5 * Math.min(1, v / fullAt);
 }
 
+// Same-day dual-role rule: a player never pitches AND catches in the same game.
+// `st.positions` reflects prior committed innings and the per-inning `used` set
+// blocks same-inning doubles, so gating a P/C pick on the OTHER role's prior
+// count enforces "one or the other, all game." Always on (all modes).
+function dualRoleBlocked(
+  st: { positions?: Record<string, number> } | undefined,
+  pos: string
+): boolean {
+  if (pos === "P") return (st?.positions?.["C"] || 0) > 0;
+  if (pos === "C") return (st?.positions?.["P"] || 0) > 0;
+  return false;
+}
+
 // Caught-stealing % → catcher quality (the one catching rate GameChanger gives
 // per player). 0..1, null when absent. Youth band ~15%–55%.
 export function calcCatcherStatsQuality(
@@ -1915,6 +1928,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         pitcherPoolIds,
         depthChartRank,
         chartedPlayerIds,
+        isKidPitch: isKidPitchFormat,
         catcherPolicy,
         rand,
         fromInning,
@@ -2649,6 +2663,7 @@ function tryBuildLineup(ctx: any): any {
     pitcherPoolIds,
     depthChartRank,
     chartedPlayerIds,
+    isKidPitch,
     catcherPolicy,
     rand,
     fromInning = 0,
@@ -2998,6 +3013,7 @@ function tryBuildLineup(ctx: any): any {
           const st = state.get(p.id);
           const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
 
+          if (isKidPitch && dualRoleBlocked(st, pos)) continue;
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
@@ -3059,6 +3075,7 @@ function tryBuildLineup(ctx: any): any {
           pitcherPoolIds,
           depthChartRank,
           chartedPlayerIds,
+          isKidPitch,
           catcherCap,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
@@ -3253,6 +3270,7 @@ function pickBestForPosition(opts: any): any {
     pitcherPoolIds,
     depthChartRank,
     chartedPlayerIds,
+    isKidPitch,
     catcherCap,
     rand,
     premiumPositions,
@@ -3314,6 +3332,10 @@ function pickBestForPosition(opts: any): any {
 
     const st = state.get(p.id);
     const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
+
+    // KID PITCH same-day dual-role: a kid never pitches AND catches in one game
+    // (arm health). Ceremonial P (machine/coach) is exempt — see isKidPitch.
+    if (isKidPitch && dualRoleBlocked(st, pos)) continue;
 
     if (pos === "P" && defenseSize === "9") {
       if (
