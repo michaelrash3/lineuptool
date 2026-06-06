@@ -100,11 +100,18 @@ const buildLineup = (opts = {}) => {
     battingSize: opts.battingSize || "roster",
     seed: opts.seed ?? 42,
     isBigGame: opts.isBigGame || false,
+    competitive: opts.competitive || false,
+    depthChart: opts.depthChart,
     catcherMaxInnings: opts.catcherMaxInnings,
     catcherConsecutive: opts.catcherConsecutive,
     pitchingFormat: opts.pitchingFormat,
   });
 };
+
+// Position label a player occupies in an inning (or undefined if benched).
+const posOf = (inn, id) =>
+  Object.keys(inn).find((k) => k !== "BENCH" && inn[k]?.id === id);
+const isBenched = (inn, id) => (inn.BENCH || []).some((p) => p?.id === id);
 
 const inningsPlayed = (lineup, playerId) =>
   lineup
@@ -2150,5 +2157,144 @@ describe("buildPitchingPlan", () => {
     ];
     const plan = buildPitchingPlan(players, "2026-05-10", "10U");
     expect(plan.map((r) => r.id)).toEqual(["fresh", "tired"]);
+  });
+});
+
+describe("competitive depth chart drives position assignment", () => {
+  it("Tournament puts a charted player at their charted field position", () => {
+    const players = makeRoster(11);
+    const { lineup } = buildLineup({
+      players,
+      competitive: true,
+      depthChart: { "3B": ["p9"] },
+    });
+    let played = 0;
+    for (const inn of lineup) {
+      if (isBenched(inn, "p9")) continue;
+      played++;
+      expect(posOf(inn, "p9")).toBe("3B");
+    }
+    expect(played).toBeGreaterThan(0);
+  });
+
+  it("prefers the highest AVAILABLE charted player (falls to next when absent)", () => {
+    const players = makeRoster(11);
+    const withTop = buildLineup({
+      players,
+      competitive: true,
+      depthChart: { SS: ["p8", "p9"] },
+    }).lineup;
+    for (const inn of withTop) {
+      if (!isBenched(inn, "p8")) expect(posOf(inn, "p8")).toBe("SS");
+    }
+    // Drop p8 from the roster: rank-2 p9 should inherit SS.
+    const without = buildLineup({
+      players: players.filter((p) => p.id !== "p8"),
+      competitive: true,
+      depthChart: { SS: ["p8", "p9"] },
+    }).lineup;
+    for (const inn of without) {
+      if (!isBenched(inn, "p9")) expect(posOf(inn, "p9")).toBe("SS");
+    }
+  });
+
+  it("Rec games ignore the depth chart entirely (byte-for-byte unchanged)", () => {
+    const players = makeRoster(11);
+    const base = buildLineup({ players, competitive: false, seed: 7 });
+    const withChart = buildLineup({
+      players,
+      competitive: false,
+      seed: 7,
+      depthChart: { "3B": ["p9"], SS: ["p8"], C: ["p3"] },
+    });
+    expect(withChart.lineup).toEqual(base.lineup);
+    expect(withChart.battingLineup).toEqual(base.battingLineup);
+  });
+
+  it("competitive output is identical with no chart vs an empty chart", () => {
+    const players = makeRoster(11);
+    const undefChart = buildLineup({ players, competitive: true, seed: 7 });
+    const emptyChart = buildLineup({
+      players,
+      competitive: true,
+      seed: 7,
+      depthChart: {},
+    });
+    expect(emptyChart.lineup).toEqual(undefChart.lineup);
+  });
+
+  it("does NOT override the pitcher pool (9U+ Kid Pitch); pool still owns P", () => {
+    // 9 players at defenseSize 9 => nobody benched, so the pool never empties
+    // into the generic fallback — locking "the pool owns P."
+    const players = makeRoster(9);
+    const evaluationEvents = [
+      {
+        id: "e",
+        date: "2026-04-01",
+        coachRole: "Head",
+        evaluatorId: "c",
+        grades: { p0: { strikes: 5 }, p1: { strikes: 4 }, p2: { strikes: 3 } },
+      },
+    ];
+    const { lineup } = buildLineup({
+      players,
+      evaluationEvents,
+      competitive: true,
+      teamAge: "9U",
+      defenseSize: "9",
+      pitchingFormat: "Kid Pitch",
+      depthChart: { P: ["p5"] }, // p5 has no pitching eval -> not in the pool
+    });
+    const pool = new Set(["p0", "p1", "p2"]);
+    for (const inn of lineup) {
+      expect(inn.P).toBeTruthy();
+      expect(pool.has(inn.P.id)).toBe(true);
+      expect(inn.P.id).not.toBe("p5");
+    }
+  });
+
+  it("catcher cap still beats the chart", () => {
+    const players = makeRoster(11);
+    const { lineup } = buildLineup({
+      players,
+      competitive: true,
+      catcherMaxInnings: "2",
+      depthChart: { C: ["p3"] },
+    });
+    let caught = 0;
+    for (const inn of lineup) if (posOf(inn, "p3") === "C") caught++;
+    expect(caught).toBeLessThanOrEqual(2);
+  });
+
+  it("never double-assigns a player listed at two positions", () => {
+    const players = makeRoster(11);
+    const { lineup } = buildLineup({
+      players,
+      competitive: true,
+      depthChart: { SS: ["p7"], "3B": ["p7"] },
+    });
+    for (const inn of lineup) {
+      expect(inn.SS).toBeTruthy();
+      expect(inn["3B"]).toBeTruthy();
+      expect(inn.SS.id).not.toBe(inn["3B"].id);
+      if (!isBenched(inn, "p7")) expect(["SS", "3B"]).toContain(posOf(inn, "p7"));
+    }
+  });
+
+  it("canonicalizes outfield: a CF chart entry applies to LCF/RCF slots", () => {
+    const players = makeRoster(11);
+    const { lineup } = buildLineup({
+      players,
+      competitive: true,
+      defenseSize: "10",
+      depthChart: { CF: ["p6"] },
+    });
+    let centered = 0;
+    for (const inn of lineup) {
+      if (isBenched(inn, "p6")) continue;
+      expect(["LCF", "RCF"]).toContain(posOf(inn, "p6"));
+      centered++;
+    }
+    expect(centered).toBeGreaterThan(0);
   });
 });

@@ -375,6 +375,10 @@ export interface EngineInput {
   // this for Tournament (USSSA) games; Rec games leave it false. Reuses all the
   // shared safety rotation (catcher caps, pitcher rest/pitch limits).
   competitive?: boolean;
+  // Depth Chart (position -> ordered player ids). Consumed ONLY in competitive
+  // (Tournament) mode, where it makes the coach's per-position order
+  // authoritative over skill among otherwise-legal candidates. Ignored in Rec.
+  depthChart?: Record<string, string[]>;
   pitchingFormat?: string;
   // Catcher playing-time policy. "auto" (default) preserves the legacy
   // defense-size-driven behavior; "1".."6" sets a hard per-kid innings cap;

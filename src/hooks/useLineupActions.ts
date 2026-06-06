@@ -79,6 +79,7 @@ export const useLineupActions = ({
         leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
         competitive:
           (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
+        depthChart: teamData.depthChart,
         teamAge: teamData.teamAge,
         defenseSize: currentGame.defenseSize || teamData.defenseSize,
         positionLock: currentGame.positionLock || teamData.positionLock,
@@ -193,6 +194,7 @@ export const useLineupActions = ({
       teamData.pitchingFormat,
       teamData.catcherMaxInnings,
       teamData.catcherConsecutive,
+      teamData.depthChart,
       toast, uiBridge, previousLineupRef]
   );
 
@@ -255,6 +257,7 @@ export const useLineupActions = ({
       leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
       competitive:
         (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
+      depthChart: teamData.depthChart,
       teamAge: teamData.teamAge,
       defenseSize: currentGame.defenseSize || teamData.defenseSize,
       positionLock: currentGame.positionLock || teamData.positionLock,
@@ -314,6 +317,7 @@ export const useLineupActions = ({
     teamData.battingSize,
     teamData.catcherMaxInnings,
     teamData.catcherConsecutive,
+    teamData.depthChart,
     toast, uiBridge, previousLineupRef]);
 
   // Re-roll JUST the batting order. Defensive lineup, attendance, and

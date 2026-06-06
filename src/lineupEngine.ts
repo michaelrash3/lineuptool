@@ -753,6 +753,21 @@ function leftyInfieldPenalty(rules: string, age: string): number {
 // already guards feasibility there.
 const SCARCITY_RESERVE_WEIGHT = 2;
 
+// Competitive depth-chart bonus (see pickBestForPosition). BASE is an order of
+// magnitude larger than every other in-loop term (rotation, comfort, premium
+// pull, jitter ≈ tens–hundreds) so a charted player reliably wins their slot;
+// STEP keeps the coach's order strict (rank 0 beats rank 1 beats …). The bonus
+// is only applied to candidates that already passed every hard eligibility gate,
+// so it reorders — never expands — the legal candidate set. (It does not exceed
+// the legacy primaryPosition pre-pin, which claims slots earlier; modern teams
+// use comfortablePositions and never trigger that pre-pin.)
+const DEPTH_CHART_BASE_BONUS = 9000;
+const DEPTH_CHART_RANK_STEP = 100;
+// Repulsion applied to a charted player at a position they're NOT charted at,
+// so they stay available for their charted slot. Smaller than the base bonus so
+// it never blocks a slot (a charted-elsewhere player is a valid last resort).
+const DEPTH_CHART_AVOID_PENALTY = 6000;
+
 // ---------- Seeded PRNG ----------
 function mulberry32(seed: number): () => number {
   let s = seed >>> 0;
@@ -1423,6 +1438,8 @@ export function generateLineup(input: EngineInput): EngineResult {
     // never reads/writes the fairness ledger. All catcher/pitch SAFETY rotation
     // is reused unchanged.
     competitive = false,
+    // Depth Chart (position -> ordered player ids). Competitive-only; see below.
+    depthChart,
     // Mid-game rebuild path: when `fromInning > 0` and `currentLineup` is
     // provided, innings 0..fromInning-1 are pre-locked from currentLineup and
     // the engine only fills the remaining innings — seeding its per-player
@@ -1493,6 +1510,34 @@ export function generateLineup(input: EngineInput): EngineResult {
       .sort((a, b) => b.score - a.score);
     const n = getPitcherPoolSize(gameType);
     pitcherPoolIds = new Set(ranked.slice(0, n).map((row) => row.p.id));
+  }
+
+  // Competitive-only: a per-position rank lookup from the coach's depth chart,
+  // outfield-canonicalized so a CF entry covers LCF/RCF (and vice-versa) across
+  // 9- vs 10-fielder alignments. pickBestForPosition uses this to make the chart
+  // authoritative over skill among already-legal candidates. Built empty on the
+  // Rec path (competitive === false), so Rec behavior is unchanged.
+  const depthChartRank: Map<string, Map<string, number>> = new Map();
+  // Every player who appears in ANY depth-chart position. Used to reserve a
+  // charted player for their charted spot(s): they're repelled from positions
+  // they're NOT charted at, so an earlier-filled slot can't grab them and
+  // strand their charted position with a worse fit.
+  const chartedPlayerIds: Set<string> = new Set();
+  if (competitive && depthChart) {
+    for (const [pos, ids] of Object.entries(depthChart)) {
+      if (!Array.isArray(ids) || ids.length === 0) continue;
+      const key = canonicalizeOutfield(pos);
+      let m = depthChartRank.get(key);
+      if (!m) {
+        m = new Map();
+        depthChartRank.set(key, m);
+      }
+      // First occurrence wins if a player is listed under both CF and LCF/RCF.
+      ids.forEach((id, i) => {
+        if (!m!.has(id)) m!.set(id, i);
+        chartedPlayerIds.add(id);
+      });
+    }
   }
 
   const profiled = activePlayers.map((p) => ({
@@ -1692,6 +1737,8 @@ export function generateLineup(input: EngineInput): EngineResult {
         isBigGame: isBigGame || competitive,
         competitive,
         pitcherPoolIds,
+        depthChartRank,
+        chartedPlayerIds,
         catcherPolicy,
         rand,
         fromInning,
@@ -2422,7 +2469,10 @@ function tryBuildLineup(ctx: any): any {
     targetDateStr,
     leftyPenalty,
     isBigGame,
+    competitive,
     pitcherPoolIds,
+    depthChartRank,
+    chartedPlayerIds,
     catcherPolicy,
     rand,
     fromInning = 0,
@@ -2829,7 +2879,10 @@ function tryBuildLineup(ctx: any): any {
           leftyPenalty,
           isLockInning: useLock,
           isBigGame,
+          competitive,
           pitcherPoolIds,
+          depthChartRank,
+          chartedPlayerIds,
           catcherCap,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
@@ -3020,7 +3073,10 @@ function pickBestForPosition(opts: any): any {
     leftyPenalty,
     isLockInning,
     isBigGame,
+    competitive,
     pitcherPoolIds,
+    depthChartRank,
+    chartedPlayerIds,
     catcherCap,
     rand,
     premiumPositions,
@@ -3236,6 +3292,28 @@ function pickBestForPosition(opts: any): any {
         score -= skill * 20 - 5;
       } else if (OF_POSITIONS.has(pos)) {
         score += skill * 12 - 6;
+      }
+    }
+
+    // COMPETITIVE (Tournament): the depth chart is authoritative. A charted
+    // player at this position gets a large rank-scaled bonus so the coach's
+    // order wins over skill/rotation/jitter — while only ever reordering
+    // candidates that already passed every hard gate above (eligibility,
+    // catcher cap, used-this-inning, blocked positions), so the chart can
+    // never make a lineup infeasible. Rank 0 always beats rank 1, and any
+    // charted player beats an uncharted one. No effect in Rec (gated on
+    // `competitive`, with an empty map there anyway).
+    if (competitive && depthChartRank) {
+      const rankMap = depthChartRank.get(canonicalizeOutfield(pos));
+      const rank = rankMap?.get(p.id);
+      if (typeof rank === "number") {
+        score -= DEPTH_CHART_BASE_BONUS - rank * DEPTH_CHART_RANK_STEP;
+      } else if (chartedPlayerIds && chartedPlayerIds.has(p.id)) {
+        // Charted elsewhere: keep them available for their own slot rather than
+        // letting an earlier-filled position grab them. Smaller than the bonus,
+        // so if the only remaining candidates for a slot are all charted
+        // elsewhere, one still fills it (feasibility preserved).
+        score += DEPTH_CHART_AVOID_PENALTY;
       }
     }
 
