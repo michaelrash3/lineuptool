@@ -1,5 +1,9 @@
 import { useCallback } from "react";
-import { normalizeDateToIso, recordPitchingOuting } from "../utils/helpers";
+import {
+  normalizeDateToIso,
+  recordPitchingOuting,
+  recordCatchingOuting,
+} from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
@@ -107,6 +111,37 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
     [teamData.players]
   );
 
+  // Helper: log each player's catching innings for THIS game (from the played
+  // lineup) so the same-day catch<->pitch rule can see catching across games
+  // (doubleheaders). Keyed by game id; counts C appearances per inning. Returns
+  // the next players array (unchanged ref if no one caught).
+  const commitCatchingToPlayers = useCallback(
+    (lineup: any, date: any, gameId: any, basePlayers: any[]) => {
+      if (!date || !Array.isArray(lineup)) return basePlayers;
+      const counts: Record<string, number> = {};
+      for (const inn of lineup) {
+        const c = inn?.C;
+        if (c?.id) counts[c.id] = (counts[c.id] || 0) + 1;
+      }
+      const ids = Object.keys(counts);
+      if (ids.length === 0) return basePlayers;
+      return basePlayers.map((p: any) =>
+        ids.includes(p.id)
+          ? {
+              ...p,
+              catching: recordCatchingOuting(
+                p.catching,
+                date,
+                counts[p.id],
+                gameId
+              ),
+            }
+          : p
+      );
+    },
+    []
+  );
+
   // Postpone a game: set status to "postponed", clear scores, AND commit any
   // pitch counts that were entered before the rain came. Pitchers still threw
   // their warm-up tosses or innings before the call; their counts should
@@ -175,8 +210,16 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         }
       }
 
-      // Commit any pitch counts entered for this game to the player records.
-      const nextPlayers = commitPitchCountsToPlayers(game);
+      // Commit pitch counts AND catching innings (from the lineup that was
+      // actually played, after any trim) to the player records.
+      const effectiveLineup = gameUpdates.lineup || game.lineup;
+      let nextPlayers = commitPitchCountsToPlayers(game);
+      nextPlayers = commitCatchingToPlayers(
+        effectiveLineup,
+        game.date,
+        game.id,
+        nextPlayers
+      );
       const playersChanged = nextPlayers !== teamData.players;
       if (playersChanged) {
         const nextGames = teamData.games.map((g: any) =>
@@ -187,7 +230,14 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         updateGame(gameId, gameUpdates);
       }
     },
-    [teamData.games, teamData.players, updateGame, updateTeam, commitPitchCountsToPlayers]
+    [
+      teamData.games,
+      teamData.players,
+      updateGame,
+      updateTeam,
+      commitPitchCountsToPlayers,
+      commitCatchingToPlayers,
+    ]
   );
 
   const deleteSavedGame = useCallback(

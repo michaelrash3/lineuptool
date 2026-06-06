@@ -991,16 +991,27 @@ function sampleLean(value: unknown, fullAt: number): number {
   return 0.5 * Math.min(1, v / fullAt);
 }
 
-// Same-day dual-role rule: a player never pitches AND catches in the same game.
-// `st.positions` reflects prior committed innings and the per-inning `used` set
-// blocks same-inning doubles, so gating a P/C pick on the OTHER role's prior
-// count enforces "one or the other, all game." Always on (all modes).
+// Same-day dual-role rule: a player never pitches AND catches in the same day.
+// Within the game, `st.positions` reflects prior committed innings (and the
+// per-inning `used` set blocks same-inning doubles). Across games on the same
+// date (doubleheaders), `sameDay` carries who already pitched/caught earlier
+// today in OTHER games, with `id` the player being placed.
 function dualRoleBlocked(
   st: { positions?: Record<string, number> } | undefined,
-  pos: string
+  pos: string,
+  id?: string,
+  sameDay?: { pitched?: Set<string>; caught?: Set<string> }
 ): boolean {
-  if (pos === "P") return (st?.positions?.["C"] || 0) > 0;
-  if (pos === "C") return (st?.positions?.["P"] || 0) > 0;
+  if (pos === "P")
+    return (
+      (st?.positions?.["C"] || 0) > 0 ||
+      (!!id && !!sameDay?.caught?.has(id))
+    );
+  if (pos === "C")
+    return (
+      (st?.positions?.["P"] || 0) > 0 ||
+      (!!id && !!sameDay?.pitched?.has(id))
+    );
   return false;
 }
 
@@ -1824,6 +1835,9 @@ export function generateLineup(input: EngineInput): EngineResult {
     // Team's pitch-count rule set (limits + rest tiers). Defaults to Little
     // League so existing callers are unchanged.
     pitchRuleSet,
+    // Who already pitched/caught earlier TODAY in other games (doubleheaders),
+    // for the same-day catch<->pitch rule. { pitched: Set, caught: Set }.
+    sameDayRoles,
     // Depth Chart (position -> ordered player ids). Competitive-only; see below.
     depthChart,
     // Mid-game rebuild path: when `fromInning > 0` and `currentLineup` is
@@ -1845,6 +1859,10 @@ export function generateLineup(input: EngineInput): EngineResult {
   } = input;
   const pitchRules =
     (pitchRuleSet as PitchRuleSet) || DEFAULT_PITCH_RULE_SET;
+  const sameDay = (sameDayRoles as {
+    pitched?: Set<string>;
+    caught?: Set<string>;
+  }) || { pitched: new Set<string>(), caught: new Set<string>() };
   const gameType =
     gameTypeInput ||
     (input as any).currentGame?.gameType ||
@@ -2169,6 +2187,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         chartedPlayerIds,
         isKidPitch: isKidPitchFormat,
         pitchRules,
+        sameDayRoles: sameDay,
         catcherPolicy,
         rand,
         fromInning,
@@ -2905,6 +2924,7 @@ function tryBuildLineup(ctx: any): any {
     chartedPlayerIds,
     isKidPitch,
     pitchRules = DEFAULT_PITCH_RULE_SET,
+    sameDayRoles = { pitched: new Set(), caught: new Set() },
     catcherPolicy,
     rand,
     fromInning = 0,
@@ -3143,7 +3163,7 @@ function tryBuildLineup(ctx: any): any {
             !used.has(catcherId) &&
             isCatcherEligible(catcher) &&
             // Same-day dual-role (Kid Pitch): don't catch a kid who pitched.
-            !(isKidPitch && dualRoleBlocked(state.get(catcherId), "C"))
+            !(isKidPitch && dualRoleBlocked(state.get(catcherId), "C", catcherId, sameDayRoles))
           ) {
             inningSlots["C"] = catcher;
             used.add(catcherId);
@@ -3189,7 +3209,7 @@ function tryBuildLineup(ctx: any): any {
           // don't pre pin into an illegal slot.
           const st = state.get(p.id);
           // Same-day dual-role (Kid Pitch): never pre-pin into P+C same game.
-          if (isKidPitch && dualRoleBlocked(st, pos)) continue;
+          if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles)) continue;
           if (pos === "C") {
             if (!isCatcherEligible(p)) continue;
             if (
@@ -3258,7 +3278,7 @@ function tryBuildLineup(ctx: any): any {
           const st = state.get(p.id);
           const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
 
-          if (isKidPitch && dualRoleBlocked(st, pos)) continue;
+          if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles)) continue;
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
@@ -3322,6 +3342,7 @@ function tryBuildLineup(ctx: any): any {
           chartedPlayerIds,
           isKidPitch,
           pitchRules,
+          sameDayRoles,
           catcherCap,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
@@ -3518,6 +3539,7 @@ function pickBestForPosition(opts: any): any {
     chartedPlayerIds,
     isKidPitch,
     pitchRules = DEFAULT_PITCH_RULE_SET,
+    sameDayRoles = { pitched: new Set(), caught: new Set() },
     catcherCap,
     rand,
     premiumPositions,
@@ -3549,7 +3571,7 @@ function pickBestForPosition(opts: any): any {
       if (isPositionBlocked(p, "P")) continue;
       const st = state.get(p.id);
       // Same-day dual-role (Kid Pitch): don't pitch a kid who caught earlier.
-      if (isKidPitch && dualRoleBlocked(st, "P")) continue;
+      if (isKidPitch && dualRoleBlocked(st, "P", p.id, sameDayRoles)) continue;
       const playedHereLast = inn > 0 && st.history[inn - 1] === "P";
       const pCount = st.positions["P"] || 0;
       // Mirror the existing rule: a kid can pitch consecutively but not
@@ -3584,7 +3606,7 @@ function pickBestForPosition(opts: any): any {
 
     // KID PITCH same-day dual-role: a kid never pitches AND catches in one game
     // (arm health). Ceremonial P (machine/coach) is exempt — see isKidPitch.
-    if (isKidPitch && dualRoleBlocked(st, pos)) continue;
+    if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles)) continue;
 
     if (pos === "P" && defenseSize === "9") {
       if (
