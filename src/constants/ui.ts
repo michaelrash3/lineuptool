@@ -154,6 +154,23 @@ export const EVAL_SCALE_LABELS = [
 export const EVAL_SCALE_MAX = 5;
 export const EVAL_SCALE_DEFAULT = 3;
 
+// Roster-decision premium for pitching well. Pure: takes a player's
+// eval-weighted pitcher score and the sum of those weights, and rewards only
+// pitching ABOVE the neutral grade — so default/ungraded pitching (every cat at
+// EVAL_SCALE_DEFAULT) adds nothing, weak pitching never subtracts, and an elite
+// pitcher (all max) earns the full bonus. Returns 0..PITCHER_ROSTER_PREMIUM_MAX.
+export const PITCHER_ROSTER_PREMIUM_MAX = 15;
+export const pitcherRosterPremium = (
+  pitcherScore: number,
+  weightSum: number
+): number => {
+  const neutral = weightSum * EVAL_SCALE_DEFAULT;
+  const span = weightSum * (EVAL_SCALE_MAX - EVAL_SCALE_DEFAULT);
+  const above = pitcherScore - neutral;
+  if (above <= 0 || span <= 0) return 0;
+  return Math.round(Math.min(1, above / span) * PITCHER_ROSTER_PREMIUM_MAX);
+};
+
 export const getLocalDateString = () => {
   const d = new Date();
   d.setMinutes(d.getMinutes() - d.getTimezoneOffset());

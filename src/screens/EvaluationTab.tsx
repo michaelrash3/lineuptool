@@ -15,27 +15,34 @@ import {
   getEvalCategoriesForTeam,
   getEvalCategoriesForPlayer,
   playerIsPitcher,
+  pitcherRosterPremium,
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
-import { calculateTotalScore, calcPitcherScore } from "../lineupEngine";
-
-// Roster-decision premium: pitching well puts a kid a leg up when comparing
-// players. Added on top of the universal Total Score (never subtracts), so a
-// strong pitcher out-ranks an equal non-pitcher, and non-pitchers are unchanged.
-// Max calcPitcherScore (all 5s) ≈ 32.5; scale that to at most +PITCHER_PREMIUM_MAX
-// points on the 0–100 total. Uses SAVED grades so an ungraded pitcher gets none.
-const PITCHER_PREMIUM_MAX = 15;
-const pitcherPremium = (savedGrades: any, player: any): number => {
-  if (!playerIsPitcher(player)) return 0;
-  const raw = calcPitcherScore(savedGrades);
-  if (!(raw > 0)) return 0;
-  return Math.round(Math.min(1, raw / 32.5) * PITCHER_PREMIUM_MAX);
-};
+import {
+  calculateTotalScore,
+  calcPitcherScore,
+  PITCHER_SCORE_WEIGHTS,
+} from "../lineupEngine";
 import { useTeam, useUI } from "../contexts";
 import { evalPromptStatus } from "../utils/helpers";
+
+const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
+  (a, b) => a + b,
+  0
+);
+
+// Roster-decision premium: pitching WELL puts a kid a leg up when comparing
+// players. Additive on top of the universal Total Score (never subtracts), so a
+// strong pitcher out-ranks an equal non-pitcher and non-pitchers are unchanged.
+// Rewards only ABOVE-neutral pitching, so the default 3s that setGrade seeds for
+// untouched categories (and weak/ungraded pitching) add nothing.
+const pitcherPremium = (savedGrades: any, player: any): number => {
+  if (!playerIsPitcher(player)) return 0;
+  return pitcherRosterPremium(calcPitcherScore(savedGrades), PITCH_WEIGHT_SUM);
+};
 
 // 11 standard positions surfaced as a per-player chip row so the coach
 // can flag spots they think this kid should play. Stored on the eval
