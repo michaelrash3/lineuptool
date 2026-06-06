@@ -720,6 +720,106 @@ export function buildPitchingPlan(
   });
 }
 
+// ---------- Arm-care workload analysis ----------
+
+export interface WorkloadAlert {
+  kind: "consecutive" | "shortRest";
+  message: string;
+}
+export interface PitchingWorkloadAnalysis {
+  totalPitches: number; // season
+  outings: number;
+  maxDay: number; // heaviest single day
+  lastDate: string | null;
+  last7: number; // pitches in the 7 days ending asOf
+  last7Outings: number;
+  consecutiveDays: number; // current run of back-to-back calendar days
+  alerts: WorkloadAlert[];
+}
+
+// Summarize a pitcher's logged workload and flag overuse, all rule-set aware.
+// Doubleheaders are summed per day. Alerts focus on "right now": a 3+ day run,
+// and coming back before the rest the most recent outing required. Pure.
+export function analyzePitchingWorkload(
+  pitching:
+    | { log?: Array<{ date?: string; pitches?: number }> }
+    | null
+    | undefined,
+  ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET,
+  asOfDate?: string
+): PitchingWorkloadAnalysis {
+  const empty: PitchingWorkloadAnalysis = {
+    totalPitches: 0,
+    outings: 0,
+    maxDay: 0,
+    lastDate: null,
+    last7: 0,
+    last7Outings: 0,
+    consecutiveDays: 0,
+    alerts: [],
+  };
+  const log = Array.isArray(pitching?.log) ? pitching!.log! : [];
+  const dayMap = new Map<string, number>();
+  let outings = 0;
+  for (const o of log) {
+    if (!o?.date) continue;
+    outings++;
+    dayMap.set(o.date, (dayMap.get(o.date) || 0) + (Number(o.pitches) || 0));
+  }
+  if (dayMap.size === 0) return empty;
+  const days = [...dayMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const toDays = (d: string) => Math.floor(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
+  const asOfN = toDays(asOfDate || new Date().toISOString().slice(0, 10));
+
+  const totalPitches = days.reduce((s, [, p]) => s + p, 0);
+  const maxDay = Math.max(...days.map(([, p]) => p));
+  const lastDate = days[days.length - 1][0];
+  let last7 = 0;
+  for (const [d, p] of days) {
+    const diff = asOfN - toDays(d);
+    if (diff >= 0 && diff < 7) last7 += p;
+  }
+  let last7Outings = 0;
+  for (const o of log) {
+    if (!o?.date) continue;
+    const diff = asOfN - toDays(o.date);
+    if (diff >= 0 && diff < 7) last7Outings++;
+  }
+  let consecutiveDays = 1;
+  for (let i = days.length - 1; i > 0; i--) {
+    if (toDays(days[i][0]) - toDays(days[i - 1][0]) === 1) consecutiveDays++;
+    else break;
+  }
+
+  const alerts: WorkloadAlert[] = [];
+  if (consecutiveDays >= 3)
+    alerts.push({
+      kind: "consecutive",
+      message: `Pitched ${consecutiveDays} days in a row`,
+    });
+  if (days.length >= 2) {
+    const [prevDate, prevP] = days[days.length - 2];
+    const gap = toDays(lastDate) - toDays(prevDate);
+    const needed = requiredRestDays(prevP, ruleSet);
+    if (needed > 0 && gap <= needed)
+      alerts.push({
+        kind: "shortRest",
+        message: `Back on ${gap}d rest after ${prevP} pitches (needs ${needed + 1}d)`,
+      });
+  }
+
+  return {
+    totalPitches,
+    outings,
+    maxDay,
+    lastDate,
+    last7,
+    last7Outings,
+    consecutiveDays,
+    alerts,
+  };
+}
+
 // ---------- Pitcher scoring (Round 2 spec) ----------
 // Eval-driven, with strikes weighted highest because dropped-3rd-strike and
 // walk damage are the usual differentiators at 9U+ Kid Pitch. `strikes` is the

@@ -5,6 +5,7 @@ import { useTeam, useUI } from "../contexts";
 import { PlayerAvatar } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
+import { ArmCarePanel } from "../components/ArmCarePanel";
 import { OptimalLineupPanel } from "../components/OptimalLineupPanel";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
@@ -263,6 +264,7 @@ export const RosterTab = memo(() => {
       <OptimalLineupPanel />
       <PitcherRankingPanel />
       <PitchingPlanPanel />
+      <ArmCarePanel />
       <div className="glass-card">
         <div
           className="h-1.5 w-full"
