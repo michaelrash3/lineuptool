@@ -6,6 +6,7 @@ import {
   formatGameDateDisplay,
   buildSeasonBenchImbalance,
   isGameFinalized,
+  deriveTournaments,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
@@ -308,6 +309,16 @@ export const ScheduleTab = memo(() => {
       }),
     [games]
   );
+
+  // Auto-detected tournaments (pool + bracket games on the same weekend), keyed
+  // by game id so each row can show which tournament it belongs to.
+  const tournamentByGameId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of deriveTournaments(games, leagueRuleSet)) {
+      for (const id of t.gameIds) map.set(id, t.label);
+    }
+    return map;
+  }, [games, leagueRuleSet]);
 
   const currentGame = games.find((g: any) => g.id === selectedGameId);
 
@@ -1560,6 +1571,19 @@ export const ScheduleTab = memo(() => {
                                 {String(game.location).split("\n")[0]}
                               </span>
                             </>
+                          )}
+                          {tournamentByGameId.has(game.id) && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded normal-case tracking-normal text-[10px] font-black"
+                              style={{
+                                backgroundColor: "var(--team-primary-15)",
+                                color: "var(--team-primary)",
+                              }}
+                              title="Part of a tournament (pool + bracket on the same weekend)"
+                            >
+                              <Icons.Pitch className="w-3 h-3" />
+                              {tournamentByGameId.get(game.id)}
+                            </span>
                           )}
                         </p>
                         

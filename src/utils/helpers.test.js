@@ -32,6 +32,7 @@ import {
   SIGNUP_LIMITS,
   extractAdvancedStats,
   evalStatHint,
+  deriveTournaments,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1348,5 +1349,51 @@ describe("evalStatHint", () => {
     expect(evalStatHint("contact", null)).toBeNull();
     expect(evalStatHint("coachability", { avg: 0.4 })).toBeNull();
     expect(evalStatHint("baseballIQ", { avg: 0.4 })).toBeNull();
+  });
+});
+
+describe("deriveTournaments", () => {
+  it("clusters same-weekend Tournament games (pool + bracket) into one event", () => {
+    const games = [
+      { id: "a", date: "2026-06-06", leagueRuleSet: "USSSA", gameType: "pool" },
+      { id: "b", date: "2026-06-06", leagueRuleSet: "USSSA", gameType: "pool" },
+      { id: "c", date: "2026-06-07", leagueRuleSet: "USSSA", gameType: "bracket" },
+    ];
+    const t = deriveTournaments(games);
+    expect(t).toHaveLength(1);
+    expect(t[0].gameIds).toEqual(["a", "b", "c"]);
+  });
+
+  it("does not group a lone Tournament game, far-apart games, Rec, or scrimmages", () => {
+    const games = [
+      { id: "solo", date: "2026-06-20", leagueRuleSet: "USSSA" }, // lone
+      { id: "rec1", date: "2026-06-06", leagueRuleSet: "NKB" },
+      { id: "rec2", date: "2026-06-07", leagueRuleSet: "NKB" },
+      { id: "scrim1", date: "2026-07-04", leagueRuleSet: "USSSA", isScrimmage: true },
+      { id: "scrim2", date: "2026-07-05", leagueRuleSet: "USSSA", isScrimmage: true },
+    ];
+    expect(deriveTournaments(games)).toEqual([]);
+  });
+
+  it("splits Tournament games more than a weekend apart into separate events", () => {
+    const games = [
+      { id: "w1a", date: "2026-06-06", leagueRuleSet: "USSSA" },
+      { id: "w1b", date: "2026-06-07", leagueRuleSet: "USSSA" },
+      { id: "w2a", date: "2026-06-20", leagueRuleSet: "USSSA" },
+      { id: "w2b", date: "2026-06-21", leagueRuleSet: "USSSA" },
+    ];
+    const t = deriveTournaments(games);
+    expect(t).toHaveLength(2);
+    expect(t[0].gameIds).toEqual(["w1a", "w1b"]);
+    expect(t[1].gameIds).toEqual(["w2a", "w2b"]);
+  });
+
+  it("falls back to the team rule set when a game doesn't set one", () => {
+    const games = [
+      { id: "a", date: "2026-06-06" },
+      { id: "b", date: "2026-06-07" },
+    ];
+    expect(deriveTournaments(games, "USSSA")).toHaveLength(1);
+    expect(deriveTournaments(games, "NKB")).toEqual([]);
   });
 });

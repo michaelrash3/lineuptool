@@ -1049,6 +1049,72 @@ export const evalStatHint = (
   }
 };
 
+export interface TournamentGroup {
+  id: string;
+  label: string;
+  gameIds: string[];
+}
+
+// Auto-detect tournaments from the schedule: cluster Tournament (USSSA) games
+// whose dates fall within a weekend window (<= 2 days apart) into one event, so
+// pool + bracket games on the same weekend are tied together. A group needs 2+
+// games — a lone Tournament game isn't a "tournament." Pure + derived (no stored
+// state); scrimmages and Rec games are excluded.
+export const deriveTournaments = (
+  games: Array<{
+    id: string;
+    date?: string;
+    leagueRuleSet?: string;
+    location?: string;
+    isScrimmage?: boolean;
+  }> | null | undefined,
+  teamLeagueRuleSet?: string
+): TournamentGroup[] => {
+  const isoToDays = (d: string): number =>
+    Math.floor(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
+  const tour = (games || [])
+    .filter(
+      (g) =>
+        g &&
+        g.date &&
+        !g.isScrimmage &&
+        (g.leagueRuleSet || teamLeagueRuleSet) === "USSSA"
+    )
+    .slice()
+    .sort((a, b) => (a.date as string).localeCompare(b.date as string));
+
+  const clusters: (typeof tour)[] = [];
+  let cur: typeof tour = [];
+  for (const g of tour) {
+    if (cur.length === 0) {
+      cur = [g];
+      continue;
+    }
+    const gap =
+      isoToDays(g.date as string) - isoToDays(cur[cur.length - 1].date as string);
+    if (gap <= 2) cur.push(g);
+    else {
+      if (cur.length >= 2) clusters.push(cur);
+      cur = [g];
+    }
+  }
+  if (cur.length >= 2) clusters.push(cur);
+
+  const fmt = (d: string): string => {
+    const [y, m, day] = d.split("-");
+    return new Date(Number(y), Number(m) - 1, Number(day)).toLocaleDateString(
+      undefined,
+      { month: "short", day: "numeric" }
+    );
+  };
+  return clusters.map((gs) => {
+    const start = gs[0].date as string;
+    const end = gs[gs.length - 1].date as string;
+    const range = start === end ? fmt(start) : `${fmt(start)}–${fmt(end)}`;
+    return { id: `tour-${start}`, label: range, gameIds: gs.map((g) => g.id) };
+  });
+};
+
 export const parsePercent = (val: unknown): number => {
   if (!val) return 0;
   const raw = parseFloat(String(val).replace("%", ""));
