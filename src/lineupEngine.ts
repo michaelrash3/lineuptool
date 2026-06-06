@@ -204,6 +204,12 @@ export function getPositionImportance(
 // Coach's Card v2 universal categories — the 11 that drive total-score and
 // position scoring. Pitching/Catching add-ons live in src/constants/ui.ts and
 // influence specialty position decisions, not the universal total.
+// Category id list that getCombinedGrades carries from each eval round into the
+// merged grade map. The `weight` field is informational only (the engine scores
+// via the dedicated helpers — defensiveScore/pitcher/catcher/total — not by
+// iterating these). The Kid-Pitch add-ons (pitching + catching) MUST be present
+// here or they get dropped on merge, leaving calcPitcherScore/calcCatcherScore
+// with nothing to score.
 const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "contact", weight: 1.5 },
   { id: "power", weight: 1.0 },
@@ -216,6 +222,16 @@ const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "baserunning", weight: 1.5 },
   { id: "baseballIQ", weight: 2.0 },
   { id: "coachability", weight: 1.0 },
+  // Kid-Pitch add-ons — pitching
+  { id: "velocity", weight: 1.0 },
+  { id: "strikes", weight: 2.5 },
+  { id: "offSpeed", weight: 0.5 },
+  { id: "composure", weight: 1.0 },
+  // Kid-Pitch add-ons — catching
+  { id: "receiving", weight: 1.0 },
+  { id: "blocking", weight: 1.0 },
+  { id: "throwing", weight: 1.0 },
+  { id: "gameCalling", weight: 1.0 },
 ];
 
 const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
