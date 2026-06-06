@@ -5,7 +5,9 @@ import {
   checkPitchEligibility,
   getCombinedGrades,
   calcPitcherScore,
+  resolvePitchRuleSet,
 } from "../lineupEngine";
+import type { PitchRuleSet } from "../lineupEngine";
 
 const ageNumOf = (age: string | undefined): number => {
   const nums = (age || "").match(/\d+/g);
@@ -15,7 +17,11 @@ const ageNumOf = (age: string | undefined): number => {
 
 // Days until eligible to pitch again (0 = today). Returns null when the
 // player has no recent pitching activity (always eligible).
-const daysUntilEligible = (player: any, teamAge: string): number | null => {
+const daysUntilEligible = (
+  player: any,
+  teamAge: string,
+  ruleSet?: PitchRuleSet
+): number | null => {
   const pitching = player.pitching || {};
   const last = pitching.lastPitchDate;
   if (!last || !pitching.recentPitches) return null;
@@ -24,7 +30,7 @@ const daysUntilEligible = (player: any, teamAge: string): number | null => {
     const target = new Date(today);
     target.setDate(target.getDate() + d);
     const targetStr = target.toISOString().slice(0, 10);
-    if (checkPitchEligibility(player, targetStr, teamAge)) return d;
+    if (checkPitchEligibility(player, targetStr, teamAge, ruleSet)) return d;
   }
   return null;
 };
@@ -53,6 +59,7 @@ export const PitcherRankingPanel = memo(() => {
     [eligible, evaluationEvents, players]
   );
 
+  const pitchRules = useMemo(() => resolvePitchRuleSet(team), [team]);
   const ranked = useMemo(() => {
     if (!eligible || !combinedGrades) return [];
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -63,8 +70,10 @@ export const PitcherRankingPanel = memo(() => {
           topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
           teamAge,
         });
-        const eligibleToday = checkPitchEligibility(p, todayStr, teamAge);
-        const daysUntil = eligibleToday ? 0 : daysUntilEligible(p, teamAge);
+        const eligibleToday = checkPitchEligibility(p, todayStr, teamAge, pitchRules);
+        const daysUntil = eligibleToday
+          ? 0
+          : daysUntilEligible(p, teamAge, pitchRules);
         return {
           p,
           score,
@@ -79,7 +88,7 @@ export const PitcherRankingPanel = memo(() => {
       // point listing kids the coach hasn't evaluated as pitchers.
       .filter((row) => row.score > 0)
       .sort((a, b) => b.score - a.score);
-  }, [eligible, combinedGrades, players, teamAge]);
+  }, [eligible, combinedGrades, players, teamAge, pitchRules]);
 
   if (!eligible) return null;
   if (ranked.length === 0) return null;

@@ -10,6 +10,7 @@ const { generateLineupMock } = vi.hoisted(() => ({
 vi.mock("../lineupEngine", () => ({
   generateLineup: generateLineupMock,
   generateBattingOnly: vi.fn(),
+  resolvePitchRuleSet: vi.fn(() => ({ id: "littleLeague", limits: {}, fallbackLimit: 105, restTiers: [] })),
 }));
 
 // These cover the hook's wiring (uiBridge / updateGame / updateTeam) for the

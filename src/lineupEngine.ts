@@ -509,9 +509,9 @@ export function calculateTotalScore(
 
 // ---------- Pitch count eligibility ----------
 
-// Single source of truth for max pitches by age group. Also consumed by
-// the lineup card's pitch-availability column (src/lineup/lineupCard.ts)
-// so the two never drift out of league spec.
+// Little League / Pitch Smart daily max by age — the default rule set. Also the
+// `limits` of the littleLeague preset below; kept as a named export for the
+// lineup card's back-compat import.
 export const PITCH_LIMITS: Record<string, number> = {
   "6U": 50,
   "7U": 50,
@@ -523,21 +523,79 @@ export const PITCH_LIMITS: Record<string, number> = {
   "15U to 18U": 105,
 };
 
-export function maxPitchesForAge(age: string): number {
-  return PITCH_LIMITS[age] ?? 105;
+// A league's pitch-count rules: daily max by age + the rest-days tiers (most
+// pitches first). Coaches pick a preset or "custom" per team so eligibility,
+// the in-game limit, the lineup card, and the availability planner all match
+// their league instead of one hardcoded spec.
+export interface PitchRuleSet {
+  id: string;
+  label: string;
+  limits: Record<string, number>;
+  fallbackLimit: number;
+  restTiers: Array<{ min: number; days: number }>;
 }
-function requiredRestDays(p: number): number {
-  if (p >= 66) return 4;
-  if (p >= 51) return 3;
-  if (p >= 36) return 2;
-  if (p >= 21) return 1;
+
+const LITTLE_LEAGUE_REST: Array<{ min: number; days: number }> = [
+  { min: 66, days: 4 },
+  { min: 51, days: 3 },
+  { min: 36, days: 2 },
+  { min: 21, days: 1 },
+];
+
+export const PITCH_RULE_SETS: Record<string, PitchRuleSet> = {
+  littleLeague: {
+    id: "littleLeague",
+    label: "Little League / Pitch Smart",
+    limits: PITCH_LIMITS,
+    fallbackLimit: 105,
+    restTiers: LITTLE_LEAGUE_REST,
+  },
+};
+
+export const DEFAULT_PITCH_RULE_SET = PITCH_RULE_SETS.littleLeague;
+
+// Resolve a team's effective rule set. "custom" uses team.customPitchLimit (one
+// daily max for the team's age group) plus optional team.customRestTiers;
+// any named preset is looked up; anything unknown/absent falls back to Little
+// League — so existing teams keep today's behavior.
+export function resolvePitchRuleSet(team: any): PitchRuleSet {
+  const id = team?.pitchRuleSet;
+  if (id === "custom") {
+    const lim = Number(team?.customPitchLimit);
+    const tiers =
+      Array.isArray(team?.customRestTiers) && team.customRestTiers.length
+        ? [...team.customRestTiers].sort((a: any, b: any) => b.min - a.min)
+        : LITTLE_LEAGUE_REST;
+    return {
+      id: "custom",
+      label: "Custom",
+      limits: {},
+      fallbackLimit: Number.isFinite(lim) && lim > 0 ? lim : 105,
+      restTiers: tiers,
+    };
+  }
+  return PITCH_RULE_SETS[id] || DEFAULT_PITCH_RULE_SET;
+}
+
+export function maxPitchesForAge(
+  age: string,
+  ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET
+): number {
+  return ruleSet.limits[age] ?? ruleSet.fallbackLimit;
+}
+function requiredRestDays(
+  p: number,
+  ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET
+): number {
+  for (const t of ruleSet.restTiers) if (p >= t.min) return t.days;
   return 0;
 }
 
 export function checkPitchEligibility(
   player: Player,
   targetDateStr: string,
-  ageGroup: string
+  ageGroup: string,
+  ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET
 ): boolean {
   const pitching = (player as any).pitching as
     | { lastPitchDate?: string; recentPitches?: number }
@@ -545,13 +603,13 @@ export function checkPitchEligibility(
   if (!pitching?.lastPitchDate || !pitching.recentPitches) return true;
   const recent = pitching.recentPitches;
   if (recent === 0) return true;
-  if (recent >= maxPitchesForAge(ageGroup)) return false;
+  if (recent >= maxPitchesForAge(ageGroup, ruleSet)) return false;
   const diffDays = Math.floor(
     (new Date(targetDateStr).getTime() -
       new Date(pitching.lastPitchDate).getTime()) /
       86_400_000
   );
-  return diffDays > requiredRestDays(recent);
+  return diffDays > requiredRestDays(recent, ruleSet);
 }
 
 export interface PitcherAvailability {
@@ -575,9 +633,10 @@ export interface PitcherAvailability {
 export function buildPitchingPlan(
   players: Player[] | null | undefined,
   gameDateStr: string,
-  ageGroup: string
+  ageGroup: string,
+  ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET
 ): PitcherAvailability[] {
-  const maxP = maxPitchesForAge(ageGroup);
+  const maxP = maxPitchesForAge(ageGroup, ruleSet);
   const pool = (players || []).filter(
     (p: any) =>
       Array.isArray(p.comfortablePositions) &&
@@ -590,7 +649,7 @@ export function buildPitchingPlan(
     const last = pitching.lastPitchDate || null;
     let status: PitcherAvailability["status"];
     let daysUntilReady: number | null = null;
-    if (checkPitchEligibility(p, gameDateStr, ageGroup)) {
+    if (checkPitchEligibility(p, gameDateStr, ageGroup, ruleSet)) {
       status = "ready";
     } else if (recent >= maxP) {
       status = "maxed";
@@ -600,7 +659,7 @@ export function buildPitchingPlan(
         const probeStr = new Date(base + d * 86_400_000)
           .toISOString()
           .slice(0, 10);
-        if (checkPitchEligibility(p, probeStr, ageGroup)) {
+        if (checkPitchEligibility(p, probeStr, ageGroup, ruleSet)) {
           daysUntilReady = d;
           break;
         }
@@ -1632,6 +1691,9 @@ export function generateLineup(input: EngineInput): EngineResult {
     // never reads/writes the fairness ledger. All catcher/pitch SAFETY rotation
     // is reused unchanged.
     competitive = false,
+    // Team's pitch-count rule set (limits + rest tiers). Defaults to Little
+    // League so existing callers are unchanged.
+    pitchRuleSet,
     // Depth Chart (position -> ordered player ids). Competitive-only; see below.
     depthChart,
     // Mid-game rebuild path: when `fromInning > 0` and `currentLineup` is
@@ -1651,6 +1713,8 @@ export function generateLineup(input: EngineInput): EngineResult {
     catcherMaxInnings,
     catcherConsecutive,
   } = input;
+  const pitchRules =
+    (pitchRuleSet as PitchRuleSet) || DEFAULT_PITCH_RULE_SET;
   const gameType =
     gameTypeInput ||
     (input as any).currentGame?.gameType ||
@@ -1703,7 +1767,9 @@ export function generateLineup(input: EngineInput): EngineResult {
         }),
       }))
       .filter((row) => row.score > 0)
-      .filter((row) => checkPitchEligibility(row.p, targetDateStr, teamAge))
+      .filter((row) =>
+        checkPitchEligibility(row.p, targetDateStr, teamAge, pitchRules)
+      )
       .sort((a, b) => b.score - a.score);
     const n = getPitcherPoolSize(gameType);
     pitcherPoolIds = new Set(ranked.slice(0, n).map((row) => row.p.id));
@@ -1972,6 +2038,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         depthChartRank,
         chartedPlayerIds,
         isKidPitch: isKidPitchFormat,
+        pitchRules,
         catcherPolicy,
         rand,
         fromInning,
@@ -2707,6 +2774,7 @@ function tryBuildLineup(ctx: any): any {
     depthChartRank,
     chartedPlayerIds,
     isKidPitch,
+    pitchRules = DEFAULT_PITCH_RULE_SET,
     catcherPolicy,
     rand,
     fromInning = 0,
@@ -3003,7 +3071,7 @@ function tryBuildLineup(ctx: any): any {
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
-              !checkPitchEligibility(p, targetDateStr, teamAge)
+              !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
             )
               continue;
             const pCount = st.positions["P"] || 0;
@@ -3064,7 +3132,7 @@ function tryBuildLineup(ctx: any): any {
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
-              !checkPitchEligibility(p, targetDateStr, teamAge)
+              !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
             )
               continue;
             const pCount = st.positions["P"] || 0;
@@ -3123,6 +3191,7 @@ function tryBuildLineup(ctx: any): any {
           depthChartRank,
           chartedPlayerIds,
           isKidPitch,
+          pitchRules,
           catcherCap,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
@@ -3318,6 +3387,7 @@ function pickBestForPosition(opts: any): any {
     depthChartRank,
     chartedPlayerIds,
     isKidPitch,
+    pitchRules = DEFAULT_PITCH_RULE_SET,
     catcherCap,
     rand,
     premiumPositions,
@@ -3389,7 +3459,7 @@ function pickBestForPosition(opts: any): any {
     if (pos === "P" && defenseSize === "9") {
       if (
         leagueRuleSet === "NKB" &&
-        !checkPitchEligibility(p, targetDateStr, teamAge)
+        !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
       )
         continue;
       const pCount = st.positions["P"] || 0;

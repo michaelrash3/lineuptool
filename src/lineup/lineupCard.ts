@@ -6,7 +6,7 @@
 
 import { Game, SlimPlayer, Team, Toast } from "../types";
 import { countsTowardStats } from "../utils/helpers";
-import { PITCH_LIMITS } from "../lineupEngine";
+import { maxPitchesForAge, resolvePitchRuleSet } from "../lineupEngine";
 
 // Compute the team's W-L-T record from finalized games, for the share
 // card header. Uses the shared isGameFinalized() so it matches the
@@ -212,7 +212,7 @@ const buildLineupCanvasInternal = ({
   }> = [];
   if (isKidPitch) {
     const ageGroup = (typeof team?.teamAge === "string" && team.teamAge) || "";
-    const limit = PITCH_LIMITS[ageGroup] ?? 105;
+    const limit = maxPitchesForAge(ageGroup, resolvePitchRuleSet(team));
     const byId = new Map<string, { player: NonNullable<SlimPlayer>; innings: number[] }>();
     lineup.forEach((inn, idx) => {
       const p = inn?.P;

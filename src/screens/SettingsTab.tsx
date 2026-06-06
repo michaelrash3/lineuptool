@@ -864,6 +864,8 @@ export const SettingsTab = memo(() => {
     defenseSize,
     catcherMaxInnings,
     catcherConsecutive,
+    pitchRuleSet,
+    customPitchLimit,
     primaryColor,
     secondaryColor,
     tertiaryColor,
@@ -1234,6 +1236,54 @@ export const SettingsTab = memo(() => {
                         : "Set a catcher limit to enable"}
                     </p>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-5 mt-5">
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Pitch-Count Rules
+                    </label>
+                    <select
+                      value={pitchRuleSet || "littleLeague"}
+                      onChange={(e) =>
+                        updateTeam({ pitchRuleSet: e.target.value })
+                      }
+                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                    >
+                      <option value="littleLeague">
+                        Little League / Pitch Smart
+                      </option>
+                      <option value="custom">Custom</option>
+                    </select>
+                    <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
+                      Drives rest rules, the in-game limit, the lineup card, and
+                      the availability planner.
+                    </p>
+                  </div>
+                  {pitchRuleSet === "custom" && (
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        Daily Pitch Limit
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="200"
+                        value={customPitchLimit || ""}
+                        placeholder="e.g. 85"
+                        onChange={(e) =>
+                          updateTeam({
+                            customPitchLimit:
+                              parseInt(e.target.value, 10) || 0,
+                          })
+                        }
+                        className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl shadow-sm"
+                      />
+                      <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
+                        Your league's daily max for this age. Rest tiers use the
+                        standard 21/36/51/66 thresholds.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
