@@ -1,6 +1,16 @@
 import { renderHook, act } from "@testing-library/react";
 import { useLineupActions } from "./useLineupActions";
 import { makeToast } from "../test-utils";
+import { vi } from "vitest";
+
+// Mock the engine so we can drive the post-generation toast logic directly.
+const { generateLineupMock } = vi.hoisted(() => ({
+  generateLineupMock: vi.fn(),
+}));
+vi.mock("../lineupEngine", () => ({
+  generateLineup: generateLineupMock,
+  generateBattingOnly: vi.fn(),
+}));
 
 // These cover the hook's wiring (uiBridge / updateGame / updateTeam) for the
 // non-engine paths. Full generation logic is covered by lineupEngine.test.js.
@@ -80,5 +90,51 @@ describe("useLineupActions wiring", () => {
     const { result, updateTeam } = setup({ lineupTemplates: [{ id: "t1" }, { id: "t2" }] });
     act(() => result.current.deleteLineupTemplate("t1"));
     expect(updateTeam.mock.calls[0][0].lineupTemplates.map((t: any) => t.id)).toEqual(["t2"]);
+  });
+});
+
+describe("useLineupActions one-game-balance toast", () => {
+  // Nine present players clears the >=7 floor; the engine is mocked to succeed
+  // without seasonal fairness so the relaxed-fairness toast branch is exercised.
+  const players = Array.from({ length: 9 }, (_, i) => ({ id: `p${i}`, name: `P${i}` }));
+  const makeInputs = (leagueRuleSet: string) => ({
+    currentGame: { id: "g1", leagueRuleSet, applySeasonalFairness: false },
+    currentGameAttendance: {},
+    firstInningLineup: {},
+    previousLineup: null,
+    previousBattingLineup: null,
+  });
+
+  beforeEach(() => {
+    generateLineupMock.mockReset();
+    generateLineupMock.mockReturnValue({ lineup: [{}], battingLineup: [] });
+  });
+
+  it("Rec game still warns about one-game balance when fairness is off", () => {
+    const { result, toast } = setup(
+      { players, leagueRuleSet: "NKB", teamAge: "10U" },
+      makeInputs("NKB")
+    );
+    act(() => result.current.generateLineup());
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "warn",
+        title: "Lineup built (one-game balance)",
+      })
+    );
+  });
+
+  it("Tournament game suppresses the one-game-balance warning", () => {
+    const { result, toast } = setup(
+      { players, leagueRuleSet: "USSSA", teamAge: "10U" },
+      makeInputs("USSSA")
+    );
+    act(() => result.current.generateLineup());
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success", title: "Lineup generated" })
+    );
+    expect(toast.push).not.toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Lineup built (one-game balance)" })
+    );
   });
 });

@@ -127,7 +127,16 @@ export const useLineupActions = ({
           reason: result.fairnessRelaxedReason,
         });
       }
-      const showAsRelaxed = relaxFairness || internallyRelaxed;
+      // Tournament (competitive) games intentionally ignore the seasonal
+      // fairness ledger (best-XI + a per-game minimum-play floor), so the
+      // "one-game balance" caveat is expected behavior there — not a warning
+      // worth surfacing on every build. Suppress the relaxed-fairness note for
+      // Tournament games; Rec games keep it. (internallyRelaxed can't even fire
+      // in competitive mode — see effectiveRelax in lineupEngine — so the only
+      // thing this hides for Tournament is the intentional relaxFairness path.)
+      const isTournament =
+        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA";
+      const showAsRelaxed = (relaxFairness || internallyRelaxed) && !isTournament;
       // When the engine fell back, show the ACTUAL blocker that defeated
       // strict fairness (e.g. "Bench schedule couldn't satisfy…") so the
       // cause can be locked down, not just a generic note.
@@ -143,13 +152,13 @@ export const useLineupActions = ({
         relaxedInns.length > 0
           ? ` Rotation eased in inning ${relaxedInns.join(", ")} to keep a full, fair defense.`
           : "";
-      const successMessage = internallyRelaxed
+      const successMessage = !showAsRelaxed
+        ? hasPrev
+          ? `Tap Undo to restore the previous lineup.${lockNote}`
+          : lockNote.trim()
+        : internallyRelaxed
         ? `Strict fairness blocked — ${relaxedBlocker} Built one-game balanced instead; catch up over future games.`
-        : relaxFairness
-        ? "Built without considering past games. Some kids may bench more than others this season."
-        : hasPrev
-        ? `Tap Undo to restore the previous lineup.${lockNote}`
-        : lockNote.trim();
+        : "Built without considering past games. Some kids may bench more than others this season.";
       toast.push({
         kind: showAsRelaxed ? "warn" : "success",
         title: showAsRelaxed
