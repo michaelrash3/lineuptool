@@ -184,6 +184,12 @@ export interface Team {
   battingSize?: string;
   inningsCount?: string;
 
+  // Depth Chart manual overrides: position -> ordered player ids. When a
+  // position has an entry, it defines the coach's chosen order; comfortable
+  // players not listed are appended in auto-ranked order. Absent = pure
+  // auto-ranking from evals. Drives the Depth Chart tab.
+  depthChart?: Record<string, string[]>;
+
   // ----- Evaluations -----
   evaluationEvents?: EvaluationEvent[];
   evalSchemaVersion?: number;

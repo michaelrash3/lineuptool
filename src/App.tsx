@@ -112,6 +112,9 @@ const HomeTab = lazy(() =>
 const RosterTab = lazy(() =>
   import("./screens/RosterTab").then((m) => ({ default: m.RosterTab }))
 );
+const DepthChartTab = lazy(() =>
+  import("./screens/DepthChartTab").then((m) => ({ default: m.DepthChartTab }))
+);
 const ScheduleTab = lazy(() =>
   import("./screens/ScheduleTab").then((m) => ({ default: m.ScheduleTab }))
 );
@@ -2891,6 +2894,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
       ]
@@ -2898,6 +2902,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         ...(interestButton ? [interestButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
@@ -2919,6 +2924,7 @@ const MainShell = () => {
         <Routes>
           <Route path="/" element={<HomeTab />} />
           <Route path="/roster" element={<RosterTab />} />
+          <Route path="/depth-chart" element={<DepthChartTab />} />
           <Route path="/schedule" element={<ScheduleTab />} />
           <Route path="/schedule/*" element={<ScheduleTab />} />
           <Route

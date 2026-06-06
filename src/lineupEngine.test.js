@@ -2,6 +2,8 @@ import {
   generateLineup,
   generateBattingOnly,
   calcPitcherScore,
+  calcCatcherScore,
+  calcDefensiveScore,
   getPitcherPoolSize,
   isCatcherEligible,
   resolveCatcherPolicy,
@@ -1916,24 +1918,49 @@ describe("catcher-cap fuzz — explicit cap is never violated", () => {
 });
 
 describe("D4 — pitcher scoring + pool sizing", () => {
-  test("calcPitcherScore weights control highest, returns 0 for empty grades", () => {
+  test("calcPitcherScore weights strikes highest, returns 0 for empty grades", () => {
     expect(calcPitcherScore(null)).toBe(0);
     expect(calcPitcherScore({})).toBe(0);
-    // velocity*1.5 + control*2 + command*1.5 + offSpeed*0.5 + composure*1
-    // = 5*1.5 + 5*2 + 5*1.5 + 5*0.5 + 5*1 = 7.5 + 10 + 7.5 + 2.5 + 5 = 32.5
+    // velocity*1.5 + strikes*3.5 + offSpeed*0.5 + composure*1
+    // = 5*1.5 + 5*3.5 + 5*0.5 + 5*1 = 7.5 + 17.5 + 2.5 + 5 = 32.5
     expect(
       calcPitcherScore({
         velocity: 5,
-        control: 5,
-        command: 5,
+        strikes: 5,
         offSpeed: 5,
         composure: 5,
       })
     ).toBe(32.5);
-    // Control is highest weight (2.0). 5 control alone outranks 5 of any other.
-    const onlyControl = calcPitcherScore({ control: 5 });
+    // Strikes is highest weight (3.5). 5 strikes alone outranks 5 of any other.
+    const onlyStrikes = calcPitcherScore({ strikes: 5 });
     const onlyVelocity = calcPitcherScore({ velocity: 5 });
-    expect(onlyControl).toBeGreaterThan(onlyVelocity);
+    expect(onlyStrikes).toBeGreaterThan(onlyVelocity);
+    // Regression: the old taxonomy used control/command, which no longer exist
+    // on graded players (folded into `strikes`). They must not be scored.
+    expect(calcPitcherScore({ control: 5, command: 5 })).toBe(0);
+  });
+
+  test("calcCatcherScore weights blocking/throwing over receiving/game-calling", () => {
+    expect(calcCatcherScore(null)).toBe(0);
+    expect(calcCatcherScore({})).toBe(0);
+    // receiving*1 + blocking*1.5 + throwing*1.5 + gameCalling*1
+    // = 4 + 6 + 6 + 4 = 20
+    expect(
+      calcCatcherScore({ receiving: 4, blocking: 4, throwing: 4, gameCalling: 4 })
+    ).toBe(20);
+    expect(calcCatcherScore({ blocking: 5 })).toBeGreaterThan(
+      calcCatcherScore({ receiving: 5 })
+    );
+  });
+
+  test("calcDefensiveScore defaults missing grades to mid (3) and rewards glove", () => {
+    // All-default grades: glove*2 + range*1.5 + armStr*1.5 + armAcc*1.5 +
+    // baserunning*1.5 + IQ*2, each = 3 -> 3*(2+1.5+1.5+1.5+1.5+2) = 30.
+    expect(calcDefensiveScore({})).toBe(30);
+    expect(calcDefensiveScore(null)).toBe(30);
+    expect(calcDefensiveScore({ glove: 5 })).toBeGreaterThan(
+      calcDefensiveScore({})
+    );
   });
 
   test("getPitcherPoolSize maps gameType to pool size", () => {

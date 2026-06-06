@@ -616,15 +616,18 @@ export function buildPitchingPlan(
 }
 
 // ---------- Pitcher scoring (Round 2 spec) ----------
-// Eval-driven, with control weighted highest because dropped-3rd-strike
-// and walk damage are the usual differentiators at 9U+ Kid Pitch.
+// Eval-driven, with strikes weighted highest because dropped-3rd-strike and
+// walk damage are the usual differentiators at 9U+ Kid Pitch. `strikes` is the
+// merged control/command category from the current eval taxonomy (the v7
+// migration folds the old `control`+`command` grades into it), so we weight
+// `strikes` here — the previous control/command keys no longer exist on graded
+// players and were silently scored as zero.
 // Single source of truth — consumed by both the engine's P-slot picker
 // (D4) and the Roster-tab `PitcherRankingPanel` so the UI rank and the
 // engine pick never drift.
 export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
   velocity: 1.5,
-  control: 2.0,
-  command: 1.5,
+  strikes: 3.5,
   offSpeed: 0.5,
   composure: 1.0,
 };
@@ -637,6 +640,44 @@ export function calcPitcherScore(grades: GradeMap | null | undefined): number {
     if (typeof v === "number" && Number.isFinite(v)) score += v * w;
   }
   return score;
+}
+
+// ---------- Catcher scoring ----------
+// Eval-driven, mirroring calcPitcherScore. Blocking and throwing weigh highest
+// because passed balls and stolen bases are where weak catching shows up most
+// at Kid Pitch. Single source of truth — consumed by the Depth Chart tab (and
+// available for future engine C-slot logic).
+export const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
+  receiving: 1.0,
+  blocking: 1.5,
+  throwing: 1.5,
+  gameCalling: 1.0,
+};
+
+export function calcCatcherScore(grades: GradeMap | null | undefined): number {
+  if (!grades) return 0;
+  let score = 0;
+  for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {
+    const v = (grades as any)[k];
+    if (typeof v === "number" && Number.isFinite(v)) score += v * w;
+  }
+  return score;
+}
+
+// ---------- Defensive (fielding) scoring ----------
+// General field-defense rating used to rank position players. Extracted from
+// computeProfile so the Depth Chart tab and the engine's profile share one
+// formula and never drift.
+export function calcDefensiveScore(grades: GradeMap | null | undefined): number {
+  const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
+  return (
+    gloveOf(g) * 2.0 +
+    rangeOf(g) * 1.5 +
+    armStrengthOf(g) * 1.5 +
+    armAccuracyOf(g) * 1.5 +
+    baserunningOf(g) * 1.5 +
+    (g.baseballIQ ?? 3) * 2.0
+  );
 }
 
 // Active position list by team defenseSize. Drives the position chip
@@ -768,13 +809,7 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
     g.baseballIQ * 1.5 +
     hard * 10;
 
-  const defensiveScore =
-    gloveOf(g) * 2.0 +
-    rangeOf(g) * 1.5 +
-    armStrengthOf(g) * 1.5 +
-    armAccuracyOf(g) * 1.5 +
-    baserunningOf(g) * 1.5 +
-    g.baseballIQ * 2.0;
+  const defensiveScore = calcDefensiveScore(g);
 
   return {
     grades: g,
