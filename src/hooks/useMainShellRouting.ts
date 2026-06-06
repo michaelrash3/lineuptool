@@ -2,8 +2,9 @@ import { useEffect, useMemo } from "react";
 
 const TAB_TO_PATH: Record<string, string> = {
   home: "/",
-  roster: "/roster",
   schedule: "/schedule",
+  roster: "/roster",
+  depthChart: "/depth-chart",
   evaluation: "/evaluation",
   tryouts: "/tryouts",
   interest: "/interest",
@@ -14,6 +15,7 @@ const pathToTab = (pathname: string): string => {
   if (!pathname || pathname === "/") return "home";
   const first = pathname.split("/").filter(Boolean)[0];
   if (first === "in-game") return "schedule";
+  if (first === "depth-chart") return "depthChart";
   return first || "home";
 };
 
@@ -42,11 +44,11 @@ export const useMainShellRouting = ({
     () =>
       isAssistant
         ? tryoutsOpen
-          ? ["home", "schedule", "roster", "tryouts", "evaluation"]
-          : ["home", "schedule", "roster", "evaluation"]
+          ? ["home", "schedule", "roster", "depthChart", "tryouts", "evaluation"]
+          : ["home", "schedule", "roster", "depthChart", "evaluation"]
         : tryoutsOpen
-        ? ["home", "schedule", "roster", "tryouts", "evaluation", "settings"]
-        : ["home", "schedule", "roster", "evaluation", "settings"],
+        ? ["home", "schedule", "roster", "depthChart", "tryouts", "evaluation", "settings"]
+        : ["home", "schedule", "roster", "depthChart", "evaluation", "settings"],
     [isAssistant, tryoutsOpen]
   );
 

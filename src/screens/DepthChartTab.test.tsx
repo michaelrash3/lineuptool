@@ -1,0 +1,84 @@
+import { screen, fireEvent } from "@testing-library/react";
+import { renderWithProviders } from "../test-utils";
+import { DepthChartTab } from "./DepthChartTab";
+
+// Names are chosen so the BETTER-graded player sorts LATER alphabetically. That
+// way these tests fail if the position score is ignored and ranking silently
+// falls back to name order (the bug Codex caught: Kid-Pitch add-on grades being
+// dropped on the way through getCombinedGrades).
+const pitchers = [
+  { id: "p1", name: "Zane", number: "1", comfortablePositions: ["P"] },
+  { id: "p2", name: "Abel", number: "2", comfortablePositions: ["P"] },
+];
+const pitcherTeam: any = {
+  players: pitchers,
+  evaluationEvents: [
+    {
+      id: "e1",
+      date: "2026-01-01",
+      coachRole: "Head",
+      grades: { p1: { strikes: 5 }, p2: { strikes: 1 } },
+    },
+  ],
+  pitchingFormat: "Kid Pitch",
+  defenseSize: "9",
+};
+
+describe("DepthChartTab", () => {
+  it("ranks pitchers by strikes, not by name", () => {
+    renderWithProviders(<DepthChartTab />, { team: { team: pitcherTeam } });
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Zane"); // strikes 5, sorts last by name
+    expect(items[1]).toHaveTextContent("Abel");
+  });
+
+  it("ranks catchers by catching grades, not by name", () => {
+    const catcherTeam: any = {
+      players: [
+        { id: "c1", name: "Yara", number: "8", comfortablePositions: ["C"] },
+        { id: "c2", name: "Cara", number: "9", comfortablePositions: ["C"] },
+      ],
+      evaluationEvents: [
+        {
+          id: "e1",
+          date: "2026-01-01",
+          coachRole: "Head",
+          grades: { c1: { blocking: 5, throwing: 5 }, c2: { blocking: 1 } },
+        },
+      ],
+      pitchingFormat: "Kid Pitch",
+      defenseSize: "9",
+    };
+    renderWithProviders(<DepthChartTab />, { team: { team: catcherTeam } });
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Yara"); // better catcher, sorts last
+  });
+
+  it("persists the new order to team.depthChart when a player is moved", () => {
+    const { teamValue } = renderWithProviders(<DepthChartTab />, {
+      team: { team: pitcherTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Move Zane down"));
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      depthChart: { P: ["p2", "p1"] },
+    });
+  });
+
+  it("respects a saved manual order over the auto ranking", () => {
+    renderWithProviders(<DepthChartTab />, {
+      team: { team: { ...pitcherTeam, depthChart: { P: ["p2", "p1"] } } },
+    });
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Abel"); // pinned first despite lower strikes
+    expect(items[1]).toHaveTextContent("Zane");
+  });
+
+  it("is read-only for assistant coaches (no reorder controls)", () => {
+    renderWithProviders(<DepthChartTab />, {
+      team: { team: pitcherTeam, currentRole: "assistant" },
+    });
+    expect(screen.queryByLabelText(/^Move /)).toBeNull();
+  });
+});

@@ -204,6 +204,12 @@ export function getPositionImportance(
 // Coach's Card v2 universal categories — the 11 that drive total-score and
 // position scoring. Pitching/Catching add-ons live in src/constants/ui.ts and
 // influence specialty position decisions, not the universal total.
+// Category id list that getCombinedGrades carries from each eval round into the
+// merged grade map. The `weight` field is informational only (the engine scores
+// via the dedicated helpers — defensiveScore/pitcher/catcher/total — not by
+// iterating these). The Kid-Pitch add-ons (pitching + catching) MUST be present
+// here or they get dropped on merge, leaving calcPitcherScore/calcCatcherScore
+// with nothing to score.
 const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "contact", weight: 1.5 },
   { id: "power", weight: 1.0 },
@@ -216,6 +222,16 @@ const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "baserunning", weight: 1.5 },
   { id: "baseballIQ", weight: 2.0 },
   { id: "coachability", weight: 1.0 },
+  // Kid-Pitch add-ons — pitching
+  { id: "velocity", weight: 1.0 },
+  { id: "strikes", weight: 2.5 },
+  { id: "offSpeed", weight: 0.5 },
+  { id: "composure", weight: 1.0 },
+  // Kid-Pitch add-ons — catching
+  { id: "receiving", weight: 1.0 },
+  { id: "blocking", weight: 1.0 },
+  { id: "throwing", weight: 1.0 },
+  { id: "gameCalling", weight: 1.0 },
 ];
 
 const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
@@ -616,15 +632,18 @@ export function buildPitchingPlan(
 }
 
 // ---------- Pitcher scoring (Round 2 spec) ----------
-// Eval-driven, with control weighted highest because dropped-3rd-strike
-// and walk damage are the usual differentiators at 9U+ Kid Pitch.
+// Eval-driven, with strikes weighted highest because dropped-3rd-strike and
+// walk damage are the usual differentiators at 9U+ Kid Pitch. `strikes` is the
+// merged control/command category from the current eval taxonomy (the v7
+// migration folds the old `control`+`command` grades into it), so we weight
+// `strikes` here — the previous control/command keys no longer exist on graded
+// players and were silently scored as zero.
 // Single source of truth — consumed by both the engine's P-slot picker
 // (D4) and the Roster-tab `PitcherRankingPanel` so the UI rank and the
 // engine pick never drift.
 export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
   velocity: 1.5,
-  control: 2.0,
-  command: 1.5,
+  strikes: 3.5,
   offSpeed: 0.5,
   composure: 1.0,
 };
@@ -637,6 +656,44 @@ export function calcPitcherScore(grades: GradeMap | null | undefined): number {
     if (typeof v === "number" && Number.isFinite(v)) score += v * w;
   }
   return score;
+}
+
+// ---------- Catcher scoring ----------
+// Eval-driven, mirroring calcPitcherScore. Blocking and throwing weigh highest
+// because passed balls and stolen bases are where weak catching shows up most
+// at Kid Pitch. Single source of truth — consumed by the Depth Chart tab (and
+// available for future engine C-slot logic).
+export const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
+  receiving: 1.0,
+  blocking: 1.5,
+  throwing: 1.5,
+  gameCalling: 1.0,
+};
+
+export function calcCatcherScore(grades: GradeMap | null | undefined): number {
+  if (!grades) return 0;
+  let score = 0;
+  for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {
+    const v = (grades as any)[k];
+    if (typeof v === "number" && Number.isFinite(v)) score += v * w;
+  }
+  return score;
+}
+
+// ---------- Defensive (fielding) scoring ----------
+// General field-defense rating used to rank position players. Extracted from
+// computeProfile so the Depth Chart tab and the engine's profile share one
+// formula and never drift.
+export function calcDefensiveScore(grades: GradeMap | null | undefined): number {
+  const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
+  return (
+    gloveOf(g) * 2.0 +
+    rangeOf(g) * 1.5 +
+    armStrengthOf(g) * 1.5 +
+    armAccuracyOf(g) * 1.5 +
+    baserunningOf(g) * 1.5 +
+    (g.baseballIQ ?? 3) * 2.0
+  );
 }
 
 // Active position list by team defenseSize. Drives the position chip
@@ -695,6 +752,21 @@ function leftyInfieldPenalty(rules: string, age: string): number {
 // pins strong kids to premium spots by skill, and the 200-attempt retry loop
 // already guards feasibility there.
 const SCARCITY_RESERVE_WEIGHT = 2;
+
+// Competitive depth-chart bonus (see pickBestForPosition). BASE is an order of
+// magnitude larger than every other in-loop term (rotation, comfort, premium
+// pull, jitter ≈ tens–hundreds) so a charted player reliably wins their slot;
+// STEP keeps the coach's order strict (rank 0 beats rank 1 beats …). The bonus
+// is only applied to candidates that already passed every hard eligibility gate,
+// so it reorders — never expands — the legal candidate set. (It does not exceed
+// the legacy primaryPosition pre-pin, which claims slots earlier; modern teams
+// use comfortablePositions and never trigger that pre-pin.)
+const DEPTH_CHART_BASE_BONUS = 9000;
+const DEPTH_CHART_RANK_STEP = 100;
+// Repulsion applied to a charted player at a position they're NOT charted at,
+// so they stay available for their charted slot. Smaller than the base bonus so
+// it never blocks a slot (a charted-elsewhere player is a valid last resort).
+const DEPTH_CHART_AVOID_PENALTY = 6000;
 
 // ---------- Seeded PRNG ----------
 function mulberry32(seed: number): () => number {
@@ -768,13 +840,7 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
     g.baseballIQ * 1.5 +
     hard * 10;
 
-  const defensiveScore =
-    gloveOf(g) * 2.0 +
-    rangeOf(g) * 1.5 +
-    armStrengthOf(g) * 1.5 +
-    armAccuracyOf(g) * 1.5 +
-    baserunningOf(g) * 1.5 +
-    g.baseballIQ * 2.0;
+  const defensiveScore = calcDefensiveScore(g);
 
   return {
     grades: g,
@@ -1372,6 +1438,8 @@ export function generateLineup(input: EngineInput): EngineResult {
     // never reads/writes the fairness ledger. All catcher/pitch SAFETY rotation
     // is reused unchanged.
     competitive = false,
+    // Depth Chart (position -> ordered player ids). Competitive-only; see below.
+    depthChart,
     // Mid-game rebuild path: when `fromInning > 0` and `currentLineup` is
     // provided, innings 0..fromInning-1 are pre-locked from currentLineup and
     // the engine only fills the remaining innings — seeding its per-player
@@ -1442,6 +1510,34 @@ export function generateLineup(input: EngineInput): EngineResult {
       .sort((a, b) => b.score - a.score);
     const n = getPitcherPoolSize(gameType);
     pitcherPoolIds = new Set(ranked.slice(0, n).map((row) => row.p.id));
+  }
+
+  // Competitive-only: a per-position rank lookup from the coach's depth chart,
+  // outfield-canonicalized so a CF entry covers LCF/RCF (and vice-versa) across
+  // 9- vs 10-fielder alignments. pickBestForPosition uses this to make the chart
+  // authoritative over skill among already-legal candidates. Built empty on the
+  // Rec path (competitive === false), so Rec behavior is unchanged.
+  const depthChartRank: Map<string, Map<string, number>> = new Map();
+  // Every player who appears in ANY depth-chart position. Used to reserve a
+  // charted player for their charted spot(s): they're repelled from positions
+  // they're NOT charted at, so an earlier-filled slot can't grab them and
+  // strand their charted position with a worse fit.
+  const chartedPlayerIds: Set<string> = new Set();
+  if (competitive && depthChart) {
+    for (const [pos, ids] of Object.entries(depthChart)) {
+      if (!Array.isArray(ids) || ids.length === 0) continue;
+      const key = canonicalizeOutfield(pos);
+      let m = depthChartRank.get(key);
+      if (!m) {
+        m = new Map();
+        depthChartRank.set(key, m);
+      }
+      // First occurrence wins if a player is listed under both CF and LCF/RCF.
+      ids.forEach((id, i) => {
+        if (!m!.has(id)) m!.set(id, i);
+        chartedPlayerIds.add(id);
+      });
+    }
   }
 
   const profiled = activePlayers.map((p) => ({
@@ -1641,6 +1737,8 @@ export function generateLineup(input: EngineInput): EngineResult {
         isBigGame: isBigGame || competitive,
         competitive,
         pitcherPoolIds,
+        depthChartRank,
+        chartedPlayerIds,
         catcherPolicy,
         rand,
         fromInning,
@@ -2371,7 +2469,10 @@ function tryBuildLineup(ctx: any): any {
     targetDateStr,
     leftyPenalty,
     isBigGame,
+    competitive,
     pitcherPoolIds,
+    depthChartRank,
+    chartedPlayerIds,
     catcherPolicy,
     rand,
     fromInning = 0,
@@ -2778,7 +2879,10 @@ function tryBuildLineup(ctx: any): any {
           leftyPenalty,
           isLockInning: useLock,
           isBigGame,
+          competitive,
           pitcherPoolIds,
+          depthChartRank,
+          chartedPlayerIds,
           catcherCap,
           rand,
           premiumPositions: PREMIUM_POSITIONS,
@@ -2969,7 +3073,10 @@ function pickBestForPosition(opts: any): any {
     leftyPenalty,
     isLockInning,
     isBigGame,
+    competitive,
     pitcherPoolIds,
+    depthChartRank,
+    chartedPlayerIds,
     catcherCap,
     rand,
     premiumPositions,
@@ -3185,6 +3292,28 @@ function pickBestForPosition(opts: any): any {
         score -= skill * 20 - 5;
       } else if (OF_POSITIONS.has(pos)) {
         score += skill * 12 - 6;
+      }
+    }
+
+    // COMPETITIVE (Tournament): the depth chart is authoritative. A charted
+    // player at this position gets a large rank-scaled bonus so the coach's
+    // order wins over skill/rotation/jitter — while only ever reordering
+    // candidates that already passed every hard gate above (eligibility,
+    // catcher cap, used-this-inning, blocked positions), so the chart can
+    // never make a lineup infeasible. Rank 0 always beats rank 1, and any
+    // charted player beats an uncharted one. No effect in Rec (gated on
+    // `competitive`, with an empty map there anyway).
+    if (competitive && depthChartRank) {
+      const rankMap = depthChartRank.get(canonicalizeOutfield(pos));
+      const rank = rankMap?.get(p.id);
+      if (typeof rank === "number") {
+        score -= DEPTH_CHART_BASE_BONUS - rank * DEPTH_CHART_RANK_STEP;
+      } else if (chartedPlayerIds && chartedPlayerIds.has(p.id)) {
+        // Charted elsewhere: keep them available for their own slot rather than
+        // letting an earlier-filled position grab them. Smaller than the bonus,
+        // so if the only remaining candidates for a slot are all charted
+        // elsewhere, one still fills it (feasibility preserved).
+        score += DEPTH_CHART_AVOID_PENALTY;
       }
     }
 

@@ -184,6 +184,12 @@ export interface Team {
   battingSize?: string;
   inningsCount?: string;
 
+  // Depth Chart manual overrides: position -> ordered player ids. When a
+  // position has an entry, it defines the coach's chosen order; comfortable
+  // players not listed are appended in auto-ranked order. Absent = pure
+  // auto-ranking from evals. Drives the Depth Chart tab.
+  depthChart?: Record<string, string[]>;
+
   // ----- Evaluations -----
   evaluationEvents?: EvaluationEvent[];
   evalSchemaVersion?: number;
@@ -369,6 +375,10 @@ export interface EngineInput {
   // this for Tournament (USSSA) games; Rec games leave it false. Reuses all the
   // shared safety rotation (catcher caps, pitcher rest/pitch limits).
   competitive?: boolean;
+  // Depth Chart (position -> ordered player ids). Consumed ONLY in competitive
+  // (Tournament) mode, where it makes the coach's per-position order
+  // authoritative over skill among otherwise-legal candidates. Ignored in Rec.
+  depthChart?: Record<string, string[]>;
   pitchingFormat?: string;
   // Catcher playing-time policy. "auto" (default) preserves the legacy
   // defense-size-driven behavior; "1".."6" sets a hard per-kid innings cap;
