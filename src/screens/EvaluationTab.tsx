@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
-import { calculateBaseballAge } from "../utils/helpers";
+import { calculateBaseballAge, evalStatHint } from "../utils/helpers";
 import {
   EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
@@ -1632,8 +1632,20 @@ export const EvaluationTab = memo(() => {
                           className="flex items-start justify-between gap-3"
                         >
                           <div className="flex-1 min-w-0">
-                            <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 block">
+                            <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 flex items-center gap-1.5 flex-wrap">
                               {cat.label}
+                              {(() => {
+                                const hint = evalStatHint(
+                                  cat.id,
+                                  player.stats,
+                                  player.pitching
+                                );
+                                return hint ? (
+                                  <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5 normal-case tracking-normal">
+                                    {hint}
+                                  </span>
+                                ) : null;
+                              })()}
                             </span>
                             {cat.description && (
                               <span className="text-[10px] font-medium text-ink-3 leading-tight block mt-0.5">
