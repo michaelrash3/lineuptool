@@ -15,6 +15,7 @@ import {
   checkPitchEligibility,
   buildPitchingPlan,
   resolvePitchRuleSet,
+  mostRecentDayPitches,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -2659,5 +2660,68 @@ describe("configurable pitch-count rule sets", () => {
     const plan = buildPitchingPlan(players, "2026-06-01", "9U", custom);
     expect(plan[0].status).toBe("maxed");
     expect(plan[0].maxPitches).toBe(50);
+  });
+});
+
+describe("doubleheader / same-day cumulative rest", () => {
+  test("mostRecentDayPitches sums the latest day and falls back to legacy fields", () => {
+    expect(
+      mostRecentDayPitches({
+        log: [
+          { date: "2026-05-10", pitches: 30, gameId: "g1" },
+          { date: "2026-05-10", pitches: 30, gameId: "g2" },
+        ],
+      })
+    ).toEqual({ pitches: 60, date: "2026-05-10" });
+    // Only the most recent day counts (earlier outings have since rested off).
+    expect(
+      mostRecentDayPitches({
+        log: [
+          { date: "2026-05-08", pitches: 40 },
+          { date: "2026-05-10", pitches: 25 },
+        ],
+      })
+    ).toEqual({ pitches: 25, date: "2026-05-10" });
+    // Legacy data with no log uses the single recentPitches/lastPitchDate.
+    expect(
+      mostRecentDayPitches({ recentPitches: 35, lastPitchDate: "2026-05-09" })
+    ).toEqual({ pitches: 35, date: "2026-05-09" });
+    expect(mostRecentDayPitches({})).toEqual({ pitches: 0, date: null });
+  });
+
+  test("a doubleheader requires rest on the summed total, not the last outing", () => {
+    // 30 + 30 = 60 pitches on 2026-05-10 -> needs 3 days rest (>=51 tier).
+    const dh = {
+      pitching: {
+        log: [
+          { date: "2026-05-10", pitches: 30, gameId: "g1" },
+          { date: "2026-05-10", pitches: 30, gameId: "g2" },
+        ],
+      },
+    };
+    // 2 days later would clear if only the last 30-pitch outing counted — it must not.
+    expect(checkPitchEligibility(dh, "2026-05-12", "9U")).toBe(false);
+    expect(checkPitchEligibility(dh, "2026-05-13", "9U")).toBe(false); // 3 days
+    expect(checkPitchEligibility(dh, "2026-05-14", "9U")).toBe(true); // 4 days
+  });
+
+  test("buildPitchingPlan reflects the summed same-day total", () => {
+    const players = [
+      {
+        id: "p1",
+        name: "Ace",
+        comfortablePositions: ["P"],
+        pitching: {
+          log: [
+            { date: "2026-05-10", pitches: 40, gameId: "g1" },
+            { date: "2026-05-10", pitches: 40, gameId: "g2" },
+          ],
+        },
+      },
+    ];
+    // 80 >= 9U max (75) -> maxed, and the displayed count is the 80 total.
+    const plan = buildPitchingPlan(players, "2026-05-20", "9U");
+    expect(plan[0].status).toBe("maxed");
+    expect(plan[0].recentPitches).toBe(80);
   });
 });
