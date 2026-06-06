@@ -2403,3 +2403,46 @@ describe("fielding & catcher stats blend (depth chart)", () => {
     expect(calcCatcherStatsQuality({})).toBeNull();
   });
 });
+
+describe("same-day pitch/catch exclusion (Kid Pitch)", () => {
+  test("no player both pitches and catches in a Kid Pitch game", () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const players = makeRoster(11);
+      const { lineup } = buildLineup({
+        players,
+        pitchingFormat: "Kid Pitch",
+        teamAge: "9U",
+        defenseSize: "9",
+        totalInnings: 6,
+        seed,
+      });
+      const pitchers = new Set();
+      const catchers = new Set();
+      for (const inn of lineup) {
+        if (inn.P) pitchers.add(inn.P.id);
+        if (inn.C) catchers.add(inn.C.id);
+      }
+      for (const id of pitchers) {
+        expect({ seed, id, alsoCaught: catchers.has(id) }).toEqual({
+          seed,
+          id,
+          alsoCaught: false,
+        });
+      }
+    }
+  });
+
+  test("machine pitch is unaffected (ceremonial P may also catch)", () => {
+    // Just asserts the engine still builds a valid lineup; the rule is off here.
+    const players = makeRoster(10);
+    const { lineup, error } = buildLineup({
+      players,
+      pitchingFormat: "Machine Pitch",
+      teamAge: "8U",
+      defenseSize: "10",
+      totalInnings: 6,
+    });
+    expect(error).toBeUndefined();
+    expect(lineup).toHaveLength(6);
+  });
+});
