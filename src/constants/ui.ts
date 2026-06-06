@@ -88,6 +88,38 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
   return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
 };
 
+// Position membership for eval gating. Catcher is opt-in ("C" in the list);
+// pitcher is "P" in the list — same positive position model the Roster uses.
+export const playerIsPitcher = (player?: {
+  comfortablePositions?: string[];
+}): boolean =>
+  Array.isArray(player?.comfortablePositions) &&
+  player!.comfortablePositions!.includes("P");
+
+export const playerIsCatcher = (player?: {
+  comfortablePositions?: string[];
+}): boolean =>
+  Array.isArray(player?.comfortablePositions) &&
+  player!.comfortablePositions!.includes("C");
+
+// Per-PLAYER eval categories. Universal categories always apply; on Kid-Pitch
+// teams the Pitching add-ons show only for pitchers and the Catching add-ons
+// only for catchers. So a kid is graded — and scored — only on the specialties
+// that actually apply to them (no penalty for missing the others).
+export const getEvalCategoriesForPlayer = (
+  pitchingFormat: string | undefined,
+  player: { comfortablePositions?: string[] } | undefined
+): EvalCategory[] => {
+  const kidPitch = isKidPitchFormat(pitchingFormat);
+  return EVAL_CATEGORIES.filter((c) => {
+    if (!c.addOn) return true;
+    if (!kidPitch) return false;
+    if (c.group === "Pitching") return playerIsPitcher(player);
+    if (c.group === "Catching") return playerIsCatcher(player);
+    return true;
+  });
+};
+
 // Current eval schema version. Used to migrate teams off older shapes.
 //   v1: 6-category grades (legacy, wiped)
 //   v2: 11-category 1–10 scale (Coach's Card v2)
@@ -121,6 +153,23 @@ export const EVAL_SCALE_LABELS = [
 ];
 export const EVAL_SCALE_MAX = 5;
 export const EVAL_SCALE_DEFAULT = 3;
+
+// Roster-decision premium for pitching well. Pure: takes a player's
+// eval-weighted pitcher score and the sum of those weights, and rewards only
+// pitching ABOVE the neutral grade — so default/ungraded pitching (every cat at
+// EVAL_SCALE_DEFAULT) adds nothing, weak pitching never subtracts, and an elite
+// pitcher (all max) earns the full bonus. Returns 0..PITCHER_ROSTER_PREMIUM_MAX.
+export const PITCHER_ROSTER_PREMIUM_MAX = 15;
+export const pitcherRosterPremium = (
+  pitcherScore: number,
+  weightSum: number
+): number => {
+  const neutral = weightSum * EVAL_SCALE_DEFAULT;
+  const span = weightSum * (EVAL_SCALE_MAX - EVAL_SCALE_DEFAULT);
+  const above = pitcherScore - neutral;
+  if (above <= 0 || span <= 0) return 0;
+  return Math.round(Math.min(1, above / span) * PITCHER_ROSTER_PREMIUM_MAX);
+};
 
 export const getLocalDateString = () => {
   const d = new Date();
