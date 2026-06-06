@@ -2562,3 +2562,33 @@ describe("dual-role Pool/Bracket deployment (catch pool, pitch bracket)", () => 
     expect(p0Pitched).toBe(true);
   });
 });
+
+describe("position importance P > C > 1B (Big Game)", () => {
+  test("the strongest player is steered to the spine (P/C/1B) over SS/3B/OF", () => {
+    // p0 is clearly the best bat; nobody is graded as a pitcher (no pool), so
+    // P is filled by the generic picker where the importance pull applies.
+    const players = makeRoster(11, {
+      p0: { stats: { ops: 1.6, obp: 0.6, avg: 0.6, hard: 0.8, rbi: 30 } },
+    });
+    let spine = 0;
+    let total = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const { lineup } = buildLineup({
+        players,
+        isBigGame: true,
+        teamAge: "9U",
+        defenseSize: "9",
+        totalInnings: 6,
+        seed,
+      });
+      for (const inn of lineup) {
+        const pos = posOf(inn, "p0");
+        if (!pos) continue;
+        total++;
+        if (pos === "P" || pos === "C" || pos === "1B") spine++;
+      }
+    }
+    expect(total).toBeGreaterThan(0);
+    expect(spine / total).toBeGreaterThan(0.6);
+  });
+});

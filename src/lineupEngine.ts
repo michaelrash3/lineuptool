@@ -953,6 +953,14 @@ const DEPTH_CHART_RANK_STEP = 100;
 // so they stay available for their charted slot. Smaller than the base bonus so
 // it never blocks a slot (a charted-elsewhere player is a valid last resort).
 const DEPTH_CHART_AVOID_PENALTY = 6000;
+// Position-importance extra pull (Big Game / competitive), on top of the base
+// premium pull: the spine is Pitcher > Catcher > 1B, so the strongest players
+// fill those before SS/3B. Skill-scaled at the call site.
+const PREMIUM_IMPORTANCE_EXTRA: Record<string, number> = {
+  P: 10,
+  C: 7,
+  "1B": 4,
+};
 
 // ---------- Seeded PRNG ----------
 function mulberry32(seed: number): () => number {
@@ -3529,6 +3537,11 @@ function pickBestForPosition(opts: any): any {
       const skill = Math.min(Math.max(overall / 100, 0), 1);
       if (isPremium) {
         score -= skill * 20 - 5;
+        // Position importance: the spine is Pitcher > Catcher > 1B. An extra
+        // skill-scaled pull so the strongest available players are steered to
+        // those first (ahead of SS/3B). Skill-scaled, so weak players aren't
+        // distorted and feasibility is unaffected.
+        score -= skill * (PREMIUM_IMPORTANCE_EXTRA[pos] || 0);
       } else if (OF_POSITIONS.has(pos)) {
         score += skill * 12 - 6;
       }
