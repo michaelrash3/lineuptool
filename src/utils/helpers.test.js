@@ -23,6 +23,8 @@ import {
   FIRESTORE_DOC_LIMIT_BYTES,
   buildSeasonPositionVariety,
   buildSeasonSummary,
+  compareRecordsByWinningPercentage,
+  recordWinningPercentage,
   clampText,
   isValidEmail,
   isSafeCssColor,
@@ -1169,6 +1171,20 @@ describe("buildSeasonPositionVariety", () => {
     const m = buildSeasonPositionVariety([g], [{ id: "p1", name: "Ava Rivera" }]);
     expect(m.get("p1").byPosition).toEqual({ SS: 1 });
     expect(m.has("old1")).toBe(false);
+  });
+});
+
+describe("record standings helpers", () => {
+  it("ranks an 8-2-3 GameChanger record above 10-4 by win percentage", () => {
+    const gcRecord = { wins: 8, losses: 2, ties: 3 };
+    const tenFour = { wins: 10, losses: 4, ties: 0 };
+
+    expect(recordWinningPercentage(gcRecord)).toBeCloseTo(0.731, 3);
+    expect(recordWinningPercentage(tenFour)).toBeCloseTo(0.714, 3);
+    expect([tenFour, gcRecord].sort(compareRecordsByWinningPercentage)).toEqual([
+      gcRecord,
+      tenFour,
+    ]);
   });
 });
 

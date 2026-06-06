@@ -508,6 +508,43 @@ export interface SeasonGameResult {
   result: "W" | "L" | "T";
 }
 
+export interface TeamRecordLike {
+  wins?: number | null;
+  losses?: number | null;
+  ties?: number | null;
+}
+
+// GameChanger-style standings use winning percentage, with ties counting as
+// half a win and half a loss. That means 8-2-3 (.731) correctly ranks above
+// 10-4 (.714), even though 10-4 has more total wins.
+export const recordWinningPercentage = (
+  record: TeamRecordLike | null | undefined
+): number => {
+  const wins = Number(record?.wins) || 0;
+  const losses = Number(record?.losses) || 0;
+  const ties = Number(record?.ties) || 0;
+  const total = wins + losses + ties;
+  if (total <= 0) return 0;
+  return (wins + 0.5 * ties) / total;
+};
+
+export const compareRecordsByWinningPercentage = (
+  a: TeamRecordLike | null | undefined,
+  b: TeamRecordLike | null | undefined
+): number => {
+  const pctDiff = recordWinningPercentage(b) - recordWinningPercentage(a);
+  if (pctDiff !== 0) return pctDiff;
+  const aWins = Number(a?.wins) || 0;
+  const bWins = Number(b?.wins) || 0;
+  if (bWins !== aWins) return bWins - aWins;
+  const aLosses = Number(a?.losses) || 0;
+  const bLosses = Number(b?.losses) || 0;
+  if (aLosses !== bLosses) return aLosses - bLosses;
+  const aTies = Number(a?.ties) || 0;
+  const bTies = Number(b?.ties) || 0;
+  return bTies - aTies;
+};
+
 export interface SeasonSummary {
   wins: number;
   losses: number;
