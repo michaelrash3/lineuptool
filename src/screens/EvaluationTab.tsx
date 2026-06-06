@@ -13,12 +13,27 @@ import {
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
   getEvalCategoriesForTeam,
+  getEvalCategoriesForPlayer,
+  playerIsPitcher,
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
-import { calculateTotalScore } from "../lineupEngine";
+import { calculateTotalScore, calcPitcherScore } from "../lineupEngine";
+
+// Roster-decision premium: pitching well puts a kid a leg up when comparing
+// players. Added on top of the universal Total Score (never subtracts), so a
+// strong pitcher out-ranks an equal non-pitcher, and non-pitchers are unchanged.
+// Max calcPitcherScore (all 5s) ≈ 32.5; scale that to at most +PITCHER_PREMIUM_MAX
+// points on the 0–100 total. Uses SAVED grades so an ungraded pitcher gets none.
+const PITCHER_PREMIUM_MAX = 15;
+const pitcherPremium = (savedGrades: any, player: any): number => {
+  if (!playerIsPitcher(player)) return 0;
+  const raw = calcPitcherScore(savedGrades);
+  if (!(raw > 0)) return 0;
+  return Math.round(Math.min(1, raw / 32.5) * PITCHER_PREMIUM_MAX);
+};
 import { useTeam, useUI } from "../contexts";
 import { evalPromptStatus } from "../utils/helpers";
 
@@ -129,13 +144,17 @@ export const RosterDecisionsPanel = memo(() => {
     const decisionRows = players.map((player: any) => {
       // ---- Latest eval grade (average across categories) ----
       let latestEvalAvg = null;
+      const playerCats = getEvalCategoriesForPlayer(team?.pitchingFormat, player);
       const evalsForPlayer = myEvals
         .map((ev: any) => {
           const g = ev.grades?.[player.id];
           if (!g) return null;
-          const vals = EVAL_CATEGORIES.map((c) => +g[c.id]).filter((v) =>
-            Number.isFinite(v)
-          );
+          // Average only over categories that apply to THIS player, so a
+          // non-catcher/non-pitcher isn't dragged down by specialties they
+          // were never meant to be graded on.
+          const vals = playerCats
+            .map((c) => +g[c.id])
+            .filter((v) => Number.isFinite(v));
           if (vals.length === 0) return null;
           return {
             date: ev.date,
@@ -357,7 +376,7 @@ export const RosterDecisionsPanel = memo(() => {
     }
 
     return decisionRows;
-  }, [players, evaluationEvents, user, teamAge, currentSeason]);
+  }, [players, evaluationEvents, user, teamAge, currentSeason, team?.pitchingFormat]);
 
   if (!decisions || decisions.length === 0) return null;
 
@@ -1535,15 +1554,29 @@ export const EvaluationTab = memo(() => {
             </div>
           ) : (
             players.map((player: any) => {
+              const savedGrades = teamEvalGrades[player.id] || {};
               const grades = {
                 ...DEFAULT_GRADES,
-                ...(teamEvalGrades[player.id] || {}),
+                ...savedGrades,
               };
-              const totalScore = calculateTotalScore(grades, player.stats);
+              // Only the categories that apply to this kid (universal + their
+              // pitching/catching specialty), so non-pitchers/non-catchers
+              // aren't shown — or scored on — spots that don't apply to them.
+              const playerCats = getEvalCategoriesForPlayer(
+                team?.pitchingFormat,
+                player
+              );
+              // Roster-decision value: universal Total Score plus a pitching
+              // premium for pitchers (additive — never penalizes non-pitchers).
+              const totalScore = Math.min(
+                100,
+                calculateTotalScore(grades, player.stats) +
+                  pitcherPremium(savedGrades, player)
+              );
               const expanded = expandedPlayerIds.has(player.id);
               // Count how many categories the coach has graded (any non-default
               // chip click) so the collapsed row can show progress at a glance.
-              const gradedCount = activeCategories.filter(
+              const gradedCount = playerCats.filter(
                 (c) => Number.isFinite(grades[c.id]) && grades[c.id] > 0
               ).length;
               return (
@@ -1571,7 +1604,7 @@ export const EvaluationTab = memo(() => {
                       {player.name}
                     </span>
                     <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
-                      {gradedCount}/{activeCategories.length}
+                      {gradedCount}/{playerCats.length}
                     </span>
                     <span
                       className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
@@ -1586,7 +1619,7 @@ export const EvaluationTab = memo(() => {
                   </button>
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-line space-y-2.5">
-                      {activeCategories.map((cat) => (
+                      {playerCats.map((cat) => (
                         <div
                           key={cat.id}
                           className="flex items-start justify-between gap-3"

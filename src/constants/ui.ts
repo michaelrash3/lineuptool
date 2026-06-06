@@ -88,6 +88,38 @@ export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[
   return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
 };
 
+// Position membership for eval gating. Catcher is opt-in ("C" in the list);
+// pitcher is "P" in the list — same positive position model the Roster uses.
+export const playerIsPitcher = (player?: {
+  comfortablePositions?: string[];
+}): boolean =>
+  Array.isArray(player?.comfortablePositions) &&
+  player!.comfortablePositions!.includes("P");
+
+export const playerIsCatcher = (player?: {
+  comfortablePositions?: string[];
+}): boolean =>
+  Array.isArray(player?.comfortablePositions) &&
+  player!.comfortablePositions!.includes("C");
+
+// Per-PLAYER eval categories. Universal categories always apply; on Kid-Pitch
+// teams the Pitching add-ons show only for pitchers and the Catching add-ons
+// only for catchers. So a kid is graded — and scored — only on the specialties
+// that actually apply to them (no penalty for missing the others).
+export const getEvalCategoriesForPlayer = (
+  pitchingFormat: string | undefined,
+  player: { comfortablePositions?: string[] } | undefined
+): EvalCategory[] => {
+  const kidPitch = isKidPitchFormat(pitchingFormat);
+  return EVAL_CATEGORIES.filter((c) => {
+    if (!c.addOn) return true;
+    if (!kidPitch) return false;
+    if (c.group === "Pitching") return playerIsPitcher(player);
+    if (c.group === "Catching") return playerIsCatcher(player);
+    return true;
+  });
+};
+
 // Current eval schema version. Used to migrate teams off older shapes.
 //   v1: 6-category grades (legacy, wiped)
 //   v2: 11-category 1–10 scale (Coach's Card v2)

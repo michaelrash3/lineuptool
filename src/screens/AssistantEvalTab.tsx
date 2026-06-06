@@ -6,6 +6,8 @@ import {
   EVAL_GROUPS_KID_PITCH_ADDONS,
   getEvalCategoriesForTeam,
   isKidPitchFormat,
+  playerIsPitcher,
+  playerIsCatcher,
   getLocalDateString,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
@@ -164,6 +166,14 @@ export const AssistantEvalTab = memo(() => {
     [activeCategories, activeGroup]
   );
 
+  // The Pitching / Catching groups only apply to pitchers / catchers, so only
+  // those kids show up on those tabs (universal groups show everyone).
+  const playersForGroup = useMemo(() => {
+    if (activeGroup === "Pitching") return orderedPlayers.filter(playerIsPitcher);
+    if (activeGroup === "Catching") return orderedPlayers.filter(playerIsCatcher);
+    return orderedPlayers;
+  }, [orderedPlayers, activeGroup]);
+
   if (viewingPastRound) {
     return (
       <div className="max-w-5xl mx-auto space-y-4">
@@ -278,13 +288,17 @@ export const AssistantEvalTab = memo(() => {
         </div>
 
         <div className="px-3 sm:px-5 py-4 space-y-3">
-          {orderedPlayers.length === 0 ? (
+          {playersForGroup.length === 0 ? (
             <div className="text-center py-12 text-ink-3 text-sm font-medium">
-              No active players to evaluate.
+              {activeGroup === "Pitching"
+                ? "No pitchers on the roster. Mark a player comfortable at P to grade pitching."
+                : activeGroup === "Catching"
+                ? "No catchers on the roster. Mark a player as a catcher to grade catching."
+                : "No active players to evaluate."}
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {orderedPlayers.map((p: any) => (
+              {playersForGroup.map((p: any) => (
                 <EvalGradeCard
                   key={p.id}
                   player={p}
