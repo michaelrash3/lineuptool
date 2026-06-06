@@ -1984,6 +1984,85 @@ export const summarizePitchingWorkload = (
   return { outings: log.length, totalPitches, maxPitches, lastDate };
 };
 
+// Catching outing log — mirrors the pitching log so we can enforce the same-day
+// catch<->pitch rule across games (doubleheaders), where the in-lineup rule
+// can't reach. Entries are deduped by gameId.
+export interface CatchingOuting {
+  date: string;
+  innings: number;
+  gameId?: string;
+}
+const CATCHING_LOG_CAP = 12;
+
+export const recordCatchingOuting = (
+  catching: Record<string, any> | null | undefined,
+  date: string,
+  innings: number,
+  gameId?: string
+): Record<string, any> => {
+  const base = catching || {};
+  const all: CatchingOuting[] = Array.isArray(base.log) ? base.log : [];
+  const prior = all.filter((o: any) => {
+    if (!o || !o.date) return false;
+    if (gameId) return o.gameId !== gameId;
+    return o.date !== date;
+  });
+  const entry: CatchingOuting = gameId
+    ? { date, innings, gameId }
+    : { date, innings };
+  const log = [...prior, entry]
+    .sort(
+      (a, b) =>
+        b.date.localeCompare(a.date) ||
+        String(b.gameId || "").localeCompare(String(a.gameId || ""))
+    )
+    .slice(0, CATCHING_LOG_CAP);
+  return { ...base, lastCatchDate: date, log };
+};
+
+// Who pitched / caught on `date` in games OTHER than excludeGameId — drives the
+// same-day catch<->pitch rule for doubleheaders (a kid who pitched game 1 can't
+// catch game 2 that day, and vice-versa). Reads each player's per-date logs.
+export const sameDayRoleSets = (
+  players:
+    | Array<{
+        id: string;
+        pitching?: { log?: PitchingOuting[] };
+        catching?: { log?: CatchingOuting[] };
+      }>
+    | null
+    | undefined,
+  date: string | undefined,
+  excludeGameId?: string
+): { pitched: Set<string>; caught: Set<string> } => {
+  const pitched = new Set<string>();
+  const caught = new Set<string>();
+  if (!date) return { pitched, caught };
+  for (const p of players || []) {
+    const pl = Array.isArray(p.pitching?.log) ? p.pitching!.log! : [];
+    if (
+      pl.some(
+        (o) =>
+          o?.date === date &&
+          (Number(o?.pitches) || 0) > 0 &&
+          o.gameId !== excludeGameId
+      )
+    )
+      pitched.add(p.id);
+    const cl = Array.isArray(p.catching?.log) ? p.catching!.log! : [];
+    if (
+      cl.some(
+        (o) =>
+          o?.date === date &&
+          (Number(o?.innings) || 0) > 0 &&
+          o.gameId !== excludeGameId
+      )
+    )
+      caught.add(p.id);
+  }
+  return { pitched, caught };
+};
+
 // ---------------------------------------------------------------------------
 // Public-form input hygiene.
 //

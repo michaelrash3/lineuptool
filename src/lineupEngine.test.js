@@ -109,6 +109,8 @@ const buildLineup = (opts = {}) => {
     isBigGame: opts.isBigGame || false,
     competitive: opts.competitive || false,
     depthChart: opts.depthChart,
+    pitchRuleSet: opts.pitchRuleSet,
+    sameDayRoles: opts.sameDayRoles,
     catcherMaxInnings: opts.catcherMaxInnings,
     catcherConsecutive: opts.catcherConsecutive,
     pitchingFormat: opts.pitchingFormat,
@@ -2792,5 +2794,51 @@ describe("analyzePitchingWorkload (arm care)", () => {
     expect(w.alerts).toEqual([]);
     expect(analyzePitchingWorkload({}).outings).toBe(0);
     expect(analyzePitchingWorkload(null).alerts).toEqual([]);
+  });
+});
+
+describe("cross-game same-day catch <-> pitch (doubleheaders)", () => {
+  test("a kid who pitched earlier today can't catch the later game", () => {
+    const players = makeRoster(11);
+    const { lineup } = buildLineup({
+      players,
+      pitchingFormat: "Kid Pitch",
+      teamAge: "9U",
+      defenseSize: "9",
+      totalInnings: 6,
+      seed: 3,
+      sameDayRoles: { pitched: new Set(["p0"]), caught: new Set() },
+    });
+    for (const inn of lineup) {
+      if (inn.C) expect(inn.C.id).not.toBe("p0");
+    }
+  });
+
+  test("a kid who caught earlier today can't pitch the later game", () => {
+    const players = makeRoster(11);
+    const { lineup } = buildLineup({
+      players,
+      pitchingFormat: "Kid Pitch",
+      teamAge: "9U",
+      defenseSize: "9",
+      totalInnings: 6,
+      seed: 3,
+      sameDayRoles: { pitched: new Set(), caught: new Set(["p1"]) },
+    });
+    for (const inn of lineup) {
+      if (inn.P) expect(inn.P.id).not.toBe("p1");
+    }
+  });
+
+  test("non-Kid-Pitch ignores the same-day sets (ceremonial P)", () => {
+    const players = makeRoster(11);
+    const { error } = buildLineup({
+      players,
+      pitchingFormat: "Machine Pitch",
+      teamAge: "8U",
+      defenseSize: "10",
+      sameDayRoles: { pitched: new Set(["p0"]), caught: new Set(["p1"]) },
+    });
+    expect(error).toBeUndefined();
   });
 });

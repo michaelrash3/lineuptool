@@ -4,6 +4,7 @@ import {
   generateBattingOnly as engineGenerateBattingOnly,
   resolvePitchRuleSet,
 } from "../lineupEngine";
+import { sameDayRoleSets } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Lineup generation, undo, save, templates, and mid-game player removal —
@@ -82,6 +83,7 @@ export const useLineupActions = ({
           (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
         depthChart: teamData.depthChart,
         pitchRuleSet: resolvePitchRuleSet({ pitchRuleSet: teamData.pitchRuleSet, customPitchLimit: teamData.customPitchLimit, customRestTiers: teamData.customRestTiers }),
+        sameDayRoles: sameDayRoleSets(teamData.players, currentGame.date, currentGame.id),
         teamAge: teamData.teamAge,
         defenseSize: currentGame.defenseSize || teamData.defenseSize,
         positionLock: currentGame.positionLock || teamData.positionLock,
@@ -264,6 +266,7 @@ export const useLineupActions = ({
         (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
       depthChart: teamData.depthChart,
       pitchRuleSet: resolvePitchRuleSet({ pitchRuleSet: teamData.pitchRuleSet, customPitchLimit: teamData.customPitchLimit, customRestTiers: teamData.customRestTiers }),
+      sameDayRoles: sameDayRoleSets(teamData.players, currentGame.date, currentGame.id),
       teamAge: teamData.teamAge,
       defenseSize: currentGame.defenseSize || teamData.defenseSize,
       positionLock: currentGame.positionLock || teamData.positionLock,

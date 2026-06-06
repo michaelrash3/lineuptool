@@ -33,6 +33,8 @@ import {
   extractAdvancedStats,
   evalStatHint,
   deriveTournaments,
+  recordCatchingOuting,
+  sameDayRoleSets,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1395,5 +1397,50 @@ describe("deriveTournaments", () => {
     ];
     expect(deriveTournaments(games, "USSSA")).toHaveLength(1);
     expect(deriveTournaments(games, "NKB")).toEqual([]);
+  });
+});
+
+describe("recordCatchingOuting + sameDayRoleSets", () => {
+  it("logs catching outings, deduped by gameId (doubleheaders stay distinct)", () => {
+    let c = recordCatchingOuting(null, "2026-05-10", 3, "g1");
+    expect(c.log).toEqual([{ date: "2026-05-10", innings: 3, gameId: "g1" }]);
+    expect(c.lastCatchDate).toBe("2026-05-10");
+    // Same date, different game -> kept separately.
+    c = recordCatchingOuting(c, "2026-05-10", 2, "g2");
+    expect(c.log).toHaveLength(2);
+    // Re-finalizing g1 replaces its entry in place.
+    c = recordCatchingOuting(c, "2026-05-10", 4, "g1");
+    expect(c.log.filter((o) => o.gameId === "g1")).toEqual([
+      { date: "2026-05-10", innings: 4, gameId: "g1" },
+    ]);
+    expect(c.log).toHaveLength(2);
+  });
+
+  it("derives who pitched/caught on a date, excluding the current game", () => {
+    const players = [
+      {
+        id: "a",
+        pitching: { log: [{ date: "2026-05-10", pitches: 30, gameId: "g1" }] },
+      },
+      {
+        id: "b",
+        catching: { log: [{ date: "2026-05-10", innings: 3, gameId: "g1" }] },
+      },
+      {
+        id: "c",
+        pitching: { log: [{ date: "2026-05-09", pitches: 40, gameId: "g0" }] },
+      },
+    ];
+    // Building game g2 on 2026-05-10: a pitched today, b caught today, c was
+    // yesterday (ignored).
+    const sets = sameDayRoleSets(players, "2026-05-10", "g2");
+    expect([...sets.pitched]).toEqual(["a"]);
+    expect([...sets.caught]).toEqual(["b"]);
+
+    // Excluding the SAME game the activity came from yields nothing (you don't
+    // block yourself within the game you're building).
+    const selfExcluded = sameDayRoleSets(players, "2026-05-10", "g1");
+    expect(selfExcluded.pitched.size).toBe(0);
+    expect(selfExcluded.caught.size).toBe(0);
   });
 });
