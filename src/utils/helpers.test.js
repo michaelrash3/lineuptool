@@ -30,7 +30,55 @@ import {
   isSafeCssColor,
   isSafeImageUrl,
   SIGNUP_LIMITS,
+  extractAdvancedStats,
 } from "./helpers";
+
+describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
+  // label row puts the section name at each section's first column; the header
+  // row has the real column names. Batting and Pitching both have h/bb here —
+  // the extractor must read pitching's, not batting's.
+  const labelRow = [
+    "batting", "", "", "",
+    "pitching", "", "", "", "",
+    "fielding", "", "", "",
+  ];
+  const headerRow = [
+    "gp", "ops", "h", "bb",
+    "ip", "s%", "h", "bb", "whip",
+    "fpct", "e", "cs%", "pb",
+  ];
+  const cols = [
+    "10", "0.900", "12", "5",
+    "20.0", "65%", "8", "3", "1.10",
+    ".952", "2", "40%", "1",
+  ];
+
+  it("reads pitching + fielding columns from their own sections", () => {
+    const s = extractAdvancedStats(labelRow, headerRow, cols);
+    expect(s.pIp).toBe(20);
+    expect(s.pStrikePct).toBeCloseTo(0.65);
+    expect(s.pWhip).toBeCloseTo(1.1);
+    expect(s.fFpct).toBeCloseTo(0.952);
+    expect(s.fErrors).toBe(2);
+    expect(s.fCsPct).toBeCloseTo(0.4);
+    expect(s.fPb).toBe(1);
+  });
+
+  it("does not pull Batting columns of the same name into pitching", () => {
+    const s = extractAdvancedStats(labelRow, headerRow, cols);
+    // h/bb aren't in the pitching/fielding maps, so neither the batting nor the
+    // pitching copies leak in — and the batting h (12) never masquerades as a
+    // pitching stat.
+    expect(s).not.toHaveProperty("h");
+    expect(s).not.toHaveProperty("bb");
+  });
+
+  it("returns {} when the export has no section labels", () => {
+    expect(extractAdvancedStats(undefined, headerRow, cols)).toEqual({});
+    const noLabels = ["", "", ""];
+    expect(extractAdvancedStats(noLabels, ["ops", "h", "bb"], ["1", "2", "3"])).toEqual({});
+  });
+});
 
 describe("CSV helpers", () => {
   it("parses quoted commas, escaped quotes, and embedded newlines", () => {

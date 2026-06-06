@@ -907,6 +907,92 @@ export const buildCsvHeaderIndex = (headers: string[]): CsvHeaderIndex => {
   };
 };
 
+// GameChanger reuses column names across the Batting / Pitching / Fielding
+// sections (H, BB, SO, SB, CS, HR, GP, R, …). buildCsvHeaderIndex reads the
+// Batting section correctly (first occurrence), but pulling pitching/fielding
+// stats requires bounding the search to each section. The two-row export's
+// label row ("batting"/"pitching"/"fielding") delimits the sections; we map the
+// chosen columns within each range into section-namespaced PlayerStats fields.
+const PITCHING_COLS: Record<string, keyof PlayerStats> = {
+  ip: "pIp",
+  bf: "pBf",
+  "s%": "pStrikePct",
+  "fps%": "pFps",
+  "bb/inn": "pBbPerInn",
+  "k/bb": "pKbb",
+  whip: "pWhip",
+  era: "pEra",
+  baa: "pBaa",
+  "k/bf": "pKbf",
+  "sm%": "pSwingMiss",
+  "weak%": "pWeak",
+  "hhb%": "pHardPct",
+  "go/ao": "pGoAo",
+  topmph: "pTopMph",
+  mphfb: "pFbMph",
+};
+const FIELDING_COLS: Record<string, keyof PlayerStats> = {
+  fpct: "fFpct",
+  e: "fErrors",
+  tc: "fTc",
+  a: "fAssists",
+  po: "fPutouts",
+  "cs%": "fCsPct",
+  pb: "fPb",
+  sb: "fSbAllowed",
+  sbatt: "fSbAtt",
+};
+// Stored as 0–1 fractions (parsePercent). FPCT is already a 0–1 decimal in the
+// CSV (e.g. ".952"), so it parses as a plain number.
+const ADV_PCT_KEYS = new Set<string>([
+  "pStrikePct",
+  "pFps",
+  "pSwingMiss",
+  "pWeak",
+  "pHardPct",
+  "fCsPct",
+]);
+
+// Extract section-namespaced pitching + fielding stats from one data row, using
+// the label row to bound each section so duplicate column names don't collide
+// with Batting. Returns {} when the export has no section labels (batting-only).
+export const extractAdvancedStats = (
+  labelRow: string[] | undefined,
+  headerRow: string[],
+  cols: string[]
+): PlayerStats => {
+  if (!labelRow) return {};
+  const pitchStart = labelRow.indexOf("pitching");
+  const fieldStart = labelRow.indexOf("fielding");
+  if (pitchStart === -1 && fieldStart === -1) return {};
+  const end = headerRow.length;
+  const ranges: Array<[Record<string, keyof PlayerStats>, number, number]> = [];
+  if (pitchStart !== -1)
+    ranges.push([
+      PITCHING_COLS,
+      pitchStart,
+      fieldStart !== -1 && fieldStart > pitchStart ? fieldStart : end,
+    ]);
+  if (fieldStart !== -1) ranges.push([FIELDING_COLS, fieldStart, end]);
+
+  const out: PlayerStats = {};
+  for (const [map, lo, hi] of ranges) {
+    for (let c = lo; c < hi && c < headerRow.length; c++) {
+      const key = map[headerRow[c]];
+      if (!key) continue;
+      const raw = cols[c];
+      if (raw === undefined || raw === "" || raw === "-") continue;
+      if (ADV_PCT_KEYS.has(key as string)) {
+        out[key] = parsePercent(raw);
+      } else {
+        const n = parseFloat(raw);
+        if (Number.isFinite(n)) out[key] = n;
+      }
+    }
+  }
+  return out;
+};
+
 export const parsePercent = (val: unknown): number => {
   if (!val) return 0;
   const raw = parseFloat(String(val).replace("%", ""));
@@ -931,6 +1017,10 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
   const rawHeaders = csvRows[headerRowIndex].map((h) =>
     h.toLowerCase().trim()
   );
+  // Section label row (when present) delimits Batting/Pitching/Fielding so the
+  // advanced-stat extractor can read pitching/fielding columns without colliding
+  // with the same-named Batting columns.
+  const labelRow = headerRowIndex === 1 ? firstRow : undefined;
   const idx = buildCsvHeaderIndex(rawHeaders);
 
   if (idx.isTeamSnap) {
@@ -1016,6 +1106,7 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
     setPct("hard", idx.hard);
     setPct("qab", idx.qab);
     setNum("babip", idx.babip);
+    Object.assign(stats, extractAdvancedStats(labelRow, rawHeaders, cols));
 
     if (Object.keys(stats).length === 0) continue;
     importRows.push({
