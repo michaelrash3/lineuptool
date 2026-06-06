@@ -1699,6 +1699,41 @@ export function generateLineup(input: EngineInput): EngineResult {
       .sort((a, b) => b.score - a.score);
     const n = getPitcherPoolSize(gameType);
     pitcherPoolIds = new Set(ranked.slice(0, n).map((row) => row.p.id));
+
+    // Dual-role tournament deployment: in a POOL game, save the #1 catcher's
+    // arm — they catch in pool and pitch in bracket. Drop them from the pitcher
+    // pool so a dual-#1 (your top catcher who's also a pool arm) is steered to C
+    // in pool play; the same-day rule then keeps them off the mound that game.
+    // Bracket games keep them in the pool, so your ace catcher can pitch to win.
+    if (gameType === "pool" && pitcherPoolIds.size > 1) {
+      const chartC = (depthChart as any)?.["C"];
+      let topCatcherId: string | null = null;
+      if (Array.isArray(chartC)) {
+        for (const id of chartC) {
+          const p = (activePlayers as any[]).find((x) => x.id === id);
+          if (p && isCatcherEligible(p)) {
+            topCatcherId = id;
+            break;
+          }
+        }
+      }
+      if (!topCatcherId) {
+        let best = -Infinity;
+        for (const p of activePlayers as any[]) {
+          if (!isCatcherEligible(p)) continue;
+          const s = calcCatcherScore(combinedGrades[p.id], p.stats);
+          if (s > best) {
+            best = s;
+            topCatcherId = p.id;
+          }
+        }
+      }
+      // Only drop them if it leaves a usable pool (don't strand pool play with
+      // no arms when the top catcher is also your only listed pitcher).
+      if (topCatcherId && pitcherPoolIds.has(topCatcherId)) {
+        pitcherPoolIds.delete(topCatcherId);
+      }
+    }
   }
 
   // Competitive-only: a per-position rank lookup from the coach's depth chart,

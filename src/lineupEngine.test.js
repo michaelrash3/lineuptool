@@ -2510,3 +2510,55 @@ describe("same-day pitch/catch — bypass paths (pool, pre-pin, consecutive)", (
     }
   });
 });
+
+describe("dual-role Pool/Bracket deployment (catch pool, pitch bracket)", () => {
+  // p0 is the #1 catcher AND a top arm; p1/p2 are other pool arms (carrying more
+  // recent pitches, so p0 is the freshest/preferred arm when eligible).
+  const players = makeRoster(11, {
+    p1: { pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" } },
+    p2: { pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" } },
+  });
+  const evaluationEvents = [
+    {
+      id: "e",
+      date: "2026-04-01",
+      coachRole: "Head",
+      evaluatorId: "c",
+      grades: {
+        p0: { strikes: 5, blocking: 5, throwing: 5, receiving: 5 },
+        p1: { strikes: 5 },
+        p2: { strikes: 5 },
+      },
+    },
+  ];
+  const run = (gameType) =>
+    buildLineup({
+      players,
+      evaluationEvents,
+      pitchingFormat: "Kid Pitch",
+      teamAge: "9U",
+      defenseSize: "9",
+      currentGame: baseGame({ gameType }),
+      totalInnings: 6,
+      seed: 1,
+    }).lineup;
+
+  test("Pool: the #1 catcher is held out of the pitcher pool (catches, doesn't pitch)", () => {
+    const lineup = run("pool");
+    let p0Pitched = false;
+    let someonePitched = false;
+    for (const inn of lineup) {
+      if (inn.P) someonePitched = true;
+      if (inn.P?.id === "p0") p0Pitched = true;
+    }
+    expect(someonePitched).toBe(true); // pool isn't empty — other arms cover it
+    expect(p0Pitched).toBe(false); // arm saved for bracket
+  });
+
+  test("Bracket: the same dual-#1 is free to pitch", () => {
+    const lineup = run("bracket");
+    let p0Pitched = false;
+    for (const inn of lineup) if (inn.P?.id === "p0") p0Pitched = true;
+    expect(p0Pitched).toBe(true);
+  });
+});
