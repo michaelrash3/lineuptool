@@ -16,6 +16,7 @@ import {
   buildPitchingPlan,
   resolvePitchRuleSet,
   mostRecentDayPitches,
+  analyzePitchingWorkload,
 } from "./lineupEngine";
 
 // ---------------------------------------------------------------------------
@@ -2723,5 +2724,73 @@ describe("doubleheader / same-day cumulative rest", () => {
     const plan = buildPitchingPlan(players, "2026-05-20", "9U");
     expect(plan[0].status).toBe("maxed");
     expect(plan[0].recentPitches).toBe(80);
+  });
+});
+
+describe("analyzePitchingWorkload (arm care)", () => {
+  test("summarizes season + last-7 and sums doubleheader days", () => {
+    const w = analyzePitchingWorkload(
+      {
+        log: [
+          { date: "2026-05-01", pitches: 40 },
+          { date: "2026-05-08", pitches: 30, gameId: "g1" },
+          { date: "2026-05-08", pitches: 20, gameId: "g2" },
+        ],
+      },
+      undefined,
+      "2026-05-10"
+    );
+    expect(w.totalPitches).toBe(90);
+    expect(w.outings).toBe(3);
+    expect(w.maxDay).toBe(50); // 30 + 20 doubleheader
+    expect(w.last7).toBe(50); // only 05-08 is within 7 days of 05-10
+    expect(w.lastDate).toBe("2026-05-08");
+  });
+
+  test("flags 3+ consecutive days", () => {
+    const w = analyzePitchingWorkload(
+      {
+        log: [
+          { date: "2026-05-08", pitches: 15 },
+          { date: "2026-05-09", pitches: 15 },
+          { date: "2026-05-10", pitches: 15 },
+        ],
+      },
+      undefined,
+      "2026-05-10"
+    );
+    expect(w.consecutiveDays).toBe(3);
+    expect(w.alerts.some((a) => a.kind === "consecutive")).toBe(true);
+  });
+
+  test("flags coming back on short rest (rule-set aware)", () => {
+    // 55 pitches needs 3 days rest; came back 2 days later -> short rest.
+    const w = analyzePitchingWorkload(
+      {
+        log: [
+          { date: "2026-05-01", pitches: 55 },
+          { date: "2026-05-03", pitches: 20 },
+        ],
+      },
+      undefined,
+      "2026-05-03"
+    );
+    expect(w.alerts.some((a) => a.kind === "shortRest")).toBe(true);
+  });
+
+  test("no alerts for a well-rested pitcher; empty log is safe", () => {
+    const w = analyzePitchingWorkload(
+      {
+        log: [
+          { date: "2026-05-01", pitches: 40 },
+          { date: "2026-05-10", pitches: 30 },
+        ],
+      },
+      undefined,
+      "2026-05-10"
+    );
+    expect(w.alerts).toEqual([]);
+    expect(analyzePitchingWorkload({}).outings).toBe(0);
+    expect(analyzePitchingWorkload(null).alerts).toEqual([]);
   });
 });
