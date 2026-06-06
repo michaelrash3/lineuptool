@@ -591,22 +591,51 @@ function requiredRestDays(
   return 0;
 }
 
+// Pitches on a pitcher's most-recent throwing DAY, summed across outings so a
+// doubleheader (two games same date) counts as one day's workload for rest —
+// not just the last outing. Prefers the rolling log; falls back to the single
+// recentPitches/lastPitchDate fields for data saved before the log existed.
+export function mostRecentDayPitches(
+  pitching:
+    | {
+        log?: Array<{ date?: string; pitches?: number }>;
+        recentPitches?: number;
+        lastPitchDate?: string;
+      }
+    | null
+    | undefined
+): { pitches: number; date: string | null } {
+  const log = Array.isArray(pitching?.log) ? pitching!.log! : null;
+  if (log && log.length) {
+    let maxDate: string | null = null;
+    for (const o of log) if (o?.date && (!maxDate || o.date > maxDate)) maxDate = o.date;
+    if (maxDate) {
+      const pitches = log.reduce(
+        (s, o) => (o?.date === maxDate ? s + (Number(o.pitches) || 0) : s),
+        0
+      );
+      return { pitches, date: maxDate };
+    }
+  }
+  return {
+    pitches: Number(pitching?.recentPitches) || 0,
+    date: pitching?.lastPitchDate || null,
+  };
+}
+
 export function checkPitchEligibility(
   player: Player,
   targetDateStr: string,
   ageGroup: string,
   ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET
 ): boolean {
-  const pitching = (player as any).pitching as
-    | { lastPitchDate?: string; recentPitches?: number }
-    | undefined;
-  if (!pitching?.lastPitchDate || !pitching.recentPitches) return true;
-  const recent = pitching.recentPitches;
-  if (recent === 0) return true;
+  const pitching = (player as any).pitching;
+  // Same-day total (doubleheaders sum together), not just the last outing.
+  const { pitches: recent, date: lastDate } = mostRecentDayPitches(pitching);
+  if (!lastDate || !recent) return true;
   if (recent >= maxPitchesForAge(ageGroup, ruleSet)) return false;
   const diffDays = Math.floor(
-    (new Date(targetDateStr).getTime() -
-      new Date(pitching.lastPitchDate).getTime()) /
+    (new Date(targetDateStr).getTime() - new Date(lastDate).getTime()) /
       86_400_000
   );
   return diffDays > requiredRestDays(recent, ruleSet);
@@ -645,8 +674,9 @@ export function buildPitchingPlan(
   const base = new Date(gameDateStr).getTime();
   const out: PitcherAvailability[] = pool.map((p: any) => {
     const pitching = p.pitching || {};
-    const recent = Number(pitching.recentPitches) || 0;
-    const last = pitching.lastPitchDate || null;
+    // Same-day total (doubleheaders summed), so "maxed" and the displayed count
+    // reflect the day's real workload, matching checkPitchEligibility.
+    const { pitches: recent, date: last } = mostRecentDayPitches(pitching);
     let status: PitcherAvailability["status"];
     let daysUntilReady: number | null = null;
     if (checkPitchEligibility(p, gameDateStr, ageGroup, ruleSet)) {
