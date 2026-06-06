@@ -50,9 +50,12 @@ const scoreForPlayer = (
           topMph: player?.stats?.pTopMph ?? player?.pitching?.topMph,
           teamAge,
         })
-      : calcDefensiveScore(grades);
-  if (pos === "C") return kidPitch ? calcCatcherScore(grades) : calcDefensiveScore(grades);
-  return calcDefensiveScore(grades);
+      : calcDefensiveScore(grades, player?.stats);
+  if (pos === "C")
+    return kidPitch
+      ? calcCatcherScore(grades, player?.stats)
+      : calcDefensiveScore(grades, player?.stats);
+  return calcDefensiveScore(grades, player?.stats);
 };
 
 // Auto-ranking with the saved manual order applied on top: pinned players (in

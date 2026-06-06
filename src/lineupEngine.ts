@@ -787,30 +787,86 @@ export const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
   gameCalling: 1.0,
 };
 
-export function calcCatcherScore(grades: GradeMap | null | undefined): number {
-  if (!grades) return 0;
+const CATCHER_EVAL_MAX =
+  5 * Object.values(CATCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
+const DEFENSE_EVAL_MAX = 5 * (2.0 + 1.5 + 1.5 + 1.5 + 1.5 + 2.0);
+
+// Shared 0..1 normalizers / sample lean for the fielding & catching stat blends
+// (same shape as the pitcher blend: measured rate → quality, sample → lean).
+function normUp(v: number, lo: number, hi: number): number {
+  return Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+}
+function sampleLean(value: unknown, fullAt: number): number {
+  const v = Number(value);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return 0.5 * Math.min(1, v / fullAt);
+}
+
+// Caught-stealing % → catcher quality (the one catching rate GameChanger gives
+// per player). 0..1, null when absent. Youth band ~15%–55%.
+export function calcCatcherStatsQuality(
+  stats: PlayerStats | null | undefined
+): number | null {
+  const v = stats?.fCsPct;
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  return normUp(v, 0.15, 0.55);
+}
+
+// FPCT → fielding reliability quality. 0..1, null when absent. Youth band
+// ~.800–.980.
+export function calcFieldingStatsQuality(
+  stats: PlayerStats | null | undefined
+): number | null {
+  const v = stats?.fFpct;
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  return normUp(v, 0.8, 0.98);
+}
+
+// Catcher value: eval grades, optionally blended with caught-stealing %
+// (sample-weighted by stolen-base attempts). Eval-only when no stats/sample, so
+// the engine — which never passes stats here — is unchanged.
+export function calcCatcherScore(
+  grades: GradeMap | null | undefined,
+  stats?: PlayerStats | null
+): number {
   let score = 0;
-  for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {
-    const v = (grades as any)[k];
-    if (typeof v === "number" && Number.isFinite(v)) score += v * w;
+  if (grades) {
+    for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {
+      const v = (grades as any)[k];
+      if (typeof v === "number" && Number.isFinite(v)) score += v * w;
+    }
   }
-  return score;
+  const q = calcCatcherStatsQuality(stats);
+  if (q == null) return score;
+  const lean = sampleLean(stats?.fSbAtt, 15);
+  if (lean <= 0) return score;
+  return (1 - lean) * score + lean * (q * CATCHER_EVAL_MAX);
 }
 
 // ---------- Defensive (fielding) scoring ----------
 // General field-defense rating used to rank position players. Extracted from
 // computeProfile so the Depth Chart tab and the engine's profile share one
-// formula and never drift.
-export function calcDefensiveScore(grades: GradeMap | null | undefined): number {
+// formula and never drift. Optionally blends FPCT (sample-weighted by total
+// chances); eval-only when no stats/sample, so computeProfile (which passes no
+// stats) and the engine stay unchanged.
+export function calcDefensiveScore(
+  grades: GradeMap | null | undefined,
+  stats?: PlayerStats | null
+): number {
   const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
-  return (
+  let score =
     gloveOf(g) * 2.0 +
     rangeOf(g) * 1.5 +
     armStrengthOf(g) * 1.5 +
     armAccuracyOf(g) * 1.5 +
     baserunningOf(g) * 1.5 +
-    (g.baseballIQ ?? 3) * 2.0
-  );
+    (g.baseballIQ ?? 3) * 2.0;
+  const q = calcFieldingStatsQuality(stats);
+  if (q == null) return score;
+  const lean = sampleLean(stats?.fTc, 30);
+  if (lean <= 0) return score;
+  score = (1 - lean) * score + lean * (q * DEFENSE_EVAL_MAX);
+  return score;
 }
 
 // Active position list by team defenseSize. Drives the position chip
