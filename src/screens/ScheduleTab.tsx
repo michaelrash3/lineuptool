@@ -541,9 +541,20 @@ export const ScheduleTab = memo(() => {
                       newFormat === "Machine Pitch"
                     )
                       newFormat = "Kid Pitch";
+                    // Pool/Bracket is a subset of Tournament. Rec games are
+                    // always League; switching to Tournament defaults to Pool
+                    // play (keeps an existing Bracket pick), and back to Rec
+                    // resets to League.
+                    const newGameType =
+                      newLeague === "USSSA"
+                        ? gameType === "bracket"
+                          ? "bracket"
+                          : "pool"
+                        : "league";
                     updateGame(selectedGameId, {
                       leagueRuleSet: newLeague,
                       pitchingFormat: newFormat,
+                      gameType: newGameType,
                     });
                   }}
                   className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
@@ -552,6 +563,27 @@ export const ScheduleTab = memo(() => {
                   <option value="NKB">Rec</option>
                 </select>
               </div>
+              {/* Pool / Bracket — a subset of Tournament (Rec is always League),
+                  treated like the Fielders setting. Drives the engine's pitcher
+                  pool: Pool spreads across the staff (top 5) so aces rest for
+                  bracket; Bracket narrows to your aces (top 3). */}
+              {isTournamentGame && (
+                <div className="w-full">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                    Tournament
+                  </label>
+                  <select
+                    value={gameType === "bracket" ? "bracket" : "pool"}
+                    onChange={(e) =>
+                      updateGame(selectedGameId, { gameType: e.target.value })
+                    }
+                    className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  >
+                    <option value="pool">Pool Play</option>
+                    <option value="bracket">Bracket</option>
+                  </select>
+                </div>
+              )}
               <div className="w-full">
                 <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                   Pitching
@@ -635,30 +667,6 @@ export const ScheduleTab = memo(() => {
 
             {canEdit && (
             <>
-            {/* Game type dropdown — League / Pool / Bracket. Drives
-                engine pitcher pool sizes for 9U+ Kid Pitch (D4). */}
-            <div className="bg-surface border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-widest text-ink">
-                  Game Type
-                </div>
-                <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
-                  Pool = spread pitchers across the staff. Bracket = your aces.
-                </div>
-              </div>
-              <select
-                value={gameType}
-                onChange={(e) =>
-                  updateGame(selectedGameId, { gameType: e.target.value })
-                }
-                className="shrink-0 p-2 text-[11px] font-black uppercase tracking-widest bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-              >
-                <option value="league">League</option>
-                <option value="pool">Pool</option>
-                <option value="bracket">Bracket</option>
-              </select>
-            </div>
-
             {/* Scrimmage toggle — when ON, the game stays on the schedule and is
                 fully playable, but counts toward NOTHING: record, stats,
                 defensive innings, bench equity, and engine seasonal fairness all

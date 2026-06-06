@@ -2889,15 +2889,15 @@ const MainShell = () => {
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-        { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        { id: "roster", icon: Icons.Users, label: "Roster" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
       ]
     : [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-        { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        { id: "roster", icon: Icons.Users, label: "Roster" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         ...(interestButton ? [interestButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
