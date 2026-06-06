@@ -6,6 +6,8 @@ import {
   calcVelocityQuality,
   calcCatcherScore,
   calcDefensiveScore,
+  calcCatcherStatsQuality,
+  calcFieldingStatsQuality,
   getPitcherPoolSize,
   isCatcherEligible,
   resolveCatcherPolicy,
@@ -2369,5 +2371,35 @@ describe("velocity in pitcher score (age-relative)", () => {
       evalOnly
     );
     expect(calcPitcherScore({ strikes: 1 }, null, {})).toBeCloseTo(evalOnly);
+  });
+});
+
+describe("fielding & catcher stats blend (depth chart)", () => {
+  test("calcDefensiveScore is eval-only without stats; FPCT lifts with chances", () => {
+    const evalOnly = calcDefensiveScore({ glove: 3 });
+    expect(calcDefensiveScore({ glove: 3 }, undefined)).toBeCloseTo(evalOnly);
+    // FPCT present but no chances (no fTc) -> unchanged
+    expect(calcDefensiveScore({ glove: 3 }, { fFpct: 0.98 })).toBeCloseTo(evalOnly);
+    // elite FPCT with a real sample lifts a weak-glove fielder
+    const blended = calcDefensiveScore({ glove: 1 }, { fFpct: 0.98, fTc: 30 });
+    expect(blended).toBeGreaterThan(calcDefensiveScore({ glove: 1 }));
+  });
+
+  test("calcCatcherScore is eval-only without stats; CS% lifts with attempts", () => {
+    const evalOnly = calcCatcherScore({ throwing: 3 });
+    expect(calcCatcherScore({ throwing: 3 }, undefined)).toBeCloseTo(evalOnly);
+    expect(calcCatcherScore({ throwing: 3 }, { fCsPct: 0.5 })).toBeCloseTo(evalOnly); // no attempts
+    const blended = calcCatcherScore({ throwing: 1 }, { fCsPct: 0.55, fSbAtt: 15 });
+    expect(blended).toBeGreaterThan(calcCatcherScore({ throwing: 1 }));
+  });
+
+  test("quality helpers normalize within the youth bands", () => {
+    expect(calcFieldingStatsQuality(null)).toBeNull();
+    expect(calcFieldingStatsQuality({})).toBeNull();
+    expect(calcFieldingStatsQuality({ fFpct: 0.8 })).toBeCloseTo(0);
+    expect(calcFieldingStatsQuality({ fFpct: 0.98 })).toBeCloseTo(1);
+    expect(calcCatcherStatsQuality({ fCsPct: 0.15 })).toBeCloseTo(0);
+    expect(calcCatcherStatsQuality({ fCsPct: 0.55 })).toBeCloseTo(1);
+    expect(calcCatcherStatsQuality({})).toBeNull();
   });
 });
