@@ -3,6 +3,7 @@ import {
   generateBattingOnly,
   calcPitcherScore,
   calcPitcherStatsQuality,
+  calcVelocityQuality,
   calcCatcherScore,
   calcDefensiveScore,
   getPitcherPoolSize,
@@ -2337,5 +2338,36 @@ describe("pitcher stats blend", () => {
     expect(calcPitcherStatsQuality({ pStrikePct: 0.45, pWhip: 2.2 })).toBeCloseTo(0);
     expect(calcPitcherStatsQuality({ pStrikePct: 0.55 })).toBeCloseTo(0.5);
     expect(calcPitcherStatsQuality({ pWhip: 1.6 })).toBeCloseTo(0.5); // lower is better
+  });
+});
+
+describe("velocity in pitcher score (age-relative)", () => {
+  test("calcVelocityQuality normalizes against the age band", () => {
+    expect(calcVelocityQuality(null, "10U")).toBeNull();
+    expect(calcVelocityQuality(0, "10U")).toBeNull();
+    // 10U band [40,55]
+    expect(calcVelocityQuality(40, "10U")).toBeCloseTo(0);
+    expect(calcVelocityQuality(55, "10U")).toBeCloseTo(1);
+    expect(calcVelocityQuality(47.5, "10U")).toBeCloseTo(0.5);
+    // 13U to 14U band [52,70] -> 61 is the midpoint
+    expect(calcVelocityQuality(61, "13U to 14U")).toBeCloseTo(0.5);
+    // same raw mph is "better" for a younger team
+    expect(calcVelocityQuality(50, "10U")).toBeGreaterThan(
+      calcVelocityQuality(50, "13U to 14U")
+    );
+  });
+
+  test("a velocity reading nudges the pitcher score up; none leaves it unchanged", () => {
+    const evalOnly = calcPitcherScore({ strikes: 1 }); // 3.5
+    const withVelo = calcPitcherScore({ strikes: 1 }, null, {
+      topMph: 55,
+      teamAge: "10U",
+    });
+    expect(withVelo).toBeGreaterThan(evalOnly);
+    // no reading -> unchanged
+    expect(calcPitcherScore({ strikes: 1 }, null, { topMph: 0, teamAge: "10U" })).toBeCloseTo(
+      evalOnly
+    );
+    expect(calcPitcherScore({ strikes: 1 }, null, {})).toBeCloseTo(evalOnly);
   });
 });

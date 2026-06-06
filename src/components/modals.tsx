@@ -1006,6 +1006,28 @@ export const PlayerProfileModal = memo(() => {
                         className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
                       />
                     </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        Top Fastball (mph)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="120"
+                        placeholder="—"
+                        value={player.pitching?.topMph || ""}
+                        onChange={(e) =>
+                          updatePlayerNested(player.id, "pitching", {
+                            topMph: parseInt(e.target.value, 10) || 0,
+                          })
+                        }
+                        className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
+                      />
+                      <p className="text-[10px] text-ink-3 font-medium mt-1 leading-tight">
+                        Radar reading (optional). Scored vs. your age group, so it
+                        helps the pitcher ranking.
+                      </p>
+                    </div>
                   </div>
                   {Array.isArray(player.pitching?.log) &&
                     player.pitching.log.length > 0 && (
