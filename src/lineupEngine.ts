@@ -722,22 +722,57 @@ function pitcherStatsLean(stats: PlayerStats | null | undefined): number {
   return 0.5 * Math.min(1, Math.max(0, sample));
 }
 
+// Age-relative velocity quality (0..1). Velocity is meaningless on an absolute
+// scale across ages, but a team is a single age group, so we normalize a
+// pitcher's top fastball against an age-appropriate band — a hard thrower for
+// their level scores high regardless of division. Manually entered (radar) or
+// imported. Returns null when there's no reading.
+function veloBandForAge(teamAge: string | undefined): [number, number] {
+  const n = (() => {
+    const m = String(teamAge || "").match(/(\d+)/g);
+    return m ? parseInt(m[m.length - 1], 10) : 10;
+  })();
+  if (n <= 8) return [35, 50];
+  if (n <= 10) return [40, 55];
+  if (n <= 12) return [45, 62];
+  if (n <= 14) return [52, 70];
+  return [60, 80];
+}
+export function calcVelocityQuality(
+  topMph: number | null | undefined,
+  teamAge: string | undefined
+): number | null {
+  if (typeof topMph !== "number" || !Number.isFinite(topMph) || topMph <= 0)
+    return null;
+  const [lo, hi] = veloBandForAge(teamAge);
+  return Math.min(1, Math.max(0, (topMph - lo) / (hi - lo)));
+}
+// Velocity is a measured attribute, not a sample, so it carries a modest fixed
+// weight when present (unlike the sample-gated stats blend).
+const VELOCITY_LEAN = 0.15;
+
 // Pitcher value, blending the eval-based score with imported pitching stats
-// (the coach's "blend both"). With no stats — or no sample — this returns the
-// eval-only score unchanged, so behavior is identical until real data exists.
-// Consumed by the depth-chart ranking AND the engine's pitcher pool, so a good
-// pitcher by eye + results is the one the engine picks to pitch.
+// (the coach's "blend both") and, when present, an age-relative velocity reading.
+// With no stats/velocity — or no sample — this returns the eval-only score
+// unchanged, so behavior is identical until real data exists. Consumed by the
+// depth-chart ranking AND the engine's pitcher pool, so a good pitcher by eye +
+// results is the one the engine picks to pitch.
 export function calcPitcherScore(
   grades: GradeMap | null | undefined,
-  stats?: PlayerStats | null
+  stats?: PlayerStats | null,
+  velocity?: { topMph?: number | null; teamAge?: string }
 ): number {
-  const evalScore = calcPitcherEvalScore(grades);
+  let score = calcPitcherEvalScore(grades);
   const quality = calcPitcherStatsQuality(stats);
-  if (quality == null) return evalScore;
-  const lean = pitcherStatsLean(stats);
-  if (lean <= 0) return evalScore;
-  const statsScore = quality * PITCHER_EVAL_MAX;
-  return (1 - lean) * evalScore + lean * statsScore;
+  if (quality != null) {
+    const lean = pitcherStatsLean(stats);
+    if (lean > 0) score = (1 - lean) * score + lean * (quality * PITCHER_EVAL_MAX);
+  }
+  const vq = calcVelocityQuality(velocity?.topMph, velocity?.teamAge);
+  if (vq != null) {
+    score = (1 - VELOCITY_LEAN) * score + VELOCITY_LEAN * (vq * PITCHER_EVAL_MAX);
+  }
+  return score;
 }
 
 // ---------- Catcher scoring ----------
@@ -1585,7 +1620,10 @@ export function generateLineup(input: EngineInput): EngineResult {
     const ranked = (activePlayers as any[])
       .map((p) => ({
         p,
-        score: calcPitcherScore(combinedGrades[p.id], p.stats),
+        score: calcPitcherScore(combinedGrades[p.id], p.stats, {
+          topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
+          teamAge,
+        }),
       }))
       .filter((row) => row.score > 0)
       .filter((row) => checkPitchEligibility(row.p, targetDateStr, teamAge))

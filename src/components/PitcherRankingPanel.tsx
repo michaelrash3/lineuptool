@@ -59,7 +59,10 @@ export const PitcherRankingPanel = memo(() => {
     return ((players || []) as any[])
       .map((p) => {
         const g = combinedGrades[p.id] || {};
-        const score = calcPitcherScore(g, p.stats);
+        const score = calcPitcherScore(g, p.stats, {
+          topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
+          teamAge,
+        });
         const eligibleToday = checkPitchEligibility(p, todayStr, teamAge);
         const daysUntil = eligibleToday ? 0 : daysUntilEligible(p, teamAge);
         return {
@@ -69,6 +72,7 @@ export const PitcherRankingPanel = memo(() => {
           daysUntil,
           lastPitchDate: p.pitching?.lastPitchDate,
           recentPitches: p.pitching?.recentPitches || 0,
+          topMph: p.stats?.pTopMph ?? p.pitching?.topMph ?? null,
         };
       })
       // Drop players who have never been graded for pitching at all — no
@@ -111,6 +115,7 @@ export const PitcherRankingPanel = memo(() => {
               <th className="px-3 py-2 w-8">#</th>
               <th className="px-3 py-2">Pitcher</th>
               <th className="px-3 py-2 text-right">Score</th>
+              <th className="px-3 py-2 text-right hidden lg:table-cell">Top mph</th>
               <th className="px-3 py-2 text-right hidden sm:table-cell">Last Pitched</th>
               <th className="px-3 py-2 text-right hidden md:table-cell">Recent Pitches</th>
               <th className="px-3 py-2 text-right">Eligible</th>
@@ -141,6 +146,9 @@ export const PitcherRankingPanel = memo(() => {
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums font-black text-ink">
                   {row.score.toFixed(1)}
+                </td>
+                <td className="px-3 py-2 text-right hidden lg:table-cell tabular-nums text-ink-2">
+                  {row.topMph ? row.topMph : "—"}
                 </td>
                 <td className="px-3 py-2 text-right hidden sm:table-cell text-ink-2 tabular-nums">
                   {formatPitchDate(row.lastPitchDate)}

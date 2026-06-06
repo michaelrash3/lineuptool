@@ -41,9 +41,16 @@ const scoreForPlayer = (
   pos: string,
   player: any,
   grades: Record<string, any>,
-  kidPitch: boolean
+  kidPitch: boolean,
+  teamAge?: string
 ): number => {
-  if (pos === "P") return kidPitch ? calcPitcherScore(grades, player?.stats) : calcDefensiveScore(grades);
+  if (pos === "P")
+    return kidPitch
+      ? calcPitcherScore(grades, player?.stats, {
+          topMph: player?.stats?.pTopMph ?? player?.pitching?.topMph,
+          teamAge,
+        })
+      : calcDefensiveScore(grades);
   if (pos === "C") return kidPitch ? calcCatcherScore(grades) : calcDefensiveScore(grades);
   return calcDefensiveScore(grades);
 };
@@ -57,13 +64,14 @@ const orderForPosition = (
   players: any[],
   grades: Record<string, any>,
   kidPitch: boolean,
-  manual: string[] | null
+  manual: string[] | null,
+  teamAge?: string
 ): any[] => {
   const eligible = players.filter((p) => comfortableAt(p, pos));
   const auto = [...eligible].sort((a, b) => {
     const d =
-      scoreForPlayer(pos, b, grades[b.id] || {}, kidPitch) -
-      scoreForPlayer(pos, a, grades[a.id] || {}, kidPitch);
+      scoreForPlayer(pos, b, grades[b.id] || {}, kidPitch, teamAge) -
+      scoreForPlayer(pos, a, grades[a.id] || {}, kidPitch, teamAge);
     return d !== 0 ? d : String(a.name || "").localeCompare(String(b.name || ""));
   });
   if (!manual || manual.length === 0) return auto;
@@ -180,7 +188,7 @@ export const DepthChartTab = memo(() => {
     () => (team as any).depthChart || {},
     [team]
   );
-  const { defenseSize, pitchingFormat } = team as any;
+  const { defenseSize, pitchingFormat, teamAge } = team as any;
   const canEdit = currentRole === "head";
   const kidPitch = isKidPitchFormat(pitchingFormat);
 
@@ -195,11 +203,11 @@ export const DepthChartTab = memo(() => {
         const manual = Array.isArray(depthChart[pos]) ? depthChart[pos] : null;
         return {
           pos,
-          ranked: orderForPosition(pos, players, combinedGrades, kidPitch, manual),
+          ranked: orderForPosition(pos, players, combinedGrades, kidPitch, manual, teamAge),
           customized: !!manual,
         };
       }),
-    [defenseSize, players, combinedGrades, kidPitch, depthChart]
+    [defenseSize, players, combinedGrades, kidPitch, depthChart, teamAge]
   );
 
   // Swap a player with its neighbor and persist the full new order. We write the
