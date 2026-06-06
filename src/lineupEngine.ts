@@ -2900,7 +2900,9 @@ function tryBuildLineup(ctx: any): any {
             catcher &&
             !benchedSet.has(catcherId) &&
             !used.has(catcherId) &&
-            isCatcherEligible(catcher)
+            isCatcherEligible(catcher) &&
+            // Same-day dual-role (Kid Pitch): don't catch a kid who pitched.
+            !(isKidPitch && dualRoleBlocked(state.get(catcherId), "C"))
           ) {
             inningSlots["C"] = catcher;
             used.add(catcherId);
@@ -2945,6 +2947,8 @@ function tryBuildLineup(ctx: any): any {
           // Mirror pickBestForPosition's per position eligibility checks so we
           // don't pre pin into an illegal slot.
           const st = state.get(p.id);
+          // Same-day dual-role (Kid Pitch): never pre-pin into P+C same game.
+          if (isKidPitch && dualRoleBlocked(st, pos)) continue;
           if (pos === "C") {
             if (!isCatcherEligible(p)) continue;
             if (
@@ -3301,6 +3305,8 @@ function pickBestForPosition(opts: any): any {
       if (used.has(p.id) || benchedSet.has(p.id)) continue;
       if (isPositionBlocked(p, "P")) continue;
       const st = state.get(p.id);
+      // Same-day dual-role (Kid Pitch): don't pitch a kid who caught earlier.
+      if (isKidPitch && dualRoleBlocked(st, "P")) continue;
       const playedHereLast = inn > 0 && st.history[inn - 1] === "P";
       const pCount = st.positions["P"] || 0;
       // Mirror the existing rule: a kid can pitch consecutively but not

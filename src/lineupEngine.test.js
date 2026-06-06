@@ -2446,3 +2446,67 @@ describe("same-day pitch/catch exclusion (Kid Pitch)", () => {
     expect(lineup).toHaveLength(6);
   });
 });
+
+describe("same-day pitch/catch — bypass paths (pool, pre-pin, consecutive)", () => {
+  test("holds even with a pitcher pool (graded pitchers) across seeds", () => {
+    const players = makeRoster(11);
+    // Grades make p0-p2 form the 9U+ pitcher pool; they're also catcher-eligible
+    // (vanilla), so the pool short-circuit must still respect the dual-role rule.
+    const evaluationEvents = [
+      {
+        id: "e",
+        date: "2026-04-01",
+        coachRole: "Head",
+        evaluatorId: "c",
+        grades: { p0: { strikes: 5 }, p1: { strikes: 4 }, p2: { strikes: 3 } },
+      },
+    ];
+    for (let seed = 1; seed <= 12; seed++) {
+      const { lineup } = buildLineup({
+        players,
+        evaluationEvents,
+        pitchingFormat: "Kid Pitch",
+        teamAge: "9U",
+        defenseSize: "9",
+        totalInnings: 6,
+        seed,
+      });
+      const pitchers = new Set();
+      const catchers = new Set();
+      for (const inn of lineup) {
+        if (inn.P) pitchers.add(inn.P.id);
+        if (inn.C) catchers.add(inn.C.id);
+      }
+      for (const id of pitchers) {
+        expect({ seed, id, alsoCaught: catchers.has(id) }).toEqual({
+          seed,
+          id,
+          alsoCaught: false,
+        });
+      }
+    }
+  });
+
+  test("holds with consecutive catcher blocks (Kid Pitch)", () => {
+    const players = makeRoster(11);
+    for (let seed = 1; seed <= 8; seed++) {
+      const { lineup } = buildLineup({
+        players,
+        pitchingFormat: "Kid Pitch",
+        teamAge: "9U",
+        defenseSize: "9",
+        totalInnings: 6,
+        catcherMaxInnings: "2",
+        catcherConsecutive: true,
+        seed,
+      });
+      const pitchers = new Set();
+      const catchers = new Set();
+      for (const inn of lineup) {
+        if (inn.P) pitchers.add(inn.P.id);
+        if (inn.C) catchers.add(inn.C.id);
+      }
+      for (const id of pitchers) expect(catchers.has(id)).toBe(false);
+    }
+  });
+});
