@@ -34,11 +34,18 @@ const comfortableAt = (player: any, pos: string): boolean =>
 
 // Pick the position-appropriate scorer. Kid-Pitch teams rank P/C by the
 // pitching/catching evals; everyone else (and non-Kid-Pitch P/C, which are
-// ceremonial) ranks by general field defense.
-const scorerFor = (pos: string, kidPitch: boolean) => {
-  if (pos === "P") return kidPitch ? calcPitcherScore : calcDefensiveScore;
-  if (pos === "C") return kidPitch ? calcCatcherScore : calcDefensiveScore;
-  return calcDefensiveScore;
+// ceremonial) ranks by general field defense. Pitchers blend imported stats
+// (S%, WHIP, K/BB, …) with the eval grades, so the chart matches who's actually
+// pitching well, not just the eye test.
+const scoreForPlayer = (
+  pos: string,
+  player: any,
+  grades: Record<string, any>,
+  kidPitch: boolean
+): number => {
+  if (pos === "P") return kidPitch ? calcPitcherScore(grades, player?.stats) : calcDefensiveScore(grades);
+  if (pos === "C") return kidPitch ? calcCatcherScore(grades) : calcDefensiveScore(grades);
+  return calcDefensiveScore(grades);
 };
 
 // Auto-ranking with the saved manual order applied on top: pinned players (in
@@ -52,10 +59,11 @@ const orderForPosition = (
   kidPitch: boolean,
   manual: string[] | null
 ): any[] => {
-  const scorer = scorerFor(pos, kidPitch);
   const eligible = players.filter((p) => comfortableAt(p, pos));
   const auto = [...eligible].sort((a, b) => {
-    const d = scorer(grades[b.id] || {}) - scorer(grades[a.id] || {});
+    const d =
+      scoreForPlayer(pos, b, grades[b.id] || {}, kidPitch) -
+      scoreForPlayer(pos, a, grades[a.id] || {}, kidPitch);
     return d !== 0 ? d : String(a.name || "").localeCompare(String(b.name || ""));
   });
   if (!manual || manual.length === 0) return auto;

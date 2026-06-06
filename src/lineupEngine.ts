@@ -648,7 +648,11 @@ export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
   composure: 1.0,
 };
 
-export function calcPitcherScore(grades: GradeMap | null | undefined): number {
+// Eval-only pitcher score (1–5 grades × weights). Max ≈ 32.5.
+const PITCHER_EVAL_MAX =
+  5 * Object.values(PITCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
+
+function calcPitcherEvalScore(grades: GradeMap | null | undefined): number {
   if (!grades) return 0;
   let score = 0;
   for (const [k, w] of Object.entries(PITCHER_SCORE_WEIGHTS)) {
@@ -656,6 +660,84 @@ export function calcPitcherScore(grades: GradeMap | null | undefined): number {
     if (typeof v === "number" && Number.isFinite(v)) score += v * w;
   }
   return score;
+}
+
+// Imported GameChanger pitching stats → 0–1 quality. Each spec is
+// (worst, best); best < worst encodes lower-is-better (WHIP/ERA/BAA/BB-INN/
+// HHB%). Ranges are youth-level rules of thumb, intentionally easy to tune.
+// Only stats actually present count, so a missing stat never penalizes.
+const PITCHER_STAT_SPECS: Array<{
+  key: keyof PlayerStats;
+  w: number;
+  worst: number;
+  best: number;
+}> = [
+  // Control & efficiency (weighted highest)
+  { key: "pStrikePct", w: 1.5, worst: 0.45, best: 0.65 },
+  { key: "pFps", w: 1.5, worst: 0.45, best: 0.65 },
+  { key: "pBbPerInn", w: 1.5, worst: 1.2, best: 0.2 },
+  { key: "pKbb", w: 1.5, worst: 0.5, best: 3.0 },
+  { key: "pWhip", w: 1.5, worst: 2.2, best: 1.0 },
+  // Run prevention
+  { key: "pEra", w: 1.0, worst: 8.0, best: 2.0 },
+  { key: "pBaa", w: 1.0, worst: 0.4, best: 0.18 },
+  // Bats-missed / weak contact
+  { key: "pKbf", w: 1.0, worst: 0.1, best: 0.35 },
+  { key: "pSwingMiss", w: 1.0, worst: 0.05, best: 0.25 },
+  { key: "pWeak", w: 1.0, worst: 0.15, best: 0.45 },
+  { key: "pHardPct", w: 1.0, worst: 0.45, best: 0.15 },
+  { key: "pGoAo", w: 1.0, worst: 0.7, best: 2.5 },
+];
+
+export function calcPitcherStatsQuality(
+  stats: PlayerStats | null | undefined
+): number | null {
+  if (!stats) return null;
+  let acc = 0;
+  let wSum = 0;
+  for (const s of PITCHER_STAT_SPECS) {
+    const v = stats[s.key];
+    if (typeof v !== "number" || !Number.isFinite(v)) continue;
+    const span = s.best - s.worst;
+    if (span === 0) continue;
+    const norm = Math.min(1, Math.max(0, (v - s.worst) / span));
+    acc += norm * s.w;
+    wSum += s.w;
+  }
+  return wSum > 0 ? acc / wSum : null;
+}
+
+// How hard to lean on stats vs. the eval — grows with sample size, capped at
+// 50% ("blend both"). ~40 batters faced (a few outings) earns full weight; a
+// pitcher with little data stays eval-driven until real numbers accumulate.
+function pitcherStatsLean(stats: PlayerStats | null | undefined): number {
+  const bf = Number(stats?.pBf);
+  const ip = Number(stats?.pIp);
+  const sample =
+    Number.isFinite(bf) && bf > 0
+      ? bf / 40
+      : Number.isFinite(ip) && ip > 0
+      ? ip / 10
+      : 0;
+  return 0.5 * Math.min(1, Math.max(0, sample));
+}
+
+// Pitcher value, blending the eval-based score with imported pitching stats
+// (the coach's "blend both"). With no stats — or no sample — this returns the
+// eval-only score unchanged, so behavior is identical until real data exists.
+// Consumed by the depth-chart ranking AND the engine's pitcher pool, so a good
+// pitcher by eye + results is the one the engine picks to pitch.
+export function calcPitcherScore(
+  grades: GradeMap | null | undefined,
+  stats?: PlayerStats | null
+): number {
+  const evalScore = calcPitcherEvalScore(grades);
+  const quality = calcPitcherStatsQuality(stats);
+  if (quality == null) return evalScore;
+  const lean = pitcherStatsLean(stats);
+  if (lean <= 0) return evalScore;
+  const statsScore = quality * PITCHER_EVAL_MAX;
+  return (1 - lean) * evalScore + lean * statsScore;
 }
 
 // ---------- Catcher scoring ----------
@@ -1503,7 +1585,7 @@ export function generateLineup(input: EngineInput): EngineResult {
     const ranked = (activePlayers as any[])
       .map((p) => ({
         p,
-        score: calcPitcherScore(combinedGrades[p.id]),
+        score: calcPitcherScore(combinedGrades[p.id], p.stats),
       }))
       .filter((row) => row.score > 0)
       .filter((row) => checkPitchEligibility(row.p, targetDateStr, teamAge))

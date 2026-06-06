@@ -59,7 +59,7 @@ export const PitcherRankingPanel = memo(() => {
     return ((players || []) as any[])
       .map((p) => {
         const g = combinedGrades[p.id] || {};
-        const score = calcPitcherScore(g);
+        const score = calcPitcherScore(g, p.stats);
         const eligibleToday = checkPitchEligibility(p, todayStr, teamAge);
         const daysUntil = eligibleToday ? 0 : daysUntilEligible(p, teamAge);
         return {
