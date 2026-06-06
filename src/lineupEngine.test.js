@@ -2,6 +2,7 @@ import {
   generateLineup,
   generateBattingOnly,
   calcPitcherScore,
+  calcPitcherStatsQuality,
   calcCatcherScore,
   calcDefensiveScore,
   getPitcherPoolSize,
@@ -2296,5 +2297,45 @@ describe("competitive depth chart drives position assignment", () => {
       centered++;
     }
     expect(centered).toBeGreaterThan(0);
+  });
+});
+
+describe("pitcher stats blend", () => {
+  test("calcPitcherScore is eval-only when there are no stats", () => {
+    expect(calcPitcherScore({ strikes: 5 })).toBeCloseTo(17.5); // 5 * 3.5
+    expect(calcPitcherScore({ strikes: 5 }, undefined)).toBeCloseTo(17.5);
+    expect(calcPitcherScore({ strikes: 5 }, null)).toBeCloseTo(17.5);
+  });
+
+  test("stats present but no sample (no BF/IP) stays eval-only", () => {
+    expect(calcPitcherScore({ strikes: 5 }, { pStrikePct: 0.65 })).toBeCloseTo(17.5);
+  });
+
+  test("elite stats with a full sample lift a weak-eval pitcher", () => {
+    const evalOnly = calcPitcherScore({ strikes: 1 }); // 3.5
+    const blended = calcPitcherScore(
+      { strikes: 1 },
+      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pBf: 40 }
+    );
+    expect(blended).toBeGreaterThan(evalOnly);
+  });
+
+  test("smaller sample leans less on stats", () => {
+    const grades = { strikes: 1 };
+    const elite = { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0 };
+    const evalOnly = calcPitcherScore(grades);
+    const bigSample = calcPitcherScore(grades, { ...elite, pBf: 40 });
+    const tinySample = calcPitcherScore(grades, { ...elite, pBf: 4 });
+    expect(tinySample).toBeGreaterThan(evalOnly);
+    expect(tinySample).toBeLessThan(bigSample);
+  });
+
+  test("calcPitcherStatsQuality is direction-aware and ignores missing stats", () => {
+    expect(calcPitcherStatsQuality(null)).toBeNull();
+    expect(calcPitcherStatsQuality({})).toBeNull();
+    expect(calcPitcherStatsQuality({ pStrikePct: 0.65, pWhip: 1.0 })).toBeCloseTo(1);
+    expect(calcPitcherStatsQuality({ pStrikePct: 0.45, pWhip: 2.2 })).toBeCloseTo(0);
+    expect(calcPitcherStatsQuality({ pStrikePct: 0.55 })).toBeCloseTo(0.5);
+    expect(calcPitcherStatsQuality({ pWhip: 1.6 })).toBeCloseTo(0.5); // lower is better
   });
 });
