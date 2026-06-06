@@ -6,6 +6,7 @@ import {
   buildSeasonBenchImbalance,
   isGameFinalized,
   countsTowardStats,
+  recordWinningPercentage,
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
@@ -1069,7 +1070,7 @@ export const HomeTab = memo(() => {
     const total = record.wins + record.losses + record.ties;
     const winPctStr =
       total > 0
-        ? ((record.wins + 0.5 * record.ties) / total).toFixed(3).replace(/^0/, "")
+        ? recordWinningPercentage(record).toFixed(3).replace(/^0/, "")
         : "—";
     return {
       runsFor,
