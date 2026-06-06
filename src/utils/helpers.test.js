@@ -31,6 +31,7 @@ import {
   isSafeImageUrl,
   SIGNUP_LIMITS,
   extractAdvancedStats,
+  evalStatHint,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1325,5 +1326,27 @@ describe("public-form input hygiene", () => {
     expect(SIGNUP_LIMITS.email).toBe(254);
     expect(SIGNUP_LIMITS.name).toBeGreaterThan(0);
     expect(SIGNUP_LIMITS.notes).toBeGreaterThanOrEqual(SIGNUP_LIMITS.name);
+  });
+});
+
+describe("evalStatHint", () => {
+  it("maps categories to the right objective stat and formats it", () => {
+    expect(evalStatHint("contact", { avg: 0.312 })).toBe("AVG .312");
+    expect(evalStatHint("fielding", { fFpct: 0.95 })).toBe("FPCT .950");
+    expect(evalStatHint("strikes", { pStrikePct: 0.62 })).toBe("S% 62%");
+    expect(evalStatHint("throwing", { fCsPct: 0.4 })).toBe("CS% 40%");
+    expect(evalStatHint("speedBaserunning", { sb: 8 })).toBe("8 SB");
+  });
+
+  it("reads velocity from the pitching object when stats lack it", () => {
+    expect(evalStatHint("velocity", {}, { topMph: 52 })).toBe("Top 52 mph");
+    expect(evalStatHint("velocity", { pTopMph: 50 }, null)).toBe("Top 50 mph");
+  });
+
+  it("returns null when the stat is missing or the category has none", () => {
+    expect(evalStatHint("contact", {})).toBeNull();
+    expect(evalStatHint("contact", null)).toBeNull();
+    expect(evalStatHint("coachability", { avg: 0.4 })).toBeNull();
+    expect(evalStatHint("baseballIQ", { avg: 0.4 })).toBeNull();
   });
 });

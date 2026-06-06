@@ -1,5 +1,6 @@
 import React, { memo } from "react";
 import { EVAL_SCALE_LABELS, EVAL_SCALE_DEFAULT } from "../constants/ui";
+import { evalStatHint } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 // 11 standard positions surfaced as a chip row per player so a coach can
@@ -82,7 +83,13 @@ interface EvalCategory {
 }
 
 interface EvalGradeCardProps {
-  player: { id: string; name: string; number?: string | number };
+  player: {
+    id: string;
+    name: string;
+    number?: string | number;
+    stats?: Record<string, any> | null;
+    pitching?: { topMph?: number } | null;
+  };
   grades?: Record<string, any> | null;
   activeCategories: EvalCategory[];
   onGradeChange?: (playerId: string, categoryId: string, value: number) => void;
@@ -127,10 +134,18 @@ export const EvalGradeCard = memo(
         <div className="px-3 py-2.5 space-y-2.5">
           {activeCategories.map((cat) => {
             const value = playerGrades[cat.id] ?? DEFAULT_GRADE;
+            const hint = evalStatHint(cat.id, player.stats, player.pitching);
             return (
               <div key={cat.id}>
-                <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
-                  {cat.label}
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
+                    {cat.label}
+                  </div>
+                  {hint && (
+                    <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5 whitespace-nowrap">
+                      {hint}
+                    </span>
+                  )}
                 </div>
                 {cat.description && (
                   <div className="text-[10px] font-medium text-ink-3 leading-tight mb-1.5">

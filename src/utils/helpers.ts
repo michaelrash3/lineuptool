@@ -993,6 +993,62 @@ export const extractAdvancedStats = (
   return out;
 };
 
+// A compact objective-stat hint for an eval category, so a coach grades with
+// real numbers in view (e.g. "AVG .312" under Contact). Returns null when the
+// stat isn't present. `pitching` supplies the manual/imported top velocity for
+// the velocity category. Pure — safe to call per category per render.
+export const evalStatHint = (
+  catId: string,
+  stats: PlayerStats | null | undefined,
+  pitching?: { topMph?: number } | null
+): string | null => {
+  const s: any = stats || {};
+  const pct = (v: any) =>
+    typeof v === "number" && Number.isFinite(v) ? `${Math.round(v * 100)}%` : null;
+  const avg3 = (v: any) =>
+    typeof v === "number" && Number.isFinite(v)
+      ? v.toFixed(3).replace(/^0(?=\.)/, "")
+      : null;
+  switch (catId) {
+    case "contact":
+      return s.avg != null ? `AVG ${avg3(s.avg)}` : null;
+    case "power":
+      return s.hard != null ? `Hard ${pct(s.hard)}` : s.hr != null ? `${s.hr} HR` : null;
+    case "approach":
+    case "plateDiscipline":
+      return s.qab != null ? `QAB ${pct(s.qab)}` : null;
+    case "fielding":
+    case "glove":
+    case "range":
+      return s.fFpct != null ? `FPCT ${avg3(s.fFpct)}` : null;
+    case "arm":
+    case "armStrength":
+    case "armAccuracy":
+      return s.fAssists != null ? `${s.fAssists} A` : null;
+    case "speedBaserunning":
+    case "baserunning":
+      return s.sb != null ? `${s.sb} SB` : null;
+    case "strikes":
+      return s.pStrikePct != null
+        ? `S% ${pct(s.pStrikePct)}`
+        : s.pBbPerInn != null
+        ? `${s.pBbPerInn} BB/inn`
+        : null;
+    case "velocity":
+      return pitching?.topMph
+        ? `Top ${pitching.topMph} mph`
+        : s.pTopMph != null
+        ? `Top ${s.pTopMph} mph`
+        : null;
+    case "throwing":
+      return s.fCsPct != null ? `CS% ${pct(s.fCsPct)}` : null;
+    case "blocking":
+      return s.fPb != null ? `${s.fPb} PB` : null;
+    default:
+      return null;
+  }
+};
+
 export const parsePercent = (val: unknown): number => {
   if (!val) return 0;
   const raw = parseFloat(String(val).replace("%", ""));
