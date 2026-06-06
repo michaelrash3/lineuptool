@@ -42,11 +42,11 @@ export const useMainShellRouting = ({
     () =>
       isAssistant
         ? tryoutsOpen
-          ? ["home", "roster", "schedule", "tryouts", "evaluation"]
-          : ["home", "roster", "schedule", "evaluation"]
+          ? ["home", "schedule", "roster", "tryouts", "evaluation"]
+          : ["home", "schedule", "roster", "evaluation"]
         : tryoutsOpen
-        ? ["home", "roster", "schedule", "tryouts", "evaluation", "settings"]
-        : ["home", "roster", "schedule", "evaluation", "settings"],
+        ? ["home", "schedule", "roster", "tryouts", "evaluation", "settings"]
+        : ["home", "schedule", "roster", "evaluation", "settings"],
     [isAssistant, tryoutsOpen]
   );
 

@@ -33,6 +33,9 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         opponent: form.opponent.trim(),
         leagueRuleSet: form.leagueRuleSet,
         pitchingFormat: form.pitchingFormat,
+        // Pool/Bracket is a Tournament-only subset; Rec games are always League.
+        // New Tournament games default to Pool play (coach can switch to Bracket).
+        gameType: form.leagueRuleSet === "USSSA" ? "pool" : "league",
         defenseSize: teamData.defenseSize,
         battingSize: teamData.battingSize,
         positionLock: teamData.positionLock,
