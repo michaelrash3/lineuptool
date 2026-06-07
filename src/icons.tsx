@@ -36,6 +36,7 @@ import {
   Bell,
   Palette,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -160,4 +161,5 @@ export const Icons: Record<string, IconComponent> = {
   Bell,
   Palette,
   Sparkles,
+  Chart: BarChart3,
 };
