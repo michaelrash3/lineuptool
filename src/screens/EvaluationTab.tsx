@@ -1032,6 +1032,86 @@ const AssistantSubmissionsPanel = memo(
   );
 });
 
+// Read-only inline readout of every assistant's most-recent grades + notes for
+// ONE player, rendered right inside that player's head-coach grading card. This
+// is the "see it all together" view — the head reads their own (editable) grades
+// and each assistant's submission side by side without thumbing through a
+// separate screen. Only assistants who actually graded this player appear.
+const PlayerAssistantEvals = memo(
+  ({ player, playerCats, assistantRounds }: any) => {
+    const relevant = (assistantRounds || []).filter(
+      (ev: any) => ev.grades?.[player.id]
+    );
+    if (relevant.length === 0) return null;
+    return (
+      <div className="pt-2 border-t border-line">
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
+          Assistant Evaluations ({relevant.length})
+        </div>
+        <div className="space-y-2">
+          {relevant.map((ev: any) => {
+            const g = ev.grades?.[player.id] || {};
+            const positions = Array.isArray(g.suggestedPositions)
+              ? g.suggestedPositions
+              : [];
+            return (
+              <div
+                key={ev.id}
+                className="bg-app border border-line rounded-lg p-2.5"
+              >
+                <div className="flex items-baseline justify-between gap-2 mb-1.5">
+                  <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
+                    Assistant ·{" "}
+                    {ev.evaluatorName || ev.evaluatorId?.slice(0, 8) || "—"}
+                  </span>
+                  <span className="text-[10px] font-bold text-ink-3 shrink-0">
+                    {ev.date}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1 mb-1">
+                  {playerCats.map((cat: any) => {
+                    const v = +g[cat.id];
+                    return (
+                      <div
+                        key={cat.id}
+                        className="flex items-center justify-between gap-1.5"
+                      >
+                        <span className="text-[10px] font-bold text-ink-3 uppercase tracking-wide truncate">
+                          {cat.label}
+                        </span>
+                        <span className="text-xs font-black tabular-nums text-ink shrink-0">
+                          {Number.isFinite(v) ? v : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {positions.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {positions.map((pos: any) => (
+                      <span
+                        key={pos}
+                        className="text-[10px] font-black px-1.5 py-0.5 rounded border bg-surface border-line text-ink-2"
+                      >
+                        {pos}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {g.notes && g.notes.trim() && (
+                  <p className="text-[11px] text-ink italic leading-snug mt-1.5">
+                    &ldquo;{g.notes}&rdquo;
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+);
+
 const GradeChipRow = memo(({ value, onChange, ariaLabel }: any) => (
   <div
     className="flex items-center gap-1"
@@ -1171,6 +1251,21 @@ export const EvaluationTab = memo(() => {
       )
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [evaluationEvents, user]);
+
+  // Each assistant's most-recent submission (newest first), surfaced inline
+  // under every player so the head sees their grades + all assistant grades
+  // together. Same selection rule getCombinedGrades uses: latest per evaluator.
+  const assistantRounds = useMemo(() => {
+    const m = new Map();
+    for (const e of evaluationEvents || []) {
+      if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
+      const cur = m.get(e.evaluatorId);
+      if (!cur || new Date(e.date) > new Date(cur.date)) m.set(e.evaluatorId, e);
+    }
+    return [...m.values()].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+  }, [evaluationEvents]);
 
   // "New round" mode is gated to active prompt windows. Outside them we
   // default to viewing the most recent existing round.
@@ -1626,6 +1721,9 @@ export const EvaluationTab = memo(() => {
                   </button>
                   {expanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-line space-y-2.5">
+                      <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 pt-0.5">
+                        Your Evaluation
+                      </div>
                       {playerCats.map((cat) => (
                         <div
                           key={cat.id}
@@ -1705,6 +1803,11 @@ export const EvaluationTab = memo(() => {
                         placeholder="Notes"
                         rows={1}
                         className="w-full text-xs font-medium border border-line bg-surface text-ink px-2 py-1.5 outline-none rounded-md focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
+                      />
+                      <PlayerAssistantEvals
+                        player={player}
+                        playerCats={playerCats}
+                        assistantRounds={assistantRounds}
                       />
                       <button
                         type="button"
