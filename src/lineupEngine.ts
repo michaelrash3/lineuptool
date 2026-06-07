@@ -219,6 +219,7 @@ const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "range", weight: 2.0 },
   { id: "armStrength", weight: 1.5 },
   { id: "armAccuracy", weight: 1.5 },
+  { id: "speed", weight: 1.0 },
   { id: "baserunning", weight: 1.5 },
   { id: "baseballIQ", weight: 2.0 },
   { id: "coachability", weight: 1.0 },
@@ -243,6 +244,7 @@ const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
   range: 3,
   armStrength: 3,
   armAccuracy: 3,
+  speed: 3,
   baserunning: 3,
   baseballIQ: 3,
   coachability: 3,
@@ -259,8 +261,16 @@ const gloveOf = (g: any): number => g?.glove ?? g?.fielding ?? 3;
 const rangeOf = (g: any): number => g?.range ?? g?.fielding ?? 3;
 const armStrengthOf = (g: any): number => g?.armStrength ?? g?.arm ?? 3;
 const armAccuracyOf = (g: any): number => g?.armAccuracy ?? g?.arm ?? 3;
+// Speed and Base Running are graded separately (v8); both fall back to the
+// legacy merged "Speed & Baserunning" grade so older rounds still read.
+const speedOf = (g: any): number =>
+  g?.speed ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
 const baserunningOf = (g: any): number =>
   g?.baserunning ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
+// Combined athleticism input used by the value/defense scorers, so the split
+// is score-neutral for legacy data (where speed === baserunning) and blends the
+// two once a coach grades them apart.
+const speedBaseOf = (g: any): number => (speedOf(g) + baserunningOf(g)) / 2;
 const contactOf = (g: any): number => g?.contact ?? 3;
 const approachOf = (g: any): number => g?.approach ?? 3;
 const powerOf = (g: any): number => g?.power ?? 3;
@@ -320,7 +330,9 @@ export function getCombinedGrades(
       if (catId === "glove" || catId === "range") return g.fielding ?? null;
       if (catId === "armStrength" || catId === "armAccuracy") return g.arm ?? null;
       if (catId === "plateDiscipline") return g.approach ?? null;
-      if (catId === "baserunning") return g.speedBaserunning ?? g.speedAgility ?? null;
+      // Speed + Base Running both seed from the legacy merged grade.
+      if (catId === "speed" || catId === "baserunning")
+        return g.speedBaserunning ?? g.speedAgility ?? null;
       return null;
     };
 
@@ -495,7 +507,7 @@ export function calculateTotalScore(
     rangeOf(grades) * 2.0 +
     armStrengthOf(grades) * 1.5 +
     armAccuracyOf(grades) * 1.5 +
-    baserunningOf(grades) * 1.5 +
+    speedBaseOf(grades) * 1.5 +
     (grades.baseballIQ || 3) * 2.0 +
     (grades.coachability || 3) * 3.0 +
     contactOf(grades) * 1.5 +
@@ -1072,7 +1084,7 @@ export function calcDefensiveScore(
     rangeOf(g) * 1.5 +
     armStrengthOf(g) * 1.5 +
     armAccuracyOf(g) * 1.5 +
-    baserunningOf(g) * 1.5 +
+    speedBaseOf(g) * 1.5 +
     (g.baseballIQ ?? 3) * 2.0;
   const q = calcFieldingStatsQuality(stats);
   if (q == null) return score;
@@ -1296,7 +1308,7 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
 
   const leadoffScore =
     obp * 50 +
-    baserunningOf(g) * 2.5 +
+    speedBaseOf(g) * 2.5 +
     finalContact * 0.4 +
     g.baseballIQ * 1.0;
   const powerScore =
@@ -1310,7 +1322,7 @@ function buildPlayerProfile(p: Player, grades: GradeMap | null | undefined): Pla
   const contactScore =
     avg * 30 +
     finalContact +
-    baserunningOf(g) * 1.0 +
+    speedBaseOf(g) * 1.0 +
     g.baseballIQ * 1.0 +
     contactOf(g) * 2.0;
   const overallScore =

@@ -722,6 +722,30 @@ const TeamProvider = ({ children }: any) => {
                 return { ...ev, grades: nextGrades };
               });
             }
+            // v8 — split the merged "Speed & Baserunning" grade back into
+            // separate Speed + Base Running. The old value seeds BOTH so prior
+            // history carries over; the merged key is dropped. Idempotent.
+            if (stored < 8) {
+              migratedEvents = migratedEvents.map((ev: any) => {
+                if (!ev?.grades) return ev;
+                const nextGrades: Record<string, any> = {};
+                for (const [pid, grade] of Object.entries(ev.grades)) {
+                  if (!grade || typeof grade !== "object") {
+                    nextGrades[pid] = grade;
+                    continue;
+                  }
+                  const { speedBaserunning, ...rest } = grade as any;
+                  const out: Record<string, any> = { ...rest };
+                  if (typeof speedBaserunning === "number") {
+                    if (typeof out.speed !== "number") out.speed = speedBaserunning;
+                    if (typeof out.baserunning !== "number")
+                      out.baserunning = speedBaserunning;
+                  }
+                  nextGrades[pid] = out;
+                }
+                return { ...ev, grades: nextGrades };
+              });
+            }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
               players: migratedPlayers,

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { calculateTotalScore, suggestPrimaryPosition } from "./lineupEngine";
+import {
+  calculateTotalScore,
+  suggestPrimaryPosition,
+  getCombinedGrades,
+} from "./lineupEngine";
 
 // A neutral baseline grade object (all 3s) in the new merged v7 model.
 const base = {
@@ -96,5 +100,39 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
 
   it("returns null for a missing player", () => {
     expect(suggestPrimaryPosition(null, base)).toBeNull();
+  });
+});
+
+describe("Speed / Base Running split (v8)", () => {
+  const round = (grades: any) => [
+    { id: "e", date: "2026-01-01", coachRole: "Head", grades },
+  ];
+  const roster = [{ id: "p1", name: "Runner" }] as any;
+
+  it("seeds BOTH speed and baserunning from a legacy merged grade", () => {
+    const merged = getCombinedGrades(
+      round({ p1: { speedBaserunning: 5 } }) as any,
+      roster
+    );
+    expect(merged.p1.speed).toBe(5);
+    expect(merged.p1.baserunning).toBe(5);
+  });
+
+  it("carries separate speed and baserunning grades through unchanged", () => {
+    const merged = getCombinedGrades(
+      round({ p1: { speed: 5, baserunning: 1 } }) as any,
+      roster
+    );
+    expect(merged.p1.speed).toBe(5);
+    expect(merged.p1.baserunning).toBe(1);
+  });
+
+  it("total score reflects both speed and base running", () => {
+    const low = calculateTotalScore({ ...base, speed: 1, baserunning: 1 });
+    const high = calculateTotalScore({ ...base, speed: 5, baserunning: 5 });
+    const mixed = calculateTotalScore({ ...base, speed: 5, baserunning: 1 });
+    expect(high).toBeGreaterThan(low);
+    expect(mixed).toBeGreaterThan(low);
+    expect(mixed).toBeLessThan(high);
   });
 });

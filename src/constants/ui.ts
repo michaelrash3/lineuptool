@@ -43,9 +43,12 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     description: "Clean hands, secures the ball, footwork & range to it." },
   { id: "arm", label: "Arm", group: "Fielding", weight: 3.0,
     description: "Throwing strength AND accuracy to the bag." },
-  // Athleticism
-  { id: "speedBaserunning", label: "Speed & Baserunning", group: "Baserunning", weight: 1.5,
-    description: "Foot speed, reads, smart aggression on the bases." },
+  // Athleticism — Speed and Base Running are graded SEPARATELY: raw foot speed
+  // is a different tool than reads/instincts on the bases.
+  { id: "speed", label: "Speed", group: "Baserunning", weight: 1.0,
+    description: "Raw foot speed and first-step quickness." },
+  { id: "baserunning", label: "Base Running", group: "Baserunning", weight: 1.5,
+    description: "Reads, instincts, and smart aggression on the bases." },
   // Intangibles
   { id: "baseballIQ", label: "Baseball IQ", group: "Intangibles", weight: 2.0,
     description: "Knows where the ball goes; situational awareness." },
@@ -141,7 +144,9 @@ export const getEvalCategoriesForPlayer = (
 // merge to Arm; Baserunning → Speed & Baserunning; Control+Command → Strikes;
 // Pop Time → Throwing. The v7 migration averages merged grades and renames the
 // rest so prior eval history carries over. Coachability is weighted up.
-export const EVAL_SCHEMA_VERSION = 7;
+// v8 splits "Speed & Baserunning" back into separate Speed + Base Running
+// grades (the old merged value seeds both so history carries over).
+export const EVAL_SCHEMA_VERSION = 8;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [
