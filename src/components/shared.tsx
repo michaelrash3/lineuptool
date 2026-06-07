@@ -168,42 +168,61 @@ const getPlayerInitials = (name: string) => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-// Reusable player avatar. Renders the player's photoUrl when set, otherwise
-// the player's initials over a team-primary gradient. Used in:
+// Reusable player avatar. Per-player photos were removed (they were stored as
+// inline base64 inside the single team doc and pushed it toward Firestore's
+// 1 MB cap), so the avatar now shows the TEAM LOGO when one is set, falling
+// back to the player's initials over a team-primary gradient when it isn't.
+// The jersey number (and, when asked, the primary position) overlay on top so a
+// roster of identical logos is still readable at a glance. Used in:
 //   - roster row
-//   - lineup grid (mobile cards + desktop cells)
-//   - lineup card PNG / PDF export (off-DOM via Image preload)
-//   - player profile modal header
-// Size is a Tailwind-compatible pixel measure; the wrapper takes care of
-// rounding + shadow + border.
+//   - player profile modal header + add-player preview
+// (The lineup card PNG/PDF export draws its own avatars off-DOM in lineupCard.)
 export const PlayerAvatar = memo(
-  ({ player, size = 40, className = "", showNumber = false }: any) => {
-    const photo = player?.photoUrl;
+  ({
+    player,
+    size = 40,
+    className = "",
+    showNumber = false,
+    showPosition = false,
+  }: any) => {
+    const { team } = useTeam();
+    const logoUrl = (team as any)?.logoUrl;
     const initials = getPlayerInitials(player?.name);
     const dim = { width: size, height: size };
-    if (photo) {
+    const hasNumber =
+      showNumber && player?.number != null && player.number !== "";
+    const hasPosition = showPosition && !!player?.primaryPosition;
+    const numberBadge = hasNumber ? (
+      <span
+        className="absolute bottom-0 right-0 px-1 rounded-tl-md text-[10px] font-black tabular-nums text-white"
+        style={{ background: "rgba(15,23,42,0.7)", lineHeight: 1.1 }}
+      >
+        {player.number}
+      </span>
+    ) : null;
+    const positionBadge = hasPosition ? (
+      <span
+        className="absolute top-0 left-0 px-1 rounded-br-md text-[9px] font-black uppercase tracking-wider text-white"
+        style={{ background: "rgba(15,23,42,0.7)", lineHeight: 1.2 }}
+      >
+        {player.primaryPosition}
+      </span>
+    ) : null;
+
+    if (logoUrl) {
       return (
         <span
-          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-line border border-line shadow-inner ${className}`}
+          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-white border border-line shadow-inner ${className}`}
           style={dim}
         >
           <img
-            src={photo}
-            alt={player?.name || "Player photo"}
-            className="w-full h-full object-cover"
+            src={logoUrl}
+            alt={player?.name ? `${player.name} — team logo` : "Team logo"}
+            className="w-full h-full object-contain p-1"
             loading="lazy"
           />
-          {showNumber && player?.number != null && player.number !== "" && (
-            <span
-              className="absolute bottom-0 right-0 px-1 rounded-tl-md text-[10px] font-black tabular-nums text-white"
-              style={{
-                background: "rgba(15,23,42,0.7)",
-                lineHeight: 1.1,
-              }}
-            >
-              {player.number}
-            </span>
-          )}
+          {positionBadge}
+          {numberBadge}
         </span>
       );
     }
@@ -218,17 +237,8 @@ export const PlayerAvatar = memo(
         aria-label={player?.name || "Player"}
       >
         {initials}
-        {showNumber && player?.number != null && player.number !== "" && (
-          <span
-            className="absolute bottom-0 right-0 px-1 rounded-tl-md text-[10px] font-black tabular-nums"
-            style={{
-              background: "rgba(15,23,42,0.7)",
-              lineHeight: 1.1,
-            }}
-          >
-            {player.number}
-          </span>
-        )}
+        {positionBadge}
+        {numberBadge}
       </span>
     );
   }

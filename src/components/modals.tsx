@@ -15,7 +15,7 @@ import {
 import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { PlayerAvatar, cropImageTo256DataURL } from "./shared";
+import { PlayerAvatar } from "./shared";
 import {
   PROFILE_SECTIONS,
   STATS_TAB_KEYS,
@@ -464,8 +464,6 @@ export const PlayerProfileModal = memo(() => {
   const [trendStatKey, setTrendStatKey] = useState<string | null>(null); // key of stat whose year-over-year chart is open
   const [addingPastSeason, setAddingPastSeason] = useState(false);
   const [editingPastSeasonId, setEditingPastSeasonId] = useState<string | null>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Aggregate fielding history across FINAL games only (matches engine fairness logic).
   // Returns { byPosition: {P: 4, C: 2, ...}, bench, firstInningBench, totalDefensive,
@@ -661,62 +659,8 @@ export const PlayerProfileModal = memo(() => {
           style={{ backgroundColor: "var(--team-primary)" }}
         />
         <div className="p-6 sm:p-7 flex flex-col sm:flex-row items-start gap-5 border-b border-line">
-          <div className="relative shrink-0 group">
-            <PlayerAvatar player={player} size={96} showNumber />
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (!file) return;
-                setPhotoBusy(true);
-                try {
-                  const url = await cropImageTo256DataURL(file);
-                  updatePlayer(player.id, { photoUrl: url });
-                  toast.push({
-                    kind: "success",
-                    title: "Photo Updated",
-                    message: `${player.name}'s photo is live.`,
-                  });
-                } catch (err: any) {
-                  toast.push({
-                    kind: "error",
-                    title: "Upload Failed",
-                    message: err?.message || "Couldn't process photo.",
-                  });
-                } finally {
-                  setPhotoBusy(false);
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => photoInputRef.current?.click()}
-              disabled={photoBusy}
-              className="absolute inset-0 rounded-full bg-slate-900/0 hover:bg-slate-900/40 flex items-center justify-center text-white opacity-0 hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
-              title={player.photoUrl ? "Replace photo" : "Upload photo"}
-              aria-label={player.photoUrl ? "Replace player photo" : "Upload player photo"}
-            >
-              {photoBusy ? (
-                <Icons.Refresh className="w-5 h-5 animate-spin" />
-              ) : (
-                <Icons.Upload className="w-5 h-5" />
-              )}
-            </button>
-            {player.photoUrl && !photoBusy && (
-              <button
-                type="button"
-                onClick={() => updatePlayer(player.id, { photoUrl: "" })}
-                className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-surface border border-line text-rose-500 hover:bg-rose-50 hover:text-rose-700 shadow-sm flex items-center justify-center"
-                aria-label="Remove photo"
-                title="Remove photo"
-              >
-                <Icons.X className="w-3.5 h-3.5" />
-              </button>
-            )}
+          <div className="relative shrink-0">
+            <PlayerAvatar player={player} size={96} showNumber showPosition />
           </div>
           <div className="flex-1 w-full">
             {editingPlayerName ? (
@@ -1755,9 +1699,8 @@ export const PlayerProfileModal = memo(() => {
 });
 
 export const AddPlayerModal = memo(() => {
-  const { team, addPlayer, updatePlayer } = useTeam();
+  const { team, addPlayer } = useTeam();
   const { isAddingPlayer, setIsAddingPlayer } = useUI();
-  const toast = useToast();
   const { primaryColor, tertiaryColor } = team;
   const [form, setForm] = useState({
     name: "",
@@ -1766,9 +1709,6 @@ export const AddPlayerModal = memo(() => {
     throws: "R",
     primaryPosition: "",
   });
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState("");
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   if (!isAddingPlayer) return null;
 
@@ -1781,28 +1721,12 @@ export const AddPlayerModal = memo(() => {
       throws: "R",
       primaryPosition: "",
     });
-    setPhotoFile(null);
-    setPhotoPreview("");
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-    const id = addPlayer(form);
-    // Fire the photo data-URL build in the background — we don't make the
-    // user wait for the canvas crop on submit.
-    if (photoFile && id) {
-      cropImageTo256DataURL(photoFile)
-        .then((url) => updatePlayer(id, { photoUrl: url }))
-        .catch((err) =>
-          toast.push({
-            kind: "error",
-            title: "Photo Save Failed",
-            message:
-              err?.message || "Couldn't process photo. Add it later from the profile.",
-          })
-        );
-    }
+    addPlayer(form);
     close();
   };
 
@@ -1823,34 +1747,19 @@ export const AddPlayerModal = memo(() => {
           <h3 className="t-card-title mb-2">Add Player</h3>
           <div className="flex items-center gap-4">
             <PlayerAvatar
-              player={{ name: form.name, photoUrl: photoPreview }}
+              player={{
+                name: form.name,
+                number: form.number,
+                primaryPosition: form.primaryPosition,
+              }}
               size={64}
+              showNumber
+              showPosition
             />
-            <div className="flex-1">
-              <label className="t-eyebrow block mb-1.5">Photo (optional)</label>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  setPhotoFile(file);
-                  const reader = new FileReader();
-                  reader.onload = () => setPhotoPreview(String(reader.result));
-                  reader.readAsDataURL(file);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
-              >
-                <Icons.Upload className="w-3.5 h-3.5" />
-                {photoFile ? "Replace Photo" : "Choose Photo"}
-              </button>
-            </div>
+            <p className="flex-1 text-xs font-medium text-ink-3 leading-snug">
+              Players show your team logo. Set a number and primary position to
+              tell them apart at a glance.
+            </p>
           </div>
           <div>
             <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
