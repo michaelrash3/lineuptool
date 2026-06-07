@@ -1933,6 +1933,60 @@ describe("catcher-cap fuzz — explicit cap is never violated", () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Regression: a position lock must not carry the same catcher past the cap.
+// In non-consecutive / auto catcher modes the C slot is still in the
+// remaining-positions pool when the lock-carryover pass runs, so a full lock
+// used to re-seat the same kid behind the plate inning after inning. Covers
+// both an explicit cap and the auto default (3 for a 9-fielder game).
+// ---------------------------------------------------------------------------
+describe("catcher cap holds under position lock (carryover regression)", () => {
+  for (let s = 1; s <= 6; s++) {
+    const players = makeFuzzRoster(12, s * 17 + 3);
+    const build = (extra) =>
+      generateLineup({
+        activePlayers: players,
+        allPlayers: players,
+        games: [],
+        evaluationEvents: [],
+        currentGame: { id: `g-lockcap-${s}`, date: "2026-05-01" },
+        totalInnings: 6,
+        leagueRuleSet: "USSSA",
+        teamAge: "8U",
+        defenseSize: "9",
+        positionLock: "full",
+        battingSize: "roster",
+        seed: s * 31 + 7,
+        ...extra,
+      });
+
+    test(`explicit cap=2, non-consecutive, full lock — seed=${s}`, () => {
+      const result = build({
+        catcherMaxInnings: "2",
+        catcherConsecutive: false,
+      });
+      if (result.error) {
+        expect(result.error).toMatch(/catcher-eligible/i);
+        return;
+      }
+      for (const [, innings] of catcherInningMap(result.lineup)) {
+        expect(innings.length).toBeLessThanOrEqual(2);
+      }
+    });
+
+    test(`auto cap (default 3, 9-fielder), full lock — seed=${s}`, () => {
+      const result = build({});
+      if (result.error) {
+        expect(result.error).toMatch(/catcher-eligible/i);
+        return;
+      }
+      for (const [, innings] of catcherInningMap(result.lineup)) {
+        expect(innings.length).toBeLessThanOrEqual(3);
+      }
+    });
+  }
+});
+
 describe("D4 — pitcher scoring + pool sizing", () => {
   test("calcPitcherScore weights strikes highest, returns 0 for empty grades", () => {
     expect(calcPitcherScore(null)).toBe(0);
