@@ -770,6 +770,7 @@ export const calculateBaseballAge = (
     if (parts[0].toLowerCase() === "fall") seasonYear += 1;
   }
   const dobDate = new Date(dob);
+  if (Number.isNaN(dobDate.getTime())) return null;
   let age = seasonYear - dobDate.getUTCFullYear();
   if (dobDate.getUTCMonth() > 3) age -= 1;
   return age;
