@@ -9,13 +9,13 @@ const team = {
       id: "a",
       name: "Apex",
       number: "1",
-      stats: { ab: 20, ops: 1.2, avg: 0.4, hr: 3, pEra: 2.5, pWhip: 1.1 },
+      stats: { ab: 20, ops: 1.2, avg: 0.4, hr: 3, pEra: 2.5, pWhip: 1.1, pGoAo: 2.1 },
     },
     {
       id: "b",
       name: "Bolt",
       number: "2",
-      stats: { ab: 18, ops: 0.6, avg: 0.25, hr: 0, pEra: 6.0, pWhip: 1.9 },
+      stats: { ab: 18, ops: 0.6, avg: 0.25, hr: 0, pEra: 6.0, pWhip: 1.9, pGoAo: 0.8 },
     },
   ],
   games: [],
@@ -37,17 +37,24 @@ describe("StatsTab", () => {
     renderWithProviders(<StatsTab />, { team: { team } });
     expect(screen.getByRole("button", { name: /OPS/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Overall/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Apex/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Bolt/ })).toBeInTheDocument();
+    // Player appears at least in the table (and possibly leader cards).
+    expect(screen.getAllByRole("button", { name: /Apex/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Bolt/ }).length).toBeGreaterThan(0);
     // Pitching-only columns are not shown in the batting view.
     expect(screen.queryByRole("button", { name: /WHIP/ })).toBeNull();
   });
 
-  it("switches to the pitching view and reveals pitching columns", () => {
+  it("switches to the pitching view and reveals advanced pitching columns", () => {
     renderWithProviders(<StatsTab />, { team: { team } });
     fireEvent.click(screen.getByRole("button", { name: "Pitching" }));
     expect(screen.getByRole("button", { name: /WHIP/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /ERA/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /SM%/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /GO\/AO/ })).toBeInTheDocument();
+  });
+
+  it("renders a Leaders section from the imported stats", () => {
+    renderWithProviders(<StatsTab />, { team: { team } });
+    expect(screen.getByText("Leaders")).toBeInTheDocument();
   });
 
   it("opens the player profile when a name is tapped", () => {
@@ -56,7 +63,57 @@ describe("StatsTab", () => {
       team: { team },
       ui: { openPlayerProfile },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Apex/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Apex/ })[0]);
     expect(openPlayerProfile).toHaveBeenCalledWith("a");
+  });
+
+  it("draws an eval-trend sparkline for a player with multiple rounds", () => {
+    const withEvals = {
+      ...team,
+      evaluationEvents: [
+        {
+          id: "r1",
+          date: "2026-02-01",
+          coachRole: "Head",
+          grades: { a: { contact: 2, glove: 2 } },
+        },
+        {
+          id: "r2",
+          date: "2026-03-01",
+          coachRole: "Head",
+          grades: { a: { contact: 5, glove: 5 } },
+        },
+      ],
+    };
+    const { container } = renderWithProviders(<StatsTab />, {
+      team: { team: withEvals },
+    });
+    expect(container.querySelector("svg polyline")).toBeTruthy();
+  });
+
+  it("surfaces an arm-care banner for an overused Kid-Pitch pitcher", () => {
+    const kidPitch = {
+      ...team,
+      pitchingFormat: "Kid Pitch",
+      players: [
+        {
+          id: "a",
+          name: "Apex",
+          number: "1",
+          stats: {},
+          pitching: {
+            log: [
+              { date: "2026-05-01", pitches: 20 },
+              { date: "2026-05-02", pitches: 20 },
+              { date: "2026-05-03", pitches: 20 },
+            ],
+          },
+        },
+      ],
+    };
+    renderWithProviders(<StatsTab />, {
+      team: { team: kidPitch, currentRole: "head" },
+    });
+    expect(screen.getByText(/Arm Care/i)).toBeInTheDocument();
   });
 });

@@ -1,12 +1,18 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { RecordBadge } from "../components/shared";
+import { RecordBadge, LeaderboardCard } from "../components/shared";
 import { GameLogPanel } from "../components/GameLogPanel";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
-import { getCombinedGrades, calculateTotalScore } from "../lineupEngine";
+import {
+  getCombinedGrades,
+  calculateTotalScore,
+  analyzePitchingWorkload,
+  resolvePitchRuleSet,
+} from "../lineupEngine";
 import { buildSeasonBenchImbalance } from "../utils/helpers";
+import { isKidPitchFormat } from "../constants/ui";
 
 // Stats & Dashboard — one place that pulls together everything already imported
 // (GameChanger batting/pitching/fielding) plus eval data:
@@ -18,7 +24,7 @@ import { buildSeasonBenchImbalance } from "../utils/helpers";
 // Read-only and additive — nothing here writes. All numbers come from data the
 // coach already imported, so there's no new manual entry.
 
-type Kind = "int" | "dec3" | "dec2" | "pct" | "ip";
+type Kind = "int" | "dec1" | "dec3" | "dec2" | "pct" | "ip";
 
 const numOf = (v: any): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? v : undefined;
@@ -30,6 +36,8 @@ const fmt = (n: number | undefined, kind: Kind): string => {
   switch (kind) {
     case "int":
       return Math.round(n).toString();
+    case "dec1":
+      return n.toFixed(1);
     case "dec3":
       return n > 0 && n < 1 ? n.toFixed(3).replace(/^0/, "") : n.toFixed(3);
     case "dec2":
@@ -84,8 +92,14 @@ const PITCHING_COLS: Col[] = [
   { key: "era", label: "ERA", kind: "dec2", hi: false, get: fb("pEra", "era") },
   { key: "whip", label: "WHIP", kind: "dec2", hi: false, get: f("pWhip") },
   { key: "spct", label: "S%", kind: "pct", hi: true, get: f("pStrikePct") },
+  { key: "fps", label: "FPS%", kind: "pct", hi: true, get: f("pFps") },
   { key: "kbb", label: "K/BB", kind: "dec2", hi: true, get: f("pKbb") },
+  { key: "sm", label: "SM%", kind: "pct", hi: true, get: f("pSwingMiss") },
+  { key: "weak", label: "WEAK%", kind: "pct", hi: true, get: f("pWeak") },
+  { key: "hhb", label: "HHB%", kind: "pct", hi: false, get: f("pHardPct") },
+  { key: "goao", label: "GO/AO", kind: "dec2", hi: true, get: f("pGoAo") },
   { key: "baa", label: "BAA", kind: "dec3", hi: false, get: f("pBaa") },
+  { key: "top", label: "Top", kind: "dec1", hi: true, get: f("pTopMph") },
   { key: "bf", label: "BF", kind: "int", hi: true, get: f("pBf") },
   { key: "tp", label: "TP", kind: "int", hi: true, get: f("totalPitches") },
 ];
@@ -115,10 +129,47 @@ const CATEGORIES = [
   { id: "fielding", label: "Fielding", cols: FIELDING_COLS, defaultKey: "fpct" },
 ] as const;
 
+// Tiny eval-trend sparkline: a player's average grade across their eval rounds,
+// drawn on a fixed 1–5 scale so rows are comparable. Trends up → team color,
+// down → red. Renders nothing with fewer than two rounds of data.
+const Sparkline = memo(({ values, w = 60, h = 16 }: any) => {
+  if (!Array.isArray(values) || values.length < 2) return null;
+  const lo = 1;
+  const hi = 5;
+  const n = values.length;
+  const pts = values
+    .map((v: number, i: number) => {
+      const x = (i / (n - 1)) * (w - 2) + 1;
+      const cl = Math.max(lo, Math.min(hi, v));
+      const y = h - 1 - ((cl - lo) / (hi - lo)) * (h - 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const up = values[n - 1] >= values[0];
+  return (
+    <svg
+      width={w}
+      height={h}
+      viewBox={`0 0 ${w} ${h}`}
+      className="block"
+      aria-hidden="true"
+    >
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={up ? "var(--team-primary)" : "#ef4444"}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+});
+
 // Sortable per-player stats table for one category. Remounted (via key) when the
 // category changes so the sort resets to that category's marquee stat.
 const StatsTable = memo(
-  ({ rows, cols, defaultKey, onOpen }: any) => {
+  ({ rows, cols, defaultKey, onOpen, seriesById }: any) => {
     const allCols: Col[] = useMemo(() => [OVERALL_COL, ...cols], [cols]);
     const initial = useMemo(
       () => allCols.find((c) => c.key === defaultKey) || allCols[0],
@@ -200,6 +251,14 @@ const StatsTable = memo(
                       </span>
                     )}
                   </button>
+                  {seriesById?.get(r.id) && (
+                    <span
+                      className="block mt-0.5"
+                      title="Eval grade trend across rounds"
+                    >
+                      <Sparkline values={seriesById.get(r.id)} />
+                    </span>
+                  )}
                 </td>
                 {allCols.map((col) => (
                   <td
@@ -306,7 +365,7 @@ const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
 );
 
 export const StatsTab = memo(() => {
-  const { team, record } = useTeam();
+  const { team, record, currentRole } = useTeam();
   const { openPlayerProfile } = useUI();
   const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const games: any[] = useMemo(() => (team as any).games || [], [team]);
@@ -340,6 +399,85 @@ export const StatsTab = memo(() => {
       .filter((x: any) => x.e && x.e.gamesAttended > 0)
       .sort((a: any, b: any) => b.e.extraSits - a.e.extraSits);
   }, [games, players]);
+
+  // Per-player eval-grade trend (avg grade per Head round, chronological) for
+  // the inline sparkline. Only players with ≥2 rounds get a line.
+  const seriesById = useMemo(() => {
+    const heads = (evaluationEvents || [])
+      .filter((e: any) => e.coachRole === "Head")
+      .sort(
+        (a: any, b: any) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime()
+      );
+    const map = new Map<string, number[]>();
+    for (const p of players) {
+      const series: number[] = [];
+      for (const ev of heads) {
+        const g = ev.grades?.[p.id];
+        if (!g) continue;
+        const vals = Object.values(g).filter(
+          (v) => typeof v === "number" && Number.isFinite(v)
+        ) as number[];
+        if (vals.length)
+          series.push(vals.reduce((s, v) => s + v, 0) / vals.length);
+      }
+      if (series.length >= 2) map.set(p.id, series);
+    }
+    return map;
+  }, [evaluationEvents, players]);
+
+  // Marquee leaders. LeaderboardCard reads one flat stat key, so feed it a copy
+  // with the advanced field unified onto the basic key (era/fpct/ip) — that way
+  // leaders work whether the coach imported the basic or two-row CSV. Only
+  // categories where someone has data render (LeaderboardCard hides the rest).
+  const leaderPlayers = useMemo(
+    () =>
+      players.map((p: any) => {
+        const s = p.stats || {};
+        return {
+          ...p,
+          stats: {
+            ...s,
+            ip: numOf(s.pIp) ?? numOf(s.ip),
+            era: numOf(s.pEra) ?? numOf(s.era),
+            fpct: numOf(s.fFpct) ?? numOf(s.fpct),
+          },
+        };
+      }),
+    [players]
+  );
+  const leaderDefs = useMemo(
+    () =>
+      [
+        { title: "OPS", statKey: "ops", fmt: true, asc: false, icon: Icons.Bat },
+        { title: "Batting Avg", statKey: "avg", fmt: true, asc: false, icon: Icons.Bat },
+        { title: "Home Runs", statKey: "hr", fmt: false, asc: false, icon: Icons.Bat },
+        { title: "RBI", statKey: "rbi", fmt: false, asc: false, icon: Icons.Bat },
+        { title: "Stolen Bases", statKey: "sb", fmt: false, asc: false, icon: Icons.Bat },
+        { title: "ERA", statKey: "era", fmt: true, asc: true, icon: Icons.Pitch },
+        { title: "Fielding %", statKey: "fpct", fmt: true, asc: false, icon: Icons.Glove },
+      ].filter((d) =>
+        leaderPlayers.some((p: any) => {
+          const v = p.stats?.[d.statKey];
+          return typeof v === "number" && v > 0;
+        })
+      ),
+    [leaderPlayers]
+  );
+
+  // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
+  const armAlerts = useMemo(() => {
+    if (!(currentRole === "head" && isKidPitchFormat((team as any).pitchingFormat)))
+      return [];
+    const ruleSet = resolvePitchRuleSet(team);
+    const out: Array<{ id: string; name: string; messages: string[] }> = [];
+    for (const p of players) {
+      const w = analyzePitchingWorkload(p.pitching, ruleSet);
+      if (w.alerts && w.alerts.length)
+        out.push({ id: p.id, name: p.name, messages: w.alerts.map((a) => a.message) });
+    }
+    return out;
+  }, [players, team, currentRole]);
 
   if (players.length === 0) {
     return (
@@ -392,8 +530,67 @@ export const StatsTab = memo(() => {
         </div>
       </div>
 
+      {/* Arm-care overuse banner — pulled up to the top so a coach sees it
+          before anything else. Kid-Pitch head coaches only. */}
+      {armAlerts.length > 0 && (
+        <div className="glass-card border-l-4 border-l-amber-500">
+          <div className="p-4 sm:p-5 bg-warn-bg flex items-start gap-3">
+            <Icons.Alert className="w-5 h-5 text-warnfg shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <h2 className="text-sm font-black uppercase tracking-widest text-warnfg">
+                Arm Care — {armAlerts.length} pitcher
+                {armAlerts.length === 1 ? "" : "s"} need attention
+              </h2>
+              <ul className="mt-1.5 space-y-1">
+                {armAlerts.map((a) => (
+                  <li key={a.id} className="text-[12px] text-ink leading-snug">
+                    <button
+                      type="button"
+                      onClick={() => openPlayerProfile(a.id)}
+                      className="font-black uppercase tracking-tight hover:text-team-primary"
+                    >
+                      {a.name}
+                    </button>
+                    <span className="text-ink-2 font-medium">
+                      {" "}
+                      — {a.messages.join("; ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Season results / streak (reuses the season-summary panel) */}
       <GameLogPanel />
+
+      {/* Marquee leaders — top 3 per headline stat */}
+      {leaderDefs.length > 0 && (
+        <SectionCard
+          icon={Icons.Chart}
+          title="Leaders"
+          subtitle="Top three per headline stat. Tap a name for the full profile."
+        >
+          <div className="p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+            {leaderDefs.map((d) => (
+              <LeaderboardCard
+                key={d.statKey}
+                title={d.title}
+                icon={d.icon}
+                statKey={d.statKey}
+                formatStr={d.fmt}
+                asc={d.asc}
+                players={leaderPlayers}
+                primaryColor={primaryColor}
+                tertiaryColor={tertiaryColor}
+                onPlayerClick={openPlayerProfile}
+              />
+            ))}
+          </div>
+        </SectionCard>
+      )}
 
       {/* Per-player stats table with category toggle */}
       <SectionCard
@@ -431,6 +628,7 @@ export const StatsTab = memo(() => {
           cols={activeCat.cols}
           defaultKey={activeCat.defaultKey}
           onOpen={openPlayerProfile}
+          seriesById={seriesById}
         />
       </SectionCard>
 
