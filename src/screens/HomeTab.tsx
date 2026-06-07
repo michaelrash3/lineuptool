@@ -719,6 +719,7 @@ const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }: any) =
         "range",
         "armStrength",
         "armAccuracy",
+        "speed",
         "baserunning",
         "baseballIQ",
         "coachability",

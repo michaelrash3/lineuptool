@@ -1027,6 +1027,7 @@ export const evalStatHint = (
     case "armAccuracy":
       return s.fAssists != null ? `${s.fAssists} A` : null;
     case "speedBaserunning":
+    case "speed":
     case "baserunning":
       return s.sb != null ? `${s.sb} SB` : null;
     case "strikes":

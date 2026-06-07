@@ -347,6 +347,7 @@ export type EvalCategoryId =
   | "range"
   | "armStrength"
   | "armAccuracy"
+  | "speed"
   | "baserunning"
   | "baseballIQ"
   | "coachability";
