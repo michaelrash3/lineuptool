@@ -1185,7 +1185,7 @@ export const ScheduleTab = memo(() => {
                 <div className="flex flex-col gap-3 max-w-2xl">
                   {battingLineup.map((p: any, idx: any) => (
                     <div
-                      key={`batter_${idx}`}
+                      key={p?.id ?? `batter_${idx}`}
                       className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
                     >
                       <div className="flex items-center gap-4">
@@ -1431,10 +1431,12 @@ export const ScheduleTab = memo(() => {
                 const status = game.status || "scheduled";
                 const isFinal = isGameFinalized(game);
                 const isPostponed = status === "postponed";
+                const teamScoreNum = Number(game.teamScore);
+                const oppScoreNum = Number(game.opponentScore);
                 const result = isFinal
-                  ? game.teamScore > game.opponentScore
+                  ? teamScoreNum > oppScoreNum
                     ? "win"
-                    : game.teamScore < game.opponentScore
+                    : teamScoreNum < oppScoreNum
                     ? "loss"
                     : "tie"
                   : null;

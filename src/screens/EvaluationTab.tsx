@@ -572,7 +572,7 @@ const avgUniversal = (gradeRecord: any) => {
   if (!gradeRecord) return null;
   const vals = EVAL_CATEGORIES.filter((c) => !c.addOn)
     .map((c) => +gradeRecord[c.id])
-    .filter((v) => Number.isFinite(v) && v >= 1 && v <= 10);
+    .filter((v) => Number.isFinite(v) && v >= 1 && v <= EVAL_SCALE_MAX);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 };

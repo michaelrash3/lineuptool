@@ -3338,8 +3338,22 @@ function tryBuildLineup(ctx: any): any {
           if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
           if (used.has(prevPlayer.id)) continue; // already placed
           if (isPositionBlocked(prevPlayer, pos)) continue;
-          // Never carry a non-cleared kid into the catcher slot.
-          if (pos === "C" && !isCatcherEligible(prevPlayer)) continue;
+          // Never carry a non-cleared kid into the catcher slot, and never
+          // carry them past the catcher inning cap — otherwise a position
+          // lock chains the same kid behind the plate inning after inning
+          // (in non-consecutive / auto modes C is still in remainingPositions
+          // when this runs). Mirror pickBestForPosition's cap, including its
+          // auto-mode default, so the slot falls through to a fair rotation.
+          if (pos === "C") {
+            if (!isCatcherEligible(prevPlayer)) continue;
+            const cCap = Number.isFinite(catcherCap)
+              ? catcherCap
+              : defenseSize === "10"
+              ? 2
+              : 3;
+            if ((state.get(prevPlayer.id)?.positions["C"] || 0) >= cCap)
+              continue;
+          }
           // Pitcher carry over rule for 9 fielder games is handled in pickBest;
           // for lock innings we trust the prior assignment.
           inningSlots[pos] = prevPlayer;
