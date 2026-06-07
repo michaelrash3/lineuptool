@@ -798,6 +798,19 @@ const TeamProvider = ({ children }: any) => {
       if (Array.isArray(updates.games)) {
         toPersist = { ...updates, games: updates.games.map(slimGame) };
       }
+      // Player photos were removed from the app — they lived as inline base64 on
+      // each player and pushed this single team doc toward the 1 MB cap. Never
+      // write photoUrl back, so any leftover bytes are dropped on the next save.
+      if (Array.isArray(toPersist.players)) {
+        toPersist = {
+          ...toPersist,
+          players: toPersist.players.map((p: any) => {
+            if (!p || !("photoUrl" in p)) return p;
+            const { photoUrl: _dropped, ...rest } = p;
+            return rest;
+          }),
+        };
+      }
       // Scrub any undefined values from the tree — Firestore rejects them.
       toPersist = scrubUndefined(toPersist);
 
@@ -1020,6 +1033,27 @@ const TeamProvider = ({ children }: any) => {
     },
     [persistTeam, toast]
   );
+
+  // One-time reclaim: player photos were removed from the app. Any team saved
+  // before that still carries the old inline base64 photoUrl on its roster —
+  // the single biggest contributor to the team doc's size. Strip them once per
+  // active team so the next save frees the space (the persist gate above also
+  // drops photoUrl from every players write, so they never come back). Guarded
+  // by a per-team ref so this fires at most once per team per load.
+  const photoStripAttemptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!activeTeamId || photoStripAttemptedRef.current.has(activeTeamId)) return;
+    const players = teamData.players;
+    if (!Array.isArray(players) || players.length === 0) return;
+    if (!players.some((p: any) => p && p.photoUrl)) return;
+    photoStripAttemptedRef.current.add(activeTeamId);
+    const stripped = players.map((p: any) => {
+      if (!p || !("photoUrl" in p)) return p;
+      const { photoUrl: _dropped, ...rest } = p;
+      return rest;
+    });
+    updateTeam({ players: stripped });
+  }, [activeTeamId, teamData.players, updateTeam]);
 
   // Auto-correct defenseSize on age/league change. BATCHED into a single write.
   // We read the four relevant fields outside the effect so the dependency list

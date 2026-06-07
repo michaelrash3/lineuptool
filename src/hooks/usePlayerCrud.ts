@@ -26,7 +26,6 @@ export const usePlayerCrud = ({
         number: form.number || "",
         bats: form.bats || "R",
         throws: form.throws || "R",
-        photoUrl: form.photoUrl || "",
         present: true,
         restrictions: [],
         // Catcher is just "C" in this list — a new player isn't a catcher
