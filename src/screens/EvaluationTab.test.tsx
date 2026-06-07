@@ -65,4 +65,72 @@ describe("EvaluationTab", () => {
     expect(screen.getByText("“Great swing”")).toBeInTheDocument();
     expect(screen.getAllByText(/Assistant · Jones/).length).toBeGreaterThanOrEqual(1);
   });
+
+  it("labels the save button 'Save as New Round' when creating a new round", () => {
+    // No saved rounds → nothing to update → creating new.
+    renderWithProviders(<EvaluationTab />, {
+      team: {
+        team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
+        user: { uid: "u1" },
+        currentRole: "head",
+        saveTeamEvaluation: jest.fn(),
+        deleteEvaluation: jest.fn(),
+      },
+      ui: {
+        teamEvalGrades: {},
+        setTeamEvalGrades: jest.fn(),
+        selectedRoundId: null,
+        setSelectedRoundId: jest.fn(),
+        evalTrendPlayerId: null,
+        setEvalTrendPlayerId: jest.fn(),
+      },
+    });
+    expect(
+      screen.getByRole("button", { name: /Save as New Round/ })
+    ).toBeInTheDocument();
+  });
+
+  it("requires a two-tap confirm to overwrite an existing round", () => {
+    const saveTeamEvaluation = jest.fn(() => "r1");
+    renderWithProviders(<EvaluationTab />, {
+      team: {
+        team: {
+          players: [],
+          primaryColor: "#1d4ed8",
+          evaluationEvents: [
+            {
+              id: "r1",
+              date: "2026-02-01",
+              coachRole: "Head",
+              evaluatorId: "u1",
+              evaluatorName: "Coach",
+              grades: {},
+            },
+          ],
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        saveTeamEvaluation,
+        deleteEvaluation: jest.fn(),
+      },
+      ui: {
+        teamEvalGrades: {},
+        setTeamEvalGrades: jest.fn(),
+        selectedRoundId: "r1", // editing the saved round
+        setSelectedRoundId: jest.fn(),
+        evalTrendPlayerId: null,
+        setEvalTrendPlayerId: jest.fn(),
+      },
+    });
+    const btn = screen.getByRole("button", { name: /Update This Round/ });
+    // First tap arms the confirm — does NOT save.
+    fireEvent.click(btn);
+    expect(saveTeamEvaluation).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /Overwrite/ })
+    ).toBeInTheDocument();
+    // Second tap commits.
+    fireEvent.click(screen.getByRole("button", { name: /Overwrite/ }));
+    expect(saveTeamEvaluation).toHaveBeenCalledTimes(1);
+  });
 });

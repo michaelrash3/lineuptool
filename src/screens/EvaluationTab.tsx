@@ -1195,6 +1195,9 @@ export const EvaluationTab = memo(() => {
   // Two-tap confirm for the head's own round delete — arms the trash
   // button on first tap, commits on second. Replaces window.confirm.
   const [pendingRoundDelete, setPendingRoundDelete] = useState(false);
+  // Two-tap confirm for overwriting an existing round — first tap names the
+  // round being written, second tap commits. Creating a new round skips this.
+  const [pendingUpdateConfirm, setPendingUpdateConfirm] = useState(false);
   // Manage Rounds modal: lists every saved round so the head can switch
   // or delete any of them without first selecting from the dropdown.
   // `pendingModalDeleteId` is the per-row armed-state id for the
@@ -1267,14 +1270,30 @@ export const EvaluationTab = memo(() => {
     );
   }, [evaluationEvents]);
 
-  // "New round" mode is gated to active prompt windows. Outside them we
-  // default to viewing the most recent existing round.
-  const isNewRound = !selectedRoundId && promptStatus.active;
+  // What Save actually does is driven purely by whether a saved round is
+  // selected — NOT by the cadence window:
+  //   • no round selected  → CREATE a brand-new round (pre-filled from the
+  //                           latest as a baseline)
+  //   • a round selected   → UPDATE (overwrite) that exact round
+  // The old flow hid this: outside a cadence window it showed "Update Eval"
+  // while a save with no round selected silently created a *new* round. We make
+  // the split explicit instead. promptStatus only gates WHEN a new round is
+  // offered, not what the button does.
+  const isCreatingNew = !selectedRoundId;
   const activeRound = selectedRoundId
     ? myRounds.find((r: any) => r.id === selectedRoundId)
-    : !promptStatus.active && myRounds.length > 0
-    ? myRounds[0]
     : null;
+  const activeRoundName = activeRound ? formatRoundName(activeRound) : "";
+
+  // Outside a new-eval window, lock onto the most recent round so the screen is
+  // squarely *editing* it (Save = Update, matching the "Editing …" label). This
+  // removes the ambiguous state where nothing was selected yet Save created a
+  // duplicate round. Inside a window, leaving it unselected means "new round".
+  useEffect(() => {
+    if (!promptStatus.active && !selectedRoundId && myRounds.length > 0) {
+      setSelectedRoundId(myRounds[0].id);
+    }
+  }, [promptStatus.active, selectedRoundId, myRounds, setSelectedRoundId]);
 
   // Track unsaved changes against the last persisted snapshot so the
   // header can show a single, honest "Unsaved changes" indicator until
@@ -1309,20 +1328,38 @@ export const EvaluationTab = memo(() => {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [saveState]);
 
-  // Reset save baseline when switching between rounds.
+  // Reset save baseline + any armed overwrite confirm when switching rounds.
   useEffect(() => {
     lastSavedRef.current = "";
     setSaveState("idle");
+    setPendingUpdateConfirm(false);
   }, [selectedRoundId]);
 
-  const handleSaveClick = useCallback(() => {
+  const doSave = useCallback(() => {
     const savedRoundId = saveTeamEvaluation();
-    if (isNewRound && savedRoundId) {
+    // After creating a new round, lock onto it so the next save updates it.
+    if (isCreatingNew && savedRoundId) {
       setSelectedRoundId(savedRoundId);
     }
     lastSavedRef.current = JSON.stringify(teamEvalGrades);
     setSaveState("saved");
-  }, [saveTeamEvaluation, isNewRound, setSelectedRoundId, teamEvalGrades]);
+    setPendingUpdateConfirm(false);
+  }, [saveTeamEvaluation, isCreatingNew, setSelectedRoundId, teamEvalGrades]);
+
+  const handleSaveClick = useCallback(() => {
+    // Creating a new round is low-risk — save straight through. Overwriting a
+    // saved round is a two-tap confirm so it's unmistakable which round (file)
+    // is being written.
+    if (isCreatingNew) {
+      doSave();
+      return;
+    }
+    if (pendingUpdateConfirm) {
+      doSave();
+      return;
+    }
+    setPendingUpdateConfirm(true);
+  }, [isCreatingNew, pendingUpdateConfirm, doSave]);
 
   const setGrade = useCallback(
     (playerId: any, categoryId: any, value: any) => {
@@ -1430,36 +1467,44 @@ export const EvaluationTab = memo(() => {
               className="t-eyebrow flex items-center gap-1.5"
               aria-live="polite"
             >
-              {!isNewRound && saveState === "dirty" && (
+              {saveState === "dirty" && (
                 <>
                   <Icons.Alert className="w-3 h-3 text-warnfg" />
                   Unsaved changes
                 </>
               )}
-              {!isNewRound && saveState === "saved" && (
+              {!isCreatingNew && saveState === "saved" && (
                 <>
                   <Icons.Check className="w-3 h-3 text-win" />
                   Saved
-                </>
-              )}
-              {isNewRound && saveState === "dirty" && (
-                <>
-                  <Icons.Alert className="w-3 h-3 text-warnfg" />
-                  Unsaved changes
                 </>
               )}
             </span>
             <button
               type="button"
               onClick={handleSaveClick}
-              className="flex-1 sm:flex-none t-button px-6 py-3 rounded-xl shadow-md hover:-translate-y-0.5 transition-transform flex items-center justify-center gap-2"
+              onBlur={() => setPendingUpdateConfirm(false)}
+              className={`flex-1 sm:flex-none t-button px-6 py-3 rounded-xl shadow-md hover:-translate-y-0.5 transition-transform flex items-center justify-center gap-2 ${
+                pendingUpdateConfirm ? "ring-2 ring-amber-300" : ""
+              }`}
               style={{
                 backgroundColor: "var(--team-primary)",
                 color: "var(--team-tertiary)",
               }}
+              title={
+                isCreatingNew
+                  ? "Save a brand-new eval round"
+                  : pendingUpdateConfirm
+                  ? `Tap again to overwrite the saved round "${activeRoundName}"`
+                  : `Overwrite the saved round "${activeRoundName}"`
+              }
             >
               <Icons.Save className="w-4 h-4" />
-              {isNewRound ? "Save New Eval" : "Update Eval"}
+              {isCreatingNew
+                ? "Save as New Round"
+                : pendingUpdateConfirm
+                ? `Overwrite “${activeRoundName}”?`
+                : "Update This Round"}
             </button>
           </div>
         </div>
@@ -1541,10 +1586,24 @@ export const EvaluationTab = memo(() => {
               )}
             </button>
           )}
-          {!isNewRound && activeRound && (
+          {!isCreatingNew && activeRound && (
             <span className="text-[10px] font-bold text-ink-3 italic">
               Editing &quot;{formatRoundName(activeRound)}&quot;
             </span>
+          )}
+          {/* Explicit escape hatch: while editing a saved round during an open
+              eval window, branch off into a brand-new round instead of
+              overwriting. Mirrors the dropdown's "+ Start a new Eval". */}
+          {promptStatus.active && !isCreatingNew && (
+            <button
+              type="button"
+              onClick={() => setSelectedRoundId(null)}
+              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
+              title="Start a brand-new eval round instead of overwriting this one"
+            >
+              <Icons.Plus className="w-3.5 h-3.5" />
+              Start New Round
+            </button>
           )}
           {myRounds.length > 0 && (
             <button
@@ -1568,6 +1627,35 @@ export const EvaluationTab = memo(() => {
               <Icons.Forward className="w-3.5 h-3.5" /> Compare Rounds
             </button>
           )}
+        </div>
+
+        {/* Spells out exactly what Save will do right now — the fix for "is
+            this updating a file or starting a new eval?" */}
+        <div className="px-5 py-2 bg-surface border-b border-line">
+          <p className="text-[11px] font-medium text-ink-2 flex items-center gap-1.5">
+            <Icons.Save className="w-3 h-3 text-ink-3 shrink-0" />
+            {isCreatingNew ? (
+              <>
+                Save creates a{" "}
+                <strong className="font-black text-ink">new eval round</strong>
+                {promptStatus.active
+                  ? promptStatus.kind === "preseason"
+                    ? " (preseason)."
+                    : " (biweekly)."
+                  : myRounds.length > 0
+                  ? ", pre-filled from your latest round."
+                  : "."}
+              </>
+            ) : (
+              <>
+                Save{" "}
+                <strong className="font-black text-ink">
+                  overwrites the saved round
+                </strong>{" "}
+                &ldquo;{activeRoundName}&rdquo; — it does not create a new one.
+              </>
+            )}
+          </p>
         </div>
 
         {/* Round-over-round auto-flags (standouts / regressions / category drops) */}
