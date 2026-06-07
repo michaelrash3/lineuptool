@@ -7,7 +7,9 @@ import {
   calcPitcherScore,
   calcCatcherScore,
   calcDefensiveScore,
+  suggestPrimaryPosition,
 } from "../lineupEngine";
+import { canonicalizeOutfield } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 
 // Full position names for the card headers.
@@ -58,6 +60,29 @@ const scoreForPlayer = (
   return calcDefensiveScore(grades, player?.stats);
 };
 
+// Does a position match a player's (canonical) primary? CF collapses onto the
+// LCF/RCF field cards so a kid whose primary is "CF" leads center in either
+// alignment.
+const samePos = (a?: string, b?: string): boolean =>
+  !!a && !!b && canonicalizeOutfield(a) === canonicalizeOutfield(b);
+
+// Primary-first grouping rank for a position (lower = listed earlier). Pitcher
+// is exempt — it keeps its pure pitching-score order. Everywhere else the
+// coach's explicit primary leads (tier 0); a kid with no explicit primary but
+// an eval-suggested primary here follows (tier 1); everyone else fills in after
+// (tier 2). Within each tier the existing position score breaks the order.
+const primaryTier = (
+  pos: string,
+  player: any,
+  suggestedById: Map<string, string | null>
+): number => {
+  if (pos === "P") return 0;
+  if (samePos(player.primaryPosition, pos)) return 0;
+  if (!player.primaryPosition && samePos(suggestedById.get(player.id) || undefined, pos))
+    return 1;
+  return 2;
+};
+
 // Auto-ranking with the saved manual order applied on top: pinned players (in
 // the coach's chosen order) first, then any remaining comfortable players in
 // auto-ranked order. Tolerates roster changes — ids no longer comfortable or
@@ -68,10 +93,14 @@ const orderForPosition = (
   grades: Record<string, any>,
   kidPitch: boolean,
   manual: string[] | null,
+  suggestedById: Map<string, string | null>,
   teamAge?: string
 ): any[] => {
   const eligible = players.filter((p) => comfortableAt(p, pos));
   const auto = [...eligible].sort((a, b) => {
+    const ta = primaryTier(pos, a, suggestedById);
+    const tb = primaryTier(pos, b, suggestedById);
+    if (ta !== tb) return ta - tb;
     const d =
       scoreForPlayer(pos, b, grades[b.id] || {}, kidPitch, teamAge) -
       scoreForPlayer(pos, a, grades[a.id] || {}, kidPitch, teamAge);
@@ -200,17 +229,36 @@ export const DepthChartTab = memo(() => {
     [evaluationEvents, players]
   );
 
+  // Eval-suggested primary per player — used only as the fallback ordering
+  // basis for kids the coach hasn't given an explicit primaryPosition.
+  const suggestedById = useMemo(() => {
+    const m = new Map<string, string | null>();
+    for (const p of players) {
+      const s = suggestPrimaryPosition(p, combinedGrades[p.id], { kidPitch, teamAge });
+      m.set(p.id, s ? s.position : null);
+    }
+    return m;
+  }, [players, combinedGrades, kidPitch, teamAge]);
+
   const board = useMemo(
     () =>
       getActivePositionList(defenseSize).map((pos) => {
         const manual = Array.isArray(depthChart[pos]) ? depthChart[pos] : null;
         return {
           pos,
-          ranked: orderForPosition(pos, players, combinedGrades, kidPitch, manual, teamAge),
+          ranked: orderForPosition(
+            pos,
+            players,
+            combinedGrades,
+            kidPitch,
+            manual,
+            suggestedById,
+            teamAge
+          ),
           customized: !!manual,
         };
       }),
-    [defenseSize, players, combinedGrades, kidPitch, depthChart, teamAge]
+    [defenseSize, players, combinedGrades, kidPitch, depthChart, suggestedById, teamAge]
   );
 
   // Swap a player with its neighbor and persist the full new order. We write the
@@ -250,8 +298,8 @@ export const DepthChartTab = memo(() => {
             <h1 className="t-h1">Depth Chart</h1>
             <p className="t-eyebrow text-ink-3 mt-0.5">
               {kidPitch
-                ? "Auto-ranked from evals — pitchers by strikes, catchers by glove & arm, fielders by defense."
-                : "Auto-ranked from evals by field defense."}
+                ? "Primary-position kids lead each spot (except Pitcher), then ranked from evals — pitchers by strikes, catchers by glove & arm, fielders by defense."
+                : "Primary-position kids lead each spot, then ranked from evals by field defense."}
               {canEdit ? " Nudge anyone up or down to adjust." : ""}
             </p>
           </div>

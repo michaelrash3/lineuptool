@@ -12,7 +12,8 @@ import {
   ROSTER_POSITIONS,
   canonicalizePositionList,
 } from "../utils/helpers";
-import { AGE_TIERS } from "../constants/ui";
+import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
+import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { PlayerAvatar, cropImageTo256DataURL } from "./shared";
 import {
@@ -417,6 +418,8 @@ export const PlayerProfileModal = memo(() => {
     currentSeason,
     pitchingFormat,
     defenseSize,
+    evaluationEvents,
+    teamAge,
   } = team;
   const [activeSection, setActiveSection] = useState("general");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -611,6 +614,21 @@ export const PlayerProfileModal = memo(() => {
     out.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
     return out;
   }, [games, players, viewingPlayerId]);
+
+  // Eval-derived suggested primary position for the open player — surfaced
+  // alongside the manual Primary Pos picker as a one-tap "use this". It never
+  // auto-fills; the coach stays in control.
+  const suggestedPrimary = useMemo(() => {
+    const pid = viewingPlayerId;
+    if (!pid) return null;
+    const pl = (players || []).find((p: any) => p.id === pid);
+    if (!pl) return null;
+    const grades = getCombinedGrades(evaluationEvents || [], players || [])[pid];
+    return suggestPrimaryPosition(pl, grades, {
+      kidPitch: isKidPitchFormat(pitchingFormat),
+      teamAge,
+    });
+  }, [viewingPlayerId, players, evaluationEvents, pitchingFormat, teamAge]);
 
   const player = players.find((p: any) => p.id === viewingPlayerId);
   if (!player) return null;
@@ -869,6 +887,23 @@ export const PlayerProfileModal = memo(() => {
                       </option>
                     ))}
                   </select>
+                  {canEdit &&
+                    suggestedPrimary &&
+                    suggestedPrimary.position !== (player.primaryPosition || "") && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updatePlayer(player.id, {
+                            primaryPosition: suggestedPrimary.position,
+                          })
+                        }
+                        className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-team-primary hover:underline"
+                        title="Suggested from this player's evaluations"
+                      >
+                        <Icons.Sparkles className="w-3 h-3" />
+                        Eval suggests {suggestedPrimary.position} · Use
+                      </button>
+                    )}
                 </div>
                 <div className="col-span-2 sm:col-span-2">
                   <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
