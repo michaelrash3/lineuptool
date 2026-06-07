@@ -43,7 +43,7 @@ import type {
   Position,
   SlimPlayer,
 } from "./types";
-import { canonicalizeOutfield } from "./utils/helpers";
+import { canonicalizeOutfield, canonicalizePositionList } from "./utils/helpers";
 
 // ---------- Constants ----------
 const POS_10: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
@@ -1096,6 +1096,94 @@ export function getActivePositionList(
     return ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
   // Default + "10": LC + RC cover center together; no lone CF chip.
   return ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
+}
+
+// ---------- Eval-suggested primary position ----------
+// A coach can set a player's primaryPosition by hand; this derives a *suggested*
+// primary from the eval grades so the profile can offer a one-tap pick and the
+// depth chart has a sensible fallback ordering basis when no primary is set.
+//
+// Each field position emphasizes the eval categories it actually demands at the
+// youth level. We score the fit, normalize it to 0..1 (so a field spot is
+// comparable with the dedicated pitcher/catcher scores, which carry their own
+// maxes), and return the best one. P and C reuse the same eval scorers the depth
+// chart ranks them by, so the suggestion never drifts from the chart.
+const POSITION_FIT_WEIGHTS: Record<string, Record<string, number>> = {
+  "1B": { glove: 3, armAccuracy: 1, baseballIQ: 1 },
+  "2B": { glove: 2, range: 2, armAccuracy: 1.5, baseballIQ: 1 },
+  "3B": { glove: 2, range: 1.5, armStrength: 2.5, armAccuracy: 1.5, baseballIQ: 1 },
+  SS: { glove: 2.5, range: 2.5, armStrength: 2, armAccuracy: 1.5, baseballIQ: 1.5 },
+  LF: { range: 2, glove: 1.5, armStrength: 1, baserunning: 1 },
+  CF: { range: 3, glove: 1.5, armStrength: 1.5, baserunning: 1.5 },
+  RF: { range: 2, glove: 1.5, armStrength: 2, baserunning: 1 },
+};
+
+const FIT_READERS: Record<string, (g: any) => number> = {
+  glove: gloveOf,
+  range: rangeOf,
+  armStrength: armStrengthOf,
+  armAccuracy: armAccuracyOf,
+  baserunning: baserunningOf,
+  baseballIQ: (g) => g?.baseballIQ ?? 3,
+};
+
+function fieldFitScore(pos: string, grades: GradeMap | null | undefined): number {
+  const w = POSITION_FIT_WEIGHTS[canonicalizeOutfield(pos)];
+  if (!w) return 0;
+  const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
+  let score = 0;
+  let max = 0;
+  for (const [k, weight] of Object.entries(w)) {
+    score += (FIT_READERS[k]?.(g) ?? 3) * weight;
+    max += 5 * weight;
+  }
+  return max > 0 ? score / max : 0;
+}
+
+export interface PrimarySuggestion {
+  position: string;
+  fit: number; // 0..1 normalized fit, for display / tie-debugging
+}
+
+// Suggest a player's best-fit primary from their (combined) eval grades. Only
+// positions the kid is cleared for are considered; an empty comfort list falls
+// back to the field spots (never auto-suggests C — catching is opt-in — or a
+// ceremonial P). Returns null when there are no candidates. Pure.
+export function suggestPrimaryPosition(
+  player:
+    | { comfortablePositions?: string[]; stats?: PlayerStats | null }
+    | null
+    | undefined,
+  grades: GradeMap | null | undefined,
+  opts?: { kidPitch?: boolean; teamAge?: string }
+): PrimarySuggestion | null {
+  if (!player) return null;
+  const kidPitch = !!opts?.kidPitch;
+  const comfort = Array.isArray(player.comfortablePositions)
+    ? canonicalizePositionList(player.comfortablePositions)
+    : [];
+  const candidates =
+    comfort.length > 0
+      ? comfort
+      : ["1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+
+  let best: PrimarySuggestion | null = null;
+  for (const pos of candidates) {
+    let fit: number;
+    if (pos === "P") {
+      // Coach/machine-pitch P is ceremonial — never a meaningful primary.
+      if (!kidPitch) continue;
+      fit =
+        calcPitcherScore(grades, player.stats, { teamAge: opts?.teamAge }) /
+        PITCHER_EVAL_MAX;
+    } else if (pos === "C") {
+      fit = calcCatcherScore(grades, player.stats) / CATCHER_EVAL_MAX;
+    } else {
+      fit = fieldFitScore(pos, grades);
+    }
+    if (!best || fit > best.fit + 1e-9) best = { position: pos, fit };
+  }
+  return best;
 }
 
 // Pool size by game type (9U+ Kid Pitch only). Pool = spread across the

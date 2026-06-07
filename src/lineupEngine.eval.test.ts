@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateTotalScore } from "./lineupEngine";
+import { calculateTotalScore, suggestPrimaryPosition } from "./lineupEngine";
 
 // A neutral baseline grade object (all 3s) in the new merged v7 model.
 const base = {
@@ -37,5 +37,64 @@ describe("calculateTotalScore — v7 eval model", () => {
     const s = calculateTotalScore(base);
     expect(s).toBeGreaterThanOrEqual(0);
     expect(s).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("suggestPrimaryPosition — eval-derived primary", () => {
+  it("suggests a premium infield spot for a strong arm + glove + range kid", () => {
+    const grades = { ...base, glove: 5, range: 5, armStrength: 5, armAccuracy: 5 };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["1B", "SS", "RF"] },
+      grades
+    );
+    expect(s?.position).toBe("SS");
+  });
+
+  it("only considers the player's comfortable positions", () => {
+    const grades = { ...base, glove: 5, range: 5, armStrength: 5 };
+    const s = suggestPrimaryPosition({ comfortablePositions: ["RF"] }, grades);
+    expect(s?.position).toBe("RF");
+  });
+
+  it("suggests catcher when the catching grades stand out", () => {
+    const grades = {
+      ...base,
+      receiving: 5,
+      blocking: 5,
+      throwing: 5,
+      gameCalling: 5,
+    };
+    const s = suggestPrimaryPosition({ comfortablePositions: ["C", "RF"] }, grades);
+    expect(s?.position).toBe("C");
+  });
+
+  it("never suggests a ceremonial pitcher for non-Kid-Pitch teams", () => {
+    const grades = { ...base, velocity: 5, strikes: 5, composure: 5 };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["P", "RF"] },
+      grades,
+      { kidPitch: false }
+    );
+    expect(s?.position).not.toBe("P");
+  });
+
+  it("can suggest pitcher for Kid-Pitch teams with strong pitching grades", () => {
+    const grades = { ...base, velocity: 5, strikes: 5, offSpeed: 5, composure: 5 };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["P", "RF"] },
+      grades,
+      { kidPitch: true }
+    );
+    expect(s?.position).toBe("P");
+  });
+
+  it("falls back to the field spots when no comfort list is set", () => {
+    const grades = { ...base, range: 5, baserunning: 5 };
+    const s = suggestPrimaryPosition({}, grades);
+    expect(s?.position).toBe("CF");
+  });
+
+  it("returns null for a missing player", () => {
+    expect(suggestPrimaryPosition(null, base)).toBeNull();
   });
 });

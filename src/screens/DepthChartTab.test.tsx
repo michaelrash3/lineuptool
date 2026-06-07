@@ -75,6 +75,78 @@ describe("DepthChartTab", () => {
     expect(items[1]).toHaveTextContent("Zane");
   });
 
+  it("lists primary-position kids first, then the rest by score", () => {
+    // Bortz is the better fielder (higher glove/range), but Apple has SS as his
+    // primary — so Apple leads SS despite the lower defensive score.
+    const team: any = {
+      players: [
+        {
+          id: "a",
+          name: "Apple",
+          comfortablePositions: ["SS"],
+          primaryPosition: "SS",
+        },
+        { id: "b", name: "Bortz", comfortablePositions: ["SS"] },
+      ],
+      evaluationEvents: [
+        {
+          id: "e1",
+          date: "2026-01-01",
+          coachRole: "Head",
+          grades: {
+            a: { glove: 1, range: 1, armStrength: 1 },
+            b: { glove: 5, range: 5, armStrength: 5 },
+          },
+        },
+      ],
+      pitchingFormat: "Kid Pitch",
+      defenseSize: "9",
+    };
+    renderWithProviders(<DepthChartTab />, { team: { team } });
+    // SS card is the 6th position card (P, C, 1B, 2B, 3B, SS, ...). Scope by
+    // finding the SS heading's card.
+    const items = screen.getAllByRole("listitem");
+    const apple = items.find((el) => el.textContent?.includes("Apple"))!;
+    const bortz = items.find((el) => el.textContent?.includes("Bortz"))!;
+    // Apple (primary SS) appears before Bortz in document order within the SS card.
+    expect(
+      apple.compareDocumentPosition(bortz) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("keeps Pitcher on pure pitching-score order (primary is ignored at P)", () => {
+    const team: any = {
+      players: [
+        // Abel has P primary but worse strikes; Zane has better strikes.
+        {
+          id: "z",
+          name: "Zane",
+          comfortablePositions: ["P"],
+        },
+        {
+          id: "a",
+          name: "Abel",
+          comfortablePositions: ["P"],
+          primaryPosition: "P",
+        },
+      ],
+      evaluationEvents: [
+        {
+          id: "e1",
+          date: "2026-01-01",
+          coachRole: "Head",
+          grades: { z: { strikes: 5 }, a: { strikes: 1 } },
+        },
+      ],
+      pitchingFormat: "Kid Pitch",
+      defenseSize: "9",
+    };
+    renderWithProviders(<DepthChartTab />, { team: { team } });
+    const items = screen.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Zane"); // better strikes leads despite Abel's P primary
+    expect(items[1]).toHaveTextContent("Abel");
+  });
+
   it("is read-only for assistant coaches (no reorder controls)", () => {
     renderWithProviders(<DepthChartTab />, {
       team: { team: pitcherTeam, currentRole: "assistant" },
