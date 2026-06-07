@@ -4,6 +4,7 @@ const TAB_TO_PATH: Record<string, string> = {
   home: "/",
   schedule: "/schedule",
   roster: "/roster",
+  stats: "/stats",
   depthChart: "/depth-chart",
   evaluation: "/evaluation",
   tryouts: "/tryouts",
@@ -44,11 +45,11 @@ export const useMainShellRouting = ({
     () =>
       isAssistant
         ? tryoutsOpen
-          ? ["home", "schedule", "roster", "depthChart", "tryouts", "evaluation"]
-          : ["home", "schedule", "roster", "depthChart", "evaluation"]
+          ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation"]
+          : ["home", "schedule", "roster", "stats", "depthChart", "evaluation"]
         : tryoutsOpen
-        ? ["home", "schedule", "roster", "depthChart", "tryouts", "evaluation", "settings"]
-        : ["home", "schedule", "roster", "depthChart", "evaluation", "settings"],
+        ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation", "settings"]
+        : ["home", "schedule", "roster", "stats", "depthChart", "evaluation", "settings"],
     [isAssistant, tryoutsOpen]
   );
 

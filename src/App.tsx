@@ -112,6 +112,9 @@ const HomeTab = lazy(() =>
 const RosterTab = lazy(() =>
   import("./screens/RosterTab").then((m) => ({ default: m.RosterTab }))
 );
+const StatsTab = lazy(() =>
+  import("./screens/StatsTab").then((m) => ({ default: m.StatsTab }))
+);
 const DepthChartTab = lazy(() =>
   import("./screens/DepthChartTab").then((m) => ({ default: m.DepthChartTab }))
 );
@@ -150,6 +153,7 @@ const InGameView = lazy(() =>
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
 const TAB_TITLE_LABELS: Record<string, string> = {
   home: "Dashboard",
+  stats: "Stats",
   roster: "Roster",
   schedule: "Schedule",
   evaluation: "Evaluation",
@@ -2928,6 +2932,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
@@ -2936,6 +2941,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         ...(interestButton ? [interestButton] : []),
@@ -2957,6 +2963,7 @@ const MainShell = () => {
         <ErrorBoundary resetKey={location.pathname}>
         <Routes>
           <Route path="/" element={<HomeTab />} />
+          <Route path="/stats" element={<StatsTab />} />
           <Route path="/roster" element={<RosterTab />} />
           <Route path="/depth-chart" element={<DepthChartTab />} />
           <Route path="/schedule" element={<ScheduleTab />} />
