@@ -34,7 +34,10 @@ export const GameChangerImportModal: React.FC<Props> = ({
   updateTeam,
   toast,
 }) => {
-  const existingGames: any[] = Array.isArray(team?.games) ? team.games : [];
+  const existingGames: any[] = useMemo(
+    () => (Array.isArray(team?.games) ? team.games : []),
+    [team?.games],
+  );
   const [url, setUrl] = useState<string>(team?.gcCalendarUrl || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
