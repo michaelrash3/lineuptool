@@ -468,11 +468,16 @@ export function getOffensiveScore(stats?: PlayerStats | null): number {
   const advanced = Math.max(ld * 25, hard * 20, qab * 15);
   const hasAdv = ld > 0 || hard > 0 || qab > 0;
 
+  // When advanced quality-of-contact data exists (LD% / Hard% / QAB%), it
+  // carries the LARGEST share — those rates describe how a kid is actually
+  // swinging far better than the old-school slash line, which luck and tiny
+  // samples whip around at this level. Without them, the slash line is all
+  // we have.
   const weighted = hasAdv
-    ? opsScore * 0.35 +
-      avgScore * 0.15 +
+    ? opsScore * 0.3 +
+      avgScore * 0.1 +
       obpScore * 0.2 +
-      Math.min(10, advanced) * 0.3
+      Math.min(10, advanced) * 0.4
     : opsScore * 0.4 + avgScore * 0.25 + obpScore * 0.2 + conScore * 0.15;
 
   const hr = num(stats.hr);
@@ -884,14 +889,16 @@ const PITCHER_STAT_SPECS: Array<{
   { key: "pBbPerInn", w: 1.5, worst: 1.2, best: 0.2 },
   { key: "pKbb", w: 1.5, worst: 0.5, best: 3.0 },
   { key: "pWhip", w: 1.5, worst: 2.2, best: 1.0 },
-  // Run prevention
-  { key: "pEra", w: 1.0, worst: 8.0, best: 2.0 },
-  { key: "pBaa", w: 1.0, worst: 0.4, best: 0.18 },
-  // Bats-missed / weak contact
-  { key: "pKbf", w: 1.0, worst: 0.1, best: 0.35 },
-  { key: "pSwingMiss", w: 1.0, worst: 0.05, best: 0.25 },
-  { key: "pWeak", w: 1.0, worst: 0.15, best: 0.45 },
-  { key: "pHardPct", w: 1.0, worst: 0.45, best: 0.15 },
+  // Run prevention. ERA/BAA are the classic "old-school" rates — luck- and
+  // defense-dependent at this level, so they carry the LOWEST weight.
+  { key: "pEra", w: 0.75, worst: 8.0, best: 2.0 },
+  { key: "pBaa", w: 0.75, worst: 0.4, best: 0.18 },
+  // Bats-missed / weak contact — the advanced rates that describe what the
+  // pitcher actually controls. Weighted up alongside control & efficiency.
+  { key: "pKbf", w: 1.25, worst: 0.1, best: 0.35 },
+  { key: "pSwingMiss", w: 1.5, worst: 0.05, best: 0.25 },
+  { key: "pWeak", w: 1.5, worst: 0.15, best: 0.45 },
+  { key: "pHardPct", w: 1.5, worst: 0.45, best: 0.15 },
   { key: "pGoAo", w: 1.0, worst: 0.7, best: 2.5 },
 ];
 
@@ -914,18 +921,20 @@ export function calcPitcherStatsQuality(
 }
 
 // How hard to lean on stats vs. the eval — grows with sample size, capped at
-// 50% ("blend both"). ~40 batters faced (a few outings) earns full weight; a
-// pitcher with little data stays eval-driven until real numbers accumulate.
+// 60% (stats slightly out-vote the eye test once real numbers exist; the
+// imported advanced rates tell more of the story than a periodic eval).
+// ~30 batters faced (a few outings) earns full weight; a pitcher with little
+// data stays eval-driven until real numbers accumulate.
 function pitcherStatsLean(stats: PlayerStats | null | undefined): number {
   const bf = Number(stats?.pBf);
   const ip = Number(stats?.pIp);
   const sample =
     Number.isFinite(bf) && bf > 0
-      ? bf / 40
+      ? bf / 30
       : Number.isFinite(ip) && ip > 0
-      ? ip / 10
+      ? ip / 8
       : 0;
-  return 0.5 * Math.min(1, Math.max(0, sample));
+  return 0.6 * Math.min(1, Math.max(0, sample));
 }
 
 // Age-relative velocity quality (0..1). Velocity is meaningless on an absolute
@@ -1002,10 +1011,12 @@ const DEFENSE_EVAL_MAX = 5 * (2.0 + 1.5 + 1.5 + 1.5 + 1.5 + 2.0);
 function normUp(v: number, lo: number, hi: number): number {
   return Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
 }
+// Capped at 60% to match the pitcher blend — once a real sample exists, the
+// measured rate slightly out-votes the eval grade.
 function sampleLean(value: unknown, fullAt: number): number {
   const v = Number(value);
   if (!Number.isFinite(v) || v <= 0) return 0;
-  return 0.5 * Math.min(1, v / fullAt);
+  return 0.6 * Math.min(1, v / fullAt);
 }
 
 // Same-day dual-role rule: a player never pitches AND catches in the same day.
@@ -1068,7 +1079,7 @@ export function calcCatcherScore(
   }
   const q = calcCatcherStatsQuality(stats);
   if (q == null) return score;
-  const lean = sampleLean(stats?.fSbAtt, 15);
+  const lean = sampleLean(stats?.fSbAtt, 12);
   if (lean <= 0) return score;
   return (1 - lean) * score + lean * (q * CATCHER_EVAL_MAX);
 }
@@ -1093,7 +1104,7 @@ export function calcDefensiveScore(
     (g.baseballIQ ?? 3) * 2.0;
   const q = calcFieldingStatsQuality(stats);
   if (q == null) return score;
-  const lean = sampleLean(stats?.fTc, 30);
+  const lean = sampleLean(stats?.fTc, 24);
   if (lean <= 0) return score;
   score = (1 - lean) * score + lean * (q * DEFENSE_EVAL_MAX);
   return score;
