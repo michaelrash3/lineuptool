@@ -136,3 +136,51 @@ describe("Speed / Base Running split (v8)", () => {
     expect(mixed).toBeLessThan(high);
   });
 });
+
+describe("advanced stats carry more weight (D)", () => {
+  it("quality-of-contact rates move the offensive score more than the slash line", async () => {
+    const { getOffensiveScore } = await import("./lineupEngine");
+    const slashOnly = getOffensiveScore({ ops: 0.7, avg: 0.25, obp: 0.35 });
+    const withAdvanced = getOffensiveScore({
+      ops: 0.7,
+      avg: 0.25,
+      obp: 0.35,
+      qab: 0.6,
+      hard: 0.35,
+    });
+    // Same slash line + strong advanced profile must clearly outscore.
+    expect(withAdvanced).toBeGreaterThan(slashOnly + 1);
+  });
+
+  it("a full stat sample now out-votes a weak eval for pitchers", async () => {
+    const { calcPitcherScore } = await import("./lineupEngine");
+    const evalOnly = calcPitcherScore({ strikes: 1 }); // 3.5
+    const blended = calcPitcherScore(
+      { strikes: 1 },
+      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pSwingMiss: 0.25, pBf: 30 }
+    );
+    // 60% lean at full sample: elite numbers pull a weak-eval arm above the
+    // scale midpoint (32.5 / 2), which the old 50% cap could not.
+    expect(blended).toBeGreaterThan(16.25);
+    expect(blended).toBeGreaterThan(evalOnly);
+    // 30 BF is already a full sample (was 40).
+    const at40 = calcPitcherScore(
+      { strikes: 1 },
+      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pSwingMiss: 0.25, pBf: 40 }
+    );
+    expect(blended).toBeCloseTo(at40);
+  });
+
+  it("bat-missing/weak-contact rates outweigh ERA in pitcher stat quality", async () => {
+    const { calcPitcherStatsQuality } = await import("./lineupEngine");
+    // Elite advanced rates + bad ERA should grade ABOVE the midpoint —
+    // the advanced rates describe what the pitcher controls; ERA is noisy.
+    const q = calcPitcherStatsQuality({
+      pSwingMiss: 0.25,
+      pWeak: 0.45,
+      pHardPct: 0.15,
+      pEra: 8.0,
+    });
+    expect(q).toBeGreaterThan(0.6);
+  });
+});
