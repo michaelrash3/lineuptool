@@ -957,7 +957,9 @@ describe("primary-position pre-pin", () => {
     }
     expect(benchedAtLeastOnce).toBe(true); // sanity: roster size forces sits
     expect(violations).toEqual([]);
-  });
+    // 30 seeds × a 13-player Big Game search runs ~4s — over vitest's 5s
+    // default on slower CI runners, so it gets an explicit budget.
+  }, 20000);
 
   test("primary-infield kid stays out of catcher pool when explicitly C-restricted", () => {
     // A primary-3B kid is eligible to catch by default — real rosters
