@@ -994,6 +994,273 @@ export const extractAdvancedStats = (
   return out;
 };
 
+// ============================================================================
+// Per-game stat imports (GameChanger CSV filtered to ONE game, attached to the
+// finalized game). When per-game lines exist for a player, their season totals
+// are DERIVED from those lines; pitching is kid-pitch-only at import time.
+// ============================================================================
+
+// Build the stats patch for ONE GameChanger CSV data row — the single source
+// of truth for which columns map to which PlayerStats keys. Shared by the
+// season importer (merges into player.stats) and the per-game importer
+// (stores the line on the game). Only fields actually present in the CSV land
+// in the patch, so a missing column never zeroes an existing stat.
+export const buildStatsPatchFromCsvRow = (
+  idx: CsvHeaderIndex,
+  labelRow: string[] | undefined,
+  rawHeaders: string[],
+  cols: string[]
+): Record<string, number> => {
+  const patch: Record<string, number> = {};
+  const setNum = (key: string, colIdx: number) => {
+    if (colIdx === -1) return;
+    const raw = cols[colIdx];
+    if (raw === undefined || raw === "" || raw === "-") return;
+    const n = parseFloat(raw);
+    if (!Number.isNaN(n)) patch[key] = n;
+  };
+  const setInt = (key: string, colIdx: number) => {
+    if (colIdx === -1) return;
+    const raw = cols[colIdx];
+    if (raw === undefined || raw === "" || raw === "-") return;
+    const n = parseInt(raw, 10);
+    if (!Number.isNaN(n)) patch[key] = n;
+  };
+  const setPct = (key: string, colIdx: number) => {
+    if (colIdx === -1) return;
+    const raw = cols[colIdx];
+    if (raw === undefined || raw === "" || raw === "-") return;
+    patch[key] = parsePercent(raw);
+  };
+
+  setNum("ops", idx.ops);
+  setNum("obp", idx.obp);
+  setNum("avg", idx.avg);
+  setPct("contact", idx.contact);
+  setInt("totalPitches", idx.tp);
+  setNum("ip", idx.ip);
+  setNum("era", idx.era);
+  setInt("ab", idx.ab);
+  setInt("h", idx.h);
+  setInt("doubles", idx.doubles);
+  setInt("triples", idx.triples);
+  setInt("hr", idx.hr);
+  setInt("rbi", idx.rbi);
+  setInt("sb", idx.sb);
+  setInt("k", idx.k);
+  setNum("fpct", idx.fpct);
+  setInt("tc", idx.tc);
+  setInt("a", idx.a);
+  setInt("po", idx.po);
+  setPct("ld", idx.ld);
+  setPct("fb", idx.fb);
+  setPct("gb", idx.gb);
+  setPct("hard", idx.hard);
+  setPct("qab", idx.qab);
+  setNum("babip", idx.babip);
+  Object.assign(patch, extractAdvancedStats(labelRow, rawHeaders, cols));
+  return patch;
+};
+
+// Parse a whole GameChanger stats CSV (season export OR the same export
+// filtered to a single game) into per-player stat patches keyed by the
+// player's display name. Handles the two-row section-label header layout and
+// skips Totals/Glossary footer rows. Returns an error string for files that
+// aren't a GameChanger stats export.
+export const parseGameChangerStatsCsv = (
+  text: string
+):
+  | { rows: Array<{ name: string; patch: Record<string, number> }> }
+  | { error: string } => {
+  // parseCsvRecords strips the UTF-8 BOM GameChanger exports include.
+  const rows = parseCsvRecords(text || "");
+  if (rows.length < 2) return { error: "Empty file." };
+
+  let headerRowIndex = 0;
+  const firstRow = rows[0].map((h) => h.toLowerCase().trim());
+  const filledFirstRow = firstRow.filter(Boolean).length;
+  const hasSectionLabels = firstRow.some((h) =>
+    ["batting", "pitching", "fielding"].includes(h)
+  );
+  if (hasSectionLabels && filledFirstRow < firstRow.length / 3) {
+    headerRowIndex = 1;
+  }
+  const rawHeaders = rows[headerRowIndex].map((h) => h.toLowerCase().trim());
+  const labelRow = headerRowIndex === 1 ? firstRow : undefined;
+  const idx = buildCsvHeaderIndex(rawHeaders);
+  if (idx.fn === -1 && idx.ln === -1)
+    return { error: "Could not find name columns." };
+  const isGameChanger = idx.ops !== -1 || idx.avg !== -1 || idx.ab !== -1;
+  if (!isGameChanger)
+    return { error: "Not a GameChanger stats export (no OPS/AVG/AB columns)." };
+
+  const out: Array<{ name: string; patch: Record<string, number> }> = [];
+  for (let i = headerRowIndex + 1; i < rows.length; i++) {
+    const cols = rows[i];
+    const fn = (idx.fn !== -1 ? cols[idx.fn] : "").trim();
+    const ln = (idx.ln !== -1 ? cols[idx.ln] : "").trim();
+    const name = `${fn} ${ln}`.trim();
+    if (!name || !ln) continue; // GC always has Last; skips blank/footer rows
+    const lcFn = fn.toLowerCase();
+    const lcLn = ln.toLowerCase();
+    if (
+      lcFn === "totals" ||
+      lcLn === "totals" ||
+      lcFn === "glossary" ||
+      lcLn === "glossary"
+    )
+      continue;
+    const patch = buildStatsPatchFromCsvRow(idx, labelRow, rawHeaders, cols);
+    if (Object.keys(patch).length === 0) continue;
+    out.push({ name, patch });
+  }
+  return { rows: out };
+};
+
+// Drop every pitching stat from a per-game line when the game was Machine or
+// Coach pitch — GameChanger still populates those columns (scorers track
+// pitches faced) but no kid actually pitched. This is what keeps a mixed
+// machine/coach + kid-pitch schedule from polluting the summed season
+// pitching numbers: only Kid Pitch game lines ever carry pitching keys.
+export const stripPitchingStatsForFormat = (
+  patch: Record<string, number>,
+  pitchingFormat: string | undefined
+): Record<string, number> => {
+  if (!/machine|coach/i.test(pitchingFormat || "")) return patch;
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (/^p[A-Z]/.test(k)) continue; // pIp, pEra, pStrikePct, …
+    if (k === "ip" || k === "era" || k === "totalPitches") continue;
+    out[k] = v;
+  }
+  return out;
+};
+
+// Stat keys that SUM across game lines (true counting stats).
+const SUMMABLE_KEYS = [
+  "ab", "h", "doubles", "triples", "hr", "rbi", "sb", "k",
+  "tc", "a", "po", "totalPitches",
+  "ip", "pIp", "pBf",
+  "fErrors", "fTc", "fAssists", "fPutouts", "fPb", "fSbAllowed", "fSbAtt",
+];
+// Rate keys that can't be summed: weighted-average them across lines using the
+// given weight key (sample size). An approximation for OBP/OPS (PA vs AB), but
+// honest and stable for youth-ball data; AVG is recomputed exactly from H/AB.
+const WEIGHTED_KEYS: Array<{ key: string; weightBy: string }> = [
+  { key: "obp", weightBy: "ab" },
+  { key: "ops", weightBy: "ab" },
+  { key: "contact", weightBy: "ab" },
+  { key: "qab", weightBy: "ab" },
+  { key: "hard", weightBy: "ab" },
+  { key: "ld", weightBy: "ab" },
+  { key: "fb", weightBy: "ab" },
+  { key: "gb", weightBy: "ab" },
+  { key: "babip", weightBy: "ab" },
+  { key: "era", weightBy: "ip" },
+  { key: "pEra", weightBy: "pIp" },
+  { key: "pWhip", weightBy: "pIp" },
+  { key: "pStrikePct", weightBy: "pBf" },
+  { key: "pFps", weightBy: "pBf" },
+  { key: "pBbPerInn", weightBy: "pIp" },
+  { key: "pKbb", weightBy: "pBf" },
+  { key: "pBaa", weightBy: "pBf" },
+  { key: "pKbf", weightBy: "pBf" },
+  { key: "pSwingMiss", weightBy: "pBf" },
+  { key: "pWeak", weightBy: "pBf" },
+  { key: "pHardPct", weightBy: "pBf" },
+  { key: "pGoAo", weightBy: "pBf" },
+  { key: "fpct", weightBy: "tc" },
+  { key: "fFpct", weightBy: "fTc" },
+  { key: "fCsPct", weightBy: "fSbAtt" },
+];
+
+// Aggregate several per-game stat lines into one line. Counting stats sum;
+// AVG recomputes exactly from H/AB; other rates are sample-weighted averages;
+// pTopMph/pFbMph take the max. Used for both the derived SEASON totals (all
+// lines) and the Recent Form view (last N lines). Pure.
+export const aggregateGameLines = (
+  lines: Array<Record<string, number | undefined>>
+): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const k of SUMMABLE_KEYS) {
+    let s = 0;
+    let any = false;
+    for (const line of lines) {
+      const v = Number(line[k]);
+      if (Number.isFinite(v)) {
+        s += v;
+        any = true;
+      }
+    }
+    if (any) out[k] = s;
+  }
+  if (Number.isFinite(out.ab) && out.ab > 0 && Number.isFinite(out.h)) {
+    out.avg = out.h / out.ab;
+  }
+  for (const { key, weightBy } of WEIGHTED_KEYS) {
+    if (key === "avg") continue;
+    let acc = 0;
+    let w = 0;
+    for (const line of lines) {
+      const v = Number(line[key]);
+      if (!Number.isFinite(v)) continue;
+      const rawW = Number(line[weightBy]);
+      const weight = Number.isFinite(rawW) && rawW > 0 ? rawW : 1;
+      acc += v * weight;
+      w += weight;
+    }
+    if (w > 0) out[key] = acc / w;
+  }
+  for (const k of ["pTopMph", "pFbMph"]) {
+    let max = -Infinity;
+    for (const line of lines) {
+      const v = Number(line[k]);
+      if (Number.isFinite(v) && v > max) max = v;
+    }
+    if (max > -Infinity) out[k] = max;
+  }
+  return out;
+};
+
+// Derive a player's SEASON stat line by aggregating every per-game imported
+// line. Pitching keys only exist on Kid Pitch lines (stripped at import), so
+// the summed season pitching is kid-pitch-only by construction — exactly the
+// rule for mixed machine/coach + kid-pitch schedules. Returns null when the
+// player has no per-game lines (callers then leave season-CSV stats untouched).
+export const deriveSeasonFromGameLines = (
+  games: Array<{ playerStats?: Record<string, any> }> | null | undefined,
+  playerId: string
+): Record<string, number> | null => {
+  const lines: Array<Record<string, number>> = [];
+  for (const g of games || []) {
+    const line = g?.playerStats?.[playerId];
+    if (line && typeof line === "object") lines.push(line);
+  }
+  if (lines.length === 0) return null;
+  return aggregateGameLines(lines);
+};
+
+// The last `n` per-game stat lines for a player, newest game first. Powers the
+// Stats tab's Recent Form (hot/cold) view.
+export const recentGameLines = (
+  games:
+    | Array<{ date?: string; opponent?: string; playerStats?: Record<string, any> }>
+    | null
+    | undefined,
+  playerId: string,
+  n = 3
+): Array<{ date?: string; opponent?: string; line: Record<string, number> }> => {
+  return (games || [])
+    .filter((g) => g?.playerStats?.[playerId])
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+    .slice(0, n)
+    .map((g: any) => ({
+      date: g.date,
+      opponent: g.opponent,
+      line: g.playerStats[playerId],
+    }));
+};
+
 // A compact objective-stat hint for an eval category, so a coach grades with
 // real numbers in view (e.g. "AVG .312" under Contact). Returns null when the
 // stat isn't present. `pitching` supplies the manual/imported top velocity for

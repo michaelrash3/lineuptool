@@ -10,7 +10,11 @@ import {
   analyzePitchingWorkload,
   resolvePitchRuleSet,
 } from "../lineupEngine";
-import { buildSeasonBenchImbalance } from "../utils/helpers";
+import {
+  buildSeasonBenchImbalance,
+  recentGameLines,
+  aggregateGameLines,
+} from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 
 // Stats & Dashboard — one place that pulls together everything already imported
@@ -399,6 +403,43 @@ export const StatsTab = memo(() => {
       .sort((a: any, b: any) => b.e.extraSits - a.e.extraSits);
   }, [games, players]);
 
+  // Recent form — from per-game imported stat lines (Schedule → Import Stats
+  // on a finalized game). Aggregates each player's last 3 game lines and
+  // compares recent AVG (or QAB% when AVG is absent) against their season
+  // number: hot ↑, cold ↓. Players without per-game lines don't appear.
+  const recentForm = useMemo(() => {
+    return players
+      .map((p: any) => {
+        const lines = recentGameLines(games, p.id, 3);
+        if (lines.length === 0) return null;
+        const agg = aggregateGameLines(lines.map((l) => l.line));
+        const seasonAvg = Number(p.stats?.avg);
+        const seasonQab = Number(p.stats?.qab);
+        let delta: number | null = null;
+        let basis: "avg" | "qab" | null = null;
+        if (
+          Number.isFinite(agg.avg) &&
+          Number.isFinite(seasonAvg) &&
+          seasonAvg > 0
+        ) {
+          delta = agg.avg - seasonAvg;
+          basis = "avg";
+        } else if (
+          Number.isFinite(agg.qab) &&
+          Number.isFinite(seasonQab) &&
+          seasonQab > 0
+        ) {
+          delta = agg.qab - seasonQab;
+          basis = "qab";
+        }
+        return { p, agg, games: lines.length, delta, basis };
+      })
+      .filter(Boolean)
+      .sort(
+        (a: any, b: any) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity)
+      );
+  }, [games, players]);
+
   // Per-player eval-grade trend (avg grade per Head round, chronological) for
   // the inline sparkline. Only players with ≥2 rounds get a line.
   const seriesById = useMemo(() => {
@@ -562,6 +603,88 @@ export const StatsTab = memo(() => {
           seriesById={seriesById}
         />
       </SectionCard>
+
+      {/* Recent form — who's hot / cold over their last imported game lines */}
+      {recentForm.length > 0 && (
+        <SectionCard
+          icon={Icons.Chart}
+          title="Recent Form"
+          subtitle="Last 3 imported game lines per player vs. their season numbers. Import a finalized game's stats from the Schedule."
+        >
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+              <thead className="bg-app">
+                <tr>
+                  <th className="p-2.5 t-eyebrow text-left">Player</th>
+                  <th className="p-2.5 t-eyebrow text-center">Games</th>
+                  <th className="p-2.5 t-eyebrow text-center">AB</th>
+                  <th className="p-2.5 t-eyebrow text-center">H</th>
+                  <th className="p-2.5 t-eyebrow text-center">AVG</th>
+                  <th className="p-2.5 t-eyebrow text-center">QAB%</th>
+                  <th className="p-2.5 t-eyebrow text-center">Hard%</th>
+                  <th className="p-2.5 t-eyebrow text-center">Form</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {recentForm.map(({ p, agg, games: n, delta, basis }: any) => (
+                  <tr key={p.id} className="hover:bg-surface-2">
+                    <td className="p-2">
+                      <button
+                        type="button"
+                        onClick={() => openPlayerProfile(p.id)}
+                        className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                      >
+                        {p.name}
+                      </button>
+                    </td>
+                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                      {n}
+                    </td>
+                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                      {fmt(numOf(agg.ab), "int")}
+                    </td>
+                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                      {fmt(numOf(agg.h), "int")}
+                    </td>
+                    <td className="p-2 text-center tabular-nums font-black text-ink">
+                      {fmt(numOf(agg.avg), "dec3")}
+                    </td>
+                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                      {fmt(numOf(agg.qab), "pct")}
+                    </td>
+                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                      {fmt(numOf(agg.hard), "pct")}
+                    </td>
+                    <td className="p-2 text-center">
+                      {delta == null ? (
+                        <span className="text-ink-3 font-bold">—</span>
+                      ) : delta > 0.02 ? (
+                        <span
+                          className="text-xs font-black uppercase tracking-widest text-win"
+                          title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
+                        >
+                          Hot ↑
+                        </span>
+                      ) : delta < -0.02 ? (
+                        <span
+                          className="text-xs font-black uppercase tracking-widest text-loss"
+                          title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
+                        >
+                          Cold ↓
+                        </span>
+                      ) : (
+                        <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                          Steady
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
 
       {/* Bench equity & attendance */}
       {benchRows.length > 0 && (

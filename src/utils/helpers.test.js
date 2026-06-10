@@ -32,6 +32,11 @@ import {
   isSafeImageUrl,
   SIGNUP_LIMITS,
   extractAdvancedStats,
+  parseGameChangerStatsCsv,
+  stripPitchingStatsForFormat,
+  aggregateGameLines,
+  deriveSeasonFromGameLines,
+  recentGameLines,
   evalStatHint,
   deriveTournaments,
   recordCatchingOuting,
@@ -1465,5 +1470,110 @@ describe("recordCatchingOuting + sameDayRoleSets", () => {
     const selfExcluded = sameDayRoleSets(players, "2026-05-10", "g1");
     expect(selfExcluded.pitched.size).toBe(0);
     expect(selfExcluded.caught.size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Per-game stat imports: CSV parse → kid-pitch-only pitching → season derive.
+// ---------------------------------------------------------------------------
+describe("parseGameChangerStatsCsv", () => {
+  it("parses a basic single-header GC export into named patches", () => {
+    const csv =
+      "First,Last,AB,H,AVG,HR,RBI\n" +
+      "Sammy,Sosa,3,2,.667,1,3\n" +
+      "Totals,,3,2,.667,1,3\n";
+    const out = parseGameChangerStatsCsv(csv);
+    expect(out.error).toBeUndefined();
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0].name).toBe("Sammy Sosa");
+    expect(out.rows[0].patch).toMatchObject({ ab: 3, h: 2, hr: 1, rbi: 3 });
+  });
+
+  it("rejects a non-GameChanger file with a clear error", () => {
+    const out = parseGameChangerStatsCsv("First,Last,Email\nA,B,a@b.c\n");
+    expect(out.error).toMatch(/GameChanger/i);
+  });
+});
+
+describe("stripPitchingStatsForFormat", () => {
+  const line = { ab: 3, h: 1, ip: 2, era: 4.5, totalPitches: 30, pIp: 2, pEra: 4.5, pStrikePct: 0.6, fpct: 0.9 };
+
+  it("drops every pitching key for Machine/Coach pitch games", () => {
+    for (const f of ["Machine Pitch", "Coach Pitch"]) {
+      const out = stripPitchingStatsForFormat(line, f);
+      expect(out).toEqual({ ab: 3, h: 1, fpct: 0.9 });
+    }
+  });
+
+  it("passes Kid Pitch lines through untouched", () => {
+    expect(stripPitchingStatsForFormat(line, "Kid Pitch")).toEqual(line);
+  });
+});
+
+describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
+  const game = (id, playerStats, extra = {}) => ({ id, playerStats, ...extra });
+
+  it("sums counting stats and recomputes AVG exactly from H/AB", () => {
+    const games = [
+      game("g1", { p1: { ab: 3, h: 1, hr: 1 } }),
+      game("g2", { p1: { ab: 2, h: 2 } }),
+    ];
+    const season = deriveSeasonFromGameLines(games, "p1");
+    expect(season).toMatchObject({ ab: 5, h: 3, hr: 1 });
+    expect(season.avg).toBeCloseTo(3 / 5);
+  });
+
+  it("season pitching comes ONLY from kid-pitch games on a mixed schedule", () => {
+    // The machine-pitch line was stripped at import (no pitching keys), so the
+    // derived season pitching reflects only the kid-pitch outings.
+    const machineLine = stripPitchingStatsForFormat(
+      { ab: 2, h: 1, pIp: 3, pBf: 12, pEra: 9 },
+      "Machine Pitch"
+    );
+    const games = [
+      game("mp", { p1: machineLine }),
+      game("kp1", { p1: { ab: 3, h: 1, pIp: 2, pBf: 8, pEra: 3 } }),
+      game("kp2", { p1: { ab: 1, h: 0, pIp: 1, pBf: 4, pEra: 6 } }),
+    ];
+    const season = deriveSeasonFromGameLines(games, "p1");
+    // Batting sums across ALL games…
+    expect(season.ab).toBe(6);
+    expect(season.h).toBe(2);
+    // …pitching only from the two kid-pitch lines.
+    expect(season.pIp).toBe(3);
+    expect(season.pBf).toBe(12);
+    // pEra is pIp-weighted: (3*2 + 6*1) / 3 = 4
+    expect(season.pEra).toBeCloseTo(4);
+  });
+
+  it("weights rate stats by sample (QAB% by AB)", () => {
+    const games = [
+      game("g1", { p1: { ab: 4, qab: 0.5 } }),
+      game("g2", { p1: { ab: 1, qab: 1.0 } }),
+    ];
+    const season = deriveSeasonFromGameLines(games, "p1");
+    expect(season.qab).toBeCloseTo((0.5 * 4 + 1.0 * 1) / 5);
+  });
+
+  it("returns null when the player has no game lines (season CSV stays)", () => {
+    expect(deriveSeasonFromGameLines([game("g1", {})], "p1")).toBeNull();
+    expect(deriveSeasonFromGameLines([], "p1")).toBeNull();
+  });
+});
+
+describe("recentGameLines + aggregateGameLines (Recent Form)", () => {
+  it("returns the newest N lines and aggregates them", () => {
+    const games = [
+      { id: "a", date: "2026-04-01", playerStats: { p1: { ab: 3, h: 0 } } },
+      { id: "b", date: "2026-05-01", playerStats: { p1: { ab: 3, h: 2 } } },
+      { id: "c", date: "2026-06-01", playerStats: { p1: { ab: 2, h: 2 } } },
+      { id: "d", date: "2026-03-01", playerStats: {} }, // no line for p1
+    ];
+    const last2 = recentGameLines(games, "p1", 2);
+    expect(last2.map((l) => l.date)).toEqual(["2026-06-01", "2026-05-01"]);
+    const agg = aggregateGameLines(last2.map((l) => l.line));
+    expect(agg.ab).toBe(5);
+    expect(agg.h).toBe(4);
+    expect(agg.avg).toBeCloseTo(0.8);
   });
 });

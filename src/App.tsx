@@ -1492,6 +1492,7 @@ const TeamProvider = ({ children }: any) => {
   const {
     uploadScheduleCsv,
     uploadStatsCsv,
+    uploadGameStatsCsv,
     exportBackup,
     exportRosterCsv,
     exportNewPlayersCsv,
@@ -2075,6 +2076,7 @@ const TeamProvider = ({ children }: any) => {
       uploadLogo,
       uploadScheduleCsv,
       uploadStatsCsv,
+      uploadGameStatsCsv,
       exportBackup,
       exportRosterCsv,
       exportNewPlayersCsv,
@@ -2155,6 +2157,7 @@ const TeamProvider = ({ children }: any) => {
       uploadLogo,
       uploadScheduleCsv,
       uploadStatsCsv,
+      uploadGameStatsCsv,
       exportBackup,
       exportRosterCsv,
       exportNewPlayersCsv,

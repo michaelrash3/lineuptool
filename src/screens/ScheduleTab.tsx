@@ -180,6 +180,7 @@ export const ScheduleTab = memo(() => {
     deleteSavedGame,
     saveCurrentGame,
     saveAttendance,
+    uploadGameStatsCsv,
     generateLineup,
     regenerateLineup,
     regenerateBatting,
@@ -1708,6 +1709,21 @@ export const ScheduleTab = memo(() => {
                             <Icons.FileText className="w-4 h-4" />{" "}
                             {isFinal ? "Edit Score" : "Final Score"}
                           </button>
+                        )}
+                        {canEdit && isFinal && (
+                          <label
+                            className="flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap cursor-pointer"
+                            title="Attach this game's stat line — upload the GameChanger CSV filtered to just this game. Season totals re-sum from your game lines."
+                          >
+                            <input
+                              type="file"
+                              accept=".csv,text/csv"
+                              className="hidden"
+                              onChange={(e) => uploadGameStatsCsv(game.id, e)}
+                            />
+                            <Icons.Upload className="w-4 h-4" />{" "}
+                            {game.playerStats ? "Re-Import Stats" : "Import Stats"}
+                          </label>
                         )}
                         {canEdit && (
                           <button
