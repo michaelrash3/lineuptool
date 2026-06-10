@@ -2896,3 +2896,78 @@ describe("cross-game same-day catch <-> pitch (doubleheaders)", () => {
     expect(error).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Position-coverage anchors: a kid who is the ONLY one cleared for a position
+// must never be benched (or parked at catcher) — otherwise whatever inning
+// they sit, that position has no candidate and the whole build fails. This is
+// the "No eligible player for SS in inning 6 / 8 present players are
+// restricted from SS" bug from a Rec Machine Pitch Big Game.
+// ---------------------------------------------------------------------------
+describe("sole-eligible position anchors survive benching", () => {
+  // 10 players, 9 fielders → 1 bench slot/inning. p0 is the ONLY SS-cleared
+  // kid AND the weakest defender, so the old bench logic always sat them.
+  const soleSsRoster = () => {
+    const overrides = { p0: { comfortablePositions: [...ALL_POSITIONS] } };
+    for (let i = 1; i < 10; i++) {
+      overrides[`p${i}`] = {
+        comfortablePositions: ALL_POSITIONS.filter((p) => p !== "SS"),
+      };
+    }
+    return makeRoster(10, overrides);
+  };
+  const weakestP0 = () =>
+    headEval({
+      p0: { fielding: 1, armStrength: 1, armAccuracy: 1, speedAgility: 1, baseballIQ: 1 },
+    });
+
+  test("Rec Machine Pitch Big Game builds and keeps the sole SS kid on the field", () => {
+    const result = buildLineup({
+      players: soleSsRoster(),
+      evaluationEvents: [weakestP0()],
+      leagueRuleSet: "NKB",
+      pitchingFormat: "Machine Pitch",
+      teamAge: "8U",
+      defenseSize: "9",
+      isBigGame: true,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.lineup).toHaveLength(6);
+    for (const inn of result.lineup) {
+      expect(inn.SS?.id).toBe("p0");
+      expect(isBenched(inn, "p0")).toBe(false);
+    }
+  });
+
+  test("fair (non-Big-Game) mode also protects the sole SS kid", () => {
+    const result = buildLineup({
+      players: soleSsRoster(),
+      evaluationEvents: [weakestP0()],
+      leagueRuleSet: "NKB",
+      pitchingFormat: "Machine Pitch",
+      teamAge: "8U",
+      defenseSize: "9",
+    });
+    expect(result.error).toBeUndefined();
+    for (const inn of result.lineup) {
+      expect(inn.SS?.id).toBe("p0");
+    }
+  });
+
+  test("competitive (Tournament) mode protects the sole SS kid too", () => {
+    const result = buildLineup({
+      players: soleSsRoster(),
+      evaluationEvents: [weakestP0()],
+      leagueRuleSet: "USSSA",
+      pitchingFormat: "Kid Pitch",
+      teamAge: "10U",
+      defenseSize: "9",
+      competitive: true,
+    });
+    expect(result.error).toBeUndefined();
+    for (const inn of result.lineup) {
+      expect(inn.SS?.id).toBe("p0");
+      expect(isBenched(inn, "p0")).toBe(false);
+    }
+  });
+});
