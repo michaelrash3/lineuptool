@@ -454,6 +454,28 @@ export const useLineupActions = ({
     uiBridge.current.markSaved?.();
   }, [updateGame, toast, uiBridge]);
 
+  // Persist ONLY who's present/absent for the current game — no lineup
+  // required. Lets a coach record attendance as RSVPs come in and plan the
+  // lineup later (saveCurrentGame still refuses lineup-less saves so a full
+  // "Save Game" stays meaningful).
+  const saveAttendance = useCallback(() => {
+    const inputs = uiBridge.current.getInputs();
+    if (!inputs?.currentGame) return;
+    const { currentGame, currentGameAttendance } = inputs;
+    updateGame(currentGame.id, { attendance: currentGameAttendance || {} });
+    const absent = Object.values(currentGameAttendance || {}).filter(
+      (v) => v === false
+    ).length;
+    toast.push({
+      kind: "success",
+      title: "Attendance saved",
+      message:
+        absent > 0
+          ? `${absent} marked out — plan the lineup whenever you're ready.`
+          : "Everyone's in — plan the lineup whenever you're ready.",
+    });
+  }, [updateGame, toast, uiBridge]);
+
   // ----- Lineup templates -----
   // Save the current lineup + batting order as a named template the coach
   // can apply to future games (especially useful for tournaments with
@@ -645,6 +667,7 @@ export const useLineupActions = ({
     regenerateBatting,
     undoLineup,
     saveCurrentGame,
+    saveAttendance,
     saveLineupTemplate,
     applyLineupTemplate,
     deleteLineupTemplate,

@@ -52,9 +52,10 @@ describe("StatsTab", () => {
     expect(screen.getByRole("button", { name: /GO\/AO/ })).toBeInTheDocument();
   });
 
-  it("renders a Leaders section from the imported stats", () => {
+  it("does not render the removed Game Log or Leaders sections", () => {
     renderWithProviders(<StatsTab />, { team: { team } });
-    expect(screen.getByText("Leaders")).toBeInTheDocument();
+    expect(screen.queryByText("Leaders")).toBeNull();
+    expect(screen.queryByText(/Season Log|Recent Games|Game Log/i)).toBeNull();
   });
 
   it("opens the player profile when a name is tapped", () => {

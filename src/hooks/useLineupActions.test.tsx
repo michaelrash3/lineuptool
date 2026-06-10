@@ -73,6 +73,19 @@ describe("useLineupActions wiring", () => {
     expect(toast.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "warn" }));
   });
 
+  it("saveAttendance writes ONLY attendance — no lineup required", () => {
+    const { result, updateGame, toast } = setup({}, {
+      currentGame: { id: "g1" },
+      currentGameAttendance: { p1: true, p2: false },
+      lineup: null, // no lineup planned yet
+    });
+    act(() => result.current.saveAttendance());
+    expect(updateGame).toHaveBeenCalledWith("g1", { attendance: { p1: true, p2: false } });
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success", title: "Attendance saved" })
+    );
+  });
+
   it("saveLineupTemplate appends a capped template from the current lineup", () => {
     const { result, updateTeam } = setup({}, { lineup: [{ P: { id: "p1" } }], battingLineup: [] });
     act(() => result.current.saveLineupTemplate("Tournament A"));

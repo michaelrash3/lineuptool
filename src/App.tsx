@@ -98,6 +98,7 @@ import {
   computeNextSeason,
   DEFAULT_TEAM_DATA,
   EVAL_SCHEMA_VERSION,
+  isKidPitchFormat,
 } from "./constants/ui";
 
 // Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
@@ -1178,6 +1179,7 @@ const TeamProvider = ({ children }: any) => {
     regenerateBatting,
     undoLineup,
     saveCurrentGame,
+    saveAttendance,
     saveLineupTemplate,
     applyLineupTemplate,
     deleteLineupTemplate,
@@ -1968,26 +1970,42 @@ const TeamProvider = ({ children }: any) => {
     });
   }, [authReady, user, loadingTeams, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
 
-  // Win-loss record derived from final games only.
+  // Win-loss record derived from final games only. `record` is the combined
+  // (all non-scrimmage) record; `record.byFormat` splits it into Kid Pitch vs
+  // Machine/Coach pitch so the dashboard can show how the team does at each.
+  // A game's format is its own `pitchingFormat` override, else the team's.
+  const teamPitchingFormat = (teamData as any).pitchingFormat;
+  const teamGames = teamData.games;
   const record = useMemo(() => {
-    let wins = 0,
-      losses = 0,
-      ties = 0,
-      runsScored = 0,
-      runsAllowed = 0;
-    for (const g of teamData.games) {
+    const blank = () => ({
+      wins: 0,
+      losses: 0,
+      ties: 0,
+      runsScored: 0,
+      runsAllowed: 0,
+    });
+    const combined = blank();
+    const kid = blank();
+    const machine = blank();
+    const teamFmt = teamPitchingFormat;
+    for (const g of teamGames) {
       if (!countsTowardStats(g)) continue;
       const ts = Number(g.teamScore);
       const os = Number(g.opponentScore);
       if (Number.isNaN(ts) || Number.isNaN(os)) continue;
-      runsScored += ts;
-      runsAllowed += os;
-      if (ts > os) wins++;
-      else if (ts < os) losses++;
-      else ties++;
+      const tally = (r: ReturnType<typeof blank>) => {
+        r.runsScored += ts;
+        r.runsAllowed += os;
+        if (ts > os) r.wins++;
+        else if (ts < os) r.losses++;
+        else r.ties++;
+      };
+      tally(combined);
+      if (isKidPitchFormat((g as any).pitchingFormat || teamFmt)) tally(kid);
+      else tally(machine);
     }
-    return { wins, losses, ties, runsScored, runsAllowed };
-  }, [teamData.games]);
+    return { ...combined, byFormat: { kidPitch: kid, machine } };
+  }, [teamGames, teamPitchingFormat]);
 
   // True when a signed-in user has no teams yet AND there's no pending
   // ?join= flow in progress — that's the gate for showing the WelcomeChooser.
@@ -2050,6 +2068,7 @@ const TeamProvider = ({ children }: any) => {
       regenerateDefense,
       undoLineup,
       saveCurrentGame,
+      saveAttendance,
       switchTeam,
       createTeam,
       advanceSeason,
@@ -2129,6 +2148,7 @@ const TeamProvider = ({ children }: any) => {
       regenerateDefense,
       undoLineup,
       saveCurrentGame,
+      saveAttendance,
       switchTeam,
       createTeam,
       advanceSeason,

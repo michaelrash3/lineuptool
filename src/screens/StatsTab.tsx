@@ -1,8 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { RecordBadge, LeaderboardCard } from "../components/shared";
-import { GameLogPanel } from "../components/GameLogPanel";
+import { RecordBadge } from "../components/shared";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import {
@@ -16,7 +15,7 @@ import { isKidPitchFormat } from "../constants/ui";
 
 // Stats & Dashboard — one place that pulls together everything already imported
 // (GameChanger batting/pitching/fielding) plus eval data:
-//   • team record + recent results (GameLogPanel)
+//   • team record (header badge)
 //   • a sortable per-player table across Batting / Pitching / Fielding, each row
 //     also showing the eval Total Score, tap-through to the full profile
 //   • bench equity & attendance (who's sitting more than their share)
@@ -426,45 +425,6 @@ export const StatsTab = memo(() => {
     return map;
   }, [evaluationEvents, players]);
 
-  // Marquee leaders. LeaderboardCard reads one flat stat key, so feed it a copy
-  // with the advanced field unified onto the basic key (era/fpct/ip) — that way
-  // leaders work whether the coach imported the basic or two-row CSV. Only
-  // categories where someone has data render (LeaderboardCard hides the rest).
-  const leaderPlayers = useMemo(
-    () =>
-      players.map((p: any) => {
-        const s = p.stats || {};
-        return {
-          ...p,
-          stats: {
-            ...s,
-            ip: numOf(s.pIp) ?? numOf(s.ip),
-            era: numOf(s.pEra) ?? numOf(s.era),
-            fpct: numOf(s.fFpct) ?? numOf(s.fpct),
-          },
-        };
-      }),
-    [players]
-  );
-  const leaderDefs = useMemo(
-    () =>
-      [
-        { title: "OPS", statKey: "ops", fmt: true, asc: false, icon: Icons.Bat },
-        { title: "Batting Avg", statKey: "avg", fmt: true, asc: false, icon: Icons.Bat },
-        { title: "Home Runs", statKey: "hr", fmt: false, asc: false, icon: Icons.Bat },
-        { title: "RBI", statKey: "rbi", fmt: false, asc: false, icon: Icons.Bat },
-        { title: "Stolen Bases", statKey: "sb", fmt: false, asc: false, icon: Icons.Bat },
-        { title: "ERA", statKey: "era", fmt: true, asc: true, icon: Icons.Pitch },
-        { title: "Fielding %", statKey: "fpct", fmt: true, asc: false, icon: Icons.Glove },
-      ].filter((d) =>
-        leaderPlayers.some((p: any) => {
-          const v = p.stats?.[d.statKey];
-          return typeof v === "number" && v > 0;
-        })
-      ),
-    [leaderPlayers]
-  );
-
   // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
   const armAlerts = useMemo(() => {
     if (!(currentRole === "head" && isKidPitchFormat((team as any).pitchingFormat)))
@@ -561,35 +521,6 @@ export const StatsTab = memo(() => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Season results / streak (reuses the season-summary panel) */}
-      <GameLogPanel />
-
-      {/* Marquee leaders — top 3 per headline stat */}
-      {leaderDefs.length > 0 && (
-        <SectionCard
-          icon={Icons.Chart}
-          title="Leaders"
-          subtitle="Top three per headline stat. Tap a name for the full profile."
-        >
-          <div className="p-4 sm:p-5 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-            {leaderDefs.map((d) => (
-              <LeaderboardCard
-                key={d.statKey}
-                title={d.title}
-                icon={d.icon}
-                statKey={d.statKey}
-                formatStr={d.fmt}
-                asc={d.asc}
-                players={leaderPlayers}
-                primaryColor={primaryColor}
-                tertiaryColor={tertiaryColor}
-                onPlayerClick={openPlayerProfile}
-              />
-            ))}
-          </div>
-        </SectionCard>
       )}
 
       {/* Per-player stats table with category toggle */}
