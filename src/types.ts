@@ -362,6 +362,9 @@ export type GradeMap = Partial<Record<EvalCategoryId | string, number>> & {
 export interface EvaluationEvent {
   id: string;
   date: string;
+  // Wall-clock creation stamp (ms). Tiebreaker for "latest round" sorts when
+  // two rounds share a date; absent on rounds saved before it existed.
+  createdAt?: number;
   coachRole?: "Head" | "Assistant";
   evaluatorId?: string;
   label?: string;

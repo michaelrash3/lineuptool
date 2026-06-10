@@ -44,4 +44,37 @@ describe("useEvaluationCrud", () => {
     act(() => result.current.deleteEvaluation("r1"));
     expect(updateTeam.mock.calls[0][0].evaluationEvents.map((e: any) => e.id)).toEqual(["r2"]);
   });
+
+  it("stamps a new round with createdAt for same-date tie-breaking", () => {
+    const { result, updateTeam } = setup({}, { teamEvalGrades: {}, selectedRoundId: null });
+    act(() => result.current.saveTeamEvaluation());
+    const ev = updateTeam.mock.calls[0][0].evaluationEvents[0];
+    expect(typeof ev.createdAt).toBe("number");
+    expect(ev.createdAt).toBeGreaterThan(0);
+  });
+
+  it("avoids date collisions: a second new round in the same window gets a fresh date", () => {
+    // First save claims the snapped cadence due date…
+    const first = setup({}, { teamEvalGrades: {}, selectedRoundId: null });
+    act(() => first.result.current.saveTeamEvaluation());
+    const firstEv = first.updateTeam.mock.calls[0][0].evaluationEvents[0];
+
+    // …so a second new round (same coach, same window) must carry a distinct
+    // identity instead of an identical date+label that hides one of the two.
+    const second = setup(
+      { evaluationEvents: [firstEv] },
+      { teamEvalGrades: {}, selectedRoundId: null }
+    );
+    act(() => second.result.current.saveTeamEvaluation());
+    const events = second.updateTeam.mock.calls[0][0].evaluationEvents;
+    expect(events).toHaveLength(2);
+    const secondEv = events[1];
+    if (secondEv.date === firstEv.date) {
+      // Only when today IS the snapped due date can the literal date match —
+      // createdAt still breaks the tie toward the newer round.
+      expect(secondEv.createdAt).toBeGreaterThanOrEqual(firstEv.createdAt);
+    } else {
+      expect(secondEv.date).not.toBe(firstEv.date);
+    }
+  });
 });

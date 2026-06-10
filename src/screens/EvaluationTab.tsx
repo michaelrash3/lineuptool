@@ -7,7 +7,11 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
-import { calculateBaseballAge, evalStatHint } from "../utils/helpers";
+import {
+  calculateBaseballAge,
+  evalStatHint,
+  evalRoundRecency,
+} from "../utils/helpers";
 import {
   EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
@@ -110,7 +114,7 @@ export const RosterDecisionsPanel = memo(() => {
       .filter(
         (e: any) => e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
       )
-      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .sort((a: any, b: any) => evalRoundRecency(b, a));
 
     // Compute team-wide stat averages for current season (used as baseline
     // for "below team average" performance signal)
@@ -900,11 +904,11 @@ const AssistantSubmissionsPanel = memo(
     for (const e of evaluationEvents || []) {
       if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
       const cur = m.get(e.evaluatorId);
-      if (!cur || new Date(e.date) > new Date(cur.date)) {
+      if (!cur || evalRoundRecency(e, cur) < 0) {
         m.set(e.evaluatorId, e);
       }
     }
-    return [...m.values()].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return [...m.values()].sort(evalRoundRecency);
   }, [evaluationEvents]);
 
   if (latestByAssistant.length === 0) return null;
@@ -1246,13 +1250,14 @@ export const EvaluationTab = memo(() => {
     setPendingRoundDelete(false);
   }, [selectedRoundId]);
 
-  // Eval rounds belonging to this head coach, newest first
+  // Eval rounds belonging to this head coach, newest first (createdAt breaks
+  // same-date ties so the genuinely newest round leads).
   const myRounds = useMemo(() => {
     return (evaluationEvents || [])
       .filter(
         (e: any) => e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
       )
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort(evalRoundRecency);
   }, [evaluationEvents, user]);
 
   // Each assistant's most-recent submission (newest first), surfaced inline
@@ -1263,11 +1268,9 @@ export const EvaluationTab = memo(() => {
     for (const e of evaluationEvents || []) {
       if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
       const cur = m.get(e.evaluatorId);
-      if (!cur || new Date(e.date) > new Date(cur.date)) m.set(e.evaluatorId, e);
+      if (!cur || evalRoundRecency(e, cur) < 0) m.set(e.evaluatorId, e);
     }
-    return [...m.values()].sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
+    return [...m.values()].sort(evalRoundRecency);
   }, [evaluationEvents]);
 
   // What Save actually does is driven purely by whether a saved round is
@@ -1285,15 +1288,29 @@ export const EvaluationTab = memo(() => {
     : null;
   const activeRoundName = activeRound ? formatRoundName(activeRound) : "";
 
-  // Outside a new-eval window, lock onto the most recent round so the screen is
-  // squarely *editing* it (Save = Update, matching the "Editing …" label). This
-  // removes the ambiguous state where nothing was selected yet Save created a
-  // duplicate round. Inside a window, leaving it unselected means "new round".
+  // The coach can explicitly start a new round at ANY time (the cadence prompt
+  // is a nudge, never a gate). This flag records that explicit choice so the
+  // auto-select below doesn't immediately snap back to the latest round.
+  const [explicitNew, setExplicitNew] = useState(false);
+  const startNewRound = useCallback(() => {
+    setExplicitNew(true);
+    setSelectedRoundId(null);
+  }, [setSelectedRoundId]);
+
+  // Outside a new-eval window, default to the most recent round so the screen
+  // is squarely *editing* it (Save = Update, matching the "Editing …" label) —
+  // unless the coach explicitly chose "Start a new Eval". Inside a window,
+  // leaving it unselected means "new round".
   useEffect(() => {
-    if (!promptStatus.active && !selectedRoundId && myRounds.length > 0) {
+    if (
+      !explicitNew &&
+      !promptStatus.active &&
+      !selectedRoundId &&
+      myRounds.length > 0
+    ) {
       setSelectedRoundId(myRounds[0].id);
     }
-  }, [promptStatus.active, selectedRoundId, myRounds, setSelectedRoundId]);
+  }, [explicitNew, promptStatus.active, selectedRoundId, myRounds, setSelectedRoundId]);
 
   // Track unsaved changes against the last persisted snapshot so the
   // header can show a single, honest "Unsaved changes" indicator until
@@ -1341,6 +1358,7 @@ export const EvaluationTab = memo(() => {
     if (isCreatingNew && savedRoundId) {
       setSelectedRoundId(savedRoundId);
     }
+    setExplicitNew(false);
     lastSavedRef.current = JSON.stringify(teamEvalGrades);
     setSaveState("saved");
     setPendingUpdateConfirm(false);
@@ -1516,30 +1534,31 @@ export const EvaluationTab = memo(() => {
               Eval:
             </span>
             <select
-              value={
-                selectedRoundId || (promptStatus.active ? "__new" : "")
-              }
+              value={selectedRoundId || "__new"}
               onChange={(e) => {
                 const v = e.target.value;
-                setSelectedRoundId(v === "__new" || v === "" ? null : v);
+                if (v === "__new") {
+                  startNewRound();
+                } else {
+                  setExplicitNew(false);
+                  setSelectedRoundId(v || null);
+                }
               }}
               className="flex-1 min-w-0 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 outline-none rounded-lg cursor-pointer hover:bg-surface transition-colors"
             >
-              {promptStatus.active ? (
-                <option value="__new">
-                  + Start a new Eval
-                  {promptStatus.kind === "preseason"
+              {/* Starting a new round is ALWAYS available — the cadence prompt
+                  only decorates the label. Gating it forced coaches into
+                  overwriting their previous round between windows. */}
+              <option value="__new">
+                + Start a new Eval
+                {promptStatus.active
+                  ? promptStatus.kind === "preseason"
                     ? " (preseason due)"
-                    : " (biweekly due)"}
-                </option>
-              ) : (
-                <option value="" disabled>
-                  No new eval due
-                  {promptStatus.daysUntilDue != null
-                    ? ` — ${promptStatus.daysUntilDue}d`
-                    : ""}
-                </option>
-              )}
+                    : " (biweekly due)"
+                  : promptStatus.daysUntilDue != null
+                  ? ` (next due in ${promptStatus.daysUntilDue}d)`
+                  : ""}
+              </option>
               {myRounds.map((r: any) => (
                 <option key={r.id} value={r.id}>
                   {formatRoundName(r)}
@@ -1591,13 +1610,13 @@ export const EvaluationTab = memo(() => {
               Editing &quot;{formatRoundName(activeRound)}&quot;
             </span>
           )}
-          {/* Explicit escape hatch: while editing a saved round during an open
-              eval window, branch off into a brand-new round instead of
-              overwriting. Mirrors the dropdown's "+ Start a new Eval". */}
-          {promptStatus.active && !isCreatingNew && (
+          {/* Explicit escape hatch: while editing a saved round, branch off
+              into a brand-new round instead of overwriting. Available at ALL
+              times — the cadence prompt is a reminder, not a gate. */}
+          {!isCreatingNew && (
             <button
               type="button"
-              onClick={() => setSelectedRoundId(null)}
+              onClick={startNewRound}
               className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
               title="Start a brand-new eval round instead of overwriting this one"
             >
@@ -2088,7 +2107,7 @@ export const EvalTrendModal = memo(
       .filter(
         (e: any) => e.coachRole === "Head" && (!userUid || e.evaluatorId === userUid)
       )
-      .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .sort((a: any, b: any) => evalRoundRecency(b, a));
 
     // Each category gets its own line. Build series of {label, date, value}
     // entries per category, only including evals where the player has a grade.
