@@ -133,6 +133,17 @@ export interface Game {
   // Imported from a GameChanger feed (see utils/gcSync). gcUid is the feed's
   // stable per-game id used to de-dupe on re-sync.
   gcUid?: string;
+  // Per-game pitching-format override (e.g. one Machine Pitch tournament game
+  // on a Kid Pitch team). Falls back to team.pitchingFormat everywhere.
+  pitchingFormat?: string;
+  // Per-game imported stat lines (the season CSV filtered to this game), keyed
+  // by player id. When per-game lines exist for a player, their season stats
+  // are DERIVED by summing these lines (counting stats sum, rates recompute /
+  // weight) — with pitching only ever stored for Kid Pitch games, so a mixed
+  // machine+kid schedule never pollutes kid-pitch pitching numbers.
+  playerStats?: Record<PlayerId, PlayerStats>;
+  // When the per-game stat line was last imported (ISO instant).
+  statsImportedAt?: string;
   isHome?: boolean | null;
   location?: string;
   startUtc?: string; // ISO instant of first pitch; drives the displayed time

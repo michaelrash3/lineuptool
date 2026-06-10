@@ -96,3 +96,80 @@ describe("uploadScheduleCsv", () => {
     expect(updateTeam).not.toHaveBeenCalled();
   });
 });
+
+describe("uploadGameStatsCsv (per-game import)", () => {
+  const setup = (gameOverrides: any = {}, teamOverrides: any = {}) => {
+    const updateTeam = jest.fn();
+    const toast = makeToast();
+    const teamData = {
+      games: [
+        { id: "g1", date: "2026-05-01", opponent: "Hawks", ...gameOverrides },
+      ],
+      players: [
+        { id: "p1", name: "Sammy Sosa", stats: {} },
+        { id: "p2", name: "Frank Thomas", stats: {} },
+      ],
+      pitchingFormat: "Kid Pitch",
+      ...teamOverrides,
+    };
+    const { result } = renderHook(() =>
+      useImportExportFlows({
+        teamData,
+        updateTeam,
+        activeTeamId: "t1",
+        toast,
+      } as any)
+    );
+    const run = (csv: string) => {
+      const file = new File([csv], "game.csv", { type: "text/csv" });
+      result.current.uploadGameStatsCsv("g1", {
+        target: { files: [file], value: "" },
+      } as any);
+    };
+    return { run, updateTeam, toast };
+  };
+
+  const csv =
+    "First,Last,AB,H,AVG,HR,RBI,IP,ERA\n" +
+    "Sammy,Sosa,3,2,.667,1,3,2,4.50\n" +
+    "Nobody,Known,4,1,.250,0,0,0,0\n";
+
+  it("attaches matched lines to the game and re-derives season stats", async () => {
+    const { run, updateTeam } = setup();
+    run(csv);
+    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
+    const patch = updateTeam.mock.calls[0][0];
+    const g1 = patch.games.find((g: any) => g.id === "g1");
+    expect(g1.playerStats.p1).toMatchObject({ ab: 3, h: 2, hr: 1, ip: 2 });
+    expect(g1.statsImportedAt).toBeTruthy();
+    // Season stats re-derived from the game line (sum of one line).
+    const p1 = patch.players.find((p: any) => p.id === "p1");
+    expect(p1.stats).toMatchObject({ ab: 3, h: 2, hr: 1 });
+    expect(p1.stats.avg).toBeCloseTo(2 / 3);
+    // Unmatched CSV row is ignored; p2 untouched.
+    expect(g1.playerStats.p2).toBeUndefined();
+  });
+
+  it("strips pitching for a Machine Pitch game", async () => {
+    const { run, updateTeam } = setup({ pitchingFormat: "Machine Pitch" });
+    run(csv);
+    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
+    const g1 = updateTeam.mock.calls[0][0].games.find(
+      (g: any) => g.id === "g1"
+    );
+    expect(g1.playerStats.p1.ab).toBe(3);
+    expect(g1.playerStats.p1.ip).toBeUndefined();
+    expect(g1.playerStats.p1.era).toBeUndefined();
+  });
+
+  it("errors clearly when no CSV row matches the roster", async () => {
+    const { run, updateTeam, toast } = setup();
+    run("First,Last,AB,H\nNo,Match,3,1\n");
+    await waitFor(() =>
+      expect(toast.push).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "error" })
+      )
+    );
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
+});

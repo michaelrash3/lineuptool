@@ -2,10 +2,12 @@ import { useCallback } from "react";
 import {
   blankStats,
   buildCsvHeaderIndex,
-  extractAdvancedStats,
+  buildStatsPatchFromCsvRow,
+  deriveSeasonFromGameLines,
   normalizeDateToIso,
   parseCsvRecords,
-  parsePercent,
+  parseGameChangerStatsCsv,
+  stripPitchingStatsForFormat,
 } from "../utils/helpers";
 import { getLocalDateString } from "../constants/ui";
 import type { ToastContextValue } from "../types";
@@ -272,58 +274,14 @@ export const useImportExportFlows = ({
               continue;
             }
 
-            // GameChanger path — stats only.
-            // Build a stats patch with ONLY fields actually present in this CSV.
-            const statsPatch: Record<string, number> = {};
-            const setNum = (key: string, colIdx: number) => {
-              if (colIdx === -1) return;
-              const raw = cols[colIdx];
-              if (raw === undefined || raw === "" || raw === "-") return;
-              const n = parseFloat(raw);
-              if (!Number.isNaN(n)) statsPatch[key] = n;
-            };
-            const setInt = (key: string, colIdx: number) => {
-              if (colIdx === -1) return;
-              const raw = cols[colIdx];
-              if (raw === undefined || raw === "" || raw === "-") return;
-              const n = parseInt(raw, 10);
-              if (!Number.isNaN(n)) statsPatch[key] = n;
-            };
-            const setPct = (key: string, colIdx: number) => {
-              if (colIdx === -1) return;
-              const raw = cols[colIdx];
-              if (raw === undefined || raw === "" || raw === "-") return;
-              statsPatch[key] = parsePercent(raw);
-            };
-
-            setNum("ops", idx.ops);
-            setNum("obp", idx.obp);
-            setNum("avg", idx.avg);
-            setPct("contact", idx.contact);
-            setInt("totalPitches", idx.tp);
-            setNum("ip", idx.ip);
-            setNum("era", idx.era);
-            setInt("ab", idx.ab);
-            setInt("h", idx.h);
-            setInt("doubles", idx.doubles);
-            setInt("triples", idx.triples);
-            setInt("hr", idx.hr);
-            setInt("rbi", idx.rbi);
-            setInt("sb", idx.sb);
-            setInt("k", idx.k);
-            setNum("fpct", idx.fpct);
-            setInt("tc", idx.tc);
-            setInt("a", idx.a);
-            setInt("po", idx.po);
-            setPct("ld", idx.ld);
-            setPct("fb", idx.fb);
-            setPct("gb", idx.gb);
-            setPct("hard", idx.hard);
-            setPct("qab", idx.qab);
-            setNum("babip", idx.babip);
-            Object.assign(
-              statsPatch,
-              extractAdvancedStats(labelRow, rawHeaders, cols)
+            // GameChanger path — stats only. The shared row→patch builder
+            // includes ONLY fields actually present in this CSV (plus the
+            // section-namespaced advanced pitching/fielding stats).
+            const statsPatch = buildStatsPatchFromCsvRow(
+              idx,
+              labelRow,
+              rawHeaders,
+              cols
             );
 
             if (Object.keys(statsPatch).length === 0) continue;
@@ -479,6 +437,108 @@ export const useImportExportFlows = ({
           toast.push({
             kind: "error",
             title: "CSV import failed",
+            message: err.message,
+          });
+        }
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    },
+    [teamData, updateTeam, toast]
+  );
+
+  // Per-game stat import: the coach exports the SAME GameChanger stats CSV
+  // filtered to a single game and uploads it right on the finalized game.
+  // The line is stored on the game (game.playerStats by player id), and each
+  // affected player's SEASON stats are immediately re-derived by summing all
+  // their game lines (counting stats sum; AVG recomputes from H/AB; other
+  // rates sample-weighted). Pitching is stripped at import for Machine/Coach
+  // pitch games, so summed season pitching is kid-pitch-only — the reason
+  // per-game pitching won't match a full-season CSV on a mixed schedule.
+  // The full-season import remains available; a per-game import simply takes
+  // over the derived fields for players who have game lines.
+  const uploadGameStatsCsv = useCallback(
+    (gameId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev: ProgressEvent<FileReader>) => {
+        try {
+          const game = (teamData.games || []).find(
+            (g: any) => g.id === gameId
+          );
+          if (!game) throw new Error("Game not found.");
+          const parsed = parseGameChangerStatsCsv(fileText(ev));
+          if ("error" in parsed) throw new Error(parsed.error);
+
+          const fmt = game.pitchingFormat || teamData.pitchingFormat || "";
+          const byName = new Map(
+            (teamData.players || []).map((p: any) => [
+              String(p.name || "").trim().toLowerCase(),
+              p.id,
+            ])
+          );
+          const playerStats: Record<string, Record<string, number>> = {
+            ...(game.playerStats || {}),
+          };
+          let matched = 0;
+          let unmatched = 0;
+          const touchedIds = new Set<string>();
+          for (const { name, patch } of parsed.rows) {
+            const pid = byName.get(name.trim().toLowerCase());
+            if (!pid) {
+              unmatched++;
+              continue;
+            }
+            const line = stripPitchingStatsForFormat(patch, fmt);
+            if (Object.keys(line).length === 0) continue;
+            playerStats[pid as string] = line;
+            touchedIds.add(pid as string);
+            matched++;
+          }
+          if (matched === 0)
+            throw new Error(
+              "No rows matched your roster — check the player names in the CSV."
+            );
+
+          const nextGames = (teamData.games || []).map((g: any) =>
+            g.id === gameId
+              ? {
+                  ...g,
+                  playerStats,
+                  statsImportedAt: new Date().toISOString(),
+                }
+              : g
+          );
+          // Re-derive season totals from ALL game lines for the players this
+          // import touched. Derived fields overwrite; anything not derivable
+          // from game lines (e.g. velocity hand-entered) is preserved.
+          const nextPlayers = (teamData.players || []).map((p: any) => {
+            if (!touchedIds.has(p.id)) return p;
+            const derived = deriveSeasonFromGameLines(nextGames, p.id);
+            if (!derived) return p;
+            return { ...p, stats: { ...(p.stats || {}), ...derived } };
+          });
+          updateTeam({ games: nextGames, players: nextPlayers });
+          toast.push({
+            kind: "success",
+            title: "Game stats imported",
+            message: `${matched} player line${matched === 1 ? "" : "s"} attached${
+              game.opponent ? ` to vs ${game.opponent}` : ""
+            }; season totals updated from game lines.${
+              unmatched > 0
+                ? ` ${unmatched} CSV row${unmatched === 1 ? "" : "s"} didn't match a roster name.`
+                : ""
+            }${
+              /machine|coach/i.test(fmt)
+                ? " Pitching ignored (machine/coach pitch game)."
+                : ""
+            }`,
+          });
+        } catch (err: any) {
+          toast.push({
+            kind: "error",
+            title: "Game stats import failed",
             message: err.message,
           });
         }
@@ -648,6 +708,7 @@ export const useImportExportFlows = ({
   return {
     uploadScheduleCsv,
     uploadStatsCsv,
+    uploadGameStatsCsv,
     exportBackup,
     exportRosterCsv,
     exportNewPlayersCsv,
