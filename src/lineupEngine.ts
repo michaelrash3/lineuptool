@@ -2359,6 +2359,13 @@ export function generateLineup(input: EngineInput): EngineResult {
           restrictedCount === 1 ? " is" : "s are"
         } restricted from ${top.position}.`;
       }
+      if (candidates.length > 0 && candidates.length <= 2) {
+        msg += ` Only ${candidates
+          .map((p) => p.name)
+          .join(" and ")} ${
+          candidates.length === 1 ? "is" : "are"
+        } cleared for ${top.position} — consider adding it to another player's comfortable positions.`;
+      }
       msg +=
         " Check player restrictions or first inning setup for this position.";
     } else if (top.type === "first-inning-override-benched") {
@@ -2476,6 +2483,34 @@ function precomputeBenchSchedule(opts: any): any {
     }
     return drain;
   };
+
+  // Full per-position eligibility (C included, with its opt-in semantics).
+  // Drives the position-coverage guards below: the bench schedule must never
+  // sit (or reserve at catcher) the LAST kid who can cover a position — the
+  // classic failure was a roster with one SS-cleared kid where every bench
+  // schedule sat them in some inning, stranding SS there on every attempt.
+  const posEligibleIds = new Map<string, Set<string>>();
+  for (const pos of positionsToFill || []) {
+    const ids = new Set<string>();
+    for (const p of profiled) {
+      if (pos === "C" ? isCatcherEligible(p) : !isPositionBlocked(p, pos))
+        ids.add(p.id);
+    }
+    posEligibleIds.set(pos, ids);
+  }
+  // Anchors: sole eligible player for some position. They can never sit.
+  // anchorNonC tracks sole coverage of a FIELD position specifically — those
+  // kids also can't be reserved at catcher (catching inning N removes the only
+  // SS/1B/… candidate for that inning just as surely as benching them).
+  const anchorIds = new Set<string>();
+  const anchorNonC = new Set<string>();
+  for (const [pos, ids] of posEligibleIds) {
+    if (ids.size !== 1) continue;
+    for (const id of ids) {
+      anchorIds.add(id);
+      if (pos !== "C") anchorNonC.add(id);
+    }
+  }
 
   const N = profiled.length;
   const totalBenchSlots = numToBench * totalInnings;
@@ -2677,12 +2712,61 @@ function precomputeBenchSchedule(opts: any): any {
     }
   }
 
+  // ANCHOR GUARD: a kid who is the only present player cleared for some
+  // position can never be benched — whatever inning they'd sit, that position
+  // has no candidate and the whole attempt fails (this was the "No eligible
+  // player for SS in inning N" hard failure on rosters with one SS kid).
+  // Zero their target and push the freed sits onto non-anchor kids with the
+  // lowest targets (competitive: weakest first), provided someone can take
+  // them. Runs after BOTH the fairness and competitive distributions.
+  if (anchorIds.size > 0 && anchorIds.size < N) {
+    const nonAnchors = playerDeltas.filter((x) => !anchorIds.has(x.p.id));
+    let freed = 0;
+    for (const id of anchorIds) {
+      const t = targetSits.get(id) || 0;
+      if (t > 0) {
+        freed += t;
+        targetSits.set(id, 0);
+      }
+    }
+    // Each kid can physically sit at most every other inning (no back-to-back
+    // benches), so cap re-assignments there.
+    const sitCeiling = Math.ceil(totalInnings / 2);
+    let guard = 0;
+    while (freed > 0 && guard < 1000) {
+      guard++;
+      // Lowest current target takes the next sit; competitive prefers the
+      // weakest defender among ties, fairness the most over-played.
+      let best: any = null;
+      for (const x of nonAnchors) {
+        const t = targetSits.get(x.p.id) || 0;
+        if (t >= sitCeiling) continue;
+        if (
+          !best ||
+          t < (targetSits.get(best.p.id) || 0) ||
+          (t === (targetSits.get(best.p.id) || 0) &&
+            (competitive
+              ? x.defScore < best.defScore
+              : x.delta > best.delta))
+        ) {
+          best = x;
+        }
+      }
+      if (!best) break; // nobody can absorb more — scheduler will flag infeasible
+      targetSits.set(best.p.id, (targetSits.get(best.p.id) || 0) + 1);
+      freed--;
+    }
+  }
+
   // Sanity: total targets should equal totalBenchSlots
   // (transfers preserve the total, but verify in case of bugs)
   let sumTargets = 0;
   for (const t of targetSits.values()) sumTargets += t;
-  if (sumTargets !== totalBenchSlots) {
-    // Fallback: reset to baseline (minSits with extras to over played first)
+  if (sumTargets !== totalBenchSlots && anchorIds.size === 0) {
+    // Fallback: reset to baseline (minSits with extras to over played first).
+    // Skipped when anchors exist — the reset would re-seat a kid who must
+    // never sit; a small shortfall is instead absorbed by the overflow path
+    // in Step 3 (which excludes anchors).
     targetSits.clear();
     for (const x of playerDeltas) targetSits.set(x.p.id, minSits);
     for (let i = 0; i < extraSittersNeeded; i++) {
@@ -2781,19 +2865,36 @@ function precomputeBenchSchedule(opts: any): any {
       const unused = (p: any) => (catcherInnTotals.get(p.id) || 0) === 0;
 
       // 1. Unused primary catcher, then 2. unused secondary catcher — always
-      // prefer spreading the work across distinct kids first.
+      // prefer spreading the work across distinct kids first. Kids who are the
+      // ONLY option for a field position are skipped here (reserving them at C
+      // strands that position) and only considered as a last resort.
+      const free = ({ p }: any) => !anchorNonC.has(p.id);
       let candidate =
         eligiblePool.find(
+          (x) =>
+            free(x) &&
+            x.p.primaryPosition === "C" &&
+            unused(x.p) &&
+            isAvailable(x.p)
+        ) ||
+        eligiblePool.find((x) => free(x) && unused(x.p) && isAvailable(x.p)) ||
+        eligiblePool.find(
           ({ p }) => p.primaryPosition === "C" && unused(p) && isAvailable(p)
-        ) || eligiblePool.find(({ p }) => unused(p) && isAvailable(p));
+        ) ||
+        eligiblePool.find(({ p }) => unused(p) && isAvailable(p));
 
       // 3. Reuse — only when the cap isn't being hard-enforced (legacy "auto"
       // behavior for short-staffed teams). Prefer reusing a primary catcher.
       if (!candidate && !enforceCatcherCap) {
         candidate =
           eligiblePool.find(
+            (x) => free(x) && x.p.primaryPosition === "C" && isAvailable(x.p)
+          ) ||
+          eligiblePool.find((x) => free(x) && isAvailable(x.p)) ||
+          eligiblePool.find(
             ({ p }) => p.primaryPosition === "C" && isAvailable(p)
-          ) || eligiblePool.find(({ p }) => isAvailable(p));
+          ) ||
+          eligiblePool.find(({ p }) => isAvailable(p));
       }
 
       if (!candidate) {
@@ -2823,6 +2924,26 @@ function precomputeBenchSchedule(opts: any): any {
 
   const schedule = new Map();
   for (const p of profiled) schedule.set(p.id, new Set());
+
+  // Position-coverage guard: benching `pid` in `inn` must not remove the LAST
+  // available player for any position. "Available" = eligible, not already
+  // benched this inning, and (for non-C spots) not committed to catch it.
+  const wouldStrand = (pid: string, inn: number): boolean => {
+    const catcherId = catcherByInning.get(inn);
+    for (const [pos, ids] of posEligibleIds) {
+      if (!ids.has(pid)) continue;
+      let others = 0;
+      for (const qid of ids) {
+        if (qid === pid) continue;
+        if (schedule.get(qid)?.has(inn)) continue;
+        if (pos !== "C" && qid === catcherId) continue;
+        others++;
+        break;
+      }
+      if (others === 0) return true;
+    }
+    return false;
+  };
 
   // forcedBenchInning0: kids who must sit in inning 0 (e.g., because
   // they're not in firstInningOverridesById and can't fit otherwise).
@@ -2859,6 +2980,8 @@ function precomputeBenchSchedule(opts: any): any {
       if (inn === 0 && firstInningMustPlay.has(p.id)) continue;
       // Hard rule: no kid sits two innings in a row.
       if (inn > 0 && schedule.get(p.id).has(inn - 1)) continue;
+      // Never bench the last available player for any position.
+      if (wouldStrand(p.id, inn)) continue;
 
       const debt = remaining.get(p.id) || 0;
       if (debt <= 0) continue;
@@ -2894,6 +3017,8 @@ function precomputeBenchSchedule(opts: any): any {
           !(inn === 0 && firstInningMustPlay.has(p.id)) &&
           // No back to back: skip kids who sat the previous inning
           !(inn > 0 && schedule.get(p.id).has(inn - 1)) &&
+          // Never bench the last available player for any position.
+          !wouldStrand(p.id, inn) &&
           (remaining.get(p.id) || 0) === 0
       );
       for (const p of overflow) {
@@ -2959,6 +3084,9 @@ function precomputeBenchSchedule(opts: any): any {
     for (let i = 0; i < eligible.length; i++) {
       const e = eligible[i];
       if (benchedThisInning >= remainingSlots) break;
+      // Re-check at pick time: benching earlier kids this inning can make
+      // this one the last available player for a position.
+      if (wouldStrand(e.p.id, inn)) continue;
       if (topHalfIds.has(e.p.id) && topHalfCount >= 1) {
         // Only skip if the next un benched kid in line is within fairness
         // tolerance (so we're not punishing an under played kid)
@@ -2979,11 +3107,14 @@ function precomputeBenchSchedule(opts: any): any {
       if (topHalfIds.has(e.p.id)) topHalfCount++;
       benchedThisInning++;
     }
-    // Second pass: relax pairing constraint if we couldn't fill
+    // Second pass: relax pairing constraint if we couldn't fill. Position
+    // coverage is never relaxed — a full bench that strands SS is still a
+    // failed lineup.
     if (benchedThisInning < remainingSlots) {
       for (const e of eligible) {
         if (benchedThisInning >= remainingSlots) break;
         if (schedule.get(e.p.id).has(inn)) continue;
+        if (wouldStrand(e.p.id, inn)) continue;
         schedule.get(e.p.id).add(inn);
         remaining.set(e.p.id, (remaining.get(e.p.id) || 0) - 1);
         benchedThisInning++;
