@@ -1363,7 +1363,7 @@ export interface EvalPromptStatus {
   daysUntilDue: number | null;
 }
 
-const dateToIsoLocal = (d: Date): string => {
+export const dateToIsoLocal = (d: Date): string => {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -1572,6 +1572,22 @@ export const restampEvalDueDates = <
       return nd && nd !== e.date ? { ...e, date: nd } : e;
     })
     .filter((e): e is T => e !== null);
+};
+
+// Descending recency comparator for eval rounds: newest date first, with the
+// wall-clock createdAt stamp breaking date ties (rounds snapped to the same
+// cadence due date, or two literal same-day saves). Before this, tied dates
+// fell to stable-sort insertion order, so every "latest round" lookup silently
+// resolved to the OLDEST of the tied rounds — the newer evaluation existed but
+// never surfaced. Rounds without createdAt (pre-stamp data) sort as 0.
+export const evalRoundRecency = (
+  a: { date?: string; createdAt?: number } | null | undefined,
+  b: { date?: string; createdAt?: number } | null | undefined
+): number => {
+  const d =
+    new Date(b?.date || 0).getTime() - new Date(a?.date || 0).getTime();
+  if (d !== 0) return d;
+  return (b?.createdAt || 0) - (a?.createdAt || 0);
 };
 
 // Cool-off between automated reminder batches. The cadence prompt

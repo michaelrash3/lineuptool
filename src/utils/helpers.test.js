@@ -5,6 +5,7 @@ import {
   evalDueDatesForYear,
   evalPromptStatus,
   evalRoundDateForSave,
+  evalRoundRecency,
   restampEvalDueDates,
   emailPromptStatus,
   isReturning,
@@ -617,6 +618,28 @@ describe("evalRoundDateForSave", () => {
       ].map(isoLocal)
     );
     expect(allDue.has(out)).toBe(true);
+  });
+});
+
+describe("evalRoundRecency", () => {
+  it("sorts newest date first", () => {
+    const a = { date: "2026-05-01" };
+    const b = { date: "2026-06-01" };
+    expect([a, b].sort(evalRoundRecency)[0]).toBe(b);
+  });
+
+  it("breaks same-date ties by createdAt so the newest round leads", () => {
+    const older = { date: "2026-06-01", createdAt: 100 };
+    const newer = { date: "2026-06-01", createdAt: 200 };
+    expect([older, newer].sort(evalRoundRecency)[0]).toBe(newer);
+    // "is strictly newer" check used by the latest-round pickers
+    expect(evalRoundRecency(newer, older)).toBeLessThan(0);
+  });
+
+  it("treats rounds without createdAt as oldest among ties", () => {
+    const legacy = { date: "2026-06-01" };
+    const stamped = { date: "2026-06-01", createdAt: 50 };
+    expect([legacy, stamped].sort(evalRoundRecency)[0]).toBe(stamped);
   });
 });
 

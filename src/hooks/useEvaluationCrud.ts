@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { evalRoundDateForSave } from "../utils/helpers";
+import { evalRoundDateForSave, dateToIsoLocal } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Pull a display-able last name from a Firebase auth user. Eval rounds
@@ -58,11 +58,27 @@ export const useEvaluationCrud = ({
     // (not the literal day) so rounds line up with the cadence schedule, and
     // denormalize the coach's last name so reads across devices don't need an
     // auth roundtrip.
-    const roundDate = evalRoundDateForSave();
+    // COLLISION GUARD: if this coach already has a round on that due date
+    // (a second save inside the same cadence window), stamp the new round with
+    // today's literal date instead. Without this, the two rounds carried
+    // identical dates — identical dropdown labels and tied "latest round"
+    // sorts that resolved to the OLDER round, which read as the newer
+    // evaluation having gone missing.
+    const snapped = evalRoundDateForSave();
+    const today = dateToIsoLocal(new Date());
+    const dateTaken = (d: string) =>
+      (teamData.evaluationEvents || []).some(
+        (e: any) =>
+          e.coachRole === "Head" && e.evaluatorId === user.uid && e.date === d
+      );
+    const roundDate = dateTaken(snapped) ? today : snapped;
     const evaluatorName = lastNameOfUser(user);
     const newEvent = {
       id: "ev-" + Math.random().toString(36).substring(2, 10),
       date: roundDate,
+      // Wall-clock creation stamp — the unambiguous tiebreaker for "latest
+      // round" sorts when two rounds share a date (same-day saves).
+      createdAt: Date.now(),
       coachRole: "Head",
       evaluatorId: user.uid,
       evaluatorName,
@@ -103,6 +119,7 @@ export const useEvaluationCrud = ({
         const newEvent = {
           id: "ev-" + Math.random().toString(36).substring(2, 10),
           date: roundDate,
+          createdAt: Date.now(),
           coachRole: "Assistant",
           evaluatorId: user.uid,
           evaluatorName: lastNameOfUser(user),

@@ -70,6 +70,7 @@ import {
   blankStats,
   emailPromptStatus,
   restampEvalDueDates,
+  evalRoundRecency,
   isReturning,
   isGameFinalized,
   countsTowardStats,
@@ -2380,7 +2381,9 @@ const UIProvider = ({ children }: any) => {
     if (!team.user) return;
     const mine = team.team.evaluationEvents
       .filter((e: any) => e.coachRole === "Head" && e.evaluatorId === team.user.uid)
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      // createdAt-aware: rounds snapped to the same due date used to tie and
+      // resolve to the OLDER one, pre-filling stale grades.
+      .sort(evalRoundRecency);
     if (selectedRoundId) {
       const target = mine.find((e: any) => e.id === selectedRoundId);
       if (target?.grades) setTeamEvalGrades(target.grades);

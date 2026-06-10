@@ -43,7 +43,11 @@ import type {
   Position,
   SlimPlayer,
 } from "./types";
-import { canonicalizeOutfield, canonicalizePositionList } from "./utils/helpers";
+import {
+  canonicalizeOutfield,
+  canonicalizePositionList,
+  evalRoundRecency,
+} from "./utils/helpers";
 
 // ---------- Constants ----------
 const POS_10: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "RCF", "RF"];
@@ -301,7 +305,8 @@ export function getCombinedGrades(
   let latestHead = null;
   for (const e of evaluationEvents) {
     if (e.coachRole !== "Head") continue;
-    if (!latestHead || new Date(e.date) > new Date(latestHead.date))
+    // evalRoundRecency < 0 ⇔ e is strictly newer (createdAt breaks date ties).
+    if (!latestHead || evalRoundRecency(e, latestHead) < 0)
       latestHead = e;
   }
 
@@ -309,7 +314,7 @@ export function getCombinedGrades(
   for (const e of evaluationEvents) {
     if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
     const cur = latestAssistantByEvaluator.get(e.evaluatorId);
-    if (!cur || new Date(e.date) > new Date(cur.date)) {
+    if (!cur || evalRoundRecency(e, cur) < 0) {
       latestAssistantByEvaluator.set(e.evaluatorId, e);
     }
   }
@@ -2210,7 +2215,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   let latestHead = null;
   for (const e of evaluationEvents) {
     if (e.coachRole !== "Head") continue;
-    if (!latestHead || new Date(e.date) > new Date(latestHead.date))
+    if (!latestHead || evalRoundRecency(e, latestHead) < 0)
       latestHead = e;
   }
   const headGrades = latestHead?.grades || {};

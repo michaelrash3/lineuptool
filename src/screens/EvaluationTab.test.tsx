@@ -133,4 +133,43 @@ describe("EvaluationTab", () => {
     fireEvent.click(screen.getByRole("button", { name: /Overwrite/ }));
     expect(saveTeamEvaluation).toHaveBeenCalledTimes(1);
   });
+
+  it("always offers starting a new round while editing one (no cadence gate)", () => {
+    renderWithProviders(<EvaluationTab />, {
+      team: {
+        team: {
+          players: [],
+          primaryColor: "#1d4ed8",
+          evaluationEvents: [
+            {
+              id: "r1",
+              date: "2026-02-01",
+              coachRole: "Head",
+              evaluatorId: "u1",
+              evaluatorName: "Coach",
+              grades: {},
+            },
+          ],
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        saveTeamEvaluation: jest.fn(),
+        deleteEvaluation: jest.fn(),
+      },
+      ui: {
+        teamEvalGrades: {},
+        setTeamEvalGrades: jest.fn(),
+        selectedRoundId: "r1",
+        setSelectedRoundId: jest.fn(),
+        evalTrendPlayerId: null,
+        setEvalTrendPlayerId: jest.fn(),
+      },
+    });
+    // Both the standalone button and the dropdown option exist regardless of
+    // whether a cadence window happens to be open today.
+    expect(
+      screen.getByRole("button", { name: /Start New Round/ })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/\+ Start a new Eval/)).toBeInTheDocument();
+  });
 });
