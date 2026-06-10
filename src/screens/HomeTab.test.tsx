@@ -38,4 +38,51 @@ describe("HomeTab", () => {
       screen.getByText(/add players to the roster/i)
     ).toBeInTheDocument();
   });
+
+  it("shows the Kid Pitch / Machine record split when the team played both", () => {
+    renderWithProviders(<HomeTab />, {
+      team: {
+        team: emptyTeam,
+        teams: [{ id: "t1", name: "Hawks" }],
+        activeTeamId: "t1",
+        record: {
+          wins: 5,
+          losses: 3,
+          ties: 0,
+          byFormat: {
+            kidPitch: { wins: 3, losses: 1, ties: 0 },
+            machine: { wins: 2, losses: 2, ties: 0 },
+          },
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+      },
+      ui: { setIsAddingGame: jest.fn(), setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.getByText(/Kid Pitch 3–1/)).toBeInTheDocument();
+    expect(screen.getByText(/Machine\/Coach 2–2/)).toBeInTheDocument();
+  });
+
+  it("hides the split when only one format has games (no redundancy)", () => {
+    renderWithProviders(<HomeTab />, {
+      team: {
+        team: emptyTeam,
+        teams: [{ id: "t1", name: "Hawks" }],
+        activeTeamId: "t1",
+        record: {
+          wins: 3,
+          losses: 1,
+          ties: 0,
+          byFormat: {
+            kidPitch: { wins: 3, losses: 1, ties: 0 },
+            machine: { wins: 0, losses: 0, ties: 0 },
+          },
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+      },
+      ui: { setIsAddingGame: jest.fn(), setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.queryByText(/Machine\/Coach/)).toBeNull();
+  });
 });

@@ -179,6 +179,7 @@ export const ScheduleTab = memo(() => {
     postponeGame,
     deleteSavedGame,
     saveCurrentGame,
+    saveAttendance,
     generateLineup,
     regenerateLineup,
     regenerateBatting,
@@ -981,6 +982,15 @@ export const ScheduleTab = memo(() => {
                     </button>
                   ))}
                 </div>
+                {canEdit && (
+                  <button
+                    onClick={saveAttendance}
+                    className="mt-4 w-full text-xs px-4 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                    title="Save who's present now — plan the lineup later"
+                  >
+                    <Icons.Check className="w-4 h-4" /> Save Attendance
+                  </button>
+                )}
               </div>
               {canEdit && (
               <div className="p-6">

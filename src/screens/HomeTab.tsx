@@ -1157,6 +1157,28 @@ export const HomeTab = memo(() => {
                   </span>
                 )}
               </div>
+              {/* Record split by pitching format — shown only when the team has
+                  played BOTH (otherwise it just repeats the combined record). */}
+              {(() => {
+                const bf = (record as any).byFormat;
+                const has = (r: any) =>
+                  r && r.wins + r.losses + r.ties > 0;
+                const fmt = (r: any) =>
+                  r.ties > 0
+                    ? `${r.wins}–${r.losses}–${r.ties}`
+                    : `${r.wins}–${r.losses}`;
+                if (!bf || !has(bf.kidPitch) || !has(bf.machine)) return null;
+                return (
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-md bg-white/15">
+                      Kid Pitch {fmt(bf.kidPitch)}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-md bg-white/15">
+                      Machine/Coach {fmt(bf.machine)}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
             <div className="text-right shrink-0">
               <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
