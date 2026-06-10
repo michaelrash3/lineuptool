@@ -2973,3 +2973,67 @@ describe("sole-eligible position anchors survive benching", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Joint position coverage: a FEW kids (not one) cleared for several scarce
+// spots. A valid lineup exists every inning, but the greedy fill / bench
+// schedule used to strand SS mid-game ("No eligible player for SS in inning N
+// — 8 present players are restricted from SS") because it consumed a
+// multi-eligible kid elsewhere or benched too many of the eligible few.
+// ---------------------------------------------------------------------------
+describe("few-eligible scarce positions never strand (joint coverage)", () => {
+  // 12 players, 9 fielders → 3 bench/inning. Only 4 kids (a–d) are cleared for
+  // the premium infield spots SS/1B/3B; the other 8 can only play P/C/2B/OF.
+  // 8 present are restricted from SS — the exact shape the coach hit. A valid
+  // lineup exists (4 kids cover 3 premium spots with one to spare).
+  const premiumRoster = () => {
+    const overrides = {};
+    // Only p0 and p1 are cleared for SS AND 1B (and nothing else scarce). Every
+    // inning BOTH must play (one at SS, one at 1B) — neither can sit or catch.
+    overrides.p0 = { comfortablePositions: ["P", "1B", "2B", "SS", "LF", "CF", "RF"] };
+    overrides.p1 = { comfortablePositions: ["P", "1B", "2B", "SS", "LF", "CF", "RF"] };
+    // The other 9 can't play SS or 1B (8+ restricted from SS, like the report).
+    for (let i = 2; i < 11; i++) {
+      overrides[`p${i}`] = {
+        comfortablePositions: ["P", "C", "2B", "3B", "LF", "CF", "RF"],
+      };
+    }
+    return makeRoster(11, overrides);
+  };
+
+  test("Rec 9-fielder builds with SS/1B/3B covered every inning across seeds", () => {
+    const players = premiumRoster();
+    for (let seed = 1; seed <= 40; seed++) {
+      const result = buildLineup({
+        players,
+        leagueRuleSet: "NKB",
+        pitchingFormat: "Machine Pitch",
+        teamAge: "8U",
+        defenseSize: "9",
+        seed,
+      });
+      expect(result.error).toBeUndefined();
+      for (let inn = 0; inn < result.lineup.length; inn++) {
+        for (const pos of ["SS", "1B", "3B"]) {
+          expect(result.lineup[inn][pos]?.id).toBeTruthy();
+        }
+      }
+    }
+  });
+
+  test("Big Game variant also builds with the premium spots covered", () => {
+    const players = premiumRoster();
+    for (let seed = 1; seed <= 20; seed++) {
+      const result = buildLineup({
+        players,
+        leagueRuleSet: "NKB",
+        pitchingFormat: "Machine Pitch",
+        teamAge: "8U",
+        defenseSize: "9",
+        isBigGame: true,
+        seed,
+      });
+      expect(result.error).toBeUndefined();
+    }
+  });
+}, 30000);

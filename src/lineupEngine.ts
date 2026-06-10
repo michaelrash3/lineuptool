@@ -2455,6 +2455,40 @@ export function generateLineup(input: EngineInput): EngineResult {
    Returns: { schedule: Map<playerId, Set<inning>>, catcherByInning: Map<inning, playerId> }
    On infeasibility: returns null (caller restarts attempt).
 ---------------------------------------------------------------------------- */
+
+// Maximum bipartite matching (Kuhn's augmenting-path algorithm) of positions →
+// players. `eligible(pos, pid)` is the hard-eligibility predicate. Returns a
+// Map of pos → pid; its size is the maximum number of positions that can be
+// simultaneously covered. Used to (a) stop the bench schedule from ever
+// committing to an inning whose on-field set can't JOINTLY cover every position
+// (the old per-position guard missed cases like two kids who are the only
+// SS *and* the only 1B options — benching one strands the other), and (b)
+// repair a greedy fill that stranded a coverable position. Tiny inputs
+// (≤11 players × ≤10 positions), so the simple algorithm is plenty fast.
+function maxPositionMatching(
+  positions: string[],
+  playerIds: string[],
+  eligible: (pos: string, pid: string) => boolean
+): Map<string, string> {
+  const playerToPos = new Map<string, string>(); // pid → pos it currently holds
+  const augment = (pos: string, visited: Set<string>): boolean => {
+    for (const pid of playerIds) {
+      if (visited.has(pid) || !eligible(pos, pid)) continue;
+      visited.add(pid);
+      const cur = playerToPos.get(pid);
+      if (cur === undefined || augment(cur, visited)) {
+        playerToPos.set(pid, pos);
+        return true;
+      }
+    }
+    return false;
+  };
+  for (const pos of positions) augment(pos, new Set());
+  const posToPlayer = new Map<string, string>();
+  for (const [pid, pos] of playerToPos) posToPlayer.set(pos, pid);
+  return posToPlayer;
+}
+
 function precomputeBenchSchedule(opts: any): any {
   const {
     profiled,
@@ -2936,9 +2970,43 @@ function precomputeBenchSchedule(opts: any): any {
   const schedule = new Map();
   for (const p of profiled) schedule.set(p.id, new Set());
 
-  // Position-coverage guard: benching `pid` in `inn` must not remove the LAST
-  // available player for any position. "Available" = eligible, not already
-  // benched this inning, and (for non-C spots) not committed to catch it.
+  // Position-coverage guard: benching `pid` in `inn` must not leave the
+  // remaining on-field set unable to JOINTLY cover every position. The old
+  // guard checked each position independently and so missed the joint case —
+  // two kids who are the only SS *and* the only 1B options: benching one kept
+  // "an SS option" and "a 1B option" alive (the same surviving kid), but that
+  // kid can't play both, so SS stranded at fill. We verify a full matching
+  // exists instead. The pinned catcher (consecutive-block continuity) is
+  // pre-assigned to C and removed from the pool.
+  const inningMatchable = (benchedThisInn: Set<string>, inn: number): boolean => {
+    const catcherId = catcherByInning.get(inn);
+    const pool: string[] = [];
+    for (const p of profiled) {
+      if (benchedThisInn.has(p.id)) continue;
+      if (catcherId && p.id === catcherId) continue; // committed to C
+      pool.push(p.id);
+    }
+    // Only guard positions that ARE coverable by someone. A position with zero
+    // eligible players is a genuine roster gap — let the fill loop surface its
+    // specific "no eligible player for X" message rather than masking it as a
+    // generic bench-schedule failure here.
+    const positions = (positionsToFill || []).filter(
+      (pos: string) =>
+        !(catcherId && pos === "C") &&
+        (posEligibleIds.get(pos)?.size || 0) > 0
+    );
+    const matched = maxPositionMatching(
+      positions,
+      pool,
+      (pos, pid) => !!posEligibleIds.get(pos)?.has(pid)
+    );
+    return matched.size === positions.length;
+  };
+  // Fast per-candidate guard: benching `pid` must not drop any single position
+  // to zero available players (the sole-eligible case). The subtler JOINT case
+  // (a few kids who are the only options for several positions) is caught once
+  // per inning by the matching-based repair below — running the full matching
+  // per candidate here was too slow.
   const wouldStrand = (pid: string, inn: number): boolean => {
     const catcherId = catcherByInning.get(inn);
     for (const [pos, ids] of posEligibleIds) {
@@ -3132,6 +3200,43 @@ function precomputeBenchSchedule(opts: any): any {
       }
     }
     if (benchedThisInning < remainingSlots) return null;
+
+    // JOINT-coverage repair: the cheap per-position guard can still leave an
+    // inning where a few kids are jointly the only options for several spots
+    // (e.g. the only SS AND only 1B — benching one strands the other). Verify a
+    // full matching of the on-field set to all positions exists; if not, swap a
+    // benched kid back ON for an on-field kid until it does, preserving the
+    // catcher pin, no-back-to-back, inning-0 must-plays, and the bench count.
+    let benchedThisInn = new Set<string>();
+    for (const q of schedule.keys()) if (schedule.get(q).has(inn)) benchedThisInn.add(q);
+    if (!inningMatchable(benchedThisInn, inn)) {
+      const catcherId = catcherByInning.get(inn);
+      let repaired = false;
+      for (const b of [...benchedThisInn]) {
+        if (inn === 0 && forcedBenchInning0 && forcedBenchInning0.has(b)) continue;
+        for (const o of profiled) {
+          if (benchedThisInn.has(o.id) || o.id === b) continue;
+          if (o.id === catcherId) continue; // catcher must stay on
+          if (offFieldByInning[inn].has(o.id)) continue;
+          if (inn === 0 && firstInningMustPlay.has(o.id)) continue;
+          if (inn > 0 && schedule.get(o.id).has(inn - 1)) continue; // no back-to-back
+          const trial = new Set(benchedThisInn);
+          trial.delete(b);
+          trial.add(o.id);
+          if (inningMatchable(trial, inn)) {
+            schedule.get(b).delete(inn);
+            schedule.get(o.id).add(inn);
+            remaining.set(b, (remaining.get(b) || 0) + 1);
+            remaining.set(o.id, (remaining.get(o.id) || 0) - 1);
+            benchedThisInn = trial;
+            repaired = true;
+            break;
+          }
+        }
+        if (repaired) break;
+      }
+      if (!repaired) return null; // genuinely uncoverable inning
+    }
   }
 
   // Sanity check: every inning must have exactly numToBench benched
