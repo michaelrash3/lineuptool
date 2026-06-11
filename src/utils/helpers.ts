@@ -2608,7 +2608,15 @@ export const rollFinancesForNewSeason = (
     (finances?.payments || []).length > 0 ||
     (finances?.incomes || []).length > 0 ||
     (finances?.expenses || []).length > 0;
-  if (!finances || !hadActivity) return finances;
+  const hasPlannedFee = finances?.nextClubFee != null;
+  if (!finances || (!hadActivity && !hasPlannedFee)) return finances;
+  if (!hadActivity) {
+    // Plan-only roll: the coach set next season's fee before recording any
+    // money. Promote it so Fall Collections opens on the planned fee; there
+    // is no balance to carry and no year worth archiving.
+    const { nextClubFee: promoted, feeExemptIds: _cleared, ...rest } = finances;
+    return { ...rest, clubFee: promoted, payments: [], incomes: [], expenses: [] };
+  }
   // Label the archived year by its closing season ("through Spring 2027").
   const yearLabel = `through ${archivedSeason}`;
   // stillOwed isn't part of the carry-over (unpaid fees die with the year),
