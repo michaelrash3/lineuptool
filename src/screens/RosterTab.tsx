@@ -261,7 +261,6 @@ export const RosterTab = memo(() => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <OptimalLineupPanel />
       <PitcherRankingPanel />
       <PitchingPlanPanel />
       <ArmCarePanel />
@@ -424,6 +423,9 @@ export const RosterTab = memo(() => {
           )}
         </div>
       </div>
+      {/* Below the roster: the lineup snapshot is secondary to managing the
+          roster itself, so the player list keeps the top of the page. */}
+      <OptimalLineupPanel />
     </div>
   );
 });
