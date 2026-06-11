@@ -1833,6 +1833,23 @@ describe("finances money math", () => {
     expect(rollFinancesForNewSeason(planOnly, "Spring 2027", "x")).toBe(planOnly);
   });
 
+  it("rollFinancesForNewSeason promotes a planned fee even with no money recorded", () => {
+    // Codex review (#297): a coach who only planned a fee was promised it
+    // takes effect at the new season — even before any ledger activity.
+    const planned = {
+      nextClubFee: 250,
+      feeExemptIds: ["kid9"],
+      budgetItems: [{ id: "b", label: "Balls", amount: 10 }],
+    };
+    const rolled = rollFinancesForNewSeason(planned, "Spring 2027", "2027-06-01");
+    expect(rolled.clubFee).toBe(250);
+    expect(rolled.nextClubFee).toBeUndefined();
+    expect(rolled.feeExemptIds).toBeUndefined();
+    expect(rolled.budgetItems).toEqual(planned.budgetItems);
+    expect(rolled.incomes).toEqual([]);
+    expect(rolled.pastSeasons).toBeUndefined(); // nothing worth archiving
+  });
+
   it("transactionLedger merges fees, income, and expenses in date order with a running balance", () => {
     const rows = transactionLedger(finances, players);
     expect(rows.map((r) => r.id)).toEqual([

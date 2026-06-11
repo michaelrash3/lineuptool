@@ -1524,9 +1524,13 @@ const TeamProvider = ({ children }: any) => {
       ((teamData.finances?.payments || []).length ||
         (teamData.finances?.incomes || []).length ||
         (teamData.finances?.expenses || []).length) > 0;
+    // A planned next-season fee must ALSO trigger the roll — a coach who only
+    // used the Budget Planner (no money recorded yet) was promised the fee
+    // takes effect when the new season starts.
+    const hasPlannedFee = teamData.finances?.nextClubFee != null;
     const rollingIntoFall = nextSeason.toLowerCase().startsWith("fall");
-    const rollFinances = hadFinanceActivity && rollingIntoFall;
-    const closingBalance = rollFinances
+    const rollFinances = rollingIntoFall && (hadFinanceActivity || hasPlannedFee);
+    const closingBalance = rollFinances && hadFinanceActivity
       ? financeSummary(teamData.finances, []).balanceNow
       : 0;
 
@@ -1550,10 +1554,14 @@ const TeamProvider = ({ children }: any) => {
       (wins + losses + ties === 0 ? " (no final games logged)" : "") +
       `\n` +
       `• Current stats and games will be cleared\n` +
-      (rollFinances
+      (rollFinances && hadFinanceActivity
         ? `• Club balance carried into the new season year: ${formatCurrency(
             closingBalance
           )} (fee collections reset)\n`
+        : rollFinances
+        ? `• The planned club fee (${formatCurrency(
+            teamData.finances?.nextClubFee
+          )}) takes effect for the new season\n`
         : hadFinanceActivity
         ? `• Finances keep running through the spring (fees cover the Fall–Spring year)\n`
         : "") +
