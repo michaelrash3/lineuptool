@@ -2012,16 +2012,17 @@ describe("D4 — pitcher scoring + pool sizing", () => {
     expect(calcPitcherScore({ control: 5, command: 5 })).toBe(0);
   });
 
-  test("calcCatcherScore weights blocking/throwing over receiving/game-calling", () => {
+  test("calcCatcherScore drops receiving (v9) and weights blocking/throwing highest", () => {
     expect(calcCatcherScore(null)).toBe(0);
     expect(calcCatcherScore({})).toBe(0);
-    // receiving*1 + blocking*1.5 + throwing*1.5 + gameCalling*1
-    // = 4 + 6 + 6 + 4 = 20
+    // blocking*1.5 + throwing*1.5 + gameCalling*1 = 6 + 6 + 4 = 16
     expect(
-      calcCatcherScore({ receiving: 4, blocking: 4, throwing: 4, gameCalling: 4 })
-    ).toBe(20);
+      calcCatcherScore({ blocking: 4, throwing: 4, gameCalling: 4 })
+    ).toBe(16);
+    // Receiving no longer scores — no youth stat measures framing.
+    expect(calcCatcherScore({ receiving: 5 })).toBe(0);
     expect(calcCatcherScore({ blocking: 5 })).toBeGreaterThan(
-      calcCatcherScore({ receiving: 5 })
+      calcCatcherScore({ gameCalling: 5 })
     );
   });
 
@@ -2291,19 +2292,15 @@ describe("competitive depth chart drives position assignment", () => {
   it("does NOT override the pitcher pool (9U+ Kid Pitch); pool still owns P", () => {
     // 9 players at defenseSize 9 => nobody benched, so the pool never empties
     // into the generic fallback — locking "the pool owns P."
-    const players = makeRoster(9);
-    const evaluationEvents = [
-      {
-        id: "e",
-        date: "2026-04-01",
-        coachRole: "Head",
-        evaluatorId: "c",
-        grades: { p0: { strikes: 5 }, p1: { strikes: 4 }, p2: { strikes: 3 } },
-      },
-    ];
+    // v9: the pitcher pool ranks on imported pitching stats (plus Composure);
+    // p0–p2 are the only kids with a pitching stat line, so they ARE the pool.
+    const players = makeRoster(9, {
+      p0: { stats: { pStrikePct: 0.65, pBf: 40 } },
+      p1: { stats: { pStrikePct: 0.6, pBf: 40 } },
+      p2: { stats: { pStrikePct: 0.55, pBf: 40 } },
+    });
     const { lineup } = buildLineup({
       players,
-      evaluationEvents,
       competitive: true,
       teamAge: "9U",
       defenseSize: "9",
@@ -2375,22 +2372,26 @@ describe("pitcher stats blend", () => {
     expect(calcPitcherScore({ strikes: 5 }, { pStrikePct: 0.65 })).toBeCloseTo(17.5);
   });
 
-  test("elite stats with a full sample lift a weak-eval pitcher", () => {
-    const evalOnly = calcPitcherScore({ strikes: 1 }); // 3.5
-    const blended = calcPitcherScore(
-      { strikes: 1 },
+  test("elite stats grade the Strikes slot directly (v9 — stats ARE the grade)", () => {
+    // No signal at all -> 0 (keeps the pitcher-pool "score > 0" gate).
+    expect(calcPitcherScore({}, null)).toBe(0);
+    const statGraded = calcPitcherScore(
+      {},
       { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pBf: 40 }
     );
-    expect(blended).toBeGreaterThan(evalOnly);
+    // Elite control rates with a full sample grade Strikes at 5 -> 5 * 3.5.
+    expect(statGraded).toBeCloseTo(17.5);
+    // An explicit grade-map value (the stat overlay) wins over re-deriving.
+    expect(
+      calcPitcherScore({ strikes: 5 }, { pStrikePct: 0.45, pBf: 40 })
+    ).toBeCloseTo(17.5);
   });
 
-  test("smaller sample leans less on stats", () => {
-    const grades = { strikes: 1 };
+  test("smaller sample keeps the stat grade closer to neutral", () => {
     const elite = { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0 };
-    const evalOnly = calcPitcherScore(grades);
-    const bigSample = calcPitcherScore(grades, { ...elite, pBf: 40 });
-    const tinySample = calcPitcherScore(grades, { ...elite, pBf: 4 });
-    expect(tinySample).toBeGreaterThan(evalOnly);
+    const bigSample = calcPitcherScore({}, { ...elite, pBf: 40 });
+    const tinySample = calcPitcherScore({}, { ...elite, pBf: 4 });
+    expect(tinySample).toBeGreaterThan(0);
     expect(tinySample).toBeLessThan(bigSample);
   });
 
@@ -2436,22 +2437,28 @@ describe("velocity in pitcher score (age-relative)", () => {
 });
 
 describe("fielding & catcher stats blend (depth chart)", () => {
-  test("calcDefensiveScore is eval-only without stats; FPCT lifts with chances", () => {
-    const evalOnly = calcDefensiveScore({ glove: 3 });
-    expect(calcDefensiveScore({ glove: 3 }, undefined)).toBeCloseTo(evalOnly);
-    // FPCT present but no chances (no fTc) -> unchanged
-    expect(calcDefensiveScore({ glove: 3 }, { fFpct: 0.98 })).toBeCloseTo(evalOnly);
-    // elite FPCT with a real sample lifts a weak-glove fielder
-    const blended = calcDefensiveScore({ glove: 1 }, { fFpct: 0.98, fTc: 30 });
-    expect(blended).toBeGreaterThan(calcDefensiveScore({ glove: 1 }));
+  test("fielding slots are stats-graded when absent from the grade map (v9)", () => {
+    const neutral = calcDefensiveScore({});
+    expect(neutral).toBe(30);
+    // Elite FPCT with a real sample lifts the glove/range slots above neutral.
+    expect(calcDefensiveScore({}, { fFpct: 0.98, fTc: 30 })).toBeGreaterThan(
+      neutral
+    );
+    // An explicit (overlaid) grade wins over re-deriving from stats.
+    expect(
+      calcDefensiveScore(
+        { glove: 1, range: 1, armStrength: 1, armAccuracy: 1 },
+        { fFpct: 0.98, fTc: 30 }
+      )
+    ).toBeLessThan(neutral);
   });
 
-  test("calcCatcherScore is eval-only without stats; CS% lifts with attempts", () => {
-    const evalOnly = calcCatcherScore({ throwing: 3 });
-    expect(calcCatcherScore({ throwing: 3 }, undefined)).toBeCloseTo(evalOnly);
-    expect(calcCatcherScore({ throwing: 3 }, { fCsPct: 0.5 })).toBeCloseTo(evalOnly); // no attempts
-    const blended = calcCatcherScore({ throwing: 1 }, { fCsPct: 0.55, fSbAtt: 15 });
-    expect(blended).toBeGreaterThan(calcCatcherScore({ throwing: 1 }));
+  test("catcher Throwing is graded from CS% when absent from the grade map (v9)", () => {
+    expect(calcCatcherScore({ gameCalling: 3 })).toBe(3);
+    // CS% with a full attempts sample grades Throwing at 5 -> 5 * 1.5.
+    expect(calcCatcherScore({}, { fCsPct: 0.55, fSbAtt: 15 })).toBeCloseTo(7.5);
+    // CS% with no attempts counts at half confidence -> grade 4 -> 6.
+    expect(calcCatcherScore({}, { fCsPct: 0.55 })).toBeCloseTo(6);
   });
 
   test("quality helpers normalize within the youth bands", () => {
@@ -2575,27 +2582,22 @@ describe("same-day pitch/catch — bypass paths (pool, pre-pin, consecutive)", (
 describe("dual-role Pool/Bracket deployment (catch pool, pitch bracket)", () => {
   // p0 is the #1 catcher AND a top arm; p1/p2 are other pool arms (carrying more
   // recent pitches, so p0 is the freshest/preferred arm when eligible).
+  // v9: pitching + catching value come from imported stats. p0 carries both an
+  // elite pitching line AND an elite caught-stealing line (the dual-#1).
   const players = makeRoster(11, {
-    p1: { pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" } },
-    p2: { pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" } },
-  });
-  const evaluationEvents = [
-    {
-      id: "e",
-      date: "2026-04-01",
-      coachRole: "Head",
-      evaluatorId: "c",
-      grades: {
-        p0: { strikes: 5, blocking: 5, throwing: 5, receiving: 5 },
-        p1: { strikes: 5 },
-        p2: { strikes: 5 },
-      },
+    p0: { stats: { pStrikePct: 0.65, pBf: 40, fCsPct: 0.55, fSbAtt: 15 } },
+    p1: {
+      stats: { pStrikePct: 0.65, pBf: 40 },
+      pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" },
     },
-  ];
+    p2: {
+      stats: { pStrikePct: 0.65, pBf: 40 },
+      pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" },
+    },
+  });
   const run = (gameType) =>
     buildLineup({
       players,
-      evaluationEvents,
       pitchingFormat: "Kid Pitch",
       teamAge: "9U",
       defenseSize: "9",

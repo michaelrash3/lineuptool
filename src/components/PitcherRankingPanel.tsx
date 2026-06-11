@@ -55,8 +55,14 @@ export const PitcherRankingPanel = memo(() => {
   // Combined head + assistant grades (already 50/50 weighted in
   // lineupEngine.getCombinedGrades after Round 2 PR C).
   const combinedGrades = useMemo(
-    () => (eligible ? getCombinedGrades(evaluationEvents || [], players || []) : null),
-    [eligible, evaluationEvents, players]
+    () =>
+      eligible
+        ? getCombinedGrades(evaluationEvents || [], players || [], {
+            teamAge,
+            games: (team as any).games || [],
+          })
+        : null,
+    [eligible, evaluationEvents, players, teamAge, team]
   );
 
   const pitchRules = useMemo(() => resolvePitchRuleSet(team), [team]);

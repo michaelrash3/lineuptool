@@ -7,9 +7,11 @@
 export const leagueRuleSetLabel = (rs?: string | null): string =>
   rs === "USSSA" ? "Tournament" : rs === "NKB" ? "Rec" : rs || "";
 
-// Coach's Card v2 eval taxonomy.
-// 11 universal categories grouped into 4 buckets; pitching + catching are
-// Kid-Pitch add-ons (every player on Kid Pitch teams gets graded on them).
+// Coach's Card v3 eval taxonomy (schema v9): coaches grade ONLY the
+// intangibles — the things standard and advanced stats can't measure. Every
+// tangible skill (contact, power, fielding, arm, velocity, strikes, off-speed,
+// catcher throwing/blocking) is graded automatically from imported stats; see
+// the stat-derived grade helpers in src/lineupEngine.ts.
 // The lineup engine has its own labelless internal copy that mirrors this.
 
 export type EvalGroup =
@@ -32,17 +34,8 @@ export interface EvalCategory {
 
 export const EVAL_CATEGORIES: EvalCategory[] = [
   // Hitting
-  { id: "contact", label: "Contact", group: "Hitting", weight: 1.5,
-    description: "Consistent contact — barrels it up, doesn't chase." },
-  { id: "power", label: "Power", group: "Hitting", weight: 1.0,
-    description: "Drives the ball; gap-to-gap, extra-base pop." },
   { id: "approach", label: "Approach", group: "Hitting", weight: 2.5,
     description: "Pitch selection, two-strike battles, situational hitting." },
-  // Fielding
-  { id: "fielding", label: "Fielding", group: "Fielding", weight: 4.5,
-    description: "Clean hands, secures the ball, footwork & range to it." },
-  { id: "arm", label: "Arm", group: "Fielding", weight: 3.0,
-    description: "Throwing strength AND accuracy to the bag." },
   // Athleticism — Speed and Base Running are graded SEPARATELY: raw foot speed
   // is a different tool than reads/instincts on the bases.
   { id: "speed", label: "Speed", group: "Baserunning", weight: 1.0,
@@ -55,28 +48,15 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
   { id: "coachability", label: "Coachability", group: "Intangibles", weight: 3.0,
     description: "Listens, adjusts, effort & attitude. Weighted heavily." },
   // Kid-Pitch add-ons: Pitching
-  { id: "velocity", label: "Velocity", group: "Pitching", weight: 1.0, addOn: "kidPitch",
-    description: "Raw arm speed / how the ball jumps." },
-  { id: "strikes", label: "Strikes", group: "Pitching", weight: 2.5, addOn: "kidPitch",
-    description: "Throws strikes and commands the zone." },
-  { id: "offSpeed", label: "Off-Speed", group: "Pitching", weight: 0.5, addOn: "kidPitch",
-    description: "Has and can land a change/breaking ball." },
   { id: "composure", label: "Composure", group: "Pitching", weight: 1.0, addOn: "kidPitch",
     description: "Stays calm under pressure; bounces back." },
   // Kid-Pitch add-ons: Catching
-  { id: "receiving", label: "Receiving", group: "Catching", weight: 1.0, addOn: "kidPitch",
-    description: "Catches and frames cleanly; soft hands." },
-  { id: "blocking", label: "Blocking", group: "Catching", weight: 1.0, addOn: "kidPitch",
-    description: "Keeps balls in front; blocks the dirt." },
-  { id: "throwing", label: "Throwing", group: "Catching", weight: 1.0, addOn: "kidPitch",
-    description: "Quick transfer and arm to throw out runners." },
   { id: "gameCalling", label: "Game Calling", group: "Catching", weight: 1.0, addOn: "kidPitch",
     description: "Manages pitches, counts, and the defense." },
 ];
 
 export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Hitting",
-  "Fielding",
   "Baserunning",
   "Intangibles",
 ];
@@ -146,7 +126,13 @@ export const getEvalCategoriesForPlayer = (
 // rest so prior eval history carries over. Coachability is weighted up.
 // v8 splits "Speed & Baserunning" back into separate Speed + Base Running
 // grades (the old merged value seeds both so history carries over).
-export const EVAL_SCHEMA_VERSION = 8;
+// v9 (2026-06) — stats-graded tangibles. Coaches now grade only what stats
+// can't measure (Approach, Speed, Base Running, Baseball IQ, Coachability,
+// Composure, Game Calling). Contact/Power/Fielding/Arm/Velocity/Strikes/
+// Off-Speed/Receiving/Blocking/Throwing are dropped from the eval form — the
+// engine derives them from imported stats — and the v9 migration strips their
+// saved grade keys from prior rounds (notes are preserved).
+export const EVAL_SCHEMA_VERSION = 9;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [

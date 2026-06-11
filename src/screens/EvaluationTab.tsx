@@ -41,11 +41,20 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
 // Roster-decision premium: pitching WELL puts a kid a leg up when comparing
 // players. Additive on top of the universal Total Score (never subtracts), so a
 // strong pitcher out-ranks an equal non-pitcher and non-pitchers are unchanged.
-// Rewards only ABOVE-neutral pitching, so the default 3s that setGrade seeds for
-// untouched categories (and weak/ungraded pitching) add nothing.
-const pitcherPremium = (savedGrades: any, player: any): number => {
+// Rewards only ABOVE-neutral pitching — and since Velocity/Strikes/Off-Speed
+// are stats-graded (schema v9), the premium now reflects the imported pitching
+// stats plus the coach's Composure grade. neutralFill keeps a partial stat
+// line comparable against the all-categories neutral baseline; zero-signal
+// pitching still earns nothing.
+const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number => {
   if (!playerIsPitcher(player)) return 0;
-  return pitcherRosterPremium(calcPitcherScore(savedGrades), PITCH_WEIGHT_SUM);
+  const stats = player?.stats || null;
+  const score = calcPitcherScore(savedGrades, stats, {
+    topMph: stats?.pTopMph ?? player?.pitching?.topMph,
+    teamAge,
+    neutralFill: true,
+  });
+  return pitcherRosterPremium(score, PITCH_WEIGHT_SUM);
 };
 
 // 11 standard positions surfaced as a per-player chip row so the coach
@@ -1780,7 +1789,7 @@ export const EvaluationTab = memo(() => {
               const totalScore = Math.min(
                 100,
                 calculateTotalScore(grades, player.stats) +
-                  pitcherPremium(savedGrades, player)
+                  pitcherPremium(savedGrades, player, team?.teamAge)
               );
               const expanded = expandedPlayerIds.has(player.id);
               // Count how many categories the coach has graded (any non-default

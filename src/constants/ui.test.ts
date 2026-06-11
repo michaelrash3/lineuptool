@@ -28,38 +28,55 @@ describe("getEvalCategoriesForPlayer", () => {
 
   it("never includes add-ons on non-Kid-Pitch teams", () => {
     const cats = ids(getEvalCategoriesForPlayer("Machine Pitch", pitcher));
-    expect(cats).toContain("contact");
-    expect(cats).not.toContain("strikes");
-    expect(cats).not.toContain("blocking");
+    expect(cats).toContain("approach");
+    expect(cats).not.toContain("composure");
+    expect(cats).not.toContain("gameCalling");
   });
 
-  it("shows Pitching only to pitchers on Kid Pitch", () => {
+  it("shows Pitching (Composure) only to pitchers on Kid Pitch", () => {
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", pitcher))).toContain(
-      "strikes"
+      "composure"
     );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).not.toContain(
-      "strikes"
+      "composure"
     );
   });
 
-  it("shows Catching only to catchers on Kid Pitch", () => {
+  it("shows Catching (Game Calling) only to catchers on Kid Pitch", () => {
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", catcher))).toContain(
-      "blocking"
+      "gameCalling"
     );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).not.toContain(
-      "blocking"
+      "gameCalling"
     );
   });
 
   it("a dual-threat gets both specialties; a plain fielder gets neither", () => {
     const dual = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
-    expect(dual).toEqual(expect.arrayContaining(["strikes", "blocking"]));
+    expect(dual).toEqual(expect.arrayContaining(["composure", "gameCalling"]));
     const plain = ids(getEvalCategoriesForPlayer("Kid Pitch", fielder));
-    expect(plain).not.toContain("strikes");
-    expect(plain).not.toContain("blocking");
+    expect(plain).not.toContain("composure");
+    expect(plain).not.toContain("gameCalling");
     // Universal categories are always present for everyone.
-    expect(plain).toContain("contact");
+    expect(plain).toContain("approach");
     expect(plain).toContain("coachability");
+  });
+
+  it("only intangibles remain coach-graded (v9): no stat-measurable categories", () => {
+    const all = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
+    for (const dropped of [
+      "contact", "power", "fielding", "arm",
+      "velocity", "strikes", "offSpeed",
+      "receiving", "blocking", "throwing",
+    ]) {
+      expect(all).not.toContain(dropped);
+    }
+    expect(all).toEqual(
+      expect.arrayContaining([
+        "approach", "speed", "baserunning", "baseballIQ", "coachability",
+        "composure", "gameCalling",
+      ])
+    );
   });
 });
 

@@ -2,30 +2,37 @@ import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { DepthChartTab } from "./DepthChartTab";
 
-// Names are chosen so the BETTER-graded player sorts LATER alphabetically. That
+// Names are chosen so the BETTER-rated player sorts LATER alphabetically. That
 // way these tests fail if the position score is ignored and ranking silently
 // falls back to name order (the bug Codex caught: Kid-Pitch add-on grades being
-// dropped on the way through getCombinedGrades).
+// dropped on the way through getCombinedGrades). As of schema v9 the pitching
+// and catching slots are graded from imported stats, so the rating signal here
+// is a stat line rather than a coach grade.
 const pitchers = [
-  { id: "p1", name: "Zane", number: "1", comfortablePositions: ["P"] },
-  { id: "p2", name: "Abel", number: "2", comfortablePositions: ["P"] },
+  {
+    id: "p1",
+    name: "Zane",
+    number: "1",
+    comfortablePositions: ["P"],
+    stats: { pStrikePct: 0.65, pWhip: 1.0, pBf: 40 },
+  },
+  {
+    id: "p2",
+    name: "Abel",
+    number: "2",
+    comfortablePositions: ["P"],
+    stats: { pStrikePct: 0.45, pWhip: 2.2, pBf: 40 },
+  },
 ];
 const pitcherTeam: any = {
   players: pitchers,
-  evaluationEvents: [
-    {
-      id: "e1",
-      date: "2026-01-01",
-      coachRole: "Head",
-      grades: { p1: { strikes: 5 }, p2: { strikes: 1 } },
-    },
-  ],
+  evaluationEvents: [],
   pitchingFormat: "Kid Pitch",
   defenseSize: "9",
 };
 
 describe("DepthChartTab", () => {
-  it("ranks pitchers by strikes, not by name", () => {
+  it("ranks pitchers by their pitching stat line, not by name", () => {
     renderWithProviders(<DepthChartTab />, { team: { team: pitcherTeam } });
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
@@ -33,18 +40,30 @@ describe("DepthChartTab", () => {
     expect(items[1]).toHaveTextContent("Abel");
   });
 
-  it("ranks catchers by catching grades, not by name", () => {
+  it("ranks catchers by catching value (CS% stats + Game Calling), not by name", () => {
     const catcherTeam: any = {
       players: [
-        { id: "c1", name: "Yara", number: "8", comfortablePositions: ["C"] },
-        { id: "c2", name: "Cara", number: "9", comfortablePositions: ["C"] },
+        {
+          id: "c1",
+          name: "Yara",
+          number: "8",
+          comfortablePositions: ["C"],
+          stats: { fCsPct: 0.55, fSbAtt: 15 },
+        },
+        {
+          id: "c2",
+          name: "Cara",
+          number: "9",
+          comfortablePositions: ["C"],
+          stats: { fCsPct: 0.15, fSbAtt: 15 },
+        },
       ],
       evaluationEvents: [
         {
           id: "e1",
           date: "2026-01-01",
           coachRole: "Head",
-          grades: { c1: { blocking: 5, throwing: 5 }, c2: { blocking: 1 } },
+          grades: { c1: { gameCalling: 5 }, c2: { gameCalling: 1 } },
         },
       ],
       pitchingFormat: "Kid Pitch",
@@ -71,7 +90,7 @@ describe("DepthChartTab", () => {
       team: { team: { ...pitcherTeam, depthChart: { P: ["p2", "p1"] } } },
     });
     const items = screen.getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("Abel"); // pinned first despite lower strikes
+    expect(items[0]).toHaveTextContent("Abel"); // pinned first despite the weaker stat line
     expect(items[1]).toHaveTextContent("Zane");
   });
 
@@ -117,33 +136,28 @@ describe("DepthChartTab", () => {
   it("keeps Pitcher on pure pitching-score order (primary is ignored at P)", () => {
     const team: any = {
       players: [
-        // Abel has P primary but worse strikes; Zane has better strikes.
+        // Abel has P primary but a worse stat line; Zane's line is better.
         {
           id: "z",
           name: "Zane",
           comfortablePositions: ["P"],
+          stats: { pStrikePct: 0.65, pWhip: 1.0, pBf: 40 },
         },
         {
           id: "a",
           name: "Abel",
           comfortablePositions: ["P"],
           primaryPosition: "P",
+          stats: { pStrikePct: 0.45, pWhip: 2.2, pBf: 40 },
         },
       ],
-      evaluationEvents: [
-        {
-          id: "e1",
-          date: "2026-01-01",
-          coachRole: "Head",
-          grades: { z: { strikes: 5 }, a: { strikes: 1 } },
-        },
-      ],
+      evaluationEvents: [],
       pitchingFormat: "Kid Pitch",
       defenseSize: "9",
     };
     renderWithProviders(<DepthChartTab />, { team: { team } });
     const items = screen.getAllByRole("listitem");
-    expect(items[0]).toHaveTextContent("Zane"); // better strikes leads despite Abel's P primary
+    expect(items[0]).toHaveTextContent("Zane"); // better stat line leads despite Abel's P primary
     expect(items[1]).toHaveTextContent("Abel");
   });
 

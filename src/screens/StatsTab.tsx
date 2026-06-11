@@ -384,7 +384,10 @@ export const StatsTab = memo(() => {
 
   // Eval Total Score per player, surfaced as the "Overall" column.
   const rows: StatRow[] = useMemo(() => {
-    const grades = getCombinedGrades(evaluationEvents, players);
+    const grades = getCombinedGrades(evaluationEvents, players, {
+      teamAge: (team as any).teamAge,
+      games,
+    });
     return players.map((p: any) => ({
       id: p.id,
       name: p.name,
@@ -393,7 +396,7 @@ export const StatsTab = memo(() => {
       stats: p.stats || {},
       total: calculateTotalScore(grades[p.id], p.stats),
     }));
-  }, [players, evaluationEvents]);
+  }, [players, evaluationEvents, team, games]);
 
   const benchRows = useMemo(() => {
     const m = buildSeasonBenchImbalance(games, "", players);
