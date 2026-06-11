@@ -2440,19 +2440,28 @@ export const budgetTotal = (finances: TeamFinances | null | undefined): number =
 export const incomeTotal = (finances: TeamFinances | null | undefined): number =>
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
-// Per-player fee that covers the budget NOT already covered by sponsorship/
-// other income, rounded UP to the next dollar so the club never plans a
-// shortfall. 0 when sponsors cover everything; null when there's nothing to
-// split (no budget or no players).
+// Suggested NEXT-season fee per paying player. The season year runs Fall →
+// Spring; the Budget Planner plans the coming year's costs while the current
+// year's money is still moving, so the recommendation covers the budget with
+// whatever the club projects to have once this year's fees are all in
+// (balanceNow + stillOwed — which already includes sponsorships), rounded UP
+// to the next dollar so the club never plans a shortfall. Fee-exempt players
+// (fall-only pickups, scholarships) don't dilute the split. 0 when the
+// projection covers everything; null when there's nothing to split (no
+// budget or no paying players).
 export const suggestedFeePerPlayer = (
   finances: TeamFinances | null | undefined,
-  playerCount: number
+  players: Array<{ id: string }> | null | undefined
 ): number | null => {
   const total = budgetTotal(finances);
-  const count = Number(playerCount) || 0;
-  if (total <= 0 || count <= 0) return null;
-  const uncovered = Math.max(0, total - incomeTotal(finances));
-  return Math.ceil(uncovered / count);
+  if (total <= 0) return null;
+  const exempt = new Set(finances?.feeExemptIds || []);
+  const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
+  if (payers.length === 0) return null;
+  const s = financeSummary(finances, players);
+  const projectedYearEnd = s.balanceNow + s.stillOwed;
+  const uncovered = Math.max(0, total - projectedYearEnd);
+  return Math.ceil(uncovered / payers.length);
 };
 
 export interface FinanceSummary {
@@ -2484,9 +2493,11 @@ export const financeSummary = (
   const otherIncome = incomeTotal(finances);
   let spent = 0;
   for (const e of finances?.expenses || []) spent += money(e?.amount);
+  // Fee-exempt players (fall pickups, scholarships) never owe the club fee.
+  const exempt = new Set(finances?.feeExemptIds || []);
   let stillOwed = 0;
   for (const p of players || []) {
-    if (!p?.id) continue;
+    if (!p?.id || exempt.has(p.id)) continue;
     stillOwed += Math.max(0, fee - (paidByPlayer[p.id] || 0));
   }
   const balanceNow = collected + otherIncome - spent;
@@ -2573,6 +2584,80 @@ export const transactionLedger = (
     running += r.direction === "in" ? r.amount : -r.amount;
     return { ...r, balanceAfter: running };
   });
+};
+
+// Roll the club's money into a new SEASON YEAR. The season year runs Fall →
+// Spring, so this fires only when the season advances INTO a Fall
+// (Spring→Fall); the mid-year Fall→Spring advance leaves finances running
+// untouched. On a roll:
+//   - the closing balance carries over (an opening "Carried over" income
+//     entry — or an expense when the club ended in the red),
+//   - the fee-collection cycle resets (payments clear; last year's checks
+//     never look like this year's fees) and fee waivers clear with it,
+//   - the Budget Planner's "next season's fee" is promoted to the active
+//     club fee, and the budget plan is kept as the new season's reference,
+//   - the year's totals are archived as a compact FinancePastSeason row.
+// Pass-through when there's nothing recorded, so teams that never opened
+// the Finances tab are untouched.
+export const rollFinancesForNewSeason = (
+  finances: TeamFinances | null | undefined,
+  archivedSeason: string,
+  dateIso: string
+): TeamFinances | null | undefined => {
+  const hadActivity =
+    (finances?.payments || []).length > 0 ||
+    (finances?.incomes || []).length > 0 ||
+    (finances?.expenses || []).length > 0;
+  if (!finances || !hadActivity) return finances;
+  // Label the archived year by its closing season ("through Spring 2027").
+  const yearLabel = `through ${archivedSeason}`;
+  // stillOwed isn't part of the carry-over (unpaid fees die with the year),
+  // so the players list is irrelevant here.
+  const s = financeSummary(finances, []);
+  const balance = Math.round(s.balanceNow * 100) / 100;
+  const date = String(dateIso || "").slice(0, 10);
+  const carryId = `carry-${date}-${Math.random().toString(36).slice(2, 8)}`;
+  const incomes =
+    balance > 0
+      ? [
+          {
+            id: carryId,
+            date,
+            label: `Carried over (${yearLabel})`,
+            amount: balance,
+          },
+        ]
+      : [];
+  const expenses =
+    balance < 0
+      ? [
+          {
+            id: carryId,
+            date,
+            label: `Debt carried over (${yearLabel})`,
+            amount: Math.abs(balance),
+          },
+        ]
+      : [];
+  const { nextClubFee: _promoted, feeExemptIds: _cleared, ...rest } = finances;
+  return {
+    ...rest,
+    clubFee:
+      finances.nextClubFee != null ? finances.nextClubFee : finances.clubFee,
+    payments: [],
+    incomes,
+    expenses,
+    pastSeasons: [
+      ...(finances.pastSeasons || []),
+      {
+        season: yearLabel,
+        collected: s.collected,
+        otherIncome: s.otherIncome,
+        spent: s.spent,
+        closingBalance: balance,
+      },
+    ],
+  };
 };
 
 // ---------- Team-list safety (user settings doc) ----------
