@@ -43,6 +43,13 @@ import {
   sameDayRoleSets,
   mergeTeamEntries,
   blockedRosterWipeReason,
+  formatCurrency,
+  budgetTotal,
+  suggestedFeePerPlayer,
+  financeSummary,
+  budgetItemAmount,
+  incomeTotal,
+  transactionLedger,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1653,5 +1660,131 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
   it("treats a malformed current roster as empty rather than crashing", () => {
     expect(blockedRosterWipeReason({ players: [] }, null, true)).toBeNull();
     expect(blockedRosterWipeReason({ players: [] }, undefined, true)).toBeNull();
+  });
+});
+
+describe("finances money math", () => {
+  const finances = {
+    clubFee: 150,
+    budgetItems: [
+      { id: "b1", label: "Tournaments", qty: 8, unitAmount: 450, amount: 3600 },
+      { id: "b2", label: "Balls", amount: 250.5 },
+    ],
+    incomes: [
+      { id: "i1", date: "2026-02-20", label: "Smith Hardware sponsorship", amount: 600 },
+    ],
+    payments: [
+      { id: "p1", playerId: "kid1", date: "2026-03-01", amount: 150 },
+      { id: "p2", playerId: "kid2", date: "2026-03-02", amount: 50 },
+      { id: "p3", playerId: "kid2", date: "2026-04-01", amount: 25 },
+      // Off-roster payment (kid since released): counts toward collected,
+      // never toward stillOwed.
+      { id: "p4", playerId: "ghost", date: "2026-04-02", amount: 10 },
+    ],
+    expenses: [
+      // Deliberately out of date order — the ledger sorts.
+      { id: "e2", date: "2026-03-15", label: "Balls", amount: 60 },
+      { id: "e1", date: "2026-03-05", label: "Entry", amount: 100 },
+    ],
+  };
+  const players = [
+    { id: "kid1", name: "Ava" },
+    { id: "kid2", name: "Ben" },
+    { id: "kid3", name: "Cy" },
+  ];
+
+  it("formatCurrency: whole dollars unless cents exist, negatives keep the sign", () => {
+    expect(formatCurrency(1250)).toBe("$1,250");
+    expect(formatCurrency(12.5)).toBe("$12.50");
+    expect(formatCurrency(-80)).toBe("-$80");
+    expect(formatCurrency("junk")).toBe("$0");
+    expect(formatCurrency(null)).toBe("$0");
+  });
+
+  it("budgetItemAmount: qty × unit when both present, flat amount otherwise", () => {
+    expect(budgetItemAmount({ qty: 8, unitAmount: 450, amount: 1 })).toBe(3600);
+    expect(budgetItemAmount({ amount: 250.5 })).toBeCloseTo(250.5);
+    expect(budgetItemAmount({ qty: 8, amount: 99 })).toBe(99); // missing unit -> flat
+    expect(budgetItemAmount(null)).toBe(0);
+  });
+
+  it("budgetTotal sums flat + quantity items and tolerates malformed entries", () => {
+    expect(budgetTotal(finances)).toBeCloseTo(3850.5);
+    expect(budgetTotal(null)).toBe(0);
+    expect(budgetTotal({ budgetItems: [{ amount: "nope" }, null] })).toBe(0);
+  });
+
+  it("incomeTotal sums sponsorships/fundraising", () => {
+    expect(incomeTotal(finances)).toBe(600);
+    expect(incomeTotal(null)).toBe(0);
+  });
+
+  it("suggestedFeePerPlayer covers the budget NOT covered by income, rounded UP", () => {
+    // (3850.5 - 600 sponsorship) / 3 players = 1083.5 -> 1084
+    expect(suggestedFeePerPlayer(finances, 3)).toBe(1084);
+    expect(suggestedFeePerPlayer(finances, 0)).toBeNull();
+    expect(suggestedFeePerPlayer({ budgetItems: [] }, 9)).toBeNull();
+    expect(suggestedFeePerPlayer(null, 9)).toBeNull();
+  });
+
+  it("suggestedFeePerPlayer is 0 (not negative) when sponsors cover everything", () => {
+    const covered = {
+      budgetItems: [{ id: "b", label: "Balls", amount: 500 }],
+      incomes: [{ id: "i", date: "2026-01-01", label: "Sponsor", amount: 800 }],
+    };
+    expect(suggestedFeePerPlayer(covered, 10)).toBe(0);
+  });
+
+  it("financeSummary computes the P&L tiles in one pass, income included", () => {
+    const s = financeSummary(finances, players);
+    expect(s.collected).toBe(235);
+    expect(s.otherIncome).toBe(600);
+    expect(s.spent).toBe(160);
+    expect(s.balanceNow).toBe(675); // 235 + 600 - 160
+    // kid1 settled (150/150), kid2 owes 75, kid3 owes the full 150.
+    expect(s.stillOwed).toBe(225);
+    expect(s.balanceOnceAllPaid).toBe(900);
+    expect(s.paidByPlayer).toEqual({ kid1: 150, kid2: 75, ghost: 10 });
+  });
+
+  it("financeSummary never reports negative owed for overpayment", () => {
+    const s = financeSummary(
+      { clubFee: 100, payments: [{ id: "p", playerId: "kid1", amount: 130 }] },
+      [{ id: "kid1" }]
+    );
+    expect(s.stillOwed).toBe(0);
+    expect(s.collected).toBe(130);
+  });
+
+  it("financeSummary handles a missing/empty finances object", () => {
+    const s = financeSummary(null, players);
+    expect(s).toMatchObject({
+      collected: 0,
+      otherIncome: 0,
+      spent: 0,
+      balanceNow: 0,
+      stillOwed: 0,
+      balanceOnceAllPaid: 0,
+    });
+  });
+
+  it("transactionLedger merges fees, income, and expenses in date order with a running balance", () => {
+    const rows = transactionLedger(finances, players);
+    expect(rows.map((r) => r.id)).toEqual([
+      "i1", // 02-20 sponsorship +600 -> 600
+      "p1", // 03-01 Ava fee +150 -> 750
+      "p2", // 03-02 Ben fee +50 -> 800
+      "e1", // 03-05 entry -100 -> 700
+      "e2", // 03-15 balls -60 -> 640
+      "p3", // 04-01 Ben fee +25 -> 665
+      "p4", // 04-02 ghost fee +10 -> 675
+    ]);
+    expect(rows.map((r) => r.balanceAfter)).toEqual([600, 750, 800, 700, 640, 665, 675]);
+    expect(rows[0]).toMatchObject({ direction: "in", source: "income" });
+    expect(rows[1].label).toBe("Club fee — Ava");
+    expect(rows[3]).toMatchObject({ direction: "out", source: "expense" });
+    // Payment from a kid no longer rostered still shows, with a fallback name.
+    expect(rows[6].label).toBe("Club fee — Player");
+    expect(transactionLedger(null)).toEqual([]);
   });
 });

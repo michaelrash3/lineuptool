@@ -148,6 +148,9 @@ const TryoutsTab = lazy(() =>
 const InterestTab = lazy(() =>
   import("./screens/InterestTab").then((m) => ({ default: m.InterestTab }))
 );
+const FinancesTab = lazy(() =>
+  import("./screens/FinancesTab").then((m) => ({ default: m.FinancesTab }))
+);
 const TryoutsPortal = lazy(() =>
   import("./screens/TryoutsPortal").then((m) => ({
     default: m.TryoutsPortal,
@@ -167,6 +170,7 @@ const TAB_TITLE_LABELS: Record<string, string> = {
   evaluation: "Evaluation",
   tryouts: "Tryouts",
   interest: "Interest",
+  finances: "Finances",
   settings: "Settings",
 };
 
@@ -3197,6 +3201,9 @@ const MainShell = () => {
         ...(tryoutsVisible ? [tryoutsButton] : []),
         ...(interestButton ? [interestButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
+        // Money is the head coach's business alone — assistants never see
+        // the Finances tab (mirrors the Settings gate below).
+        { id: "finances", icon: Icons.Wallet, label: "Finances" },
         { id: "settings", icon: Icons.Settings, label: "Settings" },
       ];
 
@@ -3240,6 +3247,10 @@ const MainShell = () => {
             element={
               isAssistant ? <Navigate to="/" replace /> : <InterestTab />
             }
+          />
+          <Route
+            path="/finances"
+            element={isAssistant ? <Navigate to="/" replace /> : <FinancesTab />}
           />
           <Route
             path="/settings"

@@ -252,6 +252,9 @@ export interface Team {
   // ----- Tryouts config -----
   tryoutDates?: string[];
 
+  // ----- Finances (head-coach-only tab) -----
+  finances?: TeamFinances;
+
   // The long tail of dynamic/rarely-typed fields (templates, past seasons,
   // mid-game removals, catcher limits, etc.) stays permissive and is promoted
   // to explicit fields incrementally. Note: typing the full bag onto
@@ -259,6 +262,61 @@ export interface Team {
   // ~160 type errors across consumers, so that tightening is intentionally a
   // separate, incremental effort — this just makes the known fields accurate.
   [key: string]: unknown;
+}
+
+// ---- Team finances --------------------------------------------------------
+// All amounts are dollars (floats; the UI rounds to cents on display). The
+// whole structure lives on the single team doc like everything else.
+
+// A planned season cost in the Budget Planner (tournament entry, balls, …).
+// Two shapes: a flat `amount`, or quantity mode — when BOTH `qty` and
+// `unitAmount` are present the effective amount is qty × unitAmount (e.g.
+// 8 tournaments × $450 entry). budgetItemAmount() in utils/helpers.ts is the
+// single reader; `amount` remains the fallback so legacy items keep working.
+export interface BudgetItem {
+  id: string;
+  label: string;
+  amount: number;
+  qty?: number;
+  unitAmount?: number;
+}
+
+// Money actually spent, shown in the ledger with a running balance.
+export interface ExpenseEntry {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  label: string;
+  amount: number;
+}
+
+// Money received that ISN'T a club-fee payment — sponsorships, fundraising,
+// donations. Counts toward the club balance and offsets the suggested
+// per-player fee (sponsors covering costs means families owe less).
+export interface IncomeEntry {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  label: string;
+  amount: number;
+}
+
+// Money collected from a family toward the club fee. Multiple entries per
+// player = partial payments.
+export interface PaymentEntry {
+  id: string;
+  playerId: PlayerId;
+  date: string; // ISO yyyy-mm-dd
+  amount: number;
+}
+
+export interface TeamFinances {
+  // Per-player club fee in dollars. The Budget Planner can suggest one from
+  // the budget total (minus sponsorship/other income) and the coach applies
+  // it with "Set as club fee".
+  clubFee?: number;
+  budgetItems?: BudgetItem[];
+  expenses?: ExpenseEntry[];
+  incomes?: IncomeEntry[];
+  payments?: PaymentEntry[];
 }
 
 export interface Toast {

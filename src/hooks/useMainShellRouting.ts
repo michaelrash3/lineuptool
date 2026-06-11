@@ -9,6 +9,7 @@ const TAB_TO_PATH: Record<string, string> = {
   evaluation: "/evaluation",
   tryouts: "/tryouts",
   interest: "/interest",
+  finances: "/finances",
   settings: "/settings",
 };
 
@@ -48,14 +49,14 @@ export const useMainShellRouting = ({
           ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation"]
           : ["home", "schedule", "roster", "stats", "depthChart", "evaluation"]
         : tryoutsOpen
-        ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation", "settings"]
-        : ["home", "schedule", "roster", "stats", "depthChart", "evaluation", "settings"],
+        ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation", "finances", "settings"]
+        : ["home", "schedule", "roster", "stats", "depthChart", "evaluation", "finances", "settings"],
     [isAssistant, tryoutsOpen]
   );
 
   useEffect(() => {
     if (!isAssistant) return;
-    if (activeTab === "settings") setActiveTab("home");
+    if (activeTab === "settings" || activeTab === "finances") setActiveTab("home");
   }, [isAssistant, activeTab, setActiveTab]);
 
   useEffect(() => {
