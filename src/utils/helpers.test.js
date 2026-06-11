@@ -50,6 +50,7 @@ import {
   budgetItemAmount,
   incomeTotal,
   transactionLedger,
+  rollFinancesForNewSeason,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1719,20 +1720,28 @@ describe("finances money math", () => {
     expect(incomeTotal(null)).toBe(0);
   });
 
-  it("suggestedFeePerPlayer covers the budget NOT covered by income, rounded UP", () => {
-    // (3850.5 - 600 sponsorship) / 3 players = 1083.5 -> 1084
-    expect(suggestedFeePerPlayer(finances, 3)).toBe(1084);
-    expect(suggestedFeePerPlayer(finances, 0)).toBeNull();
-    expect(suggestedFeePerPlayer({ budgetItems: [] }, 9)).toBeNull();
-    expect(suggestedFeePerPlayer(null, 9)).toBeNull();
+  it("suggestedFeePerPlayer covers next season's budget after this year's projected money", () => {
+    // Projected year-end money = balanceNow 675 + stillOwed 225 = 900.
+    // (3850.5 − 900) / 3 paying players = 983.5 → 984.
+    expect(suggestedFeePerPlayer(finances, players)).toBe(984);
+    expect(suggestedFeePerPlayer(finances, [])).toBeNull();
+    expect(suggestedFeePerPlayer({ budgetItems: [] }, players)).toBeNull();
+    expect(suggestedFeePerPlayer(null, players)).toBeNull();
   });
 
-  it("suggestedFeePerPlayer is 0 (not negative) when sponsors cover everything", () => {
+  it("suggestedFeePerPlayer excludes fee-exempt players from the split", () => {
+    const withWaiver = { ...finances, feeExemptIds: ["kid3"] };
+    // stillOwed drops kid3's 150 → projected = 675 + 75 = 750; 2 payers.
+    // (3850.5 − 750) / 2 = 1550.25 → 1551.
+    expect(suggestedFeePerPlayer(withWaiver, players)).toBe(1551);
+  });
+
+  it("suggestedFeePerPlayer is 0 (not negative) when projected money covers everything", () => {
     const covered = {
       budgetItems: [{ id: "b", label: "Balls", amount: 500 }],
       incomes: [{ id: "i", date: "2026-01-01", label: "Sponsor", amount: 800 }],
     };
-    expect(suggestedFeePerPlayer(covered, 10)).toBe(0);
+    expect(suggestedFeePerPlayer(covered, [{ id: "kid1" }])).toBe(0);
   });
 
   it("financeSummary computes the P&L tiles in one pass, income included", () => {
@@ -1766,6 +1775,62 @@ describe("finances money math", () => {
       stillOwed: 0,
       balanceOnceAllPaid: 0,
     });
+  });
+
+  it("financeSummary skips fee-exempt players in stillOwed", () => {
+    const s = financeSummary({ ...finances, feeExemptIds: ["kid3"] }, players);
+    expect(s.stillOwed).toBe(75); // kid2's remainder only; kid3 waived
+  });
+
+  it("rollFinancesForNewSeason carries the balance, resets collections, promotes the planned fee", () => {
+    const rolled = rollFinancesForNewSeason(
+      { ...finances, nextClubFee: 1000, feeExemptIds: ["kid3"] },
+      "Spring 2027",
+      "2027-06-01T12:00:00.000Z"
+    );
+    expect(rolled.payments).toEqual([]);
+    expect(rolled.expenses).toEqual([]);
+    expect(rolled.incomes).toHaveLength(1);
+    expect(rolled.incomes[0]).toMatchObject({
+      date: "2027-06-01",
+      label: "Carried over (through Spring 2027)",
+      amount: 675,
+    });
+    expect(rolled.clubFee).toBe(1000); // planned fee promoted
+    expect(rolled.nextClubFee).toBeUndefined();
+    expect(rolled.feeExemptIds).toBeUndefined(); // waivers die with the year
+    expect(rolled.budgetItems).toEqual(finances.budgetItems); // plan kept
+    expect(rolled.pastSeasons).toEqual([
+      {
+        season: "through Spring 2027",
+        collected: 235,
+        otherIncome: 600,
+        spent: 160,
+        closingBalance: 675,
+      },
+    ]);
+  });
+
+  it("rollFinancesForNewSeason carries debt as an opening expense", () => {
+    const broke = {
+      clubFee: 100,
+      payments: [{ id: "p", playerId: "kid1", date: "2026-09-01", amount: 50 }],
+      expenses: [{ id: "e", date: "2026-10-01", label: "Entry", amount: 200 }],
+    };
+    const rolled = rollFinancesForNewSeason(broke, "Spring 2027", "2027-06-01");
+    expect(rolled.incomes).toEqual([]);
+    expect(rolled.expenses).toHaveLength(1);
+    expect(rolled.expenses[0]).toMatchObject({
+      label: "Debt carried over (through Spring 2027)",
+      amount: 150,
+    });
+    expect(rolled.clubFee).toBe(100); // no planned fee → current fee kept
+  });
+
+  it("rollFinancesForNewSeason passes through when nothing was recorded", () => {
+    expect(rollFinancesForNewSeason(undefined, "Spring 2027", "x")).toBeUndefined();
+    const planOnly = { budgetItems: [{ id: "b", label: "Balls", amount: 10 }] };
+    expect(rollFinancesForNewSeason(planOnly, "Spring 2027", "x")).toBe(planOnly);
   });
 
   it("transactionLedger merges fees, income, and expenses in date order with a running balance", () => {

@@ -308,15 +308,34 @@ export interface PaymentEntry {
   amount: number;
 }
 
+// Compact per-season money summary kept when the season is advanced — the
+// row-level ledger resets each season (the closing balance carries over as an
+// opening entry), but the season's totals stay reviewable.
+export interface FinancePastSeason {
+  season: string;
+  collected: number;
+  otherIncome: number;
+  spent: number;
+  closingBalance: number;
+}
+
 export interface TeamFinances {
-  // Per-player club fee in dollars. The Budget Planner can suggest one from
-  // the budget total (minus sponsorship/other income) and the coach applies
-  // it with "Set as club fee".
+  // THIS season's per-player club fee in dollars — what Collections tracks.
+  // Fees are an annual (Spring) cycle; Fall pickups are typically waived.
   clubFee?: number;
+  // NEXT season's fee, set from the Budget Planner's suggestion. The season
+  // year runs Fall → Spring, so this is promoted to clubFee when the season
+  // advances into a new Fall — planning never disturbs the in-progress
+  // collection cycle.
+  nextClubFee?: number;
+  // Players exempt from the club fee (fall-only pickups, scholarships).
+  // They never count toward "still owed" or the suggested-fee split.
+  feeExemptIds?: PlayerId[];
   budgetItems?: BudgetItem[];
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];
   payments?: PaymentEntry[];
+  pastSeasons?: FinancePastSeason[];
 }
 
 export interface Toast {

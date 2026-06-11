@@ -83,6 +83,9 @@ import {
   estimateDocSizeBytes,
   mergeTeamEntries,
   blockedRosterWipeReason,
+  financeSummary,
+  formatCurrency,
+  rollFinancesForNewSeason,
   FIRESTORE_DOC_LIMIT_BYTES,
   DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
@@ -1510,6 +1513,23 @@ const TeamProvider = ({ children }: any) => {
       (p: any) => p.playerStatus === "accepted"
     ).length;
 
+    // The season YEAR runs Fall → Spring, so the money rolls only when the
+    // season advances INTO a new Fall (closing balance carries over, fee
+    // collections reset, the planned next-season fee is promoted, the year is
+    // archived). The mid-year Fall→Spring advance leaves the ledger and
+    // collections running — fall-only pickups just get their fee waived in
+    // Collections. No-op (and no confirm line) when the Finances tab was
+    // never used.
+    const hadFinanceActivity =
+      ((teamData.finances?.payments || []).length ||
+        (teamData.finances?.incomes || []).length ||
+        (teamData.finances?.expenses || []).length) > 0;
+    const rollingIntoFall = nextSeason.toLowerCase().startsWith("fall");
+    const rollFinances = hadFinanceActivity && rollingIntoFall;
+    const closingBalance = rollFinances
+      ? financeSummary(teamData.finances, []).balanceNow
+      : 0;
+
     // Confirmation
     const confirmMsg =
       `Archive ${archivedSeason} (${archivedAge}, ${archivedFormat})?\n\n` +
@@ -1530,6 +1550,13 @@ const TeamProvider = ({ children }: any) => {
       (wins + losses + ties === 0 ? " (no final games logged)" : "") +
       `\n` +
       `• Current stats and games will be cleared\n` +
+      (rollFinances
+        ? `• Club balance carried into the new season year: ${formatCurrency(
+            closingBalance
+          )} (fee collections reset)\n`
+        : hadFinanceActivity
+        ? `• Finances keep running through the spring (fees cover the Fall–Spring year)\n`
+        : "") +
       `• New season: ${nextSeason}` +
       (shouldBump
         ? ` (age advances ${archivedAge} → ${newAgeGroup})`
@@ -1621,6 +1648,15 @@ const TeamProvider = ({ children }: any) => {
         tryoutSignups: [],
         tryoutsOpen: false,
         lastSeasonAdvanceAt: nowIso,
+        ...(rollFinances
+          ? {
+              finances: rollFinancesForNewSeason(
+                teamData.finances,
+                archivedSeason,
+                nowIso
+              ),
+            }
+          : {}),
       },
       { allowEmptyPlayers: true }
     );

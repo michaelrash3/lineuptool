@@ -120,8 +120,24 @@ export const FinancesTab = memo(() => {
   );
   const budget = budgetTotal(finances);
   const income = incomeTotal(finances);
-  const suggested = suggestedFeePerPlayer(finances, players.length);
+  const suggested = suggestedFeePerPlayer(finances, players);
   const clubFee = Math.max(0, Number(finances.clubFee) || 0);
+  const nextFee =
+    finances.nextClubFee != null
+      ? Math.max(0, Number(finances.nextClubFee) || 0)
+      : null;
+  const exemptIds = useMemo(
+    () => new Set(finances.feeExemptIds || []),
+    [finances]
+  );
+  const payerCount = players.filter((p: any) => !exemptIds.has(p.id)).length;
+
+  const toggleFeeWaiver = (playerId: string) => {
+    const cur = new Set(finances.feeExemptIds || []);
+    if (cur.has(playerId)) cur.delete(playerId);
+    else cur.add(playerId);
+    writeFinances({ feeExemptIds: [...cur] });
+  };
 
   // ---- Budget Planner form state. Quantity mode plans count × per-unit cost
   // (per-tournament planner); flat mode is a single dollar amount.
@@ -276,8 +292,8 @@ export const FinancesTab = memo(() => {
       {/* Budget Planner */}
       <SectionCard
         icon={Icons.Clipboard}
-        title="Budget Planner"
-        subtitle="Plan the season's costs, then split what sponsors don't cover into a per-player club fee."
+        title="Budget Planner — next season"
+        subtitle="Plan the season that starts in the Fall; whatever this year's money won't cover splits into the new club fee."
       >
         <div className="p-4 sm:p-5 space-y-3">
           {(finances.budgetItems || []).length > 0 && (
@@ -408,30 +424,34 @@ export const FinancesTab = memo(() => {
               <span className="font-black text-ink tabular-nums">
                 {formatCurrency(budget)}
               </span>
-              {income > 0 && (
-                <>
-                  {" "}
-                  − {formatCurrency(income)} sponsorships/income
-                </>
-              )}
               {suggested != null && (
                 <>
                   {" "}
-                  → suggested fee{" "}
+                  → after this year's money, suggested fee{" "}
                   <span className="font-black text-ink tabular-nums">
                     {formatCurrency(suggested)}
                   </span>{" "}
-                  × {players.length} player{players.length === 1 ? "" : "s"}
+                  × {payerCount} paying player{payerCount === 1 ? "" : "s"}
                 </>
               )}
+              {nextFee != null && (
+                <div className="t-meta text-ink-3 mt-1">
+                  Next season's fee is set to{" "}
+                  <span className="font-black tabular-nums">
+                    {formatCurrency(nextFee)}
+                  </span>{" "}
+                  — it becomes the club fee when the new season starts in the
+                  Fall.
+                </div>
+              )}
             </div>
-            {suggested != null && suggested !== clubFee && (
+            {suggested != null && suggested !== nextFee && (
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => writeFinances({ clubFee: suggested })}
+                onClick={() => writeFinances({ nextClubFee: suggested })}
               >
-                <Icons.Check className="w-4 h-4" /> Set as club fee
+                <Icons.Check className="w-4 h-4" /> Set as next season's fee
               </Button>
             )}
           </div>
@@ -441,8 +461,8 @@ export const FinancesTab = memo(() => {
       {/* Collections */}
       <SectionCard
         icon={Icons.Users}
-        title="Collections"
-        subtitle="Who has paid the club fee — partial payments add up per family."
+        title="Collections — this season"
+        subtitle="Who has paid this year's club fee — partial payments add up per family. Waive the fee for fall-only pickups."
       >
         <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface flex items-center gap-2">
           <span className="t-eyebrow text-ink-3">Club fee per player</span>
@@ -477,6 +497,7 @@ export const FinancesTab = memo(() => {
         ) : (
           <ul className="divide-y divide-line">
             {players.map((p: any) => {
+              const waived = exemptIds.has(p.id);
               const paid = summary.paidByPlayer[p.id] || 0;
               const owed = Math.max(0, clubFee - paid);
               const settled = clubFee > 0 && owed === 0;
@@ -495,7 +516,21 @@ export const FinancesTab = memo(() => {
                   <span className="tabular-nums text-sm font-bold text-ink-2">
                     {formatCurrency(paid)} paid
                   </span>
-                  {settled ? (
+                  {waived ? (
+                    <>
+                      <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                        Fee waived
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Reinstate fee for ${p.name}`}
+                        onClick={() => toggleFeeWaiver(p.id)}
+                        className="text-xs font-bold underline text-ink-3 hover:text-ink"
+                      >
+                        Undo
+                      </button>
+                    </>
+                  ) : settled ? (
                     <span className="text-xs font-black uppercase tracking-widest text-win">
                       Paid full ✓
                     </span>
@@ -540,6 +575,14 @@ export const FinancesTab = memo(() => {
                           Paid full
                         </Button>
                       )}
+                      <button
+                        type="button"
+                        aria-label={`Waive fee for ${p.name}`}
+                        onClick={() => toggleFeeWaiver(p.id)}
+                        className="text-xs font-bold underline text-ink-3 hover:text-ink"
+                      >
+                        Waive
+                      </button>
                     </>
                   )}
                 </li>
@@ -683,6 +726,34 @@ export const FinancesTab = memo(() => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          {(finances.pastSeasons || []).length > 0 && (
+            <div className="pt-3 border-t border-line">
+              <div className="t-eyebrow text-ink-3 mb-2">Past years</div>
+              <ul className="space-y-1">
+                {(finances.pastSeasons || []).map((ps) => (
+                  <li
+                    key={ps.season}
+                    className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold text-ink-2 tabular-nums"
+                  >
+                    <span className="text-ink">{ps.season}</span>
+                    <span>
+                      in {formatCurrency(ps.collected + ps.otherIncome)} · out{" "}
+                      {formatCurrency(ps.spent)} · ended{" "}
+                      <span
+                        className={
+                          ps.closingBalance < 0
+                            ? "text-loss font-black"
+                            : "text-ink font-black"
+                        }
+                      >
+                        {formatCurrency(ps.closingBalance)}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
