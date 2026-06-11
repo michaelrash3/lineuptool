@@ -2551,6 +2551,10 @@ export interface LedgerRow {
   // Club balance after this transaction, walking everything received and
   // spent in date order (ties keep entry order: money in before money out).
   balanceAfter: number;
+  // Reimbursement passthrough (expense rows only): who fronted it out of
+  // pocket and whether they've been paid back.
+  paidBy?: string;
+  reimbursed?: boolean;
 }
 
 // One dated ledger of EVERYTHING received (club-fee payments, sponsorships,
@@ -2596,6 +2600,9 @@ export const transactionLedger = (
       amount: money(exp.amount),
       direction: "out",
       source: "expense",
+      ...(exp.paidBy
+        ? { paidBy: String(exp.paidBy), reimbursed: exp.reimbursed === true }
+        : {}),
     });
   }
   // Stable sort: date order; ties keep push order (in-rows precede out-rows).
@@ -2642,6 +2649,56 @@ export const budgetActuals = (
     else unplanned += amt;
   }
   return { byItem, unplanned };
+};
+
+// Out-of-pocket spending the club hasn't paid back yet, grouped by who
+// fronted it. The expense already counts against the club balance (accrual
+// view); this is purely the IOU list.
+export const reimbursementsOwed = (
+  finances: TeamFinances | null | undefined
+): { byName: Record<string, number>; total: number } => {
+  const byName: Record<string, number> = {};
+  let total = 0;
+  for (const e of finances?.expenses || []) {
+    if (!e?.paidBy || e.reimbursed === true) continue;
+    const amt = money(e.amount);
+    const name = String(e.paidBy).trim();
+    if (!name || amt <= 0) continue;
+    byName[name] = (byName[name] || 0) + amt;
+    total += amt;
+  }
+  return { byName, total };
+};
+
+export interface YearComparisonRow {
+  label: string;
+  in: number; // collected fees + sponsorships/other income
+  out: number;
+  closing: number;
+}
+
+// Year-over-year money picture: every archived season (rolled at the Fall
+// advance) plus the current year so far.
+export const yearComparison = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined
+): YearComparisonRow[] => {
+  const rows: YearComparisonRow[] = (finances?.pastSeasons || []).map((ps) => ({
+    label: String(ps?.season || ""),
+    in: money(ps?.collected) + money(ps?.otherIncome),
+    out: money(ps?.spent),
+    closing: money(ps?.closingBalance),
+  }));
+  const s = financeSummary(finances, players);
+  if (s.collected + s.otherIncome + s.spent > 0 || rows.length > 0) {
+    rows.push({
+      label: "This year",
+      in: s.collected + s.otherIncome,
+      out: s.spent,
+      closing: s.balanceNow,
+    });
+  }
+  return rows;
 };
 
 export interface CashflowMonth {

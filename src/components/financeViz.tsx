@@ -1,6 +1,6 @@
 import React from "react";
 import { formatCurrency } from "../utils/helpers";
-import type { CashflowMonth } from "../utils/helpers";
+import type { CashflowMonth, YearComparisonRow } from "../utils/helpers";
 
 // Dependency-free SVG money visuals for the Finances tab, built on the same
 // design tokens as the rest of the app (team gradient hero like HomeTab's
@@ -288,5 +288,82 @@ export const SpendingDonut = ({
         ))}
       </ul>
     </div>
+  );
+};
+
+// Year-over-year grouped bars (money in vs out per season year) with the
+// closing balance printed under each pair. Same visual language as
+// CashflowChart, one group per archived year + "This year".
+export const YearComparisonChart = ({ rows }: { rows: YearComparisonRow[] }) => {
+  if (rows.length === 0) return null;
+  const W = 460;
+  const H = 170;
+  const padT = 10;
+  const padB = 38;
+  const plotH = H - padT - padB;
+  const maxVal = Math.max(...rows.map((r) => Math.max(r.in, r.out)), 1);
+  const slot = W / rows.length;
+  const barW = Math.min(26, slot / 3.2);
+  const x0 = (i: number) => i * slot + slot / 2;
+  const barH = (v: number) => (v / maxVal) * plotH;
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full"
+      role="img"
+      aria-label="Year over year money in and out"
+    >
+      {[0.5].map((f) => (
+        <line
+          key={f}
+          x1={0}
+          x2={W}
+          y1={padT + plotH * f}
+          y2={padT + plotH * f}
+          stroke="var(--line)"
+          strokeWidth="1"
+        />
+      ))}
+      {rows.map((r, i) => (
+        <g key={r.label}>
+          <rect
+            x={x0(i) - barW - 2}
+            y={padT + plotH - barH(r.in)}
+            width={barW}
+            height={barH(r.in)}
+            rx={2}
+            fill="var(--win)"
+          />
+          <rect
+            x={x0(i) + 2}
+            y={padT + plotH - barH(r.out)}
+            width={barW}
+            height={barH(r.out)}
+            rx={2}
+            fill="var(--loss)"
+          />
+          <text
+            x={x0(i)}
+            y={H - 24}
+            textAnchor="middle"
+            fontSize="9"
+            fontWeight="800"
+            fill="var(--ink-3)"
+          >
+            {r.label.length > 18 ? `${r.label.slice(0, 18)}…` : r.label}
+          </text>
+          <text
+            x={x0(i)}
+            y={H - 11}
+            textAnchor="middle"
+            fontSize="10"
+            fontWeight="900"
+            fill={r.closing < 0 ? "var(--loss)" : "var(--ink)"}
+          >
+            {formatCurrency(r.closing)}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 };
