@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import {
   generateLineup as engineGenerateLineup,
   generateBattingOnly as engineGenerateBattingOnly,
+  generateTournamentLineup as engineGenerateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import { sameDayRoleSets } from "../utils/helpers";
@@ -69,7 +70,14 @@ export const useLineupActions = ({
         return;
       }
 
-      const result = engineGenerateLineup({
+      // Tournament (USSSA) games build the scripted starters/subs plan via the
+      // parallel tournament pipeline; Rec keeps the fairness engine untouched.
+      const isTournamentGame =
+        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA";
+      const engineFn = isTournamentGame
+        ? engineGenerateTournamentLineup
+        : engineGenerateLineup;
+      const result = engineFn({
         activePlayers: presentPlayers,
         allPlayers: teamData.players,
         games: teamData.games,
@@ -139,9 +147,8 @@ export const useLineupActions = ({
       // Tournament games; Rec games keep it. (internallyRelaxed can't even fire
       // in competitive mode — see effectiveRelax in lineupEngine — so the only
       // thing this hides for Tournament is the intentional relaxFairness path.)
-      const isTournament =
-        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA";
-      const showAsRelaxed = (relaxFairness || internallyRelaxed) && !isTournament;
+      const showAsRelaxed =
+        (relaxFairness || internallyRelaxed) && !isTournamentGame;
       // When the engine fell back, show the ACTUAL blocker that defeated
       // strict fairness (e.g. "Bench schedule couldn't satisfy…") so the
       // cause can be locked down, not just a generic note.
@@ -431,6 +438,7 @@ export const useLineupActions = ({
       lineup,
       battingLineup,
       lineupQualityPenalty,
+      tournamentPlan,
     } = inputs;
     if (!lineup) {
       toast.push({ kind: "warn", title: "No lineup to save" });
@@ -443,6 +451,10 @@ export const useLineupActions = ({
       lineup,
       battingLineup,
       attendance: currentGameAttendance,
+      // Tournament plan (starters/subs/relief) rides with the lineup so the
+      // substitution card survives a reload; null clears a stale plan when a
+      // Rec lineup overwrites a tournament one.
+      tournamentPlan: tournamentPlan || null,
       // Persist quality penalty so the chip survives a reload. Cleared
       // when the lineup is reset.
       qualityPenalty:

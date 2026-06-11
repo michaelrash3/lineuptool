@@ -209,6 +209,7 @@ export const ScheduleTab = memo(() => {
     setLineup,
     battingLineup,
     setBattingLineup,
+    tournamentPlan,
     swapSelection,
     gameSaved,
     handleCellClick,
@@ -1182,6 +1183,77 @@ export const ScheduleTab = memo(() => {
               swapSelection={canEdit ? swapSelection : null}
               onCellClick={canEdit ? handleCellClick : undefined}
             />
+
+            {/* Tournament plan: the scripted sub windows + relief options the
+                tournament generator produced. Rec lineups have no plan. */}
+            {tournamentPlan && (
+              <div className="p-6 border-t border-line/80 bg-transparent space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-surface border border-line shadow-sm">
+                    <Icons.Users className="w-5 h-5 text-ink-2" />
+                  </div>
+                  <h3 className="text-lg font-black text-ink uppercase tracking-widest">
+                    Tournament Plan
+                  </h3>
+                </div>
+                {(tournamentPlan.substitutions || []).length > 0 ? (
+                  <ul className="space-y-1.5 max-w-2xl">
+                    {tournamentPlan.substitutions.map((s: any) => (
+                      <li
+                        key={`${s.position}-${s.in?.id}`}
+                        className="bg-surface border border-line rounded-xl px-3 py-2 text-sm font-bold text-ink flex flex-wrap items-center gap-x-2"
+                      >
+                        <span className="text-team-primary font-black uppercase text-xs tracking-widest">
+                          Inning {s.inning}
+                        </span>
+                        <span>
+                          {s.in?.name} in for {s.out?.name} at {s.position}
+                        </span>
+                        {s.returnInning != null && (
+                          <span className="text-ink-3 font-medium">
+                            — {s.out?.name} returns in inning {s.returnInning}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm font-bold text-ink-2">
+                    Everyone present starts — no subs to schedule.
+                  </p>
+                )}
+                {(tournamentPlan.reliefOptions || []).length > 0 && (
+                  <div className="max-w-2xl">
+                    <div className="t-eyebrow text-ink-3 mb-1.5">
+                      Relief options (pitch-count checked)
+                    </div>
+                    <ul className="flex flex-wrap gap-2">
+                      {tournamentPlan.reliefOptions.map((r: any) => (
+                        <li
+                          key={r.id}
+                          className="bg-surface border border-line rounded-full px-3 py-1.5 text-xs font-bold text-ink flex items-center gap-2"
+                        >
+                          {r.name}
+                          <span
+                            className={`font-black uppercase tracking-widest text-[10px] ${
+                              r.status === "ready"
+                                ? "text-win"
+                                : r.status === "maxed"
+                                ? "text-loss"
+                                : "text-ink-3"
+                            }`}
+                          >
+                            {r.status === "resting" && r.daysUntilReady != null
+                              ? `rests ${r.daysUntilReady}d`
+                              : r.status}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
             {battingLineup && (
               <div className="p-6 border-t border-line/80 print:hidden bg-transparent">

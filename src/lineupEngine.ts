@@ -42,6 +42,8 @@ import type {
   PlayerStats,
   Position,
   SlimPlayer,
+  TournamentPlan,
+  TournamentSubstitution,
 } from "./types";
 import {
   canonicalizeOutfield,
@@ -2195,6 +2197,233 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
 // Tournament games here; Rec/Machine-Pitch games never enter it.
 export function buildCompetitiveLineup(input: EngineInput): EngineResult {
   return generateLineup({ ...input, competitive: true });
+}
+
+// ---------- Tournament-mode lineup (parallel pipeline) ----------
+// A scripted tournament plan instead of the Rec rotation: the best nine start
+// at their best positions, every sub enters as a unit in the 3rd inning (each
+// shown replacing a specific starter), starters return in the 5th, and a
+// ranked relief-pitcher list (pitch-count eligibility included) rides along
+// for mid-game pitching changes. Reuses the engine's grade merge, profiles,
+// depth chart, eligibility rules, batting order, and pitching plan — but never
+// touches the Rec generator's fairness machinery.
+export function generateTournamentLineup(input: EngineInput): EngineResult {
+  const {
+    activePlayers,
+    allPlayers,
+    games = [],
+    evaluationEvents = [],
+    currentGame = {} as any,
+    totalInnings = 6,
+    teamAge = "10U",
+    defenseSize = "9",
+    battingSize = "roster",
+    leagueRuleSet = "USSSA",
+    pitchingFormat,
+    depthChart,
+    pitchRuleSet,
+    seed,
+  } = input as any;
+
+  if (!Array.isArray(activePlayers) || activePlayers.length < 7) {
+    return {
+      error: "Need at least 7 players present to build a tournament lineup.",
+    };
+  }
+
+  const grades = getCombinedGrades(
+    evaluationEvents,
+    allPlayers || activePlayers,
+    { teamAge, games: games as any }
+  );
+  const profiled = activePlayers.map((p: any) => ({
+    ...p,
+    profile: buildPlayerProfile(p, grades[p.id]),
+  }));
+  const byId = new Map(profiled.map((p: any) => [p.id, p]));
+
+  const defSizeNum = parseInt(defenseSize, 10) || 9;
+  const positions = getPositionsForInning(
+    Math.min(profiled.length, defSizeNum),
+    defenseSize
+  );
+  const ruleSet = pitchRuleSet || DEFAULT_PITCH_RULE_SET;
+  const gameDate =
+    (currentGame as any).date || new Date().toISOString().slice(0, 10);
+  const kidPitch = /kid/i.test(String(pitchingFormat || ""));
+  const slim = (p: any): SlimPlayer => ({
+    id: p.id,
+    name: p.name,
+    number: p.number ?? "",
+  });
+
+  const eligibleFor = (pos: string, p: any): boolean => {
+    if (pos === "C") return isCatcherEligible(p);
+    if (isPositionBlocked(p, pos)) return false;
+    if (pos === "P" && kidPitch)
+      return checkPitchEligibility(p, gameDate, teamAge, ruleSet);
+    return true;
+  };
+
+  // Higher = better for this slot. Depth chart is authoritative when the
+  // coach ranked the position; otherwise position-appropriate engine scores.
+  const depthRank = (pos: string, pid: string): number => {
+    const list = (depthChart as any)?.[pos];
+    if (!Array.isArray(list)) return -1;
+    return list.indexOf(pid);
+  };
+  const scoreFor = (pos: string, p: any): number => {
+    let s: number;
+    if (pos === "P")
+      s = calcPitcherScore(p.profile.grades, p.stats, {
+        topMph: p.stats?.pTopMph ?? p.pitching?.topMph ?? null,
+        teamAge,
+      });
+    else if (pos === "C") s = calcCatcherScore(p.profile.grades, p.stats);
+    else
+      s =
+        p.profile.defensiveScore + (p.profile.overallScore || 0) * 0.05;
+    const r = depthRank(pos, p.id);
+    if (r >= 0) s += 1000 - r * 50;
+    return s;
+  };
+
+  // Assign starters scarcity-first (fewest eligible candidates first), each
+  // pick validated with the bipartite matching so a greedy choice can never
+  // strand a later position.
+  const eligCount = (pos: string) =>
+    profiled.filter((p: any) => eligibleFor(pos, p)).length;
+  const fillOrder = [...positions].sort(
+    (a, b) => eligCount(a) - eligCount(b)
+  );
+  const assigned = new Map<string, any>(); // pos → profiled player
+  const used = new Set<string>();
+  for (const pos of fillOrder) {
+    const candidates = profiled
+      .filter((p: any) => !used.has(p.id) && eligibleFor(pos, p))
+      .sort((a: any, b: any) => scoreFor(pos, b) - scoreFor(pos, a));
+    if (candidates.length === 0) {
+      return {
+        error: `No eligible player available for ${pos}. Check Comfortable Positions${
+          pos === "P" && kidPitch ? " and pitch-count rest days" : ""
+        }.`,
+      };
+    }
+    const remainingPos = fillOrder.filter(
+      (x) => x !== pos && !assigned.has(x)
+    );
+    let picked: any = null;
+    for (const cand of candidates) {
+      const remainingIds = profiled
+        .filter((p: any) => !used.has(p.id) && p.id !== cand.id)
+        .map((p: any) => p.id);
+      const match = maxPositionMatching(remainingPos, remainingIds, (mp, pid) =>
+        eligibleFor(mp, byId.get(pid))
+      );
+      if (match.size === remainingPos.length) {
+        picked = cand;
+        break;
+      }
+    }
+    if (!picked) {
+      return {
+        error: `Couldn't seat a full defense: assigning ${pos} strands another position. Loosen Comfortable Positions and retry.`,
+      };
+    }
+    assigned.set(pos, picked);
+    used.add(picked.id);
+  }
+
+  // Scripted sub windows: every sub enters in the 3rd, starters return in the
+  // 5th. Short games degrade gracefully (no return stint under 5 innings; no
+  // sub stint under 3). P and C are never auto-subbed — pitching changes go
+  // through the relief list, and catcher continuity is deliberate.
+  const subEnterInning = totalInnings >= 3 ? 3 : null;
+  const subLastInning = subEnterInning == null ? null : Math.min(4, totalInnings);
+  const starterReturnInning = totalInnings >= 5 ? 5 : null;
+  const benchPlayers = profiled
+    .filter((p: any) => !used.has(p.id))
+    .sort(
+      (a: any, b: any) =>
+        (b.profile.overallScore || 0) - (a.profile.overallScore || 0)
+    );
+  const replaceableSlots = [...assigned.entries()]
+    .filter(([pos]) => pos !== "P" && pos !== "C")
+    // Weakest starters give up their innings first.
+    .sort((a, b) => scoreFor(a[0], a[1]) - scoreFor(b[0], b[1]));
+  const substitutions: TournamentSubstitution[] = [];
+  if (subEnterInning != null) {
+    const takenSlots = new Set<string>();
+    for (const sub of benchPlayers) {
+      const slot = replaceableSlots.find(
+        ([pos]) =>
+          !takenSlots.has(pos) &&
+          (pos === "C" ? isCatcherEligible(sub) : !isPositionBlocked(sub, pos))
+      );
+      if (!slot) continue; // stays available off the bench all game
+      takenSlots.add(slot[0]);
+      substitutions.push({
+        inning: subEnterInning,
+        returnInning: starterReturnInning,
+        position: slot[0],
+        in: slim(sub),
+        out: slim(slot[1]),
+      });
+    }
+  }
+
+  // Materialize the innings grid so the existing lineup card, in-game view,
+  // and save flow work unchanged.
+  const subByPos = new Map(substitutions.map((s) => [s.position, s]));
+  const innings: any[] = [];
+  for (let i = 1; i <= totalInnings; i++) {
+    const inSubWindow =
+      subEnterInning != null && i >= subEnterInning && i <= (subLastInning as number);
+    const inn: any = {};
+    const benched = new Set(benchPlayers.map((p: any) => p.id));
+    for (const [pos, starter] of assigned) {
+      const s = inSubWindow ? subByPos.get(pos) : undefined;
+      if (s && s.in) {
+        inn[pos] = s.in;
+        benched.delete(s.in.id);
+        benched.add(starter.id);
+      } else {
+        inn[pos] = slim(starter);
+      }
+    }
+    inn.BENCH = profiled.filter((p: any) => benched.has(p.id)).map(slim);
+    innings.push(inn);
+  }
+
+  const battingLineup = generateBattingOrder(profiled, battingSize, {
+    seed,
+    leagueRuleSet,
+    teamAge,
+  });
+
+  const starterPitcherId = assigned.get("P")?.id;
+  const reliefOptions = (
+    kidPitch ? buildPitchingPlan(activePlayers, gameDate, teamAge, ruleSet) : []
+  )
+    .filter((r) => r.id !== starterPitcherId)
+    .map((r) => ({
+      id: r.id,
+      name: r.name,
+      number: (r as any).number,
+      status: r.status,
+      recentPitches: r.recentPitches,
+      daysUntilReady: r.daysUntilReady,
+    }));
+
+  const tournament: TournamentPlan = {
+    starters: Object.fromEntries(
+      [...assigned.entries()].map(([pos, p]) => [pos, slim(p)])
+    ),
+    substitutions,
+    reliefOptions,
+  };
+
+  return { lineup: innings, battingLineup, tournament };
 }
 
 export function generateLineup(input: EngineInput): EngineResult {
