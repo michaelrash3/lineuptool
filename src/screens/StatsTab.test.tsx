@@ -25,12 +25,13 @@ const team = {
 };
 
 describe("StatsTab", () => {
-  it("shows an empty state when there are no players", () => {
+  it("shows an empty state when there are no players (no header card)", () => {
     renderWithProviders(<StatsTab />, { team: { team: { players: [], games: [] } } });
-    expect(screen.getByText("Stats & Dashboard")).toBeInTheDocument();
     expect(
       screen.getByText(/Add players and import stats/i)
     ).toBeInTheDocument();
+    // The "Stats & Dashboard" title card was removed — content leads the tab.
+    expect(screen.queryByText("Stats & Dashboard")).toBeNull();
   });
 
   it("renders the batting table with players and sortable headers", () => {

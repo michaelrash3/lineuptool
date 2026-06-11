@@ -1,7 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { RecordBadge } from "../components/shared";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import {
@@ -19,7 +18,6 @@ import { isKidPitchFormat } from "../constants/ui";
 
 // Stats & Dashboard — one place that pulls together everything already imported
 // (GameChanger batting/pitching/fielding) plus eval data:
-//   • team record (header badge)
 //   • a sortable per-player table across Batting / Pitching / Fielding, each row
 //     also showing the eval Total Score, tap-through to the full profile
 //   • bench equity & attendance (who's sitting more than their share)
@@ -368,7 +366,7 @@ const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
 );
 
 export const StatsTab = memo(() => {
-  const { team, record, currentRole } = useTeam();
+  const { team, currentRole } = useTeam();
   const { openPlayerProfile } = useUI();
   const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const games: any[] = useMemo(() => (team as any).games || [], [team]);
@@ -376,7 +374,6 @@ export const StatsTab = memo(() => {
     () => (team as any).evaluationEvents || [],
     [team]
   );
-  const { primaryColor, tertiaryColor } = team as any;
 
   const [category, setCategory] = useState<string>("batting");
   const activeCat =
@@ -486,11 +483,6 @@ export const StatsTab = memo(() => {
   if (players.length === 0) {
     return (
       <div className="space-y-6">
-        <SectionCard
-          icon={Icons.Clipboard}
-          title="Stats & Dashboard"
-          subtitle="Team and per-player numbers from your imported stats."
-        />
         <div className="glass-card p-8 text-center text-ink-3 font-medium">
           Add players and import stats to see your team&apos;s numbers here.
         </div>
@@ -500,40 +492,6 @@ export const StatsTab = memo(() => {
 
   return (
     <div className="space-y-6">
-      {/* Header + record */}
-      <div className="glass-card">
-        <div
-          className="h-1.5 w-full"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-        <div className="p-5 border-b border-line bg-surface flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="p-2 rounded-full"
-              style={{ backgroundColor: "var(--team-primary-15)" }}
-            >
-              <Icons.Clipboard
-                className="w-5 h-5"
-                style={{ color: "var(--team-primary)" }}
-              />
-            </div>
-            <div>
-              <h1 className="t-h1">Stats &amp; Dashboard</h1>
-              <p className="t-eyebrow text-ink-3 mt-0.5">
-                {players.length} players · {games.length} games · tap any name
-                for full trends
-              </p>
-            </div>
-          </div>
-          <RecordBadge
-            record={record}
-            variant="full"
-            primaryColor={primaryColor}
-            tertiaryColor={tertiaryColor}
-          />
-        </div>
-      </div>
-
       {/* Arm-care overuse banner — pulled up to the top so a coach sees it
           before anything else. Kid-Pitch head coaches only. */}
       {armAlerts.length > 0 && (
@@ -567,47 +525,8 @@ export const StatsTab = memo(() => {
         </div>
       )}
 
-      {/* Per-player stats table with category toggle */}
-      <SectionCard
-        icon={Icons.Bat}
-        title="Player Stats"
-        subtitle="Tap a column to sort; tap a name for the full profile."
-      >
-        <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => {
-            const on = c.id === category;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCategory(c.id)}
-                className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
-                style={
-                  on
-                    ? {
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                        borderColor: "var(--team-primary)",
-                      }
-                    : undefined
-                }
-              >
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
-        <StatsTable
-          key={activeCat.id}
-          rows={rows}
-          cols={activeCat.cols}
-          defaultKey={activeCat.defaultKey}
-          onOpen={openPlayerProfile}
-          seriesById={seriesById}
-        />
-      </SectionCard>
-
-      {/* Recent form — who's hot / cold over their last imported game lines */}
+      {/* Recent form — who's hot / cold over their last imported game lines.
+          Leads the tab: the freshest signal a coach acts on between games. */}
       {recentForm.length > 0 && (
         <SectionCard
           icon={Icons.Chart}
@@ -688,6 +607,46 @@ export const StatsTab = memo(() => {
           </div>
         </SectionCard>
       )}
+
+      {/* Per-player stats table with category toggle */}
+      <SectionCard
+        icon={Icons.Bat}
+        title="Player Stats"
+        subtitle="Tap a column to sort; tap a name for the full profile."
+      >
+        <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface flex flex-wrap gap-2">
+          {CATEGORIES.map((c) => {
+            const on = c.id === category;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCategory(c.id)}
+                className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
+                style={
+                  on
+                    ? {
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                        borderColor: "var(--team-primary)",
+                      }
+                    : undefined
+                }
+              >
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+        <StatsTable
+          key={activeCat.id}
+          rows={rows}
+          cols={activeCat.cols}
+          defaultKey={activeCat.defaultKey}
+          onOpen={openPlayerProfile}
+          seriesById={seriesById}
+        />
+      </SectionCard>
 
       {/* Bench equity & attendance */}
       {benchRows.length > 0 && (
