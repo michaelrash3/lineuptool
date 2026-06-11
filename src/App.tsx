@@ -2485,6 +2485,9 @@ const UIProvider = ({ children }: any) => {
   // Penalty score emitted by the engine for the current in-editor lineup
   // (null when no generated lineup is in scope). Lower = better.
   const [lineupQualityPenalty, setLineupQualityPenalty] = useState<any>(null);
+  // Tournament plan (starters / scripted subs / relief options) riding with
+  // the current in-editor lineup. Null for Rec lineups.
+  const [tournamentPlan, setTournamentPlan] = useState<any>(null);
   const [swapSelection, setSwapSelection] = useState<any>(null);
   const [gameSaved, setGameSaved] = useState(false);
   const [opponentName, setOpponentName] = useState("");
@@ -2559,6 +2562,7 @@ const UIProvider = ({ children }: any) => {
     setLineupQualityPenalty(
       typeof game.qualityPenalty === "number" ? game.qualityPenalty : null
     );
+    setTournamentPlan(game.tournamentPlan || null);
     setCurrentGameAttendance(game.attendance || {});
     setGameSaved(false);
   }, [selectedGameId]);
@@ -2761,6 +2765,7 @@ const UIProvider = ({ children }: any) => {
           lineup,
           battingLineup,
           lineupQualityPenalty,
+          tournamentPlan,
           teamEvalGrades,
           selectedRoundId,
         };
@@ -2769,12 +2774,15 @@ const UIProvider = ({ children }: any) => {
         lineup: newLineup,
         battingLineup: newBatting,
         qualityPenalty,
+        tournament,
       }: any) => {
         setLineup(newLineup);
         setBattingLineup(newBatting);
         setLineupQualityPenalty(
           typeof qualityPenalty === "number" ? qualityPenalty : null
         );
+        // A Rec result (no tournament field) clears any stale plan.
+        setTournamentPlan(tournament || null);
         setSwapSelection(null);
         setGameSaved(false);
       },
@@ -2782,9 +2790,10 @@ const UIProvider = ({ children }: any) => {
         if (!tpl) return;
         setLineup(tpl.lineup || null);
         setBattingLineup(tpl.battingLineup || null);
-        // Templates predate this field — clear it so the chip doesn't
-        // show a stale quality score from a different lineup.
+        // Templates predate these fields — clear them so the chip doesn't
+        // show a stale quality score or sub plan from a different lineup.
         setLineupQualityPenalty(null);
+        setTournamentPlan(null);
         setSwapSelection(null);
         setGameSaved(false);
       },
@@ -2828,6 +2837,7 @@ const UIProvider = ({ children }: any) => {
       battingLineup,
       setBattingLineup,
       lineupQualityPenalty,
+      tournamentPlan,
       swapSelection,
       gameSaved,
       handleCellClick,
@@ -2875,6 +2885,7 @@ const UIProvider = ({ children }: any) => {
       lineup,
       battingLineup,
       lineupQualityPenalty,
+      tournamentPlan,
       swapSelection,
       gameSaved,
       handleCellClick,

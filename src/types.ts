@@ -534,11 +534,40 @@ export interface EngineInput {
 
 // Top-level engine return type. Most fields are optional because failure
 // paths populate `error` only.
+// One planned tournament substitution: `in` enters at `inning` replacing
+// `out` at `position`; the starter returns at `returnInning` (null when the
+// game is too short for a return stint).
+export interface TournamentSubstitution {
+  inning: number; // 1-based
+  returnInning: number | null; // 1-based
+  position: string;
+  in: SlimPlayer;
+  out: SlimPlayer;
+}
+
+// The tournament-mode plan layered on top of the innings grid: the starting
+// nine at their best spots, the scripted sub windows, and the ranked relief
+// options (pitch-count eligibility included) for mid-game pitching changes.
+export interface TournamentPlan {
+  starters: Record<string, SlimPlayer>;
+  substitutions: TournamentSubstitution[];
+  reliefOptions: Array<{
+    id: PlayerId;
+    name: string;
+    number?: string | number;
+    status: "ready" | "resting" | "maxed";
+    recentPitches?: number;
+    daysUntilReady?: number | null;
+  }>;
+}
+
 export interface EngineResult {
   lineup?: Inning[];
   battingLineup?: SlimPlayer[];
   error?: string;
   details?: string[];
+  // Present only when generateTournamentLineup built the result.
+  tournament?: TournamentPlan;
   // True when the engine couldn't schedule strict season-fairness and fell
   // back to one-game balance. `fairnessRelaxedReason` is the human-readable
   // blocker that defeated the strict pass; `fairnessRelaxedType` is the raw

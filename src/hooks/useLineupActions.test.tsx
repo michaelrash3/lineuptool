@@ -4,11 +4,15 @@ import { makeToast } from "../test-utils";
 import { vi } from "vitest";
 
 // Mock the engine so we can drive the post-generation toast logic directly.
-const { generateLineupMock } = vi.hoisted(() => ({
+// Rec games route through generateLineup; Tournament (USSSA) games route
+// through generateTournamentLineup — both mocks feed the same assertions.
+const { generateLineupMock, generateTournamentLineupMock } = vi.hoisted(() => ({
   generateLineupMock: vi.fn(),
+  generateTournamentLineupMock: vi.fn(),
 }));
 vi.mock("../lineupEngine", () => ({
   generateLineup: generateLineupMock,
+  generateTournamentLineup: generateTournamentLineupMock,
   generateBattingOnly: vi.fn(),
   resolvePitchRuleSet: vi.fn(() => ({ id: "littleLeague", limits: {}, fallbackLimit: 105, restTiers: [] })),
 }));
@@ -122,6 +126,12 @@ describe("useLineupActions one-game-balance toast", () => {
   beforeEach(() => {
     generateLineupMock.mockReset();
     generateLineupMock.mockReturnValue({ lineup: [{}], battingLineup: [] });
+    generateTournamentLineupMock.mockReset();
+    generateTournamentLineupMock.mockReturnValue({
+      lineup: [{}],
+      battingLineup: [],
+      tournament: { starters: {}, substitutions: [], reliefOptions: [] },
+    });
   });
 
   it("Rec game still warns about one-game balance when fairness is off", () => {
@@ -144,6 +154,9 @@ describe("useLineupActions one-game-balance toast", () => {
       makeInputs("USSSA")
     );
     act(() => result.current.generateLineup());
+    // USSSA routes through the tournament pipeline, not the Rec engine.
+    expect(generateTournamentLineupMock).toHaveBeenCalled();
+    expect(generateLineupMock).not.toHaveBeenCalled();
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "success", title: "Lineup generated" })
     );

@@ -1,6 +1,7 @@
 import {
   generateLineup,
   generateBattingOnly,
+  generateTournamentLineup,
   calcPitcherScore,
   calcPitcherStatsQuality,
   calcVelocityQuality,
@@ -3039,3 +3040,118 @@ describe("few-eligible scarce positions never strand (joint coverage)", () => {
     }
   });
 }, 30000);
+
+// ---------------------------------------------------------------------------
+// Tournament-mode pipeline (parallel to the Rec generator)
+// ---------------------------------------------------------------------------
+describe("generateTournamentLineup (scripted starters/subs plan)", () => {
+  // 11 fully-flexible players → 9 starters + 2 subs in a 9-fielder game.
+  const roster = Array.from({ length: 11 }, (_, i) => makePlayer(`t${i}`, `T${i}`));
+  const input = (over = {}) => ({
+    activePlayers: roster,
+    allPlayers: roster,
+    games: [],
+    evaluationEvents: [],
+    currentGame: { id: "g1", date: "2026-06-01" },
+    totalInnings: 6,
+    teamAge: "10U",
+    defenseSize: "9",
+    battingSize: "roster",
+    leagueRuleSet: "USSSA",
+    pitchingFormat: "Kid Pitch",
+    seed: 42,
+    ...over,
+  });
+  const fieldIds = (inn) =>
+    Object.entries(inn)
+      .filter(([k]) => k !== "BENCH")
+      .map(([k, v]) => `${k}:${v.id}`)
+      .sort()
+      .join("|");
+
+  it("starters hold 1-2 and 5-6; every sub enters inning 3 and exits after 4", () => {
+    const res = generateTournamentLineup(input());
+    expect(res.error).toBeUndefined();
+    expect(res.lineup).toHaveLength(6);
+    // Innings 1,2,5,6 are the starting nine; 3,4 are the sub window.
+    expect(fieldIds(res.lineup[1])).toBe(fieldIds(res.lineup[0]));
+    expect(fieldIds(res.lineup[4])).toBe(fieldIds(res.lineup[0]));
+    expect(fieldIds(res.lineup[5])).toBe(fieldIds(res.lineup[0]));
+    expect(fieldIds(res.lineup[3])).toBe(fieldIds(res.lineup[2]));
+    expect(fieldIds(res.lineup[2])).not.toBe(fieldIds(res.lineup[0]));
+    // Both bench players take the field in inning 3.
+    const benchIds = res.lineup[0].BENCH.map((b) => b.id);
+    expect(benchIds).toHaveLength(2);
+    const inning3 = new Set(
+      Object.entries(res.lineup[2])
+        .filter(([k]) => k !== "BENCH")
+        .map(([, v]) => v.id)
+    );
+    for (const id of benchIds) expect(inning3.has(id)).toBe(true);
+    // Plan metadata mirrors the grid and names who each sub replaces.
+    expect(res.tournament.substitutions).toHaveLength(2);
+    for (const sub of res.tournament.substitutions) {
+      expect(sub.inning).toBe(3);
+      expect(sub.returnInning).toBe(5);
+      expect(sub.position).not.toBe("P");
+      expect(sub.position).not.toBe("C");
+      expect(sub.in.id).not.toBe(sub.out.id);
+      expect(benchIds).toContain(sub.in.id);
+    }
+    expect(res.battingLineup.length).toBe(11); // roster bats
+  });
+
+  it("never auto-subs the pitcher or catcher mid-game", () => {
+    const res = generateTournamentLineup(input());
+    expect(new Set(res.lineup.map((inn) => inn.P.id)).size).toBe(1);
+    expect(new Set(res.lineup.map((inn) => inn.C.id)).size).toBe(1);
+  });
+
+  it("honors the coach's depth chart for starter slots", () => {
+    const res = generateTournamentLineup(
+      input({ depthChart: { SS: ["t7"], P: ["t3"] } })
+    );
+    expect(res.lineup[0].SS.id).toBe("t7");
+    expect(res.lineup[0].P.id).toBe("t3");
+  });
+
+  it("relief options exclude the starter and carry pitch-count status", () => {
+    // t0 threw 60 yesterday → can't start today and shows as not-ready relief.
+    const tired = roster.map((p) =>
+      p.id === "t0"
+        ? { ...p, pitching: { recentPitches: 60, lastPitchDate: "2026-05-31" } }
+        : p
+    );
+    const res = generateTournamentLineup(
+      input({ activePlayers: tired, allPlayers: tired })
+    );
+    expect(res.error).toBeUndefined();
+    const starterP = res.lineup[0].P.id;
+    expect(starterP).not.toBe("t0");
+    const ids = res.tournament.reliefOptions.map((r) => r.id);
+    expect(ids).not.toContain(starterP);
+    const t0 = res.tournament.reliefOptions.find((r) => r.id === "t0");
+    expect(t0).toBeTruthy();
+    expect(t0.status).not.toBe("ready");
+  });
+
+  it("4-inning game: subs play 3-4 with no starter return stint", () => {
+    const res = generateTournamentLineup(input({ totalInnings: 4 }));
+    expect(res.lineup).toHaveLength(4);
+    expect(res.tournament.substitutions.length).toBeGreaterThan(0);
+    for (const sub of res.tournament.substitutions) {
+      expect(sub.returnInning).toBeNull();
+    }
+  });
+
+  it("errors clearly when nobody can cover a position", () => {
+    const noPitchers = roster.map((p) => ({
+      ...p,
+      comfortablePositions: ALL_POSITIONS.filter((x) => x !== "P"),
+    }));
+    const res = generateTournamentLineup(
+      input({ activePlayers: noPitchers, allPlayers: noPitchers })
+    );
+    expect(res.error).toMatch(/No eligible player available for P/);
+  });
+});
