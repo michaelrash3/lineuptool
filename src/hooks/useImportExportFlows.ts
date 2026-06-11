@@ -24,7 +24,10 @@ export const csvEscape = (val: unknown): string => {
 // and meant to tighten as the data model is fully modeled in TS.
 interface UseImportExportFlowsArgs {
   teamData: any;
-  updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeam: (
+    patch: Record<string, unknown>,
+    opts?: { allowEmptyPlayers?: boolean }
+  ) => void;
   activeTeamId: string;
   toast: ToastContextValue;
 }
@@ -688,7 +691,10 @@ export const useImportExportFlows = ({
       reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
           const data = JSON.parse(fileText(ev));
-          updateTeam(data);
+          // allowEmptyPlayers: restoring a backup is an explicitly-confirmed
+          // full replace, so the persistTeam roster-wipe guard must defer to
+          // whatever the backup file says — even an empty roster.
+          updateTeam(data, { allowEmptyPlayers: true });
           toast.push({ kind: "success", title: "Backup restored" });
         } catch (err: any) {
           toast.push({

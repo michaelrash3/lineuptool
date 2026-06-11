@@ -10,11 +10,15 @@ import {
 import {
   arrayRemove,
   arrayUnion,
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from "firebase/firestore";
 
 // Firestore security-rule tests. Run with `npm run test:rules`, which wraps
@@ -100,6 +104,33 @@ describe("private team doc reads", () => {
   it("does NOT expose the full team doc via a join code (no code-read rule)", async () => {
     // Regression: the old `allow read if joinCode != null` leaked the whole doc.
     await assertFails(getDoc(doc(dbFor(JOINER), ...teamPath("team-1"))));
+  });
+
+  // The orphaned-team recovery in App.tsx (restores a settings doc whose
+  // teams list was clobbered) depends on this query being provable under the
+  // member-read rule.
+  it("allows a member to query teams by their own membership", async () => {
+    const db = dbFor(ASSISTANT);
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(db, "artifacts", APP_ID, "public", "data", "teams"),
+          where("members", "array-contains", ASSISTANT)
+        )
+      )
+    );
+  });
+
+  it("denies querying teams by someone ELSE's membership", async () => {
+    const db = dbFor(OUTSIDER);
+    await assertFails(
+      getDocs(
+        query(
+          collection(db, "artifacts", APP_ID, "public", "data", "teams"),
+          where("members", "array-contains", ASSISTANT)
+        )
+      )
+    );
   });
 });
 

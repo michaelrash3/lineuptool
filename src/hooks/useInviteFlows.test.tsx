@@ -145,6 +145,47 @@ describe("joinTeamByCode", () => {
     );
   });
 
+  it("preserves teams already on the server settings doc when local state is empty", async () => {
+    // Regression guard for the data-loss report: with local `teams` state
+    // transiently empty, the settings write must merge with the SERVER list,
+    // not replace it — otherwise the coach's existing team is orphaned.
+    mockGetDoc
+      .mockResolvedValueOnce(inviteDoc("team-9", "Hawks")) // invite lookup
+      .mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({ teams: [{ id: "team-old", name: "Existing Team" }] }),
+      }); // settings doc read
+    const { result } = setup({ teams: [] });
+    await act(async () => {
+      await result.current.joinTeamByCode("ABCD28");
+    });
+    expect(mockSetDoc).toHaveBeenCalledTimes(1);
+    const [, payload] = mockSetDoc.mock.calls[0];
+    expect(payload.teams).toEqual([
+      { id: "team-old", name: "Existing Team" },
+      { id: "team-9", name: "Hawks" },
+    ]);
+    expect(payload.activeTeamId).toBe("team-9");
+  });
+
+  it("still records the joined team when the settings read fails", async () => {
+    mockGetDoc
+      .mockResolvedValueOnce({ exists: () => false }) // already-a-member check on team-local
+      .mockResolvedValueOnce(inviteDoc("team-9", "Hawks")) // invite lookup
+      .mockRejectedValueOnce({ code: "unavailable" }); // settings doc read fails
+    const { result } = setup({ teams: [{ id: "team-local", name: "Local" }] });
+    let res: any;
+    await act(async () => {
+      res = await result.current.joinTeamByCode("ABCD28");
+    });
+    expect(res).toEqual({ ok: true });
+    const [, payload] = mockSetDoc.mock.calls[0];
+    expect(payload.teams).toEqual([
+      { id: "team-local", name: "Local" },
+      { id: "team-9", name: "Hawks" },
+    ]);
+  });
+
   it("reports an unrecognized code without writing", async () => {
     mockGetDoc.mockResolvedValue({ exists: () => false });
     const { result, toast } = setup();

@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { appId, db } from "../firebase";
 import { reportError } from "../utils/errorReporter";
+import { mergeTeamEntries } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 interface AuthUser {
@@ -138,11 +139,20 @@ export const useInviteFlows = ({
 
         // Persist membership in user settings so re-login/reload keeps the
         // joined team in the selector instead of dropping back to a bootstrap
-        // team.
+        // team. Merge with the server's CURRENT list, never just local state:
+        // writing `[...teams, entry]` while the local list was transiently
+        // empty overwrote the settings doc and orphaned existing teams.
         const userRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
         const nextEntry = { id: teamId, name: teamName };
-        const exists = teams.some((t) => t.id === teamId);
-        const nextTeams = exists ? teams : [...teams, nextEntry];
+        let serverTeams: TeamEntry[] | null = null;
+        try {
+          const settingsSnap = await getDoc(userRef);
+          const data = settingsSnap.exists() ? (settingsSnap.data() as any) : null;
+          serverTeams = Array.isArray(data?.teams) ? data.teams : null;
+        } catch {
+          // Settings read failed — fall back to merging with local state only.
+        }
+        const nextTeams = mergeTeamEntries(serverTeams, teams, [nextEntry]);
         await setDoc(userRef, { teams: nextTeams, activeTeamId: teamId }, { merge: true });
 
         switchTeam(teamId);

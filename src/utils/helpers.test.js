@@ -41,6 +41,8 @@ import {
   deriveTournaments,
   recordCatchingOuting,
   sameDayRoleSets,
+  mergeTeamEntries,
+  blockedRosterWipeReason,
 } from "./helpers";
 
 describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
@@ -1575,5 +1577,81 @@ describe("recentGameLines + aggregateGameLines (Recent Form)", () => {
     expect(agg.ab).toBe(5);
     expect(agg.h).toBe(4);
     expect(agg.avg).toBeCloseTo(0.8);
+  });
+});
+
+describe("mergeTeamEntries (settings teams-list safety)", () => {
+  it("unions lists by id without dropping any entry", () => {
+    const merged = mergeTeamEntries(
+      [{ id: "t1", name: "Hawks" }],
+      [{ id: "t2", name: "Owls" }],
+      [{ id: "t3", name: "Bats" }]
+    );
+    expect(merged).toEqual([
+      { id: "t1", name: "Hawks" },
+      { id: "t2", name: "Owls" },
+      { id: "t3", name: "Bats" },
+    ]);
+  });
+
+  it("preserves the server list when local state is transiently empty (the clobber bug)", () => {
+    const server = [{ id: "t-real", name: "My Real Team" }];
+    const localState = []; // raced/empty React state
+    const merged = mergeTeamEntries(server, localState, [
+      { id: "t-new", name: "Accidental Team" },
+    ]);
+    expect(merged.map((t) => t.id)).toEqual(["t-real", "t-new"]);
+  });
+
+  it("dedupes by id, keeping the first non-empty name", () => {
+    const merged = mergeTeamEntries(
+      [{ id: "t1", name: "" }, { id: "t2", name: "Owls" }],
+      [{ id: "t1", name: "Hawks" }, { id: "t2", name: "Renamed" }]
+    );
+    expect(merged).toEqual([
+      { id: "t1", name: "Hawks" },
+      { id: "t2", name: "Owls" },
+    ]);
+  });
+
+  it("ignores null/undefined lists and entries without ids, and defaults blank names", () => {
+    const merged = mergeTeamEntries(null, undefined, [
+      { id: "t1" },
+      { name: "no id" },
+      { id: "" },
+    ]);
+    expect(merged).toEqual([{ id: "t1", name: "My Team" }]);
+  });
+});
+
+describe("blockedRosterWipeReason (empty-roster write guard)", () => {
+  const roster = [{ id: "p1" }, { id: "p2" }];
+
+  it("blocks an empty players write before the team doc has loaded", () => {
+    expect(blockedRosterWipeReason({ players: [] }, [], false)).toMatch(
+      /hasn't finished loading/
+    );
+  });
+
+  it("blocks an empty players write over a loaded non-empty roster", () => {
+    expect(blockedRosterWipeReason({ players: [] }, roster, true)).toMatch(
+      /erase 2 players/
+    );
+  });
+
+  it("allows an empty write when the loaded roster is already empty", () => {
+    expect(blockedRosterWipeReason({ players: [] }, [], true)).toBeNull();
+  });
+
+  it("allows non-empty players writes and writes that don't touch players", () => {
+    expect(blockedRosterWipeReason({ players: roster }, roster, true)).toBeNull();
+    expect(blockedRosterWipeReason({ players: [{ id: "p9" }] }, roster, false)).toBeNull();
+    expect(blockedRosterWipeReason({ name: "Hawks" }, roster, false)).toBeNull();
+    expect(blockedRosterWipeReason({}, roster, true)).toBeNull();
+  });
+
+  it("treats a malformed current roster as empty rather than crashing", () => {
+    expect(blockedRosterWipeReason({ players: [] }, null, true)).toBeNull();
+    expect(blockedRosterWipeReason({ players: [] }, undefined, true)).toBeNull();
   });
 });
