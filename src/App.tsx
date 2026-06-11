@@ -23,6 +23,10 @@ import {
   doc,
   setDoc,
   getDoc,
+  getDocs,
+  collection,
+  query,
+  where,
   onSnapshot,
   deleteDoc,
   updateDoc,
@@ -77,6 +81,8 @@ import {
   buildPublicMirror,
   revertOptimisticUpdate,
   estimateDocSizeBytes,
+  mergeTeamEntries,
+  blockedRosterWipeReason,
   FIRESTORE_DOC_LIMIT_BYTES,
   DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
@@ -427,26 +433,51 @@ const TeamProvider = ({ children }: any) => {
   // Firestore emits a fresh snapshot before ownerId is reflected back.
   const migrationAttemptedRef = useRef(new Set());
   const bootstrapAttemptedRef = useRef(false);
+  // Per-session set of uids we've already run the orphaned-team recovery
+  // query for, so an empty team list doesn't re-fire it on every snapshot.
+  const teamsRecoveryAttemptedRef = useRef<Set<string>>(new Set());
+  // True when the team-list subscription errored out (not "user has no
+  // teams"). Gates the WelcomeChooser: forcing a coach with a real team
+  // through the create/join "orientation" because a READ failed is exactly
+  // the path that used to orphan their data.
+  const [teamsLoadFailed, setTeamsLoadFailed] = useState(false);
 
   const bootstrapDefaultTeam = useCallback(async () => {
     if (!user) return null;
     if (bootstrapAttemptedRef.current) return null;
     bootstrapAttemptedRef.current = true;
-    const id = "team-" + Math.random().toString(36).substring(2, 10);
-    const teamRef = doc(db, "artifacts", appId, "public", "data", "teams", id);
     const settingsRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
     try {
+      // Never trust the local `teams` state here: if the settings doc already
+      // lists teams (stale/raced snapshot), adopt them instead of creating a
+      // parallel default team — and never overwrite that list.
+      const existingSnap = await getDoc(settingsRef);
+      const existingData: any = existingSnap.exists() ? existingSnap.data() : null;
+      const existingTeams = Array.isArray(existingData?.teams)
+        ? existingData.teams
+        : [];
+      if (existingTeams.length > 0) {
+        setTeams(existingTeams);
+        setActiveTeamId(existingData.activeTeamId || existingTeams[0].id);
+        return existingTeams[0].id;
+      }
+      const id = "team-" + Math.random().toString(36).substring(2, 10);
+      const teamRef = doc(db, "artifacts", appId, "public", "data", "teams", id);
       await setDoc(teamRef, {
         ...DEFAULT_TEAM_DATA,
         name: "My Team",
         ownerId: user.uid,
         members: [user.uid],
       });
-      await setDoc(settingsRef, {
-        teams: [{ id, name: "My Team" }],
-        activeTeamId: id,
-      });
-      setTeams([{ id, name: "My Team" }]);
+      const merged = mergeTeamEntries(existingTeams, teams, [
+        { id, name: "My Team" },
+      ]);
+      await setDoc(
+        settingsRef,
+        { teams: merged, activeTeamId: id },
+        { merge: true }
+      );
+      setTeams(merged);
       setActiveTeamId(id);
       return id;
     } catch (e: any) {
@@ -458,7 +489,7 @@ const TeamProvider = ({ children }: any) => {
       });
       return null;
     }
-  }, [user, toast]);
+  }, [user, teams, toast]);
 
   // Auth subscription
   useEffect(() => {
@@ -506,39 +537,112 @@ const TeamProvider = ({ children }: any) => {
       "settings",
       "teams"
     );
-    const unsub = onSnapshot(
-      ref,
-      async (snap) => {
-        let data = snap.exists() ? snap.data() : null;
-        if (!data || !data.teams || data.teams.length === 0) {
-          // No teams yet for this user. The MainShell renders <WelcomeChooser>
-          // off the empty `teams` list so the coach explicitly picks Join vs
-          // Create. We no longer force-create "My Team" here — that produced a
-          // throwaway team for anyone whose actual intent was to join via the
-          // 6-char code. The ?join= redemption flow still goes through
-          // bootstrapDefaultTeam() as a fallback when its lookup fails (see the
-          // join effect below).
-          setTeams([]);
-          setActiveTeamId(null);
-          setLoadingTeams(false);
-          return;
+    let unsub = () => {};
+    let retryTimeout: any = null;
+    let cancelled = false;
+    let permissionRetried = false;
+
+    const handleSnap = async (snap: any) => {
+      if (cancelled) return;
+      setTeamsLoadFailed(false);
+      let data = snap.exists() ? snap.data() : null;
+      if (!data || !data.teams || data.teams.length === 0) {
+        // No teams yet for this user. The MainShell renders <WelcomeChooser>
+        // off the empty `teams` list so the coach explicitly picks Join vs
+        // Create. We no longer force-create "My Team" here — that produced a
+        // throwaway team for anyone whose actual intent was to join via the
+        // 6-char code. The ?join= redemption flow still goes through
+        // bootstrapDefaultTeam() as a fallback when its lookup fails (see the
+        // join effect below).
+        //
+        // SAFETY NET: an empty list can also mean the settings doc was
+        // clobbered (the "all my players were deleted" report) or a fresh
+        // device raced the doc. Before funneling the coach into the
+        // WelcomeChooser, look for team docs that already list this user as
+        // a member and restore the pointers — the team doc itself survives a
+        // settings clobber, so this recovers the roster in place.
+        if (!teamsRecoveryAttemptedRef.current.has(user.uid)) {
+          teamsRecoveryAttemptedRef.current.add(user.uid);
+          try {
+            const teamsQuery = query(
+              collection(db, "artifacts", appId, "public", "data", "teams"),
+              where("members", "array-contains", user.uid)
+            );
+            const found = await getDocs(teamsQuery);
+            const recovered = found.docs.map((d) => ({
+              id: d.id,
+              name: String((d.data() as any)?.name || "") || "My Team",
+            }));
+            if (cancelled) return;
+            if (recovered.length > 0) {
+              await setDoc(
+                ref,
+                { teams: recovered, activeTeamId: recovered[0].id },
+                { merge: true }
+              );
+              setTeams(recovered);
+              setActiveTeamId(recovered[0].id);
+              setLoadingTeams(false);
+              toast.push({
+                kind: "success",
+                title: "Team restored",
+                message:
+                  "We re-linked a team you belong to that had dropped off this account's list.",
+              });
+              return;
+            }
+          } catch {
+            // Query denied or offline — fall through to the chooser. Its
+            // create/join flows merge with the server list instead of
+            // overwriting it, so an existing team can no longer be orphaned.
+          }
         }
-        bootstrapAttemptedRef.current = false;
-        setTeams(data.teams);
-        if (data.activeTeamId) setActiveTeamId(data.activeTeamId);
-        else if (data.teams[0]) setActiveTeamId(data.teams[0].id);
+        if (cancelled) return;
+        setTeams([]);
+        setActiveTeamId(null);
         setLoadingTeams(false);
-      },
-      (err) => {
-        toast.push({
-          kind: "error",
-          title: "Connection error",
-          message: err.message,
-        });
-        setLoadingTeams(false);
+        return;
       }
-    );
-    return () => unsub();
+      bootstrapAttemptedRef.current = false;
+      setTeams(data.teams);
+      if (data.activeTeamId) setActiveTeamId(data.activeTeamId);
+      else if (data.teams[0]) setActiveTeamId(data.teams[0].id);
+      setLoadingTeams(false);
+    };
+
+    // A fresh sign-in can race rules propagation and get a transient
+    // permission-denied. Retry once before surfacing — and either way mark
+    // the load as FAILED rather than "no teams", so the WelcomeChooser never
+    // walks a coach with a real team through team creation off a read error.
+    const handleErr = (err: any) => {
+      if (cancelled) return;
+      if (err?.code === "permission-denied" && !permissionRetried) {
+        permissionRetried = true;
+        unsub();
+        retryTimeout = setTimeout(() => {
+          if (!cancelled) subscribe();
+        }, 1500);
+        return;
+      }
+      setTeamsLoadFailed(true);
+      toast.push({
+        kind: "error",
+        title: "Connection error",
+        message: err.message,
+      });
+      setLoadingTeams(false);
+    };
+
+    const subscribe = () => {
+      unsub = onSnapshot(ref, handleSnap, handleErr);
+    };
+    subscribe();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      unsub();
+    };
   }, [authReady, user, toast]);
 
   // Subscribe to active team document
@@ -773,10 +877,14 @@ const TeamProvider = ({ children }: any) => {
               games: Array.isArray(raw.games) ? raw.games : [],
             });
           }
+          // Mark which team's data is now loaded so write-effects
+          // (auto-correct, photo-strip) and the roster-wipe guard can safely
+          // run against real data. Deliberately INSIDE the exists() branch: a
+          // missing doc means teamData is still the placeholder, and treating
+          // that as "loaded" would let derived writes target a team whose
+          // real data never arrived.
+          loadedTeamIdRef.current = activeTeamId;
         }
-        // Mark which team's data is now loaded so write-effects (auto-correct)
-        // can safely run against real data instead of the placeholder.
-        loadedTeamIdRef.current = activeTeamId;
         setLoadingActive(false);
     };
 
@@ -820,8 +928,33 @@ const TeamProvider = ({ children }: any) => {
   // can roll back. Pass `{ silent: true }` to suppress the built-in failure
   // toast when the caller surfaces its own (e.g. a rollback + retry message).
   const persistTeam = useCallback(
-    async (updates: any, opts?: { silent?: boolean }): Promise<boolean> => {
+    async (
+      updates: any,
+      opts?: { silent?: boolean; allowEmptyPlayers?: boolean }
+    ): Promise<boolean> => {
       if (!activeTeamId) return false;
+      // HARD GUARD against roster wipes: refuse to save an empty players
+      // array unless the team's doc has loaded on this device AND its roster
+      // is already empty. Placeholder/default state leaking into a write is
+      // the "all my players were deleted" class of bug; deliberately
+      // destructive flows (Advance Season, backup restore) pass
+      // allowEmptyPlayers to opt out.
+      if (!opts?.allowEmptyPlayers) {
+        const wipeReason = blockedRosterWipeReason(
+          updates,
+          teamDataRef.current?.players,
+          loadedTeamIdRef.current === activeTeamId
+        );
+        if (wipeReason) {
+          const message = `Refused to save an empty roster because ${wipeReason}.`;
+          lastPersistErrorRef.current = { code: "roster-wipe-blocked", message };
+          console.error("[persistTeam] roster wipe blocked:", message);
+          if (!opts?.silent) {
+            toast.push({ kind: "error", title: "Save blocked", message });
+          }
+          return false;
+        }
+      }
       // Slim any games being persisted — strip embedded player objects down
       // to {id, name, number} to stay under the Firestore 1MB document limit.
       let toPersist = updates;
@@ -1026,7 +1159,7 @@ const TeamProvider = ({ children }: any) => {
   }, [activeTeamId, user, teamData?.joinCode, teamData?.name]);
 
   const updateTeam = useCallback(
-    (updates: any) => {
+    (updates: any, opts?: { allowEmptyPlayers?: boolean }) => {
       // Snapshot the prior value of every key we're about to optimistically
       // overwrite so a failed save can be rolled back. teamDataRef holds the
       // freshest committed state without widening this callback's deps.
@@ -1035,7 +1168,10 @@ const TeamProvider = ({ children }: any) => {
       for (const k of Object.keys(updates)) prevValues[k] = prev[k];
 
       setTeamData((p: any) => ({ ...p, ...updates })); // optimistic
-      void persistTeam(updates, { silent: true }).then((ok) => {
+      void persistTeam(updates, {
+        silent: true,
+        allowEmptyPlayers: opts?.allowEmptyPlayers,
+      }).then((ok) => {
         if (ok) return;
         // Persistence failed: revert the optimistic patch (but only for keys
         // the user hasn't since changed — see revertOptimisticUpdate) so the UI
@@ -1056,7 +1192,7 @@ const TeamProvider = ({ children }: any) => {
           duration: 0,
           action: {
             label: "Retry",
-            onClick: () => updateTeam(updates),
+            onClick: () => updateTeam(updates, opts),
           },
         });
       });
@@ -1073,6 +1209,10 @@ const TeamProvider = ({ children }: any) => {
   const photoStripAttemptedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!activeTeamId || photoStripAttemptedRef.current.has(activeTeamId)) return;
+    // Never derive a roster write from anything but this team's loaded doc —
+    // before the snapshot lands, teamData may still hold the placeholder or
+    // the PREVIOUS team's players.
+    if (loadedTeamIdRef.current !== activeTeamId) return;
     const players = teamData.players;
     if (!Array.isArray(players) || players.length === 0) return;
     if (!players.some((p: any) => p && p.photoUrl)) return;
@@ -1243,9 +1383,27 @@ const TeamProvider = ({ children }: any) => {
           "settings",
           "teams"
         );
+        // Merge with the server's CURRENT team list, never just local state:
+        // if this create was reached through a wrongly-shown WelcomeChooser
+        // (teams state transiently empty), `[...teams, new]` would overwrite
+        // the settings doc and orphan every existing team.
+        let serverTeams: any = null;
+        try {
+          const settingsSnap = await getDoc(userRef);
+          serverTeams = settingsSnap.exists()
+            ? (settingsSnap.data() as any)?.teams
+            : null;
+        } catch {
+          // Read failed — fall back to merging with local state only.
+        }
         await setDoc(
           userRef,
-          { teams: [...teams, { id, name: name.trim() }], activeTeamId: id },
+          {
+            teams: mergeTeamEntries(serverTeams, teams, [
+              { id, name: name.trim() },
+            ]),
+            activeTeamId: id,
+          },
           { merge: true }
         );
         toast.push({ kind: "success", title: "Team created" });
@@ -1414,16 +1572,22 @@ const TeamProvider = ({ children }: any) => {
         tryoutSignupId: s.id,
       }));
 
-    updateTeam({
-      currentSeason: nextSeason,
-      teamAge: newAgeGroup,
-      players: [...updatedPlayers, ...promotedPlayers],
-      games: [],
-      evaluationEvents: [],
-      tryoutSignups: [],
-      tryoutsOpen: false,
-      lastSeasonAdvanceAt: nowIso,
-    });
+    // allowEmptyPlayers: a roster where nobody returns (and no tryout
+    // promotions) is legitimately empty after an explicitly-confirmed
+    // advance — the persistTeam wipe guard must not block it.
+    updateTeam(
+      {
+        currentSeason: nextSeason,
+        teamAge: newAgeGroup,
+        players: [...updatedPlayers, ...promotedPlayers],
+        games: [],
+        evaluationEvents: [],
+        tryoutSignups: [],
+        tryoutsOpen: false,
+        lastSeasonAdvanceAt: nowIso,
+      },
+      { allowEmptyPlayers: true }
+    );
     toast.push({
       kind: "success",
       title: `Advanced to ${nextSeason}`,
@@ -2020,6 +2184,11 @@ const TeamProvider = ({ children }: any) => {
     !!user &&
     authReady &&
     !loadingTeams &&
+    // A failed team-list READ is not "this coach has no teams" — never march
+    // someone with a real team through the create/join orientation off an
+    // error (the chooser is non-dismissible and create used to clobber the
+    // settings doc's team list).
+    !teamsLoadFailed &&
     teams.length === 0 &&
     !hasPendingJoinFlow;
 

@@ -2392,3 +2392,57 @@ export const isSafeImageUrl = (value: unknown): boolean => {
   const v = String(value ?? "").trim();
   return /^https:\/\//i.test(v) || /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(v);
 };
+
+// ---------- Team-list safety (user settings doc) ----------
+
+export type TeamListEntry = { id: string; name?: string };
+
+// Union several {id, name} team lists into one, preserving first-seen order
+// and never dropping an id. Every writer of the user-settings `teams` array
+// (create team, join by code, bootstrap) MUST build its payload through this
+// from the server's current list — writing `[...localTeams, newEntry]` from
+// React state was how a transiently-empty list overwrote the settings doc and
+// orphaned a coach's real team ("all my players were deleted").
+export const mergeTeamEntries = (
+  ...lists: Array<TeamListEntry[] | null | undefined>
+): { id: string; name: string }[] => {
+  const out: { id: string; name: string }[] = [];
+  const indexById = new Map<string, number>();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const entry of list) {
+      const id = entry && typeof entry.id === "string" ? entry.id.trim() : "";
+      if (!id) continue;
+      const name =
+        entry && typeof entry.name === "string" ? entry.name.trim() : "";
+      const at = indexById.get(id);
+      if (at === undefined) {
+        indexById.set(id, out.length);
+        out.push({ id, name });
+      } else if (name && !out[at].name) {
+        out[at] = { id, name };
+      }
+    }
+  }
+  return out.map((e) => ({ id: e.id, name: e.name || "My Team" }));
+};
+
+// Roster-wipe guard for team-doc writes. Returns a human-readable reason when
+// a write carrying an EMPTY players array must be blocked, or null when the
+// write is safe. Empty-roster writes are only ever legitimate when the team's
+// doc has actually loaded on this device AND the loaded roster is already
+// empty — anything else is a placeholder/default leaking into a save (the
+// data-loss class of bug) and gets refused. Deliberate destructive flows
+// (Advance Season, backup restore) opt out explicitly at the call site.
+export const blockedRosterWipeReason = (
+  updates: { players?: unknown },
+  currentPlayers: unknown,
+  teamLoaded: boolean
+): string | null => {
+  if (!Array.isArray(updates.players) || updates.players.length > 0) return null;
+  if (!teamLoaded)
+    return "this team's data hasn't finished loading on this device yet";
+  const prev = Array.isArray(currentPlayers) ? currentPlayers : [];
+  if (prev.length === 0) return null;
+  return `it would erase ${prev.length} player${prev.length === 1 ? "" : "s"}`;
+};
