@@ -1,11 +1,26 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts";
-import { Button, FORM_INPUT_CLASS, FORM_INPUT_RING_STYLE } from "../components/shared";
+import { useTeam, useUI, useToast } from "../contexts";
+import {
+  Button,
+  FORM_INPUT_CLASS,
+  FORM_INPUT_RING_STYLE,
+  PlayerAvatar,
+} from "../components/shared";
+import {
+  FinanceHero,
+  MoneyMeter,
+  CashflowChart,
+  SpendingDonut,
+} from "../components/financeViz";
 import {
   formatCurrency,
   budgetTotal,
   budgetItemAmount,
+  budgetActuals,
+  monthlyCashflow,
+  owesReminderText,
+  ledgerCsv,
   incomeTotal,
   suggestedFeePerPlayer,
   financeSummary,
@@ -60,32 +75,18 @@ const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
   </div>
 );
 
-const Tile = ({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "good" | "bad";
-}) => (
-  <div className="glass-card p-4 text-center">
-    <div className="t-eyebrow text-ink-3">{label}</div>
-    <div
-      className={`mt-1 text-xl font-black tabular-nums tracking-tight ${
-        tone === "good" ? "text-win" : tone === "bad" ? "text-loss" : "text-ink"
-      }`}
-    >
-      {value}
-    </div>
-  </div>
-);
-
 // Parse a dollars input; null when not a usable positive amount.
 const parseAmount = (raw: string): number | null => {
   const n = Number(String(raw).replace(/[$,\s]/g, ""));
   if (!Number.isFinite(n) || n <= 0) return null;
   return Math.round(n * 100) / 100;
+};
+
+// "2026-03" → "March 2026" for the ledger month group headers.
+const MONTH_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const monthLabel = (key: string): string => {
+  const mi = parseInt(key.slice(5, 7), 10) - 1;
+  return mi >= 0 && mi <= 11 ? `${MONTH_FULL[mi]} ${key.slice(0, 4)}` : key;
 };
 
 // Parse a whole-number count; null when not a usable positive integer.
@@ -118,6 +119,12 @@ export const FinancesTab = memo(() => {
     () => transactionLedger(finances, players),
     [finances, players]
   );
+  const months = useMemo(
+    () => monthlyCashflow(finances, players),
+    [finances, players]
+  );
+  const actuals = useMemo(() => budgetActuals(finances), [finances]);
+  const toast = useToast();
   const budget = budgetTotal(finances);
   const income = incomeTotal(finances);
   const suggested = suggestedFeePerPlayer(finances, players);
@@ -177,6 +184,8 @@ export const FinancesTab = memo(() => {
   const [txnDate, setTxnDate] = useState(dateToIsoLocal(new Date()));
   const [txnLabel, setTxnLabel] = useState("");
   const [txnAmount, setTxnAmount] = useState("");
+  // Budget category for money-out entries ("" = unplanned).
+  const [txnCategory, setTxnCategory] = useState("");
 
   const applyPreset = (preset: (typeof BUDGET_PRESETS)[number]) => {
     setBudgetLabel(preset.label);
@@ -262,10 +271,16 @@ export const FinancesTab = memo(() => {
     if (txnDir === "in") {
       writeFinances({ incomes: [...(finances.incomes || []), entry] });
     } else {
-      writeFinances({ expenses: [...(finances.expenses || []), entry] });
+      writeFinances({
+        expenses: [
+          ...(finances.expenses || []),
+          txnCategory ? { ...entry, budgetItemId: txnCategory } : entry,
+        ],
+      });
     }
     setTxnLabel("");
     setTxnAmount("");
+    setTxnCategory("");
   };
 
   const removeLedgerRow = (source: "income" | "expense", id: string) => {
@@ -291,6 +306,7 @@ export const FinancesTab = memo(() => {
     date: "",
     label: "",
     amount: "",
+    budgetItemId: "",
   });
   const startLedgerEdit = (row: {
     source: "payment" | "income" | "expense";
@@ -300,10 +316,15 @@ export const FinancesTab = memo(() => {
     amount: number;
   }) => {
     setEditRow({ source: row.source, id: row.id });
+    const exp =
+      row.source === "expense"
+        ? (finances.expenses || []).find((x) => x.id === row.id)
+        : null;
     setEditDraft({
       date: row.date,
       label: row.label,
       amount: String(row.amount ?? ""),
+      budgetItemId: exp?.budgetItemId || "",
     });
   };
   const saveLedgerEdit = () => {
@@ -330,7 +351,13 @@ export const FinancesTab = memo(() => {
       } else {
         writeFinances({
           expenses: (finances.expenses || []).map((x) =>
-            x.id === id ? { ...x, ...patch } : x
+            x.id === id
+              ? {
+                  ...x,
+                  ...patch,
+                  budgetItemId: editDraft.budgetItemId || undefined,
+                }
+              : x
           ),
         });
       }
@@ -349,26 +376,38 @@ export const FinancesTab = memo(() => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      {/* P&L tiles */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Tile
-          label="Balance now"
-          value={formatCurrency(summary.balanceNow)}
-          tone={summary.balanceNow >= 0 ? "good" : "bad"}
-        />
-        <Tile label="Fees collected" value={formatCurrency(summary.collected)} />
-        <Tile
-          label="Sponsorships & income"
-          value={formatCurrency(summary.otherIncome)}
-        />
-        <Tile label="Spent" value={formatCurrency(summary.spent)} />
-        <Tile label="Still owed" value={formatCurrency(summary.stillOwed)} />
-        <Tile
-          label="Balance once all paid"
-          value={formatCurrency(summary.balanceOnceAllPaid)}
-          tone={summary.balanceOnceAllPaid >= 0 ? "good" : "bad"}
-        />
-      </div>
+      {/* Club balance hero */}
+      <FinanceHero
+        balanceNow={summary.balanceNow}
+        collected={summary.collected}
+        otherIncome={summary.otherIncome}
+        spent={summary.spent}
+        stillOwed={summary.stillOwed}
+        balanceOnceAllPaid={summary.balanceOnceAllPaid}
+        months={months}
+      />
+
+      {/* Insights: monthly cash flow + spending by category */}
+      {ledger.length > 0 && (
+        <SectionCard
+          icon={Icons.Clipboard}
+          title="Cash Flow"
+          subtitle="Money in (green) and out (red) by month, with the club balance line."
+        >
+          <div className="p-4 sm:p-5 grid lg:grid-cols-2 gap-6 items-center">
+            <CashflowChart months={months} />
+            <SpendingDonut
+              slices={[
+                ...(finances.budgetItems || []).map((b) => ({
+                  label: b.label,
+                  value: actuals.byItem[b.id] || 0,
+                })),
+                { label: "Unplanned", value: actuals.unplanned },
+              ]}
+            />
+          </div>
+        </SectionCard>
+      )}
 
       {/* Budget Planner */}
       <SectionCard
@@ -381,8 +420,11 @@ export const FinancesTab = memo(() => {
             <ul className="divide-y divide-line">
               {(finances.budgetItems || []).map((item) => {
                 const isQty = item.qty != null && item.unitAmount != null;
+                const planned = budgetItemAmount(item, finances.salesTaxPct);
+                const spentSoFar = actuals.byItem[item.id] || 0;
                 return (
-                  <li key={item.id} className="py-2 flex items-center gap-3">
+                  <li key={item.id} className="py-2">
+                  <div className="flex items-center gap-3">
                     <span className="t-body-bold text-ink flex-1 truncate">
                       {item.label}
                     </span>
@@ -435,6 +477,26 @@ export const FinancesTab = memo(() => {
                     >
                       <Icons.X className="w-4 h-4" />
                     </button>
+                  </div>
+                  {/* Budget vs actual: linked spending against the plan */}
+                  {spentSoFar > 0 && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <MoneyMeter
+                        value={spentSoFar}
+                        max={planned}
+                        className="flex-1"
+                      />
+                      <span
+                        className={`t-meta tabular-nums whitespace-nowrap ${
+                          spentSoFar > planned ? "text-loss" : "text-ink-3"
+                        }`}
+                      >
+                        spent {formatCurrency(spentSoFar)} of{" "}
+                        {formatCurrency(planned)}
+                        {spentSoFar > planned && " — over budget"}
+                      </span>
+                    </div>
+                  )}
                   </li>
                 );
               })}
@@ -624,7 +686,59 @@ export const FinancesTab = memo(() => {
         title="Collections — this season"
         subtitle="Who has paid this year's club fee — partial payments add up per family. Waive the fee for fall-only pickups."
       >
-        <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface flex items-center gap-2">
+        <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface space-y-2">
+          {clubFee > 0 && payerCount > 0 && (
+            <div className="flex items-center gap-3">
+              <MoneyMeter
+                value={summary.collected}
+                max={clubFee * payerCount}
+                className="flex-1 max-w-xs"
+              />
+              <span className="t-meta text-ink-3 tabular-nums">
+                {formatCurrency(summary.collected)} of{" "}
+                {formatCurrency(clubFee * payerCount)} ·{" "}
+                {
+                  players.filter(
+                    (p: any) =>
+                      !exemptIds.has(p.id) &&
+                      clubFee - (summary.paidByPlayer[p.id] || 0) <= 0
+                  ).length
+                }{" "}
+                of {payerCount} paid
+              </span>
+              {summary.stillOwed > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label="Copy dues reminder"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        owesReminderText(
+                          finances,
+                          players,
+                          (team as any).currentSeason
+                        )
+                      );
+                      toast.push({
+                        kind: "success",
+                        title: "Reminder copied",
+                        message: "Paste it into your team chat or email.",
+                      });
+                    } catch {
+                      toast.push({
+                        kind: "warn",
+                        title: "Couldn't access clipboard",
+                      });
+                    }
+                  }}
+                >
+                  Copy reminder
+                </Button>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
           <span className="t-eyebrow text-ink-3">Club fee per player</span>
           {feeInput == null ? (
             <button
@@ -649,6 +763,7 @@ export const FinancesTab = memo(() => {
               style={FORM_INPUT_RING_STYLE}
             />
           )}
+          </div>
         </div>
         {players.length === 0 ? (
           <div className="p-6 text-center text-ink-3 font-medium">
@@ -666,12 +781,20 @@ export const FinancesTab = memo(() => {
                   key={p.id}
                   className="px-4 sm:px-5 py-2.5 flex flex-wrap items-center gap-2"
                 >
+                  <PlayerAvatar player={p} size={32} />
                   <button
                     type="button"
                     onClick={() => openPlayerProfile(p.id)}
                     className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex-1 min-w-[8rem]"
                   >
                     {p.name}
+                    {!waived && clubFee > 0 && (
+                      <MoneyMeter
+                        value={paid}
+                        max={clubFee}
+                        className="mt-1 max-w-[10rem]"
+                      />
+                    )}
                   </button>
                   <span className="tabular-nums text-sm font-bold text-ink-2">
                     {formatCurrency(paid)} paid
@@ -809,6 +932,22 @@ export const FinancesTab = memo(() => {
               className={`${FORM_INPUT_CLASS} flex-1`}
               style={FORM_INPUT_RING_STYLE}
             />
+            {txnDir === "out" && (finances.budgetItems || []).length > 0 && (
+              <select
+                value={txnCategory}
+                onChange={(e) => setTxnCategory(e.target.value)}
+                aria-label="Budget category"
+                className={`${FORM_INPUT_CLASS} sm:w-44`}
+                style={FORM_INPUT_RING_STYLE}
+              >
+                <option value="">Category: unplanned</option>
+                {(finances.budgetItems || []).map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.label}
+                  </option>
+                ))}
+              </select>
+            )}
             <input
               type="text"
               inputMode="decimal"
@@ -823,6 +962,29 @@ export const FinancesTab = memo(() => {
               <Icons.Plus className="w-4 h-4" /> Add
             </Button>
           </form>
+          {ledger.length > 0 && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                aria-label="Export ledger CSV"
+                onClick={() => {
+                  const blob = new Blob([ledgerCsv(finances, players)], {
+                    type: "text/csv;charset=utf-8",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "club-ledger.csv";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.push({ kind: "success", title: "Ledger CSV downloaded" });
+                }}
+                className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+              >
+                Export CSV
+              </button>
+            </div>
+          )}
           {ledger.length === 0 ? (
             <div className="p-4 text-center text-ink-3 font-medium">
               Nothing logged yet. Club-fee payments land here automatically;
@@ -842,7 +1004,21 @@ export const FinancesTab = memo(() => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {ledger.map((row) => {
+                  {ledger.map((row, idx) => {
+                    const monthKey = row.date.slice(0, 7);
+                    const newMonth =
+                      idx === 0 ||
+                      ledger[idx - 1].date.slice(0, 7) !== monthKey;
+                    const monthHeader = newMonth ? (
+                      <tr key={`m-${monthKey}`} className="bg-app">
+                        <td
+                          colSpan={6}
+                          className="px-2 py-1 t-eyebrow text-ink-3"
+                        >
+                          {monthLabel(monthKey)}
+                        </td>
+                      </tr>
+                    ) : null;
                     const isEditing =
                       editRow != null &&
                       editRow.source === row.source &&
@@ -852,7 +1028,9 @@ export const FinancesTab = memo(() => {
                       // is editable here; income/expense rows edit fully.
                       const dateOnly = row.source === "payment";
                       return (
-                        <tr key={`${row.source}-${row.id}`} className="bg-surface-2">
+                        <React.Fragment key={`${row.source}-${row.id}`}>
+                        {monthHeader}
+                        <tr className="bg-surface-2">
                           <td className="p-2">
                             <input
                               type="date"
@@ -869,16 +1047,40 @@ export const FinancesTab = memo(() => {
                             {dateOnly ? (
                               <span className="t-body-bold text-ink">{row.label}</span>
                             ) : (
-                              <input
-                                type="text"
-                                value={editDraft.label}
-                                onChange={(e) =>
-                                  setEditDraft((d) => ({ ...d, label: e.target.value }))
-                                }
-                                aria-label={`Edit description for ${row.label}`}
-                                className={`${FORM_INPUT_CLASS} w-full !py-1`}
-                                style={FORM_INPUT_RING_STYLE}
-                              />
+                              <span className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={editDraft.label}
+                                  onChange={(e) =>
+                                    setEditDraft((d) => ({ ...d, label: e.target.value }))
+                                  }
+                                  aria-label={`Edit description for ${row.label}`}
+                                  className={`${FORM_INPUT_CLASS} w-full !py-1`}
+                                  style={FORM_INPUT_RING_STYLE}
+                                />
+                                {row.source === "expense" &&
+                                  (finances.budgetItems || []).length > 0 && (
+                                    <select
+                                      value={editDraft.budgetItemId}
+                                      onChange={(e) =>
+                                        setEditDraft((d) => ({
+                                          ...d,
+                                          budgetItemId: e.target.value,
+                                        }))
+                                      }
+                                      aria-label={`Edit category for ${row.label}`}
+                                      className={`${FORM_INPUT_CLASS} w-36 !py-1`}
+                                      style={FORM_INPUT_RING_STYLE}
+                                    >
+                                      <option value="">Unplanned</option>
+                                      {(finances.budgetItems || []).map((b) => (
+                                        <option key={b.id} value={b.id}>
+                                          {b.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+                              </span>
                             )}
                           </td>
                           <td className="p-2 text-right" colSpan={2}>
@@ -925,14 +1127,28 @@ export const FinancesTab = memo(() => {
                             </span>
                           </td>
                         </tr>
+                        </React.Fragment>
                       );
                     }
                     return (
-                    <tr key={`${row.source}-${row.id}`} className="hover:bg-surface-2">
+                    <React.Fragment key={`${row.source}-${row.id}`}>
+                    {monthHeader}
+                    <tr className="hover:bg-surface-2">
                       <td className="p-2 tabular-nums font-bold text-ink-2">
                         {row.date}
                       </td>
-                      <td className="p-2 t-body-bold text-ink">{row.label}</td>
+                      <td className="p-2 t-body-bold text-ink">
+                        <span
+                          className={`inline-flex items-center justify-center w-4 h-4 rounded-full mr-1.5 text-[9px] font-black ${
+                            row.direction === "in"
+                              ? "bg-win/10 text-win"
+                              : "bg-loss/10 text-loss"
+                          }`}
+                        >
+                          {row.direction === "in" ? "↑" : "↓"}
+                        </span>
+                        {row.label}
+                      </td>
                       <td className="p-2 text-right tabular-nums font-bold text-win">
                         {row.direction === "in"
                           ? formatCurrency(row.amount)
@@ -976,6 +1192,7 @@ export const FinancesTab = memo(() => {
                         )}
                       </td>
                     </tr>
+                    </React.Fragment>
                     );
                   })}
                 </tbody>

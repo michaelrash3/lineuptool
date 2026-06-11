@@ -2626,6 +2626,128 @@ export const transactionLedger = (
 //   - the year's totals are archived as a compact FinancePastSeason row.
 // Pass-through when there's nothing recorded, so teams that never opened
 // the Finances tab are untouched.
+// Budget vs actual: how much has actually been spent against each Budget
+// Planner category (expenses linked via budgetItemId), plus the unplanned
+// bucket for everything spent outside the plan.
+export const budgetActuals = (
+  finances: TeamFinances | null | undefined
+): { byItem: Record<string, number>; unplanned: number } => {
+  const ids = new Set((finances?.budgetItems || []).map((b) => b.id));
+  const byItem: Record<string, number> = {};
+  let unplanned = 0;
+  for (const e of finances?.expenses || []) {
+    const amt = money(e?.amount);
+    const link = e?.budgetItemId;
+    if (link && ids.has(link)) byItem[link] = (byItem[link] || 0) + amt;
+    else unplanned += amt;
+  }
+  return { byItem, unplanned };
+};
+
+export interface CashflowMonth {
+  month: string; // "2026-03"
+  label: string; // "Mar"
+  in: number;
+  out: number;
+  balanceEnd: number;
+}
+
+const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// Monthly money in / money out / end-of-month balance, derived from the
+// dated transaction ledger (already sorted with a running balance). Months
+// with no activity between the first and last are filled in so the chart
+// has a continuous axis.
+export const monthlyCashflow = (
+  finances: TeamFinances | null | undefined,
+  players?: Array<{ id: string; name?: string }> | null
+): CashflowMonth[] => {
+  const rows = transactionLedger(finances, players).filter((r) =>
+    /^\d{4}-\d{2}/.test(r.date)
+  );
+  if (rows.length === 0) return [];
+  const byMonth = new Map<string, CashflowMonth>();
+  for (const r of rows) {
+    const month = r.date.slice(0, 7);
+    let m = byMonth.get(month);
+    if (!m) {
+      const mi = Math.max(0, Math.min(11, parseInt(month.slice(5, 7), 10) - 1));
+      m = { month, label: MONTH_LABELS[mi], in: 0, out: 0, balanceEnd: 0 };
+      byMonth.set(month, m);
+    }
+    if (r.direction === "in") m.in += r.amount;
+    else m.out += r.amount;
+    m.balanceEnd = r.balanceAfter; // rows arrive in date order
+  }
+  // Fill silent months so the axis is continuous, carrying the balance.
+  const keys = [...byMonth.keys()].sort();
+  const out: CashflowMonth[] = [];
+  let [y, mo] = keys[0].split("-").map((x) => parseInt(x, 10));
+  const last = keys[keys.length - 1];
+  let carry = 0;
+  for (;;) {
+    const key = `${y}-${String(mo).padStart(2, "0")}`;
+    const m = byMonth.get(key);
+    if (m) {
+      out.push(m);
+      carry = m.balanceEnd;
+    } else {
+      out.push({ month: key, label: MONTH_LABELS[mo - 1], in: 0, out: 0, balanceEnd: carry });
+    }
+    if (key === last) break;
+    mo += 1;
+    if (mo > 12) { mo = 1; y += 1; }
+    if (out.length > 36) break; // safety: never build an unbounded axis
+  }
+  return out;
+};
+
+// One-tap dues reminder: a copyable list of every family that still owes,
+// skipping waived and settled players, with the total at the end.
+export const owesReminderText = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string; name?: string }> | null | undefined,
+  season?: string
+): string => {
+  const fee = Math.max(0, money(finances?.clubFee));
+  const s = financeSummary(finances, players);
+  const exempt = new Set(finances?.feeExemptIds || []);
+  const lines: string[] = [];
+  for (const p of players || []) {
+    if (!p?.id || exempt.has(p.id)) continue;
+    const owed = Math.max(0, fee - (s.paidByPlayer[p.id] || 0));
+    if (owed > 0) lines.push(`${p.name || "Player"}: ${formatCurrency(owed)}`);
+  }
+  if (lines.length === 0) return "All club fees are paid in full. 🎉";
+  const header = `Club fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(fee)}):`;
+  return [
+    header,
+    ...lines,
+    `Total outstanding: ${formatCurrency(s.stillOwed)}`,
+  ].join("\n");
+};
+
+// Full ledger as a spreadsheet for records/treasurer handoff.
+export const ledgerCsv = (
+  finances: TeamFinances | null | undefined,
+  players?: Array<{ id: string; name?: string }> | null
+): string => {
+  const esc = (val: unknown): string => {
+    const str = String(val ?? "");
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  const rows = transactionLedger(finances, players).map((r) =>
+    [
+      esc(r.date),
+      esc(r.label),
+      r.direction === "in" ? r.amount.toFixed(2) : "",
+      r.direction === "out" ? r.amount.toFixed(2) : "",
+      r.balanceAfter.toFixed(2),
+    ].join(",")
+  );
+  return ["Date,Entry,In,Out,Balance", ...rows].join("\n");
+};
+
 export const rollFinancesForNewSeason = (
   finances: TeamFinances | null | undefined,
   archivedSeason: string,

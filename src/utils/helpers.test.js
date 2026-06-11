@@ -51,6 +51,10 @@ import {
   roundUpToIncrement,
   incomeTotal,
   transactionLedger,
+  budgetActuals,
+  monthlyCashflow,
+  owesReminderText,
+  ledgerCsv,
   rollFinancesForNewSeason,
 } from "./helpers";
 
@@ -1887,6 +1891,60 @@ describe("finances money math", () => {
     expect(rolled.budgetItems).toEqual(planned.budgetItems);
     expect(rolled.incomes).toEqual([]);
     expect(rolled.pastSeasons).toBeUndefined(); // nothing worth archiving
+  });
+
+  it("budgetActuals buckets linked spending per category, unlinked as unplanned", () => {
+    const fin = {
+      budgetItems: [{ id: "bt", label: "Tournaments", amount: 3600 }],
+      expenses: [
+        { id: "e1", date: "2026-03-01", label: "Entry", amount: 450, budgetItemId: "bt" },
+        { id: "e2", date: "2026-04-01", label: "Entry 2", amount: 450, budgetItemId: "bt" },
+        { id: "e3", date: "2026-04-02", label: "Pizza", amount: 60 },
+        { id: "e4", date: "2026-04-03", label: "Old link", amount: 10, budgetItemId: "gone" },
+      ],
+    };
+    const a = budgetActuals(fin);
+    expect(a.byItem).toEqual({ bt: 900 });
+    expect(a.unplanned).toBe(70); // unlinked + dangling link
+    expect(budgetActuals(null)).toEqual({ byItem: {}, unplanned: 0 });
+  });
+
+  it("monthlyCashflow buckets the ledger by month and fills silent months", () => {
+    const ms = monthlyCashflow(finances, players);
+    // Activity spans Feb–Apr 2026 (see fixture) → 3 continuous months.
+    expect(ms.map((m) => m.month)).toEqual(["2026-02", "2026-03", "2026-04"]);
+    expect(ms[0]).toMatchObject({ label: "Feb", in: 600, out: 0, balanceEnd: 600 });
+    expect(ms[1]).toMatchObject({ in: 200, out: 160, balanceEnd: 640 });
+    expect(ms[2]).toMatchObject({ in: 35, out: 0, balanceEnd: 675 });
+    expect(monthlyCashflow(null)).toEqual([]);
+  });
+
+  it("owesReminderText lists only owing, non-waived families with the total", () => {
+    const text = owesReminderText(
+      { ...finances, feeExemptIds: ["kid3"] },
+      players,
+      "Spring 2026"
+    );
+    expect(text).toContain("Spring 2026");
+    expect(text).toContain("Ben: $75");
+    expect(text).not.toContain("Ava"); // settled
+    expect(text).not.toContain("Cy"); // waived
+    expect(text).toContain("Total outstanding: $75");
+    expect(owesReminderText({ clubFee: 0 }, players)).toMatch(/paid in full/i);
+  });
+
+  it("ledgerCsv emits a dated spreadsheet with escaping and running balance", () => {
+    const fin = {
+      payments: [{ id: "p", playerId: "kid1", date: "2026-03-01", amount: 100 }],
+      expenses: [
+        { id: "e", date: "2026-03-05", label: 'Balls, "good" ones', amount: 40 },
+      ],
+    };
+    const csv = ledgerCsv(fin, players);
+    const lines = csv.split("\n");
+    expect(lines[0]).toBe("Date,Entry,In,Out,Balance");
+    expect(lines[1]).toBe("2026-03-01,Club fee — Ava,100.00,,100.00");
+    expect(lines[2]).toBe('2026-03-05,"Balls, ""good"" ones",,40.00,60.00');
   });
 
   it("transactionLedger merges fees, income, and expenses in date order with a running balance", () => {
