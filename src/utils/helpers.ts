@@ -8,6 +8,7 @@ import {
   PlayerId,
   PlayerStats,
   SlimPlayer,
+  TeamFinances,
 } from "../types";
 
 export const formatStat = (val: unknown): string => {
@@ -2391,6 +2392,187 @@ export const isSafeCssColor = (value: unknown): boolean => {
 export const isSafeImageUrl = (value: unknown): boolean => {
   const v = String(value ?? "").trim();
   return /^https:\/\//i.test(v) || /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(v);
+};
+
+// ---------- Team finances (money math) ----------
+// Pure helpers behind the Finances tab. All amounts are dollars; display
+// formatting handles cents. Malformed/missing values read as 0 so a partial
+// doc never crashes the tab.
+
+const money = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+// "$1,250" / "$12.50" / "-$80" — whole dollars unless cents are present.
+export const formatCurrency = (value: unknown): string => {
+  const n = money(value);
+  const abs = Math.abs(n);
+  const hasCents = Math.round(abs * 100) % 100 !== 0;
+  const body = abs.toLocaleString("en-US", {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+  return `${n < 0 ? "-" : ""}$${body}`;
+};
+
+// Effective cost of one budget item: quantity mode (qty × unitAmount, e.g.
+// 8 tournaments × $450 entry) when both fields are present, else the flat
+// amount. Single reader for the planner math so the two shapes never drift.
+export const budgetItemAmount = (
+  item: { amount?: number; qty?: number; unitAmount?: number } | null | undefined
+): number => {
+  if (!item) return 0;
+  if (item.qty != null && item.unitAmount != null) {
+    return Math.max(0, money(item.qty)) * money(item.unitAmount);
+  }
+  return money(item.amount);
+};
+
+export const budgetTotal = (finances: TeamFinances | null | undefined): number =>
+  (finances?.budgetItems || []).reduce(
+    (sum, item) => sum + budgetItemAmount(item),
+    0
+  );
+
+// Sponsorships / fundraising / donations — everything received that isn't a
+// family's club-fee payment.
+export const incomeTotal = (finances: TeamFinances | null | undefined): number =>
+  (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
+
+// Per-player fee that covers the budget NOT already covered by sponsorship/
+// other income, rounded UP to the next dollar so the club never plans a
+// shortfall. 0 when sponsors cover everything; null when there's nothing to
+// split (no budget or no players).
+export const suggestedFeePerPlayer = (
+  finances: TeamFinances | null | undefined,
+  playerCount: number
+): number | null => {
+  const total = budgetTotal(finances);
+  const count = Number(playerCount) || 0;
+  if (total <= 0 || count <= 0) return null;
+  const uncovered = Math.max(0, total - incomeTotal(finances));
+  return Math.ceil(uncovered / count);
+};
+
+export interface FinanceSummary {
+  collected: number; // every club-fee payment recorded
+  otherIncome: number; // sponsorships / fundraising / donations
+  spent: number; // every expense recorded
+  balanceNow: number; // collected + otherIncome − spent
+  stillOwed: number; // Σ per-player max(0, clubFee − paid)
+  balanceOnceAllPaid: number; // balanceNow + stillOwed
+  paidByPlayer: Record<string, number>; // playerId → total paid
+}
+
+// The P&L tiles + Collections math in one pass. `players` defines who owes
+// the club fee; payments from kids no longer on the roster still count toward
+// collected/balance (money is money) but add nothing to stillOwed.
+export const financeSummary = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined
+): FinanceSummary => {
+  const fee = Math.max(0, money(finances?.clubFee));
+  const paidByPlayer: Record<string, number> = {};
+  let collected = 0;
+  for (const pay of finances?.payments || []) {
+    const amt = money(pay?.amount);
+    collected += amt;
+    const pid = String(pay?.playerId || "");
+    if (pid) paidByPlayer[pid] = (paidByPlayer[pid] || 0) + amt;
+  }
+  const otherIncome = incomeTotal(finances);
+  let spent = 0;
+  for (const e of finances?.expenses || []) spent += money(e?.amount);
+  let stillOwed = 0;
+  for (const p of players || []) {
+    if (!p?.id) continue;
+    stillOwed += Math.max(0, fee - (paidByPlayer[p.id] || 0));
+  }
+  const balanceNow = collected + otherIncome - spent;
+  return {
+    collected,
+    otherIncome,
+    spent,
+    balanceNow,
+    stillOwed,
+    balanceOnceAllPaid: balanceNow + stillOwed,
+    paidByPlayer,
+  };
+};
+
+export interface LedgerRow {
+  id: string;
+  date: string;
+  label: string;
+  amount: number;
+  direction: "in" | "out";
+  // Which finances array this row lives in. Club-fee payments are managed
+  // from Collections, so only income/expense rows are deletable in the ledger.
+  source: "payment" | "income" | "expense";
+  // Club balance after this transaction, walking everything received and
+  // spent in date order (ties keep entry order: money in before money out).
+  balanceAfter: number;
+}
+
+// One dated ledger of EVERYTHING received (club-fee payments, sponsorships,
+// fundraising) and spent, with a running club balance. `players` resolves
+// payment rows to kid names for display.
+export const transactionLedger = (
+  finances: TeamFinances | null | undefined,
+  players?: Array<{ id: string; name?: string }> | null
+): LedgerRow[] => {
+  const nameOf = (pid: string): string => {
+    const p = (players || []).find((x) => x?.id === pid);
+    return p?.name ? String(p.name) : "Player";
+  };
+  const rows: Array<Omit<LedgerRow, "balanceAfter">> = [];
+  for (const pay of finances?.payments || []) {
+    if (!pay) continue;
+    rows.push({
+      id: pay.id,
+      date: String(pay.date || ""),
+      label: `Club fee — ${nameOf(String(pay.playerId || ""))}`,
+      amount: money(pay.amount),
+      direction: "in",
+      source: "payment",
+    });
+  }
+  for (const inc of finances?.incomes || []) {
+    if (!inc) continue;
+    rows.push({
+      id: inc.id,
+      date: String(inc.date || ""),
+      label: String(inc.label || "Income"),
+      amount: money(inc.amount),
+      direction: "in",
+      source: "income",
+    });
+  }
+  for (const exp of finances?.expenses || []) {
+    if (!exp) continue;
+    rows.push({
+      id: exp.id,
+      date: String(exp.date || ""),
+      label: String(exp.label || "Expense"),
+      amount: money(exp.amount),
+      direction: "out",
+      source: "expense",
+    });
+  }
+  // Stable sort: date order; ties keep push order (in-rows precede out-rows).
+  const sorted = rows
+    .map((r, i) => ({ r, i }))
+    .sort(
+      (a, b) =>
+        a.r.date.localeCompare(b.r.date) || a.i - b.i
+    )
+    .map((x) => x.r);
+  let running = 0;
+  return sorted.map((r) => {
+    running += r.direction === "in" ? r.amount : -r.amount;
+    return { ...r, balanceAfter: running };
+  });
 };
 
 // ---------- Team-list safety (user settings doc) ----------
