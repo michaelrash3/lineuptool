@@ -131,6 +131,29 @@ export const FinancesTab = memo(() => {
     [finances]
   );
   const payerCount = players.filter((p: any) => !exemptIds.has(p.id)).length;
+  const bufferInc = Math.max(0, Number(finances.feeBufferIncrement) || 0);
+  // Money the fee DOESN'T have to raise, split out for the planner breakdown:
+  // sponsorships/income, then everything else projected to be on hand at
+  // year end (collected fees + fees still due − spending).
+  const moneyOnHand = summary.balanceNow + summary.stillOwed - income;
+
+  // Sales tax % — committed on blur/Enter so partial typing never writes.
+  const [taxInput, setTaxInput] = useState<string | null>(null);
+  const commitSalesTax = () => {
+    if (taxInput == null) return;
+    const n = Number(String(taxInput).replace(/[%,\s]/g, ""));
+    if (Number.isFinite(n) && n >= 0 && n <= 30) {
+      writeFinances({ salesTaxPct: Math.round(n * 100) / 100 });
+    }
+    setTaxInput(null);
+  };
+
+  const toggleItemTax = (id: string) =>
+    writeFinances({
+      budgetItems: (finances.budgetItems || []).map((b) =>
+        b.id === id ? { ...b, taxable: !b.taxable } : b
+      ),
+    });
 
   const toggleFeeWaiver = (playerId: string) => {
     const cur = new Set(finances.feeExemptIds || []);
@@ -257,6 +280,64 @@ export const FinancesTab = memo(() => {
     }
   };
 
+  // ---- Inline ledger editing. Income/expense rows edit date+label+amount;
+  // payment rows (dues) edit their DATE only — the money itself is managed
+  // from Collections.
+  const [editRow, setEditRow] = useState<{
+    source: "payment" | "income" | "expense";
+    id: string;
+  } | null>(null);
+  const [editDraft, setEditDraft] = useState({
+    date: "",
+    label: "",
+    amount: "",
+  });
+  const startLedgerEdit = (row: {
+    source: "payment" | "income" | "expense";
+    id: string;
+    date: string;
+    label: string;
+    amount: number;
+  }) => {
+    setEditRow({ source: row.source, id: row.id });
+    setEditDraft({
+      date: row.date,
+      label: row.label,
+      amount: String(row.amount ?? ""),
+    });
+  };
+  const saveLedgerEdit = () => {
+    if (!editRow) return;
+    const { source, id } = editRow;
+    const date = editDraft.date || dateToIsoLocal(new Date());
+    if (source === "payment") {
+      writeFinances({
+        payments: (finances.payments || []).map((p) =>
+          p.id === id ? { ...p, date } : p
+        ),
+      });
+    } else {
+      const amount = parseAmount(editDraft.amount);
+      const label = editDraft.label.trim();
+      if (amount == null || !label) return; // keep editing until valid
+      const patch = { date, label, amount };
+      if (source === "income") {
+        writeFinances({
+          incomes: (finances.incomes || []).map((x) =>
+            x.id === id ? { ...x, ...patch } : x
+          ),
+        });
+      } else {
+        writeFinances({
+          expenses: (finances.expenses || []).map((x) =>
+            x.id === id ? { ...x, ...patch } : x
+          ),
+        });
+      }
+    }
+    setEditRow(null);
+  };
+
   const commitClubFee = () => {
     if (feeInput == null) return;
     const n = Number(String(feeInput).replace(/[$,\s]/g, ""));
@@ -329,8 +410,22 @@ export const FinancesTab = memo(() => {
                         <span>× {formatCurrency(item.unitAmount)}</span>
                       </span>
                     )}
+                    <button
+                      type="button"
+                      aria-label={`Toggle sales tax on ${item.label}`}
+                      onClick={() => toggleItemTax(item.id)}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
+                        item.taxable
+                          ? "text-win bg-win/10"
+                          : "text-ink-3 bg-surface-2 hover:bg-line"
+                      }`}
+                    >
+                      +tax
+                    </button>
                     <span className="tabular-nums font-black text-ink">
-                      {formatCurrency(budgetItemAmount(item))}
+                      {formatCurrency(
+                        budgetItemAmount(item, finances.salesTaxPct)
+                      )}
                     </span>
                     <button
                       type="button"
@@ -418,20 +513,85 @@ export const FinancesTab = memo(() => {
               <Icons.Plus className="w-4 h-4" /> Add
             </Button>
           </form>
+          {/* Planner settings: sales tax on flagged items + fee round-up buffer */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-line">
+            <label className="flex items-center gap-2 t-eyebrow text-ink-3">
+              Sales tax
+              <input
+                type="text"
+                inputMode="decimal"
+                value={taxInput ?? String(finances.salesTaxPct ?? "")}
+                onChange={(e) => setTaxInput(e.target.value)}
+                onBlur={commitSalesTax}
+                onKeyDown={(e) => e.key === "Enter" && commitSalesTax()}
+                placeholder="0"
+                aria-label="Sales tax percent"
+                className={`${FORM_INPUT_CLASS} w-16 tabular-nums !py-1`}
+                style={FORM_INPUT_RING_STYLE}
+              />
+              <span className="normal-case font-bold">% on “+tax” items</span>
+            </label>
+            <div className="flex items-center gap-1.5">
+              <span className="t-eyebrow text-ink-3">Fee buffer</span>
+              {[
+                { inc: 0, label: "None" },
+                { inc: 25, label: "$25" },
+                { inc: 50, label: "$50" },
+              ].map((opt) => (
+                <button
+                  key={opt.inc}
+                  type="button"
+                  aria-label={`Fee buffer ${opt.label}`}
+                  aria-pressed={bufferInc === opt.inc}
+                  onClick={() =>
+                    writeFinances({ feeBufferIncrement: opt.inc })
+                  }
+                  className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
+                    bufferInc === opt.inc
+                      ? "text-win bg-win/10"
+                      : "text-ink-3 bg-surface-2 hover:bg-line"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              <span className="t-meta text-ink-3 hidden sm:inline">
+                rounds the fee up to cover incidentals
+              </span>
+            </div>
+          </div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-line">
             <div className="t-body text-ink-2">
               Budget total:{" "}
               <span className="font-black text-ink tabular-nums">
                 {formatCurrency(budget)}
               </span>
+              {income > 0 && (
+                <>
+                  {" "}
+                  − sponsorships {formatCurrency(income)}
+                </>
+              )}
+              {moneyOnHand > 0 && (
+                <>
+                  {" "}
+                  − other money on hand {formatCurrency(moneyOnHand)}
+                </>
+              )}
               {suggested != null && (
                 <>
                   {" "}
-                  → after this year's money, suggested fee{" "}
+                  → suggested fee{" "}
                   <span className="font-black text-ink tabular-nums">
                     {formatCurrency(suggested)}
                   </span>{" "}
                   × {payerCount} paying player{payerCount === 1 ? "" : "s"}
+                  {bufferInc > 0 && (
+                    <span className="t-meta text-ink-3">
+                      {" "}
+                      (rounded up to the next ${bufferInc} as buffer)
+                    </span>
+                  )}
                 </>
               )}
               {nextFee != null && (
@@ -682,7 +842,92 @@ export const FinancesTab = memo(() => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {ledger.map((row) => (
+                  {ledger.map((row) => {
+                    const isEditing =
+                      editRow != null &&
+                      editRow.source === row.source &&
+                      editRow.id === row.id;
+                    if (isEditing) {
+                      // Payments are managed in Collections — only their DATE
+                      // is editable here; income/expense rows edit fully.
+                      const dateOnly = row.source === "payment";
+                      return (
+                        <tr key={`${row.source}-${row.id}`} className="bg-surface-2">
+                          <td className="p-2">
+                            <input
+                              type="date"
+                              value={editDraft.date}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({ ...d, date: e.target.value }))
+                              }
+                              aria-label={`Edit date for ${row.label}`}
+                              className={`${FORM_INPUT_CLASS} w-36 !py-1`}
+                              style={FORM_INPUT_RING_STYLE}
+                            />
+                          </td>
+                          <td className="p-2">
+                            {dateOnly ? (
+                              <span className="t-body-bold text-ink">{row.label}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                value={editDraft.label}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, label: e.target.value }))
+                                }
+                                aria-label={`Edit description for ${row.label}`}
+                                className={`${FORM_INPUT_CLASS} w-full !py-1`}
+                                style={FORM_INPUT_RING_STYLE}
+                              />
+                            )}
+                          </td>
+                          <td className="p-2 text-right" colSpan={2}>
+                            {dateOnly ? (
+                              <span
+                                className={`tabular-nums font-bold ${
+                                  row.direction === "in" ? "text-win" : "text-loss"
+                                }`}
+                              >
+                                {formatCurrency(row.amount)}
+                              </span>
+                            ) : (
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={editDraft.amount}
+                                onChange={(e) =>
+                                  setEditDraft((d) => ({ ...d, amount: e.target.value }))
+                                }
+                                aria-label={`Edit amount for ${row.label}`}
+                                className={`${FORM_INPUT_CLASS} w-24 !py-1 tabular-nums text-right`}
+                                style={FORM_INPUT_RING_STYLE}
+                              />
+                            )}
+                          </td>
+                          <td className="p-2 text-right" colSpan={2}>
+                            <span className="inline-flex items-center gap-2">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                aria-label={`Save entry ${row.label}`}
+                                onClick={saveLedgerEdit}
+                              >
+                                <Icons.Check className="w-3.5 h-3.5" /> Save
+                              </Button>
+                              <button
+                                type="button"
+                                aria-label="Cancel edit"
+                                onClick={() => setEditRow(null)}
+                                className="text-ink-3 hover:text-ink text-xs font-bold underline"
+                              >
+                                Cancel
+                              </button>
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return (
                     <tr key={`${row.source}-${row.id}`} className="hover:bg-surface-2">
                       <td className="p-2 tabular-nums font-bold text-ink-2">
                         {row.date}
@@ -705,7 +950,15 @@ export const FinancesTab = memo(() => {
                       >
                         {formatCurrency(row.balanceAfter)}
                       </td>
-                      <td className="p-2 text-right">
+                      <td className="p-2 text-right whitespace-nowrap">
+                        <button
+                          type="button"
+                          aria-label={`Edit entry ${row.label}`}
+                          onClick={() => startLedgerEdit(row)}
+                          className="text-ink-3 hover:text-ink transition-colors mr-2"
+                        >
+                          <Icons.Edit className="w-4 h-4" />
+                        </button>
                         {row.source !== "payment" && (
                           <button
                             type="button"
@@ -723,7 +976,8 @@ export const FinancesTab = memo(() => {
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

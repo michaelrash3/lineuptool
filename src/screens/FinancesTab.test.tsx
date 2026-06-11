@@ -133,6 +133,115 @@ describe("FinancesTab", () => {
     expect(screen.queryByText("$100 owed")).not.toBeInTheDocument();
   });
 
+  it("buffer chips write the fee round-up increment", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Fee buffer $25"));
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      finances: expect.objectContaining({ feeBufferIncrement: 25 }),
+    });
+  });
+
+  it("buffered suggestion rounds the next-season fee up to a clean number", () => {
+    const buffered: any = {
+      ...baseTeam,
+      finances: { ...baseTeam.finances, feeBufferIncrement: 25 },
+    };
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: buffered },
+    });
+    // Raw (500 − 180) / 2 = 160 → next $25 = 175.
+    fireEvent.click(
+      screen.getByRole("button", { name: /Set as next season's fee/i })
+    );
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      finances: expect.objectContaining({ nextClubFee: 175 }),
+    });
+  });
+
+  it("sales tax: percent commits on blur and the +tax toggle flags an item", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    const taxField = screen.getByLabelText("Sales tax percent");
+    fireEvent.change(taxField, { target: { value: "8.25" } });
+    fireEvent.blur(taxField);
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      finances: expect.objectContaining({ salesTaxPct: 8.25 }),
+    });
+    fireEvent.click(screen.getByLabelText("Toggle sales tax on Tournaments"));
+    const calls = (teamValue.updateTeam as jest.Mock).mock.calls;
+    const patch = calls[calls.length - 1][0];
+    expect(patch.finances.budgetItems[0]).toMatchObject({ taxable: true });
+  });
+
+  it("taxed items raise the budget and the suggested fee", () => {
+    const taxed: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        salesTaxPct: 10,
+        budgetItems: [
+          { id: "b1", label: "Tournaments", qty: 4, unitAmount: 100, amount: 400, taxable: true },
+          { id: "b2", label: "Uniform printing", amount: 100 },
+        ],
+      },
+    };
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: taxed },
+    });
+    // Budget 440 + 100 = 540 → (540 − 180) / 2 = 180.
+    fireEvent.click(
+      screen.getByRole("button", { name: /Set as next season's fee/i })
+    );
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      finances: expect.objectContaining({ nextClubFee: 180 }),
+    });
+  });
+
+  it("edits an expense ledger entry in place", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Edit entry Baseballs"));
+    fireEvent.change(screen.getByLabelText("Edit amount for Baseballs"), {
+      target: { value: "95" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit description for Baseballs"), {
+      target: { value: "Game baseballs" },
+    });
+    fireEvent.click(screen.getByLabelText("Save entry Baseballs"));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(patch.finances.expenses[0]).toMatchObject({
+      id: "e1",
+      label: "Game baseballs",
+      amount: 95,
+      date: "2026-03-05",
+    });
+  });
+
+  it("edits ONLY the date on a dues payment row", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Edit entry Club fee — Ava"));
+    // Payments edit their date here; the money is managed in Collections.
+    expect(
+      screen.queryByLabelText("Edit amount for Club fee — Ava")
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Edit date for Club fee — Ava"), {
+      target: { value: "2026-03-10" },
+    });
+    fireEvent.click(screen.getByLabelText("Save entry Club fee — Ava"));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(patch.finances.payments[0]).toMatchObject({
+      id: "p1",
+      date: "2026-03-10",
+      amount: 100,
+    });
+  });
+
   it("shows archived past years in the ledger footer", () => {
     const withHistory: any = {
       ...baseTeam,

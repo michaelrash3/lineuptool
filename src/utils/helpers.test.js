@@ -48,6 +48,7 @@ import {
   suggestedFeePerPlayer,
   financeSummary,
   budgetItemAmount,
+  roundUpToIncrement,
   incomeTotal,
   transactionLedger,
   rollFinancesForNewSeason,
@@ -1700,6 +1701,44 @@ describe("finances money math", () => {
     expect(formatCurrency(-80)).toBe("-$80");
     expect(formatCurrency("junk")).toBe("$0");
     expect(formatCurrency(null)).toBe("$0");
+  });
+
+  it("budgetItemAmount applies sales tax to flagged items only", () => {
+    expect(budgetItemAmount({ amount: 100, taxable: true }, 8.25)).toBeCloseTo(108.25);
+    expect(budgetItemAmount({ amount: 100 }, 8.25)).toBe(100);
+    expect(budgetItemAmount({ qty: 4, unitAmount: 100, amount: 400, taxable: true }, 10)).toBeCloseTo(440);
+    expect(budgetItemAmount({ amount: 100, taxable: true })).toBe(100); // no rate set
+  });
+
+  it("budgetTotal includes sales tax on flagged items via finances.salesTaxPct", () => {
+    const fin = {
+      salesTaxPct: 10,
+      budgetItems: [
+        { id: "a", label: "Entries", amount: 300, taxable: true },
+        { id: "b", label: "Balls", amount: 100 },
+      ],
+    };
+    expect(budgetTotal(fin)).toBeCloseTo(430);
+  });
+
+  it("roundUpToIncrement: buffers up to a clean $25/$50, plain ceiling otherwise", () => {
+    expect(roundUpToIncrement(205, 25)).toBe(225);
+    expect(roundUpToIncrement(205, 50)).toBe(250);
+    expect(roundUpToIncrement(200, 25)).toBe(200); // already clean
+    expect(roundUpToIncrement(162.4, 0)).toBe(163);
+    expect(roundUpToIncrement(162.4)).toBe(163);
+    expect(roundUpToIncrement(0, 25)).toBe(0);
+  });
+
+  it("suggestedFeePerPlayer rounds up to the fee buffer increment", () => {
+    const fin = {
+      feeBufferIncrement: 25,
+      budgetItems: [{ id: "b", label: "Season", amount: 410 }],
+    };
+    const two = [{ id: "k1" }, { id: "k2" }];
+    expect(suggestedFeePerPlayer(fin, two)).toBe(225); // 205 raw → next $25
+    expect(suggestedFeePerPlayer({ ...fin, feeBufferIncrement: 50 }, two)).toBe(250);
+    expect(suggestedFeePerPlayer({ ...fin, feeBufferIncrement: 0 }, two)).toBe(205);
   });
 
   it("budgetItemAmount: qty × unit when both present, flat amount otherwise", () => {
