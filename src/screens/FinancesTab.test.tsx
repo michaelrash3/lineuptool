@@ -242,6 +242,79 @@ describe("FinancesTab", () => {
     });
   });
 
+  it("money-out entries can be linked to a budget category", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.change(screen.getByLabelText("Budget category"), {
+      target: { value: "b1" },
+    });
+    fireEvent.change(screen.getByLabelText("Transaction description"), {
+      target: { value: "Memorial Day entry" },
+    });
+    fireEvent.change(screen.getByLabelText("Transaction amount"), {
+      target: { value: "450" },
+    });
+    const addButtons = screen.getAllByRole("button", { name: /Add$/ });
+    fireEvent.click(addButtons[addButtons.length - 1]);
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const exp = patch.finances.expenses[patch.finances.expenses.length - 1];
+    expect(exp).toMatchObject({
+      label: "Memorial Day entry",
+      amount: 450,
+      budgetItemId: "b1",
+    });
+  });
+
+  it("budget rows show spent-of-planned when expenses are linked", () => {
+    const linked: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        expenses: [
+          { id: "e1", date: "2026-03-05", label: "Entry", amount: 450, budgetItemId: "b1" },
+        ],
+      },
+    };
+    renderWithProviders(<FinancesTab />, { team: { team: linked } });
+    // 450 spent of the 400 planned → over budget flag.
+    expect(screen.getByText(/spent \$450 of \$400/)).toBeInTheDocument();
+    expect(screen.getByText(/over budget/)).toBeInTheDocument();
+  });
+
+  it("copies a dues reminder listing only owing families", async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    fireEvent.click(screen.getByLabelText("Copy dues reminder"));
+    await screen.findByLabelText("Copy dues reminder"); // flush the async click
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const text = writeText.mock.calls[0][0];
+    expect(text).toContain("Ben: $100");
+    expect(text).not.toContain("Ava:"); // settled
+    expect(text).toContain("Total outstanding: $100");
+  });
+
+  it("exports the ledger as a CSV download", () => {
+    const createObjectURL = jest.fn(() => "blob:x");
+    const revokeObjectURL = jest.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      value: createObjectURL,
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      value: revokeObjectURL,
+      configurable: true,
+    });
+    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    fireEvent.click(screen.getByLabelText("Export ledger CSV"));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
+  });
+
   it("shows archived past years in the ledger footer", () => {
     const withHistory: any = {
       ...baseTeam,

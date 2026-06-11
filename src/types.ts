@@ -290,6 +290,9 @@ export interface ExpenseEntry {
   date: string; // ISO yyyy-mm-dd
   label: string;
   amount: number;
+  // Links this expense to a Budget Planner category for budget-vs-actual
+  // meters. Unlinked expenses count as "unplanned" spending.
+  budgetItemId?: string;
 }
 
 // Money received that ISN'T a club-fee payment — sponsorships, fundraising,
