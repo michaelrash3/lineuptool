@@ -279,6 +279,9 @@ export interface BudgetItem {
   amount: number;
   qty?: number;
   unitAmount?: number;
+  // When true, finances.salesTaxPct is added on top of this item's cost in
+  // all planner math (tournament entries are often pre-tax quotes).
+  taxable?: boolean;
 }
 
 // Money actually spent, shown in the ledger with a running balance.
@@ -331,6 +334,12 @@ export interface TeamFinances {
   // Players exempt from the club fee (fall-only pickups, scholarships).
   // They never count toward "still owed" or the suggested-fee split.
   feeExemptIds?: PlayerId[];
+  // Sales tax % (e.g. 8.25) applied to budget items flagged `taxable` in all
+  // planner math, so pre-tax quotes project as real costs.
+  salesTaxPct?: number;
+  // Round the suggested fee UP to this increment (25 or 50) so incidentals
+  // are buffered and the fee lands on a clean number. 0/unset = exact dollar.
+  feeBufferIncrement?: number;
   budgetItems?: BudgetItem[];
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];

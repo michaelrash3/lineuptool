@@ -2420,20 +2420,42 @@ export const formatCurrency = (value: unknown): string => {
 // 8 tournaments × $450 entry) when both fields are present, else the flat
 // amount. Single reader for the planner math so the two shapes never drift.
 export const budgetItemAmount = (
-  item: { amount?: number; qty?: number; unitAmount?: number } | null | undefined
+  item:
+    | {
+        amount?: number;
+        qty?: number;
+        unitAmount?: number;
+        taxable?: boolean;
+      }
+    | null
+    | undefined,
+  salesTaxPct?: number
 ): number => {
   if (!item) return 0;
-  if (item.qty != null && item.unitAmount != null) {
-    return Math.max(0, money(item.qty)) * money(item.unitAmount);
-  }
-  return money(item.amount);
+  const base =
+    item.qty != null && item.unitAmount != null
+      ? Math.max(0, money(item.qty)) * money(item.unitAmount)
+      : money(item.amount);
+  // Taxable items (pre-tax quotes) project at their real, taxed cost.
+  const pct = item.taxable ? Math.max(0, money(salesTaxPct)) : 0;
+  return base * (1 + pct / 100);
 };
 
 export const budgetTotal = (finances: TeamFinances | null | undefined): number =>
   (finances?.budgetItems || []).reduce(
-    (sum, item) => sum + budgetItemAmount(item),
+    (sum, item) => sum + budgetItemAmount(item, finances?.salesTaxPct),
     0
   );
+
+// Round up to the next multiple of `increment` (the fee buffer: incidentals
+// are covered and the fee lands on a clean $25/$50 number). 0/unset keeps
+// the plain next-dollar ceiling.
+export const roundUpToIncrement = (n: number, increment?: number): number => {
+  const inc = Math.max(0, money(increment));
+  if (!(n > 0)) return 0;
+  if (inc <= 0) return Math.ceil(n);
+  return Math.ceil(n / inc) * inc;
+};
 
 // Sponsorships / fundraising / donations — everything received that isn't a
 // family's club-fee payment.
@@ -2461,7 +2483,12 @@ export const suggestedFeePerPlayer = (
   const s = financeSummary(finances, players);
   const projectedYearEnd = s.balanceNow + s.stillOwed;
   const uncovered = Math.max(0, total - projectedYearEnd);
-  return Math.ceil(uncovered / payers.length);
+  // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
+  // and the fee is a clean number; without one, next-dollar ceiling.
+  return roundUpToIncrement(
+    uncovered / payers.length,
+    finances?.feeBufferIncrement
+  );
 };
 
 export interface FinanceSummary {
