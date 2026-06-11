@@ -55,7 +55,6 @@ import {
   monthlyCashflow,
   owesReminderText,
   ledgerCsv,
-  reimbursementsOwed,
   yearComparison,
   rollFinancesForNewSeason,
 } from "./helpers";
@@ -1947,22 +1946,6 @@ describe("finances money math", () => {
     expect(lines[0]).toBe("Date,Entry,In,Out,Balance");
     expect(lines[1]).toBe("2026-03-01,Club fee — Ava,100.00,,100.00");
     expect(lines[2]).toBe('2026-03-05,"Balls, ""good"" ones",,40.00,60.00');
-  });
-
-  it("reimbursementsOwed groups unrepaid out-of-pocket spending by person", () => {
-    const fin = {
-      expenses: [
-        { id: "a", date: "2026-03-01", label: "Balls", amount: 80, paidBy: "Mike" },
-        { id: "b", date: "2026-03-02", label: "Entry", amount: 65, paidBy: "Mike" },
-        { id: "c", date: "2026-03-03", label: "Pizza", amount: 40, paidBy: "Sarah" },
-        { id: "d", date: "2026-03-04", label: "Repaid", amount: 99, paidBy: "Mike", reimbursed: true },
-        { id: "e", date: "2026-03-05", label: "Club card", amount: 30 },
-      ],
-    };
-    const owed = reimbursementsOwed(fin);
-    expect(owed.byName).toEqual({ Mike: 145, Sarah: 40 });
-    expect(owed.total).toBe(185);
-    expect(reimbursementsOwed(null)).toEqual({ byName: {}, total: 0 });
   });
 
   it("yearComparison lines up archived years plus the current year", () => {

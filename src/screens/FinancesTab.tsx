@@ -22,7 +22,6 @@ import {
   monthlyCashflow,
   owesReminderText,
   ledgerCsv,
-  reimbursementsOwed,
   yearComparison,
   incomeTotal,
   suggestedFeePerPlayer,
@@ -127,7 +126,6 @@ export const FinancesTab = memo(() => {
     [finances, players]
   );
   const actuals = useMemo(() => budgetActuals(finances), [finances]);
-  const owedBack = useMemo(() => reimbursementsOwed(finances), [finances]);
   const years = useMemo(
     () => yearComparison(finances, players),
     [finances, players]
@@ -194,8 +192,6 @@ export const FinancesTab = memo(() => {
   const [txnAmount, setTxnAmount] = useState("");
   // Budget category for money-out entries ("" = unplanned).
   const [txnCategory, setTxnCategory] = useState("");
-  // Who fronted a money-out entry out of pocket ("" = club money).
-  const [txnPaidBy, setTxnPaidBy] = useState("");
 
   const applyPreset = (preset: (typeof BUDGET_PRESETS)[number]) => {
     setBudgetLabel(preset.label);
@@ -284,18 +280,13 @@ export const FinancesTab = memo(() => {
       writeFinances({
         expenses: [
           ...(finances.expenses || []),
-          {
-            ...entry,
-            ...(txnCategory ? { budgetItemId: txnCategory } : {}),
-            ...(txnPaidBy.trim() ? { paidBy: txnPaidBy.trim() } : {}),
-          },
+          txnCategory ? { ...entry, budgetItemId: txnCategory } : entry,
         ],
       });
     }
     setTxnLabel("");
     setTxnAmount("");
     setTxnCategory("");
-    setTxnPaidBy("");
   };
 
   const removeLedgerRow = (source: "income" | "expense", id: string) => {
@@ -309,13 +300,6 @@ export const FinancesTab = memo(() => {
       });
     }
   };
-
-  const markReimbursed = (id: string) =>
-    writeFinances({
-      expenses: (finances.expenses || []).map((x) =>
-        x.id === id ? { ...x, reimbursed: true } : x
-      ),
-    });
 
   // ---- Inline ledger editing. Income/expense rows edit date+label+amount;
   // payment rows (dues) edit their DATE only — the money itself is managed
@@ -970,17 +954,6 @@ export const FinancesTab = memo(() => {
                 ))}
               </select>
             )}
-            {txnDir === "out" && (
-              <input
-                type="text"
-                value={txnPaidBy}
-                onChange={(e) => setTxnPaidBy(e.target.value)}
-                placeholder="Paid by (if out of pocket)"
-                aria-label="Paid out of pocket by"
-                className={`${FORM_INPUT_CLASS} sm:w-44`}
-                style={FORM_INPUT_RING_STYLE}
-              />
-            )}
             <input
               type="text"
               inputMode="decimal"
@@ -995,22 +968,6 @@ export const FinancesTab = memo(() => {
               <Icons.Plus className="w-4 h-4" /> Add
             </Button>
           </form>
-          {owedBack.total > 0 && (
-            <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-warn-bg">
-              <span className="t-eyebrow text-warnfg">Owed back</span>
-              {Object.entries(owedBack.byName).map(([name, amt]) => (
-                <span
-                  key={name}
-                  className="text-xs font-black text-warnfg tabular-nums"
-                >
-                  {name} {formatCurrency(amt)}
-                </span>
-              ))}
-              <span className="t-meta text-ink-3">
-                — out-of-pocket spending not yet repaid; mark rows repaid below
-              </span>
-            </div>
-          )}
           {ledger.length > 0 && (
             <div className="flex justify-end">
               <button
@@ -1197,26 +1154,6 @@ export const FinancesTab = memo(() => {
                           {row.direction === "in" ? "↑" : "↓"}
                         </span>
                         {row.label}
-                        {row.paidBy &&
-                          (row.reimbursed ? (
-                            <span className="ml-2 text-[10px] font-black uppercase tracking-widest text-win">
-                              repaid {row.paidBy} ✓
-                            </span>
-                          ) : (
-                            <span className="ml-2 inline-flex items-center gap-1.5">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-warnfg">
-                                fronted by {row.paidBy}
-                              </span>
-                              <button
-                                type="button"
-                                aria-label={`Mark ${row.label} repaid to ${row.paidBy}`}
-                                onClick={() => markReimbursed(row.id)}
-                                className="text-[10px] font-bold underline text-ink-3 hover:text-ink"
-                              >
-                                Mark repaid
-                              </button>
-                            </span>
-                          ))}
                       </td>
                       <td className="p-2 text-right tabular-nums font-bold text-win">
                         {row.direction === "in"
