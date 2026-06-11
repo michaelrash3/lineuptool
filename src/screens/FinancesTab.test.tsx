@@ -315,61 +315,6 @@ describe("FinancesTab", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
   });
 
-  it("records out-of-pocket spending with paidBy and shows the owed-back banner", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
-    fireEvent.change(screen.getByLabelText("Transaction description"), {
-      target: { value: "Snacks" },
-    });
-    fireEvent.change(screen.getByLabelText("Transaction amount"), {
-      target: { value: "35" },
-    });
-    fireEvent.change(screen.getByLabelText("Paid out of pocket by"), {
-      target: { value: "Coach Mike" },
-    });
-    const addButtons = screen.getAllByRole("button", { name: /Add$/ });
-    fireEvent.click(addButtons[addButtons.length - 1]);
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
-    const exp = patch.finances.expenses[patch.finances.expenses.length - 1];
-    expect(exp).toMatchObject({ label: "Snacks", amount: 35, paidBy: "Coach Mike" });
-  });
-
-  it("shows who fronted an expense and marks it repaid through updateTeam", () => {
-    const fronted: any = {
-      ...baseTeam,
-      finances: {
-        ...baseTeam.finances,
-        expenses: [
-          { id: "e1", date: "2026-03-05", label: "Baseballs", amount: 80, paidBy: "Mike" },
-        ],
-      },
-    };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: fronted },
-    });
-    expect(screen.getByText(/Owed back/)).toBeInTheDocument();
-    expect(screen.getByText(/fronted by Mike/)).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText("Mark Baseballs repaid to Mike"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
-    expect(patch.finances.expenses[0]).toMatchObject({ id: "e1", reimbursed: true });
-  });
-
-  it("repaid expenses leave the owed-back banner and show the repaid badge", () => {
-    const repaid: any = {
-      ...baseTeam,
-      finances: {
-        ...baseTeam.finances,
-        expenses: [
-          { id: "e1", date: "2026-03-05", label: "Baseballs", amount: 80, paidBy: "Mike", reimbursed: true },
-        ],
-      },
-    };
-    renderWithProviders(<FinancesTab />, { team: { team: repaid } });
-    expect(screen.queryByText(/Owed back/)).not.toBeInTheDocument();
-    expect(screen.getByText(/repaid Mike/)).toBeInTheDocument();
-  });
-
   it("renders the year-over-year chart when past seasons exist", () => {
     const withHistory: any = {
       ...baseTeam,

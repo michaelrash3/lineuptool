@@ -293,11 +293,6 @@ export interface ExpenseEntry {
   // Links this expense to a Budget Planner category for budget-vs-actual
   // meters. Unlinked expenses count as "unplanned" spending.
   budgetItemId?: string;
-  // Reimbursement tracking: who fronted this out of pocket (empty = paid
-  // straight from club money). The expense counts against the club either
-  // way; until `reimbursed` is set, the club owes this person the amount.
-  paidBy?: string;
-  reimbursed?: boolean;
 }
 
 // Money received that ISN'T a club-fee payment — sponsorships, fundraising,
