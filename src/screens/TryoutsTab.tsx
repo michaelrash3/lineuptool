@@ -130,7 +130,10 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any) => {
   );
   // Combined grades cover ONLY current roster players via getCombinedGrades.
   // For each returner, sum the eval scores; sort descending.
-  const grades = getCombinedGrades(evaluationEvents || [], returners);
+  const grades = getCombinedGrades(evaluationEvents || [], returners, {
+    teamAge: team.teamAge,
+    games: team.games || [],
+  });
   const scoreOf = (p: any) => {
     const g = grades[p.id];
     if (!g) return 0;

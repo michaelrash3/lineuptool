@@ -621,7 +621,9 @@ export const PlayerProfileModal = memo(() => {
     if (!pid) return null;
     const pl = (players || []).find((p: any) => p.id === pid);
     if (!pl) return null;
-    const grades = getCombinedGrades(evaluationEvents || [], players || [])[pid];
+    const grades = getCombinedGrades(evaluationEvents || [], players || [], {
+      teamAge,
+    })[pid];
     return suggestPrimaryPosition(pl, grades, {
       kidPitch: isKidPitchFormat(pitchingFormat),
       teamAge,

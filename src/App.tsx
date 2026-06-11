@@ -852,6 +852,38 @@ const TeamProvider = ({ children }: any) => {
                 return { ...ev, grades: nextGrades };
               });
             }
+            // v9 — stats-graded tangibles. Coaches now grade only the
+            // intangibles; every tangible skill is derived from imported
+            // stats (see the stat-grade helpers in lineupEngine). Strip the
+            // dropped grade keys from saved rounds so they stop feeding
+            // combined grades; notes and any non-numeric fields are kept.
+            if (stored < 9) {
+              const KEPT_V9 = new Set([
+                "approach",
+                "speed",
+                "baserunning",
+                "baseballIQ",
+                "coachability",
+                "composure",
+                "gameCalling",
+              ]);
+              migratedEvents = migratedEvents.map((ev: any) => {
+                if (!ev?.grades) return ev;
+                const nextGrades: Record<string, any> = {};
+                for (const [pid, grade] of Object.entries(ev.grades)) {
+                  if (!grade || typeof grade !== "object") {
+                    nextGrades[pid] = grade;
+                    continue;
+                  }
+                  const out: Record<string, any> = {};
+                  for (const [k, v] of Object.entries(grade)) {
+                    if (typeof v !== "number" || KEPT_V9.has(k)) out[k] = v;
+                  }
+                  nextGrades[pid] = out;
+                }
+                return { ...ev, grades: nextGrades };
+              });
+            }
             persistTeamRef.current?.({
               evaluationEvents: migratedEvents,
               players: migratedPlayers,

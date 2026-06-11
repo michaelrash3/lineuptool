@@ -225,8 +225,12 @@ export const DepthChartTab = memo(() => {
   const kidPitch = isKidPitchFormat(pitchingFormat);
 
   const combinedGrades = useMemo(
-    () => getCombinedGrades(evaluationEvents, players),
-    [evaluationEvents, players]
+    () =>
+      getCombinedGrades(evaluationEvents, players, {
+        teamAge,
+        games: (team as any).games || [],
+      }),
+    [evaluationEvents, players, teamAge, team]
   );
 
   // Eval-suggested primary per player — used only as the fallback ordering

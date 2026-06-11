@@ -205,49 +205,30 @@ export function getPositionImportance(
   };
 }
 
-// Coach's Card v2 universal categories — the 11 that drive total-score and
-// position scoring. Pitching/Catching add-ons live in src/constants/ui.ts and
-// influence specialty position decisions, not the universal total.
+// Coach's Card v3 (eval schema v9) coach-graded categories — ONLY the
+// intangibles a stat line can't measure. Every tangible skill is graded from
+// imported stats by the stat-derived helpers below and overlaid onto the
+// merged grade map in getCombinedGrades.
 // Category id list that getCombinedGrades carries from each eval round into the
 // merged grade map. The `weight` field is informational only (the engine scores
 // via the dedicated helpers — defensiveScore/pitcher/catcher/total — not by
-// iterating these). The Kid-Pitch add-ons (pitching + catching) MUST be present
-// here or they get dropped on merge, leaving calcPitcherScore/calcCatcherScore
-// with nothing to score.
+// iterating these). The Kid-Pitch add-ons (Composure for pitching, Game
+// Calling for catching) MUST be present here or they get dropped on merge,
+// leaving calcPitcherScore/calcCatcherScore with no eval input to score.
 const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
-  { id: "contact", weight: 1.5 },
-  { id: "power", weight: 1.0 },
-  { id: "plateDiscipline", weight: 1.0 },
   { id: "approach", weight: 1.5 },
-  { id: "glove", weight: 2.5 },
-  { id: "range", weight: 2.0 },
-  { id: "armStrength", weight: 1.5 },
-  { id: "armAccuracy", weight: 1.5 },
   { id: "speed", weight: 1.0 },
   { id: "baserunning", weight: 1.5 },
   { id: "baseballIQ", weight: 2.0 },
   { id: "coachability", weight: 1.0 },
-  // Kid-Pitch add-ons — pitching
-  { id: "velocity", weight: 1.0 },
-  { id: "strikes", weight: 2.5 },
-  { id: "offSpeed", weight: 0.5 },
+  // Kid-Pitch add-on — pitching
   { id: "composure", weight: 1.0 },
-  // Kid-Pitch add-ons — catching
-  { id: "receiving", weight: 1.0 },
-  { id: "blocking", weight: 1.0 },
-  { id: "throwing", weight: 1.0 },
+  // Kid-Pitch add-on — catching
   { id: "gameCalling", weight: 1.0 },
 ];
 
 const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
-  contact: 3,
-  power: 3,
-  plateDiscipline: 3,
   approach: 3,
-  glove: 3,
-  range: 3,
-  armStrength: 3,
-  armAccuracy: 3,
   speed: 3,
   baserunning: 3,
   baseballIQ: 3,
@@ -278,7 +259,6 @@ const speedBaseOf = (g: any): number => (speedOf(g) + baserunningOf(g)) / 2;
 const contactOf = (g: any): number => g?.contact ?? 3;
 const approachOf = (g: any): number => g?.approach ?? 3;
 const powerOf = (g: any): number => g?.power ?? 3;
-const plateDisciplineOf = (g: any): number => g?.plateDiscipline ?? g?.approach ?? 3;
 
 // ---------- Public helpers (re exported for the UI) ----------
 
@@ -300,7 +280,13 @@ export function getPositionsForInning(
 
 export function getCombinedGrades(
   evaluationEvents: EvaluationEvent[],
-  playersList: Player[]
+  playersList: Player[],
+  opts?: {
+    // Enables age-relative velocity grading for the Arm/Velocity overlays.
+    teamAge?: string;
+    // Per-game import lines; enables the catcher Blocking overlay (PB/game).
+    games?: Array<{ playerStats?: Record<string, any> }>;
+  }
 ): Record<string, GradeMap> {
   let latestHead = null;
   for (const e of evaluationEvents) {
@@ -326,21 +312,18 @@ export function getCombinedGrades(
     const headG = latestHead?.grades?.[p.id];
     const grades: GradeMap = { ...DEFAULT_GRADES };
 
-    // v2 grade reader — falls back to v1 field names when present so a team
-    // that hasn't migrated all rounds still gets sensible defaults.
+    // Grade reader with legacy-field fallbacks, so rounds saved before the
+    // current schema still feed the kept categories sensibly.
     const readCat = (g: any, catId: string): number | null => {
       if (!g) return null;
       if (g[catId] != null) return g[catId];
-      // Bridge the merged v7 coach grades onto the fine-grained engine fields.
-      if (catId === "glove" || catId === "range") return g.fielding ?? null;
-      if (catId === "armStrength" || catId === "armAccuracy") return g.arm ?? null;
-      if (catId === "plateDiscipline") return g.approach ?? null;
       // Speed + Base Running both seed from the legacy merged grade.
       if (catId === "speed" || catId === "baserunning")
         return g.speedBaserunning ?? g.speedAgility ?? null;
       return null;
     };
 
+    let combinedFromAssistants = false;
     if (astCount > 0) {
       const astSum: Record<string, number> = {};
       for (const cat of EVAL_CATEGORIES) astSum[cat.id] = 0;
@@ -363,18 +346,24 @@ export function getCombinedGrades(
             grades[cat.id] = Math.round((headVal + astAvg) / 2);
           else grades[cat.id] = Math.round(astAvg);
         }
-        out[p.id] = grades;
-        continue;
+        combinedFromAssistants = true;
       }
     }
 
-    if (headG) {
+    if (!combinedFromAssistants && headG) {
       for (const cat of EVAL_CATEGORIES) {
         const v = readCat(headG, cat.id);
         if (v != null) grades[cat.id] = v;
       }
     }
-    out[p.id] = grades;
+    // Tangible skills are graded by the imported stats alone (schema v9) —
+    // overlay them on top of the coach-graded intangibles.
+    out[p.id] = applyStatGrades(grades, p, {
+      teamAge: opts?.teamAge,
+      gamesCaught: opts?.games
+        ? countGamesCaught(opts.games, p.id)
+        : undefined,
+    });
   }
   return out;
 }
@@ -447,6 +436,300 @@ export function getEffectiveStats(player: Player): PlayerStats & {
   } as any;
 }
 
+// ---------- Stat-derived grades for tangible skills ----------
+// As of eval schema v9, coaches grade only the intangibles. Every tangible
+// skill is graded by the imported stats alone, projected onto the same 1–5
+// scale the eval grades use:
+//   grade = 3 + (quality − 0.5) × 4 × confidence
+// where `quality` normalizes the relevant stat against a youth-level band
+// (0..1) and `confidence` ramps with sample size. No data, or no sample, →
+// null — and every consumer treats null as the neutral 3, so a kid is never
+// penalized for a stat that simply hasn't been imported yet.
+
+const numOrNull = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
+
+function qualityToGrade(
+  quality: number | null,
+  confidence: number
+): number | null {
+  if (quality == null || !Number.isFinite(quality)) return null;
+  const c = Math.min(1, Math.max(0, confidence));
+  if (c <= 0) return null;
+  const g = 3 + (quality - 0.5) * 4 * c;
+  // One decimal: smooth enough for ranking, clean enough to display.
+  return Math.round(Math.min(5, Math.max(1, g)) * 10) / 10;
+}
+
+// Weighted 0..1 quality across whichever banded stats are present. Bands with
+// best < worst encode lower-is-better. Missing stats never penalize.
+// `ignoreZero` treats a 0 value as missing — getEffectiveStats zero-fills the
+// batting rate keys it blends, and a CSV that never tracked QAB%/LD% must not
+// read as "0% quality at bats" (same convention as getOffensiveScore).
+function bandedQuality(
+  stats: PlayerStats | null | undefined,
+  specs: Array<{ key: keyof PlayerStats; w: number; worst: number; best: number }>,
+  ignoreZero = false
+): number | null {
+  if (!stats) return null;
+  let acc = 0;
+  let wSum = 0;
+  for (const s of specs) {
+    const v = numOrNull(stats[s.key]);
+    if (v == null || (ignoreZero && v === 0)) continue;
+    const span = s.best - s.worst;
+    if (span === 0) continue;
+    const norm = Math.min(1, Math.max(0, (v - s.worst) / span));
+    acc += norm * s.w;
+    wSum += s.w;
+  }
+  return wSum > 0 ? acc / wSum : null;
+}
+
+// Batting sample confidence: ramps over the first 30 AB. When the stats came
+// through getEffectiveStats with real past-season influence, the blend itself
+// already steadies small samples, so confidence gets a floor of 0.5.
+function battingConfidence(stats: PlayerStats | null | undefined): number {
+  const ab = Number(stats?.ab) || 0;
+  const base = Math.min(1, ab / 30);
+  const w = (stats as any)?.__blendWeights;
+  const pastBlended = w && (Number(w.past1) > 0 || Number(w.past2) > 0);
+  return pastBlended ? Math.max(0.5, base) : base;
+}
+
+// Pitching sample confidence: full weight at ~30 batters faced (a few
+// outings), falling back to innings when BF wasn't imported.
+function pitchingConfidence(stats: PlayerStats | null | undefined): number {
+  const bf = Number(stats?.pBf);
+  const ip = Number(stats?.pIp);
+  if (Number.isFinite(bf) && bf > 0) return Math.min(1, bf / 30);
+  if (Number.isFinite(ip) && ip > 0) return Math.min(1, ip / 8);
+  return 0;
+}
+
+// Contact ← AVG / Contact% / QAB% / LD%, quality-of-contact rates weighted
+// heaviest (same philosophy as getOffensiveScore: at this level the advanced
+// rates describe the swing far better than the slash line).
+export function statContactGrade(
+  stats: PlayerStats | null | undefined
+): number | null {
+  const q = bandedQuality(
+    stats,
+    [
+      { key: "avg", w: 1.0, worst: 0.15, best: 0.45 },
+      { key: "contact", w: 0.75, worst: 0.5, best: 0.9 },
+      { key: "qab", w: 1.5, worst: 0.2, best: 0.6 },
+      { key: "ld", w: 1.0, worst: 0.08, best: 0.3 },
+    ],
+    true // batting rates: 0 = not tracked, never "0% quality"
+  );
+  return qualityToGrade(q, battingConfidence(stats));
+}
+
+// Power ← SLG (derived OPS − OBP), extra-base-hit rate, Hard-hit%.
+export function statPowerGrade(
+  stats: PlayerStats | null | undefined
+): number | null {
+  if (!stats) return null;
+  const ops = numOrNull(stats.ops);
+  const obp = numOrNull(stats.obp);
+  const slg = ops != null && obp != null && ops >= obp ? ops - obp : null;
+  const ab = Number(stats.ab) || 0;
+  const xbh =
+    ab > 0
+      ? ((Number(stats.doubles) || 0) +
+          (Number(stats.triples) || 0) +
+          (Number(stats.hr) || 0)) /
+        ab
+      : null;
+  const enriched: PlayerStats = {
+    ...stats,
+    __slg: slg ?? undefined,
+    __xbh: xbh ?? undefined,
+  } as any;
+  const q = bandedQuality(
+    enriched,
+    [
+      { key: "__slg" as any, w: 1.0, worst: 0.25, best: 0.7 },
+      { key: "__xbh" as any, w: 1.0, worst: 0.0, best: 0.2 },
+      { key: "hard", w: 1.25, worst: 0.1, best: 0.4 },
+    ],
+    true // batting rates: 0 = not tracked (XBH rate keeps 0 via __xbh below)
+  );
+  return qualityToGrade(q, battingConfidence(stats));
+}
+
+// Fielding (fills both the glove and range slots) ← FPCT, confidence from
+// total chances (full at 24 TC; 0.5 when FPCT exists without a TC count).
+export function statFieldingGrade(
+  stats: PlayerStats | null | undefined
+): number | null {
+  if (!stats) return null;
+  const fpct = numOrNull(stats.fFpct) ?? numOrNull(stats.fpct);
+  if (fpct == null) return null;
+  const q = Math.min(1, Math.max(0, (fpct - 0.8) / (0.98 - 0.8)));
+  const tc = numOrNull(stats.fTc) ?? numOrNull(stats.tc);
+  const confidence = tc != null && tc > 0 ? Math.min(1, tc / 24) : 0.5;
+  return qualityToGrade(q, confidence);
+}
+
+// Arm — honest limits: youth box scores don't measure an infielder's arm.
+// A radar reading (manual or imported) grades it age-relative for anyone who
+// has one; a catcher's CS% stands in next; everyone else stays neutral.
+export function statArmGrade(
+  stats: PlayerStats | null | undefined,
+  opts?: { topMph?: number | null; teamAge?: string }
+): number | null {
+  const velo = calcVelocityQuality(
+    opts?.topMph ?? numOrNull(stats?.pTopMph) ?? numOrNull(stats?.pFbMph),
+    opts?.teamAge
+  );
+  if (velo != null) return qualityToGrade(velo, 1);
+  const cs = numOrNull(stats?.fCsPct);
+  if (cs != null) {
+    const q = Math.min(1, Math.max(0, (cs - 0.15) / (0.55 - 0.15)));
+    const att = numOrNull(stats?.fSbAtt);
+    const confidence = att != null && att > 0 ? Math.min(1, att / 12) : 0.5;
+    return qualityToGrade(q, confidence);
+  }
+  return null;
+}
+
+// Velocity (pitchers) ← top MPH against the age band. A measurement, not a
+// sample — applies at full confidence whenever a reading exists.
+export function statVelocityGrade(
+  stats: PlayerStats | null | undefined,
+  opts?: { topMph?: number | null; teamAge?: string }
+): number | null {
+  const q = calcVelocityQuality(
+    opts?.topMph ?? numOrNull(stats?.pTopMph) ?? numOrNull(stats?.pFbMph),
+    opts?.teamAge
+  );
+  return qualityToGrade(q, 1);
+}
+
+// Strikes (pitchers) ← the control & efficiency cluster.
+export function statStrikesGrade(
+  stats: PlayerStats | null | undefined
+): number | null {
+  const q = bandedQuality(stats, [
+    { key: "pStrikePct", w: 1.5, worst: 0.45, best: 0.65 },
+    { key: "pFps", w: 1.5, worst: 0.45, best: 0.65 },
+    { key: "pBbPerInn", w: 1.5, worst: 1.2, best: 0.2 },
+    { key: "pKbb", w: 1.5, worst: 0.5, best: 3.0 },
+    { key: "pWhip", w: 1.5, worst: 2.2, best: 1.0 },
+  ]);
+  return qualityToGrade(q, pitchingConfidence(stats));
+}
+
+// Off-Speed (pitchers) ← bats missed / weak contact — the measurable
+// footprint of having (and landing) a second pitch.
+export function statOffSpeedGrade(
+  stats: PlayerStats | null | undefined
+): number | null {
+  const q = bandedQuality(stats, [
+    { key: "pSwingMiss", w: 1.5, worst: 0.05, best: 0.25 },
+    { key: "pKbf", w: 1.25, worst: 0.1, best: 0.35 },
+    { key: "pWeak", w: 1.5, worst: 0.15, best: 0.45 },
+    { key: "pHardPct", w: 1.5, worst: 0.45, best: 0.15 },
+    { key: "pGoAo", w: 1.0, worst: 0.7, best: 2.5 },
+  ]);
+  return qualityToGrade(q, pitchingConfidence(stats));
+}
+
+// Throwing (catchers) ← caught-stealing %, confidence from attempts against.
+export function statThrowingGrade(
+  stats: PlayerStats | null | undefined
+): number | null {
+  const cs = numOrNull(stats?.fCsPct);
+  if (cs == null) return null;
+  const q = Math.min(1, Math.max(0, (cs - 0.15) / (0.55 - 0.15)));
+  const att = numOrNull(stats?.fSbAtt);
+  const confidence = att != null && att > 0 ? Math.min(1, att / 12) : 0.5;
+  return qualityToGrade(q, confidence);
+}
+
+// Blocking (catchers) ← passed balls per game caught. Needs a games-caught
+// count (derived from per-game imports); without one there's no fair
+// denominator, so it stays neutral.
+export function statBlockingGrade(
+  stats: PlayerStats | null | undefined,
+  gamesCaught?: number | null
+): number | null {
+  const pb = numOrNull(stats?.fPb);
+  const games = Number(gamesCaught) || 0;
+  if (pb == null || games <= 0) return null;
+  const perGame = pb / games;
+  // Lower is better: 2.0 PB/game is rough, 0.2 is excellent.
+  const q = Math.min(1, Math.max(0, (perGame - 2.0) / (0.2 - 2.0)));
+  return qualityToGrade(q, Math.min(1, games / 6));
+}
+
+// How many games a player has catcher-specific data for, from the per-game
+// import lines. The blocking grade's denominator.
+export function countGamesCaught(
+  games:
+    | Array<{ playerStats?: Record<string, Record<string, number> | undefined> }>
+    | null
+    | undefined,
+  playerId: string
+): number {
+  let n = 0;
+  for (const g of games || []) {
+    const line: any = g?.playerStats?.[playerId];
+    if (!line || typeof line !== "object") continue;
+    if (
+      line.fPb != null ||
+      line.fSbAtt != null ||
+      line.fSbAllowed != null ||
+      line.fCsPct != null
+    )
+      n++;
+  }
+  return n;
+}
+
+// Overlay the stat-derived tangible grades onto a player's (eval-sourced)
+// grade map. Writes BOTH the merged ids the UI shows (fielding, arm) and the
+// fine-grained ids the engine's readers consult (glove/range, armStrength/
+// armAccuracy), so every consumer — total score, position fit, depth charts,
+// pitcher/catcher rankings — sees stats-graded tangibles with zero special
+// cases. Null stat-grades set nothing; the readers' neutral-3 default holds.
+export function applyStatGrades(
+  grades: GradeMap | null | undefined,
+  player: Player | null | undefined,
+  opts?: { teamAge?: string; gamesCaught?: number }
+): GradeMap {
+  const out: GradeMap = { ...(grades || {}) };
+  if (!player) return out;
+  const batting = getEffectiveStats(player);
+  const raw: PlayerStats = player.stats || {};
+  const topMph =
+    numOrNull(raw.pTopMph) ??
+    numOrNull(raw.pFbMph) ??
+    numOrNull((player as any)?.pitching?.topMph);
+
+  const set = (v: number | null, ...keys: string[]) => {
+    if (v == null) return;
+    for (const k of keys) (out as any)[k] = v;
+  };
+  set(statContactGrade(batting), "contact");
+  set(statPowerGrade(batting), "power");
+  set(statFieldingGrade(raw), "fielding", "glove", "range");
+  set(
+    statArmGrade(raw, { topMph, teamAge: opts?.teamAge }),
+    "arm",
+    "armStrength",
+    "armAccuracy"
+  );
+  set(statVelocityGrade(raw, { topMph, teamAge: opts?.teamAge }), "velocity");
+  set(statStrikesGrade(raw), "strikes");
+  set(statOffSpeedGrade(raw), "offSpeed");
+  set(statThrowingGrade(raw), "throwing");
+  set(statBlockingGrade(raw, opts?.gamesCaught), "blocking");
+  return out;
+}
+
 export function getOffensiveScore(stats?: PlayerStats | null): number {
   if (!stats) return 5;
   const num = (v: number | undefined) => Number(v) || 0;
@@ -509,20 +792,32 @@ export function calculateTotalScore(
 ): number {
   if (!grades) return 0;
   const off = getOffensiveScore(stats);
-  // Mix of v3 + v1-compat: glove and range BOTH read from v1.fielding when
-  // a legacy round is the only data we have, so legacy totals stay in the
-  // same ballpark while new rounds use the more granular split.
+  // Tangible slots (fielding/arm/contact/power) are stats-graded as of schema
+  // v9. The grade map carries them when it came through getCombinedGrades'
+  // overlay; otherwise (e.g. the live eval form's in-progress grades) they
+  // derive directly from `stats` here. Either way the weights — and therefore
+  // the 0–100 normalization — are unchanged, and a kid with no stats sits at
+  // the neutral 3 exactly like an ungraded eval used to.
+  const g: any = grades;
+  const fielding =
+    numOrNull(g.glove) ?? numOrNull(g.fielding) ?? statFieldingGrade(stats) ?? 3;
+  const arm =
+    numOrNull(g.armStrength) ?? numOrNull(g.arm) ?? statArmGrade(stats) ?? 3;
+  const contact = numOrNull(g.contact) ?? statContactGrade(stats) ?? 3;
+  const power = numOrNull(g.power) ?? statPowerGrade(stats) ?? 3;
   const raw =
-    gloveOf(grades) * 2.5 +
-    rangeOf(grades) * 2.0 +
-    armStrengthOf(grades) * 1.5 +
-    armAccuracyOf(grades) * 1.5 +
+    fielding * 2.5 +
+    fielding * 2.0 +
+    arm * 1.5 +
+    arm * 1.5 +
     speedBaseOf(grades) * 1.5 +
     (grades.baseballIQ || 3) * 2.0 +
     (grades.coachability || 3) * 3.0 +
-    contactOf(grades) * 1.5 +
-    powerOf(grades) * 1.0 +
-    plateDisciplineOf(grades) * 1.0 +
+    contact * 1.5 +
+    power * 1.0 +
+    // The old plateDiscipline slot folded into Approach (v7); Approach keeps
+    // the combined weight so the divisor stays stable.
+    approachOf(grades) * 1.0 +
     approachOf(grades) * 1.5 +
     off * 2.0;
   // Normalize to 0–100 so the surfaced Total Score is intuitive.
@@ -859,19 +1154,9 @@ export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
   composure: 1.0,
 };
 
-// Eval-only pitcher score (1–5 grades × weights). Max ≈ 32.5.
+// Pitcher score scale (1–5 grades × weights). Max ≈ 32.5.
 const PITCHER_EVAL_MAX =
   5 * Object.values(PITCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
-
-function calcPitcherEvalScore(grades: GradeMap | null | undefined): number {
-  if (!grades) return 0;
-  let score = 0;
-  for (const [k, w] of Object.entries(PITCHER_SCORE_WEIGHTS)) {
-    const v = (grades as any)[k];
-    if (typeof v === "number" && Number.isFinite(v)) score += v * w;
-  }
-  return score;
-}
 
 // Imported GameChanger pitching stats → 0–1 quality. Each spec is
 // (worst, best); best < worst encodes lower-is-better (WHIP/ERA/BAA/BB-INN/
@@ -920,23 +1205,6 @@ export function calcPitcherStatsQuality(
   return wSum > 0 ? acc / wSum : null;
 }
 
-// How hard to lean on stats vs. the eval — grows with sample size, capped at
-// 60% (stats slightly out-vote the eye test once real numbers exist; the
-// imported advanced rates tell more of the story than a periodic eval).
-// ~30 batters faced (a few outings) earns full weight; a pitcher with little
-// data stays eval-driven until real numbers accumulate.
-function pitcherStatsLean(stats: PlayerStats | null | undefined): number {
-  const bf = Number(stats?.pBf);
-  const ip = Number(stats?.pIp);
-  const sample =
-    Number.isFinite(bf) && bf > 0
-      ? bf / 30
-      : Number.isFinite(ip) && ip > 0
-      ? ip / 8
-      : 0;
-  return 0.6 * Math.min(1, Math.max(0, sample));
-}
-
 // Age-relative velocity quality (0..1). Velocity is meaningless on an absolute
 // scale across ages, but a team is a single age group, so we normalize a
 // pitcher's top fastball against an age-appropriate band — a hard thrower for
@@ -962,41 +1230,58 @@ export function calcVelocityQuality(
   const [lo, hi] = veloBandForAge(teamAge);
   return Math.min(1, Math.max(0, (topMph - lo) / (hi - lo)));
 }
-// Velocity is a measured attribute, not a sample, so it carries a modest fixed
-// weight when present (unlike the sample-gated stats blend).
-const VELOCITY_LEAN = 0.15;
 
-// Pitcher value, blending the eval-based score with imported pitching stats
-// (the coach's "blend both") and, when present, an age-relative velocity reading.
-// With no stats/velocity — or no sample — this returns the eval-only score
-// unchanged, so behavior is identical until real data exists. Consumed by the
-// depth-chart ranking AND the engine's pitcher pool, so a good pitcher by eye +
-// results is the one the engine picks to pitch.
+// Pitcher value (schema v9): Velocity/Strikes/Off-Speed are graded purely from
+// the imported stats; Composure is the one coach-graded slot. Each slot reads
+// the (stat-overlaid) grade map first, then derives directly from `stats` —
+// so callers passing un-overlaid grades still get stats-graded slots. A slot
+// with no signal at all contributes nothing, and a player with zero signal
+// scores 0 — preserving the engine's "score > 0" pitcher-pool gate so kids
+// with no pitching data never enter the staff ranking. Consumed by the
+// depth-chart ranking AND the engine's pitcher pool.
 export function calcPitcherScore(
   grades: GradeMap | null | undefined,
   stats?: PlayerStats | null,
-  velocity?: { topMph?: number | null; teamAge?: string }
-): number {
-  let score = calcPitcherEvalScore(grades);
-  const quality = calcPitcherStatsQuality(stats);
-  if (quality != null) {
-    const lean = pitcherStatsLean(stats);
-    if (lean > 0) score = (1 - lean) * score + lean * (quality * PITCHER_EVAL_MAX);
+  opts?: {
+    topMph?: number | null;
+    teamAge?: string;
+    // Fill signal-less slots with the neutral 3 instead of skipping them —
+    // used by the roster premium so a partially-imported stat line compares
+    // fairly against the all-categories neutral baseline. A player with NO
+    // signal at all still scores 0 either way.
+    neutralFill?: boolean;
   }
-  const vq = calcVelocityQuality(velocity?.topMph, velocity?.teamAge);
-  if (vq != null) {
-    score = (1 - VELOCITY_LEAN) * score + VELOCITY_LEAN * (vq * PITCHER_EVAL_MAX);
+): number {
+  const g: any = grades || {};
+  const slots: Record<string, number | null> = {
+    velocity:
+      numOrNull(g.velocity) ??
+      statVelocityGrade(stats, {
+        topMph: opts?.topMph,
+        teamAge: opts?.teamAge,
+      }),
+    strikes: numOrNull(g.strikes) ?? statStrikesGrade(stats),
+    offSpeed: numOrNull(g.offSpeed) ?? statOffSpeedGrade(stats),
+    composure: numOrNull(g.composure),
+  };
+  const hasSignal = Object.values(slots).some((v) => v != null);
+  if (!hasSignal) return 0;
+  let score = 0;
+  for (const [k, w] of Object.entries(PITCHER_SCORE_WEIGHTS)) {
+    const v = slots[k] ?? (opts?.neutralFill ? 3 : null);
+    if (v != null) score += v * w;
   }
   return score;
 }
 
 // ---------- Catcher scoring ----------
-// Eval-driven, mirroring calcPitcherScore. Blocking and throwing weigh highest
-// because passed balls and stolen bases are where weak catching shows up most
-// at Kid Pitch. Single source of truth — consumed by the Depth Chart tab (and
-// available for future engine C-slot logic).
+// Mirrors calcPitcherScore (schema v9): Throwing and Blocking are graded
+// purely from the imported stats (CS%, PB/game); Game Calling is the one
+// coach-graded slot. Receiving was dropped — no youth stat measures framing.
+// Blocking and throwing weigh highest because passed balls and stolen bases
+// are where weak catching shows up most at Kid Pitch. Single source of truth —
+// consumed by the Depth Chart tab (and the engine's dual-role pool logic).
 export const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
-  receiving: 1.0,
   blocking: 1.5,
   throwing: 1.5,
   gameCalling: 1.0,
@@ -1004,19 +1289,10 @@ export const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
 
 const CATCHER_EVAL_MAX =
   5 * Object.values(CATCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
-const DEFENSE_EVAL_MAX = 5 * (2.0 + 1.5 + 1.5 + 1.5 + 1.5 + 2.0);
 
-// Shared 0..1 normalizers / sample lean for the fielding & catching stat blends
-// (same shape as the pitcher blend: measured rate → quality, sample → lean).
+// 0..1 normalizer shared by the stat-quality helpers.
 function normUp(v: number, lo: number, hi: number): number {
   return Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
-}
-// Capped at 60% to match the pitcher blend — once a real sample exists, the
-// measured rate slightly out-votes the eval grade.
-function sampleLean(value: unknown, fullAt: number): number {
-  const v = Number(value);
-  if (!Number.isFinite(v) || v <= 0) return 0;
-  return 0.6 * Math.min(1, v / fullAt);
 }
 
 // Same-day dual-role rule: a player never pitches AND catches in the same day.
@@ -1063,51 +1339,53 @@ export function calcFieldingStatsQuality(
   return normUp(v, 0.8, 0.98);
 }
 
-// Catcher value: eval grades, optionally blended with caught-stealing %
-// (sample-weighted by stolen-base attempts). Eval-only when no stats/sample, so
-// the engine — which never passes stats here — is unchanged.
+// Catcher value (schema v9): Throwing/Blocking graded purely from stats,
+// Game Calling from the coach. Slots read the (stat-overlaid) grade map
+// first, then derive from `stats` directly; a slot with no signal contributes
+// nothing, so a kid with zero catching signal scores 0.
 export function calcCatcherScore(
   grades: GradeMap | null | undefined,
-  stats?: PlayerStats | null
+  stats?: PlayerStats | null,
+  opts?: { gamesCaught?: number }
 ): number {
+  const g: any = grades || {};
+  const slots: Record<string, number | null> = {
+    throwing: numOrNull(g.throwing) ?? statThrowingGrade(stats),
+    blocking: numOrNull(g.blocking) ?? statBlockingGrade(stats, opts?.gamesCaught),
+    gameCalling: numOrNull(g.gameCalling),
+  };
   let score = 0;
-  if (grades) {
-    for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {
-      const v = (grades as any)[k];
-      if (typeof v === "number" && Number.isFinite(v)) score += v * w;
-    }
+  for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {
+    const v = slots[k];
+    if (v != null) score += v * w;
   }
-  const q = calcCatcherStatsQuality(stats);
-  if (q == null) return score;
-  const lean = sampleLean(stats?.fSbAtt, 12);
-  if (lean <= 0) return score;
-  return (1 - lean) * score + lean * (q * CATCHER_EVAL_MAX);
+  return score;
 }
 
 // ---------- Defensive (fielding) scoring ----------
 // General field-defense rating used to rank position players. Extracted from
 // computeProfile so the Depth Chart tab and the engine's profile share one
-// formula and never drift. Optionally blends FPCT (sample-weighted by total
-// chances); eval-only when no stats/sample, so computeProfile (which passes no
-// stats) and the engine stay unchanged.
+// formula and never drift. The glove/range/arm slots are stats-graded
+// (schema v9) — already carried on the grade map by the getCombinedGrades
+// overlay, with a direct-from-stats fallback for callers passing raw grades.
+// Speed/Base Running and Baseball IQ remain coach-graded.
 export function calcDefensiveScore(
   grades: GradeMap | null | undefined,
   stats?: PlayerStats | null
 ): number {
   const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
-  let score =
-    gloveOf(g) * 2.0 +
-    rangeOf(g) * 1.5 +
-    armStrengthOf(g) * 1.5 +
-    armAccuracyOf(g) * 1.5 +
+  const fielding = numOrNull(g.glove) ?? statFieldingGrade(stats) ?? 3;
+  const range = numOrNull(g.range) ?? statFieldingGrade(stats) ?? 3;
+  const arm = numOrNull(g.armStrength) ?? statArmGrade(stats) ?? 3;
+  const armAcc = numOrNull(g.armAccuracy) ?? statArmGrade(stats) ?? 3;
+  return (
+    fielding * 2.0 +
+    range * 1.5 +
+    arm * 1.5 +
+    armAcc * 1.5 +
     speedBaseOf(g) * 1.5 +
-    (g.baseballIQ ?? 3) * 2.0;
-  const q = calcFieldingStatsQuality(stats);
-  if (q == null) return score;
-  const lean = sampleLean(stats?.fTc, 24);
-  if (lean <= 0) return score;
-  score = (1 - lean) * score + lean * (q * DEFENSE_EVAL_MAX);
-  return score;
+    (g.baseballIQ ?? 3) * 2.0
+  );
 }
 
 // Active position list by team defenseSize. Drives the position chip
@@ -1867,7 +2145,8 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
 
   const combinedGrades = getCombinedGrades(
     evaluationEvents,
-    allPlayers || activePlayers
+    allPlayers || activePlayers,
+    { teamAge, games: (input.games as any) || [] }
   );
   const profiled = activePlayers.map((p) => ({
     ...p,
@@ -2005,7 +2284,10 @@ export function generateLineup(input: EngineInput): EngineResult {
   const targetDateStr =
     currentGame?.date || new Date().toISOString().split("T")[0];
 
-  const combinedGrades = getCombinedGrades(evaluationEvents, allPlayers || activePlayers);
+  const combinedGrades = getCombinedGrades(evaluationEvents, allPlayers || activePlayers, {
+    teamAge,
+    games,
+  });
 
   // D4 — pitcher pool. For 9U+ Kid Pitch we rank the staff by
   // `calcPitcherScore` (eval-driven), filter to those eligible to pitch
