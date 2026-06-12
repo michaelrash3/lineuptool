@@ -35,6 +35,7 @@
   --win: #16a34a;  --win-bg: #e7f7ee;
   --loss: #dc2626; --loss-bg: #fdeaea;
   --warn-fg: #c2660a; --warn-bg: #fbf0dd;
+  --info-fg: #1d4ed8; --info-bg: #dbeafe;
 
   /* Sharp geometry — no soft bubbles. */
   --radius: 4px;
@@ -122,6 +123,7 @@
   --win: #34d399;  --win-bg: #0f2a20;
   --loss: #f87171; --loss-bg: #2a1416;
   --warn-fg: #fbbf24; --warn-bg: #2a2008;
+  --info-fg: #7eb3f9; --info-bg: #122339;
 
   /* Glass surfaces read as dark translucency in dark mode. */
   --surface-glass-1: rgba(255, 255, 255, 0.04);

@@ -518,13 +518,15 @@ export const StatTile = ({ label, value, className = "" }: any) => (
   </div>
 );
 
+// Semantic-lane tokens (theme-aware); borders are a translucent mix of the
+// lane color so they tint correctly on both light and dark surfaces.
 const CHIP_VARIANTS: Record<string, { bg: string; color: string; border: string }> = {
   primary: { bg: "var(--team-primary)", color: "var(--team-tertiary)", border: "transparent" },
-  success: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  danger: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
-  warn: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  info: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  slate: { bg: "#f1f5f9", color: "#334155", border: "#e2e8f0" },
+  success: { bg: "var(--win-bg)", color: "var(--win)", border: "color-mix(in srgb, var(--win) 30%, transparent)" },
+  danger: { bg: "var(--loss-bg)", color: "var(--loss)", border: "color-mix(in srgb, var(--loss) 30%, transparent)" },
+  warn: { bg: "var(--warn-bg)", color: "var(--warn-fg)", border: "color-mix(in srgb, var(--warn-fg) 30%, transparent)" },
+  info: { bg: "var(--info-bg)", color: "var(--info-fg)", border: "color-mix(in srgb, var(--info-fg) 30%, transparent)" },
+  slate: { bg: "var(--surface-2)", color: "var(--ink-2)", border: "var(--line)" },
 };
 
 export const Chip = ({ variant = "slate", className = "", children, ...rest }: any) => {

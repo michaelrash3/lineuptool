@@ -1152,9 +1152,9 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }: any) => (
                   borderColor: "var(--team-primary)",
                 }
               : {
-                  backgroundColor: "rgba(255,255,255,0.7)",
-                  color: "#475569",
-                  borderColor: "#e2e8f0",
+                  backgroundColor: "var(--surface)",
+                  color: "var(--ink-2)",
+                  borderColor: "var(--line)",
                 }
           }
         >
@@ -1901,9 +1901,9 @@ export const EvaluationTab = memo(() => {
                                         borderColor: "var(--team-primary)",
                                       }
                                     : {
-                                        backgroundColor: "white",
-                                        color: "#475569",
-                                        borderColor: "#e2e8f0",
+                                        backgroundColor: "var(--surface)",
+                                        color: "var(--ink-2)",
+                                        borderColor: "var(--line)",
                                       }
                                 }
                               >
@@ -2282,7 +2282,7 @@ export const EvalTrendModal = memo(
                           y1={yPos(v)}
                           x2={ML + innerW}
                           y2={yPos(v)}
-                          stroke="#e2e8f0"
+                          stroke="var(--line)"
                           strokeWidth="1"
                           strokeDasharray={
                             i === 0 || i === yTicks.length - 1 ? "0" : "3,3"
@@ -2293,7 +2293,7 @@ export const EvalTrendModal = memo(
                           y={yPos(v) + 4}
                           textAnchor="end"
                           className="text-[11px]"
-                          fill="#64748b"
+                          fill="var(--ink-3)"
                           style={{
                             fontWeight: 700,
                             fontFamily: "ui-monospace, monospace",
@@ -2312,7 +2312,7 @@ export const EvalTrendModal = memo(
                           y={MT + innerH + 18}
                           textAnchor="middle"
                           className="text-[10px]"
-                          fill="#64748b"
+                          fill="var(--ink-3)"
                           style={{ fontWeight: 700 }}
                           transform={
                             evalCount > 4

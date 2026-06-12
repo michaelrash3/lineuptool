@@ -77,9 +77,9 @@ export const LineupGrid = memo(
                             boxShadow: "var(--shadow-md)",
                           }
                         : {
-                            backgroundColor: "rgba(255,255,255,0.7)",
-                            color: "#475569",
-                            borderColor: "#e2e8f0",
+                            backgroundColor: "var(--surface)",
+                            color: "var(--ink-2)",
+                            borderColor: "var(--line)",
                           }
                     }
                   >

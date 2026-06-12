@@ -55,9 +55,9 @@ export const GradeChipRow = memo(({ value, onChange, ariaLabel }: GradeChipRowPr
                   borderColor: "var(--team-primary)",
                 }
               : {
-                  backgroundColor: "rgba(255,255,255,0.7)",
-                  color: "#475569",
-                  borderColor: "#e2e8f0",
+                  backgroundColor: "var(--surface)",
+                  color: "var(--ink-2)",
+                  borderColor: "var(--line)",
                 }
           }
         >
@@ -193,9 +193,9 @@ export const EvalGradeCard = memo(
                             borderColor: "var(--team-primary)",
                           }
                         : {
-                            backgroundColor: "white",
-                            color: "#475569",
-                            borderColor: "#e2e8f0",
+                            backgroundColor: "var(--surface)",
+                            color: "var(--ink-2)",
+                            borderColor: "var(--line)",
                           }
                     }
                   >

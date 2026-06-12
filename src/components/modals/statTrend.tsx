@@ -418,7 +418,7 @@ export const StatTrendModal = memo(
                           y1={yPos(v)}
                           x2={ML + innerW}
                           y2={yPos(v)}
-                          stroke="#e2e8f0"
+                          stroke="var(--line)"
                           strokeWidth="1"
                           strokeDasharray={
                             i === 0 || i === tickCount ? "0" : "3,3"
@@ -429,7 +429,7 @@ export const StatTrendModal = memo(
                           y={yPos(v) + 4}
                           textAnchor="end"
                           className="text-[11px]"
-                          fill="#64748b"
+                          fill="var(--ink-3)"
                           style={{
                             fontWeight: 700,
                             fontFamily: "ui-monospace, monospace",
@@ -448,7 +448,7 @@ export const StatTrendModal = memo(
                           y={MT + innerH + 18}
                           textAnchor="middle"
                           className="text-[10px]"
-                          fill={s.isCurrent ? primaryColor : "#64748b"}
+                          fill={s.isCurrent ? primaryColor : "var(--ink-3)"}
                           style={{ fontWeight: s.isCurrent ? 900 : 700 }}
                         >
                           {s.season.replace(
@@ -462,7 +462,7 @@ export const StatTrendModal = memo(
                             y={MT + innerH + 32}
                             textAnchor="middle"
                             className="text-[9px]"
-                            fill="#94a3b8"
+                            fill="var(--ink-3)"
                             style={{ fontWeight: 700 }}
                           >
                             {s.ageGroup}
@@ -490,7 +490,7 @@ export const StatTrendModal = memo(
                           cx={xPos(i)}
                           cy={yPos(s.value)}
                           r={s.isCurrent ? 7 : 5}
-                          fill={s.isCurrent ? primaryColor : "#fff"}
+                          fill={s.isCurrent ? primaryColor : "var(--surface)"}
                           stroke={primaryColor}
                           strokeWidth="2.5"
                         />
@@ -499,7 +499,7 @@ export const StatTrendModal = memo(
                           y={yPos(s.value) - 14}
                           textAnchor="middle"
                           className="text-[11px] tabular-nums"
-                          fill="#0f172a"
+                          fill="var(--ink)"
                           style={{ fontWeight: 900 }}
                         >
                           {formatStatValue(statKey, s.value)}

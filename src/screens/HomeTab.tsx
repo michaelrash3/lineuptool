@@ -508,13 +508,15 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
 =========================================================================== */
 const InsightTile = memo(
   ({ icon: Icon, title, accent = "slate", onClick, ctaLabel, children }: any) => {
+    // Semantic-lane tokens flip with [data-theme] so the halos don't glare
+    // in dark mode.
     const ACCENT_STYLES = {
       primary: { halo: "var(--team-primary-15)", text: "var(--team-primary)" },
-      success: { halo: "#dcfce7", text: "#15803d" },
-      warn: { halo: "#fef3c7", text: "#b45309" },
-      danger: { halo: "#fee2e2", text: "#b91c1c" },
-      info: { halo: "#dbeafe", text: "#1d4ed8" },
-      slate: { halo: "#e2e8f0", text: "#475569" },
+      success: { halo: "var(--win-bg)", text: "var(--win)" },
+      warn: { halo: "var(--warn-bg)", text: "var(--warn-fg)" },
+      danger: { halo: "var(--loss-bg)", text: "var(--loss)" },
+      info: { halo: "var(--info-bg)", text: "var(--info-fg)" },
+      slate: { halo: "var(--surface-2)", text: "var(--ink-2)" },
     };
     const styles = (ACCENT_STYLES as any)[accent] || ACCENT_STYLES.slate;
     return (

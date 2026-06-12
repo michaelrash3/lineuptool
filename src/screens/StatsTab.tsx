@@ -158,7 +158,7 @@ const Sparkline = memo(({ values, w = 60, h = 16 }: any) => {
       <polyline
         points={pts}
         fill="none"
-        stroke={up ? "var(--team-primary)" : "#ef4444"}
+        stroke={up ? "var(--team-primary)" : "var(--loss)"}
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"

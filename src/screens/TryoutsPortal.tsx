@@ -80,13 +80,13 @@ const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
           className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
           style={{
             backgroundColor:
-              tone === "error" ? "#fef2f2" : "var(--team-primary-15)",
+              tone === "error" ? "var(--loss-bg)" : "var(--team-primary-15)",
           }}
         >
           <Icon
             className="w-6 h-6"
             style={{
-              color: tone === "error" ? "#b91c1c" : "var(--team-primary)",
+              color: tone === "error" ? "var(--loss)" : "var(--team-primary)",
             }}
           />
         </div>
@@ -561,9 +561,9 @@ export const TryoutsPortal = () => {
                               borderColor: "var(--team-primary)",
                             }
                           : {
-                              backgroundColor: "white",
-                              color: "#334155",
-                              borderColor: "#e2e8f0",
+                              backgroundColor: "var(--surface)",
+                              color: "var(--ink-2)",
+                              borderColor: "var(--line)",
                             }
                       }
                     >
