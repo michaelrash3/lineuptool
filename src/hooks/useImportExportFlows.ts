@@ -10,7 +10,7 @@ import {
   stripPitchingStatsForFormat,
 } from "../utils/helpers";
 import { getLocalDateString } from "../constants/ui";
-import type { ToastContextValue } from "../types";
+import type { ConfirmContextValue, ToastContextValue } from "../types";
 
 export const csvEscape = (val: unknown): string => {
   if (val == null) return "";
@@ -30,6 +30,7 @@ interface UseImportExportFlowsArgs {
   ) => void;
   activeTeamId: string;
   toast: ToastContextValue;
+  confirm: ConfirmContextValue["confirm"];
 }
 
 const fileText = (ev: ProgressEvent<FileReader>): string =>
@@ -40,6 +41,7 @@ export const useImportExportFlows = ({
   updateTeam,
   activeTeamId,
   toast,
+  confirm,
 }: UseImportExportFlowsArgs) => {
   const uploadScheduleCsv = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -680,11 +682,21 @@ export const useImportExportFlows = ({
   );
 
   const importBackup = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      // Capture the input + file before awaiting — React may recycle the
+      // synthetic event once the handler yields.
+      const input = e.target;
+      const file = input.files?.[0];
       if (!file) return;
-      if (!window.confirm("Replace this team's data with the backup file?")) {
-        e.target.value = "";
+      const ok = await confirm({
+        title: "Restore backup?",
+        message:
+          "Replaces this team's roster, schedule, and settings with the backup file. This cannot be undone.",
+        confirmLabel: "Restore",
+        danger: true,
+      });
+      if (!ok) {
+        input.value = "";
         return;
       }
       const reader = new FileReader();
@@ -705,9 +717,9 @@ export const useImportExportFlows = ({
         }
       };
       reader.readAsText(file);
-      e.target.value = "";
+      input.value = "";
     },
-    [updateTeam, toast]
+    [updateTeam, toast, confirm]
   );
 
 

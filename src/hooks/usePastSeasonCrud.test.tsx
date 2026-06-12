@@ -1,12 +1,14 @@
 import { renderHook, act } from "@testing-library/react";
 import { usePastSeasonCrud } from "./usePastSeasonCrud";
+import { makeConfirm } from "../test-utils";
 
 const setup = (players: any[]) => {
   const updateTeam = jest.fn();
+  const confirm = makeConfirm();
   const { result } = renderHook(() =>
-    usePastSeasonCrud({ teamData: { players }, updateTeam })
+    usePastSeasonCrud({ teamData: { players }, updateTeam, confirm })
   );
-  return { result, updateTeam };
+  return { result, updateTeam, confirm };
 };
 
 describe("usePastSeasonCrud", () => {
@@ -29,18 +31,16 @@ describe("usePastSeasonCrud", () => {
     expect(e.stats).toMatchObject({ avg: 0.4, hr: 1 });
   });
 
-  it("removePastSeason filters the entry when confirmed", () => {
-    const { result, updateTeam } = setup([
+  it("removePastSeason filters the entry when confirmed", async () => {
+    const { result, updateTeam, confirm } = setup([
       { id: "p1", pastSeasons: [{ id: "ps1" }, { id: "ps2" }] },
     ]);
-    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
-    act(() => result.current.removePastSeason("p1", "ps1"));
+    await act(async () => result.current.removePastSeason("p1", "ps1"));
     expect(updateTeam.mock.calls[0][0].players[0].pastSeasons.map((e: any) => e.id)).toEqual(["ps2"]);
-    confirmSpy.mockReturnValue(false);
+    confirm.mockResolvedValueOnce(false);
     updateTeam.mockClear();
-    act(() => result.current.removePastSeason("p1", "ps2"));
+    await act(async () => result.current.removePastSeason("p1", "ps2"));
     expect(updateTeam).not.toHaveBeenCalled();
-    confirmSpy.mockRestore();
   });
 
   it("bulkAddPastSeasons adds one entry per assignment to each player", () => {

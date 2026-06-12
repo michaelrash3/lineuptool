@@ -22,6 +22,12 @@ export const makeToast = (
   ...overrides,
 });
 
+// Mock for the injected `confirm` dependency (see ConfirmProvider /
+// useConfirm). Defaults to accepting; flip per-call with
+// `confirm.mockResolvedValueOnce(false)`.
+export const makeConfirm = (accept = true): jest.Mock =>
+  jest.fn().mockResolvedValue(accept);
+
 export const makeTeam = (
   overrides: Partial<TeamContextValue> = {}
 ): TeamContextValue =>

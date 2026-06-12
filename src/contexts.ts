@@ -7,6 +7,7 @@ import type {
   ToastContextValue,
   TeamContextValue,
   UIContextValue,
+  ConfirmContextValue,
 } from "./types";
 
 export const ToastContext = createContext<ToastContextValue>({
@@ -21,6 +22,23 @@ export const useTeam = (): TeamContextValue => {
   if (!ctx) throw new Error("useTeam must be used inside <TeamProvider>");
   return ctx;
 };
+
+// Defaults fall back to the native dialogs so a tree rendered without
+// <ConfirmProvider> (isolated tests, the public portal) keeps working.
+export const ConfirmContext = createContext<ConfirmContextValue>({
+  confirm: async (opts) =>
+    typeof window !== "undefined"
+      ? window.confirm(
+          [opts.title, opts.message].filter(Boolean).join("\n\n")
+        )
+      : false,
+  promptText: async (opts) =>
+    typeof window !== "undefined"
+      ? window.prompt(opts.title, opts.defaultValue || "")
+      : null,
+});
+export const useConfirm = (): ConfirmContextValue =>
+  useContext(ConfirmContext);
 
 export const UIContext = createContext<UIContextValue | null>(null);
 export const useUI = (): UIContextValue => {

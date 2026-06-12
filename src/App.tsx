@@ -41,7 +41,9 @@ import {
   useToast,
   useTeam,
   useUI,
+  useConfirm,
 } from "./contexts";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 import { SharedModals, downscaleImageToDataURL } from "./components/shared";
 import {
   OnboardingTutorial,
@@ -388,6 +390,7 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
 ============================================================================ */
 const TeamProvider = ({ children }: any) => {
   const toast = useToast();
+  const { confirm, promptText } = useConfirm();
 
   // Auth + team-list state
   const [user, setUser] = useState<any>(null);
@@ -1319,11 +1322,11 @@ const TeamProvider = ({ children }: any) => {
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
-    usePlayerCrud({ teamData, updateTeam, toast });
+    usePlayerCrud({ teamData, updateTeam, toast, confirm });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
   const { addPastSeason, updatePastSeason, removePastSeason, bulkAddPastSeasons } =
-    usePastSeasonCrud({ teamData, updateTeam });
+    usePastSeasonCrud({ teamData, updateTeam, confirm });
 
   // ----- Coach actions -----
   const addCoach = useCallback(
@@ -1348,7 +1351,7 @@ const TeamProvider = ({ children }: any) => {
 
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
-    useGameCrud({ teamData, updateTeam, toast });
+    useGameCrud({ teamData, updateTeam, toast, confirm });
 
   // ----- Lineup actions ----- (extracted to src/hooks/useLineupActions.ts)
   const {
@@ -1461,7 +1464,7 @@ const TeamProvider = ({ children }: any) => {
     [user, teams, toast]
   );
 
-  const advanceSeason = useCallback((opts: any = {}) => {
+  const advanceSeason = useCallback(async (opts: any = {}) => {
     const { skipConfirm = false, tryoutsToPromote = [] } = opts;
     const computed = computeNextSeason(teamData.currentSeason);
     if (!computed) {
@@ -1536,7 +1539,6 @@ const TeamProvider = ({ children }: any) => {
 
     // Confirmation
     const confirmMsg =
-      `Archive ${archivedSeason} (${archivedAge}, ${archivedFormat})?\n\n` +
       `• ${playerCount} player${
         playerCount === 1 ? "" : "s"
       } will have stats archived to history\n` +
@@ -1573,11 +1575,19 @@ const TeamProvider = ({ children }: any) => {
       `This cannot be undone.`;
 
     // The AdvanceSeasonModal already walked the head through every
-    // marking and showed a full summary, so the window.confirm here is
-    // a duplicate gate when the call came from the wizard. Direct
+    // marking and showed a full summary, so the confirm here is a
+    // duplicate gate when the call came from the wizard. Direct
     // callers (anywhere besides the modal) still see the confirm
     // dialog.
-    if (!skipConfirm && !window.confirm(confirmMsg)) return;
+    if (!skipConfirm) {
+      const ok = await confirm({
+        title: `Archive ${archivedSeason}?`,
+        message: `${archivedAge}, ${archivedFormat}\n\n${confirmMsg}`,
+        confirmLabel: "Advance Season",
+        danger: true,
+      });
+      if (!ok) return;
+    }
 
     const nowIso = new Date().toISOString();
 
@@ -1681,7 +1691,7 @@ const TeamProvider = ({ children }: any) => {
             } promoted to roster.`
           : ""),
     });
-  }, [teamData, updateTeam, toast]);
+  }, [teamData, updateTeam, toast, confirm]);
 
   const uploadLogo = useCallback(
     (e: any) => {
@@ -1743,12 +1753,24 @@ const TeamProvider = ({ children }: any) => {
     setPlayerStatus,
     setPlayerReturning,
     importBackup,
-  } = useImportExportFlows({ teamData, updateTeam, activeTeamId, toast });
+  } = useImportExportFlows({
+    teamData,
+    updateTeam,
+    activeTeamId,
+    toast,
+    confirm,
+  });
 
   const deleteTeamCmd = useCallback(async () => {
     if (!user || teams.length <= 1) return;
-    if (!window.confirm("Permanently delete this team? This cannot be undone."))
-      return;
+    const ok = await confirm({
+      title: "Permanently delete this team?",
+      message:
+        "Roster, schedule, stats, and evaluations are all deleted. This cannot be undone.",
+      confirmLabel: "Delete Team",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId)
@@ -1772,11 +1794,17 @@ const TeamProvider = ({ children }: any) => {
     } catch (e: any) {
       toast.push({ kind: "error", title: "Delete failed", message: e.message });
     }
-  }, [user, teams, activeTeamId, toast]);
+  }, [user, teams, activeTeamId, toast, confirm]);
 
   const leaveTeamCmd = useCallback(async () => {
     if (!user || teams.length <= 1) return;
-    if (!window.confirm("Leave this team?")) return;
+    const ok = await confirm({
+      title: "Leave this team?",
+      message: "A coach can re-invite you with a join code later.",
+      confirmLabel: "Leave Team",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const teamRef = doc(
         db,
@@ -1814,7 +1842,7 @@ const TeamProvider = ({ children }: any) => {
         message: e.message,
       });
     }
-  }, [user, teams, activeTeamId, toast]);
+  }, [user, teams, activeTeamId, toast, confirm]);
 
   // ----- Evaluation CRUD ----- (extracted to src/hooks/useEvaluationCrud.ts)
   const {
@@ -2160,7 +2188,18 @@ const TeamProvider = ({ children }: any) => {
         window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
       };
       const savedEmail = window.localStorage.getItem("emailForSignIn");
-      const email = savedEmail || window.prompt("Enter your email to complete sign-in") || "";
+      const email =
+        savedEmail ||
+        (await promptText({
+          title: "Complete sign-in",
+          message:
+            "Enter the email address this sign-in link was sent to.",
+          label: "Email",
+          inputType: "email",
+          placeholder: "coach@example.com",
+          confirmLabel: "Sign In",
+        })) ||
+        "";
       if (!email) return;
       try {
         await signInWithEmailLink(auth, email, window.location.href);
@@ -2182,7 +2221,9 @@ const TeamProvider = ({ children }: any) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // promptText is referentially stable (provider useCallback with no deps),
+    // so this still runs exactly once on mount.
+  }, [promptText]);
 
   // Auto-redeem ?join= URL params once auth + team list are ready.
   // `?join=<code>` is the persistent 6-character team-code flow.
@@ -2964,6 +3005,7 @@ const MainShell = () => {
   // Client-side game-day reminders while the app is open (opt-in via Settings).
   useScheduleReminders();
 
+  const { promptText } = useConfirm();
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -3204,7 +3246,15 @@ const MainShell = () => {
         genError={genError}
         onEmailSignIn={async () => {
           if (typeof window === "undefined") return;
-          const email = window.prompt("Enter your email for a sign-in link") || "";
+          const email =
+            (await promptText({
+              title: "Sign in with email",
+              message: "We'll email you a one-tap sign-in link.",
+              label: "Email",
+              inputType: "email",
+              placeholder: "coach@example.com",
+              confirmLabel: "Send Link",
+            })) || "";
           if (!email) return;
           try {
             const continueUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
@@ -3381,11 +3431,13 @@ const App = () => {
   }
   return (
     <ToastProvider>
-      <TeamProvider>
-        <UIProvider>
-          <MainShell />
-        </UIProvider>
-      </TeamProvider>
+      <ConfirmProvider>
+        <TeamProvider>
+          <UIProvider>
+            <MainShell />
+          </UIProvider>
+        </TeamProvider>
+      </ConfirmProvider>
     </ToastProvider>
   );
 };

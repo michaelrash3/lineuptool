@@ -1,15 +1,16 @@
 import { renderHook, act } from "@testing-library/react";
 import { usePlayerCrud } from "./usePlayerCrud";
-import { makeToast } from "../test-utils";
+import { makeConfirm, makeToast } from "../test-utils";
 
 const setup = (teamOver: any = {}) => {
   const updateTeam = jest.fn();
   const toast = makeToast();
+  const confirm = makeConfirm();
   const teamData = { players: [], games: [], evaluationEvents: [], ...teamOver };
   const { result } = renderHook(() =>
-    usePlayerCrud({ teamData, updateTeam, toast })
+    usePlayerCrud({ teamData, updateTeam, toast, confirm })
   );
-  return { result, updateTeam, toast };
+  return { result, updateTeam, toast, confirm };
 };
 
 describe("usePlayerCrud", () => {
@@ -54,18 +55,16 @@ describe("usePlayerCrud", () => {
       evaluationEvents: [{ id: "e1", grades: { p1: { hit: 3 }, p2: { hit: 4 } } }],
     };
 
-    it("does nothing when the confirm is declined", () => {
-      const { result, updateTeam } = setup(team);
-      const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
-      act(() => result.current.removePlayer("p1"));
+    it("does nothing when the confirm is declined", async () => {
+      const { result, updateTeam, confirm } = setup(team);
+      confirm.mockResolvedValueOnce(false);
+      await act(async () => result.current.removePlayer("p1"));
       expect(updateTeam).not.toHaveBeenCalled();
-      confirmSpy.mockRestore();
     });
 
-    it("strips the player from roster, lineups, attendance, pitch counts, and evals", () => {
+    it("strips the player from roster, lineups, attendance, pitch counts, and evals", async () => {
       const { result, updateTeam, toast } = setup(team);
-      const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
-      act(() => result.current.removePlayer("p1"));
+      await act(async () => result.current.removePlayer("p1"));
       const patch = updateTeam.mock.calls[0][0];
       expect(patch.players.map((p: any) => p.id)).toEqual(["p2"]);
       expect(patch.games[0].lineup[0].P).toBeNull();
@@ -76,7 +75,6 @@ describe("usePlayerCrud", () => {
       // Undo restores all snapshots.
       const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
       expect(undo.label).toBe("Undo");
-      confirmSpy.mockRestore();
     });
   });
 });

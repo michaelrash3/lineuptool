@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { blankStats } from "../utils/helpers";
-import type { ToastContextValue } from "../types";
+import type { ConfirmContextValue, ToastContextValue } from "../types";
 
 // Roster/player CRUD extracted from App.tsx's TeamProvider. Pure persistence
 // (add/update/remove a player) with no engine or UI-bridge coupling — reads
@@ -9,12 +9,14 @@ interface UsePlayerCrudArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
+  confirm: ConfirmContextValue["confirm"];
 }
 
 export const usePlayerCrud = ({
   teamData,
   updateTeam,
   toast,
+  confirm,
 }: UsePlayerCrudArgs) => {
   const addPlayer = useCallback(
     (form: any) => {
@@ -63,8 +65,15 @@ export const usePlayerCrud = ({
   );
 
   const removePlayer = useCallback(
-    (id: any) => {
-      if (!window.confirm("Remove this player from the roster?")) return;
+    async (id: any) => {
+      const ok = await confirm({
+        title: "Remove player?",
+        message:
+          "Removes them from the roster, lineups, attendance, and eval grades. You can undo right after.",
+        confirmLabel: "Remove",
+        danger: true,
+      });
+      if (!ok) return;
 
       // Snapshot the pre-delete shapes for Undo. A mistap here cascades
       // through games / batting orders / attendance / pitch counts / eval
@@ -148,6 +157,7 @@ export const usePlayerCrud = ({
       teamData.evaluationEvents,
       updateTeam,
       toast,
+      confirm,
     ]
   );
 
