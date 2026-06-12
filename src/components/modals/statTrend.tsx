@@ -16,7 +16,7 @@ import {
 import { AGE_TIERS } from "../../constants/ui";
 import { getActivePositionList } from "../../lineupEngine";
 import { useTeam, useUI, useToast } from "../../contexts";
-import { PlayerAvatar, cropImageTo256DataURL } from "../shared";
+import { A11yDialog, PlayerAvatar, cropImageTo256DataURL } from "../shared";
 
 export const PROFILE_SECTIONS = [
   { id: "general", label: "General" },
@@ -336,9 +336,10 @@ export const StatTrendModal = memo(
           onClose();
         }}
       >
-        <div
+        <A11yDialog
+          label="Stat trend"
+          onClose={onClose}
           className="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-          onClick={(e) => e.stopPropagation()}
         >
           <div
             className="p-1.5"
@@ -545,7 +546,7 @@ export const StatTrendModal = memo(
               </>
             )}
           </div>
-        </div>
+        </A11yDialog>
       </div>
     );
   }

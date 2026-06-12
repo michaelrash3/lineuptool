@@ -11,7 +11,7 @@ import {
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { RecordBadge } from "../components/shared";
+import { A11yDialog, RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { isoInstantToLocalTime } from "../utils/icsParse";
@@ -1840,9 +1840,10 @@ export const ScheduleTab = memo(() => {
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setSaveTemplateOpen(false)}
         >
-          <div
+          <A11yDialog
+            label="Save lineup template"
+            onClose={() => setSaveTemplateOpen(false)}
             className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6">
@@ -1895,7 +1896,7 @@ export const ScheduleTab = memo(() => {
                 </button>
               </div>
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
 
@@ -1909,11 +1910,12 @@ export const ScheduleTab = memo(() => {
             className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
             onClick={() => setPendingDeleteTemplateId(null)}
           >
-            <div
+            <A11yDialog
+              label="Delete template?"
+              onClose={() => setPendingDeleteTemplateId(null)}
               className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-1.5 bg-loss-bg0" />
+              <div className="p-1.5" style={{ backgroundColor: "var(--loss)" }} />
               <div className="p-5 sm:p-6">
                 <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                   Delete Template?
@@ -1942,7 +1944,7 @@ export const ScheduleTab = memo(() => {
                   </button>
                 </div>
               </div>
-            </div>
+            </A11yDialog>
           </div>
         );
       })()}

@@ -3,7 +3,7 @@ import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
 import { useTeam, useUI, useToast } from "../contexts";
-import { RecordBadge, Eyebrow } from "./shared";
+import { A11yDialog, RecordBadge, Eyebrow } from "./shared";
 import { useTheme } from "../hooks/useTheme";
 
 // Light/dark toggle — sun in dark mode (tap to go light), moon in light mode.
@@ -443,12 +443,10 @@ export const AppHeader = memo(() => {
           className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
           onClick={() => !signingOut && setSignOutOpen(false)}
         >
-          <div
-            role="dialog"
-            aria-modal="true"
+          <A11yDialog
             aria-labelledby="sign-out-title"
+            onClose={() => !signingOut && setSignOutOpen(false)}
             className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div
               className="h-1.5 w-full"
@@ -491,7 +489,7 @@ export const AppHeader = memo(() => {
                 </button>
               </div>
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
     </header>

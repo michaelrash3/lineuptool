@@ -146,6 +146,36 @@ body {
 }
 
 /* ============================================================================
+   ACCESSIBILITY BASELINE
+   ============================================================================ */
+
+/* Keyboard focus ring. Many controls strip the default outline
+   (outline-none) for mouse users; :focus-visible only fires on keyboard
+   navigation, so this restores a visible ring app-wide without affecting
+   tap/click interactions. */
+:focus-visible {
+  outline: 2px solid var(--team-primary);
+  outline-offset: 2px;
+}
+
+/* Honor the OS-level reduced-motion preference: collapse decorative
+   transitions/animations (hover lifts, theme fades) to near-instant.
+   Spinners still rotate — a frozen spinner reads as a hang. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-spin {
+    animation: spin 1s linear infinite !important;
+  }
+}
+
+/* ============================================================================
    SEMANTIC TYPE ROLES
    ============================================================================ */
 

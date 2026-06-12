@@ -8,6 +8,12 @@ const FOCUSABLE =
   'input:not([disabled]):not([type="hidden"]), select:not([disabled]), ' +
   '[tabindex]:not([tabindex="-1"])';
 
+// Open-dialog stack: when dialogs nest (stat trend over player profile,
+// confirm over settings), only the top-most one may handle Escape and trap
+// Tab — otherwise the bottom dialog's document-level listener fires first
+// and closes the wrong layer.
+const openDialogs: symbol[] = [];
+
 /**
  * Baseline dialog accessibility for the app's hand-rolled modals:
  *  - Escape closes (capture phase, so it wins over page-level shortcuts)
@@ -36,6 +42,10 @@ export function useModalA11y(
     const node = ref.current;
     if (!node) return;
 
+    const token = Symbol("dialog");
+    openDialogs.push(token);
+    const isTop = () => openDialogs[openDialogs.length - 1] === token;
+
     const previouslyFocused = document.activeElement as HTMLElement | null;
     if (!node.contains(document.activeElement)) {
       const initial =
@@ -46,6 +56,7 @@ export function useModalA11y(
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (!isTop()) return;
       if (e.key === "Escape") {
         e.stopPropagation();
         onCloseRef.current?.();
@@ -76,6 +87,8 @@ export function useModalA11y(
 
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
+      const i = openDialogs.indexOf(token);
+      if (i !== -1) openDialogs.splice(i, 1);
       document.removeEventListener("keydown", onKeyDown, true);
       previouslyFocused?.focus?.();
     };

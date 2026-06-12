@@ -4,6 +4,7 @@
 import React, { memo, useMemo } from "react";
 import { formatStat } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
+import { useModalA11y } from "../hooks/useModalA11y";
 
 export const LeaderboardCard = memo(
   ({
@@ -594,6 +595,36 @@ export const Button = ({
   );
 };
 
+// Dialog-panel wrapper for the app's hand-rolled modal shells (the ones
+// with bespoke layouts that don't fit <Modal>). Renders the panel div with
+// dialog semantics + useModalA11y behaviors; the caller keeps its own scrim
+// and layout classes. `label` feeds aria-label; pass onClose to enable
+// Escape (omit it for non-dismissible flows like WelcomeChooser).
+export const A11yDialog = ({
+  onClose,
+  label,
+  className = "",
+  children,
+  ...rest
+}: any) => {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  useModalA11y(ref, { onClose });
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      className={`outline-none ${className}`}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+};
+
 // Shared form input recipe — apply via className on bare <input>/<select>/
 // <textarea>. The focus ring color is wired to the team primary via inline
 // style so the focus highlight feels branded instead of using Tailwind's
@@ -621,17 +652,14 @@ export const Modal = ({
   children,
   footer,
 }: any) => {
-  React.useEffect(() => {
-    if (!open || !closeOnEscape || !onClose) return undefined;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, closeOnEscape, onClose]);
+  const dialogRef = React.useRef<HTMLDivElement | null>(null);
+  const titleId = React.useId();
+  // Escape-close, focus trap, and focus restore (stack-aware for nested
+  // dialogs) — see useModalA11y.
+  useModalA11y(dialogRef, {
+    onClose: closeOnEscape && onClose ? onClose : undefined,
+    enabled: !!open,
+  });
 
   if (!open) return null;
 
@@ -644,8 +672,13 @@ export const Modal = ({
       onClick={closeOnBackdrop && onClose ? onClose : undefined}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden`}
+        className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden outline-none`}
       >
         {accent && (
           <div
@@ -659,7 +692,9 @@ export const Modal = ({
               <div className="min-w-0 flex-1">
                 {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
                 {title && (
-                  <h3 className="t-card-title mt-1.5 break-words">{title}</h3>
+                  <h3 id={titleId} className="t-card-title mt-1.5 break-words">
+                    {title}
+                  </h3>
                 )}
               </div>
               {onClose && (
@@ -693,7 +728,11 @@ export const SharedModals = memo(() => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line">
+      <A11yDialog
+        label={modal.title}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line"
+      >
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: team.primaryColor }}
@@ -727,7 +766,7 @@ export const SharedModals = memo(() => {
             </button>
           </div>
         </div>
-      </div>
+      </A11yDialog>
     </div>
   );
 });

@@ -9,6 +9,7 @@ import {
 import { shareLineupCard } from "../lineup/lineupCard";
 import { applySwap, getPlayerAt, isCatcherBlocked } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
+import { A11yDialog } from "../components/shared";
 import { ScoreEditor } from "./ScheduleTab";
 
 export const InGameView = memo(() => {
@@ -847,9 +848,10 @@ export const InGameView = memo(() => {
           className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-sm"
           onClick={() => setShowEndGameScore(false)}
         >
-          <div
+          <A11yDialog
+            label="End game"
+            onClose={() => setShowEndGameScore(false)}
             className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
@@ -887,7 +889,7 @@ export const InGameView = memo(() => {
               }}
               onCancel={() => setShowEndGameScore(false)}
             />
-          </div>
+          </A11yDialog>
         </div>
       )}
 
@@ -897,9 +899,10 @@ export const InGameView = memo(() => {
           className="fixed inset-0 z-[95] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm"
           onClick={() => setShowRemoveModal(false)}
         >
-          <div
+          <A11yDialog
+            label="Remove a player"
+            onClose={() => setShowRemoveModal(false)}
             className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6 border-b border-line">
@@ -1018,7 +1021,7 @@ export const InGameView = memo(() => {
                 </div>
               )}
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
     </div>

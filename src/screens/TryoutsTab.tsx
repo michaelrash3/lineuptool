@@ -12,6 +12,7 @@ import {
 } from "../constants/ui";
 import { sendGmailMessage, buildMailtoUrl } from "../integrations/gmailSend";
 import { calculateBaseballAge } from "../utils/helpers";
+import { A11yDialog } from "../components/shared";
 import { reportError } from "../utils/errorReporter";
 import { auth } from "../firebase";
 
@@ -842,9 +843,10 @@ export const TryoutsTab = memo(() => {
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setEndTryoutOpen(false)}
         >
-          <div
+          <A11yDialog
+            label="End tryout — clear no-shows?"
+            onClose={() => setEndTryoutOpen(false)}
             className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5 bg-rose-500" />
             <div className="p-5 sm:p-6">
@@ -889,7 +891,7 @@ export const TryoutsTab = memo(() => {
                 </button>
               </div>
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
     </div>

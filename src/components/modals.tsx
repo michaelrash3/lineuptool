@@ -15,7 +15,7 @@ import {
 import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { PlayerAvatar } from "./shared";
+import { A11yDialog, PlayerAvatar } from "./shared";
 import {
   PROFILE_SECTIONS,
   STATS_TAB_KEYS,
@@ -110,7 +110,11 @@ export const PastSeasonImportModal = memo(() => {
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm">
-      <div className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col">
+      <A11yDialog
+        label="Import past season stats"
+        onClose={close}
+        className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
+      >
         <div
           className="p-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -258,7 +262,7 @@ export const PastSeasonImportModal = memo(() => {
             </button>
           </div>
         </div>
-      </div>
+      </A11yDialog>
     </div>
   );
 });
@@ -652,8 +656,9 @@ export const PlayerProfileModal = memo(() => {
       className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm overflow-y-auto"
       onClick={close}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
+      <A11yDialog
+        label="Player profile"
+        onClose={close}
         className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
       >
         <div
@@ -1684,7 +1689,7 @@ export const PlayerProfileModal = memo(() => {
             </button>
           </div>
         </div>
-      </div>
+      </A11yDialog>
       {trendStatKey && (
         <StatTrendModal
           statKey={trendStatKey}
@@ -1737,8 +1742,9 @@ export const AddPlayerModal = memo(() => {
       className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
       onClick={close}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
+      <A11yDialog
+        label="Add player"
+        onClose={close}
         className="bg-surface rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-line"
       >
         <div
@@ -1833,7 +1839,7 @@ export const AddPlayerModal = memo(() => {
             </button>
           </div>
         </form>
-      </div>
+      </A11yDialog>
     </div>
   );
 });
