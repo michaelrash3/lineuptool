@@ -60,6 +60,14 @@ export default defineConfig({
             id.includes("/scheduler/")
           )
             return "react-vendor";
+          if (
+            id.includes("/recharts/") ||
+            id.includes("/victory-vendor/") ||
+            id.includes("/d3-") ||
+            id.includes("/recharts-scale/")
+          )
+            return "charts";
+          if (id.includes("/framer-motion/")) return "motion";
           return undefined;
         },
       },

@@ -11,3 +11,18 @@ import { vi } from "vitest";
 // describe/it/expect/jest.* types the suite uses), and vi only implements the
 // subset we actually call — so a structural assignment would fail the typecheck.
 (globalThis as { jest: unknown }).jest = vi;
+
+// jsdom has no matchMedia. framer-motion's `MotionConfig reducedMotion="user"`
+// and src/lib/celebrate.ts both query prefers-reduced-motion through it.
+if (!window.matchMedia) {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  })) as typeof window.matchMedia;
+}
