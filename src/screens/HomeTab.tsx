@@ -622,13 +622,14 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
 });
 
 /* ===========================================================================
-   RecentMovementTile — OPS movement since the previous stat update for every
-   kid it can be computed for. Two sources, per player: the statsHistory
-   snapshot a CSV import writes, or (when no snapshot exists — coaches who
-   import stats per game) a before/after derivation of their game lines via
-   latestGameLineMovement. Shows every mover, risers first.
+   RecentMovementTile — OPS movement since the previous stat update. Two
+   sources, per player: the statsHistory snapshot a CSV import writes, or
+   (when no snapshot exists — coaches who import stats per game) a
+   before/after derivation of their game lines via latestGameLineMovement.
+   With per-game imports everyone's season line moves every game, so the
+   tile keeps only the headline: the 2 biggest risers and 2 biggest fallers.
 =========================================================================== */
-const RECENT_MOVEMENT_MAX_ROWS = 6;
+const RECENT_MOVEMENT_PER_DIRECTION = 2;
 
 const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
   const movers = useMemo(() => {
@@ -669,8 +670,12 @@ const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
   }
 
   const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
-  const shown = movers.slice(0, RECENT_MOVEMENT_MAX_ROWS);
-  const overflow = movers.length - shown.length;
+  // movers is sorted by delta desc, so the biggest jumps lead and the
+  // biggest drops close the list.
+  const shown = [
+    ...movers.filter((m) => m.delta > 0).slice(0, RECENT_MOVEMENT_PER_DIRECTION),
+    ...movers.filter((m) => m.delta < 0).slice(-RECENT_MOVEMENT_PER_DIRECTION),
+  ];
 
   return (
     <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
@@ -702,11 +707,6 @@ const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
             </span>
           </button>
         ))}
-        {overflow > 0 && (
-          <p className="text-[10px] font-bold text-ink-3 px-1">
-            +{overflow} more moved
-          </p>
-        )}
       </div>
     </InsightTile>
   );

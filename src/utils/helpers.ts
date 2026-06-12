@@ -1281,6 +1281,24 @@ export const latestGameLineMovement = (
   return { prior, current, date: latest.date, opponent: latest.opponent };
 };
 
+// A player's season line as it stood after each imported game, chronological:
+// entry i aggregates their first i+1 game lines. The per-game-import
+// equivalent of the statsHistory snapshot trail — powers the profile's
+// Recent Movement sparklines for coaches who never upload a season CSV.
+export const seasonSeriesFromGameLines = (
+  games:
+    | Array<{ date?: string; playerStats?: Record<string, any> }>
+    | null
+    | undefined,
+  playerId: string
+): Array<Record<string, number>> => {
+  const lines = (games || [])
+    .filter((g) => g?.playerStats?.[playerId])
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")))
+    .map((g: any) => g.playerStats[playerId]);
+  return lines.map((_, i) => aggregateGameLines(lines.slice(0, i + 1)));
+};
+
 // The last `n` per-game stat lines for a player, newest game first. Powers the
 // Stats tab's Recent Form (hot/cold) view.
 export const recentGameLines = (

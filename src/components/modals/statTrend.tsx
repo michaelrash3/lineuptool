@@ -12,6 +12,7 @@ import {
   lineupSlotMatchesPlayer,
   isGameFinalized,
   summarizePitchingWorkload,
+  seasonSeriesFromGameLines,
 } from "../../utils/helpers";
 import { AGE_TIERS } from "../../constants/ui";
 import { getActivePositionList } from "../../lineupEngine";
@@ -617,24 +618,34 @@ const Sparkline = memo(({ values }: any) => {
   );
 });
 
-export const RecentMovementPanel = memo(({ player }: any) => {
+export const RecentMovementPanel = memo(({ player, games }: any) => {
   const history = Array.isArray(player.statsHistory) ? player.statsHistory : [];
-  if (history.length === 0) {
+  // Series = past snapshots + live stats. Coaches who import stats per game
+  // have no snapshots, so fall back to the cumulative season line after each
+  // imported game — same trajectory, derived from the game lines themselves.
+  let series: Array<Record<string, any>>;
+  let unitLabel = "updates";
+  if (history.length > 0) {
+    series = [...history.map((h: any) => h.stats || {}), player.stats || {}];
+  } else {
+    series = seasonSeriesFromGameLines(games, player.id);
+    unitLabel = "games";
+  }
+  if (series.length < 2) {
     return (
       <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
         <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
           <Icons.Forward className="w-4 h-4" /> Recent Movement
         </h4>
         <p className="text-[11px] text-ink-3 font-medium italic">
-          No trend data yet — upload another CSV to start tracking.
+          No trend data yet — import stats (season CSV or per game) to start
+          tracking.
         </p>
       </div>
     );
   }
-  // Series = past snapshots + live stats. Sparkline uses the last
-  // WINDOW+1 values so it shows the full trajectory the delta covers.
-  const liveStats = player.stats || {};
-  const series = [...history.map((h: any) => h.stats || {}), liveStats];
+  // Sparkline uses the last WINDOW+1 values so it shows the full trajectory
+  // the delta covers.
   const windowed = series.slice(-Math.min(RECENT_MOVEMENT_WINDOW + 1, series.length));
 
   return (
@@ -642,7 +653,7 @@ export const RecentMovementPanel = memo(({ player }: any) => {
       <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
         <Icons.Forward className="w-4 h-4" /> Recent Movement
         <span className="ml-auto text-[9px] font-bold text-ink-3 normal-case tracking-normal">
-          Last {Math.min(RECENT_MOVEMENT_WINDOW, series.length - 1)} updates
+          Last {Math.min(RECENT_MOVEMENT_WINDOW, series.length - 1)} {unitLabel}
         </span>
       </h4>
       <div className="grid grid-cols-2 gap-2.5">
@@ -673,7 +684,7 @@ export const RecentMovementPanel = memo(({ player }: any) => {
               <Sparkline values={values} />
               <span
                 className={`text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded border ${deltaTone}`}
-                title={`Net change over the last ${values.length - 1} updates`}
+                title={`Net change over the last ${values.length - 1} ${unitLabel}`}
               >
                 {delta > 0 ? "↑" : delta < 0 ? "↓" : "—"}
                 {fmtTrendDelta(delta, decimals)}
