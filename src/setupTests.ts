@@ -12,6 +12,17 @@ import { vi } from "vitest";
 // subset we actually call — so a structural assignment would fail the typecheck.
 (globalThis as { jest: unknown }).jest = vi;
 
+// jsdom has no ResizeObserver. recharts' ResponsiveContainer observes its
+// wrapper to size the chart (it stays 0x0 in tests — aria assertions live on
+// the ChartFrame wrapper div instead of the SVG).
+if (!("ResizeObserver" in globalThis)) {
+  (globalThis as { ResizeObserver: unknown }).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // jsdom has no matchMedia. framer-motion's `MotionConfig reducedMotion="user"`
 // and src/lib/celebrate.ts both query prefers-reduced-motion through it.
 if (!window.matchMedia) {

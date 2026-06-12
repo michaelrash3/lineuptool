@@ -1,10 +1,32 @@
 import React from "react";
+import {
+  BarChart,
+  Bar,
+  ComposedChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { formatCurrency } from "../utils/helpers";
 import type { CashflowMonth, YearComparisonRow } from "../utils/helpers";
+import {
+  ChartFrame,
+  ChartTooltip,
+  FadeGradient,
+  useChartId,
+} from "./charts/primitives";
+import { Sparkline } from "./charts/Sparkline";
 
-// Dependency-free SVG money visuals for the Finances tab, built on the same
-// design tokens as the rest of the app (team gradient hero like HomeTab's
-// scoreboard, win/loss colors, t-* typography). No chart library on purpose.
+// Money visuals for the Finances tab, built on recharts and the same design
+// tokens as the rest of the app (team gradient hero like HomeTab's
+// scoreboard, win/loss colors, t-* typography).
+
+const currency = (v: number) => formatCurrency(v);
 
 // Slim progress bar — green normally, amber past 80%, red when over 100%.
 export const MoneyMeter = ({
@@ -29,46 +51,13 @@ export const MoneyMeter = ({
       aria-valuemax={100}
     >
       <div
-        className="h-full rounded-full transition-all"
-        style={{ width: `${width}%`, backgroundColor: color }}
+        className="h-full rounded-full transition-all duration-500 ease-out"
+        style={{
+          width: `${width}%`,
+          backgroundImage: `linear-gradient(90deg, color-mix(in srgb, ${color} 70%, white), ${color})`,
+        }}
       />
     </div>
-  );
-};
-
-// White polyline sparkline of the running balance, for the hero card.
-const BalanceSparkline = ({ months }: { months: CashflowMonth[] }) => {
-  if (months.length < 2) return null;
-  const w = 160;
-  const h = 36;
-  const vals = months.map((m) => m.balanceEnd);
-  const min = Math.min(...vals, 0);
-  const max = Math.max(...vals, 1);
-  const span = max - min || 1;
-  const pts = vals
-    .map((v, i) => {
-      const x = (i / (vals.length - 1)) * (w - 4) + 2;
-      const y = h - 3 - ((v - min) / span) * (h - 6);
-      return `${x},${y}`;
-    })
-    .join(" ");
-  return (
-    <svg
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      className="opacity-90"
-      aria-label="Balance trend"
-    >
-      <polyline
-        points={pts}
-        fill="none"
-        stroke="white"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 };
 
@@ -105,7 +94,16 @@ export const FinanceHero = ({
           {formatCurrency(balanceNow)}
         </div>
       </div>
-      <BalanceSparkline months={months} />
+      <Sparkline
+        values={months.map((m) => m.balanceEnd)}
+        width={160}
+        height={36}
+        stroke="white"
+        fill="white"
+        animate
+        label="Balance trend"
+        className="opacity-90"
+      />
     </div>
     <div className="grid grid-cols-2 sm:grid-cols-5 divide-x divide-white/15 border-t border-white/15 bg-black/10">
       {[
@@ -126,101 +124,80 @@ export const FinanceHero = ({
   </div>
 );
 
-// Monthly paired bars (money in green / money out red) with a running
-// balance line over the top — axis approach borrowed from statTrend.tsx.
+// Monthly paired bars (money in green / money out red) with the running
+// balance line over the top. Bars and the balance line use separate hidden
+// Y scales, matching the old hand-rolled dual-scale behavior.
 export const CashflowChart = ({ months }: { months: CashflowMonth[] }) => {
+  const id = useChartId();
   if (months.length === 0) return null;
-  const W = 460;
-  const H = 180;
-  const padL = 8;
-  const padR = 8;
-  const padT = 10;
-  const padB = 22;
-  const plotW = W - padL - padR;
-  const plotH = H - padT - padB;
-  const maxBar = Math.max(...months.map((m) => Math.max(m.in, m.out)), 1);
-  const balVals = months.map((m) => m.balanceEnd);
-  const balMin = Math.min(...balVals, 0);
-  const balMax = Math.max(...balVals, 1);
-  const balSpan = balMax - balMin || 1;
-  const slot = plotW / months.length;
-  const barW = Math.min(14, slot / 3);
-  const x0 = (i: number) => padL + i * slot + slot / 2;
-  const barH = (v: number) => (v / maxBar) * plotH;
-  const balY = (v: number) => padT + plotH - ((v - balMin) / balSpan) * plotH;
-  const balPts = months
-    .map((m, i) => `${x0(i)},${balY(m.balanceEnd)}`)
-    .join(" ");
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full"
-      role="img"
-      aria-label="Monthly cash flow"
-    >
-      {[0.25, 0.5, 0.75].map((f) => (
-        <line
-          key={f}
-          x1={padL}
-          x2={W - padR}
-          y1={padT + plotH * f}
-          y2={padT + plotH * f}
+    <ChartFrame label="Monthly cash flow" height={220}>
+      <ComposedChart
+        data={months}
+        margin={{ top: 10, right: 8, bottom: 0, left: 8 }}
+        barGap={2}
+      >
+        <defs>
+          <FadeGradient id={`${id}-in`} color="var(--win)" from={0.9} to={0.35} />
+          <FadeGradient id={`${id}-out`} color="var(--loss)" from={0.9} to={0.35} />
+        </defs>
+        <CartesianGrid
+          strokeDasharray="3 3"
           stroke="var(--line)"
-          strokeWidth="1"
+          vertical={false}
         />
-      ))}
-      {months.map((m, i) => (
-        <g key={m.month}>
-          <rect
-            x={x0(i) - barW - 1}
-            y={padT + plotH - barH(m.in)}
-            width={barW}
-            height={barH(m.in)}
-            rx={2}
-            fill="var(--win)"
-          />
-          <rect
-            x={x0(i) + 1}
-            y={padT + plotH - barH(m.out)}
-            width={barW}
-            height={barH(m.out)}
-            rx={2}
-            fill="var(--loss)"
-          />
-          <text
-            x={x0(i)}
-            y={H - 7}
-            textAnchor="middle"
-            fontSize="9"
-            fontWeight="800"
-            fill="var(--ink-3)"
-          >
-            {m.label}
-          </text>
-        </g>
-      ))}
-      <polyline
-        points={balPts}
-        fill="none"
-        stroke="var(--team-primary)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {months.map((m, i) => (
-        <circle
-          key={m.month}
-          cx={x0(i)}
-          cy={balY(m.balanceEnd)}
-          r="2.5"
-          fill="var(--team-primary)"
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fontWeight: 800, fill: "var(--ink-3)" }}
         />
-      ))}
-    </svg>
+        <YAxis yAxisId="bars" hide domain={[0, "auto"]} />
+        <YAxis
+          yAxisId="balance"
+          hide
+          domain={[
+            (dataMin: number) => Math.min(dataMin, 0),
+            (dataMax: number) => Math.max(dataMax, 1),
+          ]}
+        />
+        <Tooltip
+          content={<ChartTooltip formatter={currency} />}
+          cursor={{ fill: "var(--team-primary-15)" }}
+        />
+        <Bar
+          yAxisId="bars"
+          dataKey="in"
+          name="Money in"
+          fill={`url(#${id}-in)`}
+          radius={[3, 3, 0, 0]}
+          maxBarSize={14}
+        />
+        <Bar
+          yAxisId="bars"
+          dataKey="out"
+          name="Money out"
+          fill={`url(#${id}-out)`}
+          radius={[3, 3, 0, 0]}
+          maxBarSize={14}
+        />
+        <Line
+          yAxisId="balance"
+          dataKey="balanceEnd"
+          name="Balance"
+          type="monotone"
+          stroke="var(--team-primary)"
+          strokeWidth={2.5}
+          dot={{ r: 2.5, fill: "var(--team-primary)", strokeWidth: 0 }}
+          activeDot={{ r: 4 }}
+          style={{ filter: "drop-shadow(0 1px 4px var(--team-primary-15))" }}
+        />
+      </ComposedChart>
+    </ChartFrame>
   );
 };
 
-// Donut of spending by budget category via stroke-dasharray arcs.
+// Donut of spending by budget category, total in the hole.
 const DONUT_COLORS = [
   "var(--team-primary)",
   "var(--win)",
@@ -238,38 +215,45 @@ export const SpendingDonut = ({
   const used = slices.filter((s) => s.value > 0);
   const total = used.reduce((sum, s) => sum + s.value, 0);
   if (total <= 0) return null;
-  const R = 40;
-  const C = 2 * Math.PI * R;
-  let offset = 0;
   return (
     <div className="flex items-center gap-4 flex-wrap">
-      <svg
-        viewBox="0 0 100 100"
-        className="w-28 h-28 shrink-0"
+      <div
+        className="relative w-28 h-28 shrink-0"
         role="img"
         aria-label="Spending by category"
       >
-        {used.map((s, i) => {
-          const frac = s.value / total;
-          const dash = `${frac * C} ${C}`;
-          const el = (
-            <circle
-              key={s.label}
-              cx="50"
-              cy="50"
-              r={R}
-              fill="none"
-              stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
-              strokeWidth="14"
-              strokeDasharray={dash}
-              strokeDashoffset={-offset}
-              transform="rotate(-90 50 50)"
-            />
-          );
-          offset += frac * C;
-          return el;
-        })}
-      </svg>
+        <PieChart width={112} height={112}>
+          <Pie
+            data={used}
+            dataKey="value"
+            nameKey="label"
+            cx="50%"
+            cy="50%"
+            innerRadius={36}
+            outerRadius={52}
+            paddingAngle={2}
+            cornerRadius={2}
+            startAngle={90}
+            endAngle={-270}
+            stroke="none"
+            animationDuration={800}
+          >
+            {used.map((s, i) => (
+              <Cell
+                key={s.label}
+                fill={DONUT_COLORS[i % DONUT_COLORS.length]}
+              />
+            ))}
+          </Pie>
+          <Tooltip content={<ChartTooltip formatter={currency} />} />
+        </PieChart>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="t-eyebrow text-ink-3">Spent</span>
+          <span className="text-xs font-black tabular-nums text-ink">
+            {formatCurrency(total)}
+          </span>
+        </div>
+      </div>
       <ul className="space-y-1 min-w-0">
         {used.map((s, i) => (
           <li
@@ -291,79 +275,99 @@ export const SpendingDonut = ({
   );
 };
 
-// Year-over-year grouped bars (money in vs out per season year) with the
-// closing balance printed under each pair. Same visual language as
-// CashflowChart, one group per archived year + "This year".
-export const YearComparisonChart = ({ rows }: { rows: YearComparisonRow[] }) => {
-  if (rows.length === 0) return null;
-  const W = 460;
-  const H = 170;
-  const padT = 10;
-  const padB = 38;
-  const plotH = H - padT - padB;
-  const maxVal = Math.max(...rows.map((r) => Math.max(r.in, r.out)), 1);
-  const slot = W / rows.length;
-  const barW = Math.min(26, slot / 3.2);
-  const x0 = (i: number) => i * slot + slot / 2;
-  const barH = (v: number) => (v / maxVal) * plotH;
+// X-axis tick for the year comparison: season label with the closing balance
+// printed beneath it (red when the year closed in the hole).
+const YearTick = ({
+  x,
+  y,
+  index,
+  payload,
+  rows,
+}: {
+  x?: number;
+  y?: number;
+  index?: number;
+  payload?: { value?: string | number };
+  rows: YearComparisonRow[];
+}) => {
+  const row = index != null ? rows[index] : undefined;
+  const label = String(payload?.value ?? "");
+  const short = label.length > 18 ? `${label.slice(0, 18)}…` : label;
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full"
-      role="img"
-      aria-label="Year over year money in and out"
-    >
-      {[0.5].map((f) => (
-        <line
-          key={f}
-          x1={0}
-          x2={W}
-          y1={padT + plotH * f}
-          y2={padT + plotH * f}
+    <g>
+      <text
+        x={x}
+        y={(y ?? 0) + 12}
+        textAnchor="middle"
+        fontSize="9"
+        fontWeight="800"
+        fill="var(--ink-3)"
+      >
+        {short}
+      </text>
+      <text
+        x={x}
+        y={(y ?? 0) + 25}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight="900"
+        fill={row && row.closing < 0 ? "var(--loss)" : "var(--ink)"}
+      >
+        {row ? formatCurrency(row.closing) : ""}
+      </text>
+    </g>
+  );
+};
+
+// Year-over-year grouped bars (money in vs out per season year) with the
+// closing balance printed under each pair.
+export const YearComparisonChart = ({ rows }: { rows: YearComparisonRow[] }) => {
+  const id = useChartId();
+  if (rows.length === 0) return null;
+  return (
+    <ChartFrame label="Year over year money in and out" height={200}>
+      <BarChart
+        data={rows}
+        margin={{ top: 10, right: 8, bottom: 0, left: 8 }}
+        barGap={4}
+      >
+        <defs>
+          <FadeGradient id={`${id}-in`} color="var(--win)" from={0.9} to={0.35} />
+          <FadeGradient id={`${id}-out`} color="var(--loss)" from={0.9} to={0.35} />
+        </defs>
+        <CartesianGrid
+          strokeDasharray="3 3"
           stroke="var(--line)"
-          strokeWidth="1"
+          vertical={false}
         />
-      ))}
-      {rows.map((r, i) => (
-        <g key={r.label}>
-          <rect
-            x={x0(i) - barW - 2}
-            y={padT + plotH - barH(r.in)}
-            width={barW}
-            height={barH(r.in)}
-            rx={2}
-            fill="var(--win)"
-          />
-          <rect
-            x={x0(i) + 2}
-            y={padT + plotH - barH(r.out)}
-            width={barW}
-            height={barH(r.out)}
-            rx={2}
-            fill="var(--loss)"
-          />
-          <text
-            x={x0(i)}
-            y={H - 24}
-            textAnchor="middle"
-            fontSize="9"
-            fontWeight="800"
-            fill="var(--ink-3)"
-          >
-            {r.label.length > 18 ? `${r.label.slice(0, 18)}…` : r.label}
-          </text>
-          <text
-            x={x0(i)}
-            y={H - 11}
-            textAnchor="middle"
-            fontSize="10"
-            fontWeight="900"
-            fill={r.closing < 0 ? "var(--loss)" : "var(--ink)"}
-          >
-            {formatCurrency(r.closing)}
-          </text>
-        </g>
-      ))}
-    </svg>
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          interval={0}
+          height={34}
+          tick={<YearTick rows={rows} />}
+        />
+        <YAxis hide domain={[0, "auto"]} />
+        <Tooltip
+          content={<ChartTooltip formatter={currency} />}
+          cursor={{ fill: "var(--team-primary-15)" }}
+        />
+        <Bar
+          dataKey="in"
+          name="Money in"
+          fill={`url(#${id}-in)`}
+          radius={[3, 3, 0, 0]}
+          maxBarSize={26}
+        />
+        <Bar
+          dataKey="out"
+          name="Money out"
+          fill={`url(#${id}-out)`}
+          radius={[3, 3, 0, 0]}
+          maxBarSize={26}
+        />
+      </BarChart>
+    </ChartFrame>
   );
 };
