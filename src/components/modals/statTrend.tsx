@@ -3,7 +3,22 @@
 // on the other modals), so it carries the shared STAT_META/formatStatValue
 // helpers that PlayerProfileModal and PastSeasonImportModal also consume.
 import React, { memo, useMemo, useState, useRef, useEffect } from "react";
+import {
+  ComposedChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { Icons } from "../../icons";
+import {
+  ChartFrame,
+  ChartTooltip,
+  FadeGradient,
+  useChartId,
+} from "../charts/primitives";
+import { Sparkline } from "../charts/Sparkline";
 import {
   formatStat,
   formatGameDateDisplay,
@@ -205,6 +220,49 @@ export const formatStatValue = (key: any, value: any) => {
    Lets the user assign each CSV row to an existing player (or skip), then
    commits all assignments at once via bulkAddPastSeasons.
 ============================================================================ */
+// X-axis tick: abbreviated season on the first line, age group beneath, with
+// the current season tinted in the team color.
+const SeasonTick = ({
+  x,
+  y,
+  index,
+  payload,
+  series,
+  primaryColor,
+}: any) => {
+  const s = index != null ? series[index] : undefined;
+  const label = String(payload?.value ?? "").replace(
+    /^(\w+)\s+(\d{4})$/,
+    (_: any, sn: string, yr: string) => `${sn.slice(0, 3)} '${yr.slice(2)}`
+  );
+  return (
+    <g>
+      <text
+        x={x}
+        y={(y ?? 0) + 14}
+        textAnchor="middle"
+        fontSize="10"
+        fontWeight={s?.isCurrent ? 900 : 700}
+        fill={s?.isCurrent ? primaryColor : "var(--ink-3)"}
+      >
+        {label}
+      </text>
+      {s?.ageGroup && (
+        <text
+          x={x}
+          y={(y ?? 0) + 28}
+          textAnchor="middle"
+          fontSize="9"
+          fontWeight="700"
+          fill="var(--ink-3)"
+        >
+          {s.ageGroup}
+        </text>
+      )}
+    </g>
+  );
+};
+
 export const StatTrendModal = memo(
   ({
     statKey,
@@ -215,6 +273,7 @@ export const StatTrendModal = memo(
     tertiaryColor,
     onClose,
   }: any) => {
+    const chartId = useChartId();
     if (!statKey) return null;
     const meta = STAT_META[statKey];
     if (!meta) return null;
@@ -230,7 +289,13 @@ export const StatTrendModal = memo(
       return year * 10 + seasonOffset;
     };
 
-    const series = [];
+    const series: Array<{
+      season: string;
+      ageGroup: string | null;
+      value: number;
+      sortKey: number;
+      isCurrent: boolean;
+    }> = [];
 
     // Past seasons
     for (const ps of player.pastSeasons || []) {
@@ -268,17 +333,6 @@ export const StatTrendModal = memo(
 
     series.sort((a, b) => a.sortKey - b.sortKey);
 
-    // Geometry: SVG drawn into a 600x300 viewBox, but the parent flexes the
-    // width responsively. Margins reserved for axis labels.
-    const W = 600,
-      H = 300;
-    const ML = 60,
-      MR = 24,
-      MT = 24,
-      MB = 56;
-    const innerW = W - ML - MR;
-    const innerH = H - MT - MB;
-
     // Y range: pad by 10%; for percent stats clamp to [0, 100] sensibly.
     const values = series.map((s) => s.value);
     let yMin = values.length ? Math.min(...values) : 0;
@@ -300,20 +354,6 @@ export const StatTrendModal = memo(
     // Don't go negative for stats that can't be negative
     if (meta.kind === "int" || meta.kind === "percent" || meta.kind === "ip") {
       if (yMin < 0) yMin = 0;
-    }
-
-    const xPos = (i: number) =>
-      series.length === 1
-        ? ML + innerW / 2
-        : ML + (i / (series.length - 1)) * innerW;
-    const yPos = (v: number) => MT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
-
-    // Axis ticks: 4-5 evenly spaced on Y
-    const yTicks = [];
-    const tickCount = 4;
-    for (let i = 0; i <= tickCount; i++) {
-      const v = yMin + ((yMax - yMin) * i) / tickCount;
-      yTicks.push(v);
     }
 
     // Compute trend (first vs last)
@@ -407,108 +447,107 @@ export const StatTrendModal = memo(
             ) : (
               <>
                 <div className="bg-app border border-line rounded-xl p-4 mb-4">
-                  <svg
-                    viewBox={`0 0 ${W} ${H}`}
-                    className="w-full h-auto"
-                    preserveAspectRatio="xMidYMid meet"
-                  >
-                    {/* Y-axis grid lines + labels */}
-                    {yTicks.map((v, i) => (
-                      <g key={i}>
-                        <line
-                          x1={ML}
-                          y1={yPos(v)}
-                          x2={ML + innerW}
-                          y2={yPos(v)}
-                          stroke="var(--line)"
-                          strokeWidth="1"
-                          strokeDasharray={
-                            i === 0 || i === tickCount ? "0" : "3,3"
-                          }
+                  <ChartFrame label={`${meta.label} by season`} height={300}>
+                    <ComposedChart
+                      data={series}
+                      margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+                    >
+                      <defs>
+                        <FadeGradient
+                          id={chartId}
+                          color={primaryColor}
+                          from={0.35}
+                          to={0.02}
                         />
-                        <text
-                          x={ML - 8}
-                          y={yPos(v) + 4}
-                          textAnchor="end"
-                          className="text-[11px]"
-                          fill="var(--ink-3)"
-                          style={{
-                            fontWeight: 700,
-                            fontFamily: "ui-monospace, monospace",
-                          }}
-                        >
-                          {formatStatValue(statKey, v)}
-                        </text>
-                      </g>
-                    ))}
-
-                    {/* X-axis labels (season names, rotated for fit) */}
-                    {series.map((s, i) => (
-                      <g key={i}>
-                        <text
-                          x={xPos(i)}
-                          y={MT + innerH + 18}
-                          textAnchor="middle"
-                          className="text-[10px]"
-                          fill={s.isCurrent ? primaryColor : "var(--ink-3)"}
-                          style={{ fontWeight: s.isCurrent ? 900 : 700 }}
-                        >
-                          {s.season.replace(
-                            /^(\w+)\s+(\d{4})$/,
-                            (_: any, sn: string, yr: string) => `${sn.slice(0, 3)} '${yr.slice(2)}`
-                          )}
-                        </text>
-                        {s.ageGroup && (
-                          <text
-                            x={xPos(i)}
-                            y={MT + innerH + 32}
-                            textAnchor="middle"
-                            className="text-[9px]"
-                            fill="var(--ink-3)"
-                            style={{ fontWeight: 700 }}
-                          >
-                            {s.ageGroup}
-                          </text>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--line)"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="season"
+                        interval={0}
+                        height={42}
+                        tickLine={false}
+                        axisLine={{ stroke: "var(--line)" }}
+                        tick={
+                          <SeasonTick
+                            series={series}
+                            primaryColor={primaryColor}
+                          />
+                        }
+                      />
+                      <YAxis
+                        domain={[yMin, yMax]}
+                        width={56}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: number) =>
+                          formatStatValue(statKey, v)
+                        }
+                        tick={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fill: "var(--ink-3)",
+                          fontFamily: "ui-monospace, monospace",
+                        }}
+                      />
+                      <Tooltip
+                        content={
+                          <ChartTooltip
+                            formatter={(v) => formatStatValue(statKey, v)}
+                            labelFormatter={(label) => {
+                              const s = series.find(
+                                (r) => r.season === label
+                              );
+                              return s?.ageGroup
+                                ? `${label} · ${s.ageGroup}`
+                                : String(label);
+                            }}
+                          />
+                        }
+                        cursor={{
+                          stroke: "var(--line-strong)",
+                          strokeDasharray: "3 3",
+                        }}
+                      />
+                      <Area
+                        dataKey="value"
+                        name={meta.label}
+                        type="monotone"
+                        stroke={primaryColor}
+                        strokeWidth={3}
+                        fill={`url(#${chartId})`}
+                        animationDuration={600}
+                        style={{
+                          filter:
+                            "drop-shadow(0 2px 6px var(--team-primary-15))",
+                        }}
+                        dot={(props: any) => (
+                          <circle
+                            key={props.index}
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={props.payload?.isCurrent ? 7 : 5}
+                            fill={
+                              props.payload?.isCurrent
+                                ? primaryColor
+                                : "var(--surface)"
+                            }
+                            stroke={primaryColor}
+                            strokeWidth={2.5}
+                          />
                         )}
-                      </g>
-                    ))}
-
-                    {/* Connecting line */}
-                    <polyline
-                      fill="none"
-                      stroke={primaryColor}
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      points={series
-                        .map((s, i) => `${xPos(i)},${yPos(s.value)}`)
-                        .join(" ")}
-                    />
-
-                    {/* Data points */}
-                    {series.map((s, i) => (
-                      <g key={i}>
-                        <circle
-                          cx={xPos(i)}
-                          cy={yPos(s.value)}
-                          r={s.isCurrent ? 7 : 5}
-                          fill={s.isCurrent ? primaryColor : "var(--surface)"}
-                          stroke={primaryColor}
-                          strokeWidth="2.5"
-                        />
-                        <text
-                          x={xPos(i)}
-                          y={yPos(s.value) - 14}
-                          textAnchor="middle"
-                          className="text-[11px] tabular-nums"
-                          fill="var(--ink)"
-                          style={{ fontWeight: 900 }}
-                        >
-                          {formatStatValue(statKey, s.value)}
-                        </text>
-                      </g>
-                    ))}
-                  </svg>
+                        activeDot={{
+                          r: 8,
+                          stroke: primaryColor,
+                          strokeWidth: 2.5,
+                          fill: "var(--surface)",
+                        }}
+                      />
+                    </ComposedChart>
+                  </ChartFrame>
                 </div>
 
                 {/* Season-by-season breakdown table */}
@@ -583,42 +622,6 @@ const fmtTrendDelta = (delta: any, decimals: any) => {
     : `${sign}${Math.round(delta)}`;
 };
 
-// Inline SVG sparkline. Uses team-primary color via currentColor on the
-// stroke so it retints with the team theme.
-const Sparkline = memo(({ values }: any) => {
-  if (!values || values.length < 2) return null;
-  const w = 40;
-  const h = 16;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const pts = values
-    .map((v: any, i: number) => {
-      const x = (i / (values.length - 1)) * w;
-      const y = h - ((v - min) / span) * h;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      style={{ color: "var(--team-primary)" }}
-      aria-hidden="true"
-    >
-      <polyline
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={pts}
-      />
-    </svg>
-  );
-});
-
 export const RecentMovementPanel = memo(({ player, games }: any) => {
   const history = Array.isArray(player.statsHistory) ? player.statsHistory : [];
   // Series = past snapshots + live stats. Coaches who import stats per game
@@ -682,7 +685,7 @@ export const RecentMovementPanel = memo(({ player, games }: any) => {
                   {fmtTrendVal(current, decimals)}
                 </div>
               </div>
-              <Sparkline values={values} />
+              <Sparkline values={values} width={40} strokeWidth={1.5} />
               <span
                 className={`text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded border ${deltaTone}`}
                 title={`Net change over the last ${values.length - 1} ${unitLabel}`}
