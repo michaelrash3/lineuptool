@@ -610,6 +610,75 @@ describe("FinancesTab", () => {
     expect(rowsByLabel()[0]).toContain("Baseballs");
   });
 
+  it("offers to apply a carried-over surplus as a dues discount", () => {
+    const carried: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          {
+            id: "carry-2026-08-01-abc123",
+            date: "2026-08-01",
+            label: "Carried over (through Spring 2026)",
+            amount: 240,
+          },
+        ],
+      },
+    };
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: carried },
+    });
+    // $240 across 2 paying families ≈ $120 off each.
+    expect(screen.getByText(/\$120 off per/)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByLabelText("Apply carryover as dues discount")
+    );
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(patch.finances.incomes[0]).toMatchObject({
+      id: "carry-2026-08-01-abc123",
+      fundraising: true,
+    });
+  });
+
+  it("hides the carryover prompt once the discount is applied; debt never prompts", () => {
+    const applied: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          {
+            id: "carry-2026-08-01-abc123",
+            date: "2026-08-01",
+            label: "Carried over (through Spring 2026)",
+            amount: 240,
+            fundraising: true,
+          },
+        ],
+        // A debt carryover lives in expenses — it stays on the books but
+        // must never raise what parents owe.
+        expenses: [
+          {
+            id: "carry-2026-08-01-def456",
+            date: "2026-08-01",
+            label: "Debt carried over (through Spring 2026)",
+            amount: 150,
+          },
+        ],
+      },
+    };
+    renderWithProviders(<FinancesTab />, { team: { team: applied } });
+    expect(
+      screen.queryByLabelText("Apply carryover as dues discount")
+    ).not.toBeInTheDocument();
+    // Applied surplus shows as the fundraising credit: 240/2 = 120 off the
+    // $100 fee → everyone fully covered ($0 each).
+    expect(screen.getByText(/\$0 each/)).toBeInTheDocument();
+    // The debt row stays visible in the ledger.
+    expect(
+      screen.getByText("Debt carried over (through Spring 2026)")
+    ).toBeInTheDocument();
+  });
+
   it("renders the empty state without a finances object at all", () => {
     renderWithProviders(<FinancesTab />, {
       team: { team: { players: [], games: [] } },
