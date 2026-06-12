@@ -1536,12 +1536,13 @@ export const PlayerProfileModal = memo(() => {
               })}
 
               {/* Recent Movement — compact per-stat trend across the last
-                  few CSV snapshots. Each cell shows current value, net
-                  delta from ~5 snapshots ago, and a tiny inline sparkline.
-                  No per-import row; coaches who want the per-snapshot
-                  trail can open the per-stat trend modal from the Stats
-                  grid above. */}
-              <RecentMovementPanel player={player} />
+                  few CSV snapshots (or, for per-game importers with no
+                  snapshots, the cumulative line after each imported game).
+                  Each cell shows current value, net delta, and a tiny
+                  inline sparkline. No per-import row; coaches who want the
+                  per-snapshot trail can open the per-stat trend modal from
+                  the Stats grid above. */}
+              <RecentMovementPanel player={player} games={games} />
             </div>
 
           <div

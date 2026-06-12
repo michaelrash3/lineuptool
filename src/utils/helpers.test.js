@@ -37,6 +37,7 @@ import {
   aggregateGameLines,
   deriveSeasonFromGameLines,
   latestGameLineMovement,
+  seasonSeriesFromGameLines,
   isPlayerScheduledOut,
   recentGameLines,
   evalStatHint,
@@ -1601,6 +1602,26 @@ describe("latestGameLineMovement (Recent Movement from per-game imports)", () =>
     expect(latestGameLineMovement([games[0]], "p1")).toBeNull();
     expect(latestGameLineMovement(games, "p2")).toBeNull();
     expect(latestGameLineMovement(null, "p1")).toBeNull();
+  });
+});
+
+describe("seasonSeriesFromGameLines (profile Recent Movement fallback)", () => {
+  it("returns the cumulative season line after each game, chronological", () => {
+    const games = [
+      { id: "b", date: "2026-05-01", playerStats: { p1: { ab: 4, h: 3 } } },
+      { id: "a", date: "2026-04-01", playerStats: { p1: { ab: 4, h: 1 } } },
+      { id: "c", date: "2026-06-01", playerStats: {} }, // no line for p1
+    ];
+    const series = seasonSeriesFromGameLines(games, "p1");
+    expect(series).toHaveLength(2);
+    expect(series[0].avg).toBeCloseTo(1 / 4); // after the April game
+    expect(series[1].avg).toBeCloseTo(4 / 8); // April + May summed
+    expect(series[1].ab).toBe(8);
+  });
+
+  it("is empty when the player has no game lines", () => {
+    expect(seasonSeriesFromGameLines([], "p1")).toEqual([]);
+    expect(seasonSeriesFromGameLines(null, "p1")).toEqual([]);
   });
 });
 
