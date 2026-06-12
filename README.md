@@ -42,9 +42,9 @@ Error monitoring is optional: set `VITE_SENTRY_DSN` in the build environment to 
 
 ```
 src/
-  App.jsx              # MainShell, TeamProvider, UIProvider, top-level routing
+  App.tsx              # MainShell, TeamProvider, UIProvider, top-level routing
   firebase.ts          # Firebase init (auth, db, storage)
-  contexts.js          # useTeam / useUI / useToast hooks
+  contexts.ts          # useTeam / useUI / useToast hooks
   styles.css           # Design tokens (team triplet, slate scale, type, shadows)
   icons.tsx            # Lucide re-exports + a few sport SVGs
   lineupEngine.ts      # Pure-function lineup generator (tested)
