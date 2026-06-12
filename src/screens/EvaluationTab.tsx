@@ -251,13 +251,16 @@ export const RosterDecisionsPanel = memo(() => {
       // **watch** — a kid earns Strong Fit with positive signal across the
       // board, otherwise the relative pass decides whether they stay flagged.
       //
-      // Scale calibration (eval 1–5; stats expressed as OPS ratio vs
-      // team OPS avg, 1.00 = at team avg):
+      // Scale calibration (internal only — eval 1–5; stats expressed as OPS
+      // ratio vs team OPS avg, 1.00 = at team avg):
       //   Strong : eval ≥ 3.3  AND  not below the watch line on stats
       //                       AND  not declining
       //   Younger: playing up AND (eval ≤ 2.5 OR stats ratio ≤ 0.6)
       //                       AND not strongly improving
       //   Watch  : everything else (proposal only — tempered below)
+      // The user-facing rationale never surfaces these 1–5 cutoffs: cards
+      // lead with the Total Score (out of 100) badge and the vs-team delta,
+      // so the explanation text stays qualitative.
 
       let bucket = "watch"; // proposal — Strong Fit earned, watch tempered below
       const rationale = [];
@@ -279,9 +282,7 @@ export const RosterDecisionsPanel = memo(() => {
         if (evalDeepBelowBar || statsWayBelowBar) {
           bucket = "younger";
           if (evalDeepBelowBar) {
-            rationale.push(
-              `Eval avg ${latestEvalAvg.toFixed(1)} ≤ 2.5 — over-matched at this tier`
-            );
+            rationale.push("Eval grades well below this tier — over-matched");
           }
           if (statsWayBelowBar) {
             rationale.push(
@@ -301,10 +302,10 @@ export const RosterDecisionsPanel = memo(() => {
         if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
           bucket = "strong";
           if (evalAboveBar) {
-            rationale.push(`Eval ${latestEvalAvg.toFixed(1)} ≥ 3.3 — above average`);
+            rationale.push("Eval grades above average");
           }
           if (stronglyImproving) {
-            rationale.push(`Trending up (+${evalDelta!.toFixed(1)})`);
+            rationale.push("Evals trending up round-over-round");
           }
           if (statsRatio != null && statsRatio >= 1.0) {
             rationale.push(
@@ -322,14 +323,10 @@ export const RosterDecisionsPanel = memo(() => {
           rationale.push("No eval or stats yet — needs review");
         } else {
           if (evalTrend === "declining") {
-            rationale.push(
-              `Eval trend declining (${evalDelta!.toFixed(1)} since first eval)`
-            );
+            rationale.push("Eval trend declining since first round");
           }
           if (evalBelowBar) {
-            rationale.push(
-              `Eval ${latestEvalAvg.toFixed(1)} below the at-level mark (3.0)`
-            );
+            rationale.push("Eval grades below the team line");
           } else if (evalAbsent) {
             rationale.push("No eval yet — needs a round");
           }
