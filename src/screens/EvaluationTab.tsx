@@ -33,6 +33,15 @@ import {
 import { useTeam, useUI } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { evalPromptStatus } from "../utils/helpers";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+import { ChartFrame, ChartTooltip } from "../components/charts/primitives";
 
 const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   (a, b) => a + b,
@@ -2206,22 +2215,20 @@ export const EvalTrendModal = memo(
     }
     const evalCount = xLabels.length;
 
-    // Geometry — same scheme as StatTrendModal for visual consistency
-    const W = 600,
-      H = 320;
-    const ML = 50,
-      MR = 24,
-      MT = 24,
-      MB = 64;
-    const innerW = W - ML - MR;
-    const innerH = H - MT - MB;
-    // Y range is fixed: 1-5 (the grade scale)
-    const yMin = 1,
-      yMax = 5;
-    const xPos = (i: any) =>
-      evalCount === 1 ? ML + innerW / 2 : ML + (i / (evalCount - 1)) * innerW;
-    const yPos = (v: any) => MT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
-    const yTicks = [1, 2, 3, 4, 5];
+    // Pivot into one row per eval round, keyed by category id, so each
+    // category renders as its own <Line dataKey>. Points match by eval date
+    // (same matching the old hand-rolled chart used).
+    const chartRows = xLabels.map((x) => {
+      const row: Record<string, any> = { id: x.id, label: x.label };
+      for (const cs of categorySeries) {
+        const p = cs.points.find((pt) => pt.date === x.date);
+        if (p) row[cs.id] = p.value;
+      }
+      return row;
+    });
+    const shortLabel = (label: string) =>
+      label.length > 18 ? `${label.slice(0, 16)}…` : label;
+    const labelById = new Map(xLabels.map((x) => [x.id, x.label]));
 
     // Color palette for the 6 categories — distinct, accessible
     const palette = [
@@ -2326,109 +2333,85 @@ export const EvalTrendModal = memo(
               <>
                 {/* Chart */}
                 <div className="bg-app border border-line rounded-xl p-4 mb-4">
-                  <svg
-                    viewBox={`0 0 ${W} ${H}`}
-                    className="w-full h-auto"
-                    preserveAspectRatio="xMidYMid meet"
-                  >
-                    {/* Y-axis grid + labels */}
-                    {yTicks.map((v, i) => (
-                      <g key={`y-${i}`}>
-                        <line
-                          x1={ML}
-                          y1={yPos(v)}
-                          x2={ML + innerW}
-                          y2={yPos(v)}
-                          stroke="var(--line)"
-                          strokeWidth="1"
-                          strokeDasharray={
-                            i === 0 || i === yTicks.length - 1 ? "0" : "3,3"
-                          }
-                        />
-                        <text
-                          x={ML - 8}
-                          y={yPos(v) + 4}
-                          textAnchor="end"
-                          className="text-[11px]"
-                          fill="var(--ink-3)"
-                          style={{
-                            fontWeight: 700,
-                            fontFamily: "ui-monospace, monospace",
-                          }}
-                        >
-                          {v}
-                        </text>
-                      </g>
-                    ))}
-
-                    {/* X-axis labels (eval names, rotated for fit) */}
-                    {xLabels.map((s, i) => (
-                      <g key={`x-${i}`}>
-                        <text
-                          x={xPos(i)}
-                          y={MT + innerH + 18}
-                          textAnchor="middle"
-                          className="text-[10px]"
-                          fill="var(--ink-3)"
-                          style={{ fontWeight: 700 }}
-                          transform={
-                            evalCount > 4
-                              ? `rotate(-30 ${xPos(i)} ${MT + innerH + 18})`
-                              : undefined
-                          }
-                        >
-                          {s.label.length > 18
-                            ? `${s.label.slice(0, 16)}…`
-                            : s.label}
-                        </text>
-                      </g>
-                    ))}
-
-                    {/* Lines per category */}
-                    {categorySeries.map((cs, idx) => {
-                      if (cs.points.length === 0) return null;
-                      const color = palette[idx % palette.length];
-                      // Map each point to its X position based on its eval id
-                      const pts = cs.points
-                        .map((p) => {
-                          const xLabel = xLabels.findIndex(
-                            (x) => x.date === p.date
-                          );
-                          if (xLabel === -1) return null;
-                          return { x: xPos(xLabel), y: yPos(p.value), value: p.value };
-                        })
-                        .filter(Boolean);
-                      if (pts.length === 0) return null;
-                      const path = pts
-                        .map(
-                          (p: any, i: number) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`
-                        )
-                        .join(" ");
-                      return (
-                        <g key={`line-${cs.id}`}>
-                          <path
-                            d={path}
-                            fill="none"
-                            stroke={color}
-                            strokeWidth="2.25"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
+                  <ChartFrame label="Evaluation trend by category" height={320}>
+                    <LineChart
+                      data={chartRows}
+                      margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="var(--line)"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="id"
+                        interval={0}
+                        height={evalCount > 4 ? 56 : 30}
+                        tickLine={false}
+                        axisLine={{ stroke: "var(--line)" }}
+                        tickFormatter={(id: string) =>
+                          shortLabel(labelById.get(id) || "")
+                        }
+                        tick={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fill: "var(--ink-3)",
+                          ...(evalCount > 4
+                            ? { angle: -30, textAnchor: "end" }
+                            : {}),
+                        }}
+                      />
+                      <YAxis
+                        domain={[1, 5]}
+                        ticks={[1, 2, 3, 4, 5]}
+                        width={32}
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          fill: "var(--ink-3)",
+                          fontFamily: "ui-monospace, monospace",
+                        }}
+                      />
+                      <Tooltip
+                        content={
+                          <ChartTooltip
+                            labelFormatter={(id) =>
+                              labelById.get(String(id)) || String(id)
+                            }
                           />
-                          {pts.map((p: any, i: number) => (
-                            <circle
-                              key={i}
-                              cx={p.x}
-                              cy={p.y}
-                              r="3.5"
-                              fill={color}
-                              stroke="white"
-                              strokeWidth="1.5"
-                            />
-                          ))}
-                        </g>
-                      );
-                    })}
-                  </svg>
+                        }
+                        cursor={{
+                          stroke: "var(--line-strong)",
+                          strokeDasharray: "3 3",
+                        }}
+                      />
+                      {categorySeries.map((cs, idx) => {
+                        if (cs.points.length === 0) return null;
+                        const color = palette[idx % palette.length];
+                        return (
+                          <Line
+                            key={cs.id}
+                            dataKey={cs.id}
+                            name={cs.label}
+                            type="monotone"
+                            connectNulls
+                            stroke={color}
+                            strokeWidth={2.5}
+                            dot={{
+                              r: 3.5,
+                              fill: color,
+                              stroke: "var(--surface)",
+                              strokeWidth: 1.5,
+                            }}
+                            activeDot={{ r: 5 }}
+                            animationDuration={600}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ChartFrame>
                 </div>
 
                 {/* Legend with trend summary */}
