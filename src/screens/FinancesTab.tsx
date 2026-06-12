@@ -358,6 +358,37 @@ export const FinancesTab = memo(() => {
     [finances]
   );
 
+  // ---- Surplus carried over from last season, not yet applied to dues.
+  // The season roll writes the closing balance as a "Carried over" income
+  // entry; one tap flags it as fundraising so it splits across paying
+  // families and discounts this year's dues. Debt carries as an expense and
+  // never touches dues — that's the club's problem, not the parents'.
+  const isCarryover = (i: { id?: string; label?: string }) =>
+    String(i.id || "").startsWith("carry-") ||
+    /^Carried over/.test(String(i.label || ""));
+  const carryoverPending = useMemo(
+    () =>
+      (finances.incomes || []).filter((i) => isCarryover(i) && !i.fundraising),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [finances.incomes]
+  );
+  const carryoverPendingTotal = carryoverPending.reduce(
+    (sum, i) => sum + (Number(i.amount) || 0),
+    0
+  );
+  const applyCarryoverDiscount = () => {
+    writeFinances({
+      incomes: (finances.incomes || []).map((i) =>
+        isCarryover(i) && !i.fundraising ? { ...i, fundraising: true } : i
+      ),
+    });
+    toast.push({
+      kind: "success",
+      title: "Carryover applied to dues",
+      message: "Last season's surplus now discounts every family's fee.",
+    });
+  };
+
   const applyPreset = (preset: (typeof BUDGET_PRESETS)[number]) => {
     setBudgetLabel(preset.label);
     setQtyMode(true);
@@ -625,6 +656,30 @@ export const FinancesTab = memo(() => {
         subtitle="Who has paid this year's club fee — partial payments add up per family. Waive the fee for fall-only pickups."
       >
         <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface space-y-2">
+          {carryoverPendingTotal > 0 && payerCount > 0 && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 p-3">
+              <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
+                Last season left{" "}
+                <span className="font-black text-ink tabular-nums">
+                  {formatCurrency(carryoverPendingTotal)}
+                </span>{" "}
+                in the bank. Apply it as a dues discount — about{" "}
+                <span className="font-black text-win tabular-nums">
+                  {formatCurrency(carryoverPendingTotal / payerCount)} off per
+                  family
+                </span>
+                ?
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="Apply carryover as dues discount"
+                onClick={applyCarryoverDiscount}
+              >
+                <Icons.Check className="w-4 h-4" /> Apply as dues discount
+              </Button>
+            </div>
+          )}
           {clubFee > 0 && payerCount > 0 && (
             <div className="flex items-center gap-3">
               <MoneyMeter
