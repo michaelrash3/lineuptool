@@ -90,7 +90,8 @@ describe("StatsTab", () => {
     const { container } = renderWithProviders(<StatsTab />, {
       team: { team: withEvals },
     });
-    expect(container.querySelector("svg polyline")).toBeTruthy();
+    // The sparkline is a fixed-size recharts AreaChart, which draws paths.
+    expect(container.querySelector("svg .recharts-area-curve")).toBeTruthy();
   });
 
   it("surfaces an arm-care banner for an overused Kid-Pitch pitcher", () => {

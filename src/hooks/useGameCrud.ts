@@ -4,6 +4,7 @@ import {
   recordPitchingOuting,
   recordCatchingOuting,
 } from "../utils/helpers";
+import { celebrateWin } from "../utils/celebrate";
 import type { ConfirmContextValue, ToastContextValue } from "../types";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
@@ -235,10 +236,20 @@ export const useGameCrud = ({
       } else {
         updateGame(gameId, gameUpdates);
       }
+
+      // That's a W — confetti in team colors. Single choke point covers both
+      // finalize paths (InGameView and the schedule's finalize dialog).
+      if (Number(teamScore) > Number(opponentScore)) {
+        void celebrateWin(
+          [teamData.primaryColor, teamData.secondaryColor].filter(Boolean)
+        );
+      }
     },
     [
       teamData.games,
       teamData.players,
+      teamData.primaryColor,
+      teamData.secondaryColor,
       updateGame,
       updateTeam,
       commitPitchCountsToPlayers,

@@ -7,6 +7,7 @@ import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import { OptimalLineupPanel } from "../components/OptimalLineupPanel";
+import { StaggerList, StaggerItem } from "../components/motion";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
 const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
@@ -409,17 +410,18 @@ export const RosterTab = memo(() => {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <StaggerList className="flex flex-col gap-3">
               {visiblePlayers.map((player) => (
-                <PlayerRow
-                  key={player.id}
-                  player={player}
-                  currentSeason={currentSeason}
-                  onOpenProfile={openPlayerProfile}
-                  showPositionTag={canEdit}
-                />
+                <StaggerItem key={player.id}>
+                  <PlayerRow
+                    player={player}
+                    currentSeason={currentSeason}
+                    onOpenProfile={openPlayerProfile}
+                    showPositionTag={canEdit}
+                  />
+                </StaggerItem>
               ))}
-            </div>
+            </StaggerList>
           )}
         </div>
       </div>

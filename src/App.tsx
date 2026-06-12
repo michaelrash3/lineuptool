@@ -46,6 +46,12 @@ import {
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { SharedModals, downscaleImageToDataURL } from "./components/shared";
 import {
+  AppMotionProvider,
+  AnimatePresence,
+  m,
+  FadeSlideIn,
+} from "./components/motion";
+import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
 } from "./components/OnboardingTutorial";
@@ -280,16 +286,24 @@ const toastIcon = (kind: any) => {
 };
 
 const ToastContainer = memo(({ toasts, dismiss }: any) => {
-  if (toasts.length === 0) return null;
+  // Stays mounted even when empty so AnimatePresence can play exit
+  // animations on the last toast; pointer-events pass through the empty
+  // container.
   return (
-    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden">
+    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden pointer-events-none">
+      <AnimatePresence>
       {toasts.map((t: any) => {
         const tone = (TOAST_TONES as any)[t.kind] || TOAST_TONES.info;
         const Icon = toastIcon(t.kind);
         return (
-          <div
+          <m.div
             key={t.id}
-            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
+            layout
+            initial={{ opacity: 0, x: 48 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3 pointer-events-auto"
             role="status"
           >
             <span
@@ -338,9 +352,10 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
             >
               <Icons.X className="w-3 h-3" />
             </button>
-          </div>
+          </m.div>
         );
       })}
+      </AnimatePresence>
     </div>
   );
 });
@@ -3333,6 +3348,10 @@ const MainShell = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
         <ErrorBoundary resetKey={location.pathname}>
+        {/* Keyed entrance-only transition: replays on navigation. Exit
+            animations (AnimatePresence mode="wait") are flaky around
+            Suspense/lazy chunks, so entrances only. */}
+        <FadeSlideIn key={location.pathname}>
         <Routes>
           <Route path="/" element={<HomeTab />} />
           <Route path="/stats" element={<StatsTab />} />
@@ -3375,6 +3394,7 @@ const MainShell = () => {
           <Route path="/in-game/:gameId" element={<div className="hidden" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </FadeSlideIn>
         </ErrorBoundary>
         </Suspense>
       </main>
@@ -3398,15 +3418,17 @@ const MainShell = () => {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
       />
-      <button
+      <m.button
         type="button"
         onClick={() => setTutorialOpen(true)}
         aria-label="Open tutorial"
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg hover:-translate-y-0.5 transition-transform print:hidden"
+        whileHover={{ y: -2 }}
+        whileTap={{ scale: 0.92 }}
+        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg print:hidden"
         style={{ backgroundColor: "var(--team-primary)" }}
       >
         ?
-      </button>
+      </m.button>
       {genError && (
         <div className="fixed bottom-4 left-4 bg-red-600 text-white px-4 py-3 rounded-xl shadow-lg max-w-sm text-xs font-bold print:hidden">
           {genError}
@@ -3426,28 +3448,32 @@ const App = () => {
     window.location.pathname.startsWith("/tryouts-portal/")
   ) {
     return (
-      <ToastProvider>
-        <Suspense fallback={<ScreenLoader />}>
-          <ErrorBoundary>
-            <Routes>
-              <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </ErrorBoundary>
-        </Suspense>
-      </ToastProvider>
+      <AppMotionProvider>
+        <ToastProvider>
+          <Suspense fallback={<ScreenLoader />}>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ErrorBoundary>
+          </Suspense>
+        </ToastProvider>
+      </AppMotionProvider>
     );
   }
   return (
-    <ToastProvider>
-      <ConfirmProvider>
-        <TeamProvider>
-          <UIProvider>
-            <MainShell />
-          </UIProvider>
-        </TeamProvider>
-      </ConfirmProvider>
-    </ToastProvider>
+    <AppMotionProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <TeamProvider>
+            <UIProvider>
+              <MainShell />
+            </UIProvider>
+          </TeamProvider>
+        </ConfirmProvider>
+      </ToastProvider>
+    </AppMotionProvider>
   );
 };
 

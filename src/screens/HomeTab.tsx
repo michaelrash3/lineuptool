@@ -13,6 +13,11 @@ import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard } from "../components/shared";
+import {
+  StaggerList,
+  StaggerItem,
+  AnimatedNumber,
+} from "../components/motion";
 import { checkPitchEligibility } from "../lineupEngine";
 
 // Dismissible banner that nudges the current coach to submit an eval round
@@ -521,7 +526,7 @@ const InsightTile = memo(
     };
     const styles = (ACCENT_STYLES as any)[accent] || ACCENT_STYLES.slate;
     return (
-      <div className="bg-surface rounded-2xl shadow-card border border-line overflow-hidden flex flex-col">
+      <div className="bg-surface rounded-2xl shadow-card border border-line overflow-hidden flex flex-col h-full">
         <div className="px-4 py-3 border-b border-line bg-surface flex items-center gap-3">
           <div
             className="p-2 rounded-lg shrink-0"
@@ -1160,13 +1165,13 @@ export const HomeTab = memo(() => {
               </div>
               <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2">
                 <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl">
-                  {record.wins}
+                  <AnimatedNumber value={record.wins} />
                   <span className="opacity-50">–</span>
-                  {record.losses}
+                  <AnimatedNumber value={record.losses} />
                   {record.ties > 0 && (
                     <>
                       <span className="opacity-50">–</span>
-                      {record.ties}
+                      <AnimatedNumber value={record.ties} />
                     </>
                   )}
                 </span>
@@ -1241,16 +1246,18 @@ export const HomeTab = memo(() => {
               { k: "Against", v: seasonHero.runsAgainst },
               {
                 k: "Run Diff",
-                v: `${seasonHero.diff >= 0 ? "+" : ""}${seasonHero.diff}`,
+                v: seasonHero.diff,
+                format: (n: number) =>
+                  `${n >= 0 ? "+" : ""}${Math.round(n)}`,
               },
               { k: "Roster", v: players.length },
-            ].map((s) => (
+            ].map((s: any) => (
               <div key={s.k}>
                 <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
                   {s.k}
                 </div>
                 <div className="text-2xl font-black tabular-nums leading-none mt-1.5">
-                  {s.v}
+                  <AnimatedNumber value={s.v} format={s.format} />
                 </div>
               </div>
             ))}
@@ -1292,32 +1299,42 @@ export const HomeTab = memo(() => {
 
       {/* Insight tiles row — only renders when there's a player to show */}
       {hasPlayers && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {isKidPitch && (
-            <PitcherAvailabilityTile
-              players={players}
-              teamAge={teamAge}
-              todayStr={todayStr}
-              onOpenRoster={() => setActiveTab("roster")}
-            />
+            <StaggerItem>
+              <PitcherAvailabilityTile
+                players={players}
+                teamAge={teamAge}
+                todayStr={todayStr}
+                onOpenRoster={() => setActiveTab("roster")}
+              />
+            </StaggerItem>
           )}
-          <RecentMovementTile
-            players={players}
-            games={games}
-            onPlayerClick={openPlayerProfile}
-          />
-          <EvalMomentumTile
-            players={players}
-            evaluationEvents={evaluationEvents}
-            onOpenEval={() => setActiveTab("evaluation")}
-          />
-          <TeamTrendTile games={games} />
-          <BenchEquityTile
-            players={players}
-            games={games}
-            onPlayerClick={openPlayerProfile}
-          />
-        </div>
+          <StaggerItem>
+            <RecentMovementTile
+              players={players}
+              games={games}
+              onPlayerClick={openPlayerProfile}
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <EvalMomentumTile
+              players={players}
+              evaluationEvents={evaluationEvents}
+              onOpenEval={() => setActiveTab("evaluation")}
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <TeamTrendTile games={games} />
+          </StaggerItem>
+          <StaggerItem>
+            <BenchEquityTile
+              players={players}
+              games={games}
+              onPlayerClick={openPlayerProfile}
+            />
+          </StaggerItem>
+        </StaggerList>
       )}
 
       {!hasPlayers ? (
@@ -1417,19 +1434,23 @@ const LeaderboardsSection = memo(
             })}
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        <StaggerList
+          key={visibleTab?.id}
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"
+        >
           {visibleTab?.stats.map((stat, i) => (
-            <LeaderboardCard
-              key={`${visibleTab.id}-${stat.statKey}-${i}`}
-              {...stat}
-              icon={visibleTab.icon}
-              players={players}
-              primaryColor={primaryColor}
-              tertiaryColor={tertiaryColor}
-              onPlayerClick={onPlayerClick}
-            />
+            <StaggerItem key={`${visibleTab.id}-${stat.statKey}-${i}`}>
+              <LeaderboardCard
+                {...stat}
+                icon={visibleTab.icon}
+                players={players}
+                primaryColor={primaryColor}
+                tertiaryColor={tertiaryColor}
+                onPlayerClick={onPlayerClick}
+              />
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerList>
       </div>
     );
   }

@@ -15,6 +15,7 @@ import {
   aggregateGameLines,
 } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
+import { Sparkline } from "../components/charts/Sparkline";
 
 // Stats & Dashboard — one place that pulls together everything already imported
 // (GameChanger batting/pitching/fielding) plus eval data:
@@ -132,38 +133,26 @@ const CATEGORIES = [
 
 // Tiny eval-trend sparkline: a player's average grade across their eval rounds,
 // drawn on a fixed 1–5 scale so rows are comparable. Trends up → team color,
-// down → red. Renders nothing with fewer than two rounds of data.
-const Sparkline = memo(({ values, w = 60, h = 16 }: any) => {
+// down → red, flat → neutral gray. Renders nothing with fewer than two rounds
+// of data.
+const EvalSparkline = memo(({ values }: any) => {
   if (!Array.isArray(values) || values.length < 2) return null;
-  const lo = 1;
-  const hi = 5;
-  const n = values.length;
-  const pts = values
-    .map((v: number, i: number) => {
-      const x = (i / (n - 1)) * (w - 2) + 1;
-      const cl = Math.max(lo, Math.min(hi, v));
-      const y = h - 1 - ((cl - lo) / (hi - lo)) * (h - 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  const up = values[n - 1] >= values[0];
+  const first = values[0];
+  const last = values[values.length - 1];
+  const color =
+    last > first
+      ? "var(--team-primary)"
+      : last < first
+      ? "var(--loss)"
+      : "var(--ink-3)";
   return (
-    <svg
-      width={w}
-      height={h}
-      viewBox={`0 0 ${w} ${h}`}
-      className="block"
-      aria-hidden="true"
-    >
-      <polyline
-        points={pts}
-        fill="none"
-        stroke={up ? "var(--team-primary)" : "var(--loss)"}
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <Sparkline
+      values={values.map((v: number) => Math.max(1, Math.min(5, v)))}
+      domain={[1, 5]}
+      stroke={color}
+      strokeWidth={1.5}
+      fill={color}
+    />
   );
 });
 
@@ -257,7 +246,7 @@ const StatsTable = memo(
                       className="block mt-0.5"
                       title="Eval grade trend across rounds"
                     >
-                      <Sparkline values={seriesById.get(r.id)} />
+                      <EvalSparkline values={seriesById.get(r.id)} />
                     </span>
                   )}
                 </td>
