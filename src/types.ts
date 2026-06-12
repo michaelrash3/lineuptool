@@ -77,6 +77,11 @@ export interface Player {
   // position list because C is special (equipment, continuity, smaller
   // group of trained kids).
   isCatcher?: boolean;
+  // ISO yyyy-mm-dd dates the family already knows the kid is unavailable
+  // (entered ahead of time on the profile). Games on these dates default
+  // the kid to absent in Game Day Attendance; the coach can still toggle
+  // them back per game.
+  absences?: string[];
   // Will this kid come back next season? Explicit boolean as of the
   // returning-Y/N change. Default-undefined means "yes" — back-compat
   // with rounds saved before this field existed. AdvanceSeasonModal
@@ -305,6 +310,17 @@ export interface IncomeEntry {
   amount: number;
 }
 
+// A sponsorship pledged toward NEXT season's budget, entered in the Budget
+// Planner with the sponsor's name. Unlike IncomeEntry (this year's ledger),
+// these reduce the suggested next-season fee; when the season advances they
+// convert into income entries in the new year's ledger.
+export interface SponsorshipEntry {
+  id: string;
+  sponsor: string;
+  amount: number;
+  date?: string; // ISO yyyy-mm-dd, when pledged
+}
+
 // Money collected from a family toward the club fee. Multiple entries per
 // player = partial payments.
 export interface PaymentEntry {
@@ -344,6 +360,10 @@ export interface TeamFinances {
   // are buffered and the fee lands on a clean number. 0/unset = exact dollar.
   feeBufferIncrement?: number;
   budgetItems?: BudgetItem[];
+  // Sponsorships pledged toward NEXT season's budget (Budget Planner).
+  // The only money that offsets the suggested next-season fee — this
+  // year's ledger never leaks into next year's planning.
+  sponsorships?: SponsorshipEntry[];
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];
   payments?: PaymentEntry[];

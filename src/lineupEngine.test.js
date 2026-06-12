@@ -3154,4 +3154,45 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     );
     expect(res.error).toMatch(/No eligible player available for P/);
   });
+
+  it("explicit catcher cap hands C off after the cap and benches the starter", () => {
+    const res = generateTournamentLineup(input({ catcherMaxInnings: "3" }));
+    expect(res.error).toBeUndefined();
+    const starterC = res.lineup[0].C.id;
+    // Innings 1–3 the starter catches; 4–6 the relief catcher takes over.
+    expect(res.lineup[1].C.id).toBe(starterC);
+    expect(res.lineup[2].C.id).toBe(starterC);
+    const reliefC = res.lineup[3].C.id;
+    expect(reliefC).not.toBe(starterC);
+    expect(res.lineup[4].C.id).toBe(reliefC);
+    expect(res.lineup[5].C.id).toBe(reliefC);
+    // The plan scripts the handoff; the displaced starter sits from inning 4.
+    const handoff = res.tournament.substitutions.find(
+      (s) => s.position === "C"
+    );
+    expect(handoff).toBeTruthy();
+    expect(handoff.inning).toBe(4);
+    expect(handoff.out.id).toBe(starterC);
+    expect(handoff.in.id).toBe(reliefC);
+    expect(res.lineup[3].BENCH.map((b) => b.id)).toContain(starterC);
+    // Nobody is in two places at once in any inning.
+    for (const inn of res.lineup) {
+      const ids = Object.entries(inn)
+        .filter(([k]) => k !== "BENCH")
+        .map(([, v]) => v.id);
+      expect(new Set(ids).size).toBe(ids.length);
+      // Field + bench covers the full roster exactly once.
+      expect(ids.length + inn.BENCH.length).toBe(roster.length);
+    }
+  });
+
+  it("auto/none catcher settings keep tournament catcher continuity", () => {
+    for (const setting of ["auto", "none", undefined]) {
+      const res = generateTournamentLineup(
+        input({ catcherMaxInnings: setting })
+      );
+      expect(res.error).toBeUndefined();
+      expect(new Set(res.lineup.map((inn) => inn.C.id)).size).toBe(1);
+    }
+  });
 });

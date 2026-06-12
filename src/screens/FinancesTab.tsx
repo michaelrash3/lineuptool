@@ -23,7 +23,7 @@ import {
   owesReminderText,
   ledgerCsv,
   yearComparison,
-  incomeTotal,
+  sponsorshipTotal,
   suggestedFeePerPlayer,
   financeSummary,
   transactionLedger,
@@ -132,7 +132,9 @@ export const FinancesTab = memo(() => {
   );
   const toast = useToast();
   const budget = budgetTotal(finances);
-  const income = incomeTotal(finances);
+  // Next-season planning is deliberately isolated from this year's ledger:
+  // only sponsorships pledged for the coming year offset the suggested fee.
+  const sponsored = sponsorshipTotal(finances);
   const suggested = suggestedFeePerPlayer(finances, players);
   const clubFee = Math.max(0, Number(finances.clubFee) || 0);
   const nextFee =
@@ -145,10 +147,6 @@ export const FinancesTab = memo(() => {
   );
   const payerCount = players.filter((p: any) => !exemptIds.has(p.id)).length;
   const bufferInc = Math.max(0, Number(finances.feeBufferIncrement) || 0);
-  // Money the fee DOESN'T have to raise, split out for the planner breakdown:
-  // sponsorships/income, then everything else projected to be on hand at
-  // year end (collected fees + fees still due − spending).
-  const moneyOnHand = summary.balanceNow + summary.stillOwed - income;
 
   // Sales tax % — committed on blur/Enter so partial typing never writes.
   const [taxInput, setTaxInput] = useState<string | null>(null);
@@ -182,6 +180,9 @@ export const FinancesTab = memo(() => {
   const [budgetQty, setBudgetQty] = useState("");
   const [qtyMode, setQtyMode] = useState(false);
   const [unitNoun, setUnitNoun] = useState("per unit");
+  // ---- Sponsorships (next season) form state
+  const [sponsorName, setSponsorName] = useState("");
+  const [sponsorAmount, setSponsorAmount] = useState("");
   // ---- Collections form state (per-player partial payment input)
   const [payInputs, setPayInputs] = useState<Record<string, string>>({});
   const [feeInput, setFeeInput] = useState<string | null>(null);
@@ -235,6 +236,30 @@ export const FinancesTab = memo(() => {
   const removeBudgetItem = (id: string) =>
     writeFinances({
       budgetItems: (finances.budgetItems || []).filter((b) => b.id !== id),
+    });
+
+  const addSponsorship = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const amount = parseAmount(sponsorAmount);
+    if (!sponsorName.trim() || amount == null) return;
+    writeFinances({
+      sponsorships: [
+        ...(finances.sponsorships || []),
+        {
+          id: newId("sp"),
+          sponsor: sponsorName.trim(),
+          amount,
+          date: dateToIsoLocal(new Date()),
+        },
+      ],
+    });
+    setSponsorName("");
+    setSponsorAmount("");
+  };
+
+  const removeSponsorship = (id: string) =>
+    writeFinances({
+      sponsorships: (finances.sponsorships || []).filter((s) => s.id !== id),
     });
 
   // Stepper on a quantity item ("how many tournaments?"). Keeps the mirrored
@@ -419,7 +444,7 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Clipboard}
         title="Budget Planner — next season"
-        subtitle="Plan the season that starts in the Fall; whatever this year's money won't cover splits into the new club fee."
+        subtitle="Plan the season that starts in the Fall. Planned costs minus pledged sponsorships split into the new club fee — this year's ledger stays separate."
       >
         <div className="p-4 sm:p-5 space-y-3">
           {(finances.budgetItems || []).length > 0 && (
@@ -581,6 +606,63 @@ export const FinancesTab = memo(() => {
               <Icons.Plus className="w-4 h-4" /> Add
             </Button>
           </form>
+          {/* Sponsorships pledged toward next season's budget. Named after the
+              sponsor; they reduce the suggested fee and convert into ledger
+              income when the season advances. */}
+          <div className="pt-2 border-t border-line space-y-2">
+            <div className="t-eyebrow text-ink-3">
+              Sponsorships — money pledged toward this budget
+            </div>
+            {(finances.sponsorships || []).length > 0 && (
+              <ul className="divide-y divide-line">
+                {(finances.sponsorships || []).map((sp) => (
+                  <li key={sp.id} className="py-2 flex items-center gap-3">
+                    <span className="t-body-bold text-ink flex-1 truncate">
+                      {sp.sponsor}
+                    </span>
+                    <span className="tabular-nums font-black text-win">
+                      {formatCurrency(sp.amount)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remove sponsorship from ${sp.sponsor}`}
+                      onClick={() => removeSponsorship(sp.id)}
+                      className="text-ink-3 hover:text-loss transition-colors"
+                    >
+                      <Icons.X className="w-4 h-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <form
+              onSubmit={addSponsorship}
+              className="flex flex-col sm:flex-row gap-2"
+            >
+              <input
+                type="text"
+                value={sponsorName}
+                onChange={(e) => setSponsorName(e.target.value)}
+                placeholder="Sponsor name (business, family…)"
+                aria-label="Sponsor name"
+                className={`${FORM_INPUT_CLASS} flex-1`}
+                style={FORM_INPUT_RING_STYLE}
+              />
+              <input
+                type="text"
+                inputMode="decimal"
+                value={sponsorAmount}
+                onChange={(e) => setSponsorAmount(e.target.value)}
+                placeholder="$ amount"
+                aria-label="Sponsorship amount"
+                className={`${FORM_INPUT_CLASS} sm:w-40 tabular-nums`}
+                style={FORM_INPUT_RING_STYLE}
+              />
+              <Button type="submit" variant="secondary" size="md">
+                <Icons.Plus className="w-4 h-4" /> Add Sponsor
+              </Button>
+            </form>
+          </div>
           {/* Planner settings: sales tax on flagged items + fee round-up buffer */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-line">
             <label className="flex items-center gap-2 t-eyebrow text-ink-3">
@@ -634,16 +716,10 @@ export const FinancesTab = memo(() => {
               <span className="font-black text-ink tabular-nums">
                 {formatCurrency(budget)}
               </span>
-              {income > 0 && (
+              {sponsored > 0 && (
                 <>
                   {" "}
-                  − sponsorships {formatCurrency(income)}
-                </>
-              )}
-              {moneyOnHand > 0 && (
-                <>
-                  {" "}
-                  − other money on hand {formatCurrency(moneyOnHand)}
+                  − sponsorships {formatCurrency(sponsored)}
                 </>
               )}
               {suggested != null && (

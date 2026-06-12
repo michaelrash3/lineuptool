@@ -253,12 +253,17 @@ export const InGameView = memo(() => {
     flushTimerRef.current = setTimeout(flush, 500);
   };
 
-  // One-tap pitcher assignment from the Available pool. Swaps the
-  // chosen player into the P slot for the current inning by reusing
-  // performSwap (preserves undo history + haptic feedback). Finds the
-  // chosen player's current cell — field position or bench — and
-  // hands it to performSwap as the "second" selection.
+  // One-tap pitcher assignment from the Available pool. Rec games swap the
+  // chosen player into the P slot for the CURRENT inning only (reusing
+  // performSwap, which keeps undo history + haptics). Tournament games
+  // re-flow the rest of the game in one tap: from this inning on, the new
+  // pitcher takes the mound and the outgoing pitcher takes whatever cell
+  // the new pitcher held in each remaining inning.
   const assignPitcher = (playerId: any) => {
+    if (game.tournamentPlan) {
+      assignPitcherRestOfGame(playerId);
+      return;
+    }
     const innNow = pendingLineup
       ? pendingLineup[currentInning]
       : liveLineup[currentInning];
@@ -279,6 +284,57 @@ export const InGameView = memo(() => {
     // Don't swap a player with themselves (they're already P somehow).
     if (sourceSel.type === "position" && sourceSel.pos === "P") return;
     performSwap({ type: "position", pos: "P" }, sourceSel);
+  };
+
+  // Tournament pitching change: apply the P swap inning-by-inning from the
+  // current inning through the end, locating the new pitcher's cell in each
+  // inning (it can differ across scripted sub windows). One undo entry
+  // restores the whole pre-change lineup.
+  const assignPitcherRestOfGame = (playerId: any) => {
+    if (!canEdit) return;
+    const base = pendingLineup ?? game.lineup;
+    let changed = false;
+    let newPitcherName = "";
+    const next = base.map((innState: any, idx: number) => {
+      if (idx < currentInning || !innState) return innState;
+      let sourceSel: any = null;
+      for (const pos of positionOrder) {
+        if (innState[pos]?.id === playerId) {
+          sourceSel = { type: "position", pos };
+          break;
+        }
+      }
+      if (!sourceSel) {
+        const onBench = (innState.BENCH || []).find(
+          (p: any) => p?.id === playerId
+        );
+        if (onBench) sourceSel = { type: "bench", playerId };
+      }
+      if (!sourceSel) return innState;
+      if (sourceSel.type === "position" && sourceSel.pos === "P")
+        return innState;
+      const swapped = applySwap(innState, { type: "position", pos: "P" }, sourceSel);
+      if (!swapped) return innState;
+      newPitcherName = (swapped.P as any)?.name || newPitcherName;
+      changed = true;
+      return swapped;
+    });
+    if (!changed) return;
+    setPendingLineup(next);
+    if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    flushTimerRef.current = setTimeout(flush, 500);
+    setInGameUndoStack(
+      [{ lineup: base }, ...inGameUndoStack].slice(0, 5)
+    );
+    setInGameSelection(null);
+    tapHaptic();
+    toast.push({
+      kind: "success",
+      title: "Pitching change",
+      message: `${newPitcherName || "New pitcher"} takes the mound from inning ${
+        currentInning + 1
+      } on — the rest of the lineup re-flowed around it.`,
+    });
   };
 
   // Resolve from the roster whether a slim player is cleared to catch
@@ -353,8 +409,15 @@ export const InGameView = memo(() => {
   const undo = () => {
     if (inGameUndoStack.length === 0) return;
     const entry = inGameUndoStack[0];
-    // Restore the snapshot captured before the swap.
-    if (entry.prevInning) patchInning(entry.inning, entry.prevInning);
+    // Restore the snapshot captured before the swap. Whole-lineup entries
+    // come from tournament pitching changes (they touch several innings).
+    if (entry.lineup) {
+      setPendingLineup(entry.lineup);
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(flush, 500);
+    } else if (entry.prevInning) {
+      patchInning(entry.inning, entry.prevInning);
+    }
     setInGameUndoStack(inGameUndoStack.slice(1));
     setInGameSelection(null);
   };
@@ -868,6 +931,66 @@ export const InGameView = memo(() => {
                 <Icons.X className="w-5 h-5" />
               </button>
             </div>
+            {/* Pitch counts at finalize — finalizeGame commits game.pitchCounts
+                to each pitcher's season record, so this is the last stop to
+                get them right. Kid-pitch only (machine pitch has no counts). */}
+            {!String(game.pitchingFormat || team.pitchingFormat || "")
+              .toLowerCase()
+              .includes("machine") &&
+              (() => {
+                const seen = new Set();
+                const used: any[] = [];
+                for (const innState of liveLineup) {
+                  const pitcher = innState?.P;
+                  if (pitcher && !seen.has(pitcher.id)) {
+                    seen.add(pitcher.id);
+                    used.push(pitcher);
+                  }
+                }
+                if (used.length === 0) return null;
+                const counts = game.pitchCounts || {};
+                return (
+                  <div className="px-5 sm:px-6 py-4 border-b border-line">
+                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
+                      Pitch counts — enter each kid's total before saving
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {used.map((p: any) => (
+                        <div
+                          key={`final-pc-${p.id}`}
+                          className="flex items-center gap-2"
+                        >
+                          <span className="flex-1 text-sm font-bold text-ink truncate">
+                            {p.name}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            inputMode="numeric"
+                            value={counts[p.id] ?? ""}
+                            onChange={(e) => {
+                              const next = { ...(game.pitchCounts || {}) };
+                              const num = parseInt(e.target.value, 10);
+                              if (Number.isFinite(num) && num >= 0) {
+                                next[p.id] = num;
+                              } else {
+                                delete next[p.id];
+                              }
+                              updateGame(game.id, { pitchCounts: next });
+                            }}
+                            placeholder="0"
+                            aria-label={`Pitch count for ${p.name}`}
+                            className="w-20 p-2 text-sm font-black text-ink text-center bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums"
+                          />
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                            pitches
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             <ScoreEditor
               game={game}
               primaryColor={primaryColor}

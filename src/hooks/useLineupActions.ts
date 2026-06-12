@@ -59,7 +59,9 @@ export const useLineupActions = ({
           : gameSaysRelaxed;
 
       const presentPlayers = teamData.players.filter(
-        (p: any) => currentGameAttendance[p.id] !== false
+        // Roster-inactive kids never play, even if a stale attendance map
+        // still has them marked present from before they went inactive.
+        (p: any) => p.present !== false && currentGameAttendance[p.id] !== false
       );
       if (presentPlayers.length < 7) {
         toast.push({
@@ -248,7 +250,7 @@ export const useLineupActions = ({
       return;
     }
     const presentPlayers = teamData.players.filter(
-      (p: any) => currentGameAttendance[p.id] !== false
+      (p: any) => p.present !== false && currentGameAttendance[p.id] !== false
     );
     if (presentPlayers.length < 7) {
       toast.push({
@@ -360,7 +362,7 @@ export const useLineupActions = ({
       return;
     }
     const presentPlayers = teamData.players.filter(
-      (p: any) => currentGameAttendance[p.id] !== false
+      (p: any) => p.present !== false && currentGameAttendance[p.id] !== false
     );
     if (presentPlayers.length < 1) {
       toast.push({ kind: "error", title: "No players present to bat" });

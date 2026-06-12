@@ -210,6 +210,22 @@ export const RosterDecisionsPanel = memo(() => {
         statsRatio = +stats.ops / statsAvg.ops; // 1.0 = team avg
       }
 
+      // ---- Total Score (out of 100) ----
+      // The same number the grading cards already produce — universal score
+      // blended from grades + imported stats, plus the pitcher premium. This
+      // is the headline "eval number" for roster decisions, judged RELATIVE
+      // to the team's own average below (a 54 means something different on a
+      // team averaging 70 than one averaging 55).
+      const latestRoundForPlayer = [...myEvals]
+        .reverse()
+        .find((ev: any) => ev.grades?.[player.id]);
+      const savedGrades = latestRoundForPlayer?.grades?.[player.id] || {};
+      const totalScore = Math.min(
+        100,
+        calculateTotalScore({ ...DEFAULT_GRADES, ...savedGrades }, player.stats) +
+          pitcherPremium(savedGrades, player, teamAge)
+      );
+
       // ---- Age eligibility ----
       const baseballAge = calculateBaseballAge(player.dob, currentSeason);
       const playingUp =
@@ -219,7 +235,7 @@ export const RosterDecisionsPanel = memo(() => {
 
       // ---- Bucket assignment (per-player PROPOSAL) ----
       // This pass only *proposes* a bucket from absolute cutoffs; the
-      // relative pass after the .map (see "Relative Development Focus")
+      // relative pass after the .map (see "Relative cut line")
       // tempers the proposed watch list against the team's own spread so
       // average kids on an average team are never flagged. Default here is
       // **watch** — a kid earns Strong Fit with positive signal across the
@@ -327,6 +343,7 @@ export const RosterDecisionsPanel = memo(() => {
         baseballAge,
         playingUp,
         latestEvalAvg,
+        totalScore,
         evalTrend,
         evalDelta,
         evalCount: evalsForPlayer.length,
@@ -337,35 +354,26 @@ export const RosterDecisionsPanel = memo(() => {
       };
     });
 
-    // ---- Relative Development Focus (no fixed cap) ----
+    // ---- Relative cut line (no fixed cap) ----
     // The per-player pass above only *proposes* a "watch" bucket from
-    // absolute cutoffs (eval >= 3.3 on a 1-5 scale where 3 = "average"),
-    // which over-flags a roster that's simply young or early in the season
-    // -- it once put 7 of 12 kids on the list. Temper it against the team's
-    // OWN spread instead: a player stays flagged only if their composite
-    // standing is more than one standard deviation below the team mean.
-    // There is NO hard cap -- the distribution itself decides, so a
-    // tightly-bunched team can flag nobody and only genuine outliers ever
-    // surface. Anyone tempered off becomes a "fit" (solid standing — they
-    // hold the team line without standing out); the earned "strong" tier and
-    // the age-based "younger" (Cut / Drop a Division) bucket are untouched.
+    // absolute cutoffs, which over-flags a roster that's simply young or
+    // early in the season -- it once put 7 of 12 kids on the list. Temper it
+    // against the team's OWN spread instead: a player stays flagged as a Cut
+    // Candidate only if their Total Score (out of 100 — the same number the
+    // grading cards produce, blending eval grades and imported stats) is more
+    // than one standard deviation below the team mean. There is NO hard cap
+    // -- the distribution itself decides, so a tightly-bunched team can flag
+    // nobody and only genuine outliers ever surface. Anyone tempered off
+    // becomes a "fit" (solid standing — they hold the team line without
+    // standing out); the earned "strong" tier and the age-based "younger"
+    // (Cut / Drop a Division) bucket are untouched.
     //
-    // Composite standing: eval (1-5) and stats (OPS ratio, 1.0 = team avg)
-    // each normalized to 0-1, blended 60/40 toward the eval. Null when we
-    // have no signal at all for that kid -- can't call them low without data.
-    const compositeOf = (d: any) => {
-      const evalNorm =
-        d.latestEvalAvg != null ? (d.latestEvalAvg - 1) / 4 : null;
-      const statsNorm =
-        d.statsRatio != null
-          ? Math.max(0, Math.min(1, d.statsRatio / 2))
-          : null;
-      if (evalNorm != null && statsNorm != null)
-        return evalNorm * 0.6 + statsNorm * 0.4;
-      if (evalNorm != null) return evalNorm;
-      if (statsNorm != null) return statsNorm;
-      return null;
-    };
+    // Null standing when we have no eval AND no stats for the kid -- can't
+    // call them low without data.
+    const compositeOf = (d: any) =>
+      d.latestEvalAvg == null && d.statsRatio == null
+        ? null
+        : d.totalScore / 100;
     const withComp = decisionRows.map((d: any) => ({ d, c: compositeOf(d) }));
     const scored = withComp.map((x: any) => x.c).filter((c: any) => c != null);
     const mean = scored.length
@@ -377,14 +385,25 @@ export const RosterDecisionsPanel = memo(() => {
         )
       : 0;
     const belowLine = mean - sd;
+    const teamAvgScore = Math.round(mean * 100);
     for (const x of withComp) {
       // perfScore drives the within-bucket card sort below (was never set).
       x.d.perfScore = x.c != null ? x.c : mean;
+      x.d.teamAvgScore = teamAvgScore;
+      x.d.scoreVsTeam =
+        x.c != null ? Math.round(x.d.totalScore - teamAvgScore) : null;
       if (x.d.bucket !== "watch") continue;
-      // Keep flagged as Development Focus only if genuinely below the team
-      // line AND we have data. Everyone else is a solid "Fit" — Strong Fit
-      // is earned above, so the middle of the roster lands here.
-      if (x.c != null && x.c < belowLine) continue;
+      // Stays a Cut Candidate only if genuinely below the team line AND we
+      // have data. Everyone else is a solid "Fit" — Strong Fit is earned
+      // above, so the middle of the roster lands here.
+      if (x.c != null && x.c < belowLine) {
+        x.d.rationale.unshift(
+          `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
+            x.d.scoreVsTeam > 0 ? "+" : ""
+          }${x.d.scoreVsTeam}) — more than a standard deviation back`
+        );
+        continue;
+      }
       x.d.bucket = "fit";
       if (x.c != null) {
         x.d.rationale = [
@@ -408,7 +427,7 @@ export const RosterDecisionsPanel = memo(() => {
   };
 
   // Best-standing first for the healthy groups (Strong Fit / Fit); weakest
-  // first for the groups that need a decision (Development Focus / Cut-Drop).
+  // first for the groups that need a decision (Cut Candidates / Cut-Drop).
   byBucket.strong.sort((a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
   byBucket.fit.sort((a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
   byBucket.watch.sort((a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
@@ -433,9 +452,29 @@ export const RosterDecisionsPanel = memo(() => {
         )}
       </div>
       <div className="flex items-center gap-2 mb-1.5">
-        {d.latestEvalAvg != null && (
-          <span className="text-[10px] font-bold text-ink-2 tabular-nums">
-            Eval {d.latestEvalAvg.toFixed(1)}
+        <span
+          className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
+          style={{
+            backgroundColor: "var(--team-primary)",
+            color: "var(--team-tertiary)",
+          }}
+          title="Total Score (out of 100)"
+        >
+          {d.totalScore}
+        </span>
+        {d.scoreVsTeam != null && (
+          <span
+            className={`text-[10px] font-black tabular-nums ${
+              d.scoreVsTeam > 0
+                ? "text-win"
+                : d.scoreVsTeam < 0
+                ? "text-loss"
+                : "text-ink-3"
+            }`}
+            title={`vs team average score ${d.teamAvgScore}`}
+          >
+            {d.scoreVsTeam > 0 ? "+" : ""}
+            {d.scoreVsTeam} vs team
           </span>
         )}
         {d.evalTrend && (
@@ -490,6 +529,15 @@ export const RosterDecisionsPanel = memo(() => {
             <h2 className="text-xl font-black text-ink uppercase tracking-wider">
               Roster Decisions
             </h2>
+            {decisions[0]?.teamAvgScore != null && (
+              <p className="text-[11px] font-bold text-ink-3 mt-0.5">
+                Team average score:{" "}
+                <span className="tabular-nums text-ink-2">
+                  {decisions[0].teamAvgScore}
+                </span>{" "}
+                / 100 — each kid is judged against this line, not a fixed bar.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -532,15 +580,17 @@ export const RosterDecisionsPanel = memo(() => {
           )}
         </div>
 
-        {/* Development Focus — genuinely below the team line, needs work */}
+        {/* Cut Candidates — genuinely below the team's own line. Named for
+            what the bucket actually is: kids whose score sits more than a
+            standard deviation under the team average. */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-warnfg mb-2 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
-            Development Focus ({byBucket.watch.length})
+            Cut Candidates ({byBucket.watch.length})
           </div>
           {byBucket.watch.length === 0 ? (
             <p className="text-[11px] text-ink-3 italic font-medium px-1">
-              No players need extra focus right now.
+              Nobody is meaningfully below the team line right now.
             </p>
           ) : (
             <div className="flex flex-col gap-2">

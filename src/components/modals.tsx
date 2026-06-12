@@ -950,6 +950,59 @@ export const PlayerProfileModal = memo(() => {
                 </div>
               </div>
 
+              {/* Scheduled Absences — dates the family already knows the kid
+                  is out. Games on these dates default the kid to absent in
+                  Game Day Attendance (still toggleable per game). */}
+              <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+                <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
+                  <Icons.Calendar className="w-4 h-4" /> Scheduled Absences
+                </h4>
+                <p className="text-[11px] text-ink-3 font-medium mb-3 leading-snug">
+                  Know ahead of time when {player.name?.split(" ")[0] || "this player"} will
+                  be out (vacation, school event)? Add the dates — games on
+                  those days mark them absent automatically.
+                </p>
+                {(player.absences || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {[...(player.absences || [])].sort().map((d: string) => (
+                      <span
+                        key={d}
+                        className="t-chip pl-2 pr-1 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-900 tabular-nums inline-flex items-center gap-1"
+                      >
+                        {formatGameDateDisplay(d)}
+                        <button
+                          type="button"
+                          aria-label={`Remove absence ${d}`}
+                          onClick={() =>
+                            updatePlayer(player.id, {
+                              absences: (player.absences || []).filter(
+                                (x: string) => x !== d
+                              ),
+                            })
+                          }
+                          className="p-0.5 rounded hover:bg-amber-100 text-amber-700"
+                        >
+                          <Icons.X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="date"
+                  value=""
+                  aria-label={`Add absence date for ${player.name}`}
+                  onChange={(e) => {
+                    const d = e.target.value;
+                    if (!d || (player.absences || []).includes(d)) return;
+                    updatePlayer(player.id, {
+                      absences: [...(player.absences || []), d],
+                    });
+                  }}
+                  className="w-full sm:w-48 p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
+                />
+              </div>
+
               {pitchingFormat === "Kid Pitch" && (
                 <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
                   <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
