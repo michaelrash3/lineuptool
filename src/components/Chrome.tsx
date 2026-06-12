@@ -496,47 +496,156 @@ export const AppHeader = memo(() => {
   );
 });
 
+// Tabs that stay visible on phones; everything else collapses into "More".
+// Order matters — it mirrors the coach's game-day loop.
+const MOBILE_PRIORITY_TABS = ["home", "schedule", "roster", "stats"];
+
+const activeTabStyle = {
+  backgroundColor: "var(--team-secondary)",
+  color: "var(--team-primary)",
+  borderColor: "var(--team-primary)",
+};
+
+const TabPill = ({ btn, isActive, onClick, className = "" }: any) => {
+  const Icon = btn.icon;
+  return (
+    <button
+      onClick={onClick}
+      aria-current={isActive ? "page" : undefined}
+      className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
+        isActive
+          ? "shadow-sm"
+          : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
+      } ${className}`}
+      style={isActive ? activeTabStyle : undefined}
+    >
+      <Icon className="w-4 h-4" /> {btn.label}
+    </button>
+  );
+};
+
 export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => {
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // On phones, most of a head coach's 10 tabs scroll off-screen. Keep the
+  // game-day four visible and fold the rest into a "More" pill; when the
+  // active tab lives in the overflow, the pill takes the active style and
+  // shows that tab's label. sm+ keeps the full pill row (desktop unchanged).
+  const priority = navButtons.filter((b: any) =>
+    MOBILE_PRIORITY_TABS.includes(b.id)
+  );
+  const overflow = navButtons.filter(
+    (b: any) => !MOBILE_PRIORITY_TABS.includes(b.id)
+  );
+  const activeOverflowBtn = overflow.find((b: any) => b.id === activeTab);
+
+  const pick = (id: string) => {
+    setActiveTab(id);
+    setMoreOpen(false);
+  };
+
   return (
     <nav
       aria-label="Primary"
       className="bg-surface border-b border-line print:hidden relative z-10 shadow-sm"
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+      {/* sm+: full pill row (unchanged) */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 hidden sm:block">
         <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
-          {navButtons.map((btn: any) => {
-            const Icon = btn.icon;
-            const isActive = activeTab === btn.id;
-            // Settings is the only right-pushed tab (per design spec).
-            // The retired `submit-eval` pseudo-tab gate was carried for a
-            // release; safe to drop now since PR F replaced it with a
-            // real `eval` tab.
-            const rightAlign = btn.id === "settings";
-            return (
-              <button
-                key={btn.id}
-                onClick={() => setActiveTab(btn.id)}
-                aria-current={isActive ? "page" : undefined}
-                className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
-                  isActive
-                    ? "shadow-sm"
-                    : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
-                } ${rightAlign ? "ml-auto" : ""}`}
-                style={
-                  isActive
-                    ? {
-                        backgroundColor: "var(--team-secondary)",
-                        color: "var(--team-primary)",
-                        borderColor: "var(--team-primary)",
-                      }
-                    : undefined
-                }
-              >
-                <Icon className="w-4 h-4" /> {btn.label}
-              </button>
-            );
-          })}
+          {navButtons.map((btn: any) => (
+            <TabPill
+              key={btn.id}
+              btn={btn}
+              isActive={activeTab === btn.id}
+              onClick={() => setActiveTab(btn.id)}
+              // Settings is the only right-pushed tab (per design spec).
+              className={btn.id === "settings" ? "ml-auto" : ""}
+            />
+          ))}
         </div>
+      </div>
+
+      {/* Mobile: priority tabs + More overflow */}
+      <div className="max-w-7xl mx-auto px-4 pt-4 sm:hidden relative">
+        <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
+          {priority.map((btn: any) => (
+            <TabPill
+              key={btn.id}
+              btn={btn}
+              isActive={activeTab === btn.id}
+              onClick={() => pick(btn.id)}
+            />
+          ))}
+          {overflow.length > 0 && (
+            <button
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              aria-current={activeOverflowBtn ? "page" : undefined}
+              className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
+                activeOverflowBtn
+                  ? "shadow-sm"
+                  : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
+              }`}
+              style={activeOverflowBtn ? activeTabStyle : undefined}
+            >
+              {activeOverflowBtn ? (
+                <>
+                  <activeOverflowBtn.icon className="w-4 h-4" />
+                  {activeOverflowBtn.label}
+                </>
+              ) : (
+                "More"
+              )}
+              <Icons.ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${
+                  moreOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          )}
+        </div>
+        {moreOpen && (
+          <>
+            {/* Tap-away scrim under the panel */}
+            <div
+              className="fixed inset-0 z-10"
+              aria-hidden="true"
+              onClick={() => setMoreOpen(false)}
+            />
+            <div
+              role="menu"
+              aria-label="More tabs"
+              className="absolute right-4 top-full mt-1 z-20 bg-surface border border-line rounded-2xl shadow-lg overflow-hidden min-w-[180px]"
+            >
+              {overflow.map((btn: any) => {
+                const Icon = btn.icon;
+                const isActive = activeTab === btn.id;
+                return (
+                  <button
+                    key={btn.id}
+                    role="menuitem"
+                    onClick={() => pick(btn.id)}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`w-full text-left px-4 py-3 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2.5 transition-colors ${
+                      isActive ? "" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
+                    }`}
+                    style={
+                      isActive
+                        ? {
+                            backgroundColor: "var(--team-secondary)",
+                            color: "var(--team-primary)",
+                          }
+                        : undefined
+                    }
+                  >
+                    <Icon className="w-4 h-4" /> {btn.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </nav>
   );
