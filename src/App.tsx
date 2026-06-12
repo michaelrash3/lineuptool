@@ -45,7 +45,12 @@ import {
 } from "./contexts";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { SharedModals, downscaleImageToDataURL } from "./components/shared";
-import { AppMotionProvider, AnimatePresence, m } from "./components/motion";
+import {
+  AppMotionProvider,
+  AnimatePresence,
+  m,
+  FadeSlideIn,
+} from "./components/motion";
 import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
@@ -3343,6 +3348,10 @@ const MainShell = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
         <ErrorBoundary resetKey={location.pathname}>
+        {/* Keyed entrance-only transition: replays on navigation. Exit
+            animations (AnimatePresence mode="wait") are flaky around
+            Suspense/lazy chunks, so entrances only. */}
+        <FadeSlideIn key={location.pathname}>
         <Routes>
           <Route path="/" element={<HomeTab />} />
           <Route path="/stats" element={<StatsTab />} />
@@ -3385,6 +3394,7 @@ const MainShell = () => {
           <Route path="/in-game/:gameId" element={<div className="hidden" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </FadeSlideIn>
         </ErrorBoundary>
         </Suspense>
       </main>
@@ -3408,15 +3418,17 @@ const MainShell = () => {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
       />
-      <button
+      <m.button
         type="button"
         onClick={() => setTutorialOpen(true)}
         aria-label="Open tutorial"
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg hover:-translate-y-0.5 transition-transform print:hidden"
+        whileHover={{ y: -2 }}
+        whileTap={{ scale: 0.92 }}
+        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg print:hidden"
         style={{ backgroundColor: "var(--team-primary)" }}
       >
         ?
-      </button>
+      </m.button>
       {genError && (
         <div className="fixed bottom-4 left-4 bg-red-600 text-white px-4 py-3 rounded-xl shadow-lg max-w-sm text-xs font-bold print:hidden">
           {genError}

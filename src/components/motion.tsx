@@ -5,6 +5,8 @@ import {
   m,
   MotionConfig,
   AnimatePresence as FMAnimatePresence,
+  useSpring,
+  useTransform,
 } from "framer-motion";
 import type { AnimatePresenceProps } from "framer-motion";
 
@@ -103,3 +105,26 @@ export const StaggerItem = ({
     {children}
   </m.div>
 );
+
+// Number that springs to new values (record tiles, balance hero). Starts at
+// the real value — no count-up from zero on mount, so initial paint (and
+// jsdom text assertions) always show the true number; subsequent data
+// changes animate.
+export const AnimatedNumber = ({
+  value,
+  format,
+  className = "",
+}: {
+  value: number;
+  format?: (n: number) => string;
+  className?: string;
+}) => {
+  const spring = useSpring(value, { stiffness: 90, damping: 18 });
+  React.useEffect(() => {
+    spring.set(value);
+  }, [spring, value]);
+  const text = useTransform(spring, (v) =>
+    format ? format(v) : Math.round(v).toLocaleString()
+  );
+  return <m.span className={className}>{text}</m.span>;
+};

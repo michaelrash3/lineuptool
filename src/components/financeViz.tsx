@@ -21,6 +21,7 @@ import {
   useChartId,
 } from "./charts/primitives";
 import { Sparkline } from "./charts/Sparkline";
+import { AnimatedNumber } from "./motion";
 
 // Money visuals for the Finances tab, built on recharts and the same design
 // tokens as the rest of the app (team gradient hero like HomeTab's
@@ -91,7 +92,7 @@ export const FinanceHero = ({
       <div>
         <div className="t-eyebrow text-white/70">Balance now</div>
         <div className="text-4xl sm:text-5xl font-black tabular-nums tracking-tight">
-          {formatCurrency(balanceNow)}
+          <AnimatedNumber value={balanceNow} format={formatCurrency} />
         </div>
       </div>
       <Sparkline
