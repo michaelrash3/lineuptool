@@ -2222,6 +2222,8 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     pitchingFormat,
     depthChart,
     pitchRuleSet,
+    catcherMaxInnings,
+    catcherConsecutive,
     seed,
   } = input as any;
 
@@ -2372,18 +2374,84 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     }
   }
 
+  // An EXPLICIT catcher cap (Settings → Catcher Innings, or the per-game
+  // override) applies in tournament games too: once the starting catcher
+  // hits the cap, the best catcher-eligible bench player takes over for the
+  // rest of the game. "auto"/"none" keep tournament catcher continuity
+  // (no scripted change). No handoff when nobody on the bench can catch.
+  const catcherPolicy = resolveCatcherPolicy(
+    catcherMaxInnings,
+    catcherConsecutive,
+    defenseSize,
+    profiled.length
+  );
+  const starterC = assigned.get("C");
+  let catcherHandoff: TournamentSubstitution | null = null;
+  if (starterC && catcherPolicy.enforceCap && catcherPolicy.cap < totalInnings) {
+    const handoffInning = catcherPolicy.cap + 1;
+    const scriptedIn = new Set(substitutions.map((s) => s.in?.id));
+    const eligible = benchPlayers
+      .filter((p: any) => isCatcherEligible(p))
+      .sort(
+        (a: any, b: any) =>
+          calcCatcherScore(b.profile.grades, b.stats) -
+          calcCatcherScore(a.profile.grades, a.stats)
+      );
+    // Prefer a bench catcher with no scripted field stint; otherwise borrow
+    // a scripted sub — their field stint ends when they strap the gear on.
+    const pick =
+      eligible.find((p: any) => !scriptedIn.has(p.id)) || eligible[0] || null;
+    if (pick) {
+      catcherHandoff = {
+        inning: handoffInning,
+        returnInning: null,
+        position: "C",
+        in: slim(pick),
+        out: slim(starterC),
+      };
+      const stintIdx = substitutions.findIndex((s) => s.in?.id === pick.id);
+      if (stintIdx >= 0) {
+        const stint = substitutions[stintIdx];
+        if (stint.inning >= handoffInning) {
+          // Their whole field stint falls after the handoff — they're catching
+          // instead, so the stint never happens.
+          substitutions.splice(stintIdx, 1);
+        } else if (
+          stint.returnInning == null ||
+          stint.returnInning > handoffInning
+        ) {
+          stint.returnInning = handoffInning;
+        }
+      }
+      substitutions.push(catcherHandoff);
+    }
+  }
+
   // Materialize the innings grid so the existing lineup card, in-game view,
   // and save flow work unchanged.
-  const subByPos = new Map(substitutions.map((s) => [s.position, s]));
+  const subByPos = new Map(
+    substitutions.filter((s) => s.position !== "C").map((s) => [s.position, s])
+  );
+  const reliefCatcherId = catcherHandoff?.in?.id ?? null;
   const innings: any[] = [];
   for (let i = 1; i <= totalInnings; i++) {
     const inSubWindow =
       subEnterInning != null && i >= subEnterInning && i <= (subLastInning as number);
+    const catcherSwapped =
+      catcherHandoff != null && i >= (catcherHandoff.inning as number);
     const inn: any = {};
     const benched = new Set(benchPlayers.map((p: any) => p.id));
     for (const [pos, starter] of assigned) {
+      if (pos === "C" && catcherSwapped && catcherHandoff?.in) {
+        inn.C = catcherHandoff.in;
+        benched.delete(catcherHandoff.in.id);
+        benched.add(starter.id);
+        continue;
+      }
       const s = inSubWindow ? subByPos.get(pos) : undefined;
-      if (s && s.in) {
+      // A bench kid can't hold a field stint and catch at once — once the
+      // catcher handoff starts, their field slot reverts to its starter.
+      if (s && s.in && !(catcherSwapped && s.in.id === reliefCatcherId)) {
         inn[pos] = s.in;
         benched.delete(s.in.id);
         benched.add(starter.id);

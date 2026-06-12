@@ -83,6 +83,7 @@ import {
   estimateDocSizeBytes,
   mergeTeamEntries,
   blockedRosterWipeReason,
+  isPlayerScheduledOut,
   financeSummary,
   formatCurrency,
   rollFinancesForNewSeason,
@@ -2634,20 +2635,27 @@ const UIProvider = ({ children }: any) => {
     if (scoringGameId && !ids.has(scoringGameId)) setScoringGameId(null);
     if (inGameId && !ids.has(inGameId)) setInGameId(null);
   }, [team.team.games, selectedGameId, scoringGameId, inGameId]);
-  // When players list changes, fill in attendance defaults
+  // When players list changes, fill in attendance defaults. A kid defaults
+  // absent when inactive on the roster OR scheduled out on the game's date
+  // (absences entered ahead of time on the player profile) — the coach can
+  // still toggle them back in the Game Day Attendance grid.
   useEffect(() => {
+    const gameDate = team.team.games.find(
+      (g: any) => g.id === selectedGameId
+    )?.date;
     setCurrentGameAttendance((prev: any) => {
       const next = { ...prev };
       let changed = false;
       for (const p of team.team.players) {
         if (next[p.id] === undefined) {
-          next[p.id] = p.present !== false;
+          next[p.id] =
+            p.present !== false && !isPlayerScheduledOut(p, gameDate);
           changed = true;
         }
       }
       return changed ? next : prev;
     });
-  }, [team.team.players]);
+  }, [team.team.players, team.team.games, selectedGameId]);
 
   // Sync teamEvalGrades based on selectedRoundId:
   //   - If a specific round is selected, load its grades for editing

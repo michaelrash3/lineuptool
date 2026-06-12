@@ -7,6 +7,7 @@ import {
   isGameFinalized,
   countsTowardStats,
   recordWinningPercentage,
+  latestGameLineMovement,
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
@@ -621,72 +622,90 @@ const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster
 });
 
 /* ===========================================================================
-   RecentMovementTile — uses player.statsHistory (per PR #37). Surfaces the
-   top mover and top regressor across the roster's most recent transitions.
+   RecentMovementTile — OPS movement since the previous stat update for every
+   kid it can be computed for. Two sources, per player: the statsHistory
+   snapshot a CSV import writes, or (when no snapshot exists — coaches who
+   import stats per game) a before/after derivation of their game lines via
+   latestGameLineMovement. Shows every mover, risers first.
 =========================================================================== */
-const RecentMovementTile = memo(({ players, onPlayerClick }: any) => {
+const RECENT_MOVEMENT_MAX_ROWS = 6;
+
+const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
   const movers = useMemo(() => {
-    const all = [];
+    const all: Array<{ player: any; delta: number }> = [];
     for (const p of players || []) {
       const history = Array.isArray(p?.statsHistory) ? p.statsHistory : [];
-      if (history.length === 0) continue;
-      const prior = history[history.length - 1]?.stats || {};
-      const cur = p.stats || {};
-      const priorOps = Number(prior.ops) || 0;
-      const curOps = Number(cur.ops) || 0;
+      let priorOps: number | null = null;
+      let curOps = Number(p.stats?.ops) || 0;
+      if (history.length > 0) {
+        priorOps = Number(history[history.length - 1]?.stats?.ops) || 0;
+      } else {
+        const move = latestGameLineMovement(games, p.id);
+        if (move) {
+          priorOps = Number(move.prior.ops) || 0;
+          curOps = Number(move.current.ops) || curOps;
+        }
+      }
+      if (priorOps == null) continue;
       if (priorOps === 0 && curOps === 0) continue;
       const delta = curOps - priorOps;
       if (Math.abs(delta) < 0.005) continue;
-      all.push({ player: p, delta, priorOps, curOps });
+      all.push({ player: p, delta });
     }
-    all.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-    const topMover = all.find((m) => m.delta > 0) || null;
-    const topRegressor = all.find((m) => m.delta < 0) || null;
-    return { topMover, topRegressor, total: all.length };
-  }, [players]);
+    // Risers first (biggest jump on top), then fallers (biggest drop last).
+    all.sort((a, b) => b.delta - a.delta);
+    return all;
+  }, [players, games]);
 
-  if (!movers.topMover && !movers.topRegressor) {
+  if (movers.length === 0) {
     return (
       <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
         <p className="text-[11px] text-ink-3 font-medium italic">
-          Upload another CSV to start tracking game-to-game stat movement.
+          Import stats again after your next game to track movement — it
+          shows once a player has two stat updates to compare.
         </p>
       </InsightTile>
     );
   }
 
   const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
+  const shown = movers.slice(0, RECENT_MOVEMENT_MAX_ROWS);
+  const overflow = movers.length - shown.length;
 
   return (
     <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
-      <div className="space-y-2">
-        {movers.topMover && (
+      <div className="space-y-1.5">
+        {shown.map(({ player, delta }) => (
           <button
+            key={player.id}
             type="button"
-            onClick={() => onPlayerClick?.(movers.topMover!.player.id)}
-            className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-win-bg/40 border border-line/80 hover:bg-win-bg transition-colors shadow-sm"
+            onClick={() => onPlayerClick?.(player.id)}
+            className={`w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
+              delta > 0
+                ? "bg-win-bg/40 hover:bg-win-bg"
+                : "bg-loss-bg/40 hover:bg-loss-bg"
+            }`}
           >
-            <span className="t-body-bold text-emerald-900 truncate">
-              {movers.topMover.player.name}
+            <span
+              className={`t-body-bold truncate ${
+                delta > 0 ? "text-emerald-900" : "text-rose-900"
+              }`}
+            >
+              {player.name}
             </span>
-            <span className="t-stat-num-sm text-win tabular-nums shrink-0">
-              ↑ OPS {fmt(movers.topMover.delta)}
+            <span
+              className={`t-stat-num-sm tabular-nums shrink-0 ${
+                delta > 0 ? "text-win" : "text-loss"
+              }`}
+            >
+              {delta > 0 ? "↑" : "↓"} OPS {fmt(delta)}
             </span>
           </button>
-        )}
-        {movers.topRegressor && (
-          <button
-            type="button"
-            onClick={() => onPlayerClick?.(movers.topRegressor!.player.id)}
-            className="w-full text-left flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl bg-loss-bg/40 border border-line/80 hover:bg-loss-bg transition-colors shadow-sm"
-          >
-            <span className="t-body-bold text-rose-900 truncate">
-              {movers.topRegressor.player.name}
-            </span>
-            <span className="t-stat-num-sm text-loss tabular-nums shrink-0">
-              ↓ OPS {fmt(movers.topRegressor.delta)}
-            </span>
-          </button>
+        ))}
+        {overflow > 0 && (
+          <p className="text-[10px] font-bold text-ink-3 px-1">
+            +{overflow} more moved
+          </p>
         )}
       </div>
     </InsightTile>
@@ -1282,6 +1301,7 @@ export const HomeTab = memo(() => {
           )}
           <RecentMovementTile
             players={players}
+            games={games}
             onPlayerClick={openPlayerProfile}
           />
           <EvalMomentumTile

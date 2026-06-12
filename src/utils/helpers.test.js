@@ -36,6 +36,8 @@ import {
   stripPitchingStatsForFormat,
   aggregateGameLines,
   deriveSeasonFromGameLines,
+  latestGameLineMovement,
+  isPlayerScheduledOut,
   recentGameLines,
   evalStatHint,
   deriveTournaments,
@@ -50,6 +52,7 @@ import {
   budgetItemAmount,
   roundUpToIncrement,
   incomeTotal,
+  sponsorshipTotal,
   transactionLedger,
   budgetActuals,
   monthlyCashflow,
@@ -1577,6 +1580,41 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
   });
 });
 
+describe("latestGameLineMovement (Recent Movement from per-game imports)", () => {
+  const games = [
+    { id: "a", date: "2026-04-01", playerStats: { p1: { ab: 4, h: 1, obp: 0.25, ops: 0.5 } } },
+    { id: "b", date: "2026-05-01", playerStats: { p1: { ab: 4, h: 3, obp: 0.75, ops: 1.5 } } },
+    { id: "c", date: "2026-03-01", playerStats: {} }, // no line for p1
+  ];
+
+  it("compares the season derived with vs without the newest game", () => {
+    const move = latestGameLineMovement(games, "p1");
+    expect(move).toBeTruthy();
+    expect(move.date).toBe("2026-05-01");
+    // Prior = game a only; current = a + b summed.
+    expect(move.prior.avg).toBeCloseTo(1 / 4);
+    expect(move.current.avg).toBeCloseTo(4 / 8);
+    expect(move.current.ops).toBeGreaterThan(move.prior.ops);
+  });
+
+  it("needs at least two game lines — one game has no before/after", () => {
+    expect(latestGameLineMovement([games[0]], "p1")).toBeNull();
+    expect(latestGameLineMovement(games, "p2")).toBeNull();
+    expect(latestGameLineMovement(null, "p1")).toBeNull();
+  });
+});
+
+describe("isPlayerScheduledOut (front-loaded absence dates)", () => {
+  it("matches an exact ISO date in the player's absences list", () => {
+    const p = { absences: ["2026-06-19", "2026-07-04"] };
+    expect(isPlayerScheduledOut(p, "2026-06-19")).toBe(true);
+    expect(isPlayerScheduledOut(p, "2026-06-20")).toBe(false);
+    expect(isPlayerScheduledOut(p, null)).toBe(false);
+    expect(isPlayerScheduledOut({}, "2026-06-19")).toBe(false);
+    expect(isPlayerScheduledOut(null, "2026-06-19")).toBe(false);
+  });
+});
+
 describe("recentGameLines + aggregateGameLines (Recent Form)", () => {
   it("returns the newest N lines and aggregates them", () => {
     const games = [
@@ -1764,10 +1802,19 @@ describe("finances money math", () => {
     expect(incomeTotal(null)).toBe(0);
   });
 
-  it("suggestedFeePerPlayer covers next season's budget after this year's projected money", () => {
-    // Projected year-end money = balanceNow 675 + stillOwed 225 = 900.
-    // (3850.5 − 900) / 3 paying players = 983.5 → 984.
-    expect(suggestedFeePerPlayer(finances, players)).toBe(984);
+  it("suggestedFeePerPlayer splits the budget minus pledged sponsorships — this year's ledger stays out", () => {
+    // Current-year payments/incomes/expenses in the fixture must NOT
+    // discount next season's fee: (3850.5 − 0) / 3 = 1283.5 → 1284.
+    expect(suggestedFeePerPlayer(finances, players)).toBe(1284);
+    const withSponsors = {
+      ...finances,
+      sponsorships: [
+        { id: "s1", sponsor: "Smith Hardware", amount: 600 },
+        { id: "s2", sponsor: "Dairy Bar", amount: 250.5 },
+      ],
+    };
+    // (3850.5 − 850.5) / 3 = 1000.
+    expect(suggestedFeePerPlayer(withSponsors, players)).toBe(1000);
     expect(suggestedFeePerPlayer(finances, [])).toBeNull();
     expect(suggestedFeePerPlayer({ budgetItems: [] }, players)).toBeNull();
     expect(suggestedFeePerPlayer(null, players)).toBeNull();
@@ -1775,17 +1822,29 @@ describe("finances money math", () => {
 
   it("suggestedFeePerPlayer excludes fee-exempt players from the split", () => {
     const withWaiver = { ...finances, feeExemptIds: ["kid3"] };
-    // stillOwed drops kid3's 150 → projected = 675 + 75 = 750; 2 payers.
-    // (3850.5 − 750) / 2 = 1550.25 → 1551.
-    expect(suggestedFeePerPlayer(withWaiver, players)).toBe(1551);
+    // 2 payers: 3850.5 / 2 = 1925.25 → 1926.
+    expect(suggestedFeePerPlayer(withWaiver, players)).toBe(1926);
   });
 
-  it("suggestedFeePerPlayer is 0 (not negative) when projected money covers everything", () => {
+  it("suggestedFeePerPlayer is 0 (not negative) when sponsorships cover everything", () => {
     const covered = {
       budgetItems: [{ id: "b", label: "Balls", amount: 500 }],
-      incomes: [{ id: "i", date: "2026-01-01", label: "Sponsor", amount: 800 }],
+      sponsorships: [{ id: "s", sponsor: "Sponsor", amount: 800 }],
     };
     expect(suggestedFeePerPlayer(covered, [{ id: "kid1" }])).toBe(0);
+  });
+
+  it("sponsorshipTotal sums next-season pledges and tolerates junk", () => {
+    expect(
+      sponsorshipTotal({
+        sponsorships: [
+          { id: "s1", sponsor: "A", amount: 100 },
+          { id: "s2", sponsor: "B", amount: "nope" },
+          null,
+        ],
+      })
+    ).toBe(100);
+    expect(sponsorshipTotal(null)).toBe(0);
   });
 
   it("financeSummary computes the P&L tiles in one pass, income included", () => {
@@ -1892,6 +1951,28 @@ describe("finances money math", () => {
     expect(rolled.budgetItems).toEqual(planned.budgetItems);
     expect(rolled.incomes).toEqual([]);
     expect(rolled.pastSeasons).toBeUndefined(); // nothing worth archiving
+  });
+
+  it("rollFinancesForNewSeason converts sponsorship pledges into new-year income", () => {
+    const rolled = rollFinancesForNewSeason(
+      {
+        ...finances,
+        sponsorships: [
+          { id: "s1", sponsor: "Smith Hardware", amount: 500 },
+          { id: "s2", sponsor: "Dairy Bar", amount: 0 }, // empty pledge dropped
+        ],
+      },
+      "Spring 2027",
+      "2027-06-01"
+    );
+    // Carry-over first, then the pledge as named income.
+    expect(rolled.incomes).toHaveLength(2);
+    expect(rolled.incomes[1]).toMatchObject({
+      label: "Sponsorship — Smith Hardware",
+      amount: 500,
+      date: "2027-06-01",
+    });
+    expect(rolled.sponsorships).toBeUndefined(); // pledges don't roll twice
   });
 
   it("budgetActuals buckets linked spending per category, unlinked as unplanned", () => {

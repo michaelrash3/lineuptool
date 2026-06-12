@@ -1241,6 +1241,46 @@ export const deriveSeasonFromGameLines = (
   return aggregateGameLines(lines);
 };
 
+// Scheduled absences: dates a family already knows the kid is out (vacation,
+// school event), entered ahead of time on the player profile. A game on one
+// of these dates defaults the kid to absent in Game Day Attendance — the
+// coach can still toggle them back if plans change.
+export const isPlayerScheduledOut = (
+  player: { absences?: string[] } | null | undefined,
+  dateIso: string | null | undefined
+): boolean => {
+  if (!dateIso) return false;
+  return (player?.absences || []).includes(String(dateIso).slice(0, 10));
+};
+
+// Movement caused by a player's most recent imported game line: the season
+// stats derived from all of their game lines vs the same derivation with the
+// newest game excluded. Lets Recent Movement work for coaches who import
+// stats per game (no statsHistory snapshots from a season-CSV upload).
+// Null when the player has fewer than two game lines — no before/after.
+export const latestGameLineMovement = (
+  games:
+    | Array<{ date?: string; opponent?: string; playerStats?: Record<string, any> }>
+    | null
+    | undefined,
+  playerId: string
+): {
+  prior: Record<string, number>;
+  current: Record<string, number>;
+  date?: string;
+  opponent?: string;
+} | null => {
+  const withLines = (games || [])
+    .filter((g) => g?.playerStats?.[playerId])
+    .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+  if (withLines.length < 2) return null;
+  const latest = withLines[withLines.length - 1];
+  const prior = deriveSeasonFromGameLines(withLines.slice(0, -1), playerId);
+  const current = deriveSeasonFromGameLines(withLines, playerId);
+  if (!prior || !current) return null;
+  return { prior, current, date: latest.date, opponent: latest.opponent };
+};
+
 // The last `n` per-game stat lines for a player, newest game first. Powers the
 // Stats tab's Recent Form (hot/cold) view.
 export const recentGameLines = (
@@ -2462,15 +2502,22 @@ export const roundUpToIncrement = (n: number, increment?: number): number => {
 export const incomeTotal = (finances: TeamFinances | null | undefined): number =>
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
-// Suggested NEXT-season fee per paying player. The season year runs Fall →
-// Spring; the Budget Planner plans the coming year's costs while the current
-// year's money is still moving, so the recommendation covers the budget with
-// whatever the club projects to have once this year's fees are all in
-// (balanceNow + stillOwed — which already includes sponsorships), rounded UP
-// to the next dollar so the club never plans a shortfall. Fee-exempt players
-// (fall-only pickups, scholarships) don't dilute the split. 0 when the
-// projection covers everything; null when there's nothing to split (no
-// budget or no paying players).
+// Sponsorships pledged toward NEXT season's budget (Budget Planner entries
+// with a sponsor name) — the only money that offsets the suggested fee.
+export const sponsorshipTotal = (
+  finances: TeamFinances | null | undefined
+): number =>
+  (finances?.sponsorships || []).reduce((sum, s) => sum + money(s?.amount), 0);
+
+// Suggested NEXT-season fee per paying player. The Budget Planner plans the
+// coming year in isolation: planned costs minus sponsorships pledged for that
+// year, split across paying players and rounded UP so the club never plans a
+// shortfall. The CURRENT year's ledger (this year's fees, fundraising,
+// spending) stays out of it — leftover cash carries into the new year's
+// ledger when the season advances, it doesn't pre-discount the fee.
+// Fee-exempt players (fall-only pickups, scholarships) don't dilute the
+// split. 0 when sponsorships cover everything; null when there's nothing to
+// split (no budget or no paying players).
 export const suggestedFeePerPlayer = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string }> | null | undefined
@@ -2480,9 +2527,7 @@ export const suggestedFeePerPlayer = (
   const exempt = new Set(finances?.feeExemptIds || []);
   const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
   if (payers.length === 0) return null;
-  const s = financeSummary(finances, players);
-  const projectedYearEnd = s.balanceNow + s.stillOwed;
-  const uncovered = Math.max(0, total - projectedYearEnd);
+  const uncovered = Math.max(0, total - sponsorshipTotal(finances));
   // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
   // and the fee is a clean number; without one, next-dollar ceiling.
   return roundUpToIncrement(
@@ -2790,12 +2835,34 @@ export const rollFinancesForNewSeason = (
     (finances?.expenses || []).length > 0;
   const hasPlannedFee = finances?.nextClubFee != null;
   if (!finances || (!hadActivity && !hasPlannedFee)) return finances;
+  const date = String(dateIso || "").slice(0, 10);
+  // Sponsorship pledges planned for the incoming year become real income
+  // entries in the new year's ledger, named after the sponsor.
+  const pledgedIncomes = (finances.sponsorships || [])
+    .filter((sp) => money(sp?.amount) > 0)
+    .map((sp) => ({
+      id: `inc-${sp.id}`,
+      date,
+      label: `Sponsorship — ${sp.sponsor || "Sponsor"}`,
+      amount: money(sp.amount),
+    }));
   if (!hadActivity) {
     // Plan-only roll: the coach set next season's fee before recording any
     // money. Promote it so Fall Collections opens on the planned fee; there
     // is no balance to carry and no year worth archiving.
-    const { nextClubFee: promoted, feeExemptIds: _cleared, ...rest } = finances;
-    return { ...rest, clubFee: promoted, payments: [], incomes: [], expenses: [] };
+    const {
+      nextClubFee: promoted,
+      feeExemptIds: _cleared,
+      sponsorships: _converted,
+      ...rest
+    } = finances;
+    return {
+      ...rest,
+      clubFee: promoted,
+      payments: [],
+      incomes: pledgedIncomes,
+      expenses: [],
+    };
   }
   // Label the archived year by its closing season ("through Spring 2027").
   const yearLabel = `through ${archivedSeason}`;
@@ -2803,10 +2870,9 @@ export const rollFinancesForNewSeason = (
   // so the players list is irrelevant here.
   const s = financeSummary(finances, []);
   const balance = Math.round(s.balanceNow * 100) / 100;
-  const date = String(dateIso || "").slice(0, 10);
   const carryId = `carry-${date}-${Math.random().toString(36).slice(2, 8)}`;
-  const incomes =
-    balance > 0
+  const incomes = [
+    ...(balance > 0
       ? [
           {
             id: carryId,
@@ -2815,7 +2881,9 @@ export const rollFinancesForNewSeason = (
             amount: balance,
           },
         ]
-      : [];
+      : []),
+    ...pledgedIncomes,
+  ];
   const expenses =
     balance < 0
       ? [
@@ -2827,7 +2895,12 @@ export const rollFinancesForNewSeason = (
           },
         ]
       : [];
-  const { nextClubFee: _promoted, feeExemptIds: _cleared, ...rest } = finances;
+  const {
+    nextClubFee: _promoted,
+    feeExemptIds: _cleared,
+    sponsorships: _rolled,
+    ...rest
+  } = finances;
   return {
     ...rest,
     clubFee:

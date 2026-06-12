@@ -93,21 +93,62 @@ describe("FinancesTab", () => {
     });
   });
 
-  it("suggests next season's fee from projected year-end money and stores it as nextClubFee", () => {
+  it("suggests next season's fee from the budget minus pledged sponsorships and stores it as nextClubFee", () => {
+    const sponsored: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        sponsorships: [
+          { id: "s1", sponsor: "Smith Hardware", amount: 200 },
+        ],
+      },
+    };
     const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
+      team: { team: sponsored },
     });
-    // Projected year-end = balanceNow 80 + stillOwed 100 = 180.
-    // (budget 500 − 180) / 2 paying players = 160.
+    // (budget 500 − sponsorships 200) / 2 paying players = 150. This year's
+    // ledger (payments/income/expenses in the fixture) must not change it.
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i })
     );
     expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ nextClubFee: 160 }),
+      finances: expect.objectContaining({ nextClubFee: 150 }),
     });
     // The CURRENT season's collections fee is untouched by planning.
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
     expect(patch.finances.clubFee).toBe(100);
+  });
+
+  it("adds a named sponsorship to the budget planner and removes it", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.change(screen.getByLabelText("Sponsor name"), {
+      target: { value: "Smith Hardware" },
+    });
+    fireEvent.change(screen.getByLabelText("Sponsorship amount"), {
+      target: { value: "250" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Add Sponsor/ }));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(patch.finances.sponsorships[0]).toMatchObject({
+      sponsor: "Smith Hardware",
+      amount: 250,
+    });
+
+    const withSponsor: any = {
+      ...baseTeam,
+      finances: { ...baseTeam.finances, sponsorships: patch.finances.sponsorships },
+    };
+    const second = renderWithProviders(<FinancesTab />, {
+      team: { team: withSponsor },
+    });
+    fireEvent.click(
+      screen.getByLabelText("Remove sponsorship from Smith Hardware")
+    );
+    const removePatch = (second.teamValue.updateTeam as jest.Mock).mock
+      .calls[0][0];
+    expect(removePatch.finances.sponsorships).toEqual([]);
   });
 
   it("waives a player's fee and shows the waived state", () => {
@@ -146,7 +187,11 @@ describe("FinancesTab", () => {
   it("buffered suggestion rounds the next-season fee up to a clean number", () => {
     const buffered: any = {
       ...baseTeam,
-      finances: { ...baseTeam.finances, feeBufferIncrement: 25 },
+      finances: {
+        ...baseTeam.finances,
+        feeBufferIncrement: 25,
+        sponsorships: [{ id: "s1", sponsor: "Smith Hardware", amount: 180 }],
+      },
     };
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: buffered },
@@ -191,12 +236,12 @@ describe("FinancesTab", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: taxed },
     });
-    // Budget 440 + 100 = 540 → (540 − 180) / 2 = 180.
+    // Budget 440 + 100 = 540 → 540 / 2 = 270.
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i })
     );
     expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ nextClubFee: 180 }),
+      finances: expect.objectContaining({ nextClubFee: 270 }),
     });
   });
 

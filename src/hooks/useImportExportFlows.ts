@@ -516,11 +516,32 @@ export const useImportExportFlows = ({
           // Re-derive season totals from ALL game lines for the players this
           // import touched. Derived fields overwrite; anything not derivable
           // from game lines (e.g. velocity hand-entered) is preserved.
+          // Prior stats are snapshotted into statsHistory first (same as the
+          // season-CSV import) so Recent Movement tracks per-game imports too;
+          // capped at 20 entries to stay under Firestore's 1 MB doc limit.
           const nextPlayers = (teamData.players || []).map((p: any) => {
             if (!touchedIds.has(p.id)) return p;
             const derived = deriveSeasonFromGameLines(nextGames, p.id);
             if (!derived) return p;
-            return { ...p, stats: { ...(p.stats || {}), ...derived } };
+            const priorStats = p.stats || blankStats();
+            const changed = Object.keys(derived).some(
+              (k) => Number(priorStats[k]) !== Number(derived[k])
+            );
+            const statsHistory = changed
+              ? [
+                  ...(p.statsHistory || []),
+                  {
+                    importedAt: new Date().toISOString(),
+                    source: "game-csv",
+                    stats: { ...priorStats },
+                  },
+                ].slice(-20)
+              : p.statsHistory || [];
+            return {
+              ...p,
+              stats: { ...priorStats, ...derived },
+              statsHistory,
+            };
           });
           updateTeam({ games: nextGames, players: nextPlayers });
           toast.push({
