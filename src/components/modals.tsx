@@ -21,13 +21,24 @@ import {
   STATS_TAB_KEYS,
   STAT_META,
   formatStatValue,
-  StatTrendModal,
-  RecentMovementPanel,
 } from "./modals/statTrend";
 
-// StatTrendModal + the stat helpers now live in ./modals/statTrend; re-export
-// the public ones so the import surface of this module is unchanged.
-export { StatTrendModal, formatStatValue } from "./modals/statTrend";
+// Stat helpers live in ./modals/statTrend; re-export the public ones so the
+// import surface of this module is unchanged. The chart-bearing components
+// load lazily from ./modals/statTrendViz so this eager module doesn't drag
+// the recharts chunk into the startup bundle.
+export { formatStatValue } from "./modals/statTrend";
+
+const StatTrendModal = React.lazy(() =>
+  import("./modals/statTrendViz").then((mod) => ({
+    default: mod.StatTrendModal,
+  }))
+);
+const RecentMovementPanel = React.lazy(() =>
+  import("./modals/statTrendViz").then((mod) => ({
+    default: mod.RecentMovementPanel,
+  }))
+);
 
 export const PastSeasonImportModal = memo(() => {
   const { team, bulkAddPastSeasons } = useTeam();
@@ -1547,7 +1558,9 @@ export const PlayerProfileModal = memo(() => {
                   inline sparkline. No per-import row; coaches who want the
                   per-snapshot trail can open the per-stat trend modal from
                   the Stats grid above. */}
-              <RecentMovementPanel player={player} games={games} />
+              <React.Suspense fallback={null}>
+                <RecentMovementPanel player={player} games={games} />
+              </React.Suspense>
             </div>
 
           <div
@@ -1745,15 +1758,17 @@ export const PlayerProfileModal = memo(() => {
         </div>
       </A11yDialog>
       {trendStatKey && (
-        <StatTrendModal
-          statKey={trendStatKey}
-          player={player}
-          currentSeason={currentSeason}
-          currentPitchingFormat={pitchingFormat}
-          primaryColor={primaryColor}
-          tertiaryColor={tertiaryColor}
-          onClose={() => setTrendStatKey(null)}
-        />
+        <React.Suspense fallback={null}>
+          <StatTrendModal
+            statKey={trendStatKey}
+            player={player}
+            currentSeason={currentSeason}
+            currentPitchingFormat={pitchingFormat}
+            primaryColor={primaryColor}
+            tertiaryColor={tertiaryColor}
+            onClose={() => setTrendStatKey(null)}
+          />
+        </React.Suspense>
       )}
     </div>
   );

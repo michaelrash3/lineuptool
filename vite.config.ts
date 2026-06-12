@@ -49,6 +49,12 @@ export default defineConfig({
         // hashes stay stable across app-code deploys — so returning coaches
         // re-download only the small app chunk on each update instead of the
         // whole bundle (Firebase alone is the bulk of it).
+        // NOTE: recharts and framer-motion are intentionally NOT grouped
+        // here. rolldown-vite's manualChunks compat reassigns shared deps
+        // (react itself!) into whichever manual group touches them first,
+        // which dragged the whole chart stack into the startup graph.
+        // Natural chunking puts recharts in a shared lazy chunk loaded only
+        // by the screens that draw charts.
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
           if (id.includes("/firebase/") || id.includes("/@firebase/"))
@@ -60,14 +66,6 @@ export default defineConfig({
             id.includes("/scheduler/")
           )
             return "react-vendor";
-          if (
-            id.includes("/recharts/") ||
-            id.includes("/victory-vendor/") ||
-            id.includes("/d3-") ||
-            id.includes("/recharts-scale/")
-          )
-            return "charts";
-          if (id.includes("/framer-motion/")) return "motion";
           return undefined;
         },
       },
