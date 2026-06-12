@@ -308,6 +308,10 @@ export interface IncomeEntry {
   date: string; // ISO yyyy-mm-dd
   label: string;
   amount: number;
+  // Fundraising entries split evenly across paying players and reduce what
+  // each family still owes on THIS season's club fee (a car wash that nets
+  // $300 on a 12-payer roster knocks $25 off everyone's dues).
+  fundraising?: boolean;
 }
 
 // A sponsorship pledged toward NEXT season's budget, entered in the Budget
@@ -359,6 +363,9 @@ export interface TeamFinances {
   // Round the suggested fee UP to this increment (25 or 50) so incidentals
   // are buffered and the fee lands on a clean number. 0/unset = exact dollar.
   feeBufferIncrement?: number;
+  // How many paying players the coach anticipates NEXT season — the divisor
+  // for the suggested-fee split. Unset = this season's paying roster size.
+  plannedPlayerCount?: number;
   budgetItems?: BudgetItem[];
   // Sponsorships pledged toward NEXT season's budget (Budget Planner).
   // The only money that offsets the suggested next-season fee — this

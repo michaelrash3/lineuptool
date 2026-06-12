@@ -1,6 +1,7 @@
 // Pure helpers (formatting, parsing) extracted from App.jsx Section 3.
 
 import {
+  BudgetItem,
   CsvImportResult,
   Game,
   Inning,
@@ -2520,6 +2521,16 @@ export const roundUpToIncrement = (n: number, increment?: number): number => {
 export const incomeTotal = (finances: TeamFinances | null | undefined): number =>
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
+// THIS season's ledger income flagged as fundraising — the slice of income
+// that splits across paying players and reduces each family's dues.
+export const fundraisingTotal = (
+  finances: TeamFinances | null | undefined
+): number =>
+  (finances?.incomes || []).reduce(
+    (sum, i) => sum + (i?.fundraising ? money(i?.amount) : 0),
+    0
+  );
+
 // Sponsorships pledged toward NEXT season's budget (Budget Planner entries
 // with a sponsor name) — the only money that offsets the suggested fee.
 export const sponsorshipTotal = (
@@ -2542,16 +2553,60 @@ export const suggestedFeePerPlayer = (
 ): number | null => {
   const total = budgetTotal(finances);
   if (total <= 0) return null;
-  const exempt = new Set(finances?.feeExemptIds || []);
-  const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
-  if (payers.length === 0) return null;
+  const payers = plannedPayerCount(finances, players);
+  if (payers === 0) return null;
   const uncovered = Math.max(0, total - sponsorshipTotal(finances));
   // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
   // and the fee is a clean number; without one, next-dollar ceiling.
-  return roundUpToIncrement(
-    uncovered / payers.length,
-    finances?.feeBufferIncrement
-  );
+  return roundUpToIncrement(uncovered / payers, finances?.feeBufferIncrement);
+};
+
+// The divisor for the suggested-fee split: the coach's anticipated roster
+// size for next season when set, otherwise this season's paying players.
+export const plannedPayerCount = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined
+): number => {
+  const planned = Math.round(money(finances?.plannedPlayerCount));
+  if (planned > 0) return planned;
+  const exempt = new Set(finances?.feeExemptIds || []);
+  return (players || []).filter((p) => p?.id && !exempt.has(p.id)).length;
+};
+
+// Rough next-season budget proposed from THIS season's actual spending:
+// one item per budget category that saw money (label kept, amount = the
+// larger of plan vs actual, rounded up to a clean $25), plus a single
+// "Other" line for unplanned spending. null when the season has no spending
+// to learn from. Ids are freshly generated so the proposal never collides
+// with existing items.
+export const estimateBudgetFromSeason = (
+  finances: TeamFinances | null | undefined
+): { items: BudgetItem[]; total: number } | null => {
+  const actuals = budgetActuals(finances);
+  const items: BudgetItem[] = [];
+  for (const item of finances?.budgetItems || []) {
+    const spent = money(actuals.byItem[item.id]);
+    const planned = budgetItemAmount(item, finances?.salesTaxPct);
+    const basis = Math.max(spent, planned);
+    if (basis <= 0) continue;
+    items.push({
+      id: `b-${Math.random().toString(36).slice(2, 10)}`,
+      label: item.label,
+      amount: roundUpToIncrement(basis, 25),
+    });
+  }
+  if (money(actuals.unplanned) > 0) {
+    items.push({
+      id: `b-${Math.random().toString(36).slice(2, 10)}`,
+      label: "Other (unplanned this season)",
+      amount: roundUpToIncrement(actuals.unplanned, 25),
+    });
+  }
+  if (items.length === 0) return null;
+  return {
+    items,
+    total: items.reduce((sum, i) => sum + money(i.amount), 0),
+  };
 };
 
 export interface FinanceSummary {
@@ -2559,9 +2614,15 @@ export interface FinanceSummary {
   otherIncome: number; // sponsorships / fundraising / donations
   spent: number; // every expense recorded
   balanceNow: number; // collected + otherIncome − spent
-  stillOwed: number; // Σ per-player max(0, clubFee − paid)
+  stillOwed: number; // Σ per-player max(0, effective fee − paid)
   balanceOnceAllPaid: number; // balanceNow + stillOwed
   paidByPlayer: Record<string, number>; // playerId → total paid
+  // Fundraising-flagged ledger income split evenly across paying players —
+  // the per-family discount on this season's dues.
+  duesCreditPerPlayer: number;
+  // clubFee minus the fundraising credit (never below 0) — what each
+  // non-waived family actually owes this season.
+  effectiveFeePerPlayer: number;
 }
 
 // The P&L tiles + Collections math in one pass. `players` defines who owes
@@ -2585,10 +2646,18 @@ export const financeSummary = (
   for (const e of finances?.expenses || []) spent += money(e?.amount);
   // Fee-exempt players (fall pickups, scholarships) never owe the club fee.
   const exempt = new Set(finances?.feeExemptIds || []);
+  const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
+  // Fundraising income splits evenly across paying families and comes off
+  // each one's dues — the money is already in the balance (it's income), so
+  // it only shrinks what's still owed.
+  const duesCreditPerPlayer =
+    payers.length > 0
+      ? Math.round((fundraisingTotal(finances) / payers.length) * 100) / 100
+      : 0;
+  const effectiveFeePerPlayer = Math.max(0, fee - duesCreditPerPlayer);
   let stillOwed = 0;
-  for (const p of players || []) {
-    if (!p?.id || exempt.has(p.id)) continue;
-    stillOwed += Math.max(0, fee - (paidByPlayer[p.id] || 0));
+  for (const p of payers) {
+    stillOwed += Math.max(0, effectiveFeePerPlayer - (paidByPlayer[p.id] || 0));
   }
   const balanceNow = collected + otherIncome - spent;
   return {
@@ -2599,6 +2668,8 @@ export const financeSummary = (
     stillOwed,
     balanceOnceAllPaid: balanceNow + stillOwed,
     paidByPlayer,
+    duesCreditPerPlayer,
+    effectiveFeePerPlayer,
   };
 };
 
@@ -2614,6 +2685,8 @@ export interface LedgerRow {
   // Club balance after this transaction, walking everything received and
   // spent in date order (ties keep entry order: money in before money out).
   balanceAfter: number;
+  // Income rows flagged as fundraising (they reduce per-player dues).
+  fundraising?: boolean;
 }
 
 // One dated ledger of EVERYTHING received (club-fee payments, sponsorships,
@@ -2648,6 +2721,7 @@ export const transactionLedger = (
       amount: money(inc.amount),
       direction: "in",
       source: "income",
+      ...(inc.fundraising ? { fundraising: true } : {}),
     });
   }
   for (const exp of finances?.expenses || []) {
@@ -2803,8 +2877,9 @@ export const owesReminderText = (
   players: Array<{ id: string; name?: string }> | null | undefined,
   season?: string
 ): string => {
-  const fee = Math.max(0, money(finances?.clubFee));
   const s = financeSummary(finances, players);
+  // Fundraising credit already applied: families owe the effective fee.
+  const fee = s.effectiveFeePerPlayer;
   const exempt = new Set(finances?.feeExemptIds || []);
   const lines: string[] = [];
   for (const p of players || []) {
@@ -2813,7 +2888,11 @@ export const owesReminderText = (
     if (owed > 0) lines.push(`${p.name || "Player"}: ${formatCurrency(owed)}`);
   }
   if (lines.length === 0) return "All club fees are paid in full. 🎉";
-  const header = `Club fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(fee)}):`;
+  const header = `Club fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(fee)}${
+    s.duesCreditPerPlayer > 0
+      ? ` after ${formatCurrency(s.duesCreditPerPlayer)} fundraising credit`
+      : ""
+  }):`;
   return [
     header,
     ...lines,
