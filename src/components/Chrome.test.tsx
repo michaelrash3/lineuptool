@@ -11,7 +11,6 @@ const NAV = [
   { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
   { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
   { id: "finances", icon: Icons.Wallet, label: "Finances" },
-  { id: "settings", icon: Icons.Settings, label: "Settings" },
 ];
 
 const setup = (activeTab = "home") => {

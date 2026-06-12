@@ -174,6 +174,8 @@ export const AppHeader = memo(() => {
     setIsAddingTeam,
     newTeamName,
     setNewTeamName,
+    activeTab,
+    setActiveTab,
   } = useUI();
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
@@ -295,6 +297,34 @@ export const AppHeader = memo(() => {
             backstop.
           */}
           <ThemeToggle />
+          {/* Settings lives up here with the other account-level controls
+              (theme, sign out) instead of taking a slot in the tab bar —
+              it's visited rarely and is head-coach-only. */}
+          {currentRole !== "assistant" && (
+            <button
+              type="button"
+              onClick={() => setActiveTab?.("settings")}
+              aria-label="Settings"
+              title="Settings"
+              aria-current={activeTab === "settings" ? "page" : undefined}
+              className={`shrink-0 p-3 border rounded-xl shadow-sm transition-colors ${
+                activeTab === "settings"
+                  ? ""
+                  : "text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border-line"
+              }`}
+              style={
+                activeTab === "settings"
+                  ? {
+                      backgroundColor: "var(--team-secondary)",
+                      color: "var(--team-primary)",
+                      borderColor: "var(--team-primary)",
+                    }
+                  : undefined
+              }
+            >
+              <Icons.Settings className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setSignOutOpen(true)}
@@ -558,8 +588,6 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => 
               btn={btn}
               isActive={activeTab === btn.id}
               onClick={() => setActiveTab(btn.id)}
-              // Settings is the only right-pushed tab (per design spec).
-              className={btn.id === "settings" ? "ml-auto" : ""}
             />
           ))}
         </div>

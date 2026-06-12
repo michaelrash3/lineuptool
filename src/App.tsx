@@ -3315,9 +3315,10 @@ const MainShell = () => {
         ...(interestButton ? [interestButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         // Money is the head coach's business alone — assistants never see
-        // the Finances tab (mirrors the Settings gate below).
+        // the Finances tab (mirrors the Settings route gate below).
         { id: "finances", icon: Icons.Wallet, label: "Finances" },
-        { id: "settings", icon: Icons.Settings, label: "Settings" },
+        // Settings intentionally absent: it lives in the AppHeader next to
+        // theme/sign-out (account-level controls), not in the tab bar.
       ];
 
   return (
