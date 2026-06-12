@@ -133,11 +133,18 @@ const CATEGORIES = [
 
 // Tiny eval-trend sparkline: a player's average grade across their eval rounds,
 // drawn on a fixed 1–5 scale so rows are comparable. Trends up → team color,
-// down → red. Renders nothing with fewer than two rounds of data.
+// down → red, flat → neutral gray. Renders nothing with fewer than two rounds
+// of data.
 const EvalSparkline = memo(({ values }: any) => {
   if (!Array.isArray(values) || values.length < 2) return null;
-  const up = values[values.length - 1] >= values[0];
-  const color = up ? "var(--team-primary)" : "var(--loss)";
+  const first = values[0];
+  const last = values[values.length - 1];
+  const color =
+    last > first
+      ? "var(--team-primary)"
+      : last < first
+      ? "var(--loss)"
+      : "var(--ink-3)";
   return (
     <Sparkline
       values={values.map((v: number) => Math.max(1, Math.min(5, v)))}

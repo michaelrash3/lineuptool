@@ -45,6 +45,7 @@ import {
 } from "./contexts";
 import { ConfirmProvider } from "./components/ConfirmDialog";
 import { SharedModals, downscaleImageToDataURL } from "./components/shared";
+import { AppMotionProvider, AnimatePresence, m } from "./components/motion";
 import {
   OnboardingTutorial,
   onboardingHasBeenCompleted,
@@ -280,16 +281,24 @@ const toastIcon = (kind: any) => {
 };
 
 const ToastContainer = memo(({ toasts, dismiss }: any) => {
-  if (toasts.length === 0) return null;
+  // Stays mounted even when empty so AnimatePresence can play exit
+  // animations on the last toast; pointer-events pass through the empty
+  // container.
   return (
-    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden">
+    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden pointer-events-none">
+      <AnimatePresence>
       {toasts.map((t: any) => {
         const tone = (TOAST_TONES as any)[t.kind] || TOAST_TONES.info;
         const Icon = toastIcon(t.kind);
         return (
-          <div
+          <m.div
             key={t.id}
-            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3"
+            layout
+            initial={{ opacity: 0, x: 48 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3 pointer-events-auto"
             role="status"
           >
             <span
@@ -338,9 +347,10 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
             >
               <Icons.X className="w-3 h-3" />
             </button>
-          </div>
+          </m.div>
         );
       })}
+      </AnimatePresence>
     </div>
   );
 });
@@ -3426,28 +3436,32 @@ const App = () => {
     window.location.pathname.startsWith("/tryouts-portal/")
   ) {
     return (
-      <ToastProvider>
-        <Suspense fallback={<ScreenLoader />}>
-          <ErrorBoundary>
-            <Routes>
-              <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </ErrorBoundary>
-        </Suspense>
-      </ToastProvider>
+      <AppMotionProvider>
+        <ToastProvider>
+          <Suspense fallback={<ScreenLoader />}>
+            <ErrorBoundary>
+              <Routes>
+                <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ErrorBoundary>
+          </Suspense>
+        </ToastProvider>
+      </AppMotionProvider>
     );
   }
   return (
-    <ToastProvider>
-      <ConfirmProvider>
-        <TeamProvider>
-          <UIProvider>
-            <MainShell />
-          </UIProvider>
-        </TeamProvider>
-      </ConfirmProvider>
-    </ToastProvider>
+    <AppMotionProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <TeamProvider>
+            <UIProvider>
+              <MainShell />
+            </UIProvider>
+          </TeamProvider>
+        </ConfirmProvider>
+      </ToastProvider>
+    </AppMotionProvider>
   );
 };
 

@@ -5,6 +5,7 @@ import React, { memo, useMemo } from "react";
 import { formatStat } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { useModalA11y } from "../hooks/useModalA11y";
+import { m, SCALE_IN } from "./motion";
 
 export const LeaderboardCard = memo(
   ({
@@ -584,14 +585,15 @@ export const Button = ({
 }: any) => {
   const v = BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary;
   return (
-    <button
+    <m.button
       type={type}
+      whileTap={{ scale: 0.97 }}
       className={`inline-flex items-center justify-center gap-2 rounded-xl transition-all t-button ${BUTTON_SIZE[size] || BUTTON_SIZE.md} ${v.className} ${className}`}
       style={{ ...v.style, ...styleOverride }}
       {...rest}
     >
       {children}
-    </button>
+    </m.button>
   );
 };
 
@@ -610,7 +612,7 @@ export const A11yDialog = ({
   const ref = React.useRef<HTMLDivElement | null>(null);
   useModalA11y(ref, { onClose });
   return (
-    <div
+    <m.div
       ref={ref}
       role="dialog"
       aria-modal="true"
@@ -618,10 +620,11 @@ export const A11yDialog = ({
       tabIndex={-1}
       onClick={(e: React.MouseEvent) => e.stopPropagation()}
       className={`outline-none ${className}`}
+      {...SCALE_IN}
       {...rest}
     >
       {children}
-    </div>
+    </m.div>
   );
 };
 
@@ -667,11 +670,14 @@ export const Modal = ({
     size === "sm" ? "max-w-sm" : size === "lg" ? "max-w-2xl" : "max-w-md";
 
   return (
-    <div
+    <m.div
       className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
       onClick={closeOnBackdrop && onClose ? onClose : undefined}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15 }}
     >
-      <div
+      <m.div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
@@ -679,6 +685,7 @@ export const Modal = ({
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden outline-none`}
+        {...SCALE_IN}
       >
         {accent && (
           <div
@@ -716,8 +723,8 @@ export const Modal = ({
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </m.div>
+    </m.div>
   );
 };
 
