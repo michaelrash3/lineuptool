@@ -391,6 +391,34 @@ export interface ToastContextValue {
   dismiss: (id: number | string) => void;
 }
 
+// In-app replacements for window.confirm / window.prompt. Resolved by the
+// ConfirmProvider dialog (src/components/ConfirmDialog.tsx); the promise
+// settles when the coach picks a button (or dismisses via Escape/scrim).
+export interface ConfirmOptions {
+  title: string;
+  message?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** Destructive actions get the danger accent + button. */
+  danger?: boolean;
+}
+
+export interface PromptTextOptions {
+  title: string;
+  message?: string;
+  label?: string;
+  placeholder?: string;
+  inputType?: "text" | "email";
+  defaultValue?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+}
+
+export interface ConfirmContextValue {
+  confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  promptText: (opts: PromptTextOptions) => Promise<string | null>;
+}
+
 export type CoachRole = "head" | "assistant";
 
 // The Team/UI providers expose large bags of state, setters, and command

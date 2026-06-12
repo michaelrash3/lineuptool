@@ -4,6 +4,7 @@
 import React, { memo, useMemo } from "react";
 import { formatStat } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
+import { useModalA11y } from "../hooks/useModalA11y";
 
 export const LeaderboardCard = memo(
   ({
@@ -518,13 +519,15 @@ export const StatTile = ({ label, value, className = "" }: any) => (
   </div>
 );
 
+// Semantic-lane tokens (theme-aware); borders are a translucent mix of the
+// lane color so they tint correctly on both light and dark surfaces.
 const CHIP_VARIANTS: Record<string, { bg: string; color: string; border: string }> = {
   primary: { bg: "var(--team-primary)", color: "var(--team-tertiary)", border: "transparent" },
-  success: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  danger: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
-  warn: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-  info: { bg: "#eff6ff", color: "#1d4ed8", border: "#bfdbfe" },
-  slate: { bg: "#f1f5f9", color: "#334155", border: "#e2e8f0" },
+  success: { bg: "var(--win-bg)", color: "var(--win)", border: "color-mix(in srgb, var(--win) 30%, transparent)" },
+  danger: { bg: "var(--loss-bg)", color: "var(--loss)", border: "color-mix(in srgb, var(--loss) 30%, transparent)" },
+  warn: { bg: "var(--warn-bg)", color: "var(--warn-fg)", border: "color-mix(in srgb, var(--warn-fg) 30%, transparent)" },
+  info: { bg: "var(--info-bg)", color: "var(--info-fg)", border: "color-mix(in srgb, var(--info-fg) 30%, transparent)" },
+  slate: { bg: "var(--surface-2)", color: "var(--ink-2)", border: "var(--line)" },
 };
 
 export const Chip = ({ variant = "slate", className = "", children, ...rest }: any) => {
@@ -592,6 +595,36 @@ export const Button = ({
   );
 };
 
+// Dialog-panel wrapper for the app's hand-rolled modal shells (the ones
+// with bespoke layouts that don't fit <Modal>). Renders the panel div with
+// dialog semantics + useModalA11y behaviors; the caller keeps its own scrim
+// and layout classes. `label` feeds aria-label; pass onClose to enable
+// Escape (omit it for non-dismissible flows like WelcomeChooser).
+export const A11yDialog = ({
+  onClose,
+  label,
+  className = "",
+  children,
+  ...rest
+}: any) => {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  useModalA11y(ref, { onClose });
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-modal="true"
+      aria-label={label}
+      tabIndex={-1}
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
+      className={`outline-none ${className}`}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+};
+
 // Shared form input recipe — apply via className on bare <input>/<select>/
 // <textarea>. The focus ring color is wired to the team primary via inline
 // style so the focus highlight feels branded instead of using Tailwind's
@@ -619,17 +652,14 @@ export const Modal = ({
   children,
   footer,
 }: any) => {
-  React.useEffect(() => {
-    if (!open || !closeOnEscape || !onClose) return undefined;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, closeOnEscape, onClose]);
+  const dialogRef = React.useRef<HTMLDivElement | null>(null);
+  const titleId = React.useId();
+  // Escape-close, focus trap, and focus restore (stack-aware for nested
+  // dialogs) — see useModalA11y.
+  useModalA11y(dialogRef, {
+    onClose: closeOnEscape && onClose ? onClose : undefined,
+    enabled: !!open,
+  });
 
   if (!open) return null;
 
@@ -642,8 +672,13 @@ export const Modal = ({
       onClick={closeOnBackdrop && onClose ? onClose : undefined}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden`}
+        className={`bg-surface ${widthClass} w-full rounded-2xl shadow-2xl border border-line overflow-hidden outline-none`}
       >
         {accent && (
           <div
@@ -657,7 +692,9 @@ export const Modal = ({
               <div className="min-w-0 flex-1">
                 {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
                 {title && (
-                  <h3 className="t-card-title mt-1.5 break-words">{title}</h3>
+                  <h3 id={titleId} className="t-card-title mt-1.5 break-words">
+                    {title}
+                  </h3>
                 )}
               </div>
               {onClose && (
@@ -691,7 +728,11 @@ export const SharedModals = memo(() => {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <div className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line">
+      <A11yDialog
+        label={modal.title}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+        className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line"
+      >
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: team.primaryColor }}
@@ -725,7 +766,7 @@ export const SharedModals = memo(() => {
             </button>
           </div>
         </div>
-      </div>
+      </A11yDialog>
     </div>
   );
 });

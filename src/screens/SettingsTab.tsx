@@ -12,7 +12,7 @@ import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
 import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
 import { LogoColorModal } from "../components/LogoColorModal";
-import { extractLogoPalette } from "../components/shared";
+import { A11yDialog, extractLogoPalette } from "../components/shared";
 import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel";
 import {
   getReminderPrefs,
@@ -454,9 +454,10 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
           className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
           onClick={() => setConfirmOpen(false)}
         >
-          <div
+          <A11yDialog
+            label="Rotate team code?"
+            onClose={() => setConfirmOpen(false)}
             className="bg-surface rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5 bg-amber-500" />
             <div className="p-5 sm:p-6">
@@ -491,7 +492,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
                 </button>
               </div>
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
     </div>

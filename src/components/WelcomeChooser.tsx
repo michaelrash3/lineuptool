@@ -3,6 +3,7 @@ import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
 import {
+  A11yDialog,
   Button,
   Eyebrow,
   FORM_INPUT_CLASS,
@@ -106,7 +107,12 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
 
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
-      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
+      {/* Non-dismissible by design (no onClose) — the user must join or
+          create a team. */}
+      <A11yDialog
+        label="Welcome — join or create a team"
+        className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden"
+      >
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -313,16 +319,17 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
             .
           </p>
         </div>
-      </div>
+      </A11yDialog>
 
       {signOutConfirmOpen && (
         <div
           className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
           onClick={() => !signingOut && setSignOutConfirmOpen(false)}
         >
-          <div
+          <A11yDialog
+            label="Sign out?"
+            onClose={() => !signingOut && setSignOutConfirmOpen(false)}
             className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div
               className="h-1.5 w-full"
@@ -362,7 +369,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
                 </button>
               </div>
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
     </div>

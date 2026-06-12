@@ -5,6 +5,7 @@ import {
   type GcEvent,
 } from "../utils/icsParse";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
+import { A11yDialog } from "./shared";
 
 // Import / sync a team's schedule from its GameChanger .ics calendar feed.
 // Flow: paste the feed URL -> Preview (fetched through /api/gc-schedule, which
@@ -106,9 +107,10 @@ export const GameChangerImportModal: React.FC<Props> = ({
       className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
       onClick={onClose}
     >
-      <div
+      <A11yDialog
+        label="Import from GameChanger"
+        onClose={onClose}
         className="bg-app border border-line rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-line">
           <h3 className="text-lg font-black text-ink uppercase tracking-wider flex items-center gap-2">
@@ -202,7 +204,7 @@ export const GameChangerImportModal: React.FC<Props> = ({
             </button>
           </div>
         )}
-      </div>
+      </A11yDialog>
     </div>
   );
 };

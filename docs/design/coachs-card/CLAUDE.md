@@ -28,9 +28,9 @@ patterns.
 - **Use the three `--team-*` CSS variables for every brand color** —
   never hardcode hex values for team-colored surfaces. The whole app
   must re-theme when a coach changes the three colors in Settings.
-- **No dark mode** except inside Game-Day Mode (see
-  `preview/23-game-day-mode.html`) — that surface is intentionally
-  dark for outdoor sunlight readability.
+- **No dark mode** except inside Game-Day Mode (implemented as
+  `src/screens/InGameView.tsx` in the production app) — that surface
+  is intentionally dark for outdoor sunlight readability.
 - **Use `⭐` for Big Game flags.** `⚡` was retired.
 - **Big Game needs a tooltip** explaining what the flag means
   (rivalry / playoff / makeup game). See `preview/19-upcoming-game.html`.
@@ -46,7 +46,8 @@ patterns.
   glyph (⚾ 🧢 📋 ⭐ 📅 📊) — see `preview/22-empty-states.html`.
 - **Game-Day Mode auto-engages** when a game is marked live. Dark
   shell, 44+ px touch targets, in-game-only controls, undo persists
-  across navigation. See `preview/23-game-day-mode.html`.
+  across navigation. See `src/screens/InGameView.tsx` in the
+  production app (the preview card for this surface was never added).
 - **Dark-on-dark contrast:** when a surface sits on a dark hero
   panel, accents must come from the LIGHTEST of the three team
   colors plus a soft rose (`#FCA5A5`) for danger states — never

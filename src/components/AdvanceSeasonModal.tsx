@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { Button, Eyebrow } from "./shared";
+import { A11yDialog, Button, Eyebrow } from "./shared";
 
 // Two-step "Advance to next season" wizard. Replaces the previous flow
 // where the head had to mark each player Returning / Released on the
@@ -140,8 +140,9 @@ export const AdvanceSeasonModal = memo(
         className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
         onClick={busy ? undefined : onClose}
       >
-        <div
-          onClick={(e) => e.stopPropagation()}
+        <A11yDialog
+          label="Advance to next season"
+          onClose={busy ? undefined : onClose}
           className="bg-surface max-w-2xl w-full max-h-[90vh] rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col"
         >
           <div
@@ -392,7 +393,7 @@ export const AdvanceSeasonModal = memo(
               )}
             </Button>
           </div>
-        </div>
+        </A11yDialog>
       </div>
     );
   }

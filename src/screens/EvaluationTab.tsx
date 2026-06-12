@@ -31,6 +31,7 @@ import {
   PITCHER_SCORE_WEIGHTS,
 } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts";
+import { A11yDialog } from "../components/shared";
 import { evalPromptStatus } from "../utils/helpers";
 
 const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
@@ -806,8 +807,9 @@ const RoundComparisonView = memo(
         className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm p-4 flex items-end sm:items-center justify-center"
         onClick={onClose}
       >
-        <div
-          onClick={(e) => e.stopPropagation()}
+        <A11yDialog
+          label="Round comparison"
+          onClose={onClose}
           className="bg-surface rounded-t-2xl sm:rounded-2xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col"
         >
           <div
@@ -942,7 +944,7 @@ const RoundComparisonView = memo(
               </tbody>
             </table>
           </div>
-        </div>
+        </A11yDialog>
       </div>
     );
   }
@@ -1202,9 +1204,9 @@ const GradeChipRow = memo(({ value, onChange, ariaLabel }: any) => (
                   borderColor: "var(--team-primary)",
                 }
               : {
-                  backgroundColor: "rgba(255,255,255,0.7)",
-                  color: "#475569",
-                  borderColor: "#e2e8f0",
+                  backgroundColor: "var(--surface)",
+                  color: "var(--ink-2)",
+                  borderColor: "var(--line)",
                 }
           }
         >
@@ -1951,9 +1953,9 @@ export const EvaluationTab = memo(() => {
                                         borderColor: "var(--team-primary)",
                                       }
                                     : {
-                                        backgroundColor: "white",
-                                        color: "#475569",
-                                        borderColor: "#e2e8f0",
+                                        backgroundColor: "var(--surface)",
+                                        color: "var(--ink-2)",
+                                        borderColor: "var(--line)",
                                       }
                                 }
                               >
@@ -2035,9 +2037,13 @@ export const EvaluationTab = memo(() => {
             setPendingModalDeleteId(null);
           }}
         >
-          <div
+          <A11yDialog
+            label="Your saved rounds"
+            onClose={() => {
+              setManageOpen(false);
+              setPendingModalDeleteId(null);
+            }}
             className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-3">
@@ -2151,7 +2157,7 @@ export const EvaluationTab = memo(() => {
                 </div>
               )}
             </div>
-          </div>
+          </A11yDialog>
         </div>
       )}
     </div>
@@ -2248,9 +2254,10 @@ export const EvalTrendModal = memo(
           onClose();
         }}
       >
-        <div
+        <A11yDialog
+          label="Evaluation trend"
+          onClose={onClose}
           className="bg-surface rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-          onClick={(e) => e.stopPropagation()}
         >
           <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
           <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
@@ -2332,7 +2339,7 @@ export const EvalTrendModal = memo(
                           y1={yPos(v)}
                           x2={ML + innerW}
                           y2={yPos(v)}
-                          stroke="#e2e8f0"
+                          stroke="var(--line)"
                           strokeWidth="1"
                           strokeDasharray={
                             i === 0 || i === yTicks.length - 1 ? "0" : "3,3"
@@ -2343,7 +2350,7 @@ export const EvalTrendModal = memo(
                           y={yPos(v) + 4}
                           textAnchor="end"
                           className="text-[11px]"
-                          fill="#64748b"
+                          fill="var(--ink-3)"
                           style={{
                             fontWeight: 700,
                             fontFamily: "ui-monospace, monospace",
@@ -2362,7 +2369,7 @@ export const EvalTrendModal = memo(
                           y={MT + innerH + 18}
                           textAnchor="middle"
                           className="text-[10px]"
-                          fill="#64748b"
+                          fill="var(--ink-3)"
                           style={{ fontWeight: 700 }}
                           transform={
                             evalCount > 4
@@ -2464,7 +2471,7 @@ export const EvalTrendModal = memo(
               </>
             )}
           </div>
-        </div>
+        </A11yDialog>
       </div>
     );
   }

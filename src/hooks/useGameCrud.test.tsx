@@ -1,10 +1,11 @@
 import { renderHook, act } from "@testing-library/react";
 import { useGameCrud } from "./useGameCrud";
-import { makeToast } from "../test-utils";
+import { makeConfirm, makeToast } from "../test-utils";
 
 const setup = (teamOver: any = {}) => {
   const updateTeam = jest.fn();
   const toast = makeToast();
+  const confirm = makeConfirm();
   const teamData = {
     games: [],
     players: [],
@@ -14,9 +15,9 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useGameCrud({ teamData, updateTeam, toast })
+    useGameCrud({ teamData, updateTeam, toast, confirm })
   );
-  return { result, updateTeam, toast };
+  return { result, updateTeam, toast, confirm };
 };
 
 describe("useGameCrud", () => {
@@ -72,18 +73,16 @@ describe("useGameCrud", () => {
     expect(games[0]).toMatchObject({ status: "postponed", teamScore: null, opponentScore: null });
   });
 
-  it("deleteSavedGame removes the game and offers undo, gated by confirm", () => {
-    const { result, updateTeam, toast } = setup({ games: [{ id: "g1", opponent: "Rays" }] });
-    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
-    act(() => result.current.deleteSavedGame("g1"));
+  it("deleteSavedGame removes the game and offers undo, gated by confirm", async () => {
+    const { result, updateTeam, toast, confirm } = setup({ games: [{ id: "g1", opponent: "Rays" }] });
+    confirm.mockResolvedValueOnce(false);
+    await act(async () => result.current.deleteSavedGame("g1"));
     expect(updateTeam).not.toHaveBeenCalled(); // declined
 
-    confirmSpy.mockReturnValue(true);
-    act(() => result.current.deleteSavedGame("g1"));
+    await act(async () => result.current.deleteSavedGame("g1"));
     expect(updateTeam.mock.calls[0][0].games).toEqual([]);
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Game deleted", action: expect.objectContaining({ label: "Undo" }) })
     );
-    confirmSpy.mockRestore();
   });
 });

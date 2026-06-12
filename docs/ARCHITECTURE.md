@@ -4,7 +4,7 @@ This document describes how the Lineup Tool client is structured, what shape the
 
 ## Data model
 
-The app uses Firebase Auth (Google + email-link) and three Firestore namespaces under a fixed `artifacts/{appId}` prefix. `appId` is the literal string `"lineup-app"` — there is no per-environment override (see `src/firebase.ts:81`).
+The app uses Firebase Auth (Google + email-link) and three Firestore namespaces under a fixed `artifacts/{appId}` prefix. `appId` defaults to the literal string `"baseball_lineup_v1"` (overridable via a host-injected `window.__app_id`; see the bottom of `src/firebase.ts`).
 
 ### `artifacts/{appId}/public/data/teams/{teamId}`
 
@@ -59,42 +59,42 @@ require client read access, so they work without exposing the doc.
 
 ### Photos
 
-Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` field of each player object. `cropImageTo256DataURL` in `src/components/shared.jsx` covers a chosen file to a 256×256 JPEG at ~0.78 quality (~15 KB each); 30 players × 15 KB ≈ 450 KB inline, comfortably under the Firestore 1 MB document cap. The app does **not** initialize Cloud Storage — that keeps the project on the Firebase Spark plan and avoids the separate rules rollout. Existing photos uploaded to Cloud Storage during earlier releases continue to render from their old URLs; new uploads land inline.
+Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` field of each player object. `cropImageTo256DataURL` in `src/components/shared.tsx` covers a chosen file to a 256×256 JPEG at ~0.78 quality (~15 KB each); 30 players × 15 KB ≈ 450 KB inline, comfortably under the Firestore 1 MB document cap. The app does **not** initialize Cloud Storage — that keeps the project on the Firebase Spark plan and avoids the separate rules rollout. Existing photos uploaded to Cloud Storage during earlier releases continue to render from their old URLs; new uploads land inline.
 
 ## Client layout
 
-`src/App.jsx` is intentionally a monolith — about 3,600 lines containing all top-level state, every team mutation, and the auth/Firestore subscriptions. Three patterns make it readable:
+`src/App.tsx` is intentionally a monolith — about 3,600 lines containing all top-level state, every team mutation, and the auth/Firestore subscriptions. Three patterns make it readable:
 
 1. **Context providers wrap the shell.**
    - `ToastProvider` — at the very top so tryouts portal can post toasts without a team
    - `TeamProvider` — owns team state, Firebase subscriptions, every mutation action
    - `UIProvider` — local UI state (selected game, open modals, attendance toggles), bridged to `TeamProvider` via a `uiBridge` ref so generate/save actions can read selections without putting them in Firestore
-   - All three live in `App.jsx`; consumer hooks (`useTeam`, `useUI`, `useToast`) live in `src/contexts.js` so screens import only the hook.
+   - All three live in `App.tsx`; consumer hooks (`useTeam`, `useUI`, `useToast`) live in `src/contexts.ts` so screens import only the hook.
 
 2. **Screen components live in `src/screens/`** and consume `useTeam()` / `useUI()`. Each tab is a single file:
-   - `HomeTab.jsx`, `RosterTab.jsx`, `ScheduleTab.jsx`, `LineupGrid.jsx`, `EvaluationTab.jsx`, `SettingsTab.jsx`, `TryoutsTab.jsx`, `AssistantEvalTab.jsx`
-   - `InGameView.jsx` is a full-bleed overlay (not a route) — opened when the user enters game-day mode
-   - `TryoutsPortal.jsx` is mounted on a separate route that bypasses `TeamProvider` entirely (anonymous-auth public surface)
+   - `HomeTab.tsx`, `RosterTab.tsx`, `ScheduleTab.tsx`, `LineupGrid.tsx`, `EvaluationTab.tsx`, `SettingsTab.tsx`, `TryoutsTab.tsx`, `AssistantEvalTab.tsx`
+   - `InGameView.tsx` is a full-bleed overlay (not a route) — opened when the user enters game-day mode
+   - `TryoutsPortal.tsx` is mounted on a separate route that bypasses `TeamProvider` entirely (anonymous-auth public surface)
 
-3. **Hooks under `src/hooks/`** carry extracted concern sets that don't need to live in `App.jsx`:
-   - `useTeamMembership.js` — head/assistant role plumbing, view-as toggle
-   - `useInviteFlows.js` — `regenerateJoinCode`, `joinTeamByCode`
-   - `useImportExportFlows.js` — CSV import/export, backup JSON
-   - `useMainShellRouting.js` — keeps the active tab in sync with the URL
+3. **Hooks under `src/hooks/`** carry extracted concern sets that don't need to live in `App.tsx`:
+   - `useTeamMembership.ts` — head/assistant role plumbing, view-as toggle
+   - `useInviteFlows.ts` — `regenerateJoinCode`, `joinTeamByCode`
+   - `useImportExportFlows.ts` — CSV import/export, backup JSON
+   - `useMainShellRouting.ts` — keeps the active tab in sync with the URL
 
 4. **Reusable components under `src/components/`:**
-   - `Chrome.jsx` — `LoginScreen`, `AppHeader`, `TabBarNav`
-   - `shared.jsx` — `Button`, `Chip`, `GlassCard`, `Eyebrow`, `StatTile`, `PlayerAvatar`, `RecordBadge`, `LeaderboardCard`, `SharedModals`, plus the photo crop helper
-   - `modals.jsx` — `PlayerProfileModal`, `AddPlayerModal`, `PastSeasonImportModal` (large; one file per concern would be nicer but isn't worth the churn yet)
-   - `OnboardingTutorial.jsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
-   - `WelcomeChooser.jsx` — first-run modal that asks Join vs Create instead of auto-creating "My Team"
-   - `CommandPalette.jsx` — ⌘K
-   - `PitcherRankingPanel.jsx`, `EvalGradeCard.jsx` — eval surfaces
+   - `Chrome.tsx` — `LoginScreen`, `AppHeader`, `TabBarNav`
+   - `shared.tsx` — `Button`, `Chip`, `GlassCard`, `Eyebrow`, `StatTile`, `PlayerAvatar`, `RecordBadge`, `LeaderboardCard`, `SharedModals`, plus the photo crop helper
+   - `modals.tsx` — `PlayerProfileModal`, `AddPlayerModal`, `PastSeasonImportModal` (large; one file per concern would be nicer but isn't worth the churn yet)
+   - `OnboardingTutorial.tsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
+   - `WelcomeChooser.tsx` — first-run modal that asks Join vs Create instead of auto-creating "My Team"
+   - `CommandPalette.tsx` — ⌘K
+   - `PitcherRankingPanel.tsx`, `EvalGradeCard.tsx` — eval surfaces
 
 ## State flow
 
 ```
-Firestore                      App.jsx                Context           Screens
+Firestore                      App.tsx                Context           Screens
 ─────────                      ───────                ───────           ───────
 teams collection  ─onSnapshot→ teamData state ─────→  TeamContext ────→ useTeam().team
 users/.../teams   ─onSnapshot→ teams state ──────────→ TeamContext ────→ useTeam().teams
@@ -113,14 +113,14 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 
 1. **Owner/member**: full read/write (`allow read, write: if isMember(resource.data)`)
 2. **Bootstrap**: `allow create` when `ownerId` matches the caller — used by `createTeam` and the `bootstrapDefaultTeam` fallback
-3. **Join by code**: `allow update` when only `members` + `coachRoles` change and the team has a `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.js`
+3. **Join by code**: `allow update` when only `members` + `coachRoles` change and the team has a `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.ts`
 4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public *read* of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
 
 User settings docs are uid-scoped: `allow read, write: if request.auth.uid == uid`.
 
 ## EVAL schema migration ladder
 
-The evaluation system has migrated three times. The migration runs on read in the active-team subscription (`App.jsx` around line 471):
+The evaluation system has migrated three times. The migration runs on read in the active-team subscription (`App.tsx` around line 471):
 
 | From | To | Behavior |
 |---|---|---|

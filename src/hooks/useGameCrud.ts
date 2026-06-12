@@ -4,7 +4,7 @@ import {
   recordPitchingOuting,
   recordCatchingOuting,
 } from "../utils/helpers";
-import type { ToastContextValue } from "../types";
+import type { ConfirmContextValue, ToastContextValue } from "../types";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
 // persistence (add/update/postpone/finalize/delete a game) with no coupling to
@@ -18,9 +18,15 @@ interface UseGameCrudArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
+  confirm: ConfirmContextValue["confirm"];
 }
 
-export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) => {
+export const useGameCrud = ({
+  teamData,
+  updateTeam,
+  toast,
+  confirm,
+}: UseGameCrudArgs) => {
   const addGame = useCallback(
     (form: any) => {
       if (!form.date || !form.opponent.trim()) {
@@ -241,8 +247,14 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
   );
 
   const deleteSavedGame = useCallback(
-    (gameId: any) => {
-      if (!window.confirm("Delete this game?")) return;
+    async (gameId: any) => {
+      const ok = await confirm({
+        title: "Delete this game?",
+        message: "Its lineup and score go with it. You can undo right after.",
+        confirmLabel: "Delete",
+        danger: true,
+      });
+      if (!ok) return;
       const prevGames = teamData.games;
       const removed = prevGames.find((g: any) => g.id === gameId);
       updateTeam({ games: prevGames.filter((g: any) => g.id !== gameId) });
@@ -259,7 +271,7 @@ export const useGameCrud = ({ teamData, updateTeam, toast }: UseGameCrudArgs) =>
         },
       } as any);
     },
-    [teamData.games, updateTeam, toast]
+    [teamData.games, updateTeam, toast, confirm]
   );
 
   return { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame };

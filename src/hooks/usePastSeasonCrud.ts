@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { blankStats } from "../utils/helpers";
+import type { ConfirmContextValue } from "../types";
 
 // Past-season entry CRUD extracted from App.tsx's TeamProvider. Pure
 // persistence over the per-player `pastSeasons` array (add/update/remove/bulk),
@@ -7,11 +8,13 @@ import { blankStats } from "../utils/helpers";
 interface UsePastSeasonCrudArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
+  confirm: ConfirmContextValue["confirm"];
 }
 
 export const usePastSeasonCrud = ({
   teamData,
   updateTeam,
+  confirm,
 }: UsePastSeasonCrudArgs) => {
   // Add a past-season entry to a single player.
   const addPastSeason = useCallback(
@@ -64,11 +67,14 @@ export const usePastSeasonCrud = ({
   );
 
   const removePastSeason = useCallback(
-    (playerId: any, entryId: any) => {
-      if (
-        !window.confirm("Remove this past season entry? This cannot be undone.")
-      )
-        return;
+    async (playerId: any, entryId: any) => {
+      const ok = await confirm({
+        title: "Remove past season entry?",
+        message: "This cannot be undone.",
+        confirmLabel: "Remove",
+        danger: true,
+      });
+      if (!ok) return;
       const next = teamData.players.map((p: any) => {
         if (p.id !== playerId) return p;
         return {
@@ -78,7 +84,7 @@ export const usePastSeasonCrud = ({
       });
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam, confirm]
   );
 
   // Bulk add past-season entries from a CSV import. `assignments` is an array of
