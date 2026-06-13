@@ -6,7 +6,7 @@ import {
   dateToIsoLocal,
 } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
-import { PlayerAvatar } from "../components/shared";
+import { getPlayerInitials } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
@@ -68,10 +68,9 @@ const playerMatchesFilter = (player: any, filterId: any) => {
   }
 };
 
-const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag }: any) => {
+const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag, logoUrl }: any) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
-  const positionTag = player.primaryPosition || "—";
   // Scheduled absences entered on the profile — surface upcoming ones so the
   // coach sees who'll be out without opening every profile. ISO yyyy-mm-dd
   // strings compare lexicographically.
@@ -94,37 +93,37 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
             : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
         }}
       >
-        {showPositionTag && (
-          <span
-            className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded text-white/80 z-10"
-            style={{
-              backgroundColor: "rgba(0,0,0,0.3)",
-              fontSize: "8px",
-              letterSpacing: "0.18em",
-            }}
-          >
-            {positionTag}
-          </span>
-        )}
-        <div className="relative">
-          <PlayerAvatar
-            player={player}
-            size={54}
-            className="shadow-inner"
-            circleClassName="bg-slate-800"
-          />
+        {/* One cohesive "locker tag": the team logo sits on a light panel so
+            the (transparent) logo always reads, with the jersey number on a
+            connected dark strip below — a single bordered medallion instead of
+            a logo, a floating position chip, and a hanging number badge all
+            competing in the same cell. */}
+        <div className="flex flex-col items-stretch rounded-xl overflow-hidden border border-white/15 shadow-md w-[58px]">
+          <div className="grid place-items-center bg-white h-[46px]">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={player?.name ? `${player.name} — team logo` : "Team logo"}
+                className="w-9 h-9 object-contain"
+                loading="lazy"
+              />
+            ) : (
+              <span className="font-black text-lg text-slate-700">
+                {getPlayerInitials(player.name)}
+              </span>
+            )}
+          </div>
           {player.number != null && player.number !== "" && (
-            <span
-              className="absolute -bottom-1 -right-1 grid place-items-center min-w-[1.4rem] h-6 px-1 rounded-full font-black text-sm text-white tabular-nums z-10"
+            <div
+              className="grid place-items-center py-1 font-black text-sm text-white tabular-nums leading-none"
               style={{
-                letterSpacing: "-0.02em",
                 background: "#0f172a",
-                boxShadow:
-                  "0 0 0 2px var(--team-primary), 0 1px 3px rgba(0,0,0,0.5)",
+                borderTop: "2px solid var(--team-primary)",
+                letterSpacing: "-0.02em",
               }}
             >
               {player.number}
-            </span>
+            </div>
           )}
         </div>
       </div>
@@ -152,6 +151,17 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
             />
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {showPositionTag && player.primaryPosition && (
+              <span
+                className="t-chip px-2 py-1 rounded-md font-black uppercase tracking-wide text-team-primary border"
+                style={{
+                  background: "var(--team-primary-15)",
+                  borderColor: "var(--team-primary)",
+                }}
+              >
+                {player.primaryPosition}
+              </span>
+            )}
             <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
               B/T · {player.bats || "R"}/{player.throws || "R"}
             </span>
@@ -449,6 +459,7 @@ export const RosterTab = memo(() => {
                     currentSeason={currentSeason}
                     onOpenProfile={openPlayerProfile}
                     showPositionTag={canEdit}
+                    logoUrl={(team as any)?.logoUrl}
                   />
                 </StaggerItem>
               ))}
