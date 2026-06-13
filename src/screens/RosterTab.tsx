@@ -82,35 +82,45 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
         }}
       >
-        {/* The logo is a transparent PNG — let it sit directly on the cell's
-            dark themed background (no white fill behind it), with the jersey
-            number below. */}
-        <div className="flex flex-col items-center gap-1">
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt={player?.name ? `${player.name} — team logo` : "Team logo"}
-              className="w-11 h-11 object-contain"
-              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }}
-              loading="lazy"
-            />
-          ) : (
-            <span className="grid place-items-center w-11 h-11 rounded-full bg-white/10 font-black text-lg text-white">
-              {getPlayerInitials(player.name)}
-            </span>
-          )}
-          {player.number != null && player.number !== "" && (
-            <span
-              className="font-black text-lg text-white tabular-nums leading-none"
-              style={{
-                letterSpacing: "-0.02em",
-                textShadow: "0 1px 3px rgba(0,0,0,0.6)",
-              }}
-            >
-              {player.number}
-            </span>
-          )}
-        </div>
+        {/* Position tag pinned top-left, jersey number anchored bottom-right,
+            and the transparent logo sits directly on the cell's dark themed
+            background (no white fill) in the middle. */}
+        {showPositionTag && player.primaryPosition && (
+          <span
+            className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded font-black uppercase text-white/85 z-10"
+            style={{
+              backgroundColor: "rgba(0,0,0,0.35)",
+              fontSize: "9px",
+              letterSpacing: "0.12em",
+            }}
+          >
+            {player.primaryPosition}
+          </span>
+        )}
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt={player?.name ? `${player.name} — team logo` : "Team logo"}
+            className="w-16 h-16 object-contain"
+            style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }}
+            loading="lazy"
+          />
+        ) : (
+          <span className="grid place-items-center w-16 h-16 rounded-full bg-white/10 font-black text-xl text-white">
+            {getPlayerInitials(player.name)}
+          </span>
+        )}
+        {player.number != null && player.number !== "" && (
+          <span
+            className="absolute bottom-1.5 right-2 font-black text-2xl text-white tabular-nums z-10"
+            style={{
+              letterSpacing: "-0.03em",
+              textShadow: "0 2px 4px rgba(0,0,0,0.55)",
+            }}
+          >
+            {player.number}
+          </span>
+        )}
       </div>
 
       <div className="px-3.5 py-3 min-w-0 flex flex-col justify-between gap-2">
@@ -136,11 +146,6 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             />
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {showPositionTag && player.primaryPosition && (
-              <span className="t-chip px-2 py-1 rounded-md font-black uppercase tracking-wide bg-surface-2 border border-line text-ink">
-                {player.primaryPosition}
-              </span>
-            )}
             <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
               B/T · {player.bats || "R"}/{player.throws || "R"}
             </span>
