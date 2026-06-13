@@ -90,12 +90,12 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             <img
               src={logoUrl}
               alt={player?.name ? `${player.name} — team logo` : "Team logo"}
-              className="w-11 h-11 object-contain"
+              className="w-16 h-16 object-contain"
               style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }}
               loading="lazy"
             />
           ) : (
-            <span className="grid place-items-center w-11 h-11 rounded-full bg-white/10 font-black text-lg text-white">
+            <span className="grid place-items-center w-16 h-16 rounded-full bg-white/10 font-black text-xl text-white">
               {getPlayerInitials(player.name)}
             </span>
           )}
