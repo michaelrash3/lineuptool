@@ -107,15 +107,19 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
           </span>
         )}
         <PlayerAvatar player={player} size={54} className="shadow-inner" />
-        <span
-          className="absolute bottom-1.5 right-2 font-black text-2xl text-white/95 tabular-nums z-10"
-          style={{
-            letterSpacing: "-0.03em",
-            textShadow: "0 2px 4px rgba(0,0,0,0.5)",
-          }}
-        >
-          {player.number || ""}
-        </span>
+        {player.number != null && player.number !== "" && (
+          <span
+            className="absolute bottom-1 right-1.5 font-black text-xl text-white tabular-nums z-10 px-1.5 rounded-md"
+            style={{
+              letterSpacing: "-0.02em",
+              lineHeight: 1.3,
+              background: "rgba(15,23,42,0.85)",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.5)",
+            }}
+          >
+            {player.number}
+          </span>
+        )}
       </div>
 
       <div className="px-3.5 py-3 min-w-0 flex flex-col justify-between gap-2">
