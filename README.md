@@ -36,7 +36,6 @@ Error monitoring is optional: set `VITE_SENTRY_DSN` in the build environment to 
 - **[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)** — branch conventions, test expectations, rules-rollout dance
 - **[docs/firebase-rules-rollout.md](docs/firebase-rules-rollout.md)** — Firestore + Storage rules deploy and emulator matrix
 - **[docs/firebase-webapp-configuration.md](docs/firebase-webapp-configuration.md)** — Firebase Auth and OAuth redirect setup
-- **[docs/design/coachs-card/](docs/design/coachs-card/)** — visual design system, tokens, and 22 preview HTML cards
 
 ## Repository layout
 

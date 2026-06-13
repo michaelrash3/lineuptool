@@ -46,9 +46,8 @@ type IconProps = SVGProps<SVGSVGElement>;
 type IconComponent = ComponentType<any>;
 
 // Generic icons come from lucide-react. Baseball-specific glyphs
-// (HomePlate, Jersey, Bat, Glove, Pitch) are inline SVGs sourced from the
-// Coach's Card Design System handoff at
-// design_handoff/design_handoff_coachs_card/assets/iconography/*.svg.
+// (HomePlate, Jersey, Bat, Glove, Pitch) are inline SVGs from the Coach's
+// Card design system.
 const baseballSvgProps: IconProps = {
   viewBox: "0 0 24 24",
   fill: "none",

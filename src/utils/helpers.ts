@@ -1224,7 +1224,27 @@ export const aggregateGameLines = (
   return out;
 };
 
-// Derive a player's SEASON stat line by aggregating every per-game imported
+// Team-wide average for every stat: aggregate each rostered player's
+// current-season stat line through aggregateGameLines (counting stats sum;
+// AVG/rates are sample-weighted), so e.g. team AVG is total H / total AB
+// rather than a mean of per-player averages. Used as the "Team avg" baseline
+// drawn on a player's stat-trend charts. Pure; empty roster → {}.
+export const teamStatAverages = (
+  players:
+    | Array<{ stats?: Record<string, number | undefined> | null }>
+    | null
+    | undefined
+): Record<string, number> => {
+  const lines = (players || [])
+    .map((p) => p?.stats)
+    .filter(
+      (s): s is Record<string, number> => !!s && typeof s === "object"
+    );
+  if (lines.length === 0) return {};
+  return aggregateGameLines(lines);
+};
+
+
 // line. Pitching keys only exist on Kid Pitch lines (stripped at import), so
 // the summed season pitching is kid-pitch-only by construction — exactly the
 // rule for mixed machine/coach + kid-pitch schedules. Returns null when the

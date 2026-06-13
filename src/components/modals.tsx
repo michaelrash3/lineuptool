@@ -14,6 +14,7 @@ import {
   addAbsenceDateRange,
   removeAbsenceDates,
   foldAbsenceRanges,
+  teamStatAverages,
 } from "../utils/helpers";
 import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
@@ -538,6 +539,9 @@ export const PlayerProfileModal = memo(() => {
   } = team;
   const [activeSection, setActiveSection] = useState("general");
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // Team-wide stat averages drive the dashed "Team avg" baseline on this
+  // player's trend charts and Recent Movement sparklines.
+  const teamAverages = useMemo(() => teamStatAverages(players), [players]);
 
   // Scroll-spy: as the user scrolls the modal body, highlight the section
   // nav chip for whichever section is currently nearest the top.
@@ -1611,7 +1615,11 @@ export const PlayerProfileModal = memo(() => {
                   per-snapshot trail can open the per-stat trend modal from
                   the Stats grid above. */}
               <React.Suspense fallback={null}>
-                <RecentMovementPanel player={player} games={games} />
+                <RecentMovementPanel
+                  player={player}
+                  games={games}
+                  teamAverages={teamAverages}
+                />
               </React.Suspense>
             </div>
 
@@ -1818,6 +1826,7 @@ export const PlayerProfileModal = memo(() => {
             currentPitchingFormat={pitchingFormat}
             primaryColor={primaryColor}
             tertiaryColor={tertiaryColor}
+            teamAverages={teamAverages}
             onClose={() => setTrendStatKey(null)}
           />
         </React.Suspense>

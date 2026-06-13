@@ -64,7 +64,7 @@ const playerMatchesFilter = (player: any, filterId: any) => {
   }
 };
 
-const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag, logoUrl }: any) => {
+const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag, logoUrl, stripped }: any) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
 
@@ -164,9 +164,28 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
       </div>
 
       <div
-        className="hidden sm:grid col-span-2 sm:col-span-1 grid-cols-4 sm:w-[260px] border-t sm:border-t-0 sm:border-l border-line bg-surface-2"
+        className={`hidden sm:grid col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-line bg-surface-2 ${
+          stripped ? "grid-cols-1 sm:w-[150px]" : "grid-cols-4 sm:w-[260px]"
+        }`}
       >
-        {hasStats ? (
+        {!hasStats ? (
+          <div className="col-span-full grid place-items-center py-4 text-[10px] font-black text-ink-3 uppercase tracking-widest italic">
+            No Stats Logged
+          </div>
+        ) : stripped ? (
+          <div className="grid place-items-center px-3 py-2.5 text-center">
+            <div className="font-black text-sm tabular-nums text-ink">
+              <span style={{ color: "var(--team-primary)" }}>
+                {formatStat(player.stats?.avg)}
+              </span>
+              <span className="text-ink-3 mx-1">·</span>
+              {formatStat(player.stats?.ops)}
+            </div>
+            <div className="t-eyebrow mt-0.5" style={{ fontSize: "8px" }}>
+              AVG · OPS
+            </div>
+          </div>
+        ) : (
           <>
             <div
               className="text-center px-2 py-2.5 border-r border-line relative"
@@ -217,10 +236,6 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
               </div>
             </div>
           </>
-        ) : (
-          <div className="col-span-4 grid place-items-center py-4 text-[10px] font-black text-ink-3 uppercase tracking-widest italic">
-            No Stats Logged
-          </div>
         )}
       </div>
 
@@ -233,6 +248,7 @@ export const RosterTab = memo(() => {
   const canEdit = currentRole !== "assistant";
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
+  const stripped = (team as any).statDisplay === "stripped";
 
   // Gameday filter state — per-session, intentionally not persisted.
   const [searchQuery, setSearchQuery] = useState("");
@@ -435,6 +451,7 @@ export const RosterTab = memo(() => {
                     onOpenProfile={openPlayerProfile}
                     showPositionTag={canEdit}
                     logoUrl={(team as any)?.logoUrl}
+                    stripped={stripped}
                   />
                 </StaggerItem>
               ))}

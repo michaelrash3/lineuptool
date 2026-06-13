@@ -38,6 +38,39 @@ describe("RosterTab", () => {
     expect(screen.getByText("No Roster Found")).toBeInTheDocument();
   });
 
+  const playersWithStats = [
+    {
+      id: "p1",
+      name: "Ava Rivera",
+      number: "7",
+      stats: { ab: 10, h: 5, avg: 0.3, ops: 0.75, rbi: 4 },
+    },
+  ];
+
+  it("shows the full per-row stat grid by default (rich)", () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players: playersWithStats, games: [] },
+        currentRole: "head",
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.getByText("RBI")).toBeInTheDocument();
+    expect(screen.queryByText("AVG · OPS")).toBeNull();
+  });
+
+  it("condenses the per-row stat strip when statDisplay is stripped", () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players: playersWithStats, games: [], statDisplay: "stripped" },
+        currentRole: "head",
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.getByText("AVG · OPS")).toBeInTheDocument();
+    expect(screen.queryByText("RBI")).toBeNull();
+  });
+
   it("opens a player's profile when their name is tapped (interaction)", async () => {
     const { uiValue } = renderWithProviders(<RosterTab />, {
       team: { team: { players, games: [] }, currentRole: "head" },

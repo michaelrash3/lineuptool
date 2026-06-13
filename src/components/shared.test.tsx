@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Button, Chip, StatTile, PlayerAvatar } from "./shared";
+import { Button, Chip, StatTile, PlayerAvatar, LeaderboardCard } from "./shared";
 import { renderWithProviders } from "../test-utils";
 import { useTeam, useToast } from "../contexts";
 
@@ -110,5 +110,36 @@ describe("renderWithProviders", () => {
     const { toastValue } = renderWithProviders(<ToastProbe />);
     await userEvent.click(screen.getByRole("button", { name: "Toast" }));
     expect(toastValue.push).toHaveBeenCalledWith({ title: "hi" });
+  });
+});
+
+describe("LeaderboardCard stripped variant", () => {
+  const players = [
+    { id: "a", name: "Top Hitter", stats: { avg: 0.4 } },
+    { id: "b", name: "Second Hitter", stats: { avg: 0.3 } },
+    { id: "c", name: "Third Hitter", stats: { avg: 0.2 } },
+  ];
+  const common = {
+    title: "AVG",
+    statKey: "avg",
+    formatStr: true,
+    players,
+    primaryColor: "#2563eb",
+    tertiaryColor: "#fff",
+    onPlayerClick: () => {},
+  };
+
+  it("rich shows the top-3 with rank numbers", () => {
+    render(<LeaderboardCard {...common} />);
+    expect(screen.getByText("Top Hitter")).toBeInTheDocument();
+    expect(screen.getByText("Third Hitter")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("stripped shows only the single leader, no rank list", () => {
+    render(<LeaderboardCard {...common} stripped />);
+    expect(screen.getByText("Top Hitter")).toBeInTheDocument();
+    expect(screen.queryByText("Second Hitter")).toBeNull();
+    expect(screen.queryByText("3")).toBeNull();
   });
 });

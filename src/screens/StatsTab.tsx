@@ -357,6 +357,7 @@ const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
 export const StatsTab = memo(() => {
   const { team, currentRole } = useTeam();
   const { openPlayerProfile } = useUI();
+  const stripped = (team as any).statDisplay === "stripped";
   const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const games: any[] = useMemo(() => (team as any).games || [], [team]);
   const evaluationEvents: any[] = useMemo(
@@ -633,7 +634,7 @@ export const StatsTab = memo(() => {
           cols={activeCat.cols}
           defaultKey={activeCat.defaultKey}
           onOpen={openPlayerProfile}
-          seriesById={seriesById}
+          seriesById={stripped ? null : seriesById}
         />
       </SectionCard>
 

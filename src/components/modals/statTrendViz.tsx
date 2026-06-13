@@ -9,6 +9,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceLine,
 } from "recharts";
 import { Icons } from "../../icons";
 import {
@@ -73,12 +74,22 @@ export const StatTrendModal = memo(
     currentPitchingFormat,
     primaryColor,
     tertiaryColor,
+    teamAverages,
     onClose,
   }: any) => {
     const chartId = useChartId();
     if (!statKey) return null;
     const meta = STAT_META[statKey];
     if (!meta) return null;
+
+    // Team-average baseline only makes sense for rate stats (a mean of
+    // counting totals like HR/RBI would be meaningless). Drawn as a dashed
+    // "Team avg" reference so a dipping line reads against the roster.
+    const rawBaseline =
+      meta.kind === "decimal" || meta.kind === "percent"
+        ? Number(teamAverages?.[statKey])
+        : NaN;
+    const baseline = Number.isFinite(rawBaseline) ? rawBaseline : null;
 
     // Build a chronological data series. Each entry: { season, ageGroup, value, isCurrent }.
     // Sort: by year ascending, then Spring before Fall within a year.
@@ -136,9 +147,11 @@ export const StatTrendModal = memo(
     series.sort((a, b) => a.sortKey - b.sortKey);
 
     // Y range: pad by 10%; for percent stats clamp to [0, 100] sensibly.
+    // Include the baseline so the dashed team-avg line is never clipped.
     const values = series.map((s) => s.value);
-    let yMin = values.length ? Math.min(...values) : 0;
-    let yMax = values.length ? Math.max(...values) : 1;
+    const domainValues = baseline != null ? [...values, baseline] : values;
+    let yMin = domainValues.length ? Math.min(...domainValues) : 0;
+    let yMax = domainValues.length ? Math.max(...domainValues) : 1;
     if (yMin === yMax) {
       // Single point or all-equal: pad symmetrically
       if (yMin === 0) {
@@ -314,6 +327,25 @@ export const StatTrendModal = memo(
                           strokeDasharray: "3 3",
                         }}
                       />
+                      {baseline != null && (
+                        <ReferenceLine
+                          y={baseline}
+                          stroke="var(--ink-3)"
+                          strokeDasharray="4 4"
+                          strokeWidth={1.5}
+                          ifOverflow="extendDomain"
+                          label={{
+                            value: `Team avg ${formatStatValue(
+                              statKey,
+                              baseline
+                            )}`,
+                            position: "insideTopRight",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            fill: "var(--ink-3)",
+                          }}
+                        />
+                      )}
                       <Area
                         dataKey="value"
                         name={meta.label}
@@ -424,7 +456,7 @@ const fmtTrendDelta = (delta: any, decimals: any) => {
     : `${sign}${Math.round(delta)}`;
 };
 
-export const RecentMovementPanel = memo(({ player, games }: any) => {
+export const RecentMovementPanel = memo(({ player, games, teamAverages }: any) => {
   const history = Array.isArray(player.statsHistory) ? player.statsHistory : [];
   // Series = past snapshots + live stats. Coaches who import stats per game
   // have no snapshots, so fall back to the cumulative season line after each
@@ -465,6 +497,10 @@ export const RecentMovementPanel = memo(({ player, games }: any) => {
       <div className="grid grid-cols-2 gap-2.5">
         {RECENT_MOVEMENT_TRACKED.map(({ key, label, decimals }) => {
           const values = windowed.map((s) => Number(s?.[key]) || 0);
+          // Dashed team-avg baseline on rate stats only (decimals > 0).
+          const avg = Number(teamAverages?.[key]);
+          const baseline =
+            decimals > 0 && Number.isFinite(avg) ? avg : undefined;
           const current = values[values.length - 1];
           const prior = values[0];
           const delta = current - prior;
@@ -487,7 +523,12 @@ export const RecentMovementPanel = memo(({ player, games }: any) => {
                   {fmtTrendVal(current, decimals)}
                 </div>
               </div>
-              <Sparkline values={values} width={40} strokeWidth={1.5} />
+              <Sparkline
+                values={values}
+                width={40}
+                strokeWidth={1.5}
+                baseline={baseline}
+              />
               <span
                 className={`text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded border ${deltaTone}`}
                 title={`Net change over the last ${values.length - 1} ${unitLabel}`}
