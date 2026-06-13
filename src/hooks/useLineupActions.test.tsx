@@ -165,3 +165,68 @@ describe("useLineupActions one-game-balance toast", () => {
     );
   });
 });
+
+describe("useLineupActions mid-game removal redraft", () => {
+  const players = Array.from({ length: 10 }, (_, i) => ({
+    id: `p${i}`,
+    name: `P${i}`,
+  }));
+  const lineup = [{ P: { id: "p0" } }, { P: { id: "p0" } }, { P: { id: "p0" } }];
+  const game = (leagueRuleSet: string) => ({
+    id: "g1",
+    date: "2026-06-20",
+    leagueRuleSet,
+    lineup,
+    battingLineup: players.map((p) => ({ id: p.id, name: p.name })),
+    attendance: {},
+    tournamentPlan: { starters: {}, substitutions: [] },
+  });
+  const depthChart = { SS: ["p3"] };
+
+  beforeEach(() => {
+    generateLineupMock.mockReset();
+    generateLineupMock.mockReturnValue({ lineup, battingLineup: [] });
+  });
+
+  it("tournament removal redrafts competitively and clears the stale subs script", () => {
+    const usssa = game("USSSA");
+    const { result, updateGame } = setup(
+      { players, games: [usssa], depthChart, leagueRuleSet: "USSSA" },
+      { currentGame: usssa }
+    );
+    act(() =>
+      result.current.removePlayerMidGame("p1", { fromInning: 1, gameId: "g1" })
+    );
+    expect(generateLineupMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        competitive: true,
+        depthChart,
+        fromInning: 1,
+        currentLineup: lineup,
+      })
+    );
+    // The removed player is out of the active pool fed to the engine.
+    const call = generateLineupMock.mock.calls[0][0];
+    expect(call.activePlayers.some((p: any) => p.id === "p1")).toBe(false);
+    const patch = updateGame.mock.calls[0][1];
+    expect(patch.tournamentPlan).toBeNull();
+    expect(patch.midGameRemovals.p1).toMatchObject({ fromInning: 1 });
+    expect(patch.battingLineup.some((p: any) => p.id === "p1")).toBe(false);
+  });
+
+  it("rec removal keeps the relaxed rebuild and leaves the plan untouched", () => {
+    const rec = game("NKB");
+    const { result, updateGame } = setup(
+      { players, games: [rec], depthChart, leagueRuleSet: "NKB" },
+      { currentGame: rec }
+    );
+    act(() =>
+      result.current.removePlayerMidGame("p1", { fromInning: 1, gameId: "g1" })
+    );
+    expect(generateLineupMock).toHaveBeenCalledWith(
+      expect.objectContaining({ competitive: false, relaxFairness: true })
+    );
+    const patch = updateGame.mock.calls[0][1];
+    expect(patch).not.toHaveProperty("tournamentPlan");
+  });
+});
