@@ -2,11 +2,7 @@
 // modal and the automatic on-open sync in ScheduleTab. Keeping the fetch +
 // upsert logic in one place means both paths de-dupe games identically.
 
-import {
-  parseGameChangerIcs,
-  isoInstantToLocalDate,
-  type GcEvent,
-} from "./icsParse";
+import { parseGameChangerIcs, type GcEvent } from "./icsParse";
 
 // Fetch a GameChanger .ics feed through our same-origin proxy and parse it.
 // Throws with a readable message (the proxy returns JSON errors) on failure.
@@ -67,7 +63,9 @@ export const mergeGcEventsIntoGames = (
   let updated = 0;
   for (const ev of events) {
     const fields = {
-      date: isoInstantToLocalDate(ev.startUtc),
+      // All-day events keep their literal feed date and have no instant
+      // (null startUtc → no clock-time chip in the schedule).
+      date: ev.startDate,
       startUtc: ev.startUtc,
       opponent: ev.opponent || "TBD",
       isHome: ev.isHome,
@@ -79,7 +77,7 @@ export const mergeGcEventsIntoGames = (
       const g = next[existingIdx];
       const changed =
         g.date !== fields.date ||
-        g.startUtc !== fields.startUtc ||
+        (g.startUtc ?? null) !== (fields.startUtc ?? null) ||
         g.opponent !== fields.opponent ||
         g.isHome !== fields.isHome ||
         (g.location || "") !== fields.location;
