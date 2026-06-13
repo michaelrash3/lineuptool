@@ -1826,6 +1826,9 @@ export const EvaluationTab = memo(() => {
           )}
           {players.length === 0 ? (
             <div className="text-center py-10 t-body">
+              <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
+                ⭐
+              </div>
               No players on the roster yet.
             </div>
           ) : (

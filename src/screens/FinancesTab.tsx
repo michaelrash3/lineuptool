@@ -776,6 +776,9 @@ export const FinancesTab = memo(() => {
         </div>
         {players.length === 0 ? (
           <div className="p-6 text-center text-ink-3 font-medium">
+            <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
+              📊
+            </div>
             Add players on the Roster tab to track who owes the club fee.
           </div>
         ) : (

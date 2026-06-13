@@ -75,7 +75,9 @@ export const InterestTab = memo(() => {
           </div>
           {leads.length === 0 ? (
             <div className="text-center py-12 bg-surface border border-line rounded-xl">
-              <Icons.Users className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+              <div className="text-5xl leading-none mb-3 opacity-80" aria-hidden>
+                🧢
+              </div>
               <p className="text-sm font-bold text-ink-3 mb-1">
                 No interest signups yet
               </p>

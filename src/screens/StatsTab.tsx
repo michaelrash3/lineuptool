@@ -474,6 +474,9 @@ export const StatsTab = memo(() => {
     return (
       <div className="space-y-6">
         <div className="glass-card p-8 text-center text-ink-3 font-medium">
+          <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
+            📊
+          </div>
           Add players and import stats to see your team&apos;s numbers here.
         </div>
       </div>
