@@ -1254,6 +1254,70 @@ export const isPlayerScheduledOut = (
   return (player?.absences || []).includes(String(dateIso).slice(0, 10));
 };
 
+// Walk an inclusive yyyy-mm-dd range via UTC parts (no local-TZ drift) and
+// merge each day into the existing absence list, deduped + sorted. Reversed
+// inputs are swapped; absurd ranges are capped at 60 days so a typo'd year
+// can't generate thousands of entries.
+const isoToUtcMs = (iso: string): number | null => {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const ABSENCE_RANGE_CAP_DAYS = 60;
+
+export const addAbsenceDateRange = (
+  absences: string[] | null | undefined,
+  fromIso: string,
+  toIso?: string | null
+): string[] => {
+  const startMs = isoToUtcMs(fromIso);
+  // Blank "to" = a single-day absence.
+  const endMs = toIso ? isoToUtcMs(toIso) : startMs;
+  if (startMs == null || endMs == null) return [...(absences || [])];
+  const lo = Math.min(startMs, endMs);
+  const hi = Math.min(
+    Math.max(startMs, endMs),
+    lo + (ABSENCE_RANGE_CAP_DAYS - 1) * DAY_MS
+  );
+  const out = new Set(absences || []);
+  for (let ms = lo; ms <= hi; ms += DAY_MS) {
+    out.add(new Date(ms).toISOString().slice(0, 10));
+  }
+  return [...out].sort();
+};
+
+export const removeAbsenceDates = (
+  absences: string[] | null | undefined,
+  dates: string[]
+): string[] => {
+  const drop = new Set(dates);
+  return (absences || []).filter((d) => !drop.has(d));
+};
+
+// Fold a flat absence list into contiguous ranges for display: consecutive
+// days collapse into one { from, to } chip; `dates` carries the exact days a
+// chip's remove button should delete.
+export const foldAbsenceRanges = (
+  absences: string[] | null | undefined
+): Array<{ from: string; to: string; dates: string[] }> => {
+  const sorted = [...new Set(absences || [])]
+    .filter((d) => isoToUtcMs(d) != null)
+    .sort();
+  const out: Array<{ from: string; to: string; dates: string[] }> = [];
+  for (const d of sorted) {
+    const last = out[out.length - 1];
+    if (last && isoToUtcMs(d) === (isoToUtcMs(last.to) as number) + DAY_MS) {
+      last.to = d;
+      last.dates.push(d);
+    } else {
+      out.push({ from: d, to: d, dates: [d] });
+    }
+  }
+  return out;
+};
+
 // Movement caused by a player's most recent imported game line: the season
 // stats derived from all of their game lines vs the same derivation with the
 // newest game excluded. Lets Recent Movement work for coaches who import

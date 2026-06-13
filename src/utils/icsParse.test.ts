@@ -38,13 +38,20 @@ DTSTART:20260425T160000Z
 SUMMARY:Trash Pandas 8u vs NKYA Bandits 8u Smith
 DTEND:20260425T180000Z
 END:VEVENT
+BEGIN:VEVENT
+UID:1bb6dc2a-58f5-4d2e-9c64-aa2a4f4e2f10
+DTSTART;VALUE=DATE:20260620
+DTEND;VALUE=DATE:20260621
+SUMMARY:Father's Day Classic Jun 19–Jun 20
+STATUS:CONFIRMED
+END:VEVENT
 END:VCALENDAR`;
 
 describe("parseGameChangerIcs", () => {
   const events = parseGameChangerIcs(SAMPLE);
 
   it("parses every VEVENT", () => {
-    expect(events).toHaveLength(4);
+    expect(events).toHaveLength(5);
   });
 
   it("extracts the stable UID for de-duping", () => {
@@ -77,6 +84,21 @@ describe("parseGameChangerIcs", () => {
   it("keeps multi-word opponent names intact", () => {
     expect(events[3].opponent).toBe("NKYA Bandits 8u Smith");
     expect(events[3].isHome).toBe(true);
+  });
+
+  it("timed events carry their viewer-local startDate and allDay false", () => {
+    // 16:00Z stays April 25 in every US timezone — deterministic in CI.
+    expect(events[3].allDay).toBe(false);
+    expect(events[3].startDate).toBe("2026-04-25");
+  });
+
+  it("all-day events keep their literal date with no instant (no UTC day shift)", () => {
+    const g = events[4];
+    expect(g.allDay).toBe(true);
+    expect(g.startDate).toBe("2026-06-20"); // NOT June 19 local
+    expect(g.startUtc).toBeNull();
+    // DTEND on an all-day event is the exclusive next day, not a real end.
+    expect(g.endUtc).toBeNull();
   });
 
   it("returns [] for empty or non-calendar input", () => {

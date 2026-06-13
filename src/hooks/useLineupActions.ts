@@ -605,6 +605,14 @@ export const useLineupActions = ({
         existingLineup.length - 1
       );
 
+      // Tournament games redraft best-available from the depth chart
+      // (competitive mode — no fairness ledger); rec games keep the relaxed
+      // rec rebuild. Played innings 0..fromInn-1 are preserved verbatim
+      // either way; the min-play floor is approximate across the replayed
+      // innings, same in kind as the relaxed rec rebuild.
+      const isTournament =
+        (persistedGame?.leagueRuleSet || teamData.leagueRuleSet) === "USSSA";
+
       const result = engineGenerateLineup({
         activePlayers,
         allPlayers: teamData.players || [],
@@ -625,6 +633,18 @@ export const useLineupActions = ({
         catcherConsecutive:
           persistedGame?.catcherConsecutive ?? teamData.catcherConsecutive,
         isBigGame: persistedGame?.isBigGame === true,
+        competitive: isTournament,
+        depthChart: teamData.depthChart,
+        pitchRuleSet: resolvePitchRuleSet({
+          pitchRuleSet: teamData.pitchRuleSet,
+          customPitchLimit: teamData.customPitchLimit,
+          customRestTiers: teamData.customRestTiers,
+        }),
+        sameDayRoles: sameDayRoleSets(
+          teamData.players,
+          persistedGame?.date,
+          gameId
+        ),
         seed: Date.now() & 0xffffffff,
         relaxFairness: true,
         fromInning: fromInn,
@@ -655,6 +675,10 @@ export const useLineupActions = ({
         lineup: nextLineup,
         battingLineup: nextBatting,
         midGameRemovals: nextRemovals,
+        // The scripted tournament starters/subs plan references the
+        // pre-redraft grid (and possibly the removed player) — clear it so
+        // pitching changes fall back to the per-inning swap path.
+        ...(isTournament ? { tournamentPlan: null } : {}),
       });
 
       const removedPlayer = (teamData.players || []).find(
@@ -663,9 +687,13 @@ export const useLineupActions = ({
       toast.push({
         kind: "success",
         title: "Player removed",
-        message: `${
-          removedPlayer?.name || "Player"
-        } removed from inning ${fromInn + 1}+. Defense rebuilt; batting order shrunk by one.`,
+        message: `${removedPlayer?.name || "Player"} removed from inning ${
+          fromInn + 1
+        }+. ${
+          isTournament
+            ? "Defense redrafted best-available from the depth chart"
+            : "Defense rebuilt"
+        }; batting order shrunk by one.`,
         duration: 6000,
       });
     },

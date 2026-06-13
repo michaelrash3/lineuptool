@@ -1,9 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Icons } from "../icons";
-import {
-  isoInstantToLocalDate,
-  type GcEvent,
-} from "../utils/icsParse";
+import { type GcEvent } from "../utils/icsParse";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { A11yDialog } from "./shared";
 
@@ -64,7 +61,7 @@ export const GameChangerImportModal: React.FC<Props> = ({
       const mapped: Candidate[] = events
         .map((event) => ({
           event,
-          date: isoInstantToLocalDate(event.startUtc),
+          date: event.startDate,
           isExisting: !!event.uid && existingByUid.has(event.uid),
         }))
         .sort((a, b) => a.date.localeCompare(b.date));

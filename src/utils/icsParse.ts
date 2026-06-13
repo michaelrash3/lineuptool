@@ -3,10 +3,12 @@
 // GameChanger Team Manager publishes a team's schedule as an .ics calendar
 // feed (webcal://api.team-manager.gc.com/...). Each game is a VEVENT whose
 // SUMMARY is "<Team Name> vs <Opponent>" for a HOME game or
-// "<Team Name> @ <Opponent>" for an AWAY game, with DTSTART in UTC (Z). We
-// parse those into structured events; the caller converts the UTC instant to
-// the viewer's LOCAL date when building a game row (so an evening game stored
-// as e.g. 2026-05-30T00:00:00Z lands on May 29 locally, not May 30).
+// "<Team Name> @ <Opponent>" for an AWAY game. Timed events carry DTSTART in
+// UTC (Z); we convert the instant to the viewer's LOCAL date when building a
+// game row (so an evening game stored as e.g. 2026-05-30T00:00:00Z lands on
+// May 29 locally, not May 30). "All Day" events carry a date-only DTSTART
+// (DTSTART;VALUE=DATE:20260620) — those are floating calendar dates with no
+// instant, so they keep their literal day and get no clock time.
 //
 // This module is pure (no I/O) so it can be unit-tested against real feed
 // samples. Fetching the feed is the job of the /api/gc-schedule proxy, since
@@ -15,10 +17,20 @@
 export interface GcEvent {
   /** Stable per-game UID from the feed — used to de-dupe on re-sync. */
   uid: string;
-  /** Event start as an ISO-8601 instant (UTC), e.g. 2026-03-31T22:00:00.000Z. */
-  startUtc: string;
-  /** Event end as an ISO-8601 instant, or null when absent. */
+  /**
+   * Event start as an ISO-8601 instant (UTC), e.g. 2026-03-31T22:00:00.000Z.
+   * null for all-day events (a floating date has no instant).
+   */
+  startUtc: string | null;
+  /** Event end as an ISO-8601 instant, or null when absent or all-day. */
   endUtc: string | null;
+  /** true when DTSTART is date-only (GameChanger "All Day" events). */
+  allDay: boolean;
+  /**
+   * The game's calendar day as "YYYY-MM-DD": the literal feed date for
+   * all-day events, the viewer-local day of startUtc for timed ones.
+   */
+  startDate: string;
   /** Raw SUMMARY text (unescaped). */
   summary: string;
   /** Opponent name parsed out of the SUMMARY, or the full summary if unparsed. */
@@ -54,25 +66,25 @@ const unescapeText = (value: string): string =>
     .replace(/\\;/g, ";")
     .replace(/\\\\/g, "\\");
 
-// Parse an ICS datetime ("20260331T220000Z", "20260331T220000", or
-// "20260331") into an ISO instant. A trailing Z (or a feed that only emits
-// UTC, as GameChanger does) is treated as UTC; a bare local datetime is built
-// from local components; a date-only value is midnight UTC.
+// Parse an ICS datetime ("20260331T220000Z" or "20260331T220000") into an
+// ISO instant. A trailing Z (or a feed that only emits UTC, as GameChanger
+// does) is treated as UTC; a bare local datetime is built from local
+// components. Date-only values are NOT handled here — they're floating
+// calendar dates, not instants (see the all-day branch in
+// parseGameChangerIcs).
 const parseIcsDate = (value: string): string | null => {
-  const m = value.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?$/);
+  const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
   if (!m) return null;
   const [, y, mo, d, hh, mi, ss, z] = m;
   const year = Number(y);
   const month = Number(mo) - 1;
   const day = Number(d);
-  const hour = Number(hh ?? "0");
-  const min = Number(mi ?? "0");
-  const sec = Number(ss ?? "0");
-  // Date-only or explicit Z -> UTC. Bare datetime without Z -> local.
-  const date =
-    !hh || z
-      ? new Date(Date.UTC(year, month, day, hour, min, sec))
-      : new Date(year, month, day, hour, min, sec);
+  const hour = Number(hh);
+  const min = Number(mi);
+  const sec = Number(ss);
+  const date = z
+    ? new Date(Date.UTC(year, month, day, hour, min, sec))
+    : new Date(year, month, day, hour, min, sec);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 };
 
@@ -116,14 +128,28 @@ export const parseGameChangerIcs = (icsText: string): GcEvent[] => {
     if (line === "END:VEVENT") {
       if (cur) {
         const summary = cur.SUMMARY ? unescapeText(cur.SUMMARY) : "";
-        const startUtc = cur.DTSTART ? parseIcsDate(cur.DTSTART) : null;
+        const rawStart = cur.DTSTART || "";
+        // "All Day" events are date-only (DTSTART;VALUE=DATE:20260620 —
+        // splitProp already stripped the param). They're floating calendar
+        // dates: keep the literal day, no instant, no clock time. DTEND on
+        // an all-day event is the EXCLUSIVE next day (RFC 5545), not a real
+        // end instant, so it's dropped too.
+        const allDay = /^\d{8}$/.test(rawStart);
+        const startUtc = allDay ? null : parseIcsDate(rawStart);
+        const startDate = allDay
+          ? `${rawStart.slice(0, 4)}-${rawStart.slice(4, 6)}-${rawStart.slice(6, 8)}`
+          : startUtc
+          ? isoInstantToLocalDate(startUtc)
+          : null;
         // A VEVENT with no parseable start is unusable as a game; skip it.
-        if (startUtc) {
+        if (startDate) {
           const { opponent, isHome } = parseMatchup(summary);
           events.push({
             uid: cur.UID || "",
             startUtc,
-            endUtc: cur.DTEND ? parseIcsDate(cur.DTEND) : null,
+            endUtc: allDay || !cur.DTEND ? null : parseIcsDate(cur.DTEND),
+            allDay,
+            startDate,
             summary,
             opponent,
             isHome,

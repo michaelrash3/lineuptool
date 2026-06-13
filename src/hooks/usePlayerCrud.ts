@@ -37,6 +37,8 @@ export const usePlayerCrud = ({
           : [],
         stats: blankStats(),
         pitching: { recentPitches: 0, lastPitchDate: null },
+        // Scheduled-absence dates (ISO yyyy-mm-dd), managed on the profile.
+        absences: [],
       };
       updateTeam({ players: [...teamData.players, newPlayer] });
       return id;

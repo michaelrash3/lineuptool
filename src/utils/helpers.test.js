@@ -39,6 +39,9 @@ import {
   latestGameLineMovement,
   seasonSeriesFromGameLines,
   isPlayerScheduledOut,
+  addAbsenceDateRange,
+  removeAbsenceDates,
+  foldAbsenceRanges,
   recentGameLines,
   evalStatHint,
   deriveTournaments,
@@ -1633,6 +1636,55 @@ describe("isPlayerScheduledOut (front-loaded absence dates)", () => {
     expect(isPlayerScheduledOut(p, null)).toBe(false);
     expect(isPlayerScheduledOut({}, "2026-06-19")).toBe(false);
     expect(isPlayerScheduledOut(null, "2026-06-19")).toBe(false);
+  });
+});
+
+describe("absence date-range helpers", () => {
+  it("addAbsenceDateRange walks an inclusive range and merges + sorts", () => {
+    const out = addAbsenceDateRange(["2026-07-04"], "2026-06-19", "2026-06-21");
+    expect(out).toEqual(["2026-06-19", "2026-06-20", "2026-06-21", "2026-07-04"]);
+  });
+
+  it("blank end date adds a single day; duplicates are deduped", () => {
+    expect(addAbsenceDateRange(["2026-06-19"], "2026-06-19", null)).toEqual([
+      "2026-06-19",
+    ]);
+    expect(addAbsenceDateRange([], "2026-06-19")).toEqual(["2026-06-19"]);
+  });
+
+  it("swaps reversed inputs and walks month/year boundaries", () => {
+    expect(addAbsenceDateRange([], "2027-01-02", "2026-12-30")).toEqual([
+      "2026-12-30",
+      "2026-12-31",
+      "2027-01-01",
+      "2027-01-02",
+    ]);
+  });
+
+  it("caps absurd ranges at 60 days and ignores unparseable dates", () => {
+    expect(addAbsenceDateRange([], "2026-06-01", "2036-06-01")).toHaveLength(60);
+    expect(addAbsenceDateRange(["2026-06-19"], "not-a-date")).toEqual([
+      "2026-06-19",
+    ]);
+  });
+
+  it("removeAbsenceDates drops exactly the given dates", () => {
+    expect(
+      removeAbsenceDates(["2026-06-19", "2026-06-20", "2026-07-04"], [
+        "2026-06-19",
+        "2026-06-20",
+      ])
+    ).toEqual(["2026-07-04"]);
+  });
+
+  it("foldAbsenceRanges collapses consecutive days into ranges", () => {
+    const ranges = foldAbsenceRanges(["2026-06-22", "2026-06-19", "2026-06-20"]);
+    expect(ranges).toEqual([
+      { from: "2026-06-19", to: "2026-06-20", dates: ["2026-06-19", "2026-06-20"] },
+      { from: "2026-06-22", to: "2026-06-22", dates: ["2026-06-22"] },
+    ]);
+    expect(foldAbsenceRanges([])).toEqual([]);
+    expect(foldAbsenceRanges(null)).toEqual([]);
   });
 });
 

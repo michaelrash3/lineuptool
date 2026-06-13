@@ -151,7 +151,9 @@ export interface Game {
   statsImportedAt?: string;
   isHome?: boolean | null;
   location?: string;
-  startUtc?: string; // ISO instant of first pitch; drives the displayed time
+  // ISO instant of first pitch; drives the displayed time. null for all-day
+  // feed events (no clock time shown).
+  startUtc?: string | null;
   [key: string]: unknown;
 }
 

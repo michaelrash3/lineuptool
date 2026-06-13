@@ -1,6 +1,10 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { formatStat, calculateBaseballAge } from "../utils/helpers";
+import {
+  formatStat,
+  calculateBaseballAge,
+  dateToIsoLocal,
+} from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { PlayerAvatar } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
@@ -68,6 +72,13 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
   const positionTag = player.primaryPosition || "—";
+  // Scheduled absences entered on the profile — surface upcoming ones so the
+  // coach sees who'll be out without opening every profile. ISO yyyy-mm-dd
+  // strings compare lexicographically.
+  const todayIso = dateToIsoLocal(new Date());
+  const upcomingAbsences = (player.absences || []).filter(
+    (d: string) => d >= todayIso
+  ).length;
 
   return (
     <div
@@ -141,6 +152,15 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag 
             {absent && (
               <span className="t-chip px-2 py-1 rounded-md bg-loss-bg border border-line text-loss">
                 Out
+              </span>
+            )}
+            {upcomingAbsences > 0 && (
+              <span
+                className="t-chip px-2 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-900 tabular-nums"
+                title="Scheduled absences on the player profile"
+              >
+                Out {upcomingAbsences} upcoming{" "}
+                {upcomingAbsences === 1 ? "day" : "days"}
               </span>
             )}
           </div>
