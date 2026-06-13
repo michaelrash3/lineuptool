@@ -11,6 +11,9 @@ import {
   summarizePitchingWorkload,
   ROSTER_POSITIONS,
   canonicalizePositionList,
+  addAbsenceDateRange,
+  removeAbsenceDates,
+  foldAbsenceRanges,
 } from "../utils/helpers";
 import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
@@ -39,6 +42,103 @@ const RecentMovementPanel = React.lazy(() =>
     default: mod.RecentMovementPanel,
   }))
 );
+
+// Scheduled Absences — dates the family already knows the kid is out
+// (vacation, injury with a return date). Stored as flat per-date entries so
+// isPlayerScheduledOut and Game Day Attendance auto-marking stay untouched;
+// the card folds consecutive days into range chips and accepts From/To range
+// entry (blank To = single day).
+const ABSENCE_DATE_INPUT_CLASS =
+  "w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner";
+
+const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const ranges = foldAbsenceRanges(player.absences);
+  const addRange = () => {
+    if (!fromDate) return;
+    updatePlayer(player.id, {
+      absences: addAbsenceDateRange(player.absences, fromDate, toDate || null),
+    });
+    setFromDate("");
+    setToDate("");
+  };
+  return (
+    <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+      <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
+        <Icons.Calendar className="w-4 h-4" /> Scheduled Absences
+      </h4>
+      <p className="text-[11px] text-ink-3 font-medium mb-3 leading-snug">
+        Know ahead of time when {player.name?.split(" ")[0] || "this player"}{" "}
+        will be out (vacation, school event, injury)? Add a date or a range —
+        games on those days mark them absent automatically.
+      </p>
+      {ranges.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {ranges.map((r) => (
+            <span
+              key={r.from}
+              className="t-chip pl-2 pr-1 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-900 tabular-nums inline-flex items-center gap-1"
+            >
+              {r.from === r.to
+                ? formatGameDateDisplay(r.from)
+                : `${formatGameDateDisplay(r.from)} – ${formatGameDateDisplay(r.to)}`}
+              <button
+                type="button"
+                aria-label={
+                  r.from === r.to
+                    ? `Remove absence ${r.from}`
+                    : `Remove absence ${r.from} to ${r.to}`
+                }
+                onClick={() =>
+                  updatePlayer(player.id, {
+                    absences: removeAbsenceDates(player.absences, r.dates),
+                  })
+                }
+                className="p-0.5 rounded hover:bg-amber-100 text-amber-700"
+              >
+                <Icons.X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+        <input
+          type="date"
+          value={fromDate}
+          aria-label={`Absence start date for ${player.name}`}
+          onChange={(e) => setFromDate(e.target.value)}
+          className={`${ABSENCE_DATE_INPUT_CLASS} sm:w-44`}
+        />
+        <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 text-center">
+          to
+        </span>
+        <input
+          type="date"
+          value={toDate}
+          min={fromDate || undefined}
+          aria-label={`Absence end date for ${player.name}`}
+          onChange={(e) => setToDate(e.target.value)}
+          className={`${ABSENCE_DATE_INPUT_CLASS} sm:w-44`}
+        />
+        <button
+          type="button"
+          disabled={!fromDate}
+          aria-label={`Add absence for ${player.name}`}
+          onClick={addRange}
+          className="px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest text-white disabled:opacity-50 transition-opacity"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        >
+          Add
+        </button>
+      </div>
+      <p className="t-meta text-ink-3 mt-1.5">
+        Leave the end date blank for a single day.
+      </p>
+    </div>
+  );
+});
 
 export const PastSeasonImportModal = memo(() => {
   const { team, bulkAddPastSeasons } = useTeam();
@@ -966,58 +1066,10 @@ export const PlayerProfileModal = memo(() => {
                 </div>
               </div>
 
-              {/* Scheduled Absences — dates the family already knows the kid
-                  is out. Games on these dates default the kid to absent in
-                  Game Day Attendance (still toggleable per game). */}
-              <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
-                <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
-                  <Icons.Calendar className="w-4 h-4" /> Scheduled Absences
-                </h4>
-                <p className="text-[11px] text-ink-3 font-medium mb-3 leading-snug">
-                  Know ahead of time when {player.name?.split(" ")[0] || "this player"} will
-                  be out (vacation, school event)? Add the dates — games on
-                  those days mark them absent automatically.
-                </p>
-                {(player.absences || []).length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {[...(player.absences || [])].sort().map((d: string) => (
-                      <span
-                        key={d}
-                        className="t-chip pl-2 pr-1 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-900 tabular-nums inline-flex items-center gap-1"
-                      >
-                        {formatGameDateDisplay(d)}
-                        <button
-                          type="button"
-                          aria-label={`Remove absence ${d}`}
-                          onClick={() =>
-                            updatePlayer(player.id, {
-                              absences: (player.absences || []).filter(
-                                (x: string) => x !== d
-                              ),
-                            })
-                          }
-                          className="p-0.5 rounded hover:bg-amber-100 text-amber-700"
-                        >
-                          <Icons.X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  type="date"
-                  value=""
-                  aria-label={`Add absence date for ${player.name}`}
-                  onChange={(e) => {
-                    const d = e.target.value;
-                    if (!d || (player.absences || []).includes(d)) return;
-                    updatePlayer(player.id, {
-                      absences: [...(player.absences || []), d],
-                    });
-                  }}
-                  className="w-full sm:w-48 p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
-                />
-              </div>
+              <ScheduledAbsencesCard
+                player={player}
+                updatePlayer={updatePlayer}
+              />
 
               {pitchingFormat === "Kid Pitch" && (
                 <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
