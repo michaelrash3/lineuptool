@@ -1,10 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import {
-  formatStat,
-  calculateBaseballAge,
-  dateToIsoLocal,
-} from "../utils/helpers";
+import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI } from "../contexts";
 import { getPlayerInitials } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
@@ -71,13 +67,6 @@ const playerMatchesFilter = (player: any, filterId: any) => {
 const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag, logoUrl }: any) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
-  // Scheduled absences entered on the profile — surface upcoming ones so the
-  // coach sees who'll be out without opening every profile. ISO yyyy-mm-dd
-  // strings compare lexicographically.
-  const todayIso = dateToIsoLocal(new Date());
-  const upcomingAbsences = (player.absences || []).filter(
-    (d: string) => d >= todayIso
-  ).length;
 
   return (
     <div
@@ -93,37 +82,33 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
         }}
       >
-        {/* One cohesive "locker tag": the team logo sits on a light panel so
-            the (transparent) logo always reads, with the jersey number on a
-            connected dark strip below — a single bordered medallion instead of
-            a logo, a floating position chip, and a hanging number badge all
-            competing in the same cell. */}
-        <div className="flex flex-col items-stretch rounded-xl overflow-hidden border border-white/15 shadow-md w-[58px]">
-          <div className="grid place-items-center bg-white h-[46px]">
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt={player?.name ? `${player.name} — team logo` : "Team logo"}
-                className="w-9 h-9 object-contain"
-                loading="lazy"
-              />
-            ) : (
-              <span className="font-black text-lg text-slate-700">
-                {getPlayerInitials(player.name)}
-              </span>
-            )}
-          </div>
+        {/* The logo is a transparent PNG — let it sit directly on the cell's
+            dark themed background (no white fill behind it), with the jersey
+            number below. */}
+        <div className="flex flex-col items-center gap-1">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={player?.name ? `${player.name} — team logo` : "Team logo"}
+              className="w-11 h-11 object-contain"
+              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }}
+              loading="lazy"
+            />
+          ) : (
+            <span className="grid place-items-center w-11 h-11 rounded-full bg-white/10 font-black text-lg text-white">
+              {getPlayerInitials(player.name)}
+            </span>
+          )}
           {player.number != null && player.number !== "" && (
-            <div
-              className="grid place-items-center py-1 font-black text-sm text-white tabular-nums leading-none"
+            <span
+              className="font-black text-lg text-white tabular-nums leading-none"
               style={{
-                background: "#0f172a",
-                borderTop: "2px solid var(--team-primary)",
                 letterSpacing: "-0.02em",
+                textShadow: "0 1px 3px rgba(0,0,0,0.6)",
               }}
             >
               {player.number}
-            </div>
+            </span>
           )}
         </div>
       </div>
@@ -152,13 +137,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             {showPositionTag && player.primaryPosition && (
-              <span
-                className="t-chip px-2 py-1 rounded-md font-black uppercase tracking-wide text-team-primary border"
-                style={{
-                  background: "var(--team-primary-15)",
-                  borderColor: "var(--team-primary)",
-                }}
-              >
+              <span className="t-chip px-2 py-1 rounded-md font-black uppercase tracking-wide bg-surface-2 border border-line text-ink">
                 {player.primaryPosition}
               </span>
             )}
@@ -173,15 +152,6 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             {absent && (
               <span className="t-chip px-2 py-1 rounded-md bg-loss-bg border border-line text-loss">
                 Out
-              </span>
-            )}
-            {upcomingAbsences > 0 && (
-              <span
-                className="t-chip px-2 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-900 tabular-nums"
-                title="Scheduled absences on the player profile"
-              >
-                Out {upcomingAbsences} upcoming{" "}
-                {upcomingAbsences === 1 ? "day" : "days"}
               </span>
             )}
           </div>
