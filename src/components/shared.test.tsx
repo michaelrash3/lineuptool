@@ -1,7 +1,14 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Button, Chip, StatTile, PlayerAvatar, LeaderboardCard } from "./shared";
+import {
+  Button,
+  Chip,
+  StatTile,
+  PlayerAvatar,
+  LeaderboardCard,
+  EmptyState,
+} from "./shared";
 import { renderWithProviders } from "../test-utils";
 import { useTeam, useToast } from "../contexts";
 
@@ -141,5 +148,30 @@ describe("LeaderboardCard stripped variant", () => {
     expect(screen.getByText("Top Hitter")).toBeInTheDocument();
     expect(screen.queryByText("Second Hitter")).toBeNull();
     expect(screen.queryByText("3")).toBeNull();
+  });
+});
+
+describe("EmptyState", () => {
+  it("renders the emoji watermark glyph, title, and body", () => {
+    render(
+      <EmptyState glyph="🧢" title="No Players Yet" body="Add some players." />
+    );
+    expect(screen.getByText("🧢")).toBeInTheDocument();
+    expect(screen.getByText("No Players Yet")).toBeInTheDocument();
+    expect(screen.getByText("Add some players.")).toBeInTheDocument();
+  });
+
+  it("fires onAction when the CTA is pressed", async () => {
+    const onAction = jest.fn();
+    render(
+      <EmptyState
+        glyph="📅"
+        title="No Games Yet"
+        action="Add Game"
+        onAction={onAction}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add Game" }));
+    expect(onAction).toHaveBeenCalledTimes(1);
   });
 });

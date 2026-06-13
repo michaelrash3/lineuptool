@@ -12,7 +12,7 @@ import {
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
-import { LeaderboardCard } from "../components/shared";
+import { LeaderboardCard, EmptyState } from "../components/shared";
 import {
   StaggerList,
   StaggerItem,
@@ -881,28 +881,7 @@ const TeamTrendTile = memo(({ games }: any) => {
   );
 });
 
-/* ===========================================================================
-   Empty-state CTAs surfaced when the roster or schedule is blank.
-=========================================================================== */
-const EmptyStateBanner = memo(({ icon: Icon, title, body, action, onAction }: any) => (
-  <div className="rounded-2xl bg-surface border border-line shadow-card p-8 text-center">
-    <div className="inline-flex p-3 rounded-2xl bg-surface-2 mb-4">
-      <Icon className="w-7 h-7 text-ink-3" />
-    </div>
-    <h3 className="t-h3 mb-2">{title}</h3>
-    <p className="t-body max-w-md mx-auto mb-5">{body}</p>
-    {action && (
-      <button
-        type="button"
-        onClick={onAction}
-        className="inline-flex items-center gap-2 t-button px-5 py-2.5 rounded-xl shadow-md text-white"
-        style={{ backgroundColor: "var(--team-primary)" }}
-      >
-        {action}
-      </button>
-    )}
-  </div>
-));
+/* Empty-state CTAs (No Games / No Players) use the shared EmptyState. */
 
 /* ===========================================================================
    BenchEquityTile — season-wide reminder of who's been over- or under-played.
@@ -1130,8 +1109,8 @@ export const HomeTab = memo(() => {
           onPlayerClick={openPlayerProfile}
         />
       ) : (
-        <EmptyStateBanner
-          icon={Icons.Calendar}
+        <EmptyState
+          glyph="📅"
           title="No Games Yet"
           body="Add your first game to start planning lineups. Once a game exists, the dashboard wakes up — today's game, pitcher availability, and trend insights all flow from here."
           action={
@@ -1346,8 +1325,8 @@ export const HomeTab = memo(() => {
       )}
 
       {!hasPlayers ? (
-        <EmptyStateBanner
-          icon={Icons.Users}
+        <EmptyState
+          glyph="🧢"
           title="No Players Yet"
           body="Add players to the roster or import last season's stats from a GameChanger CSV. Leaderboards and insights light up once you've got a roster in place."
           action={

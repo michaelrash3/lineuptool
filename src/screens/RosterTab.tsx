@@ -418,7 +418,9 @@ export const RosterTab = memo(() => {
                   className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
                 />
               ) : (
-                <Icons.Jersey className="w-16 h-16 text-ink-3 mx-auto mb-4" />
+                <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
+                  🧢
+                </div>
               )}
               <h3 className="t-h3 mb-2 text-ink-3">No Roster Found</h3>
               <p className="t-body max-w-sm mx-auto">
