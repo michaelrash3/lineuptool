@@ -35,6 +35,7 @@ import {
   parseGameChangerStatsCsv,
   stripPitchingStatsForFormat,
   aggregateGameLines,
+  teamStatAverages,
   deriveSeasonFromGameLines,
   latestGameLineMovement,
   seasonSeriesFromGameLines,
@@ -1702,6 +1703,34 @@ describe("recentGameLines + aggregateGameLines (Recent Form)", () => {
     expect(agg.ab).toBe(5);
     expect(agg.h).toBe(4);
     expect(agg.avg).toBeCloseTo(0.8);
+  });
+});
+
+describe("teamStatAverages (Team avg baseline)", () => {
+  it("aggregates the roster as one line: team AVG = total H / total AB", () => {
+    const players = [
+      { stats: { ab: 10, h: 4 } }, // .400
+      { stats: { ab: 10, h: 2 } }, // .200
+    ];
+    const team = teamStatAverages(players);
+    expect(team.ab).toBe(20);
+    expect(team.h).toBe(6);
+    expect(team.avg).toBeCloseTo(0.3); // 6/20, not the mean of .400 & .200
+  });
+
+  it("weight-averages rate stats by sample size (AB)", () => {
+    const players = [
+      { stats: { ab: 30, obp: 0.4 } },
+      { stats: { ab: 10, obp: 0.2 } },
+    ];
+    // (0.4*30 + 0.2*10) / 40 = 0.35
+    expect(teamStatAverages(players).obp).toBeCloseTo(0.35);
+  });
+
+  it("returns {} for an empty or statless roster", () => {
+    expect(teamStatAverages([])).toEqual({});
+    expect(teamStatAverages([{}, { stats: null }])).toEqual({});
+    expect(teamStatAverages(null)).toEqual({});
   });
 });
 
