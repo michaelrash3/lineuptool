@@ -865,6 +865,7 @@ export const SettingsTab = memo(() => {
     defenseSize,
     catcherMaxInnings,
     catcherConsecutive,
+    statDisplay,
     pitchRuleSet,
     customPitchLimit,
     primaryColor,
@@ -1285,6 +1286,34 @@ export const SettingsTab = memo(() => {
                       </p>
                     </div>
                   )}
+                </div>
+                <div className="mt-5">
+                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                    Stat display
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["rich", "stripped"] as const).map((mode) => {
+                      const active = (statDisplay || "rich") === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => updateTeam({ statDisplay: mode })}
+                          className={`p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
+                            active
+                              ? "bg-[var(--team-primary)] text-white"
+                              : "bg-surface text-ink-3 hover:bg-surface-2"
+                          }`}
+                        >
+                          {mode === "rich" ? "Rich" : "Stripped"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
+                    Rich shows full charts, tiles, and leaderboards. Stripped
+                    collapses every stat surface to compact, glanceable rows.
+                  </p>
                 </div>
               </div>
             </div>

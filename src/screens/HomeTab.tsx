@@ -1055,6 +1055,7 @@ export const HomeTab = memo(() => {
     primaryColor,
     tertiaryColor,
   } = team;
+  const stripped = team.statDisplay === "stripped";
   const activeTeamName =
     teams.find((t: any) => t.id === activeTeamId)?.name || "TEAM";
   const headCoaches = coaches.filter((c: any) => c.role === "Head Coach");
@@ -1185,7 +1186,7 @@ export const HomeTab = memo(() => {
               </div>
               {/* Record split by pitching format — shown only when the team has
                   played BOTH (otherwise it just repeats the combined record). */}
-              {(() => {
+              {!stripped && (() => {
                 const bf = (record as any).byFormat;
                 const has = (r: any) =>
                   r && r.wins + r.losses + r.ties > 0;
@@ -1219,7 +1220,7 @@ export const HomeTab = memo(() => {
             </div>
           </div>
 
-          {seasonHero.form.length > 0 && (
+          {!stripped && seasonHero.form.length > 0 && (
             <div className="flex items-center gap-1.5 mt-5">
               <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-75 mr-1">
                 Form
@@ -1240,30 +1241,37 @@ export const HomeTab = memo(() => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
-            {[
-              { k: "Runs For", v: seasonHero.runsFor },
-              { k: "Against", v: seasonHero.runsAgainst },
-              {
-                k: "Run Diff",
-                v: seasonHero.diff,
-                format: (n: number) =>
-                  `${n >= 0 ? "+" : ""}${Math.round(n)}`,
-              },
-              { k: "Roster", v: players.length },
-            ].map((s: any) => (
-              <div key={s.k}>
-                <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
-                  {s.k}
+          {stripped ? (
+            <div className="mt-4 pt-3 border-t border-white/20 text-[11px] font-black uppercase tracking-widest tabular-nums opacity-85">
+              Run diff {seasonHero.diff >= 0 ? "+" : ""}
+              {Math.round(seasonHero.diff)} · Roster {players.length}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
+              {[
+                { k: "Runs For", v: seasonHero.runsFor },
+                { k: "Against", v: seasonHero.runsAgainst },
+                {
+                  k: "Run Diff",
+                  v: seasonHero.diff,
+                  format: (n: number) =>
+                    `${n >= 0 ? "+" : ""}${Math.round(n)}`,
+                },
+                { k: "Roster", v: players.length },
+              ].map((s: any) => (
+                <div key={s.k}>
+                  <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
+                    {s.k}
+                  </div>
+                  <div className="text-2xl font-black tabular-nums leading-none mt-1.5">
+                    <AnimatedNumber value={s.v} format={s.format} />
+                  </div>
                 </div>
-                <div className="text-2xl font-black tabular-nums leading-none mt-1.5">
-                  <AnimatedNumber value={s.v} format={s.format} />
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {pitchingFormat && (
+          {!stripped && pitchingFormat && (
             <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-white/15 px-2.5 py-1 rounded">
               {pitchingFormat}
             </div>
@@ -1359,6 +1367,7 @@ export const HomeTab = memo(() => {
           primaryColor={primaryColor}
           tertiaryColor={tertiaryColor}
           onPlayerClick={openPlayerProfile}
+          stripped={stripped}
         />
       )}
     </div>
@@ -1369,7 +1378,7 @@ export const HomeTab = memo(() => {
 // hidden subsets) but the card density is tight so the whole section
 // stays compact.
 const LeaderboardsSection = memo(
-  ({ players, isKidPitch, primaryColor, tertiaryColor, onPlayerClick }: any) => {
+  ({ players, isKidPitch, primaryColor, tertiaryColor, onPlayerClick, stripped = false }: any) => {
     const tabs = useMemo(() => {
       const out = [
         { id: "offense", label: "Offensive", icon: Icons.Bat, stats: HITTING_STATS },
@@ -1434,23 +1443,40 @@ const LeaderboardsSection = memo(
             })}
           </div>
         </div>
-        <StaggerList
-          key={visibleTab?.id}
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"
-        >
-          {visibleTab?.stats.map((stat, i) => (
-            <StaggerItem key={`${visibleTab.id}-${stat.statKey}-${i}`}>
+        {stripped ? (
+          <div className="rounded-lg border border-line divide-y divide-line overflow-hidden">
+            {visibleTab?.stats.map((stat, i) => (
               <LeaderboardCard
+                key={`${visibleTab.id}-${stat.statKey}-${i}`}
                 {...stat}
                 icon={visibleTab.icon}
                 players={players}
                 primaryColor={primaryColor}
                 tertiaryColor={tertiaryColor}
                 onPlayerClick={onPlayerClick}
+                stripped
               />
-            </StaggerItem>
-          ))}
-        </StaggerList>
+            ))}
+          </div>
+        ) : (
+          <StaggerList
+            key={visibleTab?.id}
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"
+          >
+            {visibleTab?.stats.map((stat, i) => (
+              <StaggerItem key={`${visibleTab.id}-${stat.statKey}-${i}`}>
+                <LeaderboardCard
+                  {...stat}
+                  icon={visibleTab.icon}
+                  players={players}
+                  primaryColor={primaryColor}
+                  tertiaryColor={tertiaryColor}
+                  onPlayerClick={onPlayerClick}
+                />
+              </StaggerItem>
+            ))}
+          </StaggerList>
+        )}
       </div>
     );
   }

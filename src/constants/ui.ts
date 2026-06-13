@@ -233,4 +233,6 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   // back-to-back and is only consulted once an explicit cap is chosen.
   catcherMaxInnings: "auto",
   catcherConsecutive: true,
+  // Stat-surface density across Home/Stats/Roster: "rich" or "stripped".
+  statDisplay: "rich",
 });

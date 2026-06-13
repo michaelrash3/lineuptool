@@ -250,6 +250,11 @@ export interface Team {
   lastEvalEmailedAt?: string;
   emailEvalRemindersDisabled?: boolean;
 
+  // Stat-surface density: "rich" (full charts/tiles/cards) or "stripped"
+  // (compact, glanceable rows). One global toggle in Settings flips every
+  // stat surface. Defaults to "rich".
+  statDisplay?: "rich" | "stripped";
+
   // ----- Membership / ownership (mirrors firestore.rules) -----
   ownerId?: string;
   members?: string[];

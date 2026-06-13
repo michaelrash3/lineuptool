@@ -18,6 +18,7 @@ export const LeaderboardCard = memo(
     primaryColor,
     tertiaryColor,
     onPlayerClick,
+    stripped = false,
   }: any) => {
     const sorted = useMemo(() => {
       return [...players]
@@ -39,6 +40,42 @@ export const LeaderboardCard = memo(
         })
         .slice(0, 3);
     }, [players, statKey, asc]);
+
+    // Stripped: one compact row — stat label + the single leader + value, no
+    // card chrome or top-3 list.
+    if (stripped) {
+      const top = sorted[0];
+      return (
+        <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 truncate">
+            {title}
+          </span>
+          {top ? (
+            <span className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => onPlayerClick && onPlayerClick(top.id)}
+                className="text-[11px] font-extrabold text-ink truncate text-left hover:text-team-primary transition-colors cursor-pointer"
+              >
+                {top.name}
+              </button>
+              <span
+                className="text-[11px] font-black tabular-nums px-1.5 py-0 rounded-md shrink-0"
+                style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+              >
+                {formatStr
+                  ? formatStat(top.stats[statKey])
+                  : (top.stats[statKey] || 0).toString()}
+              </span>
+            </span>
+          ) : (
+            <span className="text-[9px] font-bold text-ink-3 uppercase tracking-widest italic">
+              No data
+            </span>
+          )}
+        </div>
+      );
+    }
 
     return (
       <div className="bg-surface rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-line overflow-hidden">
