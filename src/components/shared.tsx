@@ -186,6 +186,10 @@ export const PlayerAvatar = memo(
     className = "",
     showNumber = false,
     showPosition = false,
+    // Background fill behind the (transparent) team logo. Defaults to white so
+    // the logo always reads; callers on a dark surface can pass a dark fill so
+    // the avatar reads as a medallion instead of a white blob.
+    circleClassName = "bg-white",
   }: any) => {
     const { team } = useTeam();
     const logoUrl = (team as any)?.logoUrl;
@@ -214,7 +218,7 @@ export const PlayerAvatar = memo(
     if (logoUrl) {
       return (
         <span
-          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden bg-white border border-line shadow-inner ${className}`}
+          className={`relative inline-flex items-center justify-center rounded-full overflow-hidden ${circleClassName} border border-line shadow-inner ${className}`}
           style={dim}
         >
           <img
