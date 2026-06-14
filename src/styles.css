@@ -461,24 +461,18 @@ body::before {
   border-color: var(--team-primary);
 }
 
-/* Primary action — a confident, flat team-color fill with a crafted inner
-   top-highlight and a tight, real shadow. No outer glow / bright gradient
-   (the generic "AI app" tell). Depth comes from contrast + a precise edge. */
+/* Primary action — confident flat team-color fill with a crafted inner
+   top-highlight and a team-color glow halo (the glow reads premium; the
+   sharp edges keep it from feeling generic). */
 .btn-premium {
   position: relative;
   background-color: var(--team-primary);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 .btn-premium:hover {
-  filter: brightness(1.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
-    0 6px 18px -6px color-mix(in srgb, var(--team-primary) 55%, transparent);
+  filter: brightness(1.05);
+  box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 .btn-premium:active {
   transform: translateY(0.5px);

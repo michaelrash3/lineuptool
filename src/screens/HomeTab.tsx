@@ -1124,7 +1124,7 @@ export const HomeTab = memo(() => {
           background:
             "linear-gradient(150deg, color-mix(in srgb, var(--team-primary) 90%, #0a0e16), color-mix(in srgb, var(--team-primary) 58%, #0a0e16) 100%)",
           boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.05), var(--shadow-xl)",
+            "var(--glow-primary), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.05)",
         }}
       >
         {/* Fine diagonal sheen for depth — subtle, not the generic glossy wash. */}
