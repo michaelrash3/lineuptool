@@ -53,20 +53,27 @@ module.exports = {
       },
       boxShadow: {
         card: "var(--shadow-card)",
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+        xl: "var(--shadow-xl)",
+        "2xl": "var(--shadow-2xl)",
+        glow: "var(--glow-primary)",
+        "glow-strong": "var(--glow-primary-strong)",
         inset: "inset 0 2px 4px rgb(0 0 0 / 0.05)",
       },
-      // Sharp geometry — the redesign drops the soft "bubble" radii. Existing
-      // rounded-lg/xl/2xl/3xl utilities now resolve to crisp corners app-wide
-      // without editing every call site. rounded-full is left intact for
-      // genuine circles (avatars, spinners).
+      // Premium geometry — soft, modern radii (the old redesign used a harsh
+      // 4px everywhere). Existing rounded-md/lg/xl/2xl/3xl utilities now resolve
+      // to these app-wide without editing every call site. rounded-full is left
+      // intact for genuine circles (avatars, spinners, pills).
       borderRadius: {
-        DEFAULT: "4px",
-        sm: "2px",
-        md: "4px",
-        lg: "4px",
-        xl: "4px",
-        "2xl": "6px",
-        "3xl": "8px",
+        DEFAULT: "10px",
+        sm: "8px",
+        md: "9px",
+        lg: "12px",
+        xl: "14px",
+        "2xl": "18px",
+        "3xl": "24px",
       },
     },
   },

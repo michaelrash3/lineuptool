@@ -521,11 +521,9 @@ export const extractLogoPalette = (
   });
 
 export const StatTile = ({ label, value, className = "" }: any) => (
-  <div
-    className={`bg-surface px-6 py-5 border border-line text-center shadow-sm rounded-xl ${className}`}
-  >
+  <div className={`cc-card cc-sheen px-6 py-5 text-center rounded-2xl ${className}`}>
     <span className="block mb-1.5 t-eyebrow">{label}</span>
-    <span className="block t-stat-num">{value}</span>
+    <span className="block t-stat-num t-gradient">{value}</span>
   </div>
 );
 
@@ -561,8 +559,8 @@ const BUTTON_SIZE: Record<string, string> = {
 
 const BUTTON_VARIANTS: Record<string, { className: string; style: React.CSSProperties }> = {
   primary: {
-    className: "shadow-md hover:-translate-y-0.5 hover:shadow-xl",
-    style: { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" },
+    className: "btn-premium hover:-translate-y-0.5",
+    style: { color: "var(--team-tertiary)" },
   },
   secondary: {
     className:
