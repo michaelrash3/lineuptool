@@ -480,33 +480,37 @@ export const useLineupActions = ({
     const absent = Object.values(currentGameAttendance || {}).filter(
       (v) => v === false
     ).length;
-    // Once attendance is set, automatically roll out the projected lineup for
-    // confirmation — the engine also selects the starting pitcher, contextual
-    // to the game type for Kid Pitch (league/pool spread the staff to rest the
-    // aces; bracket = win-now). Only fire when there's no lineup yet AND enough
-    // players are present to field one; the coach can re-roll or tweak after.
     const presentCount = (teamData.players || []).filter(
       (p: any) =>
         p &&
         p.present !== false &&
         (currentGameAttendance || {})[p.id] !== false
     ).length;
-    const autoBuild = !lineup && presentCount >= 7;
+    // Kid Pitch: the coach picks the starting pitcher first (Starting Pitcher
+    // picker), and THAT selection rolls the projected lineup — so don't
+    // auto-build here. Other formats have no pitcher step, so once attendance
+    // is set we roll the projected lineup straight away for confirmation.
+    const fmt = currentGame.pitchingFormat || teamData.pitchingFormat || "";
+    const isKidPitch = /kid/i.test(fmt);
+    const enough = !lineup && presentCount >= 7;
+    const autoBuild = enough && !isKidPitch;
     toast.push({
       kind: "success",
       title: "Attendance saved",
       message: autoBuild
         ? "Rolling out your projected lineup for confirmation…"
+        : enough && isKidPitch
+        ? "Now pick your starting pitcher to roll the lineup."
         : absent > 0
         ? `${absent} marked out — plan the lineup whenever you're ready.`
         : "Everyone's in — plan the lineup whenever you're ready.",
     });
     if (autoBuild) {
-      // Defer one tick so the attendance state settles before the engine
-      // reads present players + picks the pitcher.
+      // Defer one tick so the attendance state settles before the engine reads
+      // present players.
       setTimeout(() => generateLineup(), 0);
     }
-  }, [updateGame, toast, uiBridge, teamData.players, generateLineup]);
+  }, [updateGame, toast, uiBridge, teamData.players, teamData.pitchingFormat, generateLineup]);
 
   // ----- Lineup templates -----
   // Save the current lineup + batting order as a named template the coach

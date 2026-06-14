@@ -14,6 +14,7 @@ import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog, RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
+import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
@@ -945,6 +946,7 @@ export const ScheduleTab = memo(() => {
             })()}
 
           
+            {canEdit && <StartingPitcherPicker game={currentGame} />}
             <div className={`grid grid-cols-1 ${canEdit ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-white/40 bg-transparent`}>
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-5">
