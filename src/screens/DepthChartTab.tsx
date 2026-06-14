@@ -119,12 +119,12 @@ const PositionCard = memo(
   ({ pos, ranked, customized, canEdit, onMove, onReset, onOpen }: any) => {
     const ids: string[] = ranked.map((p: any) => p.id);
     return (
-      <div className="glass-card">
+      <div className="border border-line">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-4 border-b border-line bg-surface flex items-center justify-between gap-3">
+        <div className="p-4 border-b border-line flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span
               className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-black tracking-widest"
@@ -307,7 +307,7 @@ export const DepthChartTab = memo(() => {
       </div>
 
       {players.length === 0 ? (
-        <div className="glass-card p-8 text-center text-ink-3 font-medium">
+        <div className="border-b border-line p-8 text-center text-ink-3 font-medium">
           <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
             📋
           </div>

@@ -469,7 +469,7 @@ export const StatsTab = memo(() => {
   if (players.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="glass-card p-8 text-center text-ink-3 font-medium">
+        <div className="py-8 text-center text-ink-3 font-medium">
           <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
             📊
           </div>
@@ -484,7 +484,7 @@ export const StatsTab = memo(() => {
       {/* Arm-care overuse banner — pulled up to the top so a coach sees it
           before anything else. Kid-Pitch head coaches only. */}
       {armAlerts.length > 0 && (
-        <div className="glass-card border-l-4 border-l-warnfg">
+        <div className="border-l-4 border-l-warnfg">
           <div className="p-4 sm:p-5 bg-warn-bg flex items-start gap-3">
             <Icons.Alert className="w-5 h-5 text-warnfg shrink-0 mt-0.5" />
             <div className="min-w-0">

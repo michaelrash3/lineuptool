@@ -59,25 +59,16 @@ const BUDGET_PRESETS: Array<{
 
 // Same section chrome the Stats tab uses, kept local to the screen.
 const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
-  <div className="glass-card">
-    <div
-      className="h-1.5 w-full"
-      style={{ backgroundColor: "var(--team-primary)" }}
-    />
-    <div className="p-4 sm:p-5 border-b border-line bg-surface flex items-center gap-3">
-      <div
-        className="p-2 rounded-full shrink-0"
-        style={{ backgroundColor: "var(--team-primary-15)" }}
-      >
-        <Icon className="w-5 h-5" style={{ color: "var(--team-primary)" }} />
-      </div>
+  <section>
+    <div className="pb-3 mb-1 border-b border-line-strong flex items-center gap-3">
+      <Icon className="w-5 h-5 shrink-0" style={{ color: "var(--team-primary)" }} />
       <div className="min-w-0">
         <h2 className="t-h2">{title}</h2>
         {subtitle && <p className="t-eyebrow text-ink-3 mt-0.5">{subtitle}</p>}
       </div>
     </div>
     {children}
-  </div>
+  </section>
 );
 
 // Parse a dollars input; null when not a usable positive amount.
@@ -634,7 +625,7 @@ export const FinancesTab = memo(() => {
           title="Cash Flow"
           subtitle="Money in (green) and out (red) by month, with the club balance line."
         >
-          <div className="p-4 sm:p-5 grid lg:grid-cols-2 gap-6 items-center">
+          <div className="pt-4 grid lg:grid-cols-2 gap-6 items-center">
             <CashflowChart months={months} />
             <SpendingDonut
               slices={[
@@ -655,9 +646,9 @@ export const FinancesTab = memo(() => {
         title="Collections — this season"
         subtitle="Who has paid this year's club fee — partial payments add up per family. Waive the fee for fall-only pickups."
       >
-        <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface space-y-2">
+        <div className="py-3 border-b border-line space-y-2">
           {carryoverPendingTotal > 0 && payerCount > 0 && (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 p-3">
+            <div className="flex flex-wrap items-center gap-3 py-2 pl-3 border-l-2 border-line-strong">
               <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
                 Last season left{" "}
                 <span className="font-black text-ink tabular-nums">
@@ -791,7 +782,7 @@ export const FinancesTab = memo(() => {
               return (
                 <li
                   key={p.id}
-                  className="px-4 sm:px-5 py-2.5 flex flex-wrap items-center gap-2"
+                  className="py-2.5 flex flex-wrap items-center gap-2"
                 >
                   <PlayerAvatar player={p} size={32} />
                   <button
@@ -893,7 +884,7 @@ export const FinancesTab = memo(() => {
         title="Ledger"
         subtitle="Everything received and spent — fees, sponsorships, fundraising, expenses — with the club balance after each."
       >
-        <div className="p-4 sm:p-5 space-y-3">
+        <div className="pt-4 space-y-3">
           <form onSubmit={addTransaction} className="flex flex-col sm:flex-row gap-2">
             <div
               className="flex rounded-xl overflow-hidden border border-line self-start sm:self-auto"

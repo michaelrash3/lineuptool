@@ -69,8 +69,8 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
 
   return (
     <div
-      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch rounded-2xl border border-line overflow-hidden transition-all hover:border-line-strong ${
-        absent ? "bg-surface-2 opacity-85" : "bg-surface"
+      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch border-b border-line transition-all ${
+        absent ? "opacity-85" : ""
       }`}
     >
       <div
@@ -163,7 +163,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
       </div>
 
       <div
-        className={`hidden sm:grid col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-line bg-surface-2 ${
+        className={`hidden sm:grid col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-line ${
           stripped ? "grid-cols-1 sm:w-[150px]" : "grid-cols-4 sm:w-[260px]"
         }`}
       >
@@ -406,7 +406,7 @@ export const RosterTab = memo(() => {
         )}
         <div className="p-4 sm:p-6">
           {players.length === 0 ? (
-            <div className="text-center py-20 border border-line rounded-2xl">
+            <div className="text-center py-20">
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -425,7 +425,7 @@ export const RosterTab = memo(() => {
               </p>
             </div>
           ) : visiblePlayers.length === 0 ? (
-            <div className="text-center py-12 border border-line rounded-2xl">
+            <div className="text-center py-12">
               <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />
               <p className="t-body max-w-sm mx-auto">
                 No players match the current filter — clear to see the full
@@ -440,7 +440,7 @@ export const RosterTab = memo(() => {
               </button>
             </div>
           ) : (
-            <StaggerList className="flex flex-col gap-3">
+            <StaggerList className="flex flex-col">
               {visiblePlayers.map((player) => (
                 <StaggerItem key={player.id}>
                   <PlayerRow

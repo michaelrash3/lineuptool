@@ -445,7 +445,7 @@ export const RosterDecisionsPanel = memo(() => {
       key={d.player.id}
       type="button"
       onClick={() => setEvalTrendPlayerId(d.player.id)}
-      className="w-full text-left bg-surface border border-line rounded-lg p-3 hover:border-line-strong transition-all"
+      className="w-full text-left border-b border-line px-1 py-2.5 hover:bg-surface transition-colors"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <div className="font-black text-sm uppercase tracking-tight text-ink truncate">
@@ -704,7 +704,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
     flags.standouts.length || flags.regressions.length || flags.categoryDrops.length;
   if (!hasAny) return null;
   return (
-    <div className="px-5 py-4 bg-surface border-b border-line/50 flex flex-col gap-3">
+    <div className="px-1 py-4 border-b border-line flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <span className="t-eyebrow">Round-Over-Round Insights</span>
         <span className="text-[10px] font-bold text-ink-3">
@@ -713,7 +713,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {flags.standouts.length > 0 && (
-          <div className="bg-win-bg border border-line rounded-2xl px-4 py-3.5">
+          <div className="border-l-2 border-win pl-3 py-0.5">
             <div className="t-eyebrow text-win mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronUp className="w-3 h-3" /> Standouts
             </div>
@@ -739,7 +739,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
           </div>
         )}
         {flags.regressions.length > 0 && (
-          <div className="bg-loss-bg border border-line rounded-2xl px-4 py-3.5">
+          <div className="border-l-2 border-loss pl-3 py-0.5">
             <div className="t-eyebrow text-loss mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronDown className="w-3 h-3" /> Regressions
             </div>
@@ -766,7 +766,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
         )}
       </div>
       {flags.categoryDrops.length > 0 && (
-        <div className="bg-warn-bg border border-line rounded-2xl px-4 py-3.5">
+        <div className="border-l-2 border-warnfg pl-3 py-0.5">
           <div className="t-eyebrow text-warnfg mb-2.5 flex items-center gap-1.5">
             <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
           </div>
@@ -981,7 +981,7 @@ const AssistantSubmissionsPanel = memo(
   if (latestByAssistant.length === 0) return null;
 
   return (
-    <div className="px-5 py-4 bg-warn-bg border-b border-line">
+    <div className="px-1 py-4 border-b border-line">
       <div className="flex items-center justify-between mb-3">
         <h3 className="t-h3">Assistant Submissions</h3>
         <span className="t-eyebrow text-ink-3">
@@ -1003,7 +1003,7 @@ const AssistantSubmissionsPanel = memo(
           return (
             <div
               key={ev.id}
-              className="bg-surface border border-line rounded-xl p-3"
+              className="border-b border-line pb-3 last:border-b-0 last:pb-0"
             >
               <div className="flex items-baseline justify-between gap-3 mb-2">
                 <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
@@ -1128,7 +1128,7 @@ const PlayerAssistantEvals = memo(
             return (
               <div
                 key={ev.id}
-                className="bg-app border border-line rounded-lg p-2.5"
+                className="border-b border-line pb-2.5 last:border-b-0 last:pb-0"
               >
                 <div className="flex items-baseline justify-between gap-2 mb-1.5">
                   <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
@@ -1524,12 +1524,12 @@ export const EvaluationTab = memo(() => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="glass-card">
+      <div>
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border-b border-line">
+        <div className="px-1 py-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
           <div className="flex items-center gap-4">
             <div
               className="p-2.5 rounded-full"
@@ -1594,7 +1594,7 @@ export const EvaluationTab = memo(() => {
         </div>
 
         {/* Round selection bar */}
-        <div className="px-5 py-3 bg-warn-bg border-b border-line flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="px-1 py-3 border-b border-line flex flex-col sm:flex-row gap-3 sm:items-center">
           <label className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-2 shrink-0">
               Eval:
@@ -1716,7 +1716,7 @@ export const EvaluationTab = memo(() => {
 
         {/* Spells out exactly what Save will do right now — the fix for "is
             this updating a file or starting a new eval?" */}
-        <div className="px-5 py-2 bg-surface border-b border-line">
+        <div className="px-1 py-2 border-b border-line">
           <p className="text-[11px] font-medium text-ink-2 flex items-center gap-1.5">
             <Icons.Save className="w-3 h-3 text-ink-3 shrink-0" />
             {isCreatingNew ? (
@@ -1761,7 +1761,7 @@ export const EvaluationTab = memo(() => {
         />
 
         {/* Quick-set toolbar */}
-        <div className="px-5 py-3 bg-surface border-b border-line flex flex-wrap items-center gap-2">
+        <div className="px-1 py-3 border-b border-line flex flex-wrap items-center gap-2">
           <span className="t-eyebrow mr-1">Quick Set:</span>
           <button
             type="button"
@@ -1797,7 +1797,7 @@ export const EvaluationTab = memo(() => {
         {/* Per-player grading cards. One column on mobile, two on lg+
             screens. Replaces the legacy desktop table — same chip rows
             as the assistant flow so head + assistant inputs match. */}
-        <div className="p-3 bg-surface space-y-2">
+        <div className="px-1 py-3 space-y-2">
           {players.length > 0 && (
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
               <span className="t-eyebrow text-ink-3">
@@ -1860,13 +1860,13 @@ export const EvaluationTab = memo(() => {
               return (
                 <div
                   key={`mc-${player.id}`}
-                  className="bg-surface rounded-xl border border-line overflow-hidden"
+                  className="border-b border-line"
                 >
                   <button
                     type="button"
                     onClick={() => togglePlayerExpanded(player.id)}
                     aria-expanded={expanded}
-                    className="w-full px-3 py-2 flex items-center gap-3 hover:bg-surface-2 transition-colors text-left"
+                    className="w-full px-1 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
                   >
                     <Icons.ChevronRight
                       className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
@@ -1896,7 +1896,7 @@ export const EvaluationTab = memo(() => {
                     </span>
                   </button>
                   {expanded && (
-                    <div className="px-3 pb-3 pt-1 border-t border-line space-y-2.5">
+                    <div className="px-1 pb-4 pt-1 border-t border-line space-y-2.5">
                       <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 pt-0.5">
                         Your Evaluation
                       </div>
