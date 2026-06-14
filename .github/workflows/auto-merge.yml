@@ -1,0 +1,95 @@
+# Auto-merges Claude-authored PRs once all checks pass, so changes prepared in
+# Claude Code land on `main` without a manual merge step.
+#
+# Scope (intentionally conservative):
+#   - Only PRs whose head branch starts with `claude/` AND that come from a
+#     branch in THIS repo (not a fork). Anything else is ignored.
+#   - Merges only when the `build-and-test` CI job (typecheck + lint + tests +
+#     build + audit, see ci.yml) has succeeded AND every other check run and
+#     commit status (e.g. the Vercel deployment) on the head commit is green.
+#   - Draft PRs are flipped to "ready for review" first, then squash-merged.
+#
+# To pause it, disable this workflow in the repo's Actions tab (or delete the
+# file). To require human review again, narrow the branch prefix or add a label
+# gate in the script below.
+
+name: Auto-merge Claude PRs
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  check_suite:
+    types: [completed]
+  status: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: automerge-${{ github.event.pull_request.number || github.event.check_suite.head_sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge eligible PRs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const HEAD_PREFIX = "claude/";
+            const CI_CHECK = "build-and-test"; // job name in ci.yml
+            const SELF_CHECK = "automerge";    // this job — never wait on itself
+
+            // Collect candidate PR numbers from whichever event fired.
+            const numbers = new Set();
+            if (context.payload.pull_request) numbers.add(context.payload.pull_request.number);
+            for (const pr of context.payload.check_suite?.pull_requests || []) numbers.add(pr.number);
+            if (context.eventName === "status") {
+              const sha = context.payload.sha;
+              const { data: prs } = await github.rest.pulls.list({ owner, repo, state: "open", per_page: 100 });
+              for (const pr of prs) if (pr.head.sha === sha) numbers.add(pr.number);
+            }
+            if (numbers.size === 0) { core.info("No candidate PRs for this event."); return; }
+
+            for (const number of numbers) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              const tag = `PR #${number}`;
+
+              if (pr.state !== "open") { core.info(`${tag}: not open — skip.`); continue; }
+              if (!pr.head.ref.startsWith(HEAD_PREFIX)) { core.info(`${tag}: head '${pr.head.ref}' not '${HEAD_PREFIX}*' — skip.`); continue; }
+              if (pr.head.repo?.full_name !== `${owner}/${repo}`) { core.info(`${tag}: from a fork — skip.`); continue; }
+
+              const sha = pr.head.sha;
+              const combined = (await github.rest.repos.getCombinedStatusForRef({ owner, repo, ref: sha })).data;
+              const statusesOk = combined.total_count === 0 || combined.state === "success";
+
+              const runs = (await github.rest.checks.listForRef({ owner, repo, ref: sha, per_page: 100 })).data
+                .check_runs.filter(r => r.name !== SELF_CHECK);
+              const ok = c => ["success", "neutral", "skipped"].includes(c);
+              const ciPassed = runs.some(r => r.name === CI_CHECK && r.status === "completed" && r.conclusion === "success");
+              const anyPending = runs.some(r => r.status !== "completed");
+              const anyFailed = runs.some(r => r.status === "completed" && !ok(r.conclusion));
+
+              if (!ciPassed || anyPending || anyFailed || !statusesOk) {
+                core.info(`${tag}: not mergeable yet (ciPassed=${ciPassed}, pending=${anyPending}, failed=${anyFailed}, statuses=${combined.state}).`);
+                continue;
+              }
+
+              if (pr.draft) {
+                await github.graphql(
+                  `mutation($id:ID!){ markPullRequestReadyForReview(input:{pullRequestId:$id}){ pullRequest { number } } }`,
+                  { id: pr.node_id }
+                );
+                core.info(`${tag}: marked ready for review.`);
+              }
+
+              try {
+                await github.rest.pulls.merge({ owner, repo, pull_number: number, merge_method: "squash" });
+                core.info(`${tag}: squash-merged. ✅`);
+              } catch (e) {
+                core.warning(`${tag}: merge failed — ${e.status || ""} ${e.message}`);
+              }
+            }
