@@ -167,46 +167,6 @@ export function resolveCatcherPolicy(
   return { cap, consecutive: catcherConsecutive !== false, enforceCap: true };
 }
 
-// Age- and format-aware position importance. Used in addition to
-// POS_DIFFICULTY so the scarcity ordering can reflect what actually
-// matters at each level. P is intentionally low at 9U+ because P
-// selection short-circuits through the pitcher-ranking pipeline rather
-// than the generic defensive score.
-export function getPositionImportance(
-  age: string | undefined,
-  format: string | undefined
-): Record<string, number> {
-  const isMachine = /machine|coach/i.test(format || "");
-  const isKid = /kid/i.test(format || "");
-  const ageNum = (() => {
-    const nums = (age || "").match(/\d+/g);
-    if (!nums || nums.length === 0) return 8;
-    return parseInt(nums[nums.length - 1], 10);
-  })();
-  // Coach Pitch / Machine Pitch — no real pitcher; catcher ceremonial.
-  if (isMachine)
-    return {
-      SS: 5, "3B": 4, "1B": 4, "2B": 3,
-      CF: 3, LCF: 2, RCF: 2, LF: 2, RF: 2,
-      P: 1, C: 1,
-    };
-  // 8U Kid Pitch — pitcher matters; catcher relatively low (no
-  // dropped-3rd-strike force-outs).
-  if (isKid && ageNum <= 8)
-    return {
-      P: 4, SS: 5, "3B": 4, "1B": 4, "2B": 3,
-      CF: 3, LCF: 2, RCF: 2, LF: 2, RF: 2,
-      C: 2,
-    };
-  // 9U+ Kid Pitch — strongest defenders go to SS / 1B / C. P picked
-  // separately via the pitcher ranking + pitch eligibility.
-  return {
-    SS: 5, "1B": 5, C: 5, "3B": 4, "2B": 3,
-    CF: 3, LCF: 2, RCF: 2, LF: 2, RF: 2,
-    P: 1,
-  };
-}
-
 // Coach's Card v3 (eval schema v9) coach-graded categories — ONLY the
 // intangibles a stat line can't measure. Every tangible skill is graded from
 // imported stats by the stat-derived helpers below and overlaid onto the
@@ -388,7 +348,7 @@ export function getCombinedGrades(
 //
 // All stats use AB weighted averaging where appropriate. Counting stats
 // (H, HR, RBI, etc.) come straight from current  they don't need blending.
-export function getEffectiveStats(player: Player): PlayerStats & {
+function getEffectiveStats(player: Player): PlayerStats & {
   __blended?: boolean;
   __blendWeights?: { current: number; past1: number; past2: number };
 } {
@@ -599,7 +559,7 @@ export function statArmGrade(
 
 // Velocity (pitchers) ← top MPH against the age band. A measurement, not a
 // sample — applies at full confidence whenever a reading exists.
-export function statVelocityGrade(
+function statVelocityGrade(
   stats: PlayerStats | null | undefined,
   opts?: { topMph?: number | null; teamAge?: string }
 ): number | null {
@@ -611,7 +571,7 @@ export function statVelocityGrade(
 }
 
 // Strikes (pitchers) ← the control & efficiency cluster.
-export function statStrikesGrade(
+function statStrikesGrade(
   stats: PlayerStats | null | undefined
 ): number | null {
   const q = bandedQuality(stats, [
@@ -626,7 +586,7 @@ export function statStrikesGrade(
 
 // Off-Speed (pitchers) ← bats missed / weak contact — the measurable
 // footprint of having (and landing) a second pitch.
-export function statOffSpeedGrade(
+function statOffSpeedGrade(
   stats: PlayerStats | null | undefined
 ): number | null {
   const q = bandedQuality(stats, [
@@ -640,7 +600,7 @@ export function statOffSpeedGrade(
 }
 
 // Throwing (catchers) ← caught-stealing %, confidence from attempts against.
-export function statThrowingGrade(
+function statThrowingGrade(
   stats: PlayerStats | null | undefined
 ): number | null {
   const cs = numOrNull(stats?.fCsPct);
@@ -697,7 +657,7 @@ export function countGamesCaught(
 // armAccuracy), so every consumer — total score, position fit, depth charts,
 // pitcher/catcher rankings — sees stats-graded tangibles with zero special
 // cases. Null stat-grades set nothing; the readers' neutral-3 default holds.
-export function applyStatGrades(
+function applyStatGrades(
   grades: GradeMap | null | undefined,
   player: Player | null | undefined,
   opts?: { teamAge?: string; gamesCaught?: number }
@@ -829,9 +789,8 @@ export function calculateTotalScore(
 // ---------- Pitch count eligibility ----------
 
 // Little League / Pitch Smart daily max by age — the default rule set. Also the
-// `limits` of the littleLeague preset below; kept as a named export for the
-// lineup card's back-compat import.
-export const PITCH_LIMITS: Record<string, number> = {
+// `limits` of the littleLeague preset below.
+const PITCH_LIMITS: Record<string, number> = {
   "6U": 50,
   "7U": 50,
   "8U": 50,
@@ -861,7 +820,7 @@ const LITTLE_LEAGUE_REST: Array<{ min: number; days: number }> = [
   { min: 21, days: 1 },
 ];
 
-export const PITCH_RULE_SETS: Record<string, PitchRuleSet> = {
+const PITCH_RULE_SETS: Record<string, PitchRuleSet> = {
   littleLeague: {
     id: "littleLeague",
     label: "Little League / Pitch Smart",
@@ -871,7 +830,7 @@ export const PITCH_RULE_SETS: Record<string, PitchRuleSet> = {
   },
 };
 
-export const DEFAULT_PITCH_RULE_SET = PITCH_RULE_SETS.littleLeague;
+const DEFAULT_PITCH_RULE_SET = PITCH_RULE_SETS.littleLeague;
 
 // Resolve a team's effective rule set. "custom" uses team.customPitchLimit (one
 // daily max for the team's age group) plus optional team.customRestTiers;
@@ -1041,7 +1000,7 @@ export function buildPitchingPlan(
 
 // ---------- Arm-care workload analysis ----------
 
-export interface WorkloadAlert {
+interface WorkloadAlert {
   kind: "consecutive" | "shortRest";
   message: string;
 }
@@ -1283,7 +1242,7 @@ export function calcPitcherScore(
 // Blocking and throwing weigh highest because passed balls and stolen bases
 // are where weak catching shows up most at Kid Pitch. Single source of truth —
 // consumed by the Depth Chart tab (and the engine's dual-role pool logic).
-export const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
+const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
   blocking: 1.5,
   throwing: 1.5,
   gameCalling: 1.0,
@@ -1895,14 +1854,6 @@ function buildExtraSitHistory(
 
 // ---------- Batting order ----------
 
-// Detects whether NKB's per half inning run cap applies to a given league/age.
-// NKB caps half innings at 7 runs for 7U/8U Machine Pitch (and 6U coach pitch).
-// 9U+ NKB and all USSSA tiers have no run cap.
-export function hasNkbRunCap(leagueRuleSet: string, teamAge: string): boolean {
-  if (leagueRuleSet !== "NKB") return false;
-  return teamAge === "6U" || teamAge === "7U" || teamAge === "8U";
-}
-
 /**
  * Modern analytical batting order builder.
  *
@@ -1935,7 +1886,7 @@ export function hasNkbRunCap(leagueRuleSet: string, teamAge: string): boolean {
  * `battingSize` matches the existing semantics: "roster" = bat everyone, or
  * a number to limit to top N hitters.
  */
-export function generateBattingOrder(
+function generateBattingOrder(
   profiledPlayers: any[],
   battingSize: string,
   opts: { seed?: number; leagueRuleSet?: string; teamAge?: string } = {}

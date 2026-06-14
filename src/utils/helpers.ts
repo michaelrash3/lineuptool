@@ -81,10 +81,10 @@ export const formatGameDateDisplay = (dateString: string | null | undefined): st
 // Slim helpers: strip embedded player objects in saved lineups down to the
 // minimum needed for display (id + name + number). Full player data lives on
 // team.players and is rehydrated by lookup. Keeps Firestore docs under 1MB.
-export const slimPlayer = (p: Partial<Player> | null | undefined): SlimPlayer =>
+const slimPlayer = (p: Partial<Player> | null | undefined): SlimPlayer =>
   p && p.id ? { id: p.id, name: p.name || "", number: p.number } : null;
 
-export const slimInning = (inning: Inning | null | undefined): Inning | null | undefined => {
+const slimInning = (inning: Inning | null | undefined): Inning | null | undefined => {
   if (!inning || typeof inning !== "object") return inning;
   const out: Inning = {};
   for (const pos in inning) {
@@ -419,9 +419,9 @@ export const buildSeasonBenchImbalance = (
 // so a deleted-and-re-added player's history isn't stranded under an orphan id.
 // ============================================================================
 
-export const INFIELD_POSITIONS = ["1B", "2B", "3B", "SS"];
-export const OUTFIELD_POSITIONS = ["LF", "CF", "RF", "LCF", "RCF"];
-export const BATTERY_POSITIONS = ["P", "C"];
+const INFIELD_POSITIONS = ["1B", "2B", "3B", "SS"];
+const OUTFIELD_POSITIONS = ["LF", "CF", "RF", "LCF", "RCF"];
+const BATTERY_POSITIONS = ["P", "C"];
 
 export interface PositionVarietyEntry {
   // innings logged at each position, e.g. { SS: 8, "2B": 3 }
@@ -501,7 +501,7 @@ export const buildSeasonPositionVariety = (
 // game log, computed from finalized games. A season-at-a-glance for coaches.
 // ============================================================================
 
-export interface SeasonGameResult {
+interface SeasonGameResult {
   id: string;
   date: string;
   opponent: string;
@@ -1528,7 +1528,7 @@ export const deriveTournaments = (
   });
 };
 
-export const parsePercent = (val: unknown): number => {
+const parsePercent = (val: unknown): number => {
   if (!val) return 0;
   const raw = parseFloat(String(val).replace("%", ""));
   if (Number.isNaN(raw)) return 0;
@@ -1762,7 +1762,7 @@ export const evalDueDatesForYear = (year: number): Date[] => {
   return dates.sort((a, b) => a.getTime() - b.getTime());
 };
 
-export type EvalPromptKind = "preseason" | "biweekly";
+type EvalPromptKind = "preseason" | "biweekly";
 
 export interface EvalPromptStatus {
   active: boolean;
@@ -2607,7 +2607,7 @@ export const incomeTotal = (finances: TeamFinances | null | undefined): number =
 
 // THIS season's ledger income flagged as fundraising — the slice of income
 // that splits across paying players and reduces each family's dues.
-export const fundraisingTotal = (
+const fundraisingTotal = (
   finances: TeamFinances | null | undefined
 ): number =>
   (finances?.incomes || []).reduce(

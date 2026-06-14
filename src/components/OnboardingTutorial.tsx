@@ -17,17 +17,9 @@ export const onboardingHasBeenCompleted = () => {
   }
 };
 
-export const markOnboardingComplete = () => {
+const markOnboardingComplete = () => {
   try {
     window.localStorage.setItem(STORAGE_KEY, "1");
-  } catch {
-    /* ignore */
-  }
-};
-
-export const resetOnboarding = () => {
-  try {
-    window.localStorage.removeItem(STORAGE_KEY);
   } catch {
     /* ignore */
   }

@@ -7,7 +7,7 @@ const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 // flag any spots they think this kid should play. Stored on the eval
 // round as `grades[playerId].suggestedPositions`. Used by both the
 // assistant and head-coach grading flows so the shape stays identical.
-export const EVAL_SUGGESTED_POSITIONS = [
+const EVAL_SUGGESTED_POSITIONS = [
   "P",
   "C",
   "1B",
@@ -28,7 +28,7 @@ interface GradeChipRowProps {
 }
 
 // The 1–5 chip row reused everywhere a coach picks a grade.
-export const GradeChipRow = memo(({ value, onChange, ariaLabel }: GradeChipRowProps) => (
+const GradeChipRow = memo(({ value, onChange, ariaLabel }: GradeChipRowProps) => (
   <div
     className="flex items-center gap-1.5 flex-wrap"
     role="radiogroup"

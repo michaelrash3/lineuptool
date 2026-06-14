@@ -42,7 +42,7 @@ export const makeTeam = (
     ...overrides,
   } as TeamContextValue);
 
-export const makeUI = (
+const makeUI = (
   overrides: Partial<UIContextValue> = {}
 ): UIContextValue =>
   ({

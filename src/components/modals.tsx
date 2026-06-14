@@ -27,12 +27,8 @@ import {
   formatStatValue,
 } from "./modals/statTrend";
 
-// Stat helpers live in ./modals/statTrend; re-export the public ones so the
-// import surface of this module is unchanged. The chart-bearing components
-// load lazily from ./modals/statTrendViz so this eager module doesn't drag
-// the recharts chunk into the startup bundle.
-export { formatStatValue } from "./modals/statTrend";
-
+// The chart-bearing components load lazily from ./modals/statTrendViz so this
+// eager module doesn't drag the recharts chunk into the startup bundle.
 const StatTrendModal = React.lazy(() =>
   import("./modals/statTrendViz").then((mod) => ({
     default: mod.StatTrendModal,
