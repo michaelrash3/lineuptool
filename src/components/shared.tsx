@@ -78,7 +78,7 @@ export const LeaderboardCard = memo(
     }
 
     return (
-      <div className="bg-surface rounded-lg shadow-[0_2px_8px_rgb(0,0,0,0.03)] border border-line overflow-hidden">
+      <div className="border border-line overflow-hidden">
         <div className="px-2.5 py-1.5 border-b border-line">
           <h4 className="font-extrabold text-[9px] uppercase tracking-widest text-ink-2 truncate">
             {title}

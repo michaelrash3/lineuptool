@@ -3337,7 +3337,21 @@ const MainShell = () => {
       ];
 
   return (
-    <div className="min-h-screen bg-app print:bg-surface">
+    <div className="min-h-screen bg-app print:bg-surface relative">
+      {/* Massive team-logo watermark — part of the team's branding, fixed
+          behind all content. The fluid (glassy/translucent) screens let it
+          show through. Only renders when the team has a logo set. */}
+      {team?.logoUrl && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-0 pointer-events-none print:hidden grid place-items-center overflow-hidden"
+        >
+          <div
+            className="w-[min(92vw,860px)] aspect-square bg-center bg-no-repeat bg-contain opacity-[0.05] dark:opacity-[0.07]"
+            style={{ backgroundImage: `url(${team.logoUrl})` }}
+          />
+        </div>
+      )}
       <OfflineBanner />
       <AppHeader />
       <TabBarNav
@@ -3345,7 +3359,7 @@ const MainShell = () => {
         setActiveTab={setActiveTab}
         navButtons={navButtons}
       />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
         <ErrorBoundary resetKey={location.pathname}>
         {/* Keyed entrance-only transition: replays on navigation. Exit

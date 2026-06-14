@@ -41,30 +41,21 @@ export const LoginScreen = ({
   <div
     className="min-h-screen flex flex-col items-center justify-center p-6 bg-app relative overflow-hidden"
   >
-    {/* Top accent strip — matches the in-app modal motif so the first
-        thing a returning user sees feels like the same product. */}
-    <div
-      className="absolute top-0 left-0 right-0 h-1.5"
-      style={{
-        background: `linear-gradient(90deg, transparent, ${primaryColor} 25%, ${primaryColor} 75%, transparent)`,
-        boxShadow: `0 0 24px 2px ${primaryColor}`,
-      }}
-    />
-
     {logoUrl && (
       <div
+        aria-hidden="true"
         className="fixed inset-0 z-0 pointer-events-none"
         style={{
           backgroundImage: `url(${logoUrl})`,
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          backgroundSize: "60%",
-          opacity: 0.18,
+          backgroundSize: "min(70vw, 560px)",
+          opacity: 0.07,
         }}
       />
     )}
 
-    <div className="glass cc-sheen shadow-2xl glow-primary max-w-sm w-full rounded-3xl border border-line relative z-10 overflow-hidden">
+    <div className="glass cc-sheen shadow-2xl glow-primary max-w-sm w-full rounded-sm border border-line relative z-10 overflow-hidden">
       <div
         className="h-1 w-full"
         style={{
@@ -73,14 +64,17 @@ export const LoginScreen = ({
         }}
       />
       <div className="p-8 text-center">
-        <div className="flex justify-center mb-5">
+        <div className="flex justify-center mb-6">
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center glow-primary"
+            className="w-14 h-14 rounded-sm flex items-center justify-center glow-primary"
             style={{
               background: `linear-gradient(160deg, ${primaryColor}, color-mix(in srgb, ${primaryColor} 55%, #000))`,
             }}
           >
-            <Icons.Clipboard className="w-8 h-8 text-white" />
+            <Icons.Clipboard
+              className="w-7 h-7"
+              style={{ color: tertiaryColor }}
+            />
           </div>
         </div>
         <Eyebrow className="block mb-2 text-ink-3">
@@ -93,7 +87,7 @@ export const LoginScreen = ({
         <button
           onClick={onSignIn}
           disabled={isSigningIn}
-          className="btn-premium w-full py-3.5 px-4 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 rounded-xl hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+          className="btn-premium w-full py-3.5 px-4 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 rounded-sm disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ color: tertiaryColor }}
         >
           {isSigningIn ? (
@@ -109,7 +103,7 @@ export const LoginScreen = ({
         {onEmailSignIn && (
           <button
             onClick={onEmailSignIn}
-            className="w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 shadow-sm transition-colors"
+            className="w-full mt-3 py-3 px-4 font-black uppercase tracking-widest text-xs rounded-sm border border-line-strong bg-transparent text-ink-2 hover:text-ink hover:border-ink-3 transition-colors"
             type="button"
           >
             Sign In with Email Link
@@ -118,7 +112,7 @@ export const LoginScreen = ({
         {genError && (
           <p
             role="alert"
-            className="mt-5 rounded-xl bg-loss-bg border border-line text-loss px-3 py-2 text-xs font-bold"
+            className="mt-5 rounded-sm bg-loss-bg border border-line text-loss px-3 py-2 text-xs font-bold"
           >
             {genError}
           </p>

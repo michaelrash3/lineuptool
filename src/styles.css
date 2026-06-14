@@ -43,10 +43,10 @@
   --warn-fg: #c2660a; --warn-bg: #fbf0dd;
   --info-fg: #1d4ed8; --info-bg: #dbeafe;
 
-  /* Premium geometry — softer than the old 4px, still crisp & modern. */
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
+  /* Sharp, architectural geometry — crisp edges read premium. */
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-lg: 6px;
 
   /* SLATE SCALE */
   --slate-50: #f8fafc;
@@ -461,21 +461,22 @@ body::before {
   border-color: var(--team-primary);
 }
 
-/* Premium primary action — team-color gradient with an inner highlight and a
-   soft halo that intensifies on hover. Opt-in via className. */
+/* Primary action — confident flat team-color fill with a crafted inner
+   top-highlight and a team-color glow halo (the glow reads premium; the
+   sharp edges keep it from feeling generic). */
 .btn-premium {
   position: relative;
-  background-image: linear-gradient(
-    180deg,
-    var(--team-primary-bright),
-    var(--team-primary)
-  );
-  box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  transition: box-shadow 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+  background-color: var(--team-primary);
+  box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 .btn-premium:hover {
-  box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-  filter: saturate(1.05);
+  filter: brightness(1.05);
+  box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+.btn-premium:active {
+  transform: translateY(0.5px);
+  filter: brightness(0.97);
 }
 
 /* legacy .App helper from CRA boilerplate — kept for any stray usage */

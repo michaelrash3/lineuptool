@@ -162,12 +162,8 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
   // Compact fallback card — keeps the "Next Game" slot anchored (never blank)
   // when there's no game inside the prep window. Same chrome as the hero card.
   const renderCompact = ({ title, subtitle, cta }: any) => (
-    <div className="relative rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
-      <div
-        className="absolute inset-y-0 left-0 w-1.5"
-        style={{ backgroundColor: primaryColor }}
-      />
-      <div className="p-5 sm:p-6 pl-6 sm:pl-7 flex items-center justify-between gap-4 flex-wrap">
+    <div className="relative pb-7 border-b border-line">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-4 min-w-0">
           <div
             className="p-3 rounded-xl shrink-0"
@@ -318,12 +314,8 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
     : null;
 
   return (
-    <div className="relative rounded-2xl shadow-card border border-line overflow-hidden bg-surface">
-      <div
-        className="absolute inset-y-0 left-0 w-1.5"
-        style={{ backgroundColor: primaryColor }}
-      />
-      <div className="p-5 sm:p-6 pl-6 sm:pl-7 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+    <div className="relative pb-7 border-b border-line">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
         <div className="flex items-center gap-4 sm:gap-5 min-w-0">
           {/* Scoreboard-style date block */}
           <div
@@ -526,10 +518,10 @@ const InsightTile = memo(
     };
     const styles = (ACCENT_STYLES as any)[accent] || ACCENT_STYLES.slate;
     return (
-      <div className="bg-surface rounded-2xl shadow-card border border-line overflow-hidden flex flex-col h-full">
-        <div className="px-4 py-3 border-b border-line bg-surface flex items-center gap-3">
+      <div className="flex flex-col h-full">
+        <div className="pb-2.5 mb-3 border-b border-line flex items-center gap-3">
           <div
-            className="p-2 rounded-lg shrink-0"
+            className="p-2 rounded-md shrink-0"
             style={{ backgroundColor: styles.halo }}
           >
             <Icon className="w-4 h-4" style={{ color: styles.text }} />
@@ -546,7 +538,7 @@ const InsightTile = memo(
             </button>
           )}
         </div>
-        <div className="p-4 flex-1 min-h-[80px]">{children}</div>
+        <div className="flex-1 min-h-[80px]">{children}</div>
       </div>
     );
   }
@@ -1127,15 +1119,21 @@ export const HomeTab = memo(() => {
 
       {/* ===== Scoreboard hero — record, form, run splits ===== */}
       <div
-        className="relative overflow-hidden rounded-3xl shadow-xl glow-primary cc-sheen text-white"
+        className="relative overflow-hidden rounded-3xl text-white"
         style={{
           background:
-            "radial-gradient(120% 140% at 0% 0%, var(--team-primary-bright), var(--team-primary) 45%, var(--team-primary-2) 100%)",
+            "linear-gradient(150deg, color-mix(in srgb, var(--team-primary) 90%, #0a0e16), color-mix(in srgb, var(--team-primary) 58%, #0a0e16) 100%)",
+          boxShadow:
+            "var(--glow-primary), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.05)",
         }}
       >
+        {/* Fine diagonal sheen for depth — subtle, not the generic glossy wash. */}
         <div
-          className="absolute inset-y-0 left-0 w-1.5"
-          style={{ backgroundColor: "rgba(255,255,255,0.7)" }}
+          className="absolute inset-0 pointer-events-none opacity-60"
+          style={{
+            background:
+              "radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,0.10), transparent 45%)",
+          }}
         />
         <div className="p-6 sm:p-7">
           <div className="flex items-start justify-between gap-4">
@@ -1260,7 +1258,7 @@ export const HomeTab = memo(() => {
 
       {/* Coaches */}
       {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
-        <div className="bg-surface border border-line rounded-xl shadow-card p-5 space-y-3">
+        <div className="space-y-3 pb-7 border-b border-line">
           {headCoaches.length > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
               <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
@@ -1388,7 +1386,7 @@ const LeaderboardsSection = memo(
     const visibleTab = tabs.find((t) => t.id === activeTab) || tabs[0];
 
     return (
-      <div className="bg-surface rounded-xl shadow-card border border-line p-3 sm:p-4">
+      <div className="pt-1">
         <div className="flex items-center justify-between gap-3 mb-3 px-1">
           <h2 className="text-sm font-black uppercase tracking-tight text-ink">
             Leaderboards
