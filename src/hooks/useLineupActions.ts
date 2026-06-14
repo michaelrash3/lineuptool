@@ -475,20 +475,38 @@ export const useLineupActions = ({
   const saveAttendance = useCallback(() => {
     const inputs = uiBridge.current.getInputs();
     if (!inputs?.currentGame) return;
-    const { currentGame, currentGameAttendance } = inputs;
+    const { currentGame, currentGameAttendance, lineup } = inputs;
     updateGame(currentGame.id, { attendance: currentGameAttendance || {} });
     const absent = Object.values(currentGameAttendance || {}).filter(
       (v) => v === false
     ).length;
+    // Once attendance is set, automatically roll out the projected lineup for
+    // confirmation — the engine also selects the starting pitcher, contextual
+    // to the game type for Kid Pitch (league/pool spread the staff to rest the
+    // aces; bracket = win-now). Only fire when there's no lineup yet AND enough
+    // players are present to field one; the coach can re-roll or tweak after.
+    const presentCount = (teamData.players || []).filter(
+      (p: any) =>
+        p &&
+        p.present !== false &&
+        (currentGameAttendance || {})[p.id] !== false
+    ).length;
+    const autoBuild = !lineup && presentCount >= 7;
     toast.push({
       kind: "success",
       title: "Attendance saved",
-      message:
-        absent > 0
-          ? `${absent} marked out — plan the lineup whenever you're ready.`
-          : "Everyone's in — plan the lineup whenever you're ready.",
+      message: autoBuild
+        ? "Rolling out your projected lineup for confirmation…"
+        : absent > 0
+        ? `${absent} marked out — plan the lineup whenever you're ready.`
+        : "Everyone's in — plan the lineup whenever you're ready.",
     });
-  }, [updateGame, toast, uiBridge]);
+    if (autoBuild) {
+      // Defer one tick so the attendance state settles before the engine
+      // reads present players + picks the pitcher.
+      setTimeout(() => generateLineup(), 0);
+    }
+  }, [updateGame, toast, uiBridge, teamData.players, generateLineup]);
 
   // ----- Lineup templates -----
   // Save the current lineup + batting order as a named template the coach
