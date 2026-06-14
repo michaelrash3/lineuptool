@@ -62,18 +62,18 @@ module.exports = {
         "glow-strong": "var(--glow-primary-strong)",
         inset: "inset 0 2px 4px rgb(0 0 0 / 0.05)",
       },
-      // Premium geometry — soft, modern radii (the old redesign used a harsh
-      // 4px everywhere). Existing rounded-md/lg/xl/2xl/3xl utilities now resolve
-      // to these app-wide without editing every call site. rounded-full is left
-      // intact for genuine circles (avatars, spinners, pills).
+      // Sharp, architectural geometry — crisp edges read as precise/expensive;
+      // rounded "bubble" corners felt cheap/generic. Existing rounded-*
+      // utilities resolve to these app-wide. rounded-full is left intact for
+      // genuine circles (avatars, spinners).
       borderRadius: {
-        DEFAULT: "10px",
-        sm: "8px",
-        md: "9px",
-        lg: "12px",
-        xl: "14px",
-        "2xl": "18px",
-        "3xl": "24px",
+        DEFAULT: "3px",
+        sm: "2px",
+        md: "3px",
+        lg: "4px",
+        xl: "5px",
+        "2xl": "6px",
+        "3xl": "8px",
       },
     },
   },
