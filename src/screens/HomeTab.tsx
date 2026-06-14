@@ -690,11 +690,7 @@ const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
                 : "bg-loss-bg/40 hover:bg-loss-bg"
             }`}
           >
-            <span
-              className={`t-body-bold truncate ${
-                delta > 0 ? "text-emerald-900" : "text-rose-900"
-              }`}
-            >
+            <span className="t-body-bold truncate text-ink">
               {player.name}
             </span>
             <span

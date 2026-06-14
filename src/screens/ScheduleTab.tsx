@@ -947,7 +947,7 @@ export const ScheduleTab = memo(() => {
 
           
             {canEdit && <StartingPitcherPicker game={currentGame} />}
-            <div className={`grid grid-cols-1 ${canEdit ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-white/40 bg-transparent`}>
+            <div className={`grid grid-cols-1 ${canEdit && !isTournamentGame ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-line bg-transparent`}>
               <div className="p-6">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="p-1.5 rounded bg-surface border border-line shadow-sm">
@@ -1023,12 +1023,12 @@ export const ScheduleTab = memo(() => {
                   </button>
                 )}
               </div>
-              {canEdit && (
+              {canEdit && !isTournamentGame && (
               <div className="p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 rounded bg-surface border border-line shadow-sm">
-                      <Icons.MapPin className="w-4 h-4 text-amber-600" />
+                      <Icons.MapPin className="w-4 h-4 text-team-primary" />
                     </div>
                     <h3 className="font-black text-ink uppercase tracking-widest text-sm">
                       First Inning Setup
