@@ -3,7 +3,16 @@
 @tailwind utilities;
 
 /* ============================================================================
-   Coach's Card Design System — Foundations
+   Coach's Card Design System — "Dark Premium" foundations
+   ----------------------------------------------------------------------------
+   A cinematic, high-end visual layer. Nearly every component references the
+   semantic tokens below (via Tailwind: bg-surface / text-ink / border-line /
+   shadow-card …), so the look is driven from here:
+     - deep, layered surfaces with subtle inner highlights ("glass")
+     - hairline luminous borders
+     - colored team-accent glows on key surfaces
+     - a soft ambient team-color aura behind the whole app
+   Light mode is kept clean + premium; dark mode is the showcase default.
    ============================================================================ */
 
 :root {
@@ -14,32 +23,30 @@
   --team-primary-15: color-mix(in srgb, var(--team-primary) 15%, transparent);
   --team-primary-soft: color-mix(in srgb, var(--team-primary) 8%, white);
   --team-primary-2: color-mix(in srgb, var(--team-primary) 68%, #000);
+  /* A brighter sibling of the team color for gradients/sheens. */
+  --team-primary-bright: color-mix(in srgb, var(--team-primary) 78%, #ffffff);
 
   /* ==========================================================================
-     SEMANTIC SURFACE TOKENS — Bold & Sporty redesign (light + dark).
-     Components reference these (via Tailwind: bg-surface / text-ink /
-     border-line …) so dark mode is a single [data-theme] swap and the
-     palette lives in one place. Light values below; dark overrides in the
-     [data-theme="dark"] block.
+     SEMANTIC SURFACE TOKENS — light values (dark overrides further down).
      ========================================================================== */
-  --app-bg: #eceff4;
+  --app-bg: #eef1f7;
   --surface: #ffffff;
-  --surface-2: #f4f6fa;
-  --ink: #0d1526;
-  --ink-2: #4a5872;
-  --ink-3: #8c99ae;
-  --line: #e2e7ef;
-  --line-strong: #d4dae4;
+  --surface-2: #f3f6fb;
+  --ink: #0b1220;
+  --ink-2: #46546e;
+  --ink-3: #8290a6;
+  --line: #e4e9f1;
+  --line-strong: #d2dae6;
 
-  --win: #16a34a;  --win-bg: #e7f7ee;
+  --win: #15a34a;  --win-bg: #e7f7ee;
   --loss: #dc2626; --loss-bg: #fdeaea;
   --warn-fg: #c2660a; --warn-bg: #fbf0dd;
   --info-fg: #1d4ed8; --info-bg: #dbeafe;
 
-  /* Sharp geometry — no soft bubbles. */
-  --radius: 4px;
-  --radius-sm: 2px;
-  --radius-lg: 6px;
+  /* Premium geometry — softer than the old 4px, still crisp & modern. */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
 
   /* SLATE SCALE */
   --slate-50: #f8fafc;
@@ -80,22 +87,38 @@
   --info-600: #2563eb;
   --info-700: #1d4ed8;
 
-  /* SURFACE */
+  /* SURFACE / GLASS */
   --bg-app: var(--app-bg);
   --surface-glass-1: rgba(255, 255, 255, 0.2);
   --surface-glass-2: rgba(255, 255, 255, 0.3);
   --surface-glass-3: rgba(255, 255, 255, 0.4);
   --surface-glass-4: rgba(255, 255, 255, 0.6);
   --surface-glass-5: rgba(255, 255, 255, 0.8);
-  --hairline: rgba(255, 255, 255, 0.5);
+  --hairline: rgba(15, 23, 42, 0.08);
+  /* Translucent glass fill + top sheen used by .glass / premium cards. */
+  --glass-fill: color-mix(in srgb, var(--surface) 80%, transparent);
+  --sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.5),
+    rgba(255, 255, 255, 0) 38%
+  );
+  --card-ring: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
-  /* SHADOWS */
-  --shadow-card: 0 4px 20px rgb(0 0 0 / 0.04);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-  --shadow-2xl: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  /* SHADOWS — soft, layered, premium. */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.18);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.10), 0 2px 4px -2px rgb(15 23 42 / 0.08);
+  --shadow-lg: 0 18px 30px -12px rgb(15 23 42 / 0.22), 0 6px 12px -8px rgb(15 23 42 / 0.12);
+  --shadow-xl: 0 30px 60px -18px rgb(15 23 42 / 0.30), 0 10px 20px -12px rgb(15 23 42 / 0.16);
+  --shadow-2xl: 0 40px 80px -20px rgb(15 23 42 / 0.40);
+
+  /* GLOWS — team-color halos for CTAs, active states, hero cards. */
+  --glow-primary:
+    0 0 0 1px color-mix(in srgb, var(--team-primary) 28%, transparent),
+    0 10px 30px -8px color-mix(in srgb, var(--team-primary) 45%, transparent);
+  --glow-primary-strong:
+    0 0 0 1px color-mix(in srgb, var(--team-primary) 40%, transparent),
+    0 14px 44px -8px color-mix(in srgb, var(--team-primary) 60%, transparent);
 
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
@@ -105,33 +128,47 @@
 }
 
 /* ============================================================================
-   DARK THEME — applied via <html data-theme="dark">. True-black-ish surfaces,
-   restrained accent (the team color stays on top). Only the semantic tokens
-   flip; the team triplet is injected per-team at runtime in App.jsx.
+   DARK THEME — the showcase. Deep near-black surfaces, luminous hairlines,
+   restrained team-accent glows. Applied via <html data-theme="dark">.
    ============================================================================ */
 :root[data-theme="dark"] {
-  --app-bg: #06090f;
-  --surface: #10151f;
-  --surface-2: #0b111a;
-  --ink: #eef2f8;
-  --ink-2: #a2b1c6;
-  --ink-3: #647389;
-  --line: #1c2535;
-  --line-strong: #283447;
+  --app-bg: #070a12;
+  --surface: #0e1421;
+  --surface-2: #151d2c;
+  --ink: #eef2f9;
+  --ink-2: #a4b1c6;
+  --ink-3: #6a7689;
+  --line: #1e2738;
+  --line-strong: #2b3850;
 
   --win: #34d399;  --win-bg: #0f2a20;
   --loss: #f87171; --loss-bg: #2a1416;
   --warn-fg: #fbbf24; --warn-bg: #2a2008;
   --info-fg: #7eb3f9; --info-bg: #122339;
 
-  /* Glass surfaces read as dark translucency in dark mode. */
+  /* Glass reads as a faint light film over the dark surface. */
   --surface-glass-1: rgba(255, 255, 255, 0.04);
   --surface-glass-2: rgba(255, 255, 255, 0.06);
   --surface-glass-3: rgba(255, 255, 255, 0.08);
   --surface-glass-4: rgba(255, 255, 255, 0.10);
   --surface-glass-5: rgba(255, 255, 255, 0.14);
   --hairline: rgba(255, 255, 255, 0.08);
+  --glass-fill: color-mix(in srgb, var(--surface) 62%, transparent);
+  --sheen: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0) 40%
+  );
+  --card-ring: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --team-primary-soft: color-mix(in srgb, var(--team-primary) 22%, #0b111a);
+
+  /* In the dark, depth comes from black shadow + a faint top highlight. */
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px -20px rgb(0 0 0 / 0.8);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-md: 0 6px 16px -6px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 24px 50px -20px rgb(0 0 0 / 0.75);
+  --shadow-xl: 0 36px 70px -24px rgb(0 0 0 / 0.85);
+  --shadow-2xl: 0 50px 90px -30px rgb(0 0 0 / 0.9);
 }
 
 html,
@@ -141,25 +178,50 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv11", "ss01";
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Cinematic ambient backdrop — a soft team-color aura up top plus a deep
+   vignette, fixed behind all content. Gives the dark theme depth without any
+   per-screen work. Purely decorative, so it sits behind everything and never
+   intercepts input. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      1200px 600px at 50% -10%,
+      color-mix(in srgb, var(--team-primary) 22%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 500px at 100% 0%,
+      color-mix(in srgb, var(--team-primary) 10%, transparent),
+      transparent 55%
+    );
+  opacity: 0.9;
+}
+
+:root:not([data-theme="dark"]) body::before {
+  opacity: 0.5;
 }
 
 /* ============================================================================
    ACCESSIBILITY BASELINE
    ============================================================================ */
 
-/* Keyboard focus ring. Many controls strip the default outline
-   (outline-none) for mouse users; :focus-visible only fires on keyboard
-   navigation, so this restores a visible ring app-wide without affecting
-   tap/click interactions. */
+/* Keyboard focus ring — branded glow on keyboard nav only. */
 :focus-visible {
-  outline: 2px solid var(--team-primary);
+  outline: 2px solid color-mix(in srgb, var(--team-primary) 80%, transparent);
   outline-offset: 2px;
+  border-radius: 6px;
 }
 
-/* Honor the OS-level reduced-motion preference: collapse decorative
-   transitions/animations (hover lifts, theme fades) to near-instant.
-   Spinners still rotate — a frozen spinner reads as a hang. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -174,103 +236,147 @@ body {
   }
 }
 
+/* Premium scrollbars (WebKit + Firefox). Slim, subtle, theme-aware. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-3);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Branded text selection. */
+::selection {
+  background: color-mix(in srgb, var(--team-primary) 35%, transparent);
+  color: var(--ink);
+}
+
 /* ============================================================================
-   SEMANTIC TYPE ROLES
+   SEMANTIC TYPE ROLES — strong, modern hierarchy. Headings keep impact but
+   read more refined (tighter tracking, optical sizing) than the old all-900.
    ============================================================================ */
 
 .t-display {
-  font: 900 36px/1 var(--font-sans);
-  letter-spacing: -0.025em;
+  font: 800 38px/1.02 var(--font-sans);
+  letter-spacing: -0.03em;
   text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-h1 {
-  font: 900 30px/1 var(--font-sans);
-  letter-spacing: -0.025em;
+  font: 800 30px/1.05 var(--font-sans);
+  letter-spacing: -0.03em;
   text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-h2 {
-  font: 900 20px/1.1 var(--font-sans);
-  letter-spacing: 0.05em;
+  font: 800 20px/1.1 var(--font-sans);
+  letter-spacing: -0.01em;
   text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-h3 {
-  font: 900 18px/1.2 var(--font-sans);
-  letter-spacing: 0.1em;
+  font: 800 18px/1.2 var(--font-sans);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-card-title {
-  font: 900 24px/1.1 var(--font-sans);
+  font: 800 23px/1.1 var(--font-sans);
   letter-spacing: -0.025em;
   text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-eyebrow {
-  font: 800 10px/1 var(--font-sans);
-  letter-spacing: 0.1em;
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
 
 .t-label {
-  font: 800 10px/1 var(--font-sans);
-  letter-spacing: 0.1em;
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
 
 .t-button {
-  font: 900 12px/1 var(--font-sans);
-  letter-spacing: 0.1em;
+  font: 800 12px/1 var(--font-sans);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .t-chip {
-  font: 900 10px/1 var(--font-sans);
-  letter-spacing: 0.1em;
+  font: 800 10px/1 var(--font-sans);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .t-stat-num {
-  font: 900 30px/1 var(--font-sans);
+  font: 800 30px/1 var(--font-sans);
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 
 .t-stat-num-sm {
-  font: 900 14px/1 var(--font-sans);
+  font: 800 14px/1 var(--font-sans);
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
 
 .t-body {
-  font: 500 14px/1.5 var(--font-sans);
+  font: 450 14px/1.55 var(--font-sans);
   color: var(--ink-2);
 }
 
 .t-body-bold {
-  font: 800 14px/1.4 var(--font-sans);
+  font: 700 14px/1.45 var(--font-sans);
   color: var(--ink);
 }
 
 .t-meta {
-  font: 700 10px/1 var(--font-sans);
-  letter-spacing: 0.1em;
+  font: 600 10px/1 var(--font-sans);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-3);
 }
 
 .t-mono {
-  font: 700 12px/1 var(--font-mono);
-  letter-spacing: 0.05em;
+  font: 600 12px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+/* Gradient ink — for hero numbers / display headings that want a premium
+   metallic sheen. Falls back to solid ink where background-clip is unsupported. */
+.t-gradient {
+  background: linear-gradient(
+    180deg,
+    var(--ink) 0%,
+    color-mix(in srgb, var(--ink) 70%, var(--ink-3)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: var(--ink);
 }
 
@@ -279,19 +385,56 @@ body {
    ============================================================================ */
 
 .glass-card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), var(--card-ring);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
-/* Reusable redesigned surface — crisp, sharp, theme-aware. */
+/* Reusable premium surface — layered fill, hairline border, inner sheen. */
 .cc-card {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), var(--card-ring);
+}
+
+/* Frosted glass panel — translucent, blurred, luminous edge. Use for floating
+   chrome (headers, menus, command palette, sticky bars). */
+.glass {
+  background: var(--glass-fill);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid var(--hairline);
+}
+
+/* Team-accent halo for primary CTAs / active surfaces. */
+.glow-primary {
+  box-shadow: var(--glow-primary);
+}
+.glow-primary-strong {
+  box-shadow: var(--glow-primary-strong);
+}
+
+/* Hover-lift used on interactive cards/buttons. */
+.cc-lift {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.cc-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Subtle top sheen overlay for hero/gradient surfaces. */
+.cc-sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--sheen);
+  pointer-events: none;
 }
 
 .bg-team-primary-15 {
@@ -316,6 +459,23 @@ body {
 
 .border-team-primary {
   border-color: var(--team-primary);
+}
+
+/* Premium primary action — team-color gradient with an inner highlight and a
+   soft halo that intensifies on hover. Opt-in via className. */
+.btn-premium {
+  position: relative;
+  background-image: linear-gradient(
+    180deg,
+    var(--team-primary-bright),
+    var(--team-primary)
+  );
+  box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: box-shadow 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+}
+.btn-premium:hover {
+  box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  filter: saturate(1.05);
 }
 
 /* legacy .App helper from CRA boilerplate — kept for any stray usage */

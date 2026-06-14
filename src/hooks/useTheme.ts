@@ -20,9 +20,11 @@ const prefersDark = (): boolean =>
 const readStored = (): ThemeMode => {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    return v && (MODES as string[]).includes(v) ? (v as ThemeMode) : "system";
+    // Default to the cinematic dark theme (the app's showcase look) for
+    // first-time visitors; anyone who's explicitly chosen a mode keeps it.
+    return v && (MODES as string[]).includes(v) ? (v as ThemeMode) : "dark";
   } catch {
-    return "system";
+    return "dark";
   }
 };
 

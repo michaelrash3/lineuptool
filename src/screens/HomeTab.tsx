@@ -1127,10 +1127,10 @@ export const HomeTab = memo(() => {
 
       {/* ===== Scoreboard hero — record, form, run splits ===== */}
       <div
-        className="relative overflow-hidden rounded-2xl shadow-card text-white"
+        className="relative overflow-hidden rounded-3xl shadow-xl glow-primary cc-sheen text-white"
         style={{
           background:
-            "linear-gradient(135deg, var(--team-primary), var(--team-primary-2))",
+            "radial-gradient(120% 140% at 0% 0%, var(--team-primary-bright), var(--team-primary) 45%, var(--team-primary-2) 100%)",
         }}
       >
         <div

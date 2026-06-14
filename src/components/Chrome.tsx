@@ -44,8 +44,11 @@ export const LoginScreen = ({
     {/* Top accent strip — matches the in-app modal motif so the first
         thing a returning user sees feels like the same product. */}
     <div
-      className="absolute top-0 left-0 right-0 h-2"
-      style={{ backgroundColor: primaryColor }}
+      className="absolute top-0 left-0 right-0 h-1.5"
+      style={{
+        background: `linear-gradient(90deg, transparent, ${primaryColor} 25%, ${primaryColor} 75%, transparent)`,
+        boxShadow: `0 0 24px 2px ${primaryColor}`,
+      }}
     />
 
     {logoUrl && (
@@ -61,18 +64,23 @@ export const LoginScreen = ({
       />
     )}
 
-    <div className="bg-surface backdrop-blur shadow-card max-w-sm w-full rounded-2xl border border-line relative z-10 overflow-hidden">
-      <div className="h-1 w-full" style={{ backgroundColor: primaryColor }} />
+    <div className="glass cc-sheen shadow-2xl glow-primary max-w-sm w-full rounded-3xl border border-line relative z-10 overflow-hidden">
+      <div
+        className="h-1 w-full"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${primaryColor}, transparent)`,
+          boxShadow: `0 0 20px 1px ${primaryColor}`,
+        }}
+      />
       <div className="p-8 text-center">
         <div className="flex justify-center mb-5">
           <div
-            className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-card"
-            style={{ backgroundColor: "var(--team-primary-15)" }}
+            className="w-16 h-16 rounded-2xl flex items-center justify-center glow-primary"
+            style={{
+              background: `linear-gradient(160deg, ${primaryColor}, color-mix(in srgb, ${primaryColor} 55%, #000))`,
+            }}
           >
-            <Icons.Clipboard
-              className="w-8 h-8"
-              style={{ color: primaryColor }}
-            />
+            <Icons.Clipboard className="w-8 h-8 text-white" />
           </div>
         </div>
         <Eyebrow className="block mb-2 text-ink-3">
@@ -85,8 +93,8 @@ export const LoginScreen = ({
         <button
           onClick={onSignIn}
           disabled={isSigningIn}
-          className="w-full py-3.5 px-4 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-all rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-md"
-          style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+          className="btn-premium w-full py-3.5 px-4 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 rounded-xl hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+          style={{ color: tertiaryColor }}
         >
           {isSigningIn ? (
             <>
@@ -110,7 +118,7 @@ export const LoginScreen = ({
         {genError && (
           <p
             role="alert"
-            className="mt-5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-xs font-bold"
+            className="mt-5 rounded-xl bg-loss-bg border border-line text-loss px-3 py-2 text-xs font-bold"
           >
             {genError}
           </p>
@@ -225,10 +233,13 @@ export const AppHeader = memo(() => {
   const showViewAsChip = realRole === "head" && viewAsRole === "assistant";
 
   return (
-    <header className="print:hidden w-full relative z-20 bg-surface shadow-[0_4px_20px_rgb(0,0,0,0.04)]">
+    <header className="print:hidden w-full relative z-20 glass border-b border-line shadow-lg">
       <div
-        className="h-1.5 w-full"
-        style={{ backgroundColor: team.primaryColor }}
+        className="h-1 w-full"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${team.primaryColor} 20%, ${team.primaryColor} 80%, transparent)`,
+          boxShadow: `0 0 18px 1px ${team.primaryColor}`,
+        }}
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4 md:gap-5">
@@ -534,6 +545,7 @@ const activeTabStyle = {
   backgroundColor: "var(--team-secondary)",
   color: "var(--team-primary)",
   borderColor: "var(--team-primary)",
+  boxShadow: "var(--glow-primary)",
 };
 
 const TabPill = ({ btn, isActive, onClick, className = "" }: any) => {
@@ -577,7 +589,7 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => 
   return (
     <nav
       aria-label="Primary"
-      className="bg-surface border-b border-line print:hidden relative z-10 shadow-sm"
+      className="glass border-b border-line print:hidden relative z-10 shadow-sm"
     >
       {/* sm+: full pill row (unchanged) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 hidden sm:block">
