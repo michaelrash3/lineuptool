@@ -2176,6 +2176,9 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     catcherMaxInnings,
     catcherConsecutive,
     seed,
+    // Coach-selected starting pitcher comes through here as { P: playerId },
+    // same channel the Rec path uses for first-inning position locks.
+    firstInningOverridesById = {},
   } = input as any;
 
   if (!Array.isArray(activePlayers) || activePlayers.length < 7) {
@@ -2251,7 +2254,23 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   );
   const assigned = new Map<string, any>(); // pos → profiled player
   const used = new Set<string>();
-  for (const pos of fillOrder) {
+
+  // Honor a coach-selected starting pitcher (Starting Pitcher picker): seat
+  // them at P before the scarcity fill so the projected lineup is built around
+  // the coach's choice, not the top-ranked arm. Falls back to the normal pick
+  // if the chosen player isn't present or isn't eligible to pitch this game.
+  const forcedPitcherId = (firstInningOverridesById || {}).P;
+  let pendingOrder = fillOrder;
+  if (forcedPitcherId && positions.includes("P")) {
+    const fp = byId.get(forcedPitcherId);
+    if (fp && eligibleFor("P", fp)) {
+      assigned.set("P", fp);
+      used.add(fp.id);
+      pendingOrder = fillOrder.filter((pos) => pos !== "P");
+    }
+  }
+
+  for (const pos of pendingOrder) {
     const candidates = profiled
       .filter((p: any) => !used.has(p.id) && eligibleFor(pos, p))
       .sort((a: any, b: any) => scoreFor(pos, b) - scoreFor(pos, a));
