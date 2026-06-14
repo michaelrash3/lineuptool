@@ -43,16 +43,27 @@ jobs:
             const CI_CHECK = "build-and-test"; // job name in ci.yml
             const SELF_CHECK = "automerge";    // this job — never wait on itself
 
-            // Collect candidate PR numbers from whichever event fired.
-            const numbers = new Set();
-            if (context.payload.pull_request) numbers.add(context.payload.pull_request.number);
-            for (const pr of context.payload.check_suite?.pull_requests || []) numbers.add(pr.number);
-            if (context.eventName === "status") {
-              const sha = context.payload.sha;
-              const { data: prs } = await github.rest.pulls.list({ owner, repo, state: "open", per_page: 100 });
-              for (const pr of prs) if (pr.head.sha === sha) numbers.add(pr.number);
-            }
-            if (numbers.size === 0) { core.info("No candidate PRs for this event."); return; }
+            // Re-scan ALL open same-repo claude/* PRs on every trigger rather
+            // than trusting the event payload's PR list. The check_suite event
+            // often delivers an empty pull_requests array, and a Vercel `status`
+            // event that arrives before CI finishes would otherwise be the last
+            // word — both leave a mergeable PR stuck as a draft. Re-scanning on
+            // any trigger (incl. check_suite.completed when CI turns green)
+            // makes the merge reliable.
+            const { data: openPrs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const numbers = openPrs
+              .filter(
+                (p) =>
+                  p.head.ref.startsWith(HEAD_PREFIX) &&
+                  p.head.repo?.full_name === `${owner}/${repo}`
+              )
+              .map((p) => p.number);
+            if (numbers.length === 0) { core.info("No open claude/* PRs."); return; }
 
             for (const number of numbers) {
               const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: number });
