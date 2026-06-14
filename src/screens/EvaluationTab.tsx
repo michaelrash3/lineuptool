@@ -445,7 +445,7 @@ export const RosterDecisionsPanel = memo(() => {
       key={d.player.id}
       type="button"
       onClick={() => setEvalTrendPlayerId(d.player.id)}
-      className="w-full text-left bg-surface border border-line rounded-lg p-3 hover:border-line-strong hover:shadow-sm transition-all"
+      className="w-full text-left bg-surface border border-line rounded-lg p-3 hover:border-line-strong transition-all"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <div className="font-black text-sm uppercase tracking-tight text-ink truncate">
@@ -523,8 +523,8 @@ export const RosterDecisionsPanel = memo(() => {
   );
 
   return (
-    <div className="bg-surface shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-line rounded-2xl overflow-hidden">
-      <div className="p-5 bg-surface border-b border-line">
+    <div className="border-t border-line pt-6">
+      <div className="pb-5 border-b border-line">
         <div className="flex items-center gap-4">
           <div
             className="p-2.5 rounded-full"
@@ -549,11 +549,11 @@ export const RosterDecisionsPanel = memo(() => {
         </div>
       </div>
 
-      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="py-5 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {/* Strong Fit — earned positive signal across eval + stats */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-win mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="w-2 h-2 rounded-full bg-win" />
             Strong Fit ({byBucket.strong.length})
           </div>
           {byBucket.strong.length === 0 ? (
@@ -592,7 +592,7 @@ export const RosterDecisionsPanel = memo(() => {
             standard deviation under the team average. */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-warnfg mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="w-2 h-2 rounded-full bg-warnfg" />
             Cut Candidates ({byBucket.watch.length})
           </div>
           {byBucket.watch.length === 0 ? (
@@ -609,7 +609,7 @@ export const RosterDecisionsPanel = memo(() => {
         {/* Cut / Drop a Division — playing up + over-matched for their age */}
         <div>
           <div className="text-[11px] font-black uppercase tracking-widest text-loss mb-2 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span className="w-2 h-2 rounded-full bg-loss" />
             Cut / Drop a Division ({byBucket.younger.length})
           </div>
           {byBucket.younger.length === 0 ? (
@@ -624,7 +624,7 @@ export const RosterDecisionsPanel = memo(() => {
         </div>
       </div>
 
-      <div className="px-5 pb-4 text-[10px] text-ink-3 italic font-medium">
+      <div className="pb-4 text-[10px] text-ink-3 italic font-medium">
         Tap any card to see that player&apos;s full evaluation trend.
       </div>
     </div>
@@ -713,7 +713,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {flags.standouts.length > 0 && (
-          <div className="bg-win-bg border border-line rounded-2xl px-4 py-3.5 shadow-sm">
+          <div className="bg-win-bg border border-line rounded-2xl px-4 py-3.5">
             <div className="t-eyebrow text-win mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronUp className="w-3 h-3" /> Standouts
             </div>
@@ -739,7 +739,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
           </div>
         )}
         {flags.regressions.length > 0 && (
-          <div className="bg-loss-bg border border-line rounded-2xl px-4 py-3.5 shadow-sm">
+          <div className="bg-loss-bg border border-line rounded-2xl px-4 py-3.5">
             <div className="t-eyebrow text-loss mb-2.5 flex items-center gap-1.5">
               <Icons.ChevronDown className="w-3 h-3" /> Regressions
             </div>
@@ -766,7 +766,7 @@ const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }
         )}
       </div>
       {flags.categoryDrops.length > 0 && (
-        <div className="bg-warn-bg border border-line rounded-2xl px-4 py-3.5 shadow-sm">
+        <div className="bg-warn-bg border border-line rounded-2xl px-4 py-3.5">
           <div className="t-eyebrow text-warnfg mb-2.5 flex items-center gap-1.5">
             <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
           </div>
@@ -1003,7 +1003,7 @@ const AssistantSubmissionsPanel = memo(
           return (
             <div
               key={ev.id}
-              className="bg-surface border border-line rounded-xl p-3 shadow-sm"
+              className="bg-surface border border-line rounded-xl p-3"
             >
               <div className="flex items-baseline justify-between gap-3 mb-2">
                 <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
@@ -1031,7 +1031,7 @@ const AssistantSubmissionsPanel = memo(
                         }}
                         className={`flex items-center gap-1 rounded-md transition-colors ${
                           armed
-                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-red-300"
+                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-[var(--loss)]"
                             : "p-1 text-ink-3 hover:text-loss hover:bg-loss-bg"
                         }`}
                         title={
@@ -1569,11 +1569,10 @@ export const EvaluationTab = memo(() => {
               type="button"
               onClick={handleSaveClick}
               onBlur={() => setPendingUpdateConfirm(false)}
-              className={`flex-1 sm:flex-none t-button px-6 py-3 rounded-xl shadow-md hover:-translate-y-0.5 transition-transform flex items-center justify-center gap-2 ${
-                pendingUpdateConfirm ? "ring-2 ring-amber-300" : ""
+              className={`btn-premium flex-1 sm:flex-none t-button px-6 py-3 rounded-xl flex items-center justify-center gap-2 ${
+                pendingUpdateConfirm ? "ring-2 ring-[var(--warn-fg)]" : ""
               }`}
               style={{
-                backgroundColor: "var(--team-primary)",
                 color: "var(--team-tertiary)",
               }}
               title={
@@ -1650,7 +1649,7 @@ export const EvaluationTab = memo(() => {
               onBlur={() => setPendingRoundDelete(false)}
               className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
                 pendingRoundDelete
-                  ? "px-2.5 py-2 bg-loss-bg text-loss border-line ring-2 ring-red-200"
+                  ? "px-2.5 py-2 bg-loss-bg text-loss border-line ring-2 ring-[var(--loss)]"
                   : "p-2 text-ink-3 hover:text-loss hover:bg-loss-bg border-line hover:border-line"
               }`}
               title={
@@ -1861,7 +1860,7 @@ export const EvaluationTab = memo(() => {
               return (
                 <div
                   key={`mc-${player.id}`}
-                  className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden"
+                  className="bg-surface rounded-xl border border-line overflow-hidden"
                 >
                   <button
                     type="button"
@@ -2139,7 +2138,7 @@ export const EvaluationTab = memo(() => {
                           }}
                           className={`shrink-0 flex items-center gap-1 rounded-md transition-colors ${
                             armed
-                              ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-red-300"
+                              ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-[var(--loss)]"
                               : "p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg"
                           }`}
                           title={

@@ -62,7 +62,7 @@ export const ArmCarePanel = memo(() => {
           </div>
         </div>
         {flagged > 0 && (
-          <span className="t-chip px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 text-[10px] font-black whitespace-nowrap">
+          <span className="t-chip px-2 py-0.5 rounded-md border bg-loss-bg border-loss text-loss text-[10px] font-black whitespace-nowrap">
             {flagged} flagged
           </span>
         )}
@@ -93,7 +93,7 @@ export const ArmCarePanel = memo(() => {
                 {w.alerts.map((a, i) => (
                   <span
                     key={i}
-                    className="px-2 py-0.5 rounded-md border bg-rose-50 border-rose-200 text-rose-700 text-[10px] font-black"
+                    className="px-2 py-0.5 rounded-md border bg-loss-bg border-loss text-loss text-[10px] font-black"
                   >
                     ⚠ {a.message}
                   </span>

@@ -37,7 +37,7 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
   }, [val]);
   return (
     <div className="flex items-center gap-3">
-      <div className="w-10 h-10 rounded-full shadow-inner border-2 border-white overflow-hidden relative shrink-0">
+      <div className="w-10 h-10 rounded-full shadow-inner border-2 border-line overflow-hidden relative shrink-0">
         <input
           type="color"
           value={val}
@@ -178,12 +178,12 @@ const TryoutsSettingsPanel = memo(
               a one-tap resync. */}
           <div
             className={`bg-surface border rounded-xl p-3 flex items-start gap-3 ${
-              mirrorStale ? "border-amber-300" : "border-line"
+              mirrorStale ? "border-warnfg" : "border-line"
             }`}
           >
             <Icons.Alert
               className={`w-4 h-4 mt-0.5 shrink-0 ${
-                mirrorStale ? "text-amber-500" : "text-ink-3"
+                mirrorStale ? "text-warnfg" : "text-ink-3"
               }`}
             />
             <div className="flex-1 min-w-0">
@@ -220,12 +220,13 @@ const TryoutsSettingsPanel = memo(
               type="button"
               onClick={() => setTryoutsOpen?.(!open)}
               className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                open ? "bg-emerald-500" : "bg-slate-300"
+                open ? "" : "bg-line-strong"
               }`}
+              style={open ? { backgroundColor: "var(--team-primary)" } : undefined}
               aria-label="Toggle tryouts open"
             >
               <span
-                className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
                   open ? "left-5" : "left-0.5"
                 }`}
               />
@@ -249,8 +250,8 @@ const TryoutsSettingsPanel = memo(
               <button
                 type="button"
                 onClick={() => completeTryouts?.()}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
-                style={{ backgroundColor: "#334155" }}
+                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md"
+                style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
               >
                 Complete Tryouts
               </button>
@@ -459,7 +460,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
             onClose={() => setConfirmOpen(false)}
             className="bg-surface rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
           >
-            <div className="p-1.5 bg-amber-500" />
+            <div className="p-1.5 bg-warnfg" />
             <div className="p-5 sm:p-6">
               <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                 Rotate team code?
@@ -486,7 +487,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
                     regenerateJoinCode?.();
                     setConfirmOpen(false);
                   }}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md transition-colors"
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg rounded-xl shadow-md transition-colors"
                 >
                   Regenerate
                 </button>
@@ -550,7 +551,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
             value={`${(team?.games || []).length} entries`}
           />
           {!isOwner && !isMember && (
-            <p className="pt-2 text-[10px] text-rose-700 font-bold not-italic font-sans">
+            <p className="pt-2 text-[10px] text-loss font-bold not-italic font-sans">
               ⚠ Your UID isn&apos;t in this team&apos;s members[]. Ask the
               owner to add it via Firestore Console, or sign in with the
               account whose UID matches ownerId.
@@ -597,7 +598,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
                 } catch {}
                 window.location.reload();
               }}
-              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-surface border border-amber-300 text-amber-800 hover:bg-amber-50"
+              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-warn-bg border border-warn-bg text-warnfg hover:bg-warn-bg"
             >
               Reset Local Cache + Reload
             </button>
@@ -618,8 +619,8 @@ const Row = ({ label, value, badge, badgeKind }: any) => (
       <span
         className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0 ${
           badgeKind === "ok"
-            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-            : "bg-rose-50 border-rose-200 text-rose-700"
+            ? "bg-win-bg border-win-bg text-win"
+            : "bg-loss-bg border-loss-bg text-loss"
         }`}
       >
         {badge}
@@ -755,9 +756,17 @@ const GameRemindersPanel = memo(({ toast }: any) => {
             aria-pressed={prefs.enabled}
             className={`shrink-0 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
               prefs.enabled
-                ? "bg-emerald-600 text-white border-emerald-600"
+                ? "border-transparent"
                 : "bg-surface text-ink-2 border-line hover:bg-surface-2"
             }`}
+            style={
+              prefs.enabled
+                ? {
+                    backgroundColor: "var(--team-primary)",
+                    color: "var(--team-tertiary)",
+                  }
+                : undefined
+            }
           >
             {prefs.enabled ? "On" : "Off"}
           </button>
@@ -781,7 +790,7 @@ const GameRemindersPanel = memo(({ toast }: any) => {
                 }
                 className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   prefs.leadTime === opt.id
-                    ? "bg-slate-900 text-white border-slate-900"
+                    ? "bg-surface-2 text-ink border-line-strong"
                     : "bg-surface text-ink-2 border-line hover:bg-surface-2"
                 }`}
               >
@@ -792,7 +801,7 @@ const GameRemindersPanel = memo(({ toast }: any) => {
         </div>
 
         {permission === "denied" && (
-          <p className="text-[11px] text-rose-600 font-semibold">
+          <p className="text-[11px] text-loss font-semibold">
             Notifications are blocked for this site. Re-enable them in your
             browser's site settings to receive reminders.
           </p>
@@ -979,8 +988,8 @@ export const SettingsTab = memo(() => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div className="bg-surface shadow-[0_4px_20px_rgb(0,0,0,0.04)] border border-line rounded-2xl overflow-hidden">
-        <div className="p-5 flex items-center gap-4 bg-surface border-b border-line">
+      <div className="overflow-hidden">
+        <div className="p-5 flex items-center gap-4 border-b border-line">
           <div
             className="p-2.5 rounded-full"
             style={{ backgroundColor: `${primaryColor}15` }}
@@ -1003,9 +1012,17 @@ export const SettingsTab = memo(() => {
                 onClick={() => setSettingsMenu(item.id)}
                 className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
                   settingsMenu === item.id
-                    ? "bg-slate-900 text-white border-slate-900"
+                    ? "border-transparent"
                     : "bg-surface text-ink-2 border-line hover:bg-surface-2"
                 }`}
+                style={
+                  settingsMenu === item.id
+                    ? {
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                      }
+                    : undefined
+                }
               >
                 {item.label}
               </button>
@@ -1339,7 +1356,7 @@ export const SettingsTab = memo(() => {
                     </div>
                     <button
                       onClick={() => removeCoach(c.id)}
-                      className="p-2 text-ink-3 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
                     >
                       <Icons.Trash className="w-4 h-4" />
                     </button>
@@ -1484,7 +1501,7 @@ export const SettingsTab = memo(() => {
                       emailEvalRemindersDisabled: !e.target.checked,
                     })
                   }
-                  className="mt-0.5 w-4 h-4 accent-blue-600"
+                  className="mt-0.5 w-4 h-4 accent-[var(--team-primary)]"
                 />
                 <span className="flex-1 min-w-0">
                   <span className="block text-xs font-black uppercase tracking-widest text-ink">
@@ -1534,7 +1551,11 @@ export const SettingsTab = memo(() => {
                   <div className="flex items-end">
                     <button
                       onClick={() => setAdvanceSeasonOpen(true)}
-                      className="p-3 bg-slate-900 text-white text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
+                      className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
+                      style={{
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                      }}
                     >
                       <Icons.Forward className="w-4 h-4" /> Advance Season
                     </button>
@@ -1654,7 +1675,7 @@ export const SettingsTab = memo(() => {
                         />
                         <button
                           onClick={() => updateTeam({ logoUrl: "" })}
-                          className="absolute -top-2 -right-2 p-1.5 bg-surface border border-line text-red-500 hover:bg-red-50 hover:text-red-600 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="absolute -top-2 -right-2 p-1.5 bg-surface border border-line text-loss hover:bg-loss-bg hover:text-loss rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Icons.X className="w-3 h-3" />
                         </button>
@@ -1705,7 +1726,7 @@ export const SettingsTab = memo(() => {
                     htmlFor="settings-import-schedule-csv"
                     className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
                   >
-                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-blue-500 mb-3 transition-colors" />
+                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
                       Import
                       <br />
@@ -1723,7 +1744,7 @@ export const SettingsTab = memo(() => {
                     htmlFor="settings-import-roster-csv"
                     className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
                   >
-                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-blue-500 mb-3 transition-colors" />
+                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
                       Import
                       <br />
@@ -1741,7 +1762,7 @@ export const SettingsTab = memo(() => {
                     htmlFor="settings-import-past-season-csv"
                     className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
                   >
-                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-amber-500 mb-3 transition-colors" />
+                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-warnfg mb-3 transition-colors" />
                     <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
                       Import
                       <br />
@@ -1796,7 +1817,7 @@ export const SettingsTab = memo(() => {
                 <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
                   Testing
                 </div>
-                <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="bg-warn-bg border border-warn-bg rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h4 className="font-bold text-ink text-sm">
                       View as Assistant Coach
@@ -1815,8 +1836,8 @@ export const SettingsTab = memo(() => {
                     }
                     className={`shrink-0 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
                       viewAsRole === "assistant"
-                        ? "bg-amber-600 text-white hover:bg-amber-700"
-                        : "bg-surface border border-amber-300 text-amber-800 hover:bg-amber-50"
+                        ? "bg-warn-bg text-warnfg hover:bg-warn-bg"
+                        : "bg-surface border border-line text-warnfg hover:bg-surface-2"
                     }`}
                   >
                     {viewAsRole === "assistant" ? "Revert to Head" : "View as Assistant"}

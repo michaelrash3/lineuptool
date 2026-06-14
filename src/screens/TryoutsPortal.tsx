@@ -65,7 +65,7 @@ const PortalShell = ({ children, accent = true }: any) => (
 const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
   const toneStyle =
     tone === "error"
-      ? "border-rose-200"
+      ? "border-loss"
       : tone === "success"
       ? ""
       : "border-line";
@@ -626,7 +626,7 @@ export const TryoutsPortal = () => {
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-2 text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2.5"
+              className="flex items-start gap-2 text-sm font-bold text-loss bg-loss-bg border border-loss rounded-xl px-3 py-2.5"
             >
               <Icons.Alert className="w-4 h-4 mt-0.5 shrink-0" />
               <span>{error}</span>

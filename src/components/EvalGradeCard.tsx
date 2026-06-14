@@ -117,7 +117,7 @@ export const EvalGradeCard = memo(
   }: EvalGradeCardProps) => {
     const playerGrades = grades || {};
     return (
-      <div className="bg-surface border border-line rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-surface border border-line rounded-lg overflow-hidden">
         <div className="px-3 py-2.5 flex items-center justify-between gap-2 border-b border-line">
           <div className="min-w-0">
             <div className="text-sm font-black uppercase tracking-tight text-ink truncate">

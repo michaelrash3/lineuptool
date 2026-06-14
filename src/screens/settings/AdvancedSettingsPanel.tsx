@@ -11,7 +11,7 @@ export const StorageUsagePanel = ({ team }: any) => {
   const pct = Math.min(100, (docSize / FIRESTORE_LIMIT) * 100);
   const sizeKb = Math.round(docSize / 1024);
   const limitKb = Math.round(FIRESTORE_LIMIT / 1024);
-  const color = pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500";
+  const color = pct >= 90 ? "bg-loss" : pct >= 70 ? "bg-warnfg" : "bg-win";
   const label =
     pct >= 90
       ? "Critical — saves may fail soon"
@@ -54,7 +54,7 @@ export const TeamManagementPanel = ({ teams, leaveTeamCmd, deleteTeamCmd }: any)
       <button
         onClick={deleteTeamCmd}
         disabled={teams.length <= 1}
-        className="px-6 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
+        className="px-6 py-3 bg-loss-bg text-loss hover:bg-loss-bg disabled:opacity-50 disabled:cursor-not-allowed text-xs font-black uppercase tracking-widest rounded-xl transition-colors shadow-sm whitespace-nowrap"
       >
         Delete Team
       </button>
