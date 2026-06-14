@@ -16,6 +16,14 @@
 name: Auto-merge Claude PRs
 
 on:
+  # Reliable trigger: fires when the CI workflow finishes. Unlike check_suite,
+  # workflow_run IS delivered even though CI runs under GITHUB_TOKEN (GitHub
+  # suppresses check_suite/status-style triggers from token-generated events,
+  # which is why auto-merge previously only fired off the third-party Vercel
+  # status and raced CI).
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
   check_suite:
