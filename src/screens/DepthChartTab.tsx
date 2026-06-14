@@ -296,12 +296,6 @@ export const DepthChartTab = memo(() => {
           </div>
           <div>
             <h1 className="t-h1">Depth Chart</h1>
-            <p className="t-eyebrow text-ink-3 mt-0.5">
-              {kidPitch
-                ? "Primary-position kids lead each spot (except Pitcher), then ranked from evals — pitchers by strikes, catchers by glove & arm, fielders by defense."
-                : "Primary-position kids lead each spot, then ranked from evals by field defense."}
-              {canEdit ? " Nudge anyone up or down to adjust." : ""}
-            </p>
           </div>
         </div>
       </div>

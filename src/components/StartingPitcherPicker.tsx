@@ -6,7 +6,6 @@ import {
   getCombinedGrades,
   calcPitcherScore,
   resolvePitchRuleSet,
-  getPitcherPoolSize,
 } from "../lineupEngine";
 
 // Whether a present player is a pitching candidate: explicit "P" in their
@@ -57,7 +56,6 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
   const isKidPitch = /kid/i.test(fmt);
   const gameType = game?.gameType || "league";
   const ctx = CONTEXT[gameType] || CONTEXT.league;
-  const poolSize = getPitcherPoolSize(gameType);
 
   const pitchRules = useMemo(() => resolvePitchRuleSet(team), [team]);
   const combinedGrades = useMemo(
@@ -135,12 +133,8 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           {ctx.label}
         </span>
       </div>
-      <p className="t-body text-ink-3 mb-3">
-        {ctx.tip} Pick a pitcher to roll the projected lineup around them
-        {poolSize ? ` (staff pool: top ${poolSize}).` : "."}
-      </p>
 
-      <div className="flex flex-col">
+      <div className="mt-3 flex flex-col">
         {ranked.map((r, idx) => {
           const isSel = selectedId === r.p.id;
           const isRec = recommendedId === r.p.id;

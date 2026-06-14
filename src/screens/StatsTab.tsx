@@ -520,7 +520,6 @@ export const StatsTab = memo(() => {
         <SectionCard
           icon={Icons.Chart}
           title="Recent Form"
-          subtitle="Last 3 imported game lines per player vs. their season numbers. Import a finalized game's stats from the Schedule."
         >
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
@@ -601,7 +600,6 @@ export const StatsTab = memo(() => {
       <SectionCard
         icon={Icons.Bat}
         title="Player Stats"
-        subtitle="Tap a column to sort; tap a name for the full profile."
       >
         <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
@@ -642,7 +640,6 @@ export const StatsTab = memo(() => {
         <SectionCard
           icon={Icons.Clock}
           title="Bench Equity & Attendance"
-          subtitle="Defensive vs. bench innings across finalized games. + means sitting more than an even split."
         >
           <BenchEquityTable rows={benchRows} onOpen={openPlayerProfile} />
         </SectionCard>

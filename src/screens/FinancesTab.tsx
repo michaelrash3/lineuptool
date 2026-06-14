@@ -623,7 +623,6 @@ export const FinancesTab = memo(() => {
         <SectionCard
           icon={Icons.Clipboard}
           title="Cash Flow"
-          subtitle="Money in (green) and out (red) by month, with the club balance line."
         >
           <div className="pt-4 grid lg:grid-cols-2 gap-6 items-center">
             <CashflowChart months={months} />
@@ -644,7 +643,6 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Users}
         title="Collections — this season"
-        subtitle="Who has paid this year's club fee — partial payments add up per family. Waive the fee for fall-only pickups."
       >
         <div className="py-3 border-b border-line space-y-2">
           {carryoverPendingTotal > 0 && payerCount > 0 && (
@@ -882,7 +880,6 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Wallet}
         title="Ledger"
-        subtitle="Everything received and spent — fees, sponsorships, fundraising, expenses — with the club balance after each."
       >
         <div className="pt-4 space-y-3">
           <form onSubmit={addTransaction} className="flex flex-col sm:flex-row gap-2">
@@ -1304,7 +1301,6 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Clipboard}
         title="Budget Planner — next season"
-        subtitle="Plan the season that starts in the Fall. Planned costs minus pledged sponsorships split into the new club fee — this year's ledger stays separate."
       >
         <div className="p-4 sm:p-5 space-y-3">
           {/* Rough estimate learned from this season's money. Empty planner →
