@@ -49,7 +49,7 @@ export const LoginScreen = ({
           backgroundImage: `url(${logoUrl})`,
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
-          backgroundSize: "min(70vw, 560px)",
+          backgroundSize: "min(85vw, 840px)",
           opacity: 0.07,
         }}
       />

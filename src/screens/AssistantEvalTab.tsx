@@ -177,7 +177,7 @@ export const AssistantEvalTab = memo(() => {
   if (viewingPastRound) {
     return (
       <div className="max-w-5xl mx-auto space-y-4">
-        <div className="glass-card p-5 flex items-center justify-between gap-3">
+        <div className="border-b border-line pb-5 flex items-center justify-between gap-3">
           <div>
             <h2 className="t-h2">Past Round</h2>
             <p className="t-eyebrow text-ink-3 mt-1">
@@ -210,12 +210,12 @@ export const AssistantEvalTab = memo(() => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <div className="glass-card">
+      <div>
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 border-b border-line bg-surface">
+        <div className="px-1 py-4 border-b border-line">
           <h2 className="t-h2 flex items-center gap-3">
             <Icons.Clipboard className="w-6 h-6" /> Evaluation
           </h2>
@@ -226,14 +226,14 @@ export const AssistantEvalTab = memo(() => {
       </div>
 
       {myRounds.length > 0 && (
-        <div className="glass-card p-4">
+        <div className="border-b border-line pb-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="t-h3">Your Past Rounds</h3>
             <span className="t-eyebrow text-ink-3">
               {myRounds.length} round{myRounds.length === 1 ? "" : "s"}
             </span>
           </div>
-          <div className="space-y-1.5">
+          <div className="divide-y divide-line border-t border-line">
             {myRounds.slice(0, 5).map((r: any) => {
               const playerCount = Object.keys(r.grades || {}).length;
               return (
@@ -241,7 +241,7 @@ export const AssistantEvalTab = memo(() => {
                   key={r.id}
                   type="button"
                   onClick={() => setViewingPastRoundId(r.id)}
-                  className="w-full flex items-center justify-between gap-3 px-3 py-2 bg-surface border border-line rounded-lg hover:bg-surface-2 text-left"
+                  className="w-full flex items-center justify-between gap-3 px-1 py-2.5 hover:bg-surface text-left"
                 >
                   <span className="text-sm font-extrabold text-ink tabular-nums">
                     {r.date}
@@ -257,8 +257,8 @@ export const AssistantEvalTab = memo(() => {
         </div>
       )}
 
-      <div className="glass-card overflow-hidden">
-        <div className="px-5 py-3 bg-surface border-b border-line flex gap-2 overflow-x-auto scrollbar-hide">
+      <div>
+        <div className="px-1 py-3 border-b border-line flex gap-2 overflow-x-auto scrollbar-hide">
           {visibleGroups.map((g) => {
             const isActive = activeGroup === g;
             return (
@@ -287,7 +287,7 @@ export const AssistantEvalTab = memo(() => {
           })}
         </div>
 
-        <div className="px-3 sm:px-5 py-4 space-y-3">
+        <div className="px-1 py-4 space-y-3">
           {playersForGroup.length === 0 ? (
             <div className="text-center py-12 text-ink-3 text-sm font-medium">
               {activeGroup === "Pitching"
@@ -314,7 +314,7 @@ export const AssistantEvalTab = memo(() => {
           )}
         </div>
 
-        <div className="bg-surface border-t border-line px-5 py-3 flex items-center justify-end gap-3 sticky bottom-0">
+        <div className="border-t border-line px-1 py-3 flex items-center justify-end gap-3 sticky bottom-0">
           <button
             type="button"
             onClick={handleSave}
