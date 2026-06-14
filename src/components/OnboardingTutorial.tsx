@@ -287,7 +287,7 @@ export const OnboardingTutorial = ({ open, onClose }: { open: boolean; onClose: 
                 style={{
                   width: i === step ? "24px" : "8px",
                   backgroundColor:
-                    i === step ? "var(--team-primary)" : "#cbd5e1",
+                    i === step ? "var(--team-primary)" : "var(--line-strong)",
                 }}
               />
             ))}

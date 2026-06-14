@@ -173,11 +173,11 @@ export const PitcherRankingPanel = memo(() => {
                 </td>
                 <td className="px-3 py-2 text-right">
                   {row.eligibleToday ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-black uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-win-bg border border-line text-win text-[10px] font-black uppercase tracking-widest">
                       Today
                     </span>
                   ) : row.daysUntil != null ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-black uppercase tracking-widest">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-warn-bg border border-line text-warnfg text-[10px] font-black uppercase tracking-widest">
                       +{row.daysUntil}d
                     </span>
                   ) : (

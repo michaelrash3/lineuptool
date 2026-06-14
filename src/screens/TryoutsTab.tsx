@@ -18,9 +18,9 @@ import { auth } from "../firebase";
 
 const STATUS_PILLS = {
   tryout: { label: "Tryout", className: "bg-surface-2 border-line text-ink" },
-  offered: { label: "Offered", className: "bg-amber-50 border-amber-200 text-amber-800" },
-  accepted: { label: "Accepted", className: "bg-emerald-50 border-emerald-200 text-emerald-800" },
-  declined: { label: "Declined", className: "bg-rose-50 border-rose-200 text-rose-800" },
+  offered: { label: "Offered", className: "bg-warn-bg border-line text-warnfg" },
+  accepted: { label: "Accepted", className: "bg-win-bg border-line text-win" },
+  declined: { label: "Declined", className: "bg-loss-bg border-line text-loss" },
 };
 
 const StatusPill = memo(({ status }: any) => {
@@ -204,16 +204,16 @@ const TeamImpactPanel = memo(({ roster }: any) => {
       key: "make",
       title: "Will Make Team",
       sub: `Top ${roster.slotsRemaining} graded — fill open slots`,
-      tone: "bg-emerald-50 border-emerald-200 text-emerald-900",
-      countTone: "text-emerald-700",
+      tone: "bg-win-bg border-line text-win",
+      countTone: "text-win",
       items: roster.makeIt,
     },
     {
       key: "bubble",
       title: "On The Bubble",
       sub: "Need another look before final cuts",
-      tone: "bg-amber-50 border-amber-200 text-amber-900",
-      countTone: "text-amber-700",
+      tone: "bg-warn-bg border-line text-warnfg",
+      countTone: "text-warnfg",
       items: roster.bubble,
     },
     {
@@ -292,7 +292,7 @@ const TeamImpactPanel = memo(({ roster }: any) => {
             </span>
           )}
           {roster.tooOld.length > 0 && (
-            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-amber-50 border border-amber-300 text-amber-800">
+            <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-warn-bg border border-line text-warnfg">
               {roster.tooOld.length} outside age group
             </span>
           )}
@@ -303,11 +303,11 @@ const TeamImpactPanel = memo(({ roster }: any) => {
 });
 
 const BUCKET_BADGES = {
-  make: { label: "Will Make", className: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-  bubble: { label: "Bubble", className: "bg-amber-100 text-amber-800 border-amber-200" },
+  make: { label: "Will Make", className: "bg-win-bg text-win border-line" },
+  bubble: { label: "Bubble", className: "bg-warn-bg text-warnfg border-line" },
   cut: { label: "Likely Cut", className: "bg-surface-2 text-ink-2 border-line" },
   ungraded: { label: "Ungraded", className: "bg-surface text-ink-3 border-line" },
-  tooOld: { label: "Too Old", className: "bg-amber-50 text-amber-700 border-amber-200" },
+  tooOld: { label: "Too Old", className: "bg-warn-bg text-warnfg border-line" },
 };
 
 export const TryoutsTab = memo(() => {
@@ -525,7 +525,7 @@ export const TryoutsTab = memo(() => {
               {(tryoutSignups || []).length} signup
               {(tryoutSignups || []).length === 1 ? "" : "s"}
               {noShowCount > 0 && (
-                <span className="text-rose-600 ml-2">
+                <span className="text-loss ml-2">
                   · {noShowCount} no-show{noShowCount === 1 ? "" : "s"}
                 </span>
               )}
@@ -535,7 +535,7 @@ export const TryoutsTab = memo(() => {
             <button
               type="button"
               onClick={() => setEndTryoutOpen(true)}
-              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition-colors"
+              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-loss hover:opacity-90 rounded-lg transition-opacity"
               title={`Bulk-delete the ${noShowCount} no-show signup${noShowCount === 1 ? "" : "s"}`}
             >
               End Tryout · Clear No-Shows
@@ -599,9 +599,9 @@ export const TryoutsTab = memo(() => {
             return (
               <div
                 key={s.id}
-                className={`bg-surface border rounded-xl shadow-sm overflow-hidden ${
+                className={`bg-surface border rounded-xl overflow-hidden ${
                   presence === false
-                    ? "border-rose-200 bg-rose-50/40"
+                    ? "border-line bg-loss-bg"
                     : "border-line"
                 }`}
               >
@@ -659,8 +659,8 @@ export const TryoutsTab = memo(() => {
                         aria-pressed={presence === true}
                         className={`p-1.5 rounded-md border transition-colors ${
                           presence === true
-                            ? "bg-emerald-100 border-emerald-300 text-emerald-800"
-                            : "bg-surface border-line text-ink-3 hover:text-emerald-600 hover:border-emerald-300"
+                            ? "bg-win-bg border-line text-win"
+                            : "bg-surface border-line text-ink-3 hover:text-win"
                         }`}
                       >
                         <Icons.Check className="w-3.5 h-3.5" />
@@ -676,8 +676,8 @@ export const TryoutsTab = memo(() => {
                         aria-pressed={presence === false}
                         className={`p-1.5 rounded-md border transition-colors ${
                           presence === false
-                            ? "bg-rose-100 border-rose-300 text-rose-800"
-                            : "bg-surface border-line text-ink-3 hover:text-rose-600 hover:border-rose-300"
+                            ? "bg-loss-bg border-line text-loss"
+                            : "bg-surface border-line text-ink-3 hover:text-loss"
                         }`}
                       >
                         <Icons.X className="w-3.5 h-3.5" />
@@ -715,8 +715,8 @@ export const TryoutsTab = memo(() => {
                         }}
                         className={`flex items-center gap-1 rounded-md transition-colors ${
                           armed
-                            ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                            : "p-1.5 text-ink-3 hover:text-red-600 hover:bg-red-50"
+                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-loss"
+                            : "p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg"
                         }`}
                         title={armed ? "Tap again to delete" : "Delete signup"}
                         aria-label={armed ? "Confirm delete signup" : "Delete signup"}
@@ -770,15 +770,15 @@ export const TryoutsTab = memo(() => {
                     )}
 
                     {isHead && impact && impact.positionalFit.length > 0 && (
-                      <div className="bg-surface border border-emerald-200 rounded-lg p-3 text-[11px]">
-                        <div className="font-black uppercase tracking-widest text-emerald-900 text-[10px] mb-1.5">
+                      <div className="bg-surface border border-line rounded-lg p-3 text-[11px]">
+                        <div className="font-black uppercase tracking-widest text-win text-[10px] mb-1.5">
                           Position Fit
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {impact.positionalFit.map((f) => (
                             <span
                               key={f.pos}
-                              className="px-1.5 py-0.5 rounded border bg-emerald-50 border-emerald-200 text-emerald-800 font-black uppercase tracking-widest text-[9px]"
+                              className="px-1.5 py-0.5 rounded border bg-win-bg border-line text-win font-black uppercase tracking-widest text-[9px]"
                             >
                               Fills {f.pos} ({f.returnerCount} returners)
                             </span>
@@ -814,7 +814,7 @@ export const TryoutsTab = memo(() => {
                           <button
                             type="button"
                             onClick={() => sendOfferLetter(s)}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest text-ink bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200"
+                            className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
                           >
                             Make an Offer
                           </button>
@@ -848,7 +848,7 @@ export const TryoutsTab = memo(() => {
             onClose={() => setEndTryoutOpen(false)}
             className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
           >
-            <div className="p-1.5 bg-rose-500" />
+            <div className="p-1.5 bg-loss" />
             <div className="p-5 sm:p-6">
               <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
                 End tryout — clear no-shows?
@@ -885,7 +885,7 @@ export const TryoutsTab = memo(() => {
                       } removed`,
                     });
                   }}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md transition-colors"
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-loss hover:opacity-90 text-white rounded-xl shadow-md transition-opacity"
                 >
                   Delete No-Shows
                 </button>

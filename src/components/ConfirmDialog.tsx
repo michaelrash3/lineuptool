@@ -149,11 +149,12 @@ const DialogShell = ({
                 Enter can't fire a destructive action. */}
             <button
               type="submit"
-              className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-xl shadow-md transition-colors ${
+              className={`px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
                 danger
-                  ? "bg-[var(--danger-600)] hover:bg-[var(--danger-700)]"
-                  : "bg-slate-900 hover:bg-slate-800"
+                  ? "text-white bg-[var(--danger-600)] hover:bg-[var(--danger-700)]"
+                  : "btn-premium"
               }`}
+              style={danger ? undefined : { color: "var(--team-tertiary)" }}
             >
               {opts.confirmLabel || "Confirm"}
             </button>

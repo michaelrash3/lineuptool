@@ -109,7 +109,7 @@ export const OptimalLineupPanel = memo(() => {
           Mark at least 7 players present to preview a lineup.
         </div>
       ) : result?.error ? (
-        <div className="p-5 text-xs font-bold text-rose-600">{result.error}</div>
+        <div className="p-5 text-xs font-bold text-loss">{result.error}</div>
       ) : !result?.battingLineup ? (
         <div className="p-5 text-xs font-bold text-ink-3">
           Couldn't build a lineup with the present players.
@@ -133,7 +133,7 @@ export const OptimalLineupPanel = memo(() => {
                       pos === "Bench"
                         ? "bg-surface-2 border-line text-ink-3"
                         : isPitcher
-                        ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                        ? "bg-win-bg border-line text-win"
                         : "bg-surface border-line-strong text-ink"
                     }`}
                   >

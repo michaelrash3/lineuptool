@@ -27,7 +27,7 @@ describe("ScheduleTab", () => {
         currentRole: "head",
       },
     });
-    expect(screen.getByText("Schedule & Lineups")).toBeInTheDocument();
+    expect(screen.getByText("Schedule")).toBeInTheDocument();
     expect(screen.getByText("No Games Scheduled")).toBeInTheDocument();
   });
 

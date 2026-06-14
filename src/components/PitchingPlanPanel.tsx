@@ -104,7 +104,7 @@ export const PitchingPlanPanel = memo(() => {
                       key={p.id}
                       type="button"
                       onClick={() => openPlayerProfile(p.id)}
-                      className="t-chip px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition-colors whitespace-nowrap"
+                      className="t-chip px-2 py-0.5 rounded-md border bg-win-bg border-line text-win hover:bg-surface-2 transition-colors whitespace-nowrap"
                       title={`Up to ${p.maxPitches} pitches`}
                     >
                       {p.number ? `#${p.number} ` : ""}
@@ -113,7 +113,7 @@ export const PitchingPlanPanel = memo(() => {
                   ))}
                 </div>
               ) : (
-                <div className="text-[11px] font-bold text-rose-600">
+                <div className="text-[11px] font-bold text-loss">
                   No rested arms — everyone needs more rest by this date.
                 </div>
               )}
@@ -124,7 +124,7 @@ export const PitchingPlanPanel = memo(() => {
                       key={p.id}
                       type="button"
                       onClick={() => openPlayerProfile(p.id)}
-                      className="t-chip px-2 py-0.5 rounded-md border bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 transition-colors whitespace-nowrap"
+                      className="t-chip px-2 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg hover:bg-surface-2 transition-colors whitespace-nowrap"
                       title="Resting"
                     >
                       {p.number ? `#${p.number} ` : ""}

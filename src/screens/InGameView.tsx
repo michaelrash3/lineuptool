@@ -113,7 +113,7 @@ export const InGameView = memo(() => {
     // Edge case: someone hit "Start Game" before generating a lineup
     return (
       <div className="fixed inset-0 z-[85] bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center p-6">
-        <div className="bg-surface rounded-2xl shadow-2xl max-w-md w-full p-8 text-center">
+        <div className="bg-surface rounded-2xl shadow-2xl max-w-md w-full p-8 text-center border border-line">
           <Icons.Clipboard className="w-12 h-12 text-ink-3 mx-auto mb-4" />
           <h3 className="text-xl font-black uppercase tracking-tight text-ink mb-2">
             No Lineup Generated
@@ -442,7 +442,7 @@ export const InGameView = memo(() => {
   return (
     <div className="fixed inset-0 z-[85] bg-slate-900 overflow-y-auto">
       {/* Top bar */}
-      <div className="bg-surface shadow-md">
+      <div className="bg-surface border-b border-line">
         <div className="h-1.5" style={{ backgroundColor: primaryColor }} />
         <div className="px-4 py-3 flex items-center justify-between gap-3">
           <button
@@ -491,8 +491,8 @@ export const InGameView = memo(() => {
                   onClick={() => setShowRemoveModal(true)}
                   className={`relative p-2 rounded-lg transition-colors ${
                     removedCount > 0
-                      ? "text-red-700 bg-red-50 hover:bg-red-100"
-                      : "text-ink-2 hover:bg-red-50 hover:text-red-700"
+                      ? "text-loss bg-loss-bg hover:bg-loss-bg"
+                      : "text-ink-2 hover:bg-loss-bg hover:text-loss"
                   }`}
                   aria-label={
                     removedCount > 0
@@ -509,7 +509,7 @@ export const InGameView = memo(() => {
                 >
                   <Icons.Alert className="w-5 h-5" />
                   {removedCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-600 text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-loss text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">
                       {removedCount}
                     </span>
                   )}
@@ -528,7 +528,7 @@ export const InGameView = memo(() => {
           </div>
         </div>
         {!canEdit && (
-          <div className="px-4 py-2 bg-amber-50 border-t border-amber-200 text-center text-[11px] font-black uppercase tracking-widest text-amber-800">
+          <div className="px-4 py-2 bg-warn-bg border-t border-line text-center text-[11px] font-black uppercase tracking-widest text-warnfg">
             View only — head coach controls lineup changes
           </div>
         )}
@@ -670,21 +670,21 @@ export const InGameView = memo(() => {
           };
 
           return (
-            <div className="bg-amber-50/50 border border-amber-200/80 rounded-xl p-3 mb-3 shadow-sm">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-amber-800 mb-2 flex items-center gap-1.5">
+            <div className="bg-warn-bg border border-line rounded-xl p-3 mb-3">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg mb-2 flex items-center gap-1.5">
                 <Icons.Pitch className="w-3.5 h-3.5" />
                 Pitchers
               </div>
               {usedPitcherList.length > 0 && (
                 <div className="mb-2">
-                  <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700 mb-1">
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-warnfg mb-1">
                     Used This Game
                   </div>
                   <div className="flex flex-col gap-1.5">
                     {usedPitcherList.map(({ player, firstInning }) => (
                       <div
                         key={player.id}
-                        className="flex items-center gap-2 bg-surface border border-amber-200 rounded-md px-2 py-1.5"
+                        className="flex items-center gap-2 bg-surface border border-line rounded-md px-2 py-1.5"
                       >
                         <div className="flex-1 min-w-0 flex items-center gap-1.5">
                           <span className="text-[11px] font-bold text-ink truncate">
@@ -705,9 +705,9 @@ export const InGameView = memo(() => {
                               updatePitchCount(player.id, e.target.value)
                             }
                             placeholder="0"
-                            className="w-14 p-1 text-xs font-black text-ink text-center bg-amber-50 border border-amber-300 rounded outline-none focus:ring-1 focus:ring-amber-500 tabular-nums"
+                            className="w-14 p-1 text-xs font-black text-ink text-center bg-surface border border-line rounded outline-none focus:ring-1 focus:ring-[var(--team-primary)] tabular-nums"
                           />
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-amber-700">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-warnfg">
                             P
                           </span>
                         </div>
@@ -717,7 +717,7 @@ export const InGameView = memo(() => {
                 </div>
               )}
               <div>
-                <div className="text-[9px] font-bold uppercase tracking-widest text-amber-700 mb-1">
+                <div className="text-[9px] font-bold uppercase tracking-widest text-warnfg mb-1">
                   Available ({availablePitchers.length})
                 </div>
                 {availablePitchers.length === 0 ? (
@@ -734,7 +734,7 @@ export const InGameView = memo(() => {
                         title={`Make ${player.name} the pitcher for inning ${
                           currentInning + 1
                         }`}
-                        className="text-[11px] font-bold text-emerald-800 bg-surface border border-emerald-200 rounded-md px-2 py-1 hover:bg-emerald-50 hover:border-emerald-400 active:scale-[0.97] transition-all cursor-pointer"
+                        className="text-[11px] font-bold text-win bg-surface border border-line rounded-md px-2 py-1 hover:bg-win-bg hover:border-line-strong active:scale-[0.97] transition-all cursor-pointer"
                       >
                         {player.name}
                       </button>
@@ -758,7 +758,7 @@ export const InGameView = memo(() => {
               })
             }
             title="Share this lineup as a PNG image"
-            className="shrink-0 py-3 px-4 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 bg-surface text-ink border border-line"
+            className="shrink-0 py-3 px-4 text-xs font-black uppercase tracking-widest rounded-xl transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2 bg-surface text-ink border border-line"
           >
             <Icons.Link className="w-4 h-4" /> Share
           </button>
@@ -776,8 +776,8 @@ export const InGameView = memo(() => {
 
       {/* Selection helper */}
       {inGameSelection && (
-        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2.5 text-center">
-          <span className="text-[11px] font-black uppercase tracking-widest text-blue-800">
+        <div className="border-b border-line px-4 py-2.5 text-center" style={{ backgroundColor: "var(--info-bg)" }}>
+          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--info-fg)" }}>
             {inGameSelection.type === "position"
               ? `${inGameSelection.pos} selected`
               : "Bench player selected"}
@@ -788,7 +788,7 @@ export const InGameView = memo(() => {
 
       {/* On-field positions */}
       <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-200 mb-3 px-1">
+        <h3 className="text-[11px] font-black uppercase tracking-widest text-ink-2 mb-3 px-1">
           On Field
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
@@ -810,7 +810,7 @@ export const InGameView = memo(() => {
                 className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                   selected
                     ? "bg-surface ring-4 shadow-lg"
-                    : `bg-surface border-line hover:border-slate-400 active:scale-[0.97] ${
+                    : `bg-surface border-line hover:border-line-strong active:scale-[0.97] ${
                         inGameSelection ? "opacity-50" : ""
                       }`
                 }`}
@@ -851,11 +851,11 @@ export const InGameView = memo(() => {
         </div>
 
         {/* Bench */}
-        <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-200 mb-3 px-1">
+        <h3 className="text-[11px] font-black uppercase tracking-widest text-ink-2 mb-3 px-1">
           Bench ({benchKids.length})
         </h3>
         {benchKids.length === 0 ? (
-          <div className="bg-slate-800 rounded-xl p-6 text-center">
+          <div className="bg-surface-2 rounded-xl p-6 text-center">
             <p className="text-xs font-bold text-ink-3 uppercase tracking-widest">
               No Bench This Inning
             </p>
@@ -872,7 +872,7 @@ export const InGameView = memo(() => {
                   className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
                     selected
                       ? "bg-surface ring-4 shadow-lg"
-                      : `bg-surface-2 border-line hover:border-slate-400 active:scale-[0.97] ${
+                      : `bg-surface-2 border-line hover:border-line-strong active:scale-[0.97] ${
                           inGameSelection ? "opacity-50" : ""
                         }`
                   }`}
@@ -1073,8 +1073,8 @@ export const InGameView = memo(() => {
                         }}
                         className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-colors flex items-center justify-between gap-3 ${
                           armed
-                            ? "bg-red-100 border-2 border-red-400 text-red-900 ring-2 ring-red-200"
-                            : "bg-surface border border-line text-ink hover:bg-red-50 hover:border-red-300 hover:text-red-900"
+                            ? "bg-loss-bg border-2 border-loss text-loss ring-2 ring-loss-bg"
+                            : "bg-surface border border-line text-ink hover:bg-loss-bg hover:border-line-strong hover:text-loss"
                         }`}
                       >
                         <span className="truncate flex-1 min-w-0">
@@ -1082,11 +1082,11 @@ export const InGameView = memo(() => {
                           {p.name}
                         </span>
                         {armed ? (
-                          <span className="text-[10px] font-black uppercase tracking-widest text-red-700 shrink-0 whitespace-nowrap">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-loss shrink-0 whitespace-nowrap">
                             Tap to confirm
                           </span>
                         ) : (
-                          <Icons.Alert className="w-4 h-4 text-red-500 shrink-0" />
+                          <Icons.Alert className="w-4 h-4 text-loss shrink-0" />
                         )}
                       </button>
                     );
@@ -1108,7 +1108,7 @@ export const InGameView = memo(() => {
                           key={`removed-${pid}`}
                           className={`text-xs font-bold px-3 py-2 border rounded-lg flex items-center justify-between gap-2 transition-colors ${
                             armed
-                              ? "bg-emerald-50 border-emerald-300 text-emerald-900"
+                              ? "bg-win-bg border-line text-win"
                               : "bg-app border-line text-ink-3"
                           }`}
                         >
