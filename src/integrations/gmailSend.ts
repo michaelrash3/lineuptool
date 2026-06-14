@@ -21,10 +21,6 @@ const SEND_URL =
 
 let cachedToken: string | null = null;
 
-export const clearGmailToken = (): void => {
-  cachedToken = null;
-};
-
 const isGoogleUser = (user: User | null): boolean => {
   if (!user) return false;
   return (user.providerData || []).some(

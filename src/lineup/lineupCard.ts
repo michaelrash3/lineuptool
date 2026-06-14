@@ -501,10 +501,10 @@ const buildLineupCanvasInternal = ({
   return canvas;
 };
 
-// Public-facing canvas builder. Preloads any player photos (best effort)
-// then renders. Async because Image() loads are async; falls back to
-// initials on any photo load failure.
-export const buildLineupCanvas = async ({
+// Canvas builder. Preloads any player photos (best effort) then renders.
+// Async because Image() loads are async; falls back to initials on any
+// photo load failure.
+const buildLineupCanvas = async ({
   game,
   team,
   formatDate,
@@ -519,7 +519,7 @@ export const buildLineupCanvas = async ({
 };
 
 // PNG blob wrapper — canonical "render" for image-share flows.
-export const renderLineupCard = async ({ game, team, formatDate }: RenderArgs): Promise<Blob | null> => {
+const renderLineupCard = async ({ game, team, formatDate }: RenderArgs): Promise<Blob | null> => {
   const canvas = await buildLineupCanvas({ game, team, formatDate });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
@@ -530,7 +530,7 @@ export const renderLineupCard = async ({ game, team, formatDate }: RenderArgs): 
 // canvas dimensions (in points), so the document renders identically across
 // devices and email clients without browser print quirks. jspdf is loaded
 // lazily so it only enters the bundle when a coach actually downloads a PDF.
-export const renderLineupPdf = async ({ game, team, formatDate }: RenderArgs): Promise<Blob> => {
+const renderLineupPdf = async ({ game, team, formatDate }: RenderArgs): Promise<Blob> => {
   const { jsPDF } = await import("jspdf");
   const canvas = await buildLineupCanvas({ game, team, formatDate });
   const wPt = parseFloat(canvas.style.width) || canvas.width;

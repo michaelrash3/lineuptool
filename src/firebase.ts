@@ -78,9 +78,9 @@ try {
 export const db = _db;
 
 // Cloud Storage is intentionally NOT initialized — the app stays on the
-// Firebase Spark plan, which doesn't include Cloud Storage. Player photos
-// are persisted as 256×256 JPEG data URLs directly on the team document
-// via cropImageTo256DataURL in src/components/shared.jsx.
+// Firebase Spark plan, which doesn't include Cloud Storage. Images (e.g. the
+// team logo) are downscaled to data URLs and persisted inline on the team
+// document via downscaleImageToDataURL in src/components/shared.tsx.
 
 const _hostAppId = (typeof window !== "undefined" && window.__app_id) || null;
 export const appId = _hostAppId || "baseball_lineup_v1";

@@ -212,21 +212,6 @@ export const RecordBadge = memo(
    Design-system primitives — Coach's Card handoff
    ============================================================================ */
 
-export const GlassCard = ({ accent = false, className = "", children, ...rest }: any) => (
-  <div
-    className={`glass-card ${className}`}
-    {...rest}
-  >
-    {accent && (
-      <div
-        className="h-1.5 w-full"
-        style={{ backgroundColor: "var(--team-primary)" }}
-      />
-    )}
-    {children}
-  </div>
-);
-
 export const Eyebrow = ({ className = "", children, ...rest }: any) => (
   <span className={`t-eyebrow ${className}`} {...rest}>
     {children}
@@ -319,56 +304,6 @@ export const PlayerAvatar = memo(
     );
   }
 );
-
-// Off-DOM 256×256 canvas crop helper for photo upload. Used by
-// PlayerProfileModal + AddPlayerModal. Returns a base64 JPEG data URL
-// that's persisted inline on the player record — the app does not use
-// Cloud Storage (Spark-plan compatible), so photos live alongside the
-// rest of the player document in Firestore.
-export const cropImageTo256DataURL = (file: File) =>
-  new Promise((resolve, reject) => {
-    if (!file) return reject(new Error("No file"));
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error("Invalid image"));
-      img.onload = () => {
-        const SIZE = 256;
-        const canvas = document.createElement("canvas");
-        canvas.width = SIZE;
-        canvas.height = SIZE;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return reject(new Error("Canvas unsupported"));
-        // Cover crop: fill the square, center the longer side.
-        const ratio = Math.max(SIZE / img.width, SIZE / img.height);
-        const w = img.width * ratio;
-        const h = img.height * ratio;
-        const x = (SIZE - w) / 2;
-        const y = (SIZE - h) / 2;
-        ctx.fillStyle = "#f1f5f9";
-        ctx.fillRect(0, 0, SIZE, SIZE);
-        ctx.drawImage(img, x, y, w, h);
-        // 0.78 quality keeps a 256×256 JPEG data URL under ~15 KB. Thirty
-        // players × 15 KB ≈ 450 KB inline, comfortably under the Firestore
-        // 1 MB document cap once games + evaluationEvents are also there.
-        try {
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
-          if (!dataUrl || dataUrl === "data:,") {
-            reject(new Error("Canvas export failed"));
-            return;
-          }
-          resolve(dataUrl);
-        } catch (err) {
-          reject(
-            err instanceof Error ? err : new Error("Canvas export failed")
-          );
-        }
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
-  });
 
 // Cache the one-time WebP-encode capability check.
 let _webpEncodeSupport: boolean | null = null;
@@ -473,7 +408,7 @@ export const downscaleImageToDataURL = (
   });
 
 // Pull the dominant colors out of a logo so we can suggest team colors.
-// Mirrors cropImageTo256DataURL's FileReader → Image → <canvas> approach,
+// Uses the same FileReader → Image → <canvas> approach as downscaleImageToDataURL,
 // but instead of re-encoding the image we read its pixels and bucket them.
 //
 // `src` may be a data URL string (uploadLogo already produces one) or a

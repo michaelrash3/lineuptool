@@ -546,13 +546,6 @@ export interface PlayerProfile {
   defensiveScore: number;
 }
 
-// Output of precomputeBenchSchedule(): a per-inning set of who's sitting plus
-// any diagnostic notes about roster-size deficits.
-export interface BenchScheduleResult {
-  benchByInning: Array<Set<string>>;
-  deficitNotes: string[];
-}
-
 // Top-level argument bundle for generateLineup / generateBattingOnly. Stays
 // permissive (lots of optionals) — call sites in App.jsx pass a slightly
 // different shape on each path. Tightening individual fields is an iterative
@@ -641,13 +634,4 @@ export interface EngineResult {
   fairnessRelaxedReason?: string;
   fairnessRelaxedType?: string | null;
   [key: string]: unknown;
-}
-
-// Per-player extra-sit history derived from past games' BENCH usage. Used by
-// the engine's fairness scheduler.
-export interface ExtraSitHistory {
-  defInn: number;
-  benchInn: number;
-  expectedDef: number;
-  gamesAttended: number;
 }
