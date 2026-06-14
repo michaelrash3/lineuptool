@@ -6,7 +6,6 @@ import { getPlayerInitials } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
-import { OptimalLineupPanel } from "../components/OptimalLineupPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
@@ -70,7 +69,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
 
   return (
     <div
-      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch rounded-2xl border border-line overflow-hidden shadow-card transition-all hover:shadow-md ${
+      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch rounded-2xl border border-line overflow-hidden transition-all hover:border-line-strong ${
         absent ? "bg-surface-2 opacity-85" : "bg-surface"
       }`}
     >
@@ -135,7 +134,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             </button>
             <span
               className={`w-2 h-2 rounded-full shrink-0 ${
-                absent ? "bg-ink-3" : "bg-emerald-500"
+                absent ? "bg-ink-3" : "bg-win"
               }`}
               style={{
                 boxShadow: absent
@@ -297,12 +296,12 @@ export const RosterTab = memo(() => {
       <PitcherRankingPanel />
       <PitchingPlanPanel />
       <ArmCarePanel />
-      <div className="glass-card">
+      <div className="border-b border-line pb-6">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border-b border-line">
+        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
           <div className="flex items-center gap-4">
             <div
               className="p-2.5 rounded-full"
@@ -331,18 +330,15 @@ export const RosterTab = memo(() => {
             <button
               type="button"
               onClick={() => setIsAddingPlayer(true)}
-              className="flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl shadow-md hover:-translate-y-0.5 transition-transform"
-              style={{
-                backgroundColor: "var(--team-primary)",
-                color: "var(--team-tertiary)",
-              }}
+              className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
+              style={{ color: "var(--team-tertiary)" }}
             >
               <Icons.UserPlus className="w-4 h-4" /> Add Player
             </button>
           )}
         </div>
         {players.length > 0 && (
-          <div className="px-4 sm:px-6 pt-4 pb-3 bg-surface border-b border-line space-y-3">
+          <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-line space-y-3">
             <div className="relative">
               <Icons.User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
               <input
@@ -410,7 +406,7 @@ export const RosterTab = memo(() => {
         )}
         <div className="p-4 sm:p-6">
           {players.length === 0 ? (
-            <div className="text-center py-20 bg-surface border border-line shadow-sm rounded-2xl">
+            <div className="text-center py-20 border border-line rounded-2xl">
               {logoUrl ? (
                 <img
                   src={logoUrl}
@@ -429,7 +425,7 @@ export const RosterTab = memo(() => {
               </p>
             </div>
           ) : visiblePlayers.length === 0 ? (
-            <div className="text-center py-12 bg-surface border border-line shadow-sm rounded-2xl">
+            <div className="text-center py-12 border border-line rounded-2xl">
               <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />
               <p className="t-body max-w-sm mx-auto">
                 No players match the current filter — clear to see the full
@@ -461,9 +457,6 @@ export const RosterTab = memo(() => {
           )}
         </div>
       </div>
-      {/* Below the roster: the lineup snapshot is secondary to managing the
-          roster itself, so the player list keeps the top of the page. */}
-      <OptimalLineupPanel />
     </div>
   );
 });

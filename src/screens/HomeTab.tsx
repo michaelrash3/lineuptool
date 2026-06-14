@@ -1117,143 +1117,132 @@ export const HomeTab = memo(() => {
         />
       )}
 
-      {/* ===== Scoreboard hero — record, form, run splits ===== */}
-      <div
-        className="relative overflow-hidden rounded-3xl text-white"
-        style={{
-          background:
-            "linear-gradient(150deg, color-mix(in srgb, var(--team-primary) 90%, #0a0e16), color-mix(in srgb, var(--team-primary) 58%, #0a0e16) 100%)",
-          boxShadow:
-            "var(--glow-primary), inset 0 1px 0 rgba(255,255,255,0.10), inset 0 0 0 1px rgba(255,255,255,0.05)",
-        }}
-      >
-        {/* Fine diagonal sheen for depth — subtle, not the generic glossy wash. */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-60"
-          style={{
-            background:
-              "radial-gradient(120% 120% at 100% 0%, rgba(255,255,255,0.10), transparent 45%)",
-          }}
-        />
-        <div className="p-6 sm:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-[0.2em] opacity-80">
-                {activeTeamName}
-              </div>
-              <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2">
-                <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl">
-                  <AnimatedNumber value={record.wins} />
-                  <span className="opacity-50">–</span>
-                  <AnimatedNumber value={record.losses} />
-                  {record.ties > 0 && (
-                    <>
-                      <span className="opacity-50">–</span>
-                      <AnimatedNumber value={record.ties} />
-                    </>
-                  )}
-                </span>
-                {seasonHero.finalsCount > 0 && (
-                  <span className="text-[11px] font-black uppercase tracking-widest opacity-85 leading-tight">
-                    {seasonHero.winPctStr}
-                    <br />
-                    win pct
-                  </span>
-                )}
-              </div>
-              {/* Record split by pitching format — shown only when the team has
-                  played BOTH (otherwise it just repeats the combined record). */}
-              {!stripped && (() => {
-                const bf = (record as any).byFormat;
-                const has = (r: any) =>
-                  r && r.wins + r.losses + r.ties > 0;
-                const fmt = (r: any) =>
-                  r.ties > 0
-                    ? `${r.wins}–${r.losses}–${r.ties}`
-                    : `${r.wins}–${r.losses}`;
-                if (!bf || !has(bf.kidPitch) || !has(bf.machine)) return null;
-                return (
-                  <div className="flex flex-wrap items-center gap-2 mt-3">
-                    <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-md bg-white/15">
-                      Kid Pitch {fmt(bf.kidPitch)}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-md bg-white/15">
-                      Machine/Coach {fmt(bf.machine)}
-                    </span>
-                  </div>
-                );
-              })()}
+      {/* ===== Season scoreboard — open/fluid, matches the dashboard ===== */}
+      <div className="relative pb-7 border-b border-line">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span
+                className="block h-3.5 w-1 rounded-sm"
+                style={{ backgroundColor: "var(--team-primary)" }}
+              />
+              <span className="t-eyebrow text-ink-3">{activeTeamName}</span>
             </div>
-            <div className="text-right shrink-0">
-              <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
-                Season
-              </div>
-              <div className="text-sm font-black uppercase tracking-wide mt-1">
-                {currentSeason}
-              </div>
-              <div className="text-[10px] font-bold uppercase tracking-widest opacity-80 mt-1">
-                {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
-              </div>
+            <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2.5">
+              <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl text-ink">
+                <AnimatedNumber value={record.wins} />
+                <span className="text-ink-3">–</span>
+                <AnimatedNumber value={record.losses} />
+                {record.ties > 0 && (
+                  <>
+                    <span className="text-ink-3">–</span>
+                    <AnimatedNumber value={record.ties} />
+                  </>
+                )}
+              </span>
+              {seasonHero.finalsCount > 0 && (
+                <span className="text-[11px] font-black uppercase tracking-widest leading-tight text-team-primary">
+                  {seasonHero.winPctStr}
+                  <br />
+                  win pct
+                </span>
+              )}
+            </div>
+            {/* Record split by pitching format — shown only when the team has
+                played BOTH (otherwise it just repeats the combined record). */}
+            {!stripped && (() => {
+              const bf = (record as any).byFormat;
+              const has = (r: any) =>
+                r && r.wins + r.losses + r.ties > 0;
+              const fmt = (r: any) =>
+                r.ties > 0
+                  ? `${r.wins}–${r.losses}–${r.ties}`
+                  : `${r.wins}–${r.losses}`;
+              if (!bf || !has(bf.kidPitch) || !has(bf.machine)) return null;
+              return (
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
+                    Kid Pitch {fmt(bf.kidPitch)}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
+                    Machine/Coach {fmt(bf.machine)}
+                  </span>
+                </div>
+              );
+            })()}
+          </div>
+          <div className="text-right shrink-0">
+            <div className="t-eyebrow text-ink-3">Season</div>
+            <div className="text-sm font-black uppercase tracking-wide mt-1 text-ink">
+              {currentSeason}
+            </div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3 mt-1">
+              {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
             </div>
           </div>
-
-          {!stripped && seasonHero.form.length > 0 && (
-            <div className="flex items-center gap-1.5 mt-5">
-              <span className="text-[9px] font-extrabold uppercase tracking-widest opacity-75 mr-1">
-                Form
-              </span>
-              {seasonHero.form.map((r: any, i: any) => (
-                <span
-                  key={i}
-                  className={`w-6 h-6 rounded grid place-items-center text-[10px] font-black ${
-                    r === "W" ? "bg-white" : "bg-black/25"
-                  }`}
-                  style={
-                    r === "W" ? { color: "var(--team-primary-2)" } : undefined
-                  }
-                >
-                  {r}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {stripped ? (
-            <div className="mt-4 pt-3 border-t border-white/20 text-[11px] font-black uppercase tracking-widest tabular-nums opacity-85">
-              Run diff {seasonHero.diff >= 0 ? "+" : ""}
-              {Math.round(seasonHero.diff)} · Roster {players.length}
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-white/20">
-              {[
-                { k: "Runs For", v: seasonHero.runsFor },
-                { k: "Against", v: seasonHero.runsAgainst },
-                {
-                  k: "Run Diff",
-                  v: seasonHero.diff,
-                  format: (n: number) =>
-                    `${n >= 0 ? "+" : ""}${Math.round(n)}`,
-                },
-                { k: "Roster", v: players.length },
-              ].map((s: any) => (
-                <div key={s.k}>
-                  <div className="text-[9px] font-extrabold uppercase tracking-widest opacity-75">
-                    {s.k}
-                  </div>
-                  <div className="text-2xl font-black tabular-nums leading-none mt-1.5">
-                    <AnimatedNumber value={s.v} format={s.format} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {!stripped && pitchingFormat && (
-            <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-white/15 px-2.5 py-1 rounded">
-              {pitchingFormat}
-            </div>
-          )}
         </div>
+
+        {!stripped && seasonHero.form.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-5">
+            <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mr-1">
+              Form
+            </span>
+            {seasonHero.form.map((r: any, i: any) => (
+              <span
+                key={i}
+                className={`w-6 h-6 rounded-sm grid place-items-center text-[10px] font-black ${
+                  r === "W" ? "" : "bg-surface-2 border border-line text-ink-3"
+                }`}
+                style={
+                  r === "W"
+                    ? {
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                      }
+                    : undefined
+                }
+              >
+                {r}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {stripped ? (
+          <div className="mt-4 pt-3 border-t border-line text-[11px] font-black uppercase tracking-widest tabular-nums text-ink-2">
+            Run diff {seasonHero.diff >= 0 ? "+" : ""}
+            {Math.round(seasonHero.diff)} · Roster {players.length}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-line">
+            {[
+              { k: "Runs For", v: seasonHero.runsFor },
+              { k: "Against", v: seasonHero.runsAgainst },
+              {
+                k: "Run Diff",
+                v: seasonHero.diff,
+                format: (n: number) =>
+                  `${n >= 0 ? "+" : ""}${Math.round(n)}`,
+              },
+              { k: "Roster", v: players.length },
+            ].map((s: any) => (
+              <div key={s.k}>
+                <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                  {s.k}
+                </div>
+                <div className="text-2xl font-black tabular-nums leading-none mt-1.5 text-ink">
+                  <AnimatedNumber value={s.v} format={s.format} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!stripped && pitchingFormat && (
+          <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-surface-2 border border-line text-ink-2 px-2.5 py-1 rounded-sm">
+            {pitchingFormat}
+          </div>
+        )}
       </div>
 
       {/* Coaches */}

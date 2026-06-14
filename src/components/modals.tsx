@@ -75,7 +75,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           {ranges.map((r) => (
             <span
               key={r.from}
-              className="t-chip pl-2 pr-1 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-900 tabular-nums inline-flex items-center gap-1"
+              className="t-chip pl-2 pr-1 py-1 rounded-md bg-warn-bg border border-line text-warnfg tabular-nums inline-flex items-center gap-1"
             >
               {r.from === r.to
                 ? formatGameDateDisplay(r.from)
@@ -92,7 +92,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
                     absences: removeAbsenceDates(player.absences, r.dates),
                   })
                 }
-                className="p-0.5 rounded hover:bg-amber-100 text-amber-700"
+                className="p-0.5 rounded hover:bg-warn-bg text-warnfg"
               >
                 <Icons.X className="w-3 h-3" />
               </button>
@@ -124,8 +124,8 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           disabled={!fromDate}
           aria-label={`Add absence for ${player.name}`}
           onClick={addRange}
-          className="px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest text-white disabled:opacity-50 transition-opacity"
-          style={{ backgroundColor: "var(--team-primary)" }}
+          className="px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
+          style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
         >
           Add
         </button>
@@ -406,7 +406,7 @@ const PastSeasonForm = memo(
     });
 
     return (
-      <div className="bg-surface border-2 border-blue-200 rounded-xl p-4 shadow-md mb-3">
+      <div className="bg-surface border-2 border-line-strong rounded-xl p-4 shadow-md mb-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           <div>
             <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
@@ -474,7 +474,7 @@ const PastSeasonForm = memo(
             <button
               type="button"
               onClick={onDelete}
-              className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-surface border border-red-200 text-red-700 rounded-lg hover:bg-red-50 transition-colors shadow-sm mr-auto"
+              className="text-[10px] font-black uppercase tracking-widest px-4 py-2 bg-loss-bg border border-line text-loss rounded-lg hover:opacity-90 transition-opacity shadow-sm mr-auto"
             >
               Delete
             </button>
@@ -1019,7 +1019,7 @@ export const PlayerProfileModal = memo(() => {
                         }}
                         className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-md border transition-all ${
                           allOn
-                            ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                            ? "bg-win-bg border-line text-win"
                             : "bg-surface border-line-strong text-ink hover:bg-surface-2"
                         }`}
                       >
@@ -1055,7 +1055,7 @@ export const PlayerProfileModal = memo(() => {
                         }
                         className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
                           active
-                            ? "bg-emerald-50 border-emerald-300 text-emerald-800 shadow-sm"
+                            ? "bg-win-bg border-line text-win shadow-sm"
                             : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
                         }`}
                       >
@@ -1516,12 +1516,12 @@ export const PlayerProfileModal = memo(() => {
                                 </span>
                                 {g.result && (
                                   <span
-                                    className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded tabular-nums ${
+                                    className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded tabular-nums border border-line ${
                                       g.result === "W"
-                                        ? "bg-green-100 text-green-800"
+                                        ? "bg-win-bg text-win"
                                         : g.result === "L"
-                                        ? "bg-red-100 text-red-800"
-                                        : "bg-amber-100 text-amber-800"
+                                        ? "bg-loss-bg text-loss"
+                                        : "bg-warn-bg text-warnfg"
                                     }`}
                                   >
                                     {g.result} {g.score}
@@ -1785,10 +1785,10 @@ export const PlayerProfileModal = memo(() => {
               onClick={() =>
                 updatePlayer(player.id, { present: player.present === false })
               }
-              className={`text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-colors shadow-sm border ${
+              className={`text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line ${
                 player.present === false
-                  ? "bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
-                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200"
+                  ? "bg-win-bg hover:opacity-90 text-win"
+                  : "bg-warn-bg hover:opacity-90 text-warnfg"
               }`}
             >
               {player.present === false ? "MARK ACTIVE" : "MARK INACTIVE"}
@@ -1798,7 +1798,7 @@ export const PlayerProfileModal = memo(() => {
             
               <button
                 onClick={() => removePlayer(player.id)}
-                className="text-[10px] font-black uppercase tracking-widest bg-surface border border-red-200 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl shadow-sm transition-colors flex items-center gap-2"
+                className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line text-loss hover:opacity-90 px-4 py-2.5 rounded-xl shadow-sm transition-opacity flex items-center gap-2"
               >
                 <Icons.Trash className="w-3.5 h-3.5" /> Delete
               </button>

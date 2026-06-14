@@ -195,9 +195,9 @@ const StatsTable = memo(
     return (
       <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-          <thead className="bg-app sticky top-0 z-10">
+          <thead className="bg-surface-2 sticky top-0 z-10">
             <tr>
-              <th className="p-2.5 t-eyebrow text-left sticky left-0 bg-app z-20 border-r border-line">
+              <th className="p-2.5 t-eyebrow text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
                 Player
               </th>
               {allCols.map((col) => {
@@ -282,7 +282,7 @@ const BenchEquityTable = memo(({ rows, onOpen }: any) => {
   return (
     <div className="overflow-x-auto custom-scrollbar">
       <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-        <thead className="bg-app">
+        <thead className="bg-surface-2 text-ink-2">
           <tr>
             <th className="p-2.5 t-eyebrow text-left">Player</th>
             <th className="p-2.5 t-eyebrow text-center">GP</th>
@@ -333,12 +333,8 @@ const BenchEquityTable = memo(({ rows, onOpen }: any) => {
 });
 
 const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
-  <div className="glass-card">
-    <div
-      className="h-1.5 w-full"
-      style={{ backgroundColor: "var(--team-primary)" }}
-    />
-    <div className="p-4 sm:p-5 border-b border-line bg-surface flex items-center gap-3">
+  <div className="border-b border-line pb-6">
+    <div className="px-1 py-4 flex items-center gap-3">
       <div
         className="p-2 rounded-full shrink-0"
         style={{ backgroundColor: "var(--team-primary-15)" }}
@@ -488,7 +484,7 @@ export const StatsTab = memo(() => {
       {/* Arm-care overuse banner — pulled up to the top so a coach sees it
           before anything else. Kid-Pitch head coaches only. */}
       {armAlerts.length > 0 && (
-        <div className="glass-card border-l-4 border-l-amber-500">
+        <div className="glass-card border-l-4 border-l-warnfg">
           <div className="p-4 sm:p-5 bg-warn-bg flex items-start gap-3">
             <Icons.Alert className="w-5 h-5 text-warnfg shrink-0 mt-0.5" />
             <div className="min-w-0">
@@ -528,7 +524,7 @@ export const StatsTab = memo(() => {
         >
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-              <thead className="bg-app">
+              <thead className="bg-surface-2 text-ink-2">
                 <tr>
                   <th className="p-2.5 t-eyebrow text-left">Player</th>
                   <th className="p-2.5 t-eyebrow text-center">Games</th>
@@ -607,7 +603,7 @@ export const StatsTab = memo(() => {
         title="Player Stats"
         subtitle="Tap a column to sort; tap a name for the full profile."
       >
-        <div className="px-4 sm:px-5 py-3 border-b border-line bg-surface flex flex-wrap gap-2">
+        <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
             const on = c.id === category;
             return (

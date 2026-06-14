@@ -283,12 +283,8 @@ export const DepthChartTab = memo(() => {
 
   return (
     <div className="space-y-6">
-      <div className="glass-card">
-        <div
-          className="h-1.5 w-full"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-        <div className="p-5 border-b border-line bg-surface flex items-center gap-3">
+      <div className="border-b border-line pb-6">
+        <div className="px-1 py-4 flex items-center gap-3">
           <div
             className="p-2 rounded-full"
             style={{ backgroundColor: "var(--team-primary-15)" }}

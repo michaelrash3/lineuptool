@@ -363,8 +363,8 @@ export const ScheduleTab = memo(() => {
 
     return (
       <div className="space-y-6">
-        <div className="bg-surface shadow-sm border border-line print:hidden rounded-2xl overflow-hidden">
-          <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line bg-surface">
+        <div className="border-b border-line pb-6 print:hidden">
+          <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSelectedGameId(null)}
@@ -416,11 +416,8 @@ export const ScheduleTab = memo(() => {
                 <>
                   <button
                     onClick={() => generateLineup()}
-                    className="shrink-0 py-3 px-6 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-transform hover:-translate-y-0.5 rounded-xl shadow-md text-xs"
-                    style={{
-                      backgroundColor: primaryColor,
-                      color: tertiaryColor,
-                    }}
+                    className="btn-premium shrink-0 py-3 px-6 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-transform hover:-translate-y-0.5 rounded-xl text-xs"
+                    style={{ color: "var(--team-tertiary)" }}
                   >
                     <Icons.Settings className="w-4 h-4" /> Build Lineup
                   </button>
@@ -697,7 +694,7 @@ export const ScheduleTab = memo(() => {
                   updateGame(selectedGameId, { isScrimmage: !isScrimmage })
                 }
                 className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                  isScrimmage ? "bg-[var(--team-primary)]" : "bg-slate-300"
+                  isScrimmage ? "bg-[var(--team-primary)]" : "bg-line"
                 }`}
                 aria-label="Toggle scrimmage"
               >
@@ -724,7 +721,7 @@ export const ScheduleTab = memo(() => {
             {/* Big Game toggle — when ON, the engine builds the strongest
                 possible defense (premium positions get strong players) and
                 automatically ignores seasonal fairness. */}
-            <div className="bg-yellow-50/80 border border-yellow-300 rounded-xl p-3 mt-3 flex items-center gap-3">
+            <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() =>
@@ -733,7 +730,7 @@ export const ScheduleTab = memo(() => {
                   })
                 }
                 className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                  isBigGame ? "bg-yellow-500" : "bg-slate-300"
+                  isBigGame ? "bg-warnfg" : "bg-line"
                 }`}
                 aria-label="Toggle big game"
               >
@@ -771,8 +768,8 @@ export const ScheduleTab = memo(() => {
                   isBigGame
                     ? "bg-line cursor-not-allowed"
                     : applySeasonalFairness
-                    ? "bg-win-bg0"
-                    : "bg-slate-300"
+                    ? "bg-win"
+                    : "bg-line"
                 }`}
                 aria-label="Toggle even out playing time"
               >
@@ -1460,7 +1457,7 @@ export const ScheduleTab = memo(() => {
             />
           </div>
           <h2 className="text-xl font-black text-ink uppercase tracking-wider flex items-center gap-3">
-            Schedule & Lineups
+            Schedule
           </h2>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">

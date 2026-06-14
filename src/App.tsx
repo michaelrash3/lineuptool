@@ -3313,8 +3313,8 @@ const MainShell = () => {
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
@@ -3322,8 +3322,8 @@ const MainShell = () => {
       ]
     : [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
+        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
         { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),

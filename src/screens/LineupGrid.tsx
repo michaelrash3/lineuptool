@@ -112,7 +112,7 @@ export const LineupGrid = memo(
                     }`}
                     className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl border text-left transition-all min-h-[56px] ${
                       sel
-                        ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md"
+                        ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md"
                         : pAtPos
                         ? "bg-surface border-line text-ink active:bg-app"
                         : "bg-surface border-dashed border-line-strong text-ink-3 active:bg-surface"
@@ -163,7 +163,7 @@ export const LineupGrid = memo(
                         aria-pressed={sel}
                         className={`px-3 py-2 text-sm font-bold border rounded-lg transition-all min-h-[44px] ${
                           sel
-                            ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md"
+                            ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md"
                             : "bg-surface border-line text-ink active:bg-app"
                         }`}
                       >
@@ -225,7 +225,7 @@ export const LineupGrid = memo(
                           }`}
                           className={`w-full p-3 text-xs font-bold text-center rounded-lg cursor-pointer transition-all border ${
                             isSelected
-                              ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 shadow-md scale-105 z-20 relative"
+                              ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md scale-105 z-20 relative"
                               : pAtPos
                               ? "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
                               : "bg-surface border-dashed border-line-strong text-ink-3 hover:bg-surface"
@@ -262,7 +262,7 @@ export const LineupGrid = memo(
                             aria-pressed={isSelected}
                             className={`text-[11px] print:p-0 px-3 py-2 border font-bold w-full text-center truncate rounded-lg shadow-sm transition-all cursor-pointer ${
                               isSelected
-                                ? "ring-2 ring-yellow-400 bg-yellow-50 text-yellow-900 border-yellow-400 scale-105 z-20 relative"
+                                ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg scale-105 z-20 relative"
                                 : "bg-surface border-line text-ink-2 hover:bg-surface-2 hover:border-line-strong"
                             }`}
                           >

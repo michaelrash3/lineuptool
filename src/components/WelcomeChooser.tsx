@@ -142,7 +142,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
           {error && (
             <div
               role="alert"
-              className="mb-5 px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold"
+              className="mb-5 px-3 py-2 rounded-lg bg-loss-bg border border-line text-loss text-xs font-bold"
             >
               {error}
             </div>
@@ -356,7 +356,8 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
                   type="button"
                   disabled={signingOut}
                   onClick={performSignOut}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
+                  className="btn-premium px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
+                  style={{ color: "var(--team-tertiary)" }}
                 >
                   {signingOut ? (
                     <>

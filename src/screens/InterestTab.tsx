@@ -43,13 +43,9 @@ export const InterestTab = memo(() => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
-      <div className="glass-card">
-        <div
-          className="h-1.5 w-full"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-        <div className="p-5 border-b border-line bg-surface">
+    <div className="max-w-3xl mx-auto space-y-6">
+      <div>
+        <div className="border-b border-line pb-5">
           <h2 className="t-h2 flex items-center gap-3">
             <Icons.Users className="w-6 h-6" /> Player Interest
           </h2>
@@ -59,7 +55,7 @@ export const InterestTab = memo(() => {
             lead into the active tryout list.
           </p>
         </div>
-        <div className="p-4 sm:p-5 space-y-3">
+        <div className="pt-5 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
             <input
               type="text"
@@ -167,8 +163,8 @@ export const InterestTab = memo(() => {
                         }}
                         className={`flex items-center justify-center gap-1 rounded-md transition-colors ${
                           armed
-                            ? "px-2 py-1 bg-red-100 text-red-800 ring-2 ring-red-300"
-                            : "px-2 py-1 text-ink-3 hover:text-red-600 hover:bg-red-50 border border-line"
+                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-loss"
+                            : "px-2 py-1 text-ink-3 hover:text-loss hover:bg-loss-bg border border-line"
                         }`}
                         title={armed ? "Tap again to delete" : "Delete this lead"}
                         aria-label={armed ? "Confirm delete" : "Delete lead"}
