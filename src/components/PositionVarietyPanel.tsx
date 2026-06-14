@@ -40,12 +40,8 @@ export const PositionVarietyPanel = memo(() => {
   };
 
   return (
-    <div className="glass-card mb-6">
-      <div
-        className="h-1.5 w-full"
-        style={{ backgroundColor: "var(--team-primary)" }}
-      />
-      <div className="p-5 border-b border-line bg-surface flex items-center justify-between gap-3">
+    <div className="mb-6">
+      <div className="pb-3 mb-2 border-b border-line flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
             className="p-2 rounded-full"
@@ -65,7 +61,7 @@ export const PositionVarietyPanel = memo(() => {
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-surface">
+          <thead className="bg-surface-2">
             <tr className="text-[10px] font-black uppercase tracking-widest text-ink-3">
               <th className="px-3 py-2">Player</th>
               <th className="px-3 py-2">Positions played (innings)</th>
