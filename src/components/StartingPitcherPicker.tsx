@@ -9,10 +9,15 @@ import {
   getPitcherPoolSize,
 } from "../lineupEngine";
 
-const ageNumOf = (age: string | undefined): number => {
-  const nums = (age || "").match(/\d+/g);
-  if (!nums || nums.length === 0) return 8;
-  return parseInt(nums[nums.length - 1], 10);
+// Whether a present player is a pitching candidate: explicit "P" in their
+// comfortable positions, else (legacy) not restricted from P, else allow —
+// so an ungraded/unconfigured roster still surfaces options to pick from.
+const canPitch = (p: any): boolean => {
+  const list = Array.isArray(p?.comfortablePositions) ? p.comfortablePositions : null;
+  if (list && list.length > 0) return list.includes("P");
+  const restr = Array.isArray(p?.restrictions) ? p.restrictions : [];
+  if (restr.length > 0) return !restr.includes("P");
+  return true;
 };
 
 // Strategy copy per game type. Pool/League spread the staff so the aces stay
@@ -47,7 +52,9 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
   const { players, evaluationEvents, teamAge } = team;
 
   const fmt = game?.pitchingFormat || team.pitchingFormat || "";
-  const isKidPitch = /kid/i.test(fmt) && ageNumOf(teamAge) >= 9;
+  // Any Kid Pitch game has a starting pitcher to choose — including 8U Kid
+  // Pitch (USSSA), so this is not gated on age.
+  const isKidPitch = /kid/i.test(fmt);
   const gameType = game?.gameType || "league";
   const ctx = CONTEXT[gameType] || CONTEXT.league;
   const poolSize = getPitcherPoolSize(gameType);
@@ -68,8 +75,14 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     if (!isKidPitch || !combinedGrades || !game) return [];
     const dateStr = game.date;
     const att = currentGameAttendance || {};
-    return ((players || []) as any[])
-      .filter((p) => p && p.present !== false && att[p.id] !== false)
+    const present = ((players || []) as any[]).filter(
+      (p) => p && p.present !== false && att[p.id] !== false
+    );
+    // Pitching candidates among present players; if nobody is marked as a
+    // pitcher, fall back to everyone present so the coach is never stuck.
+    let pool = present.filter(canPitch);
+    if (pool.length === 0) pool = present;
+    return pool
       .map((p) => {
         const g = combinedGrades[p.id] || {};
         const score = calcPitcherScore(g, p.stats, {
@@ -83,7 +96,6 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           recent: p.pitching?.recentPitches || 0,
         };
       })
-      .filter((r) => r.score > 0)
       .sort((a, b) => b.score - a.score);
   }, [isKidPitch, combinedGrades, players, currentGameAttendance, game, teamAge, pitchRules]);
 
