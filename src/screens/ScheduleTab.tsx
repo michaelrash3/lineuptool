@@ -1444,8 +1444,8 @@ export const ScheduleTab = memo(() => {
 
   // Schedule list view
   return (
-    <div className="bg-surface shadow-sm border border-line rounded-2xl overflow-hidden">
-      <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-surface border-b border-line">
+    <div>
+      <div className="pb-4 mb-1 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
         <div className="flex items-center gap-4">
           <div
             className="p-2.5 rounded-full"
@@ -1607,7 +1607,7 @@ export const ScheduleTab = memo(() => {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col gap-2 p-4 sm:p-6 bg-transparent">
+          <div className="flex flex-col">
             {sortedGames.map((game) => {
                 const status = game.status || "scheduled";
                 const isFinal = isGameFinalized(game);
@@ -1644,25 +1644,25 @@ export const ScheduleTab = memo(() => {
                 return (
                   <div
                     key={game.id}
-                    className={`glass-card relative bg-surface transition-all ${
+                    className={`relative border-b border-line transition-colors hover:bg-surface-2 ${
                       isPostponed ? "opacity-60" : ""
                     }`}
                   >
                     {/* Left accent edge highlights today's game. */}
                     <div
-                      className="absolute inset-y-0 left-0 w-1.5"
+                      className="absolute inset-y-0 left-0 w-1"
                       style={{
                         backgroundColor: isToday
                           ? "var(--team-primary)"
                           : "transparent",
                       }}
                     />
-                    <div className="p-5 pl-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="py-3.5 pl-5 pr-1 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div className="flex items-start gap-4 sm:gap-5 min-w-0">
                         {/* Scoreboard-style date block */}
-                        <div className="shrink-0 w-14 text-center rounded-xl border border-line overflow-hidden shadow-sm">
+                        <div className="shrink-0 w-11 text-center rounded-md border border-line overflow-hidden">
                           <div
-                            className="text-[9px] font-black uppercase tracking-widest py-1"
+                            className="text-[8px] font-black uppercase tracking-widest py-0.5"
                             style={{
                               backgroundColor: "var(--team-primary)",
                               color: "var(--team-tertiary)",
@@ -1670,7 +1670,7 @@ export const ScheduleTab = memo(() => {
                           >
                             {mo}
                           </div>
-                          <div className="text-2xl font-black tabular-nums text-ink py-1 bg-surface">
+                          <div className="text-xl font-black tabular-nums text-ink py-0.5 bg-surface">
                             {dnum}
                           </div>
                         </div>
@@ -1687,7 +1687,7 @@ export const ScheduleTab = memo(() => {
                               Today
                             </span>
                           )}
-                          <h3 className="text-lg sm:text-2xl font-black uppercase tracking-tight leading-tight text-ink">
+                          <h3 className="text-base sm:text-lg font-black uppercase tracking-tight leading-tight text-ink">
                             {game.isHome === false ? "@ " : "VS. "}
                             {game.opponent}
                           </h3>
@@ -1770,7 +1770,7 @@ export const ScheduleTab = memo(() => {
                           )}
                         </p>
                         
-                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
                             <label className="inline-flex items-center gap-2 cursor-pointer select-none">
                               <input
                                 type="checkbox"
@@ -1828,7 +1828,7 @@ export const ScheduleTab = memo(() => {
                               setBattingLineup(game.battingLineup || null);
                               setCurrentGameAttendance(game.attendance || {});
                             }}
-                            className="flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
+                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap"
                           >
                             {!canEdit ? (
                               <Icons.Clipboard className="w-4 h-4" />
@@ -1852,7 +1852,7 @@ export const ScheduleTab = memo(() => {
                               setInGameSelection(null);
                               setInGameUndoStack([]);
                             }}
-                            className="flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
+                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
                           >
                             <Icons.Refresh className="w-4 h-4" /> In-Game
                           </button>
@@ -1862,7 +1862,7 @@ export const ScheduleTab = memo(() => {
                             onClick={() =>
                               setScoringGameId(isEnteringScore ? null : game.id)
                             }
-                            className={`flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border whitespace-nowrap ${
+                            className={`flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-colors rounded-xl shadow-sm border whitespace-nowrap ${
                               isFinal
                                 ? "bg-surface text-ink border-line hover:bg-surface-2"
                                 : "text-white border-transparent hover:-translate-y-0.5"
@@ -1882,7 +1882,7 @@ export const ScheduleTab = memo(() => {
                         )}
                         {canEdit && isFinal && (
                           <label
-                            className="flex-1 sm:flex-none min-w-[7rem] text-xs px-3 sm:px-5 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap cursor-pointer"
+                            className="flex-1 sm:flex-none min-w-[6rem] text-xs px-3 sm:px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm whitespace-nowrap cursor-pointer"
                             title="Attach this game's stat line — upload the GameChanger CSV filtered to just this game. Season totals re-sum from your game lines."
                           >
                             <input
