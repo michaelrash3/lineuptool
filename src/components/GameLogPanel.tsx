@@ -16,9 +16,9 @@ export const GameLogPanel = memo(() => {
   if (summary.gamesPlayed === 0) return null;
 
   const resultCls: Record<string, string> = {
-    W: "bg-emerald-100 border-emerald-300 text-emerald-800",
-    L: "bg-rose-100 border-rose-300 text-rose-800",
-    T: "bg-slate-100 border-slate-300 text-slate-700",
+    W: "bg-win-bg border-win text-win",
+    L: "bg-loss-bg border-loss text-loss",
+    T: "bg-surface-2 border-line-strong text-ink-2",
   };
 
   const openGame = (id: string) => {

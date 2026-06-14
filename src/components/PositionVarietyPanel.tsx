@@ -31,11 +31,11 @@ export const PositionVarietyPanel = memo(() => {
 
   const flagFor = (e: any): { label: string; cls: string } | null => {
     if (e.distinctPositions <= 1)
-      return { label: "1 position", cls: "bg-amber-100 border-amber-300 text-amber-800" };
+      return { label: "1 position", cls: "bg-warn-bg border-warnfg text-warnfg" };
     if (e.infieldInnings === 0)
-      return { label: "No infield", cls: "bg-blue-50 border-blue-200 text-blue-700" };
+      return { label: "No infield", cls: "border-[color:var(--info-fg)] text-[color:var(--info-fg)] bg-[color:var(--info-bg)]" };
     if (e.outfieldInnings === 0)
-      return { label: "No outfield", cls: "bg-blue-50 border-blue-200 text-blue-700" };
+      return { label: "No outfield", cls: "border-[color:var(--info-fg)] text-[color:var(--info-fg)] bg-[color:var(--info-bg)]" };
     return null;
   };
 
