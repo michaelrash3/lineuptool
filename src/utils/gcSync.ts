@@ -107,3 +107,85 @@ export const mergeGcEventsIntoGames = (
 
   return { games: added > 0 || updated > 0 ? next : base, added, updated };
 };
+
+// A feed event is a GAME when its SUMMARY has a matchup separator (" @ " /
+// "@ " for away or " vs " for home — same separators parseMatchup keys on).
+// Everything else with "practice" in the SUMMARY is a PRACTICE. Anything that
+// is neither is ignored on import.
+const isGameEvent = (ev: GcEvent): boolean => {
+  if (ev.isHome === true || ev.isHome === false) return true;
+  const s = ev.summary || "";
+  return / @ |@ | vs /i.test(s);
+};
+
+const isPracticeEvent = (ev: GcEvent): boolean =>
+  !isGameEvent(ev) && /practice/i.test(ev.summary || "");
+
+export interface GcPracticeMergeResult {
+  practices: any[];
+  added: number;
+  updated: number;
+}
+
+// Upsert parsed feed events into the existing practices array, matched by the
+// feed UID (practice.gcUid). Mirrors mergeGcEventsIntoGames: only PRACTICE
+// events (see isPracticeEvent) are considered; existing practices are refreshed
+// only when a schedule field changed (so a no-op sync writes nothing), and
+// attendance / drills / environment / planNotes on existing practices are
+// preserved. When both counts are 0 the returned `practices` is reference-equal
+// to the input so callers can skip the write.
+export const mergeGcEventsIntoPractices = (
+  existingPractices: any[],
+  events: GcEvent[]
+): GcPracticeMergeResult => {
+  const base = Array.isArray(existingPractices) ? existingPractices : [];
+  const next = [...base];
+  const idxByUid = new Map<string, number>();
+  next.forEach((p, i) => {
+    if (p?.gcUid) idxByUid.set(p.gcUid, i);
+  });
+
+  let added = 0;
+  let updated = 0;
+  for (const ev of events) {
+    if (!isPracticeEvent(ev)) continue;
+    const fields = {
+      date: ev.startDate,
+      startUtc: ev.startUtc,
+      endUtc: ev.endUtc,
+      location: ev.location || "",
+      gcUid: ev.uid,
+    };
+    const existingIdx = ev.uid ? idxByUid.get(ev.uid) : undefined;
+    if (existingIdx != null) {
+      const p = next[existingIdx];
+      const changed =
+        p.date !== fields.date ||
+        (p.startUtc ?? null) !== (fields.startUtc ?? null) ||
+        (p.endUtc ?? null) !== (fields.endUtc ?? null) ||
+        (p.location || "") !== fields.location;
+      if (changed) {
+        next[existingIdx] = { ...p, ...fields };
+        updated++;
+      }
+    } else {
+      next.push({
+        id: "p-" + Math.random().toString(36).substring(2, 10),
+        ...fields,
+        environment: "outdoor",
+        attendance: {},
+        drills: [],
+        planNotes: "",
+        source: "gamechanger",
+        status: "scheduled",
+      });
+      added++;
+    }
+  }
+
+  return {
+    practices: added > 0 || updated > 0 ? next : base,
+    added,
+    updated,
+  };
+};

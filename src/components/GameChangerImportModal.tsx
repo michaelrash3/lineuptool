@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { type GcEvent } from "../utils/icsParse";
-import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
+import {
+  fetchGcEvents,
+  mergeGcEventsIntoGames,
+  mergeGcEventsIntoPractices,
+} from "../utils/gcSync";
 import { A11yDialog } from "./shared";
 
 // Import / sync a team's schedule from its GameChanger .ics calendar feed.
@@ -75,24 +79,44 @@ export const GameChangerImportModal: React.FC<Props> = ({
 
   const doImport = () => {
     if (!candidates) return;
-    const { games: next, added, updated } = mergeGcEventsIntoGames(
-      existingGames,
-      candidates.map((c) => c.event),
-      {
-        leagueRuleSet: team.leagueRuleSet,
-        pitchingFormat: team.pitchingFormat,
-        defenseSize: team.defenseSize,
-        battingSize: team.battingSize,
-        positionLock: team.positionLock,
-      }
-    );
+    const events = candidates.map((c) => c.event);
+    const {
+      games: nextGames,
+      added: gamesAdded,
+      updated: gamesUpdated,
+    } = mergeGcEventsIntoGames(existingGames, events, {
+      leagueRuleSet: team.leagueRuleSet,
+      pitchingFormat: team.pitchingFormat,
+      defenseSize: team.defenseSize,
+      battingSize: team.battingSize,
+      positionLock: team.positionLock,
+    });
+    const existingPractices: any[] = Array.isArray(team?.practices)
+      ? team.practices
+      : [];
+    const {
+      practices: nextPractices,
+      added: practicesAdded,
+      updated: practicesUpdated,
+    } = mergeGcEventsIntoPractices(existingPractices, events);
 
-    updateTeam({ games: next, gcCalendarUrl: url.trim() });
+    updateTeam({
+      games: nextGames,
+      practices: nextPractices,
+      gcCalendarUrl: url.trim(),
+    });
+    const addedTotal = gamesAdded + practicesAdded;
+    const updatedTotal = gamesUpdated + practicesUpdated;
     toast.push({
       kind: "success",
       title: "Schedule imported",
-      message: `${added} added, ${updated} updated from GameChanger.`,
+      message:
+        `${gamesAdded} game${gamesAdded === 1 ? "" : "s"}, ` +
+        `${practicesAdded} practice${practicesAdded === 1 ? "" : "s"} added` +
+        (updatedTotal > 0 ? ` · ${updatedTotal} updated` : "") +
+        ` from GameChanger.`,
     });
+    void addedTotal;
     onClose();
   };
 

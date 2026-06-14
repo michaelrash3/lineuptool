@@ -213,6 +213,7 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   players: [],
   coaches: [],
   games: [],
+  practices: [],
   evaluationEvents: [],
   evalSchemaVersion: EVAL_SCHEMA_VERSION,
   leagueRuleSet: "USSSA",
