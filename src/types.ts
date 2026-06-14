@@ -157,6 +157,38 @@ export interface Game {
   [key: string]: unknown;
 }
 
+// A single drill the coach logged for a practice — what was worked on, plus
+// optional notes and how many minutes it ran. Lives on Practice.drills so the
+// coach can recall later what was practiced.
+export interface DrillLogEntry {
+  id: string;
+  name: string;
+  notes?: string;
+  minutes?: number;
+}
+
+// A scheduled (or completed) team practice. Manually created or imported from
+// a GameChanger calendar feed (source/gcUid mirror Game). attendance keys are
+// player ids → present(true)/absent(false), defaulting to present when absent
+// from the map. environment drives the indoor/outdoor practice-plan
+// suggestions.
+export interface Practice {
+  id: string;
+  date: string; // YYYY-MM-DD
+  // ISO instants for timed feed events; null/absent for all-day or manual
+  // practices with no clock time.
+  startUtc?: string | null;
+  endUtc?: string | null;
+  location?: string;
+  environment?: "indoor" | "outdoor";
+  attendance?: Record<string, boolean>;
+  drills?: DrillLogEntry[];
+  planNotes?: string;
+  source?: "manual" | "gamechanger";
+  gcUid?: string;
+  status?: "scheduled" | "cancelled";
+}
+
 export interface TryoutSignup {
   id: string;
   submittedAt: string;
@@ -208,6 +240,7 @@ export interface Team {
   logoUrl?: string;
   players?: Player[];
   games?: Game[];
+  practices?: Practice[];
   // Tryouts (PR M)
   tryoutShareId?: string;
   tryoutsOpen?: boolean;

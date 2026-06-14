@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 const TAB_TO_PATH: Record<string, string> = {
   home: "/",
   schedule: "/schedule",
+  practices: "/practices",
   roster: "/roster",
   stats: "/stats",
   depthChart: "/depth-chart",
@@ -46,11 +47,11 @@ export const useMainShellRouting = ({
     () =>
       isAssistant
         ? tryoutsOpen
-          ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation"]
-          : ["home", "schedule", "roster", "stats", "depthChart", "evaluation"]
+          ? ["home", "roster", "schedule", "practices", "stats", "depthChart", "tryouts", "evaluation"]
+          : ["home", "roster", "schedule", "practices", "stats", "depthChart", "evaluation"]
         : tryoutsOpen
-        ? ["home", "schedule", "roster", "stats", "depthChart", "tryouts", "evaluation", "finances", "settings"]
-        : ["home", "schedule", "roster", "stats", "depthChart", "evaluation", "finances", "settings"],
+        ? ["home", "roster", "schedule", "practices", "stats", "depthChart", "tryouts", "evaluation", "finances", "settings"]
+        : ["home", "roster", "schedule", "practices", "stats", "depthChart", "evaluation", "finances", "settings"],
     [isAssistant, tryoutsOpen]
   );
 

@@ -105,6 +105,7 @@ import { useInviteFlows } from "./hooks/useInviteFlows";
 import { useImportExportFlows } from "./hooks/useImportExportFlows";
 import { useScheduleReminders } from "./hooks/useScheduleReminders";
 import { useGameCrud } from "./hooks/useGameCrud";
+import { usePracticeCrud } from "./hooks/usePracticeCrud";
 import { usePlayerCrud } from "./hooks/usePlayerCrud";
 import { usePastSeasonCrud } from "./hooks/usePastSeasonCrud";
 import { useTryoutFlows } from "./hooks/useTryoutFlows";
@@ -171,6 +172,9 @@ const TryoutsPortal = lazy(() =>
 const InGameView = lazy(() =>
   import("./screens/InGameView").then((m) => ({ default: m.InGameView }))
 );
+const PracticesTab = lazy(() =>
+  import("./screens/PracticesTab").then((m) => ({ default: m.PracticesTab }))
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -179,6 +183,7 @@ const TAB_TITLE_LABELS: Record<string, string> = {
   stats: "Stats",
   roster: "Roster",
   schedule: "Schedule",
+  practices: "Practices",
   evaluation: "Evaluation",
   tryouts: "Tryouts",
   interest: "Interest",
@@ -1369,6 +1374,14 @@ const TeamProvider = ({ children }: any) => {
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
     useGameCrud({ teamData, updateTeam, toast, confirm });
 
+  // ----- Practice CRUD ----- (src/hooks/usePracticeCrud.ts)
+  const {
+    addPractice,
+    updatePractice,
+    removePractice,
+    savePracticeAttendance,
+  } = usePracticeCrud({ teamData, updateTeam, toast, confirm });
+
   // ----- Lineup actions ----- (extracted to src/hooks/useLineupActions.ts)
   const {
     generateLineup,
@@ -2369,6 +2382,10 @@ const TeamProvider = ({ children }: any) => {
       finalizeGame,
       postponeGame,
       deleteSavedGame,
+      addPractice,
+      updatePractice,
+      removePractice,
+      savePracticeAttendance,
       generateLineup,
       regenerateLineup,
       regenerateBatting,
@@ -2450,6 +2467,10 @@ const TeamProvider = ({ children }: any) => {
       finalizeGame,
       postponeGame,
       deleteSavedGame,
+      addPractice,
+      updatePractice,
+      removePractice,
+      savePracticeAttendance,
       generateLineup,
       regenerateLineup,
       regenerateBatting,
@@ -3315,6 +3336,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        { id: "practices", icon: Icons.Clock, label: "Practices" },
         { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
@@ -3324,6 +3346,7 @@ const MainShell = () => {
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
         { id: "roster", icon: Icons.Users, label: "Roster" },
         { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+        { id: "practices", icon: Icons.Clock, label: "Practices" },
         { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
@@ -3372,6 +3395,7 @@ const MainShell = () => {
           <Route path="/roster" element={<RosterTab />} />
           <Route path="/depth-chart" element={<DepthChartTab />} />
           <Route path="/schedule" element={<ScheduleTab />} />
+          <Route path="/practices" element={<PracticesTab />} />
           <Route path="/schedule/*" element={<ScheduleTab />} />
           <Route
             path="/evaluation"
