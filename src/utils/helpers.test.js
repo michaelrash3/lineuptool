@@ -1988,6 +1988,77 @@ describe("finances money math", () => {
     expect(s.stillOwed).toBe(75); // kid2's remainder only; kid3 waived
   });
 
+  it("unattributed fundraising splits evenly across all paying families", () => {
+    const fin = {
+      clubFee: 100,
+      incomes: [{ id: "f", fundraising: true, amount: 30 }],
+      payments: [],
+    };
+    const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
+    const s = financeSummary(fin, three);
+    expect(s.duesCreditPerPlayer).toBe(10); // 30 / 3
+    expect(s.effectiveFeePerPlayer).toBe(90);
+    expect(s.effectiveFeeByPlayer).toEqual({ k1: 90, k2: 90, k3: 90 });
+    expect(s.stillOwed).toBe(270); // 90 * 3
+  });
+
+  it("attributed fundraising credits only that child's fee", () => {
+    const fin = {
+      clubFee: 100,
+      incomes: [{ id: "f", fundraising: true, amount: 40, playerId: "k1" }],
+      payments: [],
+    };
+    const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
+    const s = financeSummary(fin, three);
+    expect(s.duesCreditPerPlayer).toBe(0); // nothing to split evenly
+    expect(s.effectiveFeeByPlayer).toEqual({ k1: 60, k2: 100, k3: 100 });
+    expect(s.creditByPlayer.k1).toBe(40);
+    expect(s.stillOwed).toBe(260); // 60 + 100 + 100
+  });
+
+  it("a child's surplus over the fee rolls into the even split for everyone", () => {
+    const fin = {
+      clubFee: 100,
+      // k1 raises 160 — 100 covers their fee, the 60 surplus splits across all 3.
+      incomes: [{ id: "f", fundraising: true, amount: 160, playerId: "k1" }],
+      payments: [],
+    };
+    const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
+    const s = financeSummary(fin, three);
+    expect(s.duesCreditPerPlayer).toBe(20); // 60 surplus / 3
+    expect(s.effectiveFeeByPlayer.k1).toBe(0); // fully covered (capped at fee)
+    expect(s.effectiveFeeByPlayer.k2).toBe(80);
+    expect(s.effectiveFeeByPlayer.k3).toBe(80);
+    expect(s.stillOwed).toBe(160); // 0 + 80 + 80
+  });
+
+  it("fundraising credited to an exempt/off-roster child rolls fully to the team", () => {
+    const fin = {
+      clubFee: 100,
+      incomes: [{ id: "f", fundraising: true, amount: 30, playerId: "ghost" }],
+      payments: [],
+    };
+    const two = [{ id: "k1" }, { id: "k2" }];
+    const s = financeSummary(fin, two);
+    expect(s.duesCreditPerPlayer).toBe(15); // 30 / 2, none wasted on the ghost
+    expect(s.effectiveFeeByPlayer).toEqual({ k1: 85, k2: 85 });
+  });
+
+  it("attributed fundraising is backward-compatible when no playerId is set", () => {
+    const fin = {
+      clubFee: 100,
+      incomes: [
+        { id: "a", fundraising: true, amount: 30 },
+        { id: "b", fundraising: true, amount: 30 },
+      ],
+      payments: [],
+    };
+    const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
+    const s = financeSummary(fin, three);
+    expect(s.duesCreditPerPlayer).toBe(20); // (30+30)/3 — same as the old model
+    expect(s.effectiveFeePerPlayer).toBe(80);
+  });
+
   describe("teamFeesStatus", () => {
     const feePlayers = [
       { id: "kid1", name: "Ava" },
@@ -2177,6 +2248,19 @@ describe("finances money math", () => {
     expect(text).not.toContain("Cy"); // waived
     expect(text).toContain("Total outstanding: $75");
     expect(owesReminderText({ clubFee: 0 }, players)).toMatch(/paid in full/i);
+  });
+
+  it("owesReminderText reflects per-child fundraising credit in each family's owed", () => {
+    const fin = {
+      clubFee: 100,
+      incomes: [{ id: "f", fundraising: true, amount: 40, playerId: "kid2" }],
+      payments: [],
+    };
+    const text = owesReminderText(fin, players);
+    expect(text).toContain("Ava: $100"); // no credit
+    expect(text).toContain("Ben: $60"); // 100 − 40 credited to Ben
+    expect(text).toContain("Cy: $100");
+    expect(text).toContain("Total outstanding: $260");
   });
 
   it("ledgerCsv emits a dated spreadsheet with escaping and running balance", () => {

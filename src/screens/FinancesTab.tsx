@@ -175,6 +175,15 @@ export const FinancesTab = memo(() => {
   );
   const payerCount = players.filter((p: any) => !exemptIds.has(p.id)).length;
   const bufferInc = Math.max(0, Number(finances.feeBufferIncrement) || 0);
+  // Per-child effective fee (varies when fundraising is credited to specific
+  // kids); falls back to the baseline even-split fee. The Collections meter
+  // totals these so its target reflects the actual sum families owe.
+  const feeFor = (pid: string) =>
+    summary.effectiveFeeByPlayer[pid] ?? effectiveFee;
+  const totalEffectiveFees = players.reduce(
+    (sum: number, p: any) => (exemptIds.has(p.id) ? sum : sum + feeFor(p.id)),
+    0
+  );
 
   // Sales tax % — committed on blur/Enter so partial typing never writes.
   const [taxInput, setTaxInput] = useState<string | null>(null);
@@ -224,6 +233,8 @@ export const FinancesTab = memo(() => {
   const [txnCategory, setTxnCategory] = useState("");
   // Money-in entries flagged as fundraising reduce each family's dues.
   const [txnFundraising, setTxnFundraising] = useState(false);
+  // Optional child a fundraising entry is credited to (blank = even split).
+  const [txnCreditPlayerId, setTxnCreditPlayerId] = useState("");
 
   // ---- Sorting. The ledger defaults to date order (running balance reads
   // naturally); the planner defaults to entry order until a header is tapped.
@@ -487,11 +498,15 @@ export const FinancesTab = memo(() => {
       amount,
     };
     if (txnDir === "in") {
+      const incomeEntry = txnFundraising
+        ? {
+            ...entry,
+            fundraising: true,
+            ...(txnCreditPlayerId ? { playerId: txnCreditPlayerId } : {}),
+          }
+        : entry;
       writeFinances({
-        incomes: [
-          ...(finances.incomes || []),
-          txnFundraising ? { ...entry, fundraising: true } : entry,
-        ],
+        incomes: [...(finances.incomes || []), incomeEntry],
       });
     } else {
       writeFinances({
@@ -505,6 +520,7 @@ export const FinancesTab = memo(() => {
     setTxnAmount("");
     setTxnCategory("");
     setTxnFundraising(false);
+    setTxnCreditPlayerId("");
   };
 
   const removeLedgerRow = (
@@ -539,6 +555,7 @@ export const FinancesTab = memo(() => {
     amount: "",
     budgetItemId: "",
     fundraising: false,
+    playerId: "",
   });
   const startLedgerEdit = (row: {
     source: "payment" | "income" | "expense";
@@ -562,6 +579,7 @@ export const FinancesTab = memo(() => {
       amount: String(row.amount ?? ""),
       budgetItemId: exp?.budgetItemId || "",
       fundraising: !!inc?.fundraising,
+      playerId: inc?.playerId || "",
     });
   };
   const saveLedgerEdit = () => {
@@ -587,7 +605,16 @@ export const FinancesTab = memo(() => {
         writeFinances({
           incomes: (finances.incomes || []).map((x) =>
             x.id === id
-              ? { ...x, ...patch, fundraising: editDraft.fundraising }
+              ? {
+                  ...x,
+                  ...patch,
+                  fundraising: editDraft.fundraising,
+                  // Credit only applies to fundraising entries; clear otherwise.
+                  playerId:
+                    editDraft.fundraising && editDraft.playerId
+                      ? editDraft.playerId
+                      : undefined,
+                }
               : x
           ),
         });
@@ -694,17 +721,17 @@ export const FinancesTab = memo(() => {
             <div className="flex items-center gap-3">
               <MoneyMeter
                 value={summary.collected}
-                max={effectiveFee * payerCount}
+                max={totalEffectiveFees}
                 className="flex-1 max-w-xs"
               />
               <span className="t-meta text-ink-3 tabular-nums">
                 {formatCurrency(summary.collected)} of{" "}
-                {formatCurrency(effectiveFee * payerCount)} ·{" "}
+                {formatCurrency(totalEffectiveFees)} ·{" "}
                 {
                   players.filter(
                     (p: any) =>
                       !exemptIds.has(p.id) &&
-                      effectiveFee - (summary.paidByPlayer[p.id] || 0) <= 0
+                      feeFor(p.id) - (summary.paidByPlayer[p.id] || 0) <= 0
                   ).length
                 }{" "}
                 of {payerCount} paid
@@ -778,9 +805,10 @@ export const FinancesTab = memo(() => {
           </div>
           {summary.duesCreditPerPlayer > 0 && (
             <p className="t-meta text-ink-3">
-              Fundraising entries in the ledger split evenly across the{" "}
-              {payerCount} paying famil{payerCount === 1 ? "y" : "ies"} and
-              come off each one&apos;s team fees.
+              Fundraising entries split evenly across the {payerCount} paying
+              famil{payerCount === 1 ? "y" : "ies"} and come off each one&apos;s
+              team fees — unless an entry is credited to a specific child, in
+              which case it comes off that child&apos;s fees first.
             </p>
           )}
 
@@ -856,8 +884,11 @@ export const FinancesTab = memo(() => {
             {players.map((p: any) => {
               const waived = exemptIds.has(p.id);
               const paid = summary.paidByPlayer[p.id] || 0;
-              const owed = Math.max(0, effectiveFee - paid);
-              const settled = effectiveFee > 0 && owed === 0;
+              // Per-child effective fee (fundraising credited to this kid lowers
+              // it); waived families owe nothing.
+              const playerFee = waived ? 0 : feeFor(p.id);
+              const owed = Math.max(0, playerFee - paid);
+              const settled = playerFee > 0 && owed === 0;
               return (
                 <li
                   key={p.id}
@@ -870,10 +901,10 @@ export const FinancesTab = memo(() => {
                     className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex-1 min-w-[8rem]"
                   >
                     {p.name}
-                    {!waived && effectiveFee > 0 && (
+                    {!waived && playerFee > 0 && (
                       <MoneyMeter
                         value={paid}
-                        max={effectiveFee}
+                        max={playerFee}
                         className="mt-1 max-w-[10rem]"
                       />
                     )}
@@ -1043,6 +1074,23 @@ export const FinancesTab = memo(() => {
                 />
                 Fundraising · reduces team fees
               </label>
+            )}
+            {txnDir === "in" && txnFundraising && players.length > 0 && (
+              <select
+                value={txnCreditPlayerId}
+                onChange={(e) => setTxnCreditPlayerId(e.target.value)}
+                aria-label="Credit fundraising to a specific player"
+                title="Credit this money to one child's fees (blank = split evenly)"
+                className={`${FORM_INPUT_CLASS} sm:w-44`}
+                style={FORM_INPUT_RING_STYLE}
+              >
+                <option value="">Credit: split evenly</option>
+                {players.map((p: any) => (
+                  <option key={p.id} value={p.id}>
+                    Credit: {p.name}
+                  </option>
+                ))}
+              </select>
             )}
             <input
               type="text"
@@ -1216,6 +1264,29 @@ export const FinancesTab = memo(() => {
                                     Fundraising
                                   </label>
                                 )}
+                                {row.source === "income" &&
+                                  editDraft.fundraising &&
+                                  players.length > 0 && (
+                                    <select
+                                      value={editDraft.playerId}
+                                      onChange={(e) =>
+                                        setEditDraft((d) => ({
+                                          ...d,
+                                          playerId: e.target.value,
+                                        }))
+                                      }
+                                      aria-label={`Credit fundraising to a player for ${row.label}`}
+                                      className={`${FORM_INPUT_CLASS} w-36 !py-1`}
+                                      style={FORM_INPUT_RING_STYLE}
+                                    >
+                                      <option value="">Split evenly</option>
+                                      {players.map((p: any) => (
+                                        <option key={p.id} value={p.id}>
+                                          {p.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
                               </span>
                             )}
                           </td>
@@ -1277,9 +1348,15 @@ export const FinancesTab = memo(() => {
                         {row.fundraising && (
                           <span
                             className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win align-middle"
-                            title="Splits across paying players and reduces each family's team fees"
+                            title={
+                              row.creditedTo
+                                ? `Credited to ${row.creditedTo}'s team fees`
+                                : "Splits across paying players and reduces each family's team fees"
+                            }
                           >
-                            team-fee credit
+                            {row.creditedTo
+                              ? `credit → ${row.creditedTo}`
+                              : "team-fee credit"}
                           </span>
                         )}
                       </td>

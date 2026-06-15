@@ -350,10 +350,15 @@ export interface IncomeEntry {
   date: string; // ISO yyyy-mm-dd
   label: string;
   amount: number;
-  // Fundraising entries split evenly across paying players and reduce what
-  // each family still owes on THIS season's club fee (a car wash that nets
-  // $300 on a 12-payer roster knocks $25 off everyone's dues).
+  // Fundraising entries reduce what families still owe on THIS season's club
+  // fee. Unattributed, they split evenly across paying players (a car wash that
+  // nets $300 on a 12-payer roster knocks $25 off everyone's dues). Attributed
+  // to a `playerId`, the money credits that child's fee first; any surplus over
+  // their fee rolls into the even split for everyone else.
   fundraising?: boolean;
+  // Optional child this fundraising entry is credited to (raffle/sponsor a kid
+  // brought in). Only meaningful when `fundraising` is true.
+  playerId?: PlayerId;
 }
 
 // A sponsorship pledged toward NEXT season's budget, entered in the Budget

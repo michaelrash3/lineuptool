@@ -2606,14 +2606,22 @@ export const incomeTotal = (finances: TeamFinances | null | undefined): number =
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
 // THIS season's ledger income flagged as fundraising — the slice of income
-// that splits across paying players and reduces each family's dues.
-const fundraisingTotal = (
+// that reduces each family's dues. Split into money attributed to a specific
+// child (credits that kid's fee first) and unattributed money (splits evenly).
+const fundraisingBreakdown = (
   finances: TeamFinances | null | undefined
-): number =>
-  (finances?.incomes || []).reduce(
-    (sum, i) => sum + (i?.fundraising ? money(i?.amount) : 0),
-    0
-  );
+): { byPlayer: Record<string, number>; unattributed: number } => {
+  const byPlayer: Record<string, number> = {};
+  let unattributed = 0;
+  for (const i of finances?.incomes || []) {
+    if (!i?.fundraising) continue;
+    const amt = money(i?.amount);
+    const pid = String(i?.playerId || "");
+    if (pid) byPlayer[pid] = (byPlayer[pid] || 0) + amt;
+    else unattributed += amt;
+  }
+  return { byPlayer, unattributed };
+};
 
 // Sponsorships pledged toward NEXT season's budget (Budget Planner entries
 // with a sponsor name) — the only money that offsets the suggested fee.
@@ -2701,12 +2709,18 @@ export interface FinanceSummary {
   stillOwed: number; // Σ per-player max(0, effective fee − paid)
   balanceOnceAllPaid: number; // balanceNow + stillOwed
   paidByPlayer: Record<string, number>; // playerId → total paid
-  // Fundraising-flagged ledger income split evenly across paying players —
-  // the per-family discount on this season's dues.
+  // Even-split fundraising credit: unattributed fundraising plus any per-child
+  // surplus, divided across paying players — the baseline per-family discount.
   duesCreditPerPlayer: number;
-  // clubFee minus the fundraising credit (never below 0) — what each
-  // non-waived family actually owes this season.
+  // clubFee minus the even-split credit (never below 0) — the baseline a family
+  // with no fundraising attributed to their child owes this season.
   effectiveFeePerPlayer: number;
+  // Per-child total credit (their attributed fundraising, capped at the fee,
+  // plus the even-split credit). playerId → dollars.
+  creditByPlayer: Record<string, number>;
+  // Per-child effective fee: clubFee minus that child's total credit, never
+  // below 0. playerId → dollars. The source of truth for what each owes.
+  effectiveFeeByPlayer: Record<string, number>;
 }
 
 // The P&L tiles + Collections math in one pass. `players` defines who owes
@@ -2731,17 +2745,37 @@ export const financeSummary = (
   // Fee-exempt players (fall pickups, scholarships) never owe the club fee.
   const exempt = new Set(finances?.feeExemptIds || []);
   const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
-  // Fundraising income splits evenly across paying families and comes off
-  // each one's dues — the money is already in the balance (it's income), so
-  // it only shrinks what's still owed.
+  const payerIds = new Set(payers.map((p) => p.id));
+  // Fundraising comes off dues — the money is already in the balance (it's
+  // income), so it only shrinks what's still owed. Money attributed to a child
+  // credits that kid's fee first (capped at the fee); the unattributed money
+  // and any per-child surplus pool into an even split across all families.
+  const { byPlayer: rawAttributed, unattributed } = fundraisingBreakdown(finances);
+  const attributedCredit: Record<string, number> = {};
+  let evenPool = unattributed;
+  for (const [pid, rawAmt] of Object.entries(rawAttributed)) {
+    if (!payerIds.has(pid)) {
+      // Credited to an exempt or off-roster kid (no fee to offset) — the whole
+      // amount rolls into the team's even split.
+      evenPool += rawAmt;
+      continue;
+    }
+    attributedCredit[pid] = Math.min(rawAmt, fee);
+    evenPool += Math.max(0, rawAmt - fee); // surplus over the fee → team pool
+  }
+  const round2 = (n: number) => Math.round(n * 100) / 100;
   const duesCreditPerPlayer =
-    payers.length > 0
-      ? Math.round((fundraisingTotal(finances) / payers.length) * 100) / 100
-      : 0;
+    payers.length > 0 ? round2(evenPool / payers.length) : 0;
   const effectiveFeePerPlayer = Math.max(0, fee - duesCreditPerPlayer);
+  const creditByPlayer: Record<string, number> = {};
+  const effectiveFeeByPlayer: Record<string, number> = {};
   let stillOwed = 0;
   for (const p of payers) {
-    stillOwed += Math.max(0, effectiveFeePerPlayer - (paidByPlayer[p.id] || 0));
+    const credit = (attributedCredit[p.id] || 0) + duesCreditPerPlayer;
+    creditByPlayer[p.id] = round2(credit);
+    const eff = Math.max(0, fee - credit);
+    effectiveFeeByPlayer[p.id] = eff;
+    stillOwed += Math.max(0, eff - (paidByPlayer[p.id] || 0));
   }
   const balanceNow = collected + otherIncome - spent;
   return {
@@ -2754,6 +2788,8 @@ export const financeSummary = (
     paidByPlayer,
     duesCreditPerPlayer,
     effectiveFeePerPlayer,
+    creditByPlayer,
+    effectiveFeeByPlayer,
   };
 };
 
@@ -2780,26 +2816,28 @@ export const teamFeesStatus = (
   const s = financeSummary(finances, players);
   const exempt = new Set(finances?.feeExemptIds || []);
   const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
-  // Deposit can't exceed the effective fee — a family that's met the fee has
-  // met the deposit by definition.
-  const depositAmount = Math.min(
-    Math.max(0, money(finances?.depositAmount)),
-    s.effectiveFeePerPlayer
-  );
+  // Deposit can't exceed a family's effective fee — a family that's met the fee
+  // has met the deposit by definition. With per-child fundraising credit the
+  // effective fee varies, so the deposit is capped per family.
+  const baseDeposit = Math.max(0, money(finances?.depositAmount));
   let fullOwedCount = 0;
   let depositOwedCount = 0;
   let depositOutstanding = 0;
   for (const p of payers) {
     const paid = s.paidByPlayer[p.id] || 0;
-    if (s.effectiveFeePerPlayer - paid > 0) fullOwedCount++;
-    if (depositAmount > 0) {
-      const short = depositAmount - paid;
+    const eff = s.effectiveFeeByPlayer[p.id] ?? s.effectiveFeePerPlayer;
+    if (eff - paid > 0) fullOwedCount++;
+    const deposit = Math.min(baseDeposit, eff);
+    if (deposit > 0) {
+      const short = deposit - paid;
       if (short > 0) {
         depositOwedCount++;
         depositOutstanding += short;
       }
     }
   }
+  // Headline deposit slice for display (capped at the baseline effective fee).
+  const depositAmount = Math.min(baseDeposit, s.effectiveFeePerPlayer);
   return {
     hasFee: s.effectiveFeePerPlayer > 0,
     effectiveFee: s.effectiveFeePerPlayer,
@@ -2827,6 +2865,9 @@ export interface LedgerRow {
   balanceAfter: number;
   // Income rows flagged as fundraising (they reduce per-player dues).
   fundraising?: boolean;
+  // Display name of the child a fundraising row is credited to (when attributed
+  // to a specific player); absent when it splits evenly.
+  creditedTo?: string;
 }
 
 // One dated ledger of EVERYTHING received (club-fee payments, sponsorships,
@@ -2862,6 +2903,9 @@ export const transactionLedger = (
       direction: "in",
       source: "income",
       ...(inc.fundraising ? { fundraising: true } : {}),
+      ...(inc.fundraising && inc.playerId
+        ? { creditedTo: nameOf(String(inc.playerId)) }
+        : {}),
     });
   }
   for (const exp of finances?.expenses || []) {
@@ -3018,17 +3062,20 @@ export const owesReminderText = (
   season?: string
 ): string => {
   const s = financeSummary(finances, players);
-  // Fundraising credit already applied: families owe the effective fee.
-  const fee = s.effectiveFeePerPlayer;
   const exempt = new Set(finances?.feeExemptIds || []);
   const lines: string[] = [];
   for (const p of players || []) {
     if (!p?.id || exempt.has(p.id)) continue;
+    // Fundraising credit already applied: each family owes their effective fee
+    // (which varies when fundraising is credited to specific children).
+    const fee = s.effectiveFeeByPlayer[p.id] ?? s.effectiveFeePerPlayer;
     const owed = Math.max(0, fee - (s.paidByPlayer[p.id] || 0));
     if (owed > 0) lines.push(`${p.name || "Player"}: ${formatCurrency(owed)}`);
   }
   if (lines.length === 0) return "All team fees are paid in full. 🎉";
-  const header = `Team fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(fee)}${
+  const header = `Team fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(
+    s.effectiveFeePerPlayer
+  )}${
     s.duesCreditPerPlayer > 0
       ? ` after ${formatCurrency(s.duesCreditPerPlayer)} fundraising credit`
       : ""
