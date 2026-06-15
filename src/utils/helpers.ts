@@ -158,6 +158,10 @@ export interface PublicTeamMirror {
   tryoutDateLinks: TryoutDateLink[];
   tryoutDateBySlug: Record<string, string>;
   tryoutDateSlugs: string[];
+  // Optional public-facing head-coach contact shown on the portal so families
+  // can ask questions. Coach opts in via Settings; empty strings hide the block.
+  headCoachName: string;
+  headCoachEmail: string;
 }
 
 // Normalize a team's per-date tryout links into the canonical slug→date shape.
@@ -247,6 +251,8 @@ export const buildPublicMirror = (
     tryoutDateLinks: links,
     tryoutDateBySlug,
     tryoutDateSlugs: links.map((l) => l.slug),
+    headCoachName: (team?.headCoachName as string) || "",
+    headCoachEmail: (team?.headCoachPublicEmail as string) || "",
   };
 };
 

@@ -2,6 +2,8 @@ import React, { memo, useState, useMemo } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
 import { calculateBaseballAge } from "../utils/helpers";
+import { OfferLetterModal } from "../components/OfferLetterModal";
+import { makeOfferLetterContext } from "../utils/offerContext";
 
 // Player Interest Survey leads (year-round). Head-only screen.
 // Each row carries the parent's contact info, the kid's positions
@@ -9,9 +11,11 @@ import { calculateBaseballAge } from "../utils/helpers";
 // "Move to tryouts" promotes a lead into team.tryoutSignups for the
 // active tryout cycle. Schema: see InterestSignup in types.ts.
 export const InterestTab = memo(() => {
-  const { team, currentRole, deleteInterestSignup, convertInterestToTryout } =
+  const { team, user, currentRole, deleteInterestSignup, convertInterestToTryout } =
     useTeam();
   const isHead = currentRole !== "assistant";
+  // Copyable "interest / tryout invite" draft for a selected lead.
+  const [msgLead, setMsgLead] = useState<any | null>(null);
   const leads = useMemo(() => {
     return [...(team?.interestSignups || [])].sort(
       (a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
@@ -150,6 +154,14 @@ export const InterestTab = memo(() => {
                       </button>
                       <button
                         type="button"
+                        onClick={() => setMsgLead(lead)}
+                        className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-ink border border-line bg-surface rounded-md hover:bg-surface-2 transition-colors whitespace-nowrap inline-flex items-center justify-center gap-1"
+                        title="Copy a tryout-invite message for this lead"
+                      >
+                        <Icons.FileText className="w-3 h-3" /> Message
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           if (armed) {
                             deleteInterestSignup?.(lead.id);
@@ -184,6 +196,19 @@ export const InterestTab = memo(() => {
           )}
         </div>
       </div>
+      {msgLead && (
+        <OfferLetterModal
+          open
+          onClose={() => setMsgLead(null)}
+          kind="interest"
+          recipientEmail={msgLead.email}
+          ctx={makeOfferLetterContext(
+            team,
+            user,
+            [msgLead.firstName, msgLead.lastName].filter(Boolean).join(" ")
+          )}
+        />
+      )}
     </div>
   );
 });

@@ -6,7 +6,11 @@
 // acceptance + deposit within 48 hours. Wording is the coach's own copy;
 // bracketed fields below are filled from the team/finances/coach context.
 
-export type OfferLetterKind = "returning" | "newPlayer" | "rejection";
+export type OfferLetterKind =
+  | "returning"
+  | "newPlayer"
+  | "rejection"
+  | "interest";
 
 export interface OfferLetterContext {
   playerName: string;
@@ -41,6 +45,7 @@ export const OFFER_LETTER_LABELS: Record<OfferLetterKind, string> = {
   returning: "Returning Player Offer",
   newPlayer: "New Player Offer",
   rejection: "Thank You / Not Selected",
+  interest: "Interest / Tryout Invite",
 };
 
 export const buildOfferLetter = (
@@ -83,6 +88,24 @@ export const buildOfferLetter = (
         )}.`,
         "",
         `Welcome to the ${team}! If you or your parents have any questions, please reach out to me.`,
+        "",
+        signature(ctx),
+      ].join("\n"),
+    };
+  }
+  if (kind === "interest") {
+    return {
+      subject: `${team} — Tryout Info for ${ctx.playerName}`,
+      body: [
+        `Dear ${ctx.playerName},`,
+        "",
+        `Thank you for your interest in the ${team}! We're glad ${ctx.playerName} is considering playing with us for the upcoming season.`,
+        "",
+        `We'd love to see ${ctx.playerName} at our tryouts. Reply to this message and we'll get you the date, time, and location — and feel free to reach out${phoneClause(
+          ctx
+        )} with any questions in the meantime.`,
+        "",
+        `Looking forward to meeting you on the field!`,
         "",
         signature(ctx),
       ].join("\n"),

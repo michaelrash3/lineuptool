@@ -42,6 +42,16 @@ describe("buildOfferLetter", () => {
     expect(body).toContain("Coach Mike");
   });
 
+  it("interest invite thanks the lead and omits money", () => {
+    const { subject, body } = buildOfferLetter("interest", ctx);
+    expect(subject).toContain("Tryout Info for Sam Rivera");
+    expect(body).toContain("Thank you for your interest");
+    expect(body).toContain("at our tryouts");
+    expect(body).not.toContain("$1,200");
+    expect(body).not.toContain("deposit");
+    expect(body).toContain("Coach Mike");
+  });
+
   it("drops the phone clause when no coach phone is set", () => {
     const { body } = buildOfferLetter("newPlayer", { ...ctx, coachPhone: "" });
     expect(body).not.toContain("call me at");

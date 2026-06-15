@@ -922,7 +922,23 @@ describe("buildPublicMirror", () => {
       tryoutDateLinks: [{ slug: "2026-05-01", date: "2026-05-01" }],
       tryoutDateBySlug: { "2026-05-01": "2026-05-01" },
       tryoutDateSlugs: ["2026-05-01"],
+      // Opt-in public coach contact (empty here — fullTeam sets neither).
+      headCoachName: "",
+      headCoachEmail: "",
     });
+  });
+
+  it("mirrors opt-in public head-coach contact (and not the private phone)", () => {
+    const mirror = buildPublicMirror({
+      ...fullTeam,
+      headCoachName: "Coach Smith",
+      headCoachPublicEmail: "coach@sharks.com",
+      headCoachPhone: "(555) 000-1111",
+    });
+    expect(mirror.headCoachName).toBe("Coach Smith");
+    expect(mirror.headCoachEmail).toBe("coach@sharks.com");
+    // The private offer-letter phone must never reach the public doc.
+    expect(mirror).not.toHaveProperty("headCoachPhone");
   });
 
   it("carries the explicit per-date link mapping for new teams", () => {

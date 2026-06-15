@@ -37,8 +37,11 @@ export const OfferLetterModal = memo(
     const toast = useToast();
     const draft = useMemo(() => buildOfferLetter(kind, ctx), [kind, ctx]);
     // Offer letters quote money; warn if next season's fee/deposit aren't set.
+    // Rejection and interest drafts don't mention money, so no warning.
     const missingMoney =
-      kind !== "rejection" && (!ctx.teamFees || !ctx.deposit);
+      kind !== "rejection" &&
+      kind !== "interest" &&
+      (!ctx.teamFees || !ctx.deposit);
 
     const copy = async () => {
       try {
