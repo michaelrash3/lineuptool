@@ -81,6 +81,7 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
 const TryoutsSettingsPanel = memo(
   ({
     team,
+    updateTeam,
     generateTryoutShareId,
     generateTryoutDateLink,
     setTryoutsOpen,
@@ -110,6 +111,22 @@ const TryoutsSettingsPanel = memo(
           <strong>Tryout Date Link</strong> below opens an actual signup
           form with that date pinned (no chooser).
         </p>
+        <div className="mb-4">
+          <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+            Head coach phone (for offer letters)
+          </label>
+          <input
+            type="tel"
+            value={team.headCoachPhone || ""}
+            onChange={(e) => updateTeam?.({ headCoachPhone: e.target.value })}
+            placeholder="(555) 123-4567"
+            className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+          />
+          <p className="text-[10px] text-ink-3 font-medium mt-1">
+            Filled into the offer-letter drafts. Stays private — never shown on
+            the public tryouts page.
+          </p>
+        </div>
         <div className="space-y-3">
           {shareId ? (
             <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
@@ -1429,6 +1446,7 @@ export const SettingsTab = memo(() => {
             {settingsMenu === "tryouts" && (
             <TryoutsSettingsPanel
               team={team}
+              updateTeam={updateTeam}
               generateTryoutShareId={generateTryoutShareId}
               generateTryoutDateLink={generateTryoutDateLink}
               setTryoutsOpen={setTryoutsOpen}
