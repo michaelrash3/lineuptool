@@ -5,6 +5,8 @@ import {
   formatCurrency,
   evalPromptStatus,
   buildSeasonBenchImbalance,
+  buildSeasonSummary,
+  teamStatAverages,
   isGameFinalized,
   countsTowardStats,
   recordWinningPercentage,
@@ -938,6 +940,298 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
   );
 });
 
+// ===== Team season summary tile — team-wide batting (+ kid-pitch pitching) =====
+const MiniStatGrid = memo(({ cells }: any) => (
+  <div className="grid grid-cols-3 gap-1.5">
+    {cells.map(([label, val]: any) => (
+      <div
+        key={label}
+        className="bg-surface-2 border border-line rounded-lg px-1.5 py-1.5 text-center"
+      >
+        <div className="text-[9px] font-black uppercase tracking-widest text-ink-3">
+          {label}
+        </div>
+        <div className="text-sm font-black tabular-nums text-ink mt-0.5">{val}</div>
+      </div>
+    ))}
+  </div>
+));
+
+const TeamSummaryTile = memo(({ players, isKidPitch }: any) => {
+  const agg = useMemo(() => teamStatAverages(players), [players]);
+  const n = (k: string, ...alts: string[]) => {
+    for (const key of [k, ...alts]) {
+      const v = (agg as any)[key];
+      if (typeof v === "number" && Number.isFinite(v)) return v as number;
+    }
+    return undefined;
+  };
+  const f3 = (v?: number) =>
+    v === undefined ? "—" : v > 0 && v < 1 ? v.toFixed(3).replace(/^0/, "") : v.toFixed(3);
+  const f2 = (v?: number) => (v === undefined ? "—" : v.toFixed(2));
+  const fI = (v?: number) => (v === undefined ? "—" : Math.round(v).toString());
+  const hasAny = Object.keys(agg).length > 0;
+  return (
+    <InsightTile icon={Icons.Bat} title="Team Summary" accent="primary">
+      {!hasAny ? (
+        <p className="t-body text-ink-3 italic">No stats imported yet.</p>
+      ) : (
+        <div className="space-y-2">
+          <MiniStatGrid
+            cells={[
+              ["AVG", f3(n("avg"))],
+              ["OBP", f3(n("obp"))],
+              ["OPS", f3(n("ops"))],
+              ["H", fI(n("h"))],
+              ["HR", fI(n("hr"))],
+              ["RBI", fI(n("rbi"))],
+            ]}
+          />
+          {isKidPitch && (
+            <>
+              <div className="t-eyebrow text-ink-3 pt-0.5">Pitching</div>
+              <MiniStatGrid
+                cells={[
+                  ["ERA", f2(n("pEra", "era"))],
+                  ["WHIP", f2(n("pWhip"))],
+                  ["IP", f2(n("pIp", "ip"))],
+                ]}
+              />
+            </>
+          )}
+        </div>
+      )}
+    </InsightTile>
+  );
+});
+
+// ===== Run differential + streak + last-5 form =====
+const RunStreakTile = memo(({ games }: any) => {
+  const s = useMemo(() => buildSeasonSummary(games), [games]);
+  if (s.gamesPlayed === 0) {
+    return (
+      <InsightTile icon={Icons.Chart} title="Run Diff & Streak" accent="info">
+        <p className="t-body text-ink-3 italic">No finalized games yet.</p>
+      </InsightTile>
+    );
+  }
+  const diff = s.runDiff;
+  const last5 = s.results.slice(-5).reverse();
+  const streak = s.streakType ? `${s.streakType}${s.streakCount}` : "—";
+  return (
+    <InsightTile
+      icon={Icons.Chart}
+      title="Run Diff & Streak"
+      accent={diff >= 0 ? "success" : "danger"}
+    >
+      <div className="space-y-2.5">
+        <div className="flex items-end gap-4">
+          <div>
+            <div className="t-eyebrow text-ink-3">Run Diff</div>
+            <div
+              className={`text-2xl font-black tabular-nums ${
+                diff >= 0 ? "text-win" : "text-loss"
+              }`}
+            >
+              {diff >= 0 ? `+${diff}` : diff}
+            </div>
+          </div>
+          <div>
+            <div className="t-eyebrow text-ink-3">Streak</div>
+            <div className="text-2xl font-black tabular-nums text-ink">{streak}</div>
+          </div>
+          <div className="ml-auto text-right">
+            <div className="t-eyebrow text-ink-3">RF / RA</div>
+            <div className="text-sm font-black tabular-nums text-ink">
+              {s.runsFor} / {s.runsAgainst}
+            </div>
+          </div>
+        </div>
+        {last5.length > 0 && (
+          <div className="flex items-center gap-1">
+            <span className="t-eyebrow text-ink-3 mr-1">Last 5</span>
+            {last5.map((r, i) => (
+              <span
+                key={r.id || i}
+                className={`w-5 h-5 grid place-items-center rounded text-[10px] font-black ${
+                  r.result === "W"
+                    ? "bg-win-bg text-win"
+                    : r.result === "L"
+                    ? "bg-loss-bg text-loss"
+                    : "bg-surface-2 text-ink-3"
+                }`}
+              >
+                {r.result}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </InsightTile>
+  );
+});
+
+// ===== Attendance overview (games + practices) =====
+const attIsPresent = (v: any) => v === true || v === "present";
+const attIsAbsent = (v: any) => v === false || v === "absent"; // "excused" excluded
+
+const AttendanceTile = memo(({ players, games, practices, onPlayerClick }: any) => {
+  const data = useMemo(() => {
+    const events = [
+      ...(games || [])
+        .filter((g: any) => g.attendance && Object.keys(g.attendance).length)
+        .map((g: any) => g.attendance),
+      ...(practices || [])
+        .filter((p: any) => p.attendance && Object.keys(p.attendance).length)
+        .map((p: any) => p.attendance),
+    ];
+    if (events.length === 0) return null;
+    let present = 0;
+    let marked = 0;
+    const absById: Record<string, number> = {};
+    for (const att of events) {
+      for (const [pid, v] of Object.entries(att)) {
+        if (attIsPresent(v)) {
+          present++;
+          marked++;
+        } else if (attIsAbsent(v)) {
+          marked++;
+          absById[pid] = (absById[pid] || 0) + 1;
+        }
+      }
+    }
+    const rate = marked > 0 ? present / marked : null;
+    const topAbsent = Object.entries(absById)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([pid, count]) => ({
+        player: (players || []).find((p: any) => p.id === pid),
+        count,
+      }))
+      .filter((x) => x.player);
+    return { rate, eventCount: events.length, topAbsent };
+  }, [players, games, practices]);
+  if (!data) {
+    return (
+      <InsightTile icon={Icons.Users} title="Attendance" accent="slate">
+        <p className="t-body text-ink-3 italic">No attendance marked yet.</p>
+      </InsightTile>
+    );
+  }
+  return (
+    <InsightTile icon={Icons.Users} title="Attendance" accent="info">
+      <div className="space-y-2.5">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-black tabular-nums text-ink">
+            {data.rate == null ? "—" : `${Math.round(data.rate * 100)}%`}
+          </span>
+          <span className="t-meta text-ink-3">
+            present · {data.eventCount} event{data.eventCount === 1 ? "" : "s"}
+          </span>
+        </div>
+        {data.topAbsent.length > 0 ? (
+          <div>
+            <div className="t-eyebrow text-ink-3 mb-1">Most absences</div>
+            <ul className="space-y-1">
+              {data.topAbsent.map(({ player, count }: any) => (
+                <li
+                  key={player.id}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onPlayerClick?.(player.id)}
+                    className="text-xs font-bold text-ink truncate hover:text-team-primary text-left"
+                  >
+                    {player.name}
+                  </button>
+                  <span className="text-[10px] font-black tabular-nums text-loss shrink-0">
+                    {count} miss{count === 1 ? "" : "es"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="t-meta text-ink-3">Perfect attendance so far.</p>
+        )}
+      </div>
+    </InsightTile>
+  );
+});
+
+// ===== "This Week" — upcoming games + practices in the next 7 days =====
+const UpcomingWeekSection = memo(
+  ({ games, practices, todayStr, onOpenGame, onOpenPractices }: any) => {
+    const items = useMemo(() => {
+      const horizonDate = new Date(`${todayStr}T00:00:00`);
+      horizonDate.setDate(horizonDate.getDate() + 7);
+      const horizon = horizonDate.toISOString().slice(0, 10);
+      const inWindow = (d: string) => d && d >= todayStr && d <= horizon;
+      const g = (games || [])
+        .filter((x: any) => inWindow(x.date) && !isGameFinalized(x))
+        .map((x: any) => ({
+          kind: "game" as const,
+          id: x.id,
+          date: x.date,
+          time: x.time || "",
+          title: x.opponent ? `vs ${x.opponent}` : "Game",
+        }));
+      const p = (practices || [])
+        .filter((x: any) => inWindow(x.date) && x.status !== "cancelled")
+        .map((x: any) => ({
+          kind: "practice" as const,
+          id: x.id,
+          date: x.date,
+          time: x.startUtc ? isoInstantToLocalTime(x.startUtc) : "",
+          title: x.location ? `Practice · ${x.location}` : "Practice",
+        }));
+      return [...g, ...p]
+        .sort((a, b) =>
+          `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)
+        )
+        .slice(0, 8);
+    }, [games, practices, todayStr]);
+    if (items.length === 0) return null;
+    return (
+      <div className="pb-7 border-b border-line">
+        <h2 className="text-sm font-black uppercase tracking-tight text-ink mb-3">
+          This Week
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+          {items.map((it) => (
+            <button
+              key={`${it.kind}-${it.id}`}
+              type="button"
+              onClick={() =>
+                it.kind === "game" ? onOpenGame?.() : onOpenPractices?.()
+              }
+              className="text-left bg-surface border border-line rounded-xl p-3 hover:bg-surface-2 transition-colors"
+            >
+              <span
+                className={`inline-block text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mb-1 ${
+                  it.kind === "game"
+                    ? "bg-warn-bg text-warnfg"
+                    : "bg-surface-2 text-ink-3"
+                }`}
+              >
+                {it.kind === "game" ? "Game" : "Practice"}
+              </span>
+              <div className="text-xs font-black text-ink truncate">
+                {it.title}
+              </div>
+              <div className="text-[11px] font-bold text-ink-3 mt-0.5">
+                {formatGameDateDisplay(it.date)}
+                {it.time ? ` · ${it.time}` : ""}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+);
+
 /* ===========================================================================
    UpNextPanel — a prioritized "what needs doing" digest pinned to the top of
    the dashboard. It consolidates signals that already live across the app
@@ -1225,6 +1519,7 @@ export const HomeTab = memo(() => {
     players,
     coaches,
     games,
+    practices,
     evaluationEvents,
     leagueRuleSet,
     teamAge,
@@ -1317,6 +1612,14 @@ export const HomeTab = memo(() => {
           }}
         />
       )}
+
+      <UpcomingWeekSection
+        games={games}
+        practices={practices}
+        todayStr={todayStr}
+        onOpenGame={() => setActiveTab("schedule")}
+        onOpenPractices={() => setActiveTab("practices")}
+      />
 
       {/* ===== Season scoreboard — open/fluid, matches the dashboard ===== */}
       <div className="relative pb-7 border-b border-line">
@@ -1506,6 +1809,20 @@ export const HomeTab = memo(() => {
             <BenchEquityTile
               players={players}
               games={games}
+              onPlayerClick={openPlayerProfile}
+            />
+          </StaggerItem>
+          <StaggerItem>
+            <TeamSummaryTile players={players} isKidPitch={isKidPitch} />
+          </StaggerItem>
+          <StaggerItem>
+            <RunStreakTile games={games} />
+          </StaggerItem>
+          <StaggerItem>
+            <AttendanceTile
+              players={players}
+              games={games}
+              practices={practices}
               onPlayerClick={openPlayerProfile}
             />
           </StaggerItem>
