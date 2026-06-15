@@ -63,6 +63,60 @@ describe("HomeTab", () => {
     expect(screen.getByText(/Machine\/Coach 2–2/)).toBeInTheDocument();
   });
 
+  it("renders the new dashboard tiles (summary, run/streak, attendance, this week)", () => {
+    renderWithProviders(<HomeTab />, {
+      team: {
+        team: {
+          ...emptyTeam,
+          players: [
+            {
+              id: "p1",
+              name: "Ava Rivera",
+              stats: { ab: 10, h: 4, avg: 0.4, obp: 0.45, ops: 0.9, hr: 1, rbi: 5 },
+            },
+          ],
+          games: [
+            {
+              id: "g1",
+              date: "2026-05-01",
+              status: "final",
+              opponent: "Tigers",
+              teamScore: 7,
+              opponentScore: 3,
+              attendance: { p1: true },
+            },
+            {
+              id: "g2",
+              date: "2026-06-17",
+              status: "draft",
+              opponent: "Bears",
+              time: "10:00",
+            },
+          ],
+          practices: [{ id: "pr1", date: "2026-06-18", attendance: { p1: false } }],
+        },
+        teams: [{ id: "t1", name: "Hawks" }],
+        activeTeamId: "t1",
+        record: { wins: 1, losses: 0, ties: 0 },
+        user: { uid: "u1" },
+        currentRole: "head",
+      },
+      ui: {
+        setIsAddingGame: jest.fn(),
+        setIsAddingPlayer: jest.fn(),
+        openPlayerProfile: jest.fn(),
+        setActiveTab: jest.fn(),
+      },
+    });
+    expect(screen.getByText("Team Summary")).toBeInTheDocument();
+    expect(screen.getByText("Run Diff & Streak")).toBeInTheDocument();
+    // Attendance tile's unique line (the word "Attendance" alone also appears
+    // in the Up Next digest).
+    expect(screen.getByText(/present ·/)).toBeInTheDocument();
+    expect(screen.getByText("This Week")).toBeInTheDocument();
+    expect(screen.getByText("vs Bears")).toBeInTheDocument();
+  });
+
   it("hides the split when only one format has games (no redundancy)", () => {
     renderWithProviders(<HomeTab />, {
       team: {
