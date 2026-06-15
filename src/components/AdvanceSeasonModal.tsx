@@ -1,6 +1,8 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { A11yDialog, Button, Eyebrow } from "./shared";
+import { OfferLetterModal } from "./OfferLetterModal";
+import { makeOfferLetterContext } from "../utils/offerContext";
 
 // Two-step "Advance to next season" wizard. Replaces the previous flow
 // where the head had to mark each player Returning / Released on the
@@ -39,17 +41,33 @@ export const AdvanceSeasonModal = memo(
     tryoutSignups = [],
     currentSeason,
     nextSeasonLabel,
+    team,
+    user,
     onClose,
     onConfirm,
     setPlayerStatus, // legacy; kept in the prop list for back-compat
     setPlayerReturning,
   }: any) => {
     const [busy, setBusy] = useState(false);
-    // Tryout signups the HC has decided to bring forward into the new
-    // roster. Default: none (zero-knowledge — the HC has to explicitly
-    // opt each tryout in, which matches what they're doing on the
-    // Tryouts tab pre-advance anyway).
+    // Tryout signups to bring forward. Defaults to the ones already marked
+    // "accepted" (the HC accepted them for next season on the Tryouts tab) —
+    // they're pre-checked here so the accept decision carries through. Other
+    // signups stay opt-in.
     const [promoteIds, setPromoteIds] = useState(() => new Set());
+    // Returning-player offer letter draft (copyable), opened from a row.
+    const [offerPlayer, setOfferPlayer] = useState<any | null>(null);
+
+    // Re-seed the pre-checked accepts each time the modal opens.
+    useEffect(() => {
+      if (!open) return;
+      setPromoteIds(
+        new Set(
+          (tryoutSignups || [])
+            .filter((s: any) => s.status === "accepted")
+            .map((s: any) => s.id)
+        )
+      );
+    }, [open, tryoutSignups]);
 
     const partition = useMemo(() => {
       const accepted = [];
@@ -136,6 +154,7 @@ export const AdvanceSeasonModal = memo(
     };
 
     return (
+      <>
       <div
         className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
         onClick={busy ? undefined : onClose}
@@ -168,8 +187,10 @@ export const AdvanceSeasonModal = memo(
               <p className="t-body mt-2 leading-relaxed">
                 Mark each player as Returning or Released for the next season.
                 Released players are dropped from the roster (their stats stay
-                in season history). Tryout accepts ride into the new roster
-                automatically.
+                in season history). Use <strong>Offer</strong> on a returning
+                player to copy their offer letter (next season&apos;s dues +
+                deposit). Accepted tryouts are pre-checked below and ride into
+                the new roster.
               </p>
             </div>
             {!busy && (
@@ -248,11 +269,22 @@ export const AdvanceSeasonModal = memo(
                           Tryout Accept
                         </span>
                       ) : (
-                        <div
-                          className="flex items-center gap-1 shrink-0"
-                          role="group"
-                          aria-label={`${p.name} returning next season`}
-                        >
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {returning && (
+                            <button
+                              type="button"
+                              onClick={() => setOfferPlayer(p)}
+                              title="Copy a returning-player offer letter"
+                              className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-line bg-surface text-ink-3 hover:bg-surface-2 transition-colors inline-flex items-center gap-1"
+                            >
+                              <Icons.FileText className="w-3 h-3" /> Offer
+                            </button>
+                          )}
+                          <div
+                            className="flex items-center gap-1"
+                            role="group"
+                            aria-label={`${p.name} returning next season`}
+                          >
                           <span className="text-[9px] font-bold uppercase tracking-widest text-ink-3 mr-1">
                             Returning?
                           </span>
@@ -280,6 +312,7 @@ export const AdvanceSeasonModal = memo(
                           >
                             No
                           </button>
+                          </div>
                         </div>
                       )}
                     </li>
@@ -395,6 +428,16 @@ export const AdvanceSeasonModal = memo(
           </div>
         </A11yDialog>
       </div>
+      {offerPlayer && (
+        <OfferLetterModal
+          open
+          onClose={() => setOfferPlayer(null)}
+          kind="returning"
+          recipientEmail={offerPlayer.email}
+          ctx={makeOfferLetterContext(team, user, offerPlayer.name)}
+        />
+      )}
+      </>
     );
   }
 );

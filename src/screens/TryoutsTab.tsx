@@ -71,7 +71,15 @@ const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: a
       p.playerStatus !== "declined" &&
       p.playerStatus !== "accepted"
   );
-  const slotsRemaining = Math.max(0, rosterCap - returners.length);
+  // Accepted tryouts are held in tryoutSignups (status "accepted") until
+  // Advance Season — they already own a slot, so they don't compete.
+  const acceptedSignups = (tryoutSignups || []).filter(
+    (s: any) => s.status === "accepted"
+  );
+  const slotsRemaining = Math.max(
+    0,
+    rosterCap - returners.length - acceptedSignups.length
+  );
 
   const scoreOfSignup = (signup: any) => {
     const ev = (evaluationEvents || []).find(
@@ -89,7 +97,7 @@ const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: a
   const notGraded = [];
   const graded = [];
   for (const s of tryoutSignups || []) {
-    if (s.status === "declined") continue;
+    if (s.status === "declined" || s.status === "accepted") continue;
     if (tryoutIsTooOld(s, team)) {
       tooOld.push(s);
       continue;
@@ -109,6 +117,7 @@ const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: a
   return {
     rosterCap,
     returnerCount: returners.length,
+    acceptedCount: acceptedSignups.length,
     slotsRemaining,
     makeIt,
     bubble,
@@ -233,7 +242,9 @@ const TeamImpactPanel = memo(({ roster }: any) => {
           <Icons.Clipboard className="w-4 h-4" /> Roster Projection
         </h3>
         <span className="t-eyebrow text-ink-3">
-          {roster.returnerCount} returning · {roster.slotsRemaining} open of {roster.rosterCap}
+          {roster.returnerCount} returning
+          {roster.acceptedCount > 0 ? ` · ${roster.acceptedCount} accepted` : ""}{" "}
+          · {roster.slotsRemaining} open of {roster.rosterCap}
         </span>
       </div>
       {empty ? (
@@ -459,6 +470,10 @@ export const TryoutsTab = memo(() => {
   const [offerDraft, setOfferDraft] = useState<
     { signup: any; kind: OfferLetterKind } | null
   >(null);
+  // Accept-time routing choice: accepts default to NEXT season (held in
+  // Tryouts, promoted on Advance Season); the coach can opt a kid onto the
+  // CURRENT roster instead.
+  const [acceptChoice, setAcceptChoice] = useState<any | null>(null);
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
@@ -786,7 +801,7 @@ export const TryoutsTab = memo(() => {
                         {isHead && s.status === "offered" && (
                           <button
                             type="button"
-                            onClick={() => acceptTryout?.(s.id)}
+                            onClick={() => setAcceptChoice(s)}
                             className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
                           >
                             Mark Accepted
@@ -878,6 +893,74 @@ export const TryoutsTab = memo(() => {
             })
           }
         />
+      )}
+
+      {acceptChoice && (
+        <div
+          className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4"
+          onClick={() => setAcceptChoice(null)}
+        >
+          <A11yDialog
+            label={`Accept ${acceptChoice.firstName || "player"}`}
+            onClose={() => setAcceptChoice(null)}
+            className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl border border-line overflow-hidden"
+          >
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="t-card-title">
+                  Accept {acceptChoice.firstName} {acceptChoice.lastName}
+                </h3>
+                <p className="t-body mt-1.5 leading-relaxed">
+                  Which roster does this player join?
+                </p>
+              </div>
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    acceptTryout?.(acceptChoice.id, "next");
+                    setAcceptChoice(null);
+                  }}
+                  className="w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
+                >
+                  <div className="text-sm font-black text-ink">
+                    Next season{" "}
+                    <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
+                      Default
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-ink-3 font-medium mt-0.5">
+                    Stays in Tryouts marked Accepted. Joins the roster
+                    automatically when you Advance Season.
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    acceptTryout?.(acceptChoice.id, "current");
+                    setAcceptChoice(null);
+                  }}
+                  className="w-full text-left p-3 rounded-xl border border-line bg-surface hover:bg-surface-2 transition-colors"
+                >
+                  <div className="text-sm font-black text-ink">
+                    Current roster now
+                  </div>
+                  <div className="text-[11px] text-ink-3 font-medium mt-0.5">
+                    Adds them to this season&apos;s roster immediately
+                    (available in lineups right away).
+                  </div>
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAcceptChoice(null)}
+                className="w-full px-4 py-2 text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </A11yDialog>
+        </div>
       )}
     </div>
   );

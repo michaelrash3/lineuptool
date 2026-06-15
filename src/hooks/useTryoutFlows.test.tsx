@@ -72,16 +72,29 @@ describe("useTryoutFlows", () => {
     expect(updateTeam.mock.calls[0][0].tryoutSignups[0]).toMatchObject({ id: "s1", status: "reviewed" });
   });
 
-  it("acceptTryout adds an accepted player and flips signup status", () => {
+  it("acceptTryout (default) holds the signup for next season without adding a player", () => {
     const { result, updateTeam, toast } = setup({
       tryoutSignups: [{ id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true }],
     });
     act(() => result.current.acceptTryout("s1"));
     const patch = updateTeam.mock.calls[0][0];
     expect(patch.tryoutSignups[0].status).toBe("accepted");
-    expect(patch.players[0]).toMatchObject({ name: "Ava Rivera", playerStatus: "accepted" });
-    expect(patch.players[0].comfortablePositions).toContain("C");
+    // No current-season player is created — they join on Advance Season.
+    expect(patch.players).toBeUndefined();
     expect(toast.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "success" }));
+  });
+
+  it("acceptTryout('current') pulls the player onto the current roster and consumes the signup", () => {
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true }],
+      players: [],
+    });
+    act(() => result.current.acceptTryout("s1", "current"));
+    const patch = updateTeam.mock.calls[0][0];
+    // Signup is removed (they're a roster player now, not a tryout).
+    expect(patch.tryoutSignups).toEqual([]);
+    expect(patch.players[0]).toMatchObject({ name: "Ava Rivera", playerStatus: "returning" });
+    expect(patch.players[0].comfortablePositions).toContain("C");
   });
 
   it("saveTryoutEvaluation records a tryout eval event", () => {

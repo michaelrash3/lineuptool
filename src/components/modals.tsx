@@ -26,8 +26,6 @@ import {
   STAT_META,
   formatStatValue,
 } from "./modals/statTrend";
-import { OfferLetterModal } from "./OfferLetterModal";
-import { makeOfferLetterContext } from "../utils/offerContext";
 
 // The chart-bearing components load lazily from ./modals/statTrendViz so this
 // eager module doesn't drag the recharts chunk into the startup bundle.
@@ -510,7 +508,6 @@ const PastSeasonForm = memo(
 export const PlayerProfileModal = memo(() => {
   const {
     team,
-    user,
     updatePlayer,
     updatePlayerNested,
     removePlayer,
@@ -519,8 +516,6 @@ export const PlayerProfileModal = memo(() => {
     removePastSeason,
     currentRole,
   } = useTeam();
-  // Returning-player offer letter (copyable draft, head-only).
-  const [showReturningOffer, setShowReturningOffer] = useState(false);
   // Assistants only see this profile in view-only mode: edits, position
   // restrictions, and private contact info are head-only.
   const canEdit = currentRole !== "assistant";
@@ -1781,14 +1776,6 @@ export const PlayerProfileModal = memo(() => {
                   />
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={() => setShowReturningOffer(true)}
-                className="w-full mt-1 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
-                style={{ backgroundColor: "var(--team-primary)" }}
-              >
-                <Icons.FileText className="w-3.5 h-3.5" /> Make Returning Offer
-              </button>
             </div>
         </div>
 
@@ -1826,15 +1813,6 @@ export const PlayerProfileModal = memo(() => {
           </div>
         </div>
       </A11yDialog>
-      {showReturningOffer && (
-        <OfferLetterModal
-          open
-          onClose={() => setShowReturningOffer(false)}
-          kind="returning"
-          recipientEmail={player.email}
-          ctx={makeOfferLetterContext(team, user, player.name)}
-        />
-      )}
       {trendStatKey && (
         <React.Suspense fallback={null}>
           <StatTrendModal

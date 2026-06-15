@@ -1889,6 +1889,8 @@ export const SettingsTab = memo(() => {
         tryoutSignups={team.tryoutSignups || []}
         currentSeason={team.currentSeason}
         nextSeasonLabel={nextSeasonLabel}
+        team={team}
+        user={user}
         setPlayerStatus={setPlayerStatus}
         setPlayerReturning={setPlayerReturning}
         onClose={() => setAdvanceSeasonOpen(false)}
