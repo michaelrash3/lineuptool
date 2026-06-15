@@ -966,7 +966,7 @@ export const UpNextPanel = memo(
       setBattingLineup,
       setCurrentGameAttendance,
     } = useUI();
-    const { games, players, finances, practices } = team;
+    const { games, players, finances } = team;
     // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
     // row reappears next session if the underlying task still isn't done.
     const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
@@ -1016,37 +1016,6 @@ export const UpNextPanel = memo(
           ctaLabel: "Open",
           onClick: () => setActiveTab("evaluation"),
         });
-      }
-
-      // ----- Plan the next practice (both roles — assistants run practices
-      // too). Only nudges when a practice is on the calendar this week with no
-      // plan or drills attached yet.
-      const nextPractice = (practices || [])
-        .filter((p: any) => (p.status || "scheduled") !== "cancelled")
-        .filter((p: any) => p.date && p.date >= todayStr)
-        .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
-      if (nextPractice) {
-        const pd = daysUntil(nextPractice.date) ?? 99;
-        const hasPlan =
-          (typeof nextPractice.planNotes === "string" &&
-            nextPractice.planNotes.trim().length > 0) ||
-          (Array.isArray(nextPractice.drills) &&
-            nextPractice.drills.length > 0);
-        if (pd >= 0 && pd <= 7 && !hasPlan) {
-          out.push({
-            id: "practice",
-            priority: 36,
-            accent: "primary",
-            icon: Icons.Clock,
-            title: "Plan this week's practice",
-            sub: `${formatGameDateDisplay(nextPractice.date)} · ${
-              pd === 0 ? "today" : pd === 1 ? "tomorrow" : `in ${pd} days`
-            } · no plan yet`,
-            tag: "Practice",
-            ctaLabel: "Plan",
-            onClick: () => setActiveTab("practices"),
-          });
-        }
       }
 
       // The rest are head-coach actions only.
@@ -1131,7 +1100,6 @@ export const UpNextPanel = memo(
       games,
       players,
       finances,
-      practices,
       isHead,
       promptStatus,
       todayStr,

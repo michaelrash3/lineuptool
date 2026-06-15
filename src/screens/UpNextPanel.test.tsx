@@ -24,10 +24,6 @@ const baseTeam: any = {
       attendance: {},
     },
   ],
-  practices: [
-    // upcoming, no plan → "Plan this week's practice" row
-    { id: "pr1", date: "2999-05-02", status: "scheduled" },
-  ],
   finances: {
     clubFee: 100,
     depositAmount: 40,
@@ -68,10 +64,9 @@ const renderPanel = (overrides: any = {}) => {
 };
 
 describe("UpNextPanel", () => {
-  it("surfaces lineup, practice, eval and team-fee actions for a head coach", () => {
+  it("surfaces lineup, eval and team-fee actions for a head coach", () => {
     renderPanel();
     expect(screen.getByText(/build the lineup vs thunder/i)).toBeInTheDocument();
-    expect(screen.getByText(/plan this week's practice/i)).toBeInTheDocument();
     expect(screen.getByText(/start this round's evaluations/i)).toBeInTheDocument();
     // k2 still owes the full fee and hasn't met the deposit.
     expect(screen.getByText(/team fees outstanding/i)).toBeInTheDocument();
@@ -92,12 +87,12 @@ describe("UpNextPanel", () => {
 
   it("snoozes a row so it disappears from the list", () => {
     renderPanel();
-    expect(screen.getByText(/plan this week's practice/i)).toBeInTheDocument();
+    expect(screen.getByText(/build the lineup vs thunder/i)).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: /snooze: plan this week's practice/i })
+      screen.getByRole("button", { name: /snooze: build the lineup vs thunder/i })
     );
     expect(
-      screen.queryByText(/plan this week's practice/i)
+      screen.queryByText(/build the lineup vs thunder/i)
     ).not.toBeInTheDocument();
   });
 
