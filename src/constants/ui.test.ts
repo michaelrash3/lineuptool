@@ -5,6 +5,9 @@ import {
   playerIsCatcher,
   pitcherRosterPremium,
   PITCHER_ROSTER_PREMIUM_MAX,
+  EVAL_CATEGORIES,
+  EVAL_GROUPS_UNIVERSAL,
+  EVAL_GROUPS_KID_PITCH_ADDONS,
 } from "./ui";
 
 const ids = (cats: { id: string }[]) => cats.map((c) => c.id);
@@ -17,6 +20,21 @@ describe("playerIsPitcher / playerIsCatcher", () => {
     expect(playerIsCatcher({ comfortablePositions: ["1B"] })).toBe(false);
     expect(playerIsPitcher(undefined)).toBe(false);
     expect(playerIsCatcher({})).toBe(false);
+  });
+});
+
+describe("eval category groups", () => {
+  it("every category's group is a navigable tab (no orphaned add-on group)", () => {
+    // The grading UIs render one tab per group; a category whose group isn't in
+    // the tab list would be unreachable (the bug when Pitch Velocity's Pitching
+    // group was dropped).
+    const tabGroups = new Set<string>([
+      ...EVAL_GROUPS_UNIVERSAL,
+      ...EVAL_GROUPS_KID_PITCH_ADDONS,
+    ]);
+    for (const c of EVAL_CATEGORIES) {
+      expect(tabGroups.has(c.group)).toBe(true);
+    }
   });
 });
 
