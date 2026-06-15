@@ -224,47 +224,64 @@ export const useTryoutFlows = ({
     [user, teamData.evaluationEvents, updateTeam]
   );
 
-  // Accept-offer flow. Flips signup.status to "accepted" AND creates
-  // a corresponding entry in team.players with playerStatus = "accepted"
-  // so PR L's advanceSeason picks them up automatically.
+  // Accept-offer flow. Tryout accepts are oriented to the NEXT season by
+  // default: the signup is flagged "accepted" and stays in the Tryouts tab,
+  // then advanceSeason promotes it onto the new roster automatically (it's
+  // pre-checked in the Advance Season modal). The coach can override with
+  // target="current" to pull a kid straight onto the CURRENT roster now.
   const acceptTryout = useCallback(
-    (id: any) => {
+    (id: any, target: "next" | "current" = "next") => {
       const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === id);
       if (!signup) return;
       const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim();
-      const player = {
-        id: "p-" + Math.random().toString(36).slice(2, 10),
-        name,
-        number: signup.number || "",
-        dob: signup.dob || "",
-        bats: signup.bats || "R",
-        throws: signup.throws || "R",
-        comfortablePositions: [
-          ...(Array.isArray(signup.comfortablePositions) ? signup.comfortablePositions : []).filter(
-            (p: any) => p !== "C"
-          ),
-          ...(signup.isCatcher === true ? ["C"] : []),
-        ],
-        parentName: signup.parentName || "",
-        email: signup.email || "",
-        phone: signup.phone || "",
-        present: true,
-        playerStatus: "accepted",
-        stats: blankStats(),
-        pitching: { recentPitches: 0, lastPitchDate: null },
-      };
+
+      if (target === "current") {
+        // Override: this kid plays THIS season. They become a normal active
+        // player (and ride into next season as a returner), so their tryout
+        // signup is consumed — they're a roster player, not a tryout anymore.
+        const player = {
+          id: "p-" + Math.random().toString(36).slice(2, 10),
+          name,
+          number: signup.tryoutNumber || signup.number || "",
+          dob: signup.dob || "",
+          bats: signup.bats || "R",
+          throws: signup.throws || "R",
+          comfortablePositions: [
+            ...(Array.isArray(signup.comfortablePositions) ? signup.comfortablePositions : []).filter(
+              (p: any) => p !== "C"
+            ),
+            ...(signup.isCatcher === true ? ["C"] : []),
+          ],
+          parentName: signup.parentName || "",
+          email: signup.email || "",
+          phone: signup.phone || "",
+          present: true,
+          playerStatus: "returning",
+          stats: blankStats(),
+          pitching: { recentPitches: 0, lastPitchDate: null },
+          tryoutSignupId: signup.id,
+        };
+        updateTeam({
+          tryoutSignups: (teamData.tryoutSignups || []).filter((s: any) => s.id !== id),
+          players: [...(teamData.players || []), player],
+        });
+        toast.push({
+          kind: "success",
+          title: `${name} added to current roster`,
+        });
+        return;
+      }
+
+      // Default: accept for NEXT season. Keep them in the Tryouts tab marked
+      // "accepted"; advanceSeason brings them onto the roster.
       const nextSignups = (teamData.tryoutSignups || []).map((s: any) =>
         s.id === id ? { ...s, status: "accepted" } : s
       );
-      const nextPlayers = [...(teamData.players || []), player];
-      updateTeam({
-        tryoutSignups: nextSignups,
-        players: nextPlayers,
-      });
+      updateTeam({ tryoutSignups: nextSignups });
       toast.push({
         kind: "success",
         title: `${name} accepted`,
-        message: "Added to roster with status “accepted”. They join on Advance Season.",
+        message: "Joins the roster automatically when you Advance Season.",
       });
     },
     [teamData.tryoutSignups, teamData.players, updateTeam, toast]
