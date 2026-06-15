@@ -181,7 +181,9 @@ export interface Practice {
   endUtc?: string | null;
   location?: string;
   environment?: "indoor" | "outdoor";
-  attendance?: Record<string, boolean>;
+  // playerId → status. Legacy values: true = present, false = absent. Current
+  // values use the string union; "excused" does NOT count as a missed practice.
+  attendance?: Record<string, boolean | "present" | "absent" | "excused">;
   drills?: DrillLogEntry[];
   planNotes?: string;
   source?: "manual" | "gamechanger";

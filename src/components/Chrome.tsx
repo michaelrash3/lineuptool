@@ -583,7 +583,7 @@ export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => 
   return (
     <nav
       aria-label="Primary"
-      className="glass border-b border-line print:hidden relative z-10 shadow-sm"
+      className="glass border-b border-line print:hidden relative z-30 shadow-sm"
     >
       {/* sm+: full pill row (unchanged) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 hidden sm:block">

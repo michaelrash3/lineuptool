@@ -98,7 +98,7 @@ export const usePracticeCrud = ({
   );
 
   const savePracticeAttendance = useCallback(
-    (id: any, attendanceMap: Record<string, boolean>) => {
+    (id: any, attendanceMap: Record<string, any>) => {
       const next = (teamData.practices || []).map((p: any) =>
         p.id === id ? { ...p, attendance: { ...attendanceMap } } : p
       );
