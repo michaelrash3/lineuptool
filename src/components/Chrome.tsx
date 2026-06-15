@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
@@ -581,7 +582,14 @@ export const NavDrawer = memo(
           <Icons.Menu className="w-5 h-5" />
         </button>
 
-        {open && (
+        {open &&
+          typeof document !== "undefined" &&
+          createPortal(
+            // Portaled to <body>: the header carries a `backdrop-filter`
+            // (.glass), which would otherwise become the containing block for
+            // this position:fixed overlay and crush it down to the header's
+            // height — squashing the nav list into a sliver. Rendering at the
+            // document root keeps the drawer pinned to the full viewport.
           <div className="fixed inset-0 z-[60] print:hidden">
             {/* Dimmed, tap-away backdrop */}
             <div
@@ -666,8 +674,9 @@ export const NavDrawer = memo(
                 </div>
               </div>
             </nav>
-          </div>
-        )}
+          </div>,
+            document.body
+          )}
       </>
     );
   }
