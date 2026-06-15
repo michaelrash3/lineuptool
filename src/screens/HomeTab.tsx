@@ -18,6 +18,7 @@ import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard, EmptyState } from "../components/shared";
 import { SeasonReportModal } from "../components/SeasonReportModal";
+import { AwardsModal } from "../components/AwardsModal";
 import {
   StaggerList,
   StaggerItem,
@@ -1508,6 +1509,7 @@ export const HomeTab = memo(() => {
   } = useUI();
   const isHead = currentRole !== "assistant";
   const [showSeasonReport, setShowSeasonReport] = useState(false);
+  const [showAwards, setShowAwards] = useState(false);
   const promptStatus = useMemo(
     () =>
       evalPromptStatus(
@@ -1685,13 +1687,22 @@ export const HomeTab = memo(() => {
             <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3 mt-1">
               {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
             </div>
-            <button
-              type="button"
-              onClick={() => setShowSeasonReport(true)}
-              className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
-            >
-              <Icons.FileText className="w-3.5 h-3.5" /> Season Report
-            </button>
+            <div className="flex flex-col items-end gap-1.5 mt-2">
+              <button
+                type="button"
+                onClick={() => setShowSeasonReport(true)}
+                className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+              >
+                <Icons.FileText className="w-3.5 h-3.5" /> Season Report
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAwards(true)}
+                className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+              >
+                <Icons.Sparkles className="w-3.5 h-3.5" /> Awards
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1870,6 +1881,9 @@ export const HomeTab = memo(() => {
           onClose={() => setShowSeasonReport(false)}
           team={team}
         />
+      )}
+      {showAwards && (
+        <AwardsModal open onClose={() => setShowAwards(false)} team={team} />
       )}
     </div>
   );
