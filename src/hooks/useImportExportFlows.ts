@@ -724,6 +724,21 @@ export const useImportExportFlows = ({
       reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
           const data = JSON.parse(fileText(ev));
+          // JSON.parse succeeds for any valid JSON, but restore disables the
+          // roster-wipe guard (allowEmptyPlayers) and does a full replace — so
+          // a wrong file (some other app's export, a partial object) would
+          // silently clobber the team. Require the parsed value to look like a
+          // LineupTool backup (an object with a players array) before applying.
+          const looksLikeBackup =
+            data &&
+            typeof data === "object" &&
+            !Array.isArray(data) &&
+            Array.isArray((data as any).players);
+          if (!looksLikeBackup) {
+            throw new Error(
+              "This file doesn't look like a LineupTool backup."
+            );
+          }
           // allowEmptyPlayers: restoring a backup is an explicitly-confirmed
           // full replace, so the persistTeam roster-wipe guard must defer to
           // whatever the backup file says — even an empty roster.
