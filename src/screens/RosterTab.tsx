@@ -6,6 +6,7 @@ import { getPlayerInitials } from "../components/shared";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
+import { RosterStatsPanel } from "../components/RosterStatsPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
@@ -63,7 +64,7 @@ const playerMatchesFilter = (player: any, filterId: any) => {
   }
 };
 
-const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag, logoUrl, stripped }: any) => {
+const PlayerRow = memo(({ player, currentSeason, onOpenProfile, onSelectStats, selectedForStats, showPositionTag, logoUrl, stripped }: any) => {
   const absent = player.present === false;
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
 
@@ -71,10 +72,14 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
     <div
       className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch border-b border-line transition-all ${
         absent ? "opacity-85" : ""
-      }`}
+      } ${selectedForStats ? "ring-2 ring-[var(--team-primary)] ring-inset" : ""}`}
     >
-      <div
-        className="relative grid place-items-center overflow-hidden"
+      <button
+        type="button"
+        onClick={() => onSelectStats?.(player.id)}
+        title="View stats"
+        aria-label={`View ${player.name} stats`}
+        className="relative grid place-items-center overflow-hidden cursor-pointer"
         style={{
           background: absent
             ? "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 60%), linear-gradient(135deg, #64748b 0%, #475569 60%, #1e293b 100%)"
@@ -120,7 +125,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, showPositionTag,
             {player.number}
           </span>
         )}
-      </div>
+      </button>
 
       <div className="px-3.5 py-3 min-w-0 flex flex-col justify-between gap-2">
         <div>
@@ -252,6 +257,8 @@ export const RosterTab = memo(() => {
   // Gameday filter state — per-session, intentionally not persisted.
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilters, setActiveFilters] = useState(() => new Set());
+  // Player whose stats fill the side panel (tap a jersey). null → team leaders.
+  const [selectedStatsId, setSelectedStatsId] = useState<string | null>(null);
 
   const toggleFilter = (id: any) => {
     setActiveFilters((prev) => {
@@ -292,10 +299,11 @@ export const RosterTab = memo(() => {
   const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <PitcherRankingPanel />
       <PitchingPlanPanel />
       <ArmCarePanel />
+      <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
       <div className="border-b border-line pb-6">
         <div
           className="h-1.5 w-full"
@@ -447,6 +455,8 @@ export const RosterTab = memo(() => {
                     player={player}
                     currentSeason={currentSeason}
                     onOpenProfile={openPlayerProfile}
+                    onSelectStats={setSelectedStatsId}
+                    selectedForStats={player.id === selectedStatsId}
                     showPositionTag={canEdit}
                     logoUrl={(team as any)?.logoUrl}
                     stripped={stripped}
@@ -456,6 +466,12 @@ export const RosterTab = memo(() => {
             </StaggerList>
           )}
         </div>
+      </div>
+      <RosterStatsPanel
+        players={players}
+        selectedId={selectedStatsId}
+        onSelect={setSelectedStatsId}
+      />
       </div>
     </div>
   );
