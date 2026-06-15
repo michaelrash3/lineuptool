@@ -391,6 +391,14 @@ export interface TeamFinances {
   // THIS season's per-player club fee in dollars — what Collections tracks.
   // Fees are an annual (Spring) cycle; Fall pickups are typically waived.
   clubFee?: number;
+  // Optional up-front deposit each family pays toward the team fee, with its
+  // own earlier due date; the remaining balance is due by feeDueDate. Payments
+  // count toward the single fee total — the deposit is just the first slice a
+  // family is expected to cover by depositDueDate. All dates are ISO
+  // yyyy-mm-dd. Unset = no deposit / no scheduled due dates.
+  depositAmount?: number;
+  depositDueDate?: string;
+  feeDueDate?: string;
   // NEXT season's fee, set from the Budget Planner's suggestion. The season
   // year runs Fall → Spring, so this is promoted to clubFee when the season
   // advances into a new Fall — planning never disturbs the in-progress

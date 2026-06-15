@@ -54,6 +54,7 @@ import {
   budgetTotal,
   suggestedFeePerPlayer,
   financeSummary,
+  teamFeesStatus,
   budgetItemAmount,
   roundUpToIncrement,
   incomeTotal,
@@ -1985,6 +1986,67 @@ describe("finances money math", () => {
   it("financeSummary skips fee-exempt players in stillOwed", () => {
     const s = financeSummary({ ...finances, feeExemptIds: ["kid3"] }, players);
     expect(s.stillOwed).toBe(75); // kid2's remainder only; kid3 waived
+  });
+
+  describe("teamFeesStatus", () => {
+    const feePlayers = [
+      { id: "kid1", name: "Ava" },
+      { id: "kid2", name: "Ben" },
+      { id: "kid3", name: "Cy" },
+    ];
+    const base = {
+      clubFee: 150,
+      payments: [
+        { id: "p1", playerId: "kid1", amount: 150 }, // paid in full
+        { id: "p2", playerId: "kid2", amount: 75 }, // partial
+        // kid3: nothing
+      ],
+    };
+
+    it("counts families still owing the full fee", () => {
+      const t = teamFeesStatus(base, feePlayers);
+      expect(t.hasFee).toBe(true);
+      expect(t.effectiveFee).toBe(150);
+      expect(t.stillOwed).toBe(225); // kid2 75 + kid3 150
+      expect(t.fullOwedCount).toBe(2);
+      expect(t.depositAmount).toBe(0);
+      expect(t.depositOwedCount).toBe(0);
+    });
+
+    it("tracks the deposit slice and surfaces both due dates", () => {
+      const t = teamFeesStatus(
+        {
+          ...base,
+          depositAmount: 50,
+          depositDueDate: "2026-03-01",
+          feeDueDate: "2026-05-01",
+        },
+        feePlayers
+      );
+      expect(t.depositAmount).toBe(50);
+      expect(t.depositOwedCount).toBe(1); // only kid3 (paid 0)
+      expect(t.depositOutstanding).toBe(50);
+      expect(t.depositDueDate).toBe("2026-03-01");
+      expect(t.feeDueDate).toBe("2026-05-01");
+    });
+
+    it("caps the deposit at the effective fee and skips exempt players", () => {
+      const t = teamFeesStatus(
+        { ...base, depositAmount: 999, feeExemptIds: ["kid3"] },
+        feePlayers
+      );
+      expect(t.depositAmount).toBe(150); // can't exceed the fee
+      expect(t.fullOwedCount).toBe(1); // kid2 only; kid3 waived
+      expect(t.stillOwed).toBe(75);
+      expect(t.depositOwedCount).toBe(1); // kid2 (paid 75 < 150 deposit)
+      expect(t.depositOutstanding).toBe(75);
+    });
+
+    it("reports no fee when none is configured", () => {
+      const t = teamFeesStatus({ clubFee: 0 }, feePlayers);
+      expect(t.hasFee).toBe(false);
+      expect(t.fullOwedCount).toBe(0);
+    });
   });
 
   it("rollFinancesForNewSeason carries the balance, resets collections, promotes the planned fee", () => {
