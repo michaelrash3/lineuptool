@@ -252,8 +252,6 @@ export const ScheduleTab = memo(() => {
   const [gcImportOpen, setGcImportOpen] = useState(false);
   // Tournament games show the Starting Lineup card by default — the full
   // inning grid is opt-in (the scripted plan below covers the changes).
-  const [showFullGrid, setShowFullGrid] = useState(false);
-  useEffect(() => setShowFullGrid(false), [selectedGameId]);
 
   // Auto-sync the GameChanger schedule when the Schedule tab opens. Runs only
   // when a feed URL is saved and the user can edit, throttled per team so
@@ -1132,23 +1130,11 @@ export const ScheduleTab = memo(() => {
                   />
                 </div>
                 <h2 className="text-xl font-black text-ink uppercase tracking-wider">
-                  {tournamentPlan && !showFullGrid
-                    ? "Starting Lineup"
-                    : "Active Lineup Grid"}
+                  Active Lineup Grid
                 </h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
-                {tournamentPlan && (
-                  <button
-                    onClick={() => setShowFullGrid((v) => !v)}
-                    aria-pressed={showFullGrid}
-                    className="text-xs bg-surface border border-line text-ink py-2.5 px-5 flex items-center gap-2 font-extrabold uppercase tracking-wider hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
-                  >
-                    <Icons.Clipboard className="w-4 h-4" />
-                    {showFullGrid ? "Starting Lineup" : "Full Grid"}
-                  </button>
-                )}
-                {canEdit && (!tournamentPlan || showFullGrid) && (
+                {canEdit && (
                   <div className="flex items-center bg-surface border border-line rounded-xl overflow-hidden shadow-sm">
                     <button
                       onClick={removeInning}
@@ -1223,108 +1209,18 @@ export const ScheduleTab = memo(() => {
               </h2>
             </div>
 
-            {tournamentPlan && !showFullGrid ? (
-              /* Tournament games lead with the starters — the scripted plan
-                 below covers mid-game changes; the full grid stays one tap
-                 away for manual edits. */
-              <div className="p-4 sm:p-6">
-                <div className="flex flex-col gap-2 max-w-2xl">
-                  {getPositionsForInning(presentCount, gameDefenseSize).map(
-                    (pos: string) => {
-                      const starter =
-                        tournamentPlan.starters?.[pos] || lineup[0]?.[pos];
-                      return (
-                        <div
-                          key={`start-${pos}`}
-                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-line bg-surface"
-                        >
-                          <span
-                            className="inline-flex items-center justify-center w-12 h-9 rounded-lg font-black text-sm tracking-tight shrink-0"
-                            style={{
-                              backgroundColor: "var(--team-primary-15)",
-                              color: "var(--team-primary)",
-                            }}
-                          >
-                            {pos}
-                          </span>
-                          <span className="text-base font-bold text-ink truncate">
-                            {starter ? starter.name : "—"}
-                          </span>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-                {(lineup[0]?.BENCH || []).length > 0 && (
-                  <div className="mt-4 max-w-2xl">
-                    <div className="t-eyebrow text-ink-3 mb-1.5">Bench</div>
-                    <div className="flex flex-wrap gap-2">
-                      {lineup[0].BENCH.map((p: any) => (
-                        <span
-                          key={`start-bench-${p.id}`}
-                          className="px-3 py-1.5 text-sm font-bold border border-line rounded-lg bg-surface text-ink-2"
-                        >
-                          {p.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <LineupGrid
-                lineup={lineup}
-                positions={getPositionsForInning(presentCount, gameDefenseSize)}
-                swapSelection={canEdit ? swapSelection : null}
-                onCellClick={canEdit ? handleCellClick : undefined}
-              />
-            )}
+            <LineupGrid
+              lineup={lineup}
+              positions={getPositionsForInning(presentCount, gameDefenseSize)}
+              swapSelection={canEdit ? swapSelection : null}
+              onCellClick={canEdit ? handleCellClick : undefined}
+            />
 
-            {/* Tournament plan: the scripted sub windows + relief options the
-                tournament generator produced. Rec lineups have no plan. */}
-            {tournamentPlan && (
+            {/* Relief options the tournament generator surfaced (pitch-count
+                checked). The scripted starters/subs plan was removed — the
+                editable lineup grid above is the source of truth. */}
+            {tournamentPlan && (tournamentPlan.reliefOptions || []).length > 0 && (
               <div className="p-6 border-t border-line/80 bg-transparent space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-surface border border-line shadow-sm">
-                    <Icons.Users className="w-5 h-5 text-ink-2" />
-                  </div>
-                  <h3 className="text-lg font-black text-ink uppercase tracking-widest">
-                    Tournament Plan
-                  </h3>
-                </div>
-                {currentGame.gameType === "pool" && (
-                  <div className="max-w-2xl bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs font-bold text-amber-900">
-                    Pool play: put your better pitchers behind the plate today
-                    — innings at catcher don't burn pitches, so their arms stay
-                    fresh to pitch bracket play.
-                  </div>
-                )}
-                {(tournamentPlan.substitutions || []).length > 0 ? (
-                  <ul className="space-y-1.5 max-w-2xl">
-                    {tournamentPlan.substitutions.map((s: any) => (
-                      <li
-                        key={`${s.position}-${s.in?.id}`}
-                        className="bg-surface border border-line rounded-xl px-3 py-2 text-sm font-bold text-ink flex flex-wrap items-center gap-x-2"
-                      >
-                        <span className="text-team-primary font-black uppercase text-xs tracking-widest">
-                          Inning {s.inning}
-                        </span>
-                        <span>
-                          {s.in?.name} in for {s.out?.name} at {s.position}
-                        </span>
-                        {s.returnInning != null && (
-                          <span className="text-ink-3 font-medium">
-                            — {s.out?.name} returns in inning {s.returnInning}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm font-bold text-ink-2">
-                    Everyone present starts — no subs to schedule.
-                  </p>
-                )}
                 {(tournamentPlan.reliefOptions || []).length > 0 && (
                   <div className="max-w-2xl">
                     <div className="t-eyebrow text-ink-3 mb-1.5">

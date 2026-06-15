@@ -28,35 +28,44 @@ const PLAN_SUGGESTIONS: Record<string, { name: string; minutes: number }[]> = {
 
 const newId = (p: string) => p + "-" + Math.random().toString(36).substring(2, 9);
 
-// Compact present/absent toggle row for a single player.
-const AttendanceRow = ({ player, present, onToggle }: any) => (
-  <button
-    type="button"
-    onClick={onToggle}
-    className="flex items-center justify-between gap-3 px-1 py-2 border-b border-line text-left w-full hover:bg-surface-2 transition-colors"
-  >
-    <span className="flex items-center gap-2 min-w-0">
-      <span
-        className={`w-2 h-2 rounded-full shrink-0 ${present ? "bg-win" : "bg-loss"}`}
-      />
-      <span className="font-bold text-ink truncate">
-        {player.number != null && player.number !== "" && (
-          <span className="text-ink-3 tabular-nums mr-1.5">#{player.number}</span>
-        )}
-        {player.name}
-      </span>
-    </span>
-    <span
-      className={`t-chip px-2 py-0.5 rounded-md border ${
-        present
-          ? "bg-win-bg text-win border-line"
-          : "bg-loss-bg text-loss border-line"
-      }`}
+// Attendance is tri-state: present / absent (a real miss) / excused (e.g. a
+// fall conflict with football, or winter basketball/wrestling — not held
+// against the player). Legacy values: true = present, false = absent.
+type AttStatus = "present" | "absent" | "excused";
+const statusOf = (v: any): AttStatus =>
+  v === false || v === "absent" ? "absent" : v === "excused" ? "excused" : "present";
+const nextStatus = (s: AttStatus): AttStatus =>
+  s === "present" ? "absent" : s === "absent" ? "excused" : "present";
+const STATUS_META: Record<AttStatus, { label: string; dot: string; chip: string }> = {
+  present: { label: "Here", dot: "bg-win", chip: "bg-win-bg text-win border-line" },
+  absent: { label: "Out", dot: "bg-loss", chip: "bg-loss-bg text-loss border-line" },
+  excused: { label: "Excused", dot: "bg-warnfg", chip: "bg-warn-bg text-warnfg border-line" },
+};
+
+// Compact attendance toggle row — tap cycles Here → Out → Excused.
+const AttendanceRow = ({ player, status, onCycle }: any) => {
+  const m = STATUS_META[status as AttStatus] || STATUS_META.present;
+  return (
+    <button
+      type="button"
+      onClick={onCycle}
+      className="flex items-center justify-between gap-3 px-1 py-2 border-b border-line text-left w-full hover:bg-surface-2 transition-colors"
     >
-      {present ? "Here" : "Out"}
-    </span>
-  </button>
-);
+      <span className="flex items-center gap-2 min-w-0">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
+        <span className="font-bold text-ink truncate">
+          {player.number != null && player.number !== "" && (
+            <span className="text-ink-3 tabular-nums mr-1.5">#{player.number}</span>
+          )}
+          {player.name}
+        </span>
+      </span>
+      <span className={`t-chip px-2 py-0.5 rounded-md border ${m.chip}`}>
+        {m.label}
+      </span>
+    </button>
+  );
+};
 
 // A single practice as an open, expandable row.
 const PracticeRow = memo(
@@ -66,8 +75,13 @@ const PracticeRow = memo(
     const [drillMin, setDrillMin] = useState("");
 
     const att = practice.attendance || {};
-    const presentCount = players.filter((p: any) => att[p.id] !== false).length;
-    const outCount = players.length - presentCount;
+    const presentCount = players.filter(
+      (p: any) => statusOf(att[p.id]) === "present"
+    ).length;
+    const outCount = players.filter((p: any) => statusOf(att[p.id]) === "absent").length;
+    const excusedCount = players.filter(
+      (p: any) => statusOf(att[p.id]) === "excused"
+    ).length;
     const drills = Array.isArray(practice.drills) ? practice.drills : [];
 
     const [gy, gm, gd] = (practice.date || "").split("-");
@@ -78,9 +92,11 @@ const PracticeRow = memo(
     const dnum = gd ? String(Number(gd)) : "";
     const env = practice.environment || "outdoor";
 
-    const toggleAttendance = (pid: string) => {
-      const cur = att[pid] !== false; // default present
-      savePracticeAttendance(practice.id, { ...att, [pid]: !cur });
+    const cycleAttendance = (pid: string) => {
+      savePracticeAttendance(practice.id, {
+        ...att,
+        [pid]: nextStatus(statusOf(att[pid])),
+      });
     };
     const addDrill = (name: string, minutes?: number) => {
       const trimmed = name.trim();
@@ -161,7 +177,9 @@ const PracticeRow = memo(
               <span className="text-ink-3">/{players.length}</span>
             </div>
             <div className="t-eyebrow text-ink-3">
-              {outCount > 0 ? `${outCount} out` : "all in"}
+              {outCount > 0 || excusedCount > 0
+                ? `${outCount} out${excusedCount > 0 ? ` · ${excusedCount} exc` : ""}`
+                : "all in"}
             </div>
           </div>
           <Icons.ChevronDown
@@ -206,8 +224,8 @@ const PracticeRow = memo(
                     <AttendanceRow
                       key={p.id}
                       player={p}
-                      present={att[p.id] !== false}
-                      onToggle={() => toggleAttendance(p.id)}
+                      status={statusOf(att[p.id])}
+                      onCycle={() => cycleAttendance(p.id)}
                     />
                   ))}
                 </div>
@@ -430,8 +448,8 @@ export const PracticesTab = memo(() => {
   );
 
   // Season miss-tracker: across practices where attendance was actually taken,
-  // who has missed the most. Defaults to present, so only explicit "out" marks
-  // count as misses.
+  // who has missed the most. Only explicit "out" marks count — present (the
+  // default) and excused absences do not.
   const missLeaders = useMemo(() => {
     const taken = practices.filter(
       (p: any) =>
@@ -442,7 +460,9 @@ export const PracticesTab = memo(() => {
     if (taken.length === 0) return { total: 0, rows: [] as any[] };
     const rows = players
       .map((p: any) => {
-        const missed = taken.filter((pr: any) => pr.attendance[p.id] === false).length;
+        const missed = taken.filter(
+          (pr: any) => statusOf(pr.attendance[p.id]) === "absent"
+        ).length;
         return { player: p, missed, attended: taken.length - missed };
       })
       .filter((r: any) => r.missed > 0)
@@ -506,7 +526,7 @@ export const PracticesTab = memo(() => {
       {practices.length === 0 ? (
         <div className="text-center py-16">
           <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
-            🥎
+            ⚾
           </div>
           <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
             No Practices Yet
