@@ -55,7 +55,9 @@ describe("RosterTab", () => {
       },
       ui: { setIsAddingPlayer: jest.fn() },
     });
-    expect(screen.getByText("RBI")).toBeInTheDocument();
+    // Scope to the per-row grid (a <div> label) so it doesn't match the
+    // stats side panel's leader rows (which label stats in <span>s).
+    expect(screen.getByText("RBI", { selector: "div" })).toBeInTheDocument();
     expect(screen.queryByText("AVG · OPS")).toBeNull();
   });
 
@@ -68,7 +70,27 @@ describe("RosterTab", () => {
       ui: { setIsAddingPlayer: jest.fn() },
     });
     expect(screen.getByText("AVG · OPS")).toBeInTheDocument();
-    expect(screen.queryByText("RBI")).toBeNull();
+    // The detailed per-row grid (a <div> RBI label) is gone; the side panel's
+    // leader span is unrelated and may still be present.
+    expect(screen.queryByText("RBI", { selector: "div" })).toBeNull();
+  });
+
+  it("stats side panel shows team leaders and switches to a player on jersey tap", async () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players: playersWithStats, games: [] },
+        currentRole: "head",
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    // Default: team leaders panel.
+    expect(screen.getByText("Team Leaders")).toBeInTheDocument();
+    // Tapping the jersey (View stats) selects the player.
+    await userEvent.click(
+      screen.getByRole("button", { name: /view ava rivera stats/i })
+    );
+    expect(screen.getByText("Player stats")).toBeInTheDocument();
+    expect(screen.getByText("Batting")).toBeInTheDocument();
   });
 
   it("opens a player's profile when their name is tapped (interaction)", async () => {
