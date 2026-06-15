@@ -68,7 +68,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import {
   LoginScreen,
   AppHeader,
-  TabBarNav,
   OfflineBanner,
 } from "./components/Chrome";
 import {
@@ -377,7 +376,7 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 9 · LoginScreen, AppHeader, TabBarNav — see ./components/Chrome.jsx
+   SECTION 9 · LoginScreen, AppHeader, NavDrawer — see ./components/Chrome.jsx
 ============================================================================ */
 
 /* ============================================================================
@@ -3376,12 +3375,7 @@ const MainShell = () => {
         </div>
       )}
       <OfflineBanner />
-      <AppHeader />
-      <TabBarNav
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        navButtons={navButtons}
-      />
+      <AppHeader navButtons={navButtons} />
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
         <ErrorBoundary resetKey={location.pathname}>
