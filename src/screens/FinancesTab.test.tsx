@@ -268,25 +268,36 @@ describe("FinancesTab", () => {
     });
   });
 
-  it("edits ONLY the date on a dues payment row", () => {
+  it("edits the date AND amount on a team-fee payment row (typo fix)", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },
     });
     fireEvent.click(screen.getByLabelText("Edit entry Team fee — Ava"));
-    // Payments edit their date here; the money is managed in Collections.
-    expect(
-      screen.queryByLabelText("Edit amount for Team fee — Ava")
-    ).not.toBeInTheDocument();
+    // A typo'd payment can be corrected in place — amount is now editable.
     fireEvent.change(screen.getByLabelText("Edit date for Team fee — Ava"), {
       target: { value: "2026-03-10" },
+    });
+    fireEvent.change(screen.getByLabelText("Edit amount for Team fee — Ava"), {
+      target: { value: "120" },
     });
     fireEvent.click(screen.getByLabelText("Save entry Team fee — Ava"));
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
     expect(patch.finances.payments[0]).toMatchObject({
       id: "p1",
       date: "2026-03-10",
-      amount: 100,
+      amount: 120,
     });
+  });
+
+  it("deletes a team-fee payment row", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Delete entry Team fee — Ava"));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(
+      patch.finances.payments.some((p: any) => p.id === "p1")
+    ).toBe(false);
   });
 
   it("money-out entries can be linked to a budget category", () => {
@@ -439,10 +450,11 @@ describe("FinancesTab", () => {
     expect(screen.getByText("Baseballs")).toBeInTheDocument();
     // $160 also appears as the suggested next-season fee, hence getAllByText.
     expect(screen.getAllByText(/\$160/).length).toBeGreaterThanOrEqual(1);
-    // Fee rows are managed from Collections — no delete button on them.
+    // Every ledger row — including team-fee payments — can be deleted so a
+    // mistaken entry can be cleaned up.
     expect(
-      screen.queryByLabelText("Delete entry Team fee — Ava")
-    ).not.toBeInTheDocument();
+      screen.getByLabelText("Delete entry Team fee — Ava")
+    ).toBeInTheDocument();
     expect(
       screen.getByLabelText("Delete entry Hardware sponsorship")
     ).toBeInTheDocument();

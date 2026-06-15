@@ -507,21 +507,28 @@ export const FinancesTab = memo(() => {
     setTxnFundraising(false);
   };
 
-  const removeLedgerRow = (source: "income" | "expense", id: string) => {
+  const removeLedgerRow = (
+    source: "income" | "expense" | "payment",
+    id: string
+  ) => {
     if (source === "income") {
       writeFinances({
         incomes: (finances.incomes || []).filter((x) => x.id !== id),
       });
-    } else {
+    } else if (source === "expense") {
       writeFinances({
         expenses: (finances.expenses || []).filter((x) => x.id !== id),
+      });
+    } else {
+      writeFinances({
+        payments: (finances.payments || []).filter((x) => x.id !== id),
       });
     }
   };
 
   // ---- Inline ledger editing. Income/expense rows edit date+label+amount;
-  // payment rows (dues) edit their DATE only — the money itself is managed
-  // from Collections.
+  // payment (team-fee) rows edit date + amount so a typo'd payment can be
+  // corrected in place (the label is the player's name, which stays fixed).
   const [editRow, setEditRow] = useState<{
     source: "payment" | "income" | "expense";
     id: string;
@@ -562,9 +569,13 @@ export const FinancesTab = memo(() => {
     const { source, id } = editRow;
     const date = editDraft.date || dateToIsoLocal(new Date());
     if (source === "payment") {
+      const amount = parseAmount(editDraft.amount);
+      if (amount == null || amount < 0) return; // keep editing until valid
       writeFinances({
         payments: (finances.payments || []).map((p) =>
-          p.id === id ? { ...p, date } : p
+          p.id === id
+            ? { ...p, date, amount: Math.round(amount * 100) / 100 }
+            : p
         ),
       });
     } else {
@@ -1131,8 +1142,9 @@ export const FinancesTab = memo(() => {
                       editRow.source === row.source &&
                       editRow.id === row.id;
                     if (isEditing) {
-                      // Payments are managed in Collections — only their DATE
-                      // is editable here; income/expense rows edit fully.
+                      // Team-fee payment rows keep their label (player name)
+                      // fixed but allow date + amount edits; income/expense
+                      // rows edit fully.
                       const dateOnly = row.source === "payment";
                       return (
                         <React.Fragment key={`${row.source}-${row.id}`}>
@@ -1208,27 +1220,17 @@ export const FinancesTab = memo(() => {
                             )}
                           </td>
                           <td className="p-2 text-right" colSpan={2}>
-                            {dateOnly ? (
-                              <span
-                                className={`tabular-nums font-bold ${
-                                  row.direction === "in" ? "text-win" : "text-loss"
-                                }`}
-                              >
-                                {formatCurrency(row.amount)}
-                              </span>
-                            ) : (
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={editDraft.amount}
-                                onChange={(e) =>
-                                  setEditDraft((d) => ({ ...d, amount: e.target.value }))
-                                }
-                                aria-label={`Edit amount for ${row.label}`}
-                                className={`${FORM_INPUT_CLASS} w-24 !py-1 tabular-nums text-right`}
-                                style={FORM_INPUT_RING_STYLE}
-                              />
-                            )}
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={editDraft.amount}
+                              onChange={(e) =>
+                                setEditDraft((d) => ({ ...d, amount: e.target.value }))
+                              }
+                              aria-label={`Edit amount for ${row.label}`}
+                              className={`${FORM_INPUT_CLASS} w-24 !py-1 tabular-nums text-right`}
+                              style={FORM_INPUT_RING_STYLE}
+                            />
                           </td>
                           <td className="p-2 text-right" colSpan={2}>
                             <span className="inline-flex items-center gap-2">
@@ -1307,21 +1309,14 @@ export const FinancesTab = memo(() => {
                         >
                           <Icons.Edit className="w-4 h-4" />
                         </button>
-                        {row.source !== "payment" && (
-                          <button
-                            type="button"
-                            aria-label={`Delete entry ${row.label}`}
-                            onClick={() =>
-                              removeLedgerRow(
-                                row.source as "income" | "expense",
-                                row.id
-                              )
-                            }
-                            className="text-ink-3 hover:text-loss transition-colors"
-                          >
-                            <Icons.X className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          aria-label={`Delete entry ${row.label}`}
+                          onClick={() => removeLedgerRow(row.source, row.id)}
+                          className="text-ink-3 hover:text-loss transition-colors"
+                        >
+                          <Icons.X className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                     </React.Fragment>
