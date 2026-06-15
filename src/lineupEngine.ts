@@ -183,10 +183,12 @@ const EVAL_CATEGORIES: ReadonlyArray<{ id: string; weight: number }> = [
   { id: "baserunning", weight: 1.5 },
   { id: "baseballIQ", weight: 2.0 },
   { id: "coachability", weight: 1.0 },
-  // Kid-Pitch add-on — pitching
+  // Universal intangible (was a kid-pitch add-on)
   { id: "composure", weight: 1.0 },
-  // Kid-Pitch add-on — catching
-  { id: "gameCalling", weight: 1.0 },
+  // Kid-Pitch add-on — catching (coach-graded; Pitch Velocity is carried
+  // separately as a measurement, not averaged here).
+  { id: "blocking", weight: 1.5 },
+  { id: "receiving", weight: 1.0 },
 ];
 
 const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
@@ -316,6 +318,21 @@ export function getCombinedGrades(
       for (const cat of EVAL_CATEGORIES) {
         const v = readCat(headG, cat.id);
         if (v != null) grades[cat.id] = v;
+      }
+    }
+    // Pitch Velocity (mph) is a measurement, not a 1–5 grade — never average it
+    // or default a missing reading to a number. Take the head coach's reading
+    // when present, else the most recent assistant reading.
+    const headVelo = numOrNull((headG as any)?.pitchVelo);
+    if (headVelo != null) {
+      (grades as any).pitchVelo = headVelo;
+    } else {
+      for (const ev of assistantEvals) {
+        const v = numOrNull((ev.grades?.[p.id] as any)?.pitchVelo);
+        if (v != null) {
+          (grades as any).pitchVelo = v;
+          break;
+        }
       }
     }
     // Tangible skills are graded by the imported stats alone (schema v9) —
@@ -669,7 +686,10 @@ function applyStatGrades(
   const topMph =
     numOrNull(raw.pTopMph) ??
     numOrNull(raw.pFbMph) ??
-    numOrNull((player as any)?.pitching?.topMph);
+    numOrNull((player as any)?.pitching?.topMph) ??
+    // Coach-entered Pitch Velocity from the eval form, when no imported radar
+    // reading exists — feeds the same age-relative velocity grading.
+    numOrNull((grades as any)?.pitchVelo);
 
   const set = (v: number | null, ...keys: string[]) => {
     if (v == null) return;
@@ -1171,16 +1191,28 @@ export function calcPitcherStatsQuality(
 // pitcher's top fastball against an age-appropriate band — a hard thrower for
 // their level scores high regardless of division. Manually entered (radar) or
 // imported. Returns null when there's no reading.
+// Internal copy of the age velocity benchmarks (mirrors AGE_VELOCITY_BENCHMARKS
+// in src/constants/ui.ts — the engine deliberately keeps its own labelless copy
+// so it stays standalone). Returns [floor, ceiling] = [age average-low, elite],
+// so a reading at the age's average-low scores ~0 quality and an elite reading
+// scores 1.0.
 function veloBandForAge(teamAge: string | undefined): [number, number] {
   const n = (() => {
     const m = String(teamAge || "").match(/(\d+)/g);
-    return m ? parseInt(m[m.length - 1], 10) : 10;
+    return Math.min(15, Math.max(7, m ? parseInt(m[m.length - 1], 10) : 10));
   })();
-  if (n <= 8) return [35, 50];
-  if (n <= 10) return [40, 55];
-  if (n <= 12) return [45, 62];
-  if (n <= 14) return [52, 70];
-  return [60, 80];
+  const BANDS: Record<number, [number, number]> = {
+    7: [35, 45],
+    8: [40, 50],
+    9: [40, 55],
+    10: [45, 55],
+    11: [45, 60],
+    12: [50, 65],
+    13: [55, 70],
+    14: [60, 75],
+    15: [65, 80],
+  };
+  return BANDS[n];
 }
 export function calcVelocityQuality(
   topMph: number | null | undefined,
@@ -1236,16 +1268,16 @@ export function calcPitcherScore(
 }
 
 // ---------- Catcher scoring ----------
-// Mirrors calcPitcherScore (schema v9): Throwing and Blocking are graded
-// purely from the imported stats (CS%, PB/game); Game Calling is the one
-// coach-graded slot. Receiving was dropped — no youth stat measures framing.
+// Mirrors calcPitcherScore: Throwing is graded from imported stats (CS%) with
+// a coach Blocking grade (stat-overlaid from PB/game when available) and a
+// coach Receiving grade. Game Calling was dropped — not a thing at young ages.
 // Blocking and throwing weigh highest because passed balls and stolen bases
 // are where weak catching shows up most at Kid Pitch. Single source of truth —
 // consumed by the Depth Chart tab (and the engine's dual-role pool logic).
 const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
   blocking: 1.5,
   throwing: 1.5,
-  gameCalling: 1.0,
+  receiving: 1.0,
 };
 
 const CATCHER_EVAL_MAX =
@@ -1300,10 +1332,11 @@ export function calcFieldingStatsQuality(
   return normUp(v, 0.8, 0.98);
 }
 
-// Catcher value (schema v9): Throwing/Blocking graded purely from stats,
-// Game Calling from the coach. Slots read the (stat-overlaid) grade map
-// first, then derive from `stats` directly; a slot with no signal contributes
-// nothing, so a kid with zero catching signal scores 0.
+// Catcher value: Throwing from stats (CS%), Blocking from coach (stat-overlaid
+// from PB/game when available), Receiving from the coach. Slots read the
+// (stat-overlaid) grade map first, then derive from `stats` directly; a slot
+// with no signal contributes nothing, so a kid with zero catching signal
+// scores 0.
 export function calcCatcherScore(
   grades: GradeMap | null | undefined,
   stats?: PlayerStats | null,
@@ -1313,7 +1346,7 @@ export function calcCatcherScore(
   const slots: Record<string, number | null> = {
     throwing: numOrNull(g.throwing) ?? statThrowingGrade(stats),
     blocking: numOrNull(g.blocking) ?? statBlockingGrade(stats, opts?.gamesCaught),
-    gameCalling: numOrNull(g.gameCalling),
+    receiving: numOrNull(g.receiving),
   };
   let score = 0;
   for (const [k, w] of Object.entries(CATCHER_SCORE_WEIGHTS)) {

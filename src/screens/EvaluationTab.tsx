@@ -87,7 +87,9 @@ const SUGGESTED_POSITIONS = [
 ];
 
 const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
-  (acc, c) => ({ ...acc, [c.id]: EVAL_SCALE_DEFAULT }),
+  // Measurement fields (e.g. Pitch Velocity in mph) are optional and have no
+  // default — only 1–5 grades seed a starting value.
+  (acc, c) => (c.inputKind === "mph" ? acc : { ...acc, [c.id]: EVAL_SCALE_DEFAULT }),
   {}
 );
 
@@ -1854,7 +1856,12 @@ export const EvaluationTab = memo(() => {
               const expanded = expandedPlayerIds.has(player.id);
               // Count how many categories the coach has graded (any non-default
               // chip click) so the collapsed row can show progress at a glance.
-              const gradedCount = playerCats.filter(
+              // Optional measurement fields (Pitch Velocity) don't count toward
+              // the required total.
+              const requiredCats = playerCats.filter(
+                (c) => c.inputKind !== "mph"
+              );
+              const gradedCount = requiredCats.filter(
                 (c) => Number.isFinite(grades[c.id]) && grades[c.id] > 0
               ).length;
               return (
@@ -1882,7 +1889,7 @@ export const EvaluationTab = memo(() => {
                       {player.name}
                     </span>
                     <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
-                      {gradedCount}/{playerCats.length}
+                      {gradedCount}/{requiredCats.length}
                     </span>
                     <span
                       className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
@@ -1927,13 +1934,35 @@ export const EvaluationTab = memo(() => {
                               </span>
                             )}
                           </div>
-                          <GradeChipRow
-                            value={grades[cat.id]}
-                            onChange={(v: any) =>
-                              setGrade(player.id, cat.id, v)
-                            }
-                            ariaLabel={`${player.name} ${cat.label}`}
-                          />
+                          {cat.inputKind === "mph" ? (
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={120}
+                              value={grades[cat.id] ?? ""}
+                              onChange={(e) =>
+                                setGrade(
+                                  player.id,
+                                  cat.id,
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value)
+                                )
+                              }
+                              placeholder="mph"
+                              aria-label={`${player.name} ${cat.label} (mph)`}
+                              className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
+                            />
+                          ) : (
+                            <GradeChipRow
+                              value={grades[cat.id]}
+                              onChange={(v: any) =>
+                                setGrade(player.id, cat.id, v)
+                              }
+                              ariaLabel={`${player.name} ${cat.label}`}
+                            />
+                          )}
                         </div>
                       ))}
                       <div className="pt-1.5 border-t border-line">

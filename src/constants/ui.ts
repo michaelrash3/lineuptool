@@ -30,6 +30,10 @@ export interface EvalCategory {
   // Plain-English meaning shown in the grading UI so the rating is obvious.
   description?: string;
   addOn?: "kidPitch"; // gating: only shown when pitchingFormat === "Kid Pitch"
+  // Most categories are a 1–5 grade. "mph" renders a numeric radar-reading
+  // input instead and is excluded from the 1–5 composite math (weight 0); it
+  // feeds the pitcher score via age-relative velocity grading instead.
+  inputKind?: "mph";
 }
 
 export const EVAL_CATEGORIES: EvalCategory[] = [
@@ -51,10 +55,49 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
   // not just kid-pitch pitchers.
   { id: "composure", label: "Composure", group: "Intangibles", weight: 2.0,
     description: "Stays calm under pressure; bounces back." },
-  // Kid-Pitch add-ons: Catching
-  { id: "gameCalling", label: "Game Calling", group: "Catching", weight: 1.0, addOn: "kidPitch",
-    description: "Manages pitches, counts, and the defense." },
+  // Kid-Pitch add-on: Pitching (pitchers only). Optional radar reading in mph,
+  // scored against the age group's average (see AGE_VELOCITY_BENCHMARKS).
+  { id: "pitchVelo", label: "Pitch Velocity", group: "Pitching", weight: 0,
+    addOn: "kidPitch", inputKind: "mph",
+    description: "Top fastball in mph. Optional — scored vs your age group's average." },
+  // Kid-Pitch add-ons: Catching. Game Calling isn't a thing at young ages —
+  // grade the tangible catching skills instead.
+  { id: "blocking", label: "Blocking", group: "Catching", weight: 1.5, addOn: "kidPitch",
+    description: "Keeps balls in front; smothers pitches in the dirt." },
+  { id: "receiving", label: "Receiving", group: "Catching", weight: 1.0, addOn: "kidPitch",
+    description: "Soft hands, clean glove work, presents a steady target." },
 ];
+
+// Youth pitch-velocity benchmarks by age (mph): the typical "average" band and
+// the "elite" threshold. Source table provided by coaches; used both to show
+// context in the eval form and to grade a reading age-relative (avgLow → floor,
+// elite → ceiling) so a hard thrower for their level scores well regardless of
+// division. Ages outside 7–15 clamp to the nearest listed age.
+export interface VeloBenchmark {
+  avgLow: number;
+  avgHigh: number;
+  elite: number;
+}
+export const AGE_VELOCITY_BENCHMARKS: Record<number, VeloBenchmark> = {
+  7: { avgLow: 35, avgHigh: 40, elite: 45 },
+  8: { avgLow: 40, avgHigh: 45, elite: 50 },
+  9: { avgLow: 40, avgHigh: 50, elite: 55 },
+  10: { avgLow: 45, avgHigh: 50, elite: 55 },
+  11: { avgLow: 45, avgHigh: 55, elite: 60 },
+  12: { avgLow: 50, avgHigh: 60, elite: 65 },
+  13: { avgLow: 55, avgHigh: 65, elite: 70 },
+  14: { avgLow: 60, avgHigh: 70, elite: 75 },
+  15: { avgLow: 65, avgHigh: 75, elite: 80 },
+};
+// Pull the numeric age out of a teamAge label ("8U", "13U to 14U" → 8 / 14),
+// clamped to the benchmark table's range.
+export const ageFromTeamAge = (teamAge?: string): number => {
+  const m = String(teamAge || "").match(/(\d+)/g);
+  const n = m ? parseInt(m[m.length - 1], 10) : 10;
+  return Math.min(15, Math.max(7, n));
+};
+export const velocityBenchmarkForAge = (teamAge?: string): VeloBenchmark =>
+  AGE_VELOCITY_BENCHMARKS[ageFromTeamAge(teamAge)];
 
 export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Hitting",
@@ -62,7 +105,7 @@ export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Intangibles",
 ];
 
-export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = ["Catching"];
+export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = ["Pitching", "Catching"];
 
 export const isKidPitchFormat = (pitchingFormat?: string): boolean =>
   (pitchingFormat || "").toLowerCase().includes("kid");
@@ -127,12 +170,13 @@ export const getEvalCategoriesForPlayer = (
 // rest so prior eval history carries over. Coachability is weighted up.
 // v8 splits "Speed & Baserunning" back into separate Speed + Base Running
 // grades (the old merged value seeds both so history carries over).
-// v9 (2026-06) — stats-graded tangibles. Coaches now grade only what stats
-// can't measure (Approach, Speed, Base Running, Baseball IQ, Coachability,
-// Composure, Game Calling). Contact/Power/Fielding/Arm/Velocity/Strikes/
-// Off-Speed/Receiving/Blocking/Throwing are dropped from the eval form — the
-// engine derives them from imported stats — and the v9 migration strips their
-// saved grade keys from prior rounds (notes are preserved).
+// v9 (2026-06) — stats-graded tangibles. Coaches grade what stats can't
+// measure: Approach, Speed, Base Running, Baseball IQ, Coachability, Composure
+// (now universal), the catching skills Blocking + Receiving, and an optional
+// Pitch Velocity radar reading (mph). Game Calling was dropped (not a thing at
+// young ages). Contact/Power/Fielding/Arm/Velocity/Strikes/Off-Speed/Throwing
+// are derived from imported stats — the v9 migration strips those saved grade
+// keys from prior rounds (notes are preserved).
 export const EVAL_SCHEMA_VERSION = 9;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).

@@ -20,7 +20,9 @@ const buildEmptyGrades = (players: any, categories: any) => {
   const out: Record<string, any> = {};
   for (const p of players || []) {
     out[p.id] = {};
-    for (const c of categories) out[p.id][c.id] = DEFAULT_GRADE;
+    // Measurement fields (mph) are optional with no default — leave them unset.
+    for (const c of categories)
+      if (c.inputKind !== "mph") out[p.id][c.id] = DEFAULT_GRADE;
   }
   return out;
 };

@@ -80,6 +80,7 @@ interface EvalCategory {
   id: string;
   label: string;
   description?: string;
+  inputKind?: "mph";
 }
 
 interface EvalGradeCardProps {
@@ -92,7 +93,11 @@ interface EvalGradeCardProps {
   };
   grades?: Record<string, any> | null;
   activeCategories: EvalCategory[];
-  onGradeChange?: (playerId: string, categoryId: string, value: number) => void;
+  onGradeChange?: (
+    playerId: string,
+    categoryId: string,
+    value: number | null
+  ) => void;
   onPositionToggle?: (playerId: string, pos: string) => void;
   onNotesChange?: (playerId: string, notes: string) => void;
   readOnly?: boolean;
@@ -133,8 +138,14 @@ export const EvalGradeCard = memo(
         </div>
         <div className="px-3 py-2.5 space-y-2.5">
           {activeCategories.map((cat) => {
-            const value = playerGrades[cat.id] ?? DEFAULT_GRADE;
+            const isMph = cat.inputKind === "mph";
+            // Measurement fields (mph) have no 1–5 default — blank until set.
+            const value = isMph
+              ? playerGrades[cat.id]
+              : playerGrades[cat.id] ?? DEFAULT_GRADE;
             const hint = evalStatHint(cat.id, player.stats, player.pitching);
+            const hasMph =
+              value != null && value !== "" && Number.isFinite(Number(value));
             return (
               <div key={cat.id}>
                 <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -153,12 +164,45 @@ export const EvalGradeCard = memo(
                   </div>
                 )}
                 {readOnly ? (
-                  <div className="text-xl font-black tabular-nums text-ink">
-                    {value}
-                    <span className="text-[10px] text-ink-3 font-bold ml-1">
-                      / 5
-                    </span>
-                  </div>
+                  isMph ? (
+                    <div className="text-xl font-black tabular-nums text-ink">
+                      {hasMph ? (
+                        <>
+                          {value}
+                          <span className="text-[10px] text-ink-3 font-bold ml-1">
+                            mph
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-ink-3">—</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xl font-black tabular-nums text-ink">
+                      {value}
+                      <span className="text-[10px] text-ink-3 font-bold ml-1">
+                        / 5
+                      </span>
+                    </div>
+                  )
+                ) : isMph ? (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={120}
+                    value={value ?? ""}
+                    onChange={(e) =>
+                      onGradeChange?.(
+                        player.id,
+                        cat.id,
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                    placeholder="mph"
+                    aria-label={`${player.name} ${cat.label} (mph)`}
+                    className="w-24 px-2.5 py-2 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums"
+                  />
                 ) : (
                   <GradeChipRow
                     value={value}
