@@ -309,6 +309,10 @@ export interface Team {
   // ----- Finances (head-coach-only tab) -----
   finances?: TeamFinances;
 
+  // Season awards: per-award coach override of the auto-nominated winner.
+  // awardId → playerId, or "__none__" for "no winner". Absent = use auto pick.
+  seasonAwards?: Record<string, string>;
+
   // The long tail of dynamic/rarely-typed fields (templates, past seasons,
   // mid-game removals, catcher limits, etc.) stays permissive and is promoted
   // to explicit fields incrementally. Note: typing the full bag onto
