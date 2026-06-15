@@ -35,7 +35,7 @@ describe("SettingsTab", () => {
         setPastSeasonImport: jest.fn(),
       },
     });
-    expect(screen.getByText("Team Settings")).toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
   it("persists a league-rules change via updateTeam (interaction)", async () => {

@@ -887,6 +887,8 @@ export const SettingsTab = memo(() => {
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
   const [settingsMenu, setSettingsMenu] = useState("team");
+  // Mobile drill-in: false = show the category list, true = show the panel.
+  const [mobilePanel, setMobilePanel] = useState(false);
   const [advanceSeasonOpen, setAdvanceSeasonOpen] = useState(false);
   // Colors pulled from the logo, surfaced in LogoColorModal so the coach can
   // assign them to Primary / Secondary / Tertiary.
@@ -928,21 +930,13 @@ export const SettingsTab = memo(() => {
     return next?.nextSeason || "Next Season";
   }, [team?.currentSeason]);
   const settingsMenuItems = [
-    { id: "team", label: "Team" },
-    { id: "reminders", label: "Reminders" },
-    { id: "tryouts", label: "Tryouts" },
-    { id: "staff", label: "Staff" },
-    { id: "imports", label: "Imports" },
-    { id: "advanced", label: "Advanced" },
+    { id: "team", label: "Team", icon: Icons.Settings },
+    { id: "reminders", label: "Reminders", icon: Icons.Clock },
+    { id: "tryouts", label: "Tryouts", icon: Icons.UserPlus },
+    { id: "staff", label: "Staff", icon: Icons.Users },
+    { id: "imports", label: "Imports", icon: Icons.FileText },
+    { id: "advanced", label: "Advanced", icon: Icons.Cloud },
   ];
-  const settingsMenuDescriptions = {
-    team: "Core game defaults, season identity, and visual branding.",
-    reminders: "Opt-in game-day notifications on this device.",
-    tryouts: "Tryout portal controls, share links, and roster cap behavior.",
-    staff: "Coaching roster, roles, and join-code controls.",
-    imports: "CSV imports plus backup/export/restore operations.",
-    advanced: "Diagnostics, storage details, team leave/delete, and test mode.",
-  };
 
   // Past-season CSV import: parse the file, open the review modal.
   const startPastSeasonImport = useCallback(
@@ -987,52 +981,73 @@ export const SettingsTab = memo(() => {
   );
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="overflow-hidden">
-        <div className="p-5 flex items-center gap-4 border-b border-line">
-          <div
-            className="p-2.5 rounded-full"
-            style={{ backgroundColor: `${primaryColor}15` }}
+    <div className="max-w-5xl mx-auto">
+      <div className="pb-4 mb-5 border-b border-line flex items-center gap-3">
+        <span
+          className="block h-5 w-1 rounded-sm"
+          style={{ backgroundColor: "var(--team-primary)" }}
+        />
+        <h1 className="t-h1">Settings</h1>
+      </div>
+      <div className="lg:flex lg:gap-8">
+        {/* Category nav — sidebar on desktop, drill-in list on mobile. */}
+        <nav
+          className={`lg:w-52 lg:shrink-0 ${
+            mobilePanel ? "hidden lg:block" : "block"
+          }`}
+        >
+          <div className="flex flex-col lg:gap-1">
+            {settingsMenuItems.map((item) => {
+              const Icon = item.icon;
+              const active = settingsMenu === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSettingsMenu(item.id);
+                    setMobilePanel(true);
+                  }}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center gap-3 px-3 py-3 text-left border-b border-line lg:border-b-0 lg:rounded-sm transition-colors ${
+                    active ? "lg:bg-surface-2" : "hover:bg-surface-2"
+                  }`}
+                >
+                  <Icon
+                    className="w-4 h-4 shrink-0"
+                    style={{
+                      color: active ? "var(--team-primary)" : "var(--ink-3)",
+                    }}
+                  />
+                  <span
+                    className={`flex-1 text-xs font-black uppercase tracking-widest ${
+                      active ? "text-ink" : "text-ink-2"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                  <Icons.ChevronRight className="w-4 h-4 text-ink-3 lg:hidden" />
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        {/* Active category panel. */}
+        <div
+          className={`flex-1 min-w-0 ${mobilePanel ? "block" : "hidden lg:block"}`}
+        >
+          <button
+            type="button"
+            onClick={() => setMobilePanel(false)}
+            className="lg:hidden inline-flex items-center gap-1 text-xs font-black uppercase tracking-widest text-ink-2 hover:text-ink mb-4"
           >
-            <Icons.Settings
-              className="w-6 h-6"
-              style={{ color: primaryColor }}
-            />
-          </div>
-          <h2 className="text-xl font-black uppercase tracking-wider text-ink">
-            Team Settings
+            <Icons.ChevronRight className="w-4 h-4 rotate-180" /> All Settings
+          </button>
+          <h2 className="t-h2 mb-6">
+            {settingsMenuItems.find((i) => i.id === settingsMenu)?.label}
           </h2>
-        </div>
-        <div className="px-8 pt-6">
-          <div className="flex flex-wrap gap-2">
-            {settingsMenuItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSettingsMenu(item.id)}
-                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
-                  settingsMenu === item.id
-                    ? "border-transparent"
-                    : "bg-surface text-ink-2 border-line hover:bg-surface-2"
-                }`}
-                style={
-                  settingsMenu === item.id
-                    ? {
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                      }
-                    : undefined
-                }
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-3 text-[11px] text-ink-3 font-medium">
-            {(settingsMenuDescriptions as any)[settingsMenu]}
-          </p>
-        </div>
-        <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <div className="space-y-10">
           <div className="space-y-10">
             {settingsMenu === "reminders" && <GameRemindersPanel toast={toast} />}
             {settingsMenu === "team" && (
@@ -1845,6 +1860,7 @@ export const SettingsTab = memo(() => {
                 </div>
               </div>
             )}
+          </div>
           </div>
         </div>
       </div>
