@@ -506,9 +506,9 @@ export const RecentMovementPanel = memo(({ player, games, teamAverages }: any) =
           const delta = current - prior;
           const deltaTone =
             delta > 0
-              ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+              ? "text-win bg-win-bg border-line"
               : delta < 0
-              ? "text-rose-700 bg-rose-50 border-rose-200"
+              ? "text-loss bg-loss-bg border-line"
               : "text-ink-3 bg-app border-line";
           return (
             <div

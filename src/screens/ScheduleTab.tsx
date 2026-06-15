@@ -986,13 +986,13 @@ export const ScheduleTab = memo(() => {
                         {p.number ? `#${p.number} ` : ""}
                         {p.name}
                         {scheduledOut && (
-                          <span className="block text-[9px] font-bold text-amber-700 normal-case tracking-normal">
+                          <span className="block text-[9px] font-bold text-warnfg normal-case tracking-normal">
                             Scheduled out this date
                           </span>
                         )}
                       </span>
                       {currentGameAttendance[p.id] !== false ? (
-                        <Icons.Check className="w-4 h-4 text-green-500 shrink-0" />
+                        <Icons.Check className="w-4 h-4 text-win shrink-0" />
                       ) : (
                         <Icons.X className="w-4 h-4 shrink-0 opacity-50" />
                       )}
@@ -1072,7 +1072,7 @@ export const ScheduleTab = memo(() => {
                             }}
                             className={`flex-1 p-1.5 outline-none rounded-lg text-xs font-extrabold transition-colors cursor-pointer w-full truncate ${
                               firstInningLineup[pos]
-                                ? "bg-amber-100 text-amber-900"
+                                ? "bg-warn-bg text-warnfg"
                                 : "bg-transparent text-ink-2 hover:bg-surface-2"
                             }`}
                           >
@@ -1802,7 +1802,7 @@ export const ScheduleTab = memo(() => {
                           <button
                             onClick={() => deleteSavedGame(game.id)}
                             aria-label="Delete game"
-                            className="shrink-0 flex items-center justify-center text-ink-3 hover:text-red-600 bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
+                            className="shrink-0 flex items-center justify-center text-ink-3 hover:text-loss bg-surface border border-line hover:border-line hover:bg-loss-bg p-3 transition-colors rounded-xl shadow-sm"
                           >
                             <Icons.Trash className="w-4 h-4" />
                           </button>

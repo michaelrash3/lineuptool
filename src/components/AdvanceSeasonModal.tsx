@@ -189,7 +189,7 @@ export const AdvanceSeasonModal = memo(
             <button
               type="button"
               onClick={() => setAll(STATUS_RETURNING)}
-              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-emerald-300/80 bg-emerald-50/40 text-emerald-800 hover:bg-emerald-50"
+              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line bg-win-bg text-win hover:bg-win-bg"
             >
               All Yes
             </button>
@@ -305,7 +305,7 @@ export const AdvanceSeasonModal = memo(
                     <button
                       type="button"
                       onClick={() => setAllSignups(true)}
-                      className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-emerald-300/80 bg-emerald-50/40 text-emerald-800 hover:bg-emerald-50"
+                      className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border border-line bg-win-bg text-win hover:bg-win-bg"
                     >
                       All
                     </button>
