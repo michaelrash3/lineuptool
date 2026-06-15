@@ -82,6 +82,8 @@ import {
   emailPromptStatus,
   restampEvalDueDates,
   evalRoundRecency,
+  buildPreseasonSeedRound,
+  dateToIsoLocal,
   isReturning,
   isGameFinalized,
   countsTowardStats,
@@ -1686,6 +1688,16 @@ const TeamProvider = ({ children }: any) => {
         tryoutSignupId: s.id,
       }));
 
+    // Seed the new season's Preseason eval round: returning players carry
+    // their most recent eval forward, promoted tryouts carry their tryout
+    // evaluation. Null when there's nothing to seed → start with no rounds.
+    const preseasonRound = buildPreseasonSeedRound(
+      teamData.evaluationEvents || [],
+      updatedPlayers,
+      promotedPlayers,
+      { date: dateToIsoLocal(new Date()), evaluatorId: user?.uid }
+    );
+
     // allowEmptyPlayers: a roster where nobody returns (and no tryout
     // promotions) is legitimately empty after an explicitly-confirmed
     // advance — the persistTeam wipe guard must not block it.
@@ -1695,7 +1707,7 @@ const TeamProvider = ({ children }: any) => {
         teamAge: newAgeGroup,
         players: [...updatedPlayers, ...promotedPlayers],
         games: [],
-        evaluationEvents: [],
+        evaluationEvents: preseasonRound ? [preseasonRound] : [],
         tryoutSignups: [],
         tryoutsOpen: false,
         lastSeasonAdvanceAt: nowIso,
@@ -1724,7 +1736,7 @@ const TeamProvider = ({ children }: any) => {
             } promoted to roster.`
           : ""),
     });
-  }, [teamData, updateTeam, toast, confirm]);
+  }, [teamData, updateTeam, toast, confirm, user]);
 
   const uploadLogo = useCallback(
     (e: any) => {
