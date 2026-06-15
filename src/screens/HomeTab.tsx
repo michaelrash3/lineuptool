@@ -1474,7 +1474,7 @@ export const HomeTab = memo(() => {
 
       {/* Insight tiles row — only renders when there's a player to show */}
       {hasPlayers && (
-        <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {isKidPitch && (
             <StaggerItem>
               <PitcherAvailabilityTile
@@ -1628,7 +1628,7 @@ const LeaderboardsSection = memo(
         ) : (
           <StaggerList
             key={visibleTab?.id}
-            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2"
           >
             {visibleTab?.stats.map((stat, i) => (
               <StaggerItem key={`${visibleTab.id}-${stat.statKey}-${i}`}>
