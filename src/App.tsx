@@ -3393,7 +3393,7 @@ const MainShell = () => {
       )}
       <OfflineBanner />
       <AppHeader navButtons={navButtons} />
-      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
+      <main className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
         <ErrorBoundary resetKey={location.pathname}>
         {/* Keyed entrance-only transition: replays on navigation. Exit
