@@ -483,3 +483,20 @@ body::before {
 .App {
   font-family: var(--font-sans);
 }
+
+/* Navigation drawer slide-in (hamburger menu). Honors reduced-motion. */
+@keyframes drawerIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-drawer-panel {
+    animation: none !important;
+  }
+}

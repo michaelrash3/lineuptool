@@ -156,7 +156,7 @@ export const OfflineBanner = memo(() => {
   );
 });
 
-export const AppHeader = memo(() => {
+export const AppHeader = memo(({ navButtons = [] }: any) => {
   const {
     team,
     teams,
@@ -237,6 +237,17 @@ export const AppHeader = memo(() => {
       />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4 md:gap-5">
+          <NavDrawer
+            navButtons={navButtons}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            teamName={activeTeamName}
+            subtitle={subtitle}
+            showSettings={currentRole !== "assistant"}
+            onSettings={() => setActiveTab?.("settings")}
+            themeToggle={<ThemeToggle />}
+            onSignOut={() => setSignOutOpen(true)}
+          />
           {team.logoUrl ? (
             <img
               src={team.logoUrl}
@@ -294,51 +305,11 @@ export const AppHeader = memo(() => {
               </option>
             ))}
           </select>
-          {/*
-            Always-visible Sign Out. The Settings → Sign Out button lives
-            behind the head-only Settings tab, so anyone shown as assistant
-            (including a head who got demoted by the ownership-race bug)
-            had no way to sign out from the UI. This icon button is the
-            backstop.
-          */}
-          <ThemeToggle />
-          {/* Settings lives up here with the other account-level controls
-              (theme, sign out) instead of taking a slot in the tab bar —
-              it's visited rarely and is head-coach-only. */}
-          {currentRole !== "assistant" && (
-            <button
-              type="button"
-              onClick={() => setActiveTab?.("settings")}
-              aria-label="Settings"
-              title="Settings"
-              aria-current={activeTab === "settings" ? "page" : undefined}
-              className={`shrink-0 p-3 border rounded-xl shadow-sm transition-colors ${
-                activeTab === "settings"
-                  ? ""
-                  : "text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border-line"
-              }`}
-              style={
-                activeTab === "settings"
-                  ? {
-                      backgroundColor: "var(--team-secondary)",
-                      color: "var(--team-primary)",
-                      borderColor: "var(--team-primary)",
-                    }
-                  : undefined
-              }
-            >
-              <Icons.Settings className="w-4 h-4" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setSignOutOpen(true)}
-            aria-label="Sign out"
-            title="Sign out"
-            className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
-          >
-            <Icons.LogOut className="w-4 h-4" />
-          </button>
+          {/* Theme, Settings and Sign Out now live in the hamburger nav
+              drawer (top-left), pinned at its foot alongside the navigation.
+              Sign Out stays reachable for everyone — including a head who got
+              demoted by the ownership-race bug — because the drawer trigger is
+              always present in the header. */}
         </div>
       </div>
 
@@ -531,10 +502,6 @@ export const AppHeader = memo(() => {
   );
 });
 
-// Tabs that stay visible on phones; everything else collapses into "More".
-// Order matters — it mirrors the coach's game-day loop.
-const MOBILE_PRIORITY_TABS = ["home", "roster", "schedule", "stats"];
-
 const activeTabStyle = {
   backgroundColor: "var(--team-secondary)",
   color: "var(--team-primary)",
@@ -542,145 +509,166 @@ const activeTabStyle = {
   boxShadow: "var(--glow-primary)",
 };
 
-const TabPill = ({ btn, isActive, onClick, className = "" }: any) => {
-  const Icon = btn.icon;
-  return (
-    <button
-      onClick={onClick}
-      aria-current={isActive ? "page" : undefined}
-      className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
-        isActive
-          ? "shadow-sm"
-          : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
-      } ${className}`}
-      style={isActive ? activeTabStyle : undefined}
-    >
-      <Icon className="w-4 h-4" /> {btn.label}
-    </button>
-  );
-};
+// The hamburger drawer is the app's sole navigation surface — it replaced the
+// old horizontal tab bar on every screen size. The trigger lives top-left in
+// the header; tapping it slides a panel in from the left over a dimmed,
+// tap-away scrim. Every destination the current role can reach is listed, and
+// the drawer auto-closes the instant one is picked. Account-level actions
+// (Settings, theme, Sign Out) sit pinned at the bottom, where they used to
+// live in the header's right rail.
+const NavRow = ({ icon: Icon, label, isActive, onClick, role = "menuitem" }: any) => (
+  <button
+    type="button"
+    role={role}
+    onClick={onClick}
+    aria-current={isActive ? "page" : undefined}
+    className={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide transition-colors border ${
+      isActive
+        ? "shadow-sm"
+        : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
+    }`}
+    style={isActive ? activeTabStyle : undefined}
+  >
+    <Icon className="w-5 h-5 shrink-0" /> {label}
+  </button>
+);
 
-export const TabBarNav = memo(({ activeTab, setActiveTab, navButtons }: any) => {
-  const [moreOpen, setMoreOpen] = useState(false);
+export const NavDrawer = memo(
+  ({
+    navButtons,
+    activeTab,
+    setActiveTab,
+    teamName,
+    subtitle,
+    showSettings,
+    onSettings,
+    themeToggle,
+    onSignOut,
+  }: any) => {
+    const [open, setOpen] = useState(false);
 
-  // On phones, most of a head coach's 10 tabs scroll off-screen. Keep the
-  // game-day four visible and fold the rest into a "More" pill; when the
-  // active tab lives in the overflow, the pill takes the active style and
-  // shows that tab's label. sm+ keeps the full pill row (desktop unchanged).
-  const priority = navButtons.filter((b: any) =>
-    MOBILE_PRIORITY_TABS.includes(b.id)
-  );
-  const overflow = navButtons.filter(
-    (b: any) => !MOBILE_PRIORITY_TABS.includes(b.id)
-  );
-  const activeOverflowBtn = overflow.find((b: any) => b.id === activeTab);
+    // Close on Escape and lock background scroll while the drawer is open.
+    useEffect(() => {
+      if (!open) return;
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setOpen(false);
+      };
+      window.addEventListener("keydown", onKey);
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        window.removeEventListener("keydown", onKey);
+        document.body.style.overflow = prevOverflow;
+      };
+    }, [open]);
 
-  const pick = (id: string) => {
-    setActiveTab(id);
-    setMoreOpen(false);
-  };
+    const pick = (id: string) => {
+      setActiveTab(id);
+      setOpen(false);
+    };
 
-  return (
-    <nav
-      aria-label="Primary"
-      className="glass border-b border-line print:hidden relative z-30 shadow-sm"
-    >
-      {/* sm+: full pill row (unchanged) */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 hidden sm:block">
-        <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
-          {navButtons.map((btn: any) => (
-            <TabPill
-              key={btn.id}
-              btn={btn}
-              isActive={activeTab === btn.id}
-              onClick={() => setActiveTab(btn.id)}
-            />
-          ))}
-        </div>
-      </div>
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Open navigation menu"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          title="Menu"
+          className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
+        >
+          <Icons.Menu className="w-5 h-5" />
+        </button>
 
-      {/* Mobile: priority tabs + More overflow */}
-      <div className="max-w-7xl mx-auto px-4 pt-4 sm:hidden relative">
-        <div className="flex overflow-x-auto scrollbar-hide gap-2 pb-4">
-          {priority.map((btn: any) => (
-            <TabPill
-              key={btn.id}
-              btn={btn}
-              isActive={activeTab === btn.id}
-              onClick={() => pick(btn.id)}
-            />
-          ))}
-          {overflow.length > 0 && (
-            <button
-              onClick={() => setMoreOpen((v) => !v)}
-              aria-expanded={moreOpen}
-              aria-haspopup="menu"
-              aria-current={activeOverflowBtn ? "page" : undefined}
-              className={`py-2.5 px-5 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 whitespace-nowrap rounded-full transition-all duration-200 border ${
-                activeOverflowBtn
-                  ? "shadow-sm"
-                  : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
-              }`}
-              style={activeOverflowBtn ? activeTabStyle : undefined}
-            >
-              {activeOverflowBtn ? (
-                <>
-                  <activeOverflowBtn.icon className="w-4 h-4" />
-                  {activeOverflowBtn.label}
-                </>
-              ) : (
-                "More"
-              )}
-              <Icons.ChevronDown
-                className={`w-3.5 h-3.5 transition-transform ${
-                  moreOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-          )}
-        </div>
-        {moreOpen && (
-          <>
-            {/* Tap-away scrim under the panel */}
+        {open && (
+          <div className="fixed inset-0 z-[60] print:hidden">
+            {/* Dimmed, tap-away backdrop */}
             <div
-              className="fixed inset-0 z-10"
+              className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
               aria-hidden="true"
-              onClick={() => setMoreOpen(false)}
+              onClick={() => setOpen(false)}
             />
-            <div
+            <nav
               role="menu"
-              aria-label="More tabs"
-              className="absolute right-4 top-full mt-1 z-20 bg-surface border border-line rounded-2xl shadow-lg overflow-hidden min-w-[180px]"
+              aria-label="Primary navigation"
+              className="nav-drawer-panel absolute inset-y-0 left-0 w-[300px] max-w-[88vw] flex flex-col glass border-r border-line shadow-2xl"
+              style={{ animation: "drawerIn 0.2s ease-out" }}
             >
-              {overflow.map((btn: any) => {
-                const Icon = btn.icon;
-                const isActive = activeTab === btn.id;
-                return (
+              {/* team-accent edge strip */}
+              <div
+                className="absolute inset-y-0 left-0 w-[2px]"
+                style={{
+                  background:
+                    "linear-gradient(180deg, transparent, var(--team-primary) 18%, var(--team-primary) 82%, transparent)",
+                  boxShadow: "0 0 18px 1px var(--team-primary)",
+                  opacity: 0.7,
+                }}
+                aria-hidden="true"
+              />
+              <div className="flex items-center gap-3 px-4 py-4 border-b border-line">
+                <div className="min-w-0">
+                  <div className="text-base font-black uppercase tracking-tight leading-none text-ink truncate">
+                    {teamName}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest font-extrabold mt-1.5 text-ink-3">
+                    {subtitle}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close navigation menu"
+                  className="ml-auto p-2 text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
+                >
+                  <Icons.X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-3 py-3">
+                <div className="flex flex-col gap-1">
+                  {navButtons.map((btn: any) => (
+                    <NavRow
+                      key={btn.id}
+                      icon={btn.icon}
+                      label={btn.label}
+                      isActive={activeTab === btn.id}
+                      onClick={() => pick(btn.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-line px-3 py-3 flex flex-col gap-2">
+                {showSettings && (
+                  <NavRow
+                    icon={Icons.Settings}
+                    label="Settings"
+                    isActive={activeTab === "settings"}
+                    onClick={() => {
+                      onSettings?.();
+                      setOpen(false);
+                    }}
+                  />
+                )}
+                <div className="flex items-center gap-2">
+                  {themeToggle}
                   <button
-                    key={btn.id}
-                    role="menuitem"
-                    onClick={() => pick(btn.id)}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`w-full text-left px-4 py-3 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2.5 transition-colors ${
-                      isActive ? "" : "text-ink-2 hover:bg-surface-2 hover:text-ink"
-                    }`}
-                    style={
-                      isActive
-                        ? {
-                            backgroundColor: "var(--team-secondary)",
-                            color: "var(--team-primary)",
-                          }
-                        : undefined
-                    }
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      onSignOut?.();
+                    }}
+                    className="flex-1 flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line transition-colors"
                   >
-                    <Icon className="w-4 h-4" /> {btn.label}
+                    <Icons.LogOut className="w-5 h-5 shrink-0" /> Sign Out
                   </button>
-                );
-              })}
-            </div>
-          </>
+                </div>
+              </div>
+            </nav>
+          </div>
         )}
-      </div>
-    </nav>
-  );
-});
+      </>
+    );
+  }
+);

@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { TabBarNav } from "./Chrome";
+import { NavDrawer } from "./Chrome";
 import { Icons } from "../icons";
 
 const NAV = [
@@ -13,55 +13,86 @@ const NAV = [
   { id: "finances", icon: Icons.Wallet, label: "Finances" },
 ];
 
-const setup = (activeTab = "home") => {
+const setup = (overrides: any = {}) => {
   const setActiveTab = jest.fn();
+  const onSettings = jest.fn();
+  const onSignOut = jest.fn();
   render(
-    <TabBarNav activeTab={activeTab} setActiveTab={setActiveTab} navButtons={NAV} />
+    <NavDrawer
+      navButtons={NAV}
+      activeTab={overrides.activeTab ?? "home"}
+      setActiveTab={setActiveTab}
+      teamName="Wildcats"
+      subtitle="Head Coach Dashboard"
+      showSettings={overrides.showSettings ?? true}
+      onSettings={onSettings}
+      themeToggle={<button>Theme</button>}
+      onSignOut={onSignOut}
+    />
   );
-  return { setActiveTab };
+  return { setActiveTab, onSettings, onSignOut };
 };
 
-describe("TabBarNav", () => {
-  it("renders every tab in the desktop row", () => {
+const openDrawer = () =>
+  fireEvent.click(screen.getByRole("button", { name: /open navigation menu/i }));
+
+describe("NavDrawer", () => {
+  it("hides the navigation until the hamburger is tapped", () => {
     setup();
-    // Each label appears twice or once: priority tabs render in both the
-    // desktop row and the mobile row; overflow tabs render in the desktop
-    // row only (until the More panel opens).
+    // Drawer panel is not mounted while closed.
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    openDrawer();
+    expect(
+      screen.getByRole("menu", { name: /primary navigation/i })
+    ).toBeInTheDocument();
+  });
+
+  it("lists every destination once the drawer is open", () => {
+    setup();
+    openDrawer();
     NAV.forEach((b) =>
-      expect(screen.getAllByText(b.label).length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByRole("menuitem", { name: b.label })).toBeInTheDocument()
     );
   });
 
-  it("marks the active tab with aria-current", () => {
-    setup("roster");
+  it("marks the active destination with aria-current", () => {
+    setup({ activeTab: "roster" });
+    openDrawer();
     const current = screen
-      .getAllByRole("button")
+      .getAllByRole("menuitem")
       .filter((b) => b.getAttribute("aria-current") === "page");
-    expect(current.length).toBeGreaterThanOrEqual(1);
-    current.forEach((b) => expect(b.textContent).toContain("Roster"));
+    expect(current).toHaveLength(1);
+    expect(current[0].textContent).toContain("Roster");
   });
 
-  it("opens the More menu and selects an overflow tab", () => {
+  it("selects a destination and auto-closes the drawer", () => {
     const { setActiveTab } = setup();
-    fireEvent.click(screen.getByRole("button", { name: /more/i }));
-    const menu = screen.getByRole("menu", { name: /more tabs/i });
-    expect(menu).toBeInTheDocument();
+    openDrawer();
     fireEvent.click(screen.getByRole("menuitem", { name: /finances/i }));
     expect(setActiveTab).toHaveBeenCalledWith("finances");
-    // Menu closes after picking.
+    // Drawer closes after picking.
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("shows the active overflow tab's label on the More pill", () => {
-    setup("finances");
-    // No plain "More" button — the pill takes the overflow tab's label.
+  it("exposes Settings and Sign Out in the footer for head coaches", () => {
+    const { onSettings, onSignOut } = setup({ showSettings: true });
+    openDrawer();
+    fireEvent.click(screen.getByRole("menuitem", { name: /settings/i }));
+    expect(onSettings).toHaveBeenCalled();
+    openDrawer();
+    fireEvent.click(screen.getByRole("button", { name: /sign out/i }));
+    expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it("omits Settings when showSettings is false (assistant view)", () => {
+    setup({ showSettings: false });
+    openDrawer();
     expect(
-      screen.queryByRole("button", { name: /^more$/i })
+      screen.queryByRole("menuitem", { name: /settings/i })
     ).not.toBeInTheDocument();
-    const pill = screen
-      .getAllByRole("button")
-      .find((b) => b.getAttribute("aria-haspopup") === "menu");
-    expect(pill?.textContent).toContain("Finances");
-    expect(pill?.getAttribute("aria-current")).toBe("page");
+    // Sign Out remains reachable for everyone.
+    expect(
+      screen.getByRole("button", { name: /sign out/i })
+    ).toBeInTheDocument();
   });
 });
