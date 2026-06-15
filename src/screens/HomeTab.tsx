@@ -955,7 +955,7 @@ const UP_NEXT_ACCENTS: Record<string, { bg: string; fg: string }> = {
   primary: { bg: "var(--team-primary-15)", fg: "var(--team-primary)" },
 };
 
-const UpNextPanel = memo(
+export const UpNextPanel = memo(
   ({ isHead, promptStatus, todayStr }: any) => {
     const { team } = useTeam();
     const {
@@ -966,7 +966,10 @@ const UpNextPanel = memo(
       setBattingLineup,
       setCurrentGameAttendance,
     } = useUI();
-    const { games, players, finances } = team;
+    const { games, players, finances, practices } = team;
+    // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
+    // row reappears next session if the underlying task still isn't done.
+    const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
 
     const items = useMemo(() => {
       const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
@@ -1013,6 +1016,37 @@ const UpNextPanel = memo(
           ctaLabel: "Open",
           onClick: () => setActiveTab("evaluation"),
         });
+      }
+
+      // ----- Plan the next practice (both roles — assistants run practices
+      // too). Only nudges when a practice is on the calendar this week with no
+      // plan or drills attached yet.
+      const nextPractice = (practices || [])
+        .filter((p: any) => (p.status || "scheduled") !== "cancelled")
+        .filter((p: any) => p.date && p.date >= todayStr)
+        .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
+      if (nextPractice) {
+        const pd = daysUntil(nextPractice.date) ?? 99;
+        const hasPlan =
+          (typeof nextPractice.planNotes === "string" &&
+            nextPractice.planNotes.trim().length > 0) ||
+          (Array.isArray(nextPractice.drills) &&
+            nextPractice.drills.length > 0);
+        if (pd >= 0 && pd <= 7 && !hasPlan) {
+          out.push({
+            id: "practice",
+            priority: 36,
+            accent: "primary",
+            icon: Icons.Clock,
+            title: "Plan this week's practice",
+            sub: `${formatGameDateDisplay(nextPractice.date)} · ${
+              pd === 0 ? "today" : pd === 1 ? "tomorrow" : `in ${pd} days`
+            } · no plan yet`,
+            tag: "Practice",
+            ctaLabel: "Plan",
+            onClick: () => setActiveTab("practices"),
+          });
+        }
       }
 
       // The rest are head-coach actions only.
@@ -1097,6 +1131,7 @@ const UpNextPanel = memo(
       games,
       players,
       finances,
+      practices,
       isHead,
       promptStatus,
       todayStr,
@@ -1108,7 +1143,8 @@ const UpNextPanel = memo(
       setCurrentGameAttendance,
     ]);
 
-    if (items.length === 0) return null;
+    const visible = items.filter((i) => !snoozed.has(i.id));
+    if (visible.length === 0) return null;
 
     return (
       <div className="relative rounded-2xl border border-line shadow-card overflow-hidden bg-surface">
@@ -1128,49 +1164,70 @@ const UpNextPanel = memo(
             className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
             style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
           >
-            {items.length}
+            {visible.length}
           </span>
           <span className="ml-auto t-eyebrow text-ink-3">Sorted by urgency</span>
         </div>
-        {items.map((item) => {
+        {visible.map((item) => {
           const accent = UP_NEXT_ACCENTS[item.accent] || UP_NEXT_ACCENTS.primary;
           const Icon = item.icon;
+          // Row is a flex of two buttons (action + snooze) rather than a button
+          // nesting a button, which is invalid markup.
           return (
-            <button
+            <div
               key={item.id}
-              type="button"
-              onClick={item.onClick}
-              className="w-full text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 border-t border-line first:border-t-0 hover:bg-surface-2 transition-colors"
+              className="flex items-stretch border-t border-line first:border-t-0"
             >
-              <span
-                className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
-                style={{ backgroundColor: accent.bg }}
+              <button
+                type="button"
+                onClick={item.onClick}
+                className="flex-1 min-w-0 text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-surface-2 transition-colors"
               >
-                <Icon className="w-5 h-5" style={{ color: accent.fg }} />
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-2 flex-wrap">
-                  <span className="t-body-bold text-ink">{item.title}</span>
-                  {item.tag && (
-                    <span
-                      className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
-                      style={{ backgroundColor: accent.bg, color: accent.fg }}
-                    >
-                      {item.tag}
+                <span
+                  className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
+                  style={{ backgroundColor: accent.bg }}
+                >
+                  <Icon className="w-5 h-5" style={{ color: accent.fg }} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-2 flex-wrap">
+                    <span className="t-body-bold text-ink">{item.title}</span>
+                    {item.tag && (
+                      <span
+                        className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+                        style={{ backgroundColor: accent.bg, color: accent.fg }}
+                      >
+                        {item.tag}
+                      </span>
+                    )}
+                  </span>
+                  {item.sub && (
+                    <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
+                      {item.sub}
                     </span>
                   )}
                 </span>
-                {item.sub && (
-                  <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
-                    {item.sub}
-                  </span>
-                )}
-              </span>
-              <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
-                {item.ctaLabel}
-                <Icons.ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </button>
+                <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
+                  {item.ctaLabel}
+                  <Icons.ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSnoozed((prev) => {
+                    const next = new Set(prev);
+                    next.add(item.id);
+                    return next;
+                  })
+                }
+                aria-label={`Snooze: ${item.title}`}
+                title="Snooze"
+                className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
+              >
+                <Icons.X className="w-4 h-4" />
+              </button>
+            </div>
           );
         })}
       </div>
