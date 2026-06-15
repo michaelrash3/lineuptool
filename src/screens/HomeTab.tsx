@@ -17,6 +17,7 @@ import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard, EmptyState } from "../components/shared";
+import { SeasonReportModal } from "../components/SeasonReportModal";
 import {
   StaggerList,
   StaggerItem,
@@ -1506,6 +1507,7 @@ export const HomeTab = memo(() => {
     setIsAddingPlayer,
   } = useUI();
   const isHead = currentRole !== "assistant";
+  const [showSeasonReport, setShowSeasonReport] = useState(false);
   const promptStatus = useMemo(
     () =>
       evalPromptStatus(
@@ -1683,6 +1685,13 @@ export const HomeTab = memo(() => {
             <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3 mt-1">
               {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
             </div>
+            <button
+              type="button"
+              onClick={() => setShowSeasonReport(true)}
+              className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+            >
+              <Icons.FileText className="w-3.5 h-3.5" /> Season Report
+            </button>
           </div>
         </div>
 
@@ -1852,6 +1861,14 @@ export const HomeTab = memo(() => {
           tertiaryColor={tertiaryColor}
           onPlayerClick={openPlayerProfile}
           stripped={stripped}
+        />
+      )}
+
+      {showSeasonReport && (
+        <SeasonReportModal
+          open
+          onClose={() => setShowSeasonReport(false)}
+          team={team}
         />
       )}
     </div>
