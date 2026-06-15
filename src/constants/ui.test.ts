@@ -26,18 +26,21 @@ describe("getEvalCategoriesForPlayer", () => {
   const dualThreat = { comfortablePositions: ["P", "C"] };
   const fielder = { comfortablePositions: ["SS", "2B"] };
 
-  it("never includes add-ons on non-Kid-Pitch teams", () => {
+  it("never includes Kid-Pitch add-ons on non-Kid-Pitch teams", () => {
     const cats = ids(getEvalCategoriesForPlayer("Machine Pitch", pitcher));
     expect(cats).toContain("approach");
-    expect(cats).not.toContain("composure");
     expect(cats).not.toContain("gameCalling");
   });
 
-  it("shows Pitching (Composure) only to pitchers on Kid Pitch", () => {
+  it("grades Composure universally (every player, every format)", () => {
+    // Composure is now a universal intangible — not gated to kid-pitch pitchers.
+    expect(ids(getEvalCategoriesForPlayer("Machine Pitch", fielder))).toContain(
+      "composure"
+    );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", pitcher))).toContain(
       "composure"
     );
-    expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).not.toContain(
+    expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).toContain(
       "composure"
     );
   });
@@ -51,15 +54,15 @@ describe("getEvalCategoriesForPlayer", () => {
     );
   });
 
-  it("a dual-threat gets both specialties; a plain fielder gets neither", () => {
+  it("a dual-threat gets the catching specialty; a plain fielder gets none", () => {
     const dual = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
-    expect(dual).toEqual(expect.arrayContaining(["composure", "gameCalling"]));
+    expect(dual).toContain("gameCalling");
     const plain = ids(getEvalCategoriesForPlayer("Kid Pitch", fielder));
-    expect(plain).not.toContain("composure");
     expect(plain).not.toContain("gameCalling");
-    // Universal categories are always present for everyone.
+    // Universal categories — including Composure — are present for everyone.
     expect(plain).toContain("approach");
     expect(plain).toContain("coachability");
+    expect(plain).toContain("composure");
   });
 
   it("only intangibles remain coach-graded (v9): no stat-measurable categories", () => {

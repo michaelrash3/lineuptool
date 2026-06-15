@@ -47,8 +47,9 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     description: "Knows where the ball goes; situational awareness." },
   { id: "coachability", label: "Coachability", group: "Intangibles", weight: 3.0,
     description: "Listens, adjusts, effort & attitude. Weighted heavily." },
-  // Kid-Pitch add-ons: Pitching
-  { id: "composure", label: "Composure", group: "Pitching", weight: 1.0, addOn: "kidPitch",
+  // Composure is a universal intangible — every player is graded on it now,
+  // not just kid-pitch pitchers.
+  { id: "composure", label: "Composure", group: "Intangibles", weight: 2.0,
     description: "Stays calm under pressure; bounces back." },
   // Kid-Pitch add-ons: Catching
   { id: "gameCalling", label: "Game Calling", group: "Catching", weight: 1.0, addOn: "kidPitch",
@@ -61,7 +62,7 @@ export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Intangibles",
 ];
 
-export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = ["Pitching", "Catching"];
+export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = ["Catching"];
 
 export const isKidPitchFormat = (pitchingFormat?: string): boolean =>
   (pitchingFormat || "").toLowerCase().includes("kid");
