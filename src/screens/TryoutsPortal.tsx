@@ -659,6 +659,27 @@ export const TryoutsPortal = () => {
           </p>
         </div>
       </form>
+      {(team?.headCoachName || team?.headCoachEmail) && (
+        <p className="t-meta text-center text-ink-3 mt-5">
+          Questions?{" "}
+          {team.headCoachName
+            ? `Contact ${team.headCoachName}`
+            : "Contact the head coach"}
+          {team.headCoachEmail ? (
+            <>
+              {" "}at{" "}
+              <a
+                href={`mailto:${team.headCoachEmail}`}
+                className="font-bold text-ink underline"
+              >
+                {team.headCoachEmail}
+              </a>
+            </>
+          ) : (
+            "."
+          )}
+        </p>
+      )}
     </PortalShell>
   );
 };

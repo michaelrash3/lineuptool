@@ -111,20 +111,54 @@ const TryoutsSettingsPanel = memo(
           <strong>Tryout Date Link</strong> below opens an actual signup
           form with that date pinned (no chooser).
         </p>
-        <div className="mb-4">
-          <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-            Head coach phone (for offer letters)
-          </label>
-          <input
-            type="tel"
-            value={team.headCoachPhone || ""}
-            onChange={(e) => updateTeam?.({ headCoachPhone: e.target.value })}
-            placeholder="(555) 123-4567"
-            className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
-          />
-          <p className="text-[10px] text-ink-3 font-medium mt-1">
-            Filled into the offer-letter drafts. Stays private — never shown on
-            the public tryouts page.
+        <div className="mb-4 space-y-3">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+              Head coach phone (for offer letters)
+            </label>
+            <input
+              type="tel"
+              value={team.headCoachPhone || ""}
+              onChange={(e) => updateTeam?.({ headCoachPhone: e.target.value })}
+              placeholder="(555) 123-4567"
+              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+            />
+            <p className="text-[10px] text-ink-3 font-medium mt-1">
+              Filled into the offer-letter drafts. Stays private — never shown on
+              the public tryouts page.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+                Coach name (public)
+              </label>
+              <input
+                type="text"
+                value={team.headCoachName || ""}
+                onChange={(e) => updateTeam?.({ headCoachName: e.target.value })}
+                placeholder="Coach Smith"
+                className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+                Coach email (public)
+              </label>
+              <input
+                type="email"
+                value={team.headCoachPublicEmail || ""}
+                onChange={(e) =>
+                  updateTeam?.({ headCoachPublicEmail: e.target.value })
+                }
+                placeholder="coach@team.com"
+                className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-ink-3 font-medium">
+            Shown on your public tryouts/interest page so families can reach
+            out. Leave blank to hide. Resync the public page after editing.
           </p>
         </div>
         <div className="space-y-3">

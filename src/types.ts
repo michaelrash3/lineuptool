@@ -301,6 +301,10 @@ export interface Team {
   // Head coach's phone, captured in Settings purely so recruiting/offer
   // letters can fill in "call me at …". Never shown publicly.
   headCoachPhone?: string;
+  // Optional public-facing head-coach contact shown on the tryouts portal so
+  // prospective families can reach out. Opt-in; mirrored into the public doc.
+  headCoachName?: string;
+  headCoachPublicEmail?: string;
 
   // ----- Finances (head-coach-only tab) -----
   finances?: TeamFinances;
