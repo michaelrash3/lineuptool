@@ -2001,6 +2001,76 @@ export const evalRoundRecency = (
   return (b?.createdAt || 0) - (a?.createdAt || 0);
 };
 
+// Advance-Season eval seeding. The new season starts with a single "Preseason"
+// eval round so coaches don't begin blind: each returning player carries their
+// MOST RECENT eval from the ending season, and each promoted tryout carries
+// their tryout evaluation. Grades are keyed by the (new) player id so the round
+// drops straight into evaluationEvents.
+//
+//   endingEvents     — teamData.evaluationEvents from the season being archived
+//   returningPlayers — players kept on the new roster (ids unchanged)
+//   promotedPlayers  — new players built from tryouts (carry `tryoutSignupId`)
+//
+// Returns null when nothing could be seeded (no source grades) so the caller
+// can fall back to an empty round list.
+export const buildPreseasonSeedRound = (
+  endingEvents: any[],
+  returningPlayers: any[],
+  promotedPlayers: any[],
+  meta: { date: string; evaluatorId?: string }
+): any | null => {
+  const grades: Record<string, any> = {};
+
+  // Returning players → their latest non-tryout round that actually graded them.
+  const roundsNewestFirst = (endingEvents || [])
+    .filter((e: any) => !e?.tryoutSignupId && e?.grades)
+    .slice()
+    .sort(evalRoundRecency);
+  for (const p of returningPlayers || []) {
+    if (!p?.id) continue;
+    for (const r of roundsNewestFirst) {
+      const g = r.grades?.[p.id];
+      if (g && typeof g === "object" && Object.keys(g).length > 0) {
+        grades[p.id] = { ...g };
+        break;
+      }
+    }
+  }
+
+  // Promoted tryouts → their tryout eval (grades.signup), preferring the Head's.
+  const tryoutEvents = (endingEvents || [])
+    .filter((e: any) => e?.tryoutSignupId && e?.grades?.signup)
+    .slice()
+    .sort(
+      (a: any, b: any) =>
+        (b.coachRole === "Head" ? 1 : 0) - (a.coachRole === "Head" ? 1 : 0)
+    );
+  for (const p of promotedPlayers || []) {
+    const sid = p?.tryoutSignupId;
+    if (!sid || !p?.id) continue;
+    const ev = tryoutEvents.find((e: any) => e.tryoutSignupId === sid);
+    const g = ev?.grades?.signup;
+    if (g && typeof g === "object" && Object.keys(g).length > 0) {
+      grades[p.id] = { ...g };
+    }
+  }
+
+  if (Object.keys(grades).length === 0) return null;
+
+  return {
+    id: "ev-preseason-" + Math.random().toString(36).slice(2, 10),
+    date: meta.date,
+    createdAt: Date.now(),
+    coachRole: "Head",
+    evaluatorId: meta.evaluatorId || "",
+    // Shown verbatim in the round picker ("Preseason · <date>").
+    evaluatorName: "Preseason",
+    label: "Preseason",
+    grades,
+    seededFromAdvance: true,
+  };
+};
+
 // Cool-off between automated reminder batches. The cadence prompt
 // (preseason / biweekly) can stay active for days as coaches catch up;
 // without this guard the email fires every time the HC opens the app.
