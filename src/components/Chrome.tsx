@@ -236,7 +236,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
           boxShadow: `0 0 18px 1px ${team.primaryColor}`,
         }}
       />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4 md:gap-5">
           <NavDrawer
             navButtons={navButtons}
@@ -315,7 +315,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
       </div>
 
       <div className="bg-surface-2 text-ink print:hidden relative z-10 border-b border-line shadow-inner">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2 w-full sm:max-w-md">
             {isJoiningTeam ? (
               <form
