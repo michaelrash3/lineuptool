@@ -2,12 +2,14 @@ import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import {
   formatGameDateDisplay,
+  formatCurrency,
   evalPromptStatus,
   buildSeasonBenchImbalance,
   isGameFinalized,
   countsTowardStats,
   recordWinningPercentage,
   latestGameLineMovement,
+  teamFeesStatus,
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
@@ -19,62 +21,6 @@ import {
   AnimatedNumber,
 } from "../components/motion";
 import { checkPitchEligibility } from "../lineupEngine";
-
-// Dismissible banner that nudges the current coach to submit an eval round
-// when the cadence (preseason or biweekly) is active.
-const EvalPromptBanner = memo(
-  ({ kind, isHead, primaryColor, onStart, dueDate }: any) => {
-    const [dismissed, setDismissed] = useState(false);
-    if (dismissed) return null;
-    const dueLabel = dueDate ? formatGameDateDisplay(dueDate) : "";
-    const headline =
-      kind === "preseason"
-        ? "Preseason evaluation due"
-        : "Biweekly evaluation due";
-    // Spell out the due date so the coach knows exactly which round this
-    // reminder is for. Filing an eval inside its window clears the banner.
-    const sub = `${dueLabel ? `Due ${dueLabel}. ` : ""}${
-      isHead
-        ? "Open Evaluation and start a fresh round to clear this."
-        : "Send your grades to the head coach to clear this."
-    }`;
-    return (
-      <div
-        className="rounded-2xl border border-line shadow-card p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4"
-        style={{ backgroundColor: "var(--team-primary-15)" }}
-      >
-        <div
-          className="shrink-0 w-12 h-12 rounded-2xl flex items-center justify-center"
-          style={{ backgroundColor: primaryColor, color: "white" }}
-        >
-          <Icons.Clipboard className="w-6 h-6" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="t-eyebrow text-ink-2">{kind}</div>
-          <div className="t-card-title text-ink mt-0.5">{headline}</div>
-          <p className="text-xs text-ink-2 font-medium mt-1">{sub}</p>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={onStart}
-            className="flex-1 sm:flex-none px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg shadow-md text-white"
-            style={{ backgroundColor: primaryColor }}
-          >
-            Start Now
-          </button>
-          <button
-            type="button"
-            onClick={() => setDismissed(true)}
-            className="px-3 py-2.5 text-[11px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg"
-          >
-            Snooze
-          </button>
-        </div>
-      </div>
-    );
-  }
-);
 
 /* ============================================================================
    Dashboard overhaul — info-rich, intuitive command center.
@@ -992,6 +938,246 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
   );
 });
 
+/* ===========================================================================
+   UpNextPanel — a prioritized "what needs doing" digest pinned to the top of
+   the dashboard. It consolidates signals that already live across the app
+   (next-game lineup, attendance, evaluation cadence) and adds Team Fees
+   (deposit + full-fee due dates), each row deep-linking to where the work
+   happens. Rows are sorted by urgency; the panel hides itself when empty.
+   Head coaches see the full set; assistants only ever see the eval nudge
+   (they can't author lineups or see finances).
+=========================================================================== */
+const UP_NEXT_ACCENTS: Record<string, { bg: string; fg: string }> = {
+  danger: { bg: "var(--loss-bg)", fg: "var(--loss)" },
+  warn: { bg: "var(--warn-bg)", fg: "var(--warn-fg)" },
+  info: { bg: "var(--info-bg)", fg: "var(--info-fg)" },
+  money: { bg: "var(--win-bg)", fg: "var(--win)" },
+  primary: { bg: "var(--team-primary-15)", fg: "var(--team-primary)" },
+};
+
+const UpNextPanel = memo(
+  ({ isHead, promptStatus, todayStr }: any) => {
+    const { team } = useTeam();
+    const {
+      setActiveTab,
+      setSelectedGameId,
+      setOpponentName,
+      setLineup,
+      setBattingLineup,
+      setCurrentGameAttendance,
+    } = useUI();
+    const { games, players, finances } = team;
+
+    const items = useMemo(() => {
+      const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
+      const daysUntil = (iso: string | null) =>
+        iso ? Math.round((new Date(`${iso}T00:00:00`).getTime() - todayMs) / 86400000) : null;
+
+      // Classify a due date into urgency for sorting + the chip it shows.
+      const dueMeta = (iso: string | null) => {
+        const d = daysUntil(iso);
+        if (d == null) return { bump: 0, accent: "money", tag: "" };
+        if (d < 0) return { bump: 40, accent: "danger", tag: "Overdue" };
+        if (d === 0) return { bump: 35, accent: "danger", tag: "Due today" };
+        if (d <= 7) return { bump: 25, accent: "warn", tag: `Due in ${d}d` };
+        return { bump: 0, accent: "money", tag: `Due ${formatGameDateDisplay(iso)}` };
+      };
+
+      const goToGame = (g: any) => {
+        setSelectedGameId(g.id);
+        setOpponentName(g.opponent);
+        setLineup(g.lineup || null);
+        setBattingLineup(g.battingLineup || null);
+        setCurrentGameAttendance(g.attendance || {});
+        setActiveTab("schedule");
+      };
+
+      const out: any[] = [];
+
+      // ----- Eval cadence (both roles) -----
+      if (promptStatus?.active) {
+        out.push({
+          id: "eval",
+          priority: 60,
+          accent: "info",
+          icon: Icons.Clipboard,
+          title: isHead
+            ? "Start this round's evaluations"
+            : "Send your evaluations to the head coach",
+          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
+            promptStatus.nextDueDate
+              ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
+              : ""
+          }`,
+          tag: "Evals",
+          ctaLabel: "Open",
+          onClick: () => setActiveTab("evaluation"),
+        });
+      }
+
+      // The rest are head-coach actions only.
+      if (isHead) {
+        // ----- Next game: lineup + attendance -----
+        const next = (games || [])
+          .filter((g: any) => (g.status || "scheduled") !== "postponed")
+          .filter((g: any) => !isGameFinalized(g))
+          .filter((g: any) => g.date && g.date >= todayStr)
+          .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
+        if (next) {
+          const dd = daysUntil(next.date) ?? 99;
+          const when =
+            dd === 0 ? "today" : dd === 1 ? "tomorrow" : `in ${dd} days`;
+          if (dd <= 7 && !next.lineup) {
+            out.push({
+              id: "lineup",
+              priority: dd <= 1 ? 100 : 82,
+              accent: dd <= 1 ? "danger" : "warn",
+              icon: Icons.Clipboard,
+              title: `Build the lineup vs ${next.opponent}`,
+              sub: `${formatGameDateDisplay(next.date)} · ${when}`,
+              tag: "Lineup",
+              ctaLabel: "Build",
+              onClick: () => goToGame(next),
+            });
+          }
+          const attMarked = Object.keys(next.attendance || {}).length;
+          if (dd <= 2 && attMarked === 0) {
+            out.push({
+              id: "attendance",
+              priority: 68,
+              accent: "warn",
+              icon: Icons.Users,
+              title: `Confirm who's coming vs ${next.opponent}`,
+              sub: `Attendance not set · game ${when}`,
+              tag: "Attendance",
+              ctaLabel: "Set",
+              onClick: () => goToGame(next),
+            });
+          }
+        }
+
+        // ----- Team Fees: deposit + full fee -----
+        const fees = teamFeesStatus(finances, players);
+        if (fees.depositAmount > 0 && fees.depositOwedCount > 0) {
+          const m = dueMeta(fees.depositDueDate);
+          out.push({
+            id: "fees-deposit",
+            priority: 50 + m.bump,
+            accent: m.accent,
+            icon: Icons.Wallet,
+            title: `${fees.depositOwedCount} famil${
+              fees.depositOwedCount === 1 ? "y" : "ies"
+            } owe the team-fee deposit`,
+            sub: `${formatCurrency(fees.depositOutstanding)} in deposits outstanding`,
+            tag: m.tag || "Deposit",
+            ctaLabel: "Collect",
+            onClick: () => setActiveTab("finances"),
+          });
+        }
+        if (fees.stillOwed > 0) {
+          const m = dueMeta(fees.feeDueDate);
+          out.push({
+            id: "fees-full",
+            priority: 40 + m.bump,
+            accent: m.accent,
+            icon: Icons.Wallet,
+            title: `${formatCurrency(fees.stillOwed)} in team fees outstanding`,
+            sub: `${fees.fullOwedCount} famil${
+              fees.fullOwedCount === 1 ? "y" : "ies"
+            } still owe`,
+            tag: m.tag || "Team Fees",
+            ctaLabel: "Collect",
+            onClick: () => setActiveTab("finances"),
+          });
+        }
+      }
+
+      return out.sort((a, b) => b.priority - a.priority);
+    }, [
+      games,
+      players,
+      finances,
+      isHead,
+      promptStatus,
+      todayStr,
+      setActiveTab,
+      setSelectedGameId,
+      setOpponentName,
+      setLineup,
+      setBattingLineup,
+      setCurrentGameAttendance,
+    ]);
+
+    if (items.length === 0) return null;
+
+    return (
+      <div className="relative rounded-2xl border border-line shadow-card overflow-hidden bg-surface">
+        <div
+          className="absolute inset-y-0 left-0 w-[3px]"
+          style={{
+            background: "var(--team-primary)",
+            boxShadow: "0 0 18px 1px var(--team-primary)",
+          }}
+          aria-hidden="true"
+        />
+        <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-line">
+          <h2 className="text-sm font-black uppercase tracking-tight text-ink">
+            Up Next
+          </h2>
+          <span
+            className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
+            style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
+          >
+            {items.length}
+          </span>
+          <span className="ml-auto t-eyebrow text-ink-3">Sorted by urgency</span>
+        </div>
+        {items.map((item) => {
+          const accent = UP_NEXT_ACCENTS[item.accent] || UP_NEXT_ACCENTS.primary;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={item.onClick}
+              className="w-full text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 border-t border-line first:border-t-0 hover:bg-surface-2 transition-colors"
+            >
+              <span
+                className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
+                style={{ backgroundColor: accent.bg }}
+              >
+                <Icon className="w-5 h-5" style={{ color: accent.fg }} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-2 flex-wrap">
+                  <span className="t-body-bold text-ink">{item.title}</span>
+                  {item.tag && (
+                    <span
+                      className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+                      style={{ backgroundColor: accent.bg, color: accent.fg }}
+                    >
+                      {item.tag}
+                    </span>
+                  )}
+                </span>
+                {item.sub && (
+                  <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
+                    {item.sub}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
+                {item.ctaLabel}
+                <Icons.ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+);
+
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
   const {
@@ -1079,17 +1265,11 @@ export const HomeTab = memo(() => {
 
   return (
     <div className="space-y-8">
-      {promptStatus.active && (
-        <EvalPromptBanner
-          kind={promptStatus.kind}
-          isHead={isHead}
-          primaryColor={primaryColor}
-          dueDate={promptStatus.nextDueDate}
-          onStart={() => {
-            setActiveTab("evaluation");
-          }}
-        />
-      )}
+      <UpNextPanel
+        isHead={isHead}
+        promptStatus={promptStatus}
+        todayStr={todayStr}
+      />
       {hasGames ? (
         <UpcomingGameCard
           primaryColor={primaryColor}

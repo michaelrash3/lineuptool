@@ -2757,6 +2757,62 @@ export const financeSummary = (
   };
 };
 
+// Dashboard-facing rollup of where the season's Team Fees stand, including
+// the optional up-front deposit slice. Built on financeSummary so the money
+// math (fundraising credit, fee-exempt players, partial payments) stays in
+// one place. `depositOwed*` only matter when a deposit amount is configured.
+export interface TeamFeesStatus {
+  hasFee: boolean; // a club fee is configured (> 0)
+  effectiveFee: number; // per-player fee after fundraising credit
+  stillOwed: number; // Σ outstanding on the full fee
+  fullOwedCount: number; // # paying families with any balance left
+  depositAmount: number; // configured deposit slice (0 = none)
+  depositOutstanding: number; // Σ of unmet deposit slices
+  depositOwedCount: number; // # families who haven't met the deposit yet
+  depositDueDate: string | null;
+  feeDueDate: string | null;
+}
+
+export const teamFeesStatus = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined
+): TeamFeesStatus => {
+  const s = financeSummary(finances, players);
+  const exempt = new Set(finances?.feeExemptIds || []);
+  const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
+  // Deposit can't exceed the effective fee — a family that's met the fee has
+  // met the deposit by definition.
+  const depositAmount = Math.min(
+    Math.max(0, money(finances?.depositAmount)),
+    s.effectiveFeePerPlayer
+  );
+  let fullOwedCount = 0;
+  let depositOwedCount = 0;
+  let depositOutstanding = 0;
+  for (const p of payers) {
+    const paid = s.paidByPlayer[p.id] || 0;
+    if (s.effectiveFeePerPlayer - paid > 0) fullOwedCount++;
+    if (depositAmount > 0) {
+      const short = depositAmount - paid;
+      if (short > 0) {
+        depositOwedCount++;
+        depositOutstanding += short;
+      }
+    }
+  }
+  return {
+    hasFee: s.effectiveFeePerPlayer > 0,
+    effectiveFee: s.effectiveFeePerPlayer,
+    stillOwed: s.stillOwed,
+    fullOwedCount,
+    depositAmount,
+    depositOutstanding: Math.round(depositOutstanding * 100) / 100,
+    depositOwedCount,
+    depositDueDate: finances?.depositDueDate || null,
+    feeDueDate: finances?.feeDueDate || null,
+  };
+};
+
 export interface LedgerRow {
   id: string;
   date: string;

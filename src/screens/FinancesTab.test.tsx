@@ -336,8 +336,8 @@ describe("FinancesTab", () => {
       configurable: true,
     });
     renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
-    fireEvent.click(screen.getByLabelText("Copy dues reminder"));
-    await screen.findByLabelText("Copy dues reminder"); // flush the async click
+    fireEvent.click(screen.getByLabelText("Copy team-fees reminder"));
+    await screen.findByLabelText("Copy team-fees reminder"); // flush the async click
     expect(writeText).toHaveBeenCalledTimes(1);
     const text = writeText.mock.calls[0][0];
     expect(text).toContain("Ben: $100");
@@ -491,7 +491,7 @@ describe("FinancesTab", () => {
     // paid nothing, Ava's $100 payment already covers her reduced fee.
     expect(screen.getByText("$70 owed")).toBeInTheDocument();
     expect(screen.getByText(/\$70 each/)).toBeInTheDocument();
-    expect(screen.getByText("dues credit")).toBeInTheDocument();
+    expect(screen.getByText("team-fee credit")).toBeInTheDocument();
   });
 
   it("flags a money-in entry as fundraising from the ledger form", () => {
@@ -500,7 +500,7 @@ describe("FinancesTab", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Money in" }));
     fireEvent.click(
-      screen.getByLabelText("Fundraising — reduces player dues")
+      screen.getByLabelText("Fundraising — reduces player team fees")
     );
     fireEvent.change(screen.getByLabelText("Transaction description"), {
       target: { value: "Raffle night" },
@@ -631,7 +631,7 @@ describe("FinancesTab", () => {
     // $240 across 2 paying families ≈ $120 off each.
     expect(screen.getByText(/\$120 off per/)).toBeInTheDocument();
     fireEvent.click(
-      screen.getByLabelText("Apply carryover as dues discount")
+      screen.getByLabelText("Apply carryover as team-fee discount")
     );
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
     expect(patch.finances.incomes[0]).toMatchObject({
@@ -668,7 +668,7 @@ describe("FinancesTab", () => {
     };
     renderWithProviders(<FinancesTab />, { team: { team: applied } });
     expect(
-      screen.queryByLabelText("Apply carryover as dues discount")
+      screen.queryByLabelText("Apply carryover as team-fee discount")
     ).not.toBeInTheDocument();
     // Applied surplus shows as the fundraising credit: 240/2 = 120 off the
     // $100 fee → everyone fully covered ($0 each).

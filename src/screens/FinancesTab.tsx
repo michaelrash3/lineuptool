@@ -214,6 +214,7 @@ export const FinancesTab = memo(() => {
   // ---- Collections form state (per-player partial payment input)
   const [payInputs, setPayInputs] = useState<Record<string, string>>({});
   const [feeInput, setFeeInput] = useState<string | null>(null);
+  const [depositInput, setDepositInput] = useState<string | null>(null);
   // ---- Ledger form state (money in / money out)
   const [txnDir, setTxnDir] = useState<"in" | "out">("out");
   const [txnDate, setTxnDate] = useState(dateToIsoLocal(new Date()));
@@ -375,7 +376,7 @@ export const FinancesTab = memo(() => {
     });
     toast.push({
       kind: "success",
-      title: "Carryover applied to dues",
+      title: "Carryover applied to team fees",
       message: "Last season's surplus now discounts every family's fee.",
     });
   };
@@ -605,6 +606,15 @@ export const FinancesTab = memo(() => {
     setFeeInput(null);
   };
 
+  const commitDeposit = () => {
+    if (depositInput == null) return;
+    const n = Number(String(depositInput).replace(/[$,\s]/g, ""));
+    if (Number.isFinite(n) && n >= 0) {
+      writeFinances({ depositAmount: Math.round(n * 100) / 100 });
+    }
+    setDepositInput(null);
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Club balance hero */}
@@ -652,7 +662,7 @@ export const FinancesTab = memo(() => {
                 <span className="font-black text-ink tabular-nums">
                   {formatCurrency(carryoverPendingTotal)}
                 </span>{" "}
-                in the bank. Apply it as a dues discount — about{" "}
+                in the bank. Apply it as a team-fee discount — about{" "}
                 <span className="font-black text-win tabular-nums">
                   {formatCurrency(carryoverPendingTotal / payerCount)} off per
                   family
@@ -662,10 +672,10 @@ export const FinancesTab = memo(() => {
               <Button
                 variant="secondary"
                 size="sm"
-                aria-label="Apply carryover as dues discount"
+                aria-label="Apply carryover as team-fee discount"
                 onClick={applyCarryoverDiscount}
               >
-                <Icons.Check className="w-4 h-4" /> Apply as dues discount
+                <Icons.Check className="w-4 h-4" /> Apply as team-fee discount
               </Button>
             </div>
           )}
@@ -692,7 +702,7 @@ export const FinancesTab = memo(() => {
                 <Button
                   variant="secondary"
                   size="sm"
-                  aria-label="Copy dues reminder"
+                  aria-label="Copy team-fees reminder"
                   onClick={async () => {
                     try {
                       await navigator.clipboard.writeText(
@@ -759,9 +769,69 @@ export const FinancesTab = memo(() => {
             <p className="t-meta text-ink-3">
               Fundraising entries in the ledger split evenly across the{" "}
               {payerCount} paying famil{payerCount === 1 ? "y" : "ies"} and
-              come off each one&apos;s dues.
+              come off each one&apos;s team fees.
             </p>
           )}
+
+          {/* Team Fee schedule — optional up-front deposit + due dates. The
+              deposit is the first slice a family is expected to cover by its
+              date; payments still count toward the single fee total. */}
+          <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="flex flex-col gap-1">
+              <span className="t-eyebrow text-ink-3">Deposit per player</span>
+              {depositInput == null ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDepositInput(String(finances.depositAmount || ""))
+                  }
+                  className="text-left font-black tabular-nums text-ink hover:text-team-primary"
+                  aria-label="Edit deposit amount"
+                >
+                  {finances.depositAmount
+                    ? formatCurrency(finances.depositAmount)
+                    : "—"}
+                </button>
+              ) : (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={depositInput}
+                  onChange={(e) => setDepositInput(e.target.value)}
+                  onBlur={commitDeposit}
+                  onKeyDown={(e) => e.key === "Enter" && commitDeposit()}
+                  aria-label="Deposit per player"
+                  className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                  style={FORM_INPUT_RING_STYLE}
+                />
+              )}
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="t-eyebrow text-ink-3">Deposit due</span>
+              <input
+                type="date"
+                value={finances.depositDueDate || ""}
+                onChange={(e) =>
+                  writeFinances({ depositDueDate: e.target.value })
+                }
+                aria-label="Deposit due date"
+                className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                style={FORM_INPUT_RING_STYLE}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="t-eyebrow text-ink-3">All fees due</span>
+              <input
+                type="date"
+                value={finances.feeDueDate || ""}
+                onChange={(e) => writeFinances({ feeDueDate: e.target.value })}
+                aria-label="All fees due date"
+                className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                style={FORM_INPUT_RING_STYLE}
+              />
+            </label>
+          </div>
         </div>
         {players.length === 0 ? (
           <div className="p-6 text-center text-ink-3 font-medium">
@@ -951,16 +1021,16 @@ export const FinancesTab = memo(() => {
             {txnDir === "in" && (
               <label
                 className="flex items-center gap-1.5 self-center text-xs font-bold text-ink-2 whitespace-nowrap cursor-pointer"
-                title="Splits evenly across paying players and reduces each family's dues"
+                title="Splits evenly across paying players and reduces each family's team fees"
               >
                 <input
                   type="checkbox"
                   checked={txnFundraising}
                   onChange={(e) => setTxnFundraising(e.target.checked)}
-                  aria-label="Fundraising — reduces player dues"
+                  aria-label="Fundraising — reduces player team fees"
                   className="accent-[var(--team-primary)]"
                 />
-                Fundraising · reduces dues
+                Fundraising · reduces team fees
               </label>
             )}
             <input
@@ -1205,9 +1275,9 @@ export const FinancesTab = memo(() => {
                         {row.fundraising && (
                           <span
                             className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win align-middle"
-                            title="Splits across paying players and reduces each family's dues"
+                            title="Splits across paying players and reduces each family's team fees"
                           >
-                            dues credit
+                            team-fee credit
                           </span>
                         )}
                       </td>
