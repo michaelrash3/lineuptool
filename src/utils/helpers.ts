@@ -2846,7 +2846,7 @@ export const transactionLedger = (
     rows.push({
       id: pay.id,
       date: String(pay.date || ""),
-      label: `Club fee — ${nameOf(String(pay.playerId || ""))}`,
+      label: `Team fee — ${nameOf(String(pay.playerId || ""))}`,
       amount: money(pay.amount),
       direction: "in",
       source: "payment",
@@ -3027,8 +3027,8 @@ export const owesReminderText = (
     const owed = Math.max(0, fee - (s.paidByPlayer[p.id] || 0));
     if (owed > 0) lines.push(`${p.name || "Player"}: ${formatCurrency(owed)}`);
   }
-  if (lines.length === 0) return "All club fees are paid in full. 🎉";
-  const header = `Club fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(fee)}${
+  if (lines.length === 0) return "All team fees are paid in full. 🎉";
+  const header = `Team fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(fee)}${
     s.duesCreditPerPlayer > 0
       ? ` after ${formatCurrency(s.duesCreditPerPlayer)} fundraising credit`
       : ""

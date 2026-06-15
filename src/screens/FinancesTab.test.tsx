@@ -272,15 +272,15 @@ describe("FinancesTab", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },
     });
-    fireEvent.click(screen.getByLabelText("Edit entry Club fee — Ava"));
+    fireEvent.click(screen.getByLabelText("Edit entry Team fee — Ava"));
     // Payments edit their date here; the money is managed in Collections.
     expect(
-      screen.queryByLabelText("Edit amount for Club fee — Ava")
+      screen.queryByLabelText("Edit amount for Team fee — Ava")
     ).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Edit date for Club fee — Ava"), {
+    fireEvent.change(screen.getByLabelText("Edit date for Team fee — Ava"), {
       target: { value: "2026-03-10" },
     });
-    fireEvent.click(screen.getByLabelText("Save entry Club fee — Ava"));
+    fireEvent.click(screen.getByLabelText("Save entry Team fee — Ava"));
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
     expect(patch.finances.payments[0]).toMatchObject({
       id: "p1",
@@ -435,13 +435,13 @@ describe("FinancesTab", () => {
     renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
     // 02-01 +60 sponsorship, 03-01 +100 Ava's fee, 03-05 −80 balls → 80.
     expect(screen.getByText("Hardware sponsorship")).toBeInTheDocument();
-    expect(screen.getByText("Club fee — Ava")).toBeInTheDocument();
+    expect(screen.getByText("Team fee — Ava")).toBeInTheDocument();
     expect(screen.getByText("Baseballs")).toBeInTheDocument();
     // $160 also appears as the suggested next-season fee, hence getAllByText.
     expect(screen.getAllByText(/\$160/).length).toBeGreaterThanOrEqual(1);
     // Fee rows are managed from Collections — no delete button on them.
     expect(
-      screen.queryByLabelText("Delete entry Club fee — Ava")
+      screen.queryByLabelText("Delete entry Team fee — Ava")
     ).not.toBeInTheDocument();
     expect(
       screen.getByLabelText("Delete entry Hardware sponsorship")
@@ -602,7 +602,7 @@ describe("FinancesTab", () => {
       screen
         .getAllByRole("row")
         .map((r) => r.textContent || "")
-        .filter((t) => /Hardware sponsorship|Club fee — Ava|Baseballs/.test(t));
+        .filter((t) => /Hardware sponsorship|Team fee — Ava|Baseballs/.test(t));
     // Default date order: sponsorship (02-01), fee (03-01), baseballs (03-05).
     expect(rowsByLabel()[0]).toContain("Hardware sponsorship");
     // Sort by Entry: alphabetical → Baseballs first.

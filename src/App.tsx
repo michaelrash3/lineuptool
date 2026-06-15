@@ -1589,7 +1589,7 @@ const TeamProvider = ({ children }: any) => {
             closingBalance
           )} (fee collections reset)\n`
         : rollFinances
-        ? `• The planned club fee (${formatCurrency(
+        ? `• The planned team fee (${formatCurrency(
             teamData.finances?.nextClubFee
           )}) takes effect for the new season\n`
         : hadFinanceActivity
