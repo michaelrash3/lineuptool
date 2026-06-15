@@ -66,7 +66,6 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
       receiving: 5,
       blocking: 5,
       throwing: 5,
-      gameCalling: 5,
     };
     const s = suggestPrimaryPosition({ comfortablePositions: ["C", "RF"] }, grades);
     expect(s?.position).toBe("C");
@@ -285,7 +284,7 @@ describe("stat-derived tangible grades (v9)", () => {
       },
     ];
     const combined = getCombinedGrades(events, players, { teamAge: "10U" });
-    // Coach-graded intangibles carry through (incl. the Kid-Pitch add-on).
+    // Coach-graded intangibles carry through (incl. the universal Composure).
     expect(combined.p1.approach).toBe(5);
     expect(combined.p1.coachability).toBe(2);
     expect(combined.p1.composure).toBe(4);
@@ -319,6 +318,46 @@ describe("stat-derived tangible grades (v9)", () => {
     expect(combined.p1.contact).toBeUndefined(); // stats-only now
     expect(combined.p1.fielding).toBeUndefined();
     expect(combined.p1.strikes).toBeUndefined();
+  });
+
+  it("carries coach-entered Pitch Velocity (mph) and grades it age-relative", async () => {
+    const { getCombinedGrades, calcPitcherScore } = await import(
+      "./lineupEngine"
+    );
+    const players: any[] = [{ id: "p1", name: "Ace", comfortablePositions: ["P"] }];
+    const events: any[] = [
+      {
+        id: "e1",
+        date: "2026-04-01",
+        coachRole: "Head",
+        grades: { p1: { strikes: 1, pitchVelo: 55 } },
+      },
+    ];
+    const combined = getCombinedGrades(events, players, { teamAge: "10U" });
+    // The raw mph is preserved, and overlaid as an age-relative velocity grade
+    // (55 mph at 10U is elite → 5).
+    expect(combined.p1.pitchVelo).toBe(55);
+    expect(combined.p1.velocity).toBe(5);
+    // …and it lifts the pitcher score versus the same pitcher with no reading.
+    const withVelo = calcPitcherScore(combined.p1, null, { teamAge: "10U" });
+    const noVelo = calcPitcherScore({ strikes: 1 }, null, { teamAge: "10U" });
+    expect(withVelo).toBeGreaterThan(noVelo);
+  });
+
+  it("ignores a blank Pitch Velocity (optional — no penalty)", async () => {
+    const { getCombinedGrades } = await import("./lineupEngine");
+    const players: any[] = [{ id: "p1", name: "Ace", comfortablePositions: ["P"] }];
+    const events: any[] = [
+      {
+        id: "e1",
+        date: "2026-04-01",
+        coachRole: "Head",
+        grades: { p1: { strikes: 1 } }, // no pitchVelo
+      },
+    ];
+    const combined = getCombinedGrades(events, players, { teamAge: "10U" });
+    expect(combined.p1.pitchVelo).toBeUndefined();
+    expect(combined.p1.velocity).toBeUndefined(); // no reading → no overlay
   });
 
   it("calculateTotalScore lifts a kid with an elite imported stat line over a statless one", () => {

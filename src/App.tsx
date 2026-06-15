@@ -895,7 +895,12 @@ const TeamProvider = ({ children }: any) => {
                 "baseballIQ",
                 "coachability",
                 "composure",
-                "gameCalling",
+                // Coach-graded catching skills (Game Calling was dropped in
+                // favor of these tangible, young-age-appropriate skills).
+                "blocking",
+                "receiving",
+                // Optional coach-entered radar reading (mph), not a 1–5 grade.
+                "pitchVelo",
               ]);
               migratedEvents = migratedEvents.map((ev: any) => {
                 if (!ev?.grades) return ev;

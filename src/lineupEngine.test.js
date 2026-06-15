@@ -2013,17 +2013,17 @@ describe("D4 — pitcher scoring + pool sizing", () => {
     expect(calcPitcherScore({ control: 5, command: 5 })).toBe(0);
   });
 
-  test("calcCatcherScore drops receiving (v9) and weights blocking/throwing highest", () => {
+  test("calcCatcherScore grades blocking/throwing/receiving, weights blocking/throwing highest", () => {
     expect(calcCatcherScore(null)).toBe(0);
     expect(calcCatcherScore({})).toBe(0);
-    // blocking*1.5 + throwing*1.5 + gameCalling*1 = 6 + 6 + 4 = 16
+    // blocking*1.5 + throwing*1.5 + receiving*1 = 6 + 6 + 4 = 16
     expect(
-      calcCatcherScore({ blocking: 4, throwing: 4, gameCalling: 4 })
+      calcCatcherScore({ blocking: 4, throwing: 4, receiving: 4 })
     ).toBe(16);
-    // Receiving no longer scores — no youth stat measures framing.
-    expect(calcCatcherScore({ receiving: 5 })).toBe(0);
+    // Game Calling no longer scores — replaced by coach-graded Blocking/Receiving.
+    expect(calcCatcherScore({ gameCalling: 5 })).toBe(0);
     expect(calcCatcherScore({ blocking: 5 })).toBeGreaterThan(
-      calcCatcherScore({ gameCalling: 5 })
+      calcCatcherScore({ receiving: 5 })
     );
   });
 
@@ -2410,12 +2410,13 @@ describe("velocity in pitcher score (age-relative)", () => {
   test("calcVelocityQuality normalizes against the age band", () => {
     expect(calcVelocityQuality(null, "10U")).toBeNull();
     expect(calcVelocityQuality(0, "10U")).toBeNull();
-    // 10U band [40,55]
-    expect(calcVelocityQuality(40, "10U")).toBeCloseTo(0);
+    // 10U band [45,55] (age average-low → elite)
+    expect(calcVelocityQuality(40, "10U")).toBeCloseTo(0); // below floor → clamp 0
+    expect(calcVelocityQuality(45, "10U")).toBeCloseTo(0);
     expect(calcVelocityQuality(55, "10U")).toBeCloseTo(1);
-    expect(calcVelocityQuality(47.5, "10U")).toBeCloseTo(0.5);
-    // 13U to 14U band [52,70] -> 61 is the midpoint
-    expect(calcVelocityQuality(61, "13U to 14U")).toBeCloseTo(0.5);
+    expect(calcVelocityQuality(50, "10U")).toBeCloseTo(0.5);
+    // 13U to 14U band [60,75] -> 67.5 is the midpoint
+    expect(calcVelocityQuality(67.5, "13U to 14U")).toBeCloseTo(0.5);
     // same raw mph is "better" for a younger team
     expect(calcVelocityQuality(50, "10U")).toBeGreaterThan(
       calcVelocityQuality(50, "13U to 14U")
@@ -2455,7 +2456,7 @@ describe("fielding & catcher stats blend (depth chart)", () => {
   });
 
   test("catcher Throwing is graded from CS% when absent from the grade map (v9)", () => {
-    expect(calcCatcherScore({ gameCalling: 3 })).toBe(3);
+    expect(calcCatcherScore({ receiving: 3 })).toBe(3);
     // CS% with a full attempts sample grades Throwing at 5 -> 5 * 1.5.
     expect(calcCatcherScore({}, { fCsPct: 0.55, fSbAtt: 15 })).toBeCloseTo(7.5);
     // CS% with no attempts counts at half confidence -> grade 4 -> 6.

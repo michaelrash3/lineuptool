@@ -5,6 +5,9 @@ import {
   playerIsCatcher,
   pitcherRosterPremium,
   PITCHER_ROSTER_PREMIUM_MAX,
+  EVAL_CATEGORIES,
+  EVAL_GROUPS_UNIVERSAL,
+  EVAL_GROUPS_KID_PITCH_ADDONS,
 } from "./ui";
 
 const ids = (cats: { id: string }[]) => cats.map((c) => c.id);
@@ -20,6 +23,21 @@ describe("playerIsPitcher / playerIsCatcher", () => {
   });
 });
 
+describe("eval category groups", () => {
+  it("every category's group is a navigable tab (no orphaned add-on group)", () => {
+    // The grading UIs render one tab per group; a category whose group isn't in
+    // the tab list would be unreachable (the bug when Pitch Velocity's Pitching
+    // group was dropped).
+    const tabGroups = new Set<string>([
+      ...EVAL_GROUPS_UNIVERSAL,
+      ...EVAL_GROUPS_KID_PITCH_ADDONS,
+    ]);
+    for (const c of EVAL_CATEGORIES) {
+      expect(tabGroups.has(c.group)).toBe(true);
+    }
+  });
+});
+
 describe("getEvalCategoriesForPlayer", () => {
   const pitcher = { comfortablePositions: ["P", "SS"] };
   const catcher = { comfortablePositions: ["C", "1B"] };
@@ -29,7 +47,9 @@ describe("getEvalCategoriesForPlayer", () => {
   it("never includes Kid-Pitch add-ons on non-Kid-Pitch teams", () => {
     const cats = ids(getEvalCategoriesForPlayer("Machine Pitch", pitcher));
     expect(cats).toContain("approach");
-    expect(cats).not.toContain("gameCalling");
+    expect(cats).not.toContain("pitchVelo");
+    expect(cats).not.toContain("blocking");
+    expect(cats).not.toContain("receiving");
   });
 
   it("grades Composure universally (every player, every format)", () => {
@@ -45,39 +65,52 @@ describe("getEvalCategoriesForPlayer", () => {
     );
   });
 
-  it("shows Catching (Game Calling) only to catchers on Kid Pitch", () => {
-    expect(ids(getEvalCategoriesForPlayer("Kid Pitch", catcher))).toContain(
-      "gameCalling"
+  it("shows Pitch Velocity only to pitchers on Kid Pitch", () => {
+    expect(ids(getEvalCategoriesForPlayer("Kid Pitch", pitcher))).toContain(
+      "pitchVelo"
     );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).not.toContain(
-      "gameCalling"
+      "pitchVelo"
     );
   });
 
-  it("a dual-threat gets the catching specialty; a plain fielder gets none", () => {
+  it("shows Catching (Blocking + Receiving) only to catchers on Kid Pitch", () => {
+    const c = ids(getEvalCategoriesForPlayer("Kid Pitch", catcher));
+    expect(c).toEqual(expect.arrayContaining(["blocking", "receiving"]));
+    const f = ids(getEvalCategoriesForPlayer("Kid Pitch", fielder));
+    expect(f).not.toContain("blocking");
+    expect(f).not.toContain("receiving");
+  });
+
+  it("a dual-threat gets both specialties; a plain fielder gets none", () => {
     const dual = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
-    expect(dual).toContain("gameCalling");
+    expect(dual).toEqual(
+      expect.arrayContaining(["pitchVelo", "blocking", "receiving"])
+    );
     const plain = ids(getEvalCategoriesForPlayer("Kid Pitch", fielder));
-    expect(plain).not.toContain("gameCalling");
+    expect(plain).not.toContain("pitchVelo");
+    expect(plain).not.toContain("blocking");
+    expect(plain).not.toContain("receiving");
     // Universal categories — including Composure — are present for everyone.
     expect(plain).toContain("approach");
     expect(plain).toContain("coachability");
     expect(plain).toContain("composure");
   });
 
-  it("only intangibles remain coach-graded (v9): no stat-measurable categories", () => {
+  it("no stat-measurable tangibles remain coach-graded (v9)", () => {
     const all = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
+    // Velocity/Strikes/Off-Speed/Throwing are still stats-derived; Pitch
+    // Velocity (mph) is the one coach-entered pitching field.
     for (const dropped of [
       "contact", "power", "fielding", "arm",
-      "velocity", "strikes", "offSpeed",
-      "receiving", "blocking", "throwing",
+      "velocity", "strikes", "offSpeed", "throwing", "gameCalling",
     ]) {
       expect(all).not.toContain(dropped);
     }
     expect(all).toEqual(
       expect.arrayContaining([
         "approach", "speed", "baserunning", "baseballIQ", "coachability",
-        "composure", "gameCalling",
+        "composure", "pitchVelo", "blocking", "receiving",
       ])
     );
   });

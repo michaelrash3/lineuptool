@@ -40,7 +40,7 @@ describe("DepthChartTab", () => {
     expect(items[1]).toHaveTextContent("Abel");
   });
 
-  it("ranks catchers by catching value (CS% stats + Game Calling), not by name", () => {
+  it("ranks catchers by catching value (CS% stats + Receiving), not by name", () => {
     const catcherTeam: any = {
       players: [
         {
@@ -63,7 +63,7 @@ describe("DepthChartTab", () => {
           id: "e1",
           date: "2026-01-01",
           coachRole: "Head",
-          grades: { c1: { gameCalling: 5 }, c2: { gameCalling: 1 } },
+          grades: { c1: { receiving: 5 }, c2: { receiving: 1 } },
         },
       ],
       pitchingFormat: "Kid Pitch",
