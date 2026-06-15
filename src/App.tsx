@@ -8,6 +8,7 @@ import React, {
   lazy,
   Suspense,
 } from "react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import {
   signInWithCustomToken,
   onAuthStateChanged,
@@ -3511,6 +3512,7 @@ const App = () => {
           </TeamProvider>
         </ConfirmProvider>
       </ToastProvider>
+      <SpeedInsights />
     </AppMotionProvider>
   );
 };
