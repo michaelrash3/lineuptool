@@ -173,3 +173,55 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     expect(updateTeam).not.toHaveBeenCalled();
   });
 });
+
+describe("importBackup (restore)", () => {
+  const setup = () => {
+    const updateTeam = jest.fn();
+    const toast = makeToast();
+    const confirm = jest.fn().mockResolvedValue(true);
+    const teamData = { players: [], games: [] };
+    const { result } = renderHook(() =>
+      useImportExportFlows({
+        teamData,
+        updateTeam,
+        activeTeamId: "t1",
+        toast,
+        confirm,
+      } as any)
+    );
+    const run = (text: string) => {
+      const file = new File([text], "backup.json", {
+        type: "application/json",
+      });
+      result.current.importBackup({
+        target: { files: [file], value: "" },
+      } as any);
+    };
+    return { run, updateTeam, toast };
+  };
+
+  it("restores a file that looks like a LineupTool backup", async () => {
+    const { run, updateTeam, toast } = setup();
+    run(JSON.stringify({ players: [{ id: "p1", name: "Sam" }], games: [] }));
+    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
+    expect(updateTeam.mock.calls[0][0].players).toHaveLength(1);
+    expect(updateTeam.mock.calls[0][1]).toEqual({ allowEmptyPlayers: true });
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success", title: "Backup restored" })
+    );
+  });
+
+  it("rejects a valid-JSON file that isn't a backup, without writing", async () => {
+    const { run, updateTeam, toast } = setup();
+    run(JSON.stringify({ notATeam: true }));
+    await waitFor(() =>
+      expect(toast.push).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "error",
+          title: "Could not parse backup",
+        })
+      )
+    );
+    expect(updateTeam).not.toHaveBeenCalled();
+  });
+});
