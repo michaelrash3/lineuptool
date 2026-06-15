@@ -2189,7 +2189,7 @@ describe("finances money math", () => {
     const csv = ledgerCsv(fin, players);
     const lines = csv.split("\n");
     expect(lines[0]).toBe("Date,Entry,In,Out,Balance");
-    expect(lines[1]).toBe("2026-03-01,Club fee — Ava,100.00,,100.00");
+    expect(lines[1]).toBe("2026-03-01,Team fee — Ava,100.00,,100.00");
     expect(lines[2]).toBe('2026-03-05,"Balls, ""good"" ones",,40.00,60.00');
   });
 
@@ -2221,10 +2221,10 @@ describe("finances money math", () => {
     ]);
     expect(rows.map((r) => r.balanceAfter)).toEqual([600, 750, 800, 700, 640, 665, 675]);
     expect(rows[0]).toMatchObject({ direction: "in", source: "income" });
-    expect(rows[1].label).toBe("Club fee — Ava");
+    expect(rows[1].label).toBe("Team fee — Ava");
     expect(rows[3]).toMatchObject({ direction: "out", source: "expense" });
     // Payment from a kid no longer rostered still shows, with a fallback name.
-    expect(rows[6].label).toBe("Club fee — Player");
+    expect(rows[6].label).toBe("Team fee — Player");
     expect(transactionLedger(null)).toEqual([]);
   });
 });

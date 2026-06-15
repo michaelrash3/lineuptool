@@ -731,13 +731,13 @@ export const FinancesTab = memo(() => {
             </div>
           )}
           <div className="flex items-center gap-2">
-          <span className="t-eyebrow text-ink-3">Club fee per player</span>
+          <span className="t-eyebrow text-ink-3">Team fee per player</span>
           {feeInput == null ? (
             <button
               type="button"
               onClick={() => setFeeInput(String(clubFee || ""))}
               className="font-black tabular-nums text-ink hover:text-team-primary"
-              aria-label="Edit club fee"
+              aria-label="Edit team fee"
             >
               {formatCurrency(clubFee)}
             </button>
@@ -750,7 +750,7 @@ export const FinancesTab = memo(() => {
               onChange={(e) => setFeeInput(e.target.value)}
               onBlur={commitClubFee}
               onKeyDown={(e) => e.key === "Enter" && commitClubFee()}
-              aria-label="Club fee per player"
+              aria-label="Team fee per player"
               className={`${FORM_INPUT_CLASS} w-28 tabular-nums`}
               style={FORM_INPUT_RING_STYLE}
             />
@@ -838,7 +838,7 @@ export const FinancesTab = memo(() => {
             <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
               📊
             </div>
-            Add players on the Roster tab to track who owes the club fee.
+            Add players on the Roster tab to track who owes the team fee.
           </div>
         ) : (
           <ul className="divide-y divide-line">
@@ -1847,7 +1847,7 @@ export const FinancesTab = memo(() => {
                   <span className="font-black tabular-nums">
                     {formatCurrency(nextFee)}
                   </span>{" "}
-                  — it becomes the club fee when the new season starts in the
+                  — it becomes the team fee when the new season starts in the
                   Fall.
                 </div>
               )}
