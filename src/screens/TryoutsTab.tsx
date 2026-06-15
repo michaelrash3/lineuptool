@@ -10,11 +10,11 @@ import {
   getEvalCategoriesForTeam,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
-import { sendGmailMessage, buildMailtoUrl } from "../integrations/gmailSend";
 import { calculateBaseballAge } from "../utils/helpers";
 import { A11yDialog } from "../components/shared";
-import { reportError } from "../utils/errorReporter";
-import { auth } from "../firebase";
+import { OfferLetterModal } from "../components/OfferLetterModal";
+import { makeOfferLetterContext } from "../utils/offerContext";
+import type { OfferLetterKind } from "../constants/offerLetters";
 
 const STATUS_PILLS = {
   tryout: { label: "Tryout", className: "bg-surface-2 border-line text-ink" },
@@ -453,61 +453,12 @@ export const TryoutsTab = memo(() => {
     toast.push({ kind: "success", title: "Tryout eval saved" });
   };
 
-  const sendOfferLetter = async (signup: any) => {
-    if (!signup.email) {
-      toast.push({ kind: "error", title: "No email on this signup" });
-      return;
-    }
-    const teamName = team.name || "our team";
-    const fromName = user?.displayName || "Your coach";
-    const subject = `${teamName} — Tryout Offer for ${signup.firstName}`;
-    const acceptUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}${window.location.pathname}#/?acceptTryout=${signup.id}`
-        : "";
-    const body = [
-      `Hi ${signup.parentName || "there"},`,
-      "",
-      `Thanks for trying out for ${teamName}. We'd love to offer ${
-        signup.firstName
-      } a spot on the team for the upcoming season.`,
-      "",
-      acceptUrl
-        ? `Tap the link below to accept (or reply to this email):`
-        : `Reply to this email to accept.`,
-      acceptUrl,
-      "",
-      `— ${fromName}`,
-    ].join("\n");
-    try {
-      await sendGmailMessage({
-        auth,
-        to: signup.email,
-        subject,
-        body,
-        fromEmail: user?.email,
-        fromName,
-      });
-      updateTryoutSignup?.(signup.id, { status: "offered" });
-      toast.push({
-        kind: "success",
-        title: `Offer sent to ${signup.firstName}`,
-      });
-    } catch (err) {
-      // Gmail send failed — log it (a consistent failure usually means OAuth
-      // scope/config drift), then fall back to mailto so the offer still goes out.
-      reportError(err, { source: "TryoutsTab.sendOffer", signupId: signup.id });
-      if (typeof window !== "undefined") {
-        window.open(buildMailtoUrl(signup.email, subject, body), "_blank");
-      }
-      updateTryoutSignup?.(signup.id, { status: "offered" });
-      toast.push({
-        kind: "warn",
-        title: "Opening your mail app",
-        message: "Gmail send didn't fire; offer drafted there.",
-      });
-    }
-  };
+  // Recruiting letters are COPYABLE drafts (Gmail send is unreliable here), so
+  // "Make an Offer" / "Decline" just open a pre-filled draft the coach hands to
+  // the family. We only flip the signup status once they actually deliver it.
+  const [offerDraft, setOfferDraft] = useState<
+    { signup: any; kind: OfferLetterKind } | null
+  >(null);
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
@@ -813,10 +764,23 @@ export const TryoutsTab = memo(() => {
                         {isHead && s.status !== "accepted" && (
                           <button
                             type="button"
-                            onClick={() => sendOfferLetter(s)}
+                            onClick={() =>
+                              setOfferDraft({ signup: s, kind: "newPlayer" })
+                            }
                             className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
                           >
                             Make an Offer
+                          </button>
+                        )}
+                        {isHead && s.status !== "accepted" && s.status !== "declined" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOfferDraft({ signup: s, kind: "rejection" })
+                            }
+                            className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
+                          >
+                            Decline
                           </button>
                         )}
                         {isHead && s.status === "offered" && (
@@ -893,6 +857,27 @@ export const TryoutsTab = memo(() => {
             </div>
           </A11yDialog>
         </div>
+      )}
+
+      {offerDraft && (
+        <OfferLetterModal
+          open
+          onClose={() => setOfferDraft(null)}
+          kind={offerDraft.kind}
+          recipientEmail={offerDraft.signup.email}
+          ctx={makeOfferLetterContext(
+            team,
+            user,
+            [offerDraft.signup.firstName, offerDraft.signup.lastName]
+              .filter(Boolean)
+              .join(" ")
+          )}
+          onDelivered={() =>
+            updateTryoutSignup?.(offerDraft.signup.id, {
+              status: offerDraft.kind === "rejection" ? "declined" : "offered",
+            })
+          }
+        />
       )}
     </div>
   );

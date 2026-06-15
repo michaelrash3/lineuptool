@@ -298,6 +298,9 @@ export interface Team {
 
   // ----- Tryouts config -----
   tryoutDates?: string[];
+  // Head coach's phone, captured in Settings purely so recruiting/offer
+  // letters can fill in "call me at …". Never shown publicly.
+  headCoachPhone?: string;
 
   // ----- Finances (head-coach-only tab) -----
   finances?: TeamFinances;
