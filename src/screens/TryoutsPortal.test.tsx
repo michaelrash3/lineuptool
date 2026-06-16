@@ -100,6 +100,12 @@ describe("TryoutsPortal submit validation", () => {
     // jsdom's. A blatantly malformed value would be blocked before our JS runs.
     fill(/email/i, "a@b");
     fill(/phone/i, "5551234");
+    fireEvent.change(screen.getByLabelText(/does your player pitch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "no" },
+    });
     fireEvent.click(screen.getByText("Submit Interest"));
 
     const alert = await screen.findByRole("alert");
