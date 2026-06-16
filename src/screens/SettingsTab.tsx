@@ -338,10 +338,16 @@ const TryoutsSettingsPanel = memo(
 const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
   const [date, setDate] = useState("");
   const today = new Date().toISOString().slice(0, 10);
-  const dates = Array.isArray(team.tryoutDates)
-    ? [...new Set(team.tryoutDates.filter(Boolean))].sort()
+  const dates: string[] = Array.isArray(team.tryoutDates)
+    ? [
+        ...new Set(
+          team.tryoutDates
+            .map((d: any) => String(d || "").trim())
+            .filter(Boolean),
+        ),
+      ].sort()
     : [];
-  const futureDates = dates.filter((d: any) => String(d) >= today);
+  const futureDates = dates.filter((d) => d >= today);
 
   const saveDates = (nextDates: string[]) => {
     const cleaned = [
@@ -1528,7 +1534,6 @@ export const SettingsTab = memo(() => {
                   team={team}
                   updateTeam={updateTeam}
                   generateTryoutShareId={generateTryoutShareId}
-                  generateTryoutDateLink={generateTryoutDateLink}
                   setTryoutsOpen={setTryoutsOpen}
                   completeTryouts={completeTryouts}
                   setRosterCap={setRosterCap}
