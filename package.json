@@ -14,6 +14,7 @@
   "main": "src/index.tsx",
   "dependencies": {
     "@sentry/react": "^8.55.2",
+    "@vercel/speed-insights": "^2.0.0",
     "canvas-confetti": "^1.9.4",
     "firebase": "12.12.0",
     "framer-motion": "^11.18.2",
