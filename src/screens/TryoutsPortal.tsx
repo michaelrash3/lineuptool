@@ -17,7 +17,6 @@ import {
   isValidEmail,
   isSafeCssColor,
   isSafeImageUrl,
-  resolveTryoutDateForSlug,
 } from "../utils/helpers";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -49,20 +48,21 @@ const getNextSpringSeasonLabel = (currentSeason: any) => {
 const getOutfieldPositions = (tryoutAgeLabel: any) => {
   const n = Number.parseInt(
     String(tryoutAgeLabel || "").replace(/[^0-9]/g, ""),
-    10
+    10,
   );
   return !Number.isNaN(n) && n >= 9
     ? ["LF", "CF", "RF"]
     : ["LF", "LCF", "RCF", "RF"];
 };
 
-
 // Shared focus-ring + radius recipe applied to every input/select/textarea
 // in this surface. Pulls the ring color from the team's primary so the form
 // feels branded instead of using a generic Tailwind blue ring.
 const INPUT_BASE =
   "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
-const RING_STYLE = { "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties;
+const RING_STYLE = {
+  "--tw-ring-color": "var(--team-primary)",
+} as React.CSSProperties;
 
 const PortalShell = ({ children, accent = true }: any) => (
   <div className="min-h-screen bg-app relative overflow-hidden">
@@ -78,12 +78,9 @@ const PortalShell = ({ children, accent = true }: any) => (
 
 const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
   const toneStyle =
-    tone === "error"
-      ? "border-loss"
-      : tone === "success"
-      ? ""
-      : "border-line";
-  const accent = tone === "success" ? { borderColor: "var(--team-primary)" } : undefined;
+    tone === "error" ? "border-loss" : tone === "success" ? "" : "border-line";
+  const accent =
+    tone === "success" ? { borderColor: "var(--team-primary)" } : undefined;
   return (
     <div
       className={`bg-surface rounded-2xl p-7 max-w-md mx-auto text-center shadow-card border-2 ${toneStyle}`}
@@ -108,7 +105,9 @@ const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
       {title && (
         <h1
           className="t-card-title mb-3"
-          style={tone === "success" ? { color: "var(--team-primary)" } : undefined}
+          style={
+            tone === "success" ? { color: "var(--team-primary)" } : undefined
+          }
         >
           {title}
         </h1>
@@ -122,14 +121,8 @@ export const TryoutsPortal = () => {
   const { slug } = useParams();
   const linkSlug = (slug || "").trim();
   const [phase, setPhase] = useState("loading");
-  // "interest" → standing share link → year-round interest survey.
-  // "tryout"   → per-date slug → tryout signup with date pinned.
-  const [mode, setMode] = useState<string | null>(null);
-  // Pinned tryout date (only meaningful in tryout mode). Parents no
-  // longer pick a date — the slug determines it. Removes the long-
-  // standing bug where the date dropdown surfaced stale dates left
-  // over on the team after the HC removed them.
-  const [pinnedDate, setPinnedDate] = useState("");
+  const [mode, setMode] = useState<string | null>("interest");
+  const [selectedTryoutDate, setSelectedTryoutDate] = useState("");
   const [team, setTeam] = useState<any>(null);
   const [teamDocId, setTeamDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +139,10 @@ export const TryoutsPortal = () => {
     bats: "R",
     throws: "R",
     currentTeam: "",
-    comfortablePositions: [] as string[],
+    primaryPosition: "",
+    secondaryPosition: "",
+    canPitch: "",
+    canCatch: "",
     parentName: "",
     email: "",
     phone: "",
@@ -159,21 +155,20 @@ export const TryoutsPortal = () => {
   useEffect(() => {
     const name = (team?.name || "").trim();
     if (name) {
-      document.title =
-        mode === "interest" ? `${name} Interest List` : `${name} Tryouts`;
+      document.title = `${name} Player Interest`;
     }
     return () => {
       document.title = "Coach's Card";
     };
-  }, [team?.name, mode]);
+  }, [team?.name]);
 
-  const tryoutAgeLabel = useMemo(() => getTryoutAgeLabel(team?.teamAge), [team?.teamAge]);
+  const tryoutAgeLabel = useMemo(
+    () => getTryoutAgeLabel(team?.teamAge),
+    [team?.teamAge],
+  );
   const headerSeasonLabel = useMemo(
-    () =>
-      mode === "interest"
-        ? getNextSpringSeasonLabel(team?.currentSeason)
-        : team?.currentSeason || "Next Season",
-    [mode, team?.currentSeason]
+    () => getNextSpringSeasonLabel(team?.currentSeason),
+    [team?.currentSeason],
   );
   const positions = useMemo(() => {
     const outfield = getOutfieldPositions(tryoutAgeLabel);
@@ -211,20 +206,11 @@ export const TryoutsPortal = () => {
           appId,
           "public",
           "data",
-          "teamPublic"
+          "teamPublic",
         );
-        // Standing share link → interest survey (always valid).
-        // Per-date link → tryout signup (gated on tryoutsOpen). New teams
-        // expose every per-date slug in `tryoutDateSlugs` (array-contains
-        // lookup); legacy teams only carried a single `tryoutDateSlug`, so we
-        // fall back to the equality query for them.
-        const [shareSnap, dateArraySnap, legacyDateSnap] = await Promise.all([
-          getDocs(query(mirrorRef, where("tryoutShareId", "==", linkSlug))),
-          getDocs(
-            query(mirrorRef, where("tryoutDateSlugs", "array-contains", linkSlug))
-          ),
-          getDocs(query(mirrorRef, where("tryoutDateSlug", "==", linkSlug))),
-        ]);
+        const shareSnap = await getDocs(
+          query(mirrorRef, where("tryoutShareId", "==", linkSlug)),
+        );
         if (cancelled) return;
 
         if (!shareSnap.empty) {
@@ -238,31 +224,13 @@ export const TryoutsPortal = () => {
           return;
         }
 
-        const dateSnap = !dateArraySnap.empty ? dateArraySnap : legacyDateSnap;
-        if (!dateSnap.empty) {
-          const teamDoc = dateSnap.docs[0];
-          const data = teamDoc.data();
-          if (data.tryoutsOpen === false) {
-            setError("Tryouts are closed for this team.");
-            setPhase("error");
-            return;
-          }
-          // Date is pinned to the slug via the explicit mapping (with a legacy
-          // fallback for teams that predate it) — never a parent-picked chooser.
-          setPinnedDate(resolveTryoutDateForSlug(data, linkSlug));
-          setTeam(data);
-          setTeamDocId(teamDoc.id);
-          applyThemeColors(data);
-          setMode("tryout");
-          setPhase("form");
-          return;
-        }
-
         setError("Link not found or has been deactivated.");
         setPhase("error");
       } catch (err) {
         reportError(err, { source: "TryoutsPortal.init", linkSlug });
-        setError("Couldn't load this team's page. The link may be invalid or your network may be down.");
+        setError(
+          "Couldn't load this team's page. The link may be invalid or your network may be down.",
+        );
         setPhase("error");
       }
     };
@@ -272,13 +240,38 @@ export const TryoutsPortal = () => {
     };
   }, [linkSlug]);
 
-  const togglePos = (pos: any) =>
+  const activeTryoutDates = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return Array.isArray(team?.tryoutDates)
+      ? team.tryoutDates.filter(
+          (date: any) => String(date || "").trim() >= today,
+        )
+      : [];
+  }, [team?.tryoutDates]);
+
+  const setPosition = (
+    field: "primaryPosition" | "secondaryPosition",
+    value: string,
+  ) => {
     setForm((prev) => ({
       ...prev,
-      comfortablePositions: prev.comfortablePositions.includes(pos)
-        ? prev.comfortablePositions.filter((p) => p !== pos)
-        : [...prev.comfortablePositions, pos],
+      [field]: value,
+      canPitch:
+        value === "P" ||
+        (field === "primaryPosition"
+          ? prev.secondaryPosition
+          : prev.primaryPosition) === "P"
+          ? "yes"
+          : prev.canPitch,
+      canCatch:
+        value === "C" ||
+        (field === "primaryPosition"
+          ? prev.secondaryPosition
+          : prev.primaryPosition) === "C"
+          ? "yes"
+          : prev.canCatch,
     }));
+  };
 
   const handleSubmit = async (e: any) => {
     e?.preventDefault?.();
@@ -291,16 +284,12 @@ export const TryoutsPortal = () => {
       return setError("Parent email is required so we can reach you.");
     if (!isValidEmail(form.email))
       return setError("Please enter a valid parent email address.");
-    if (!form.phone.trim())
-      return setError("Parent phone number is required.");
+    if (!form.phone.trim()) return setError("Parent phone number is required.");
 
-    if (mode === "tryout") {
-      if (!form.currentTeam.trim()) return setError("Current team is required.");
-      // The old client-side duplicate-signup pre-check read the team's full
-      // signup list, which the public mirror intentionally no longer exposes
-      // (it's other families' PII). The `submitting` guard still prevents
-      // double-taps; coaches can de-dupe genuine repeats in the app.
-    }
+    if (!form.canPitch)
+      return setError("Please answer whether your player pitches.");
+    if (!form.canCatch)
+      return setError("Please answer whether your player catches.");
 
     setError(null);
     setSubmitting(true);
@@ -319,22 +308,14 @@ export const TryoutsPortal = () => {
     };
 
     try {
-      if (mode === "tryout") {
-        const signup = {
-          id: `ts-${Math.random().toString(36).slice(2, 10)}`,
-          submittedAt: new Date().toISOString(),
-          status: "tryout",
-          tryoutAge: tryoutAgeLabel,
-          tryoutDate: pinnedDate,
-          ...cleanForm,
-        };
-        await updateDoc(
-          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-          { tryoutSignups: arrayUnion(signup) }
+      {
+        const comfortablePositions = Array.from(
+          new Set(
+            [cleanForm.primaryPosition, cleanForm.secondaryPosition].filter(
+              Boolean,
+            ),
+          ),
         );
-      } else {
-        // Interest mode — separate array; smaller payload (no
-        // bats/throws/jersey-number/currentTeam-required at this stage).
         const lead = {
           id: `int-${Math.random().toString(36).slice(2, 10)}`,
           submittedAt: new Date().toISOString(),
@@ -345,19 +326,28 @@ export const TryoutsPortal = () => {
           email: cleanForm.email,
           phone: cleanForm.phone,
           currentTeam: cleanForm.currentTeam,
-          comfortablePositions: form.comfortablePositions || [],
+          number: cleanForm.number,
+          bats: cleanForm.bats,
+          throws: cleanForm.throws,
+          primaryPosition: cleanForm.primaryPosition,
+          secondaryPosition: cleanForm.secondaryPosition,
+          comfortablePositions,
+          canPitch: cleanForm.canPitch === "yes",
+          canCatch: cleanForm.canCatch === "yes",
+          isCatcher: cleanForm.canCatch === "yes",
+          tryoutDate: selectedTryoutDate || "",
           notes: cleanForm.notes,
         };
         await updateDoc(
           doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-          { interestSignups: arrayUnion(lead) }
+          { interestSignups: arrayUnion(lead) },
         );
       }
       setPhase("sent");
     } catch (err) {
       reportError(err, { source: "TryoutsPortal.handleSubmit", mode });
       setError(
-        "Submission failed — please retry, or contact the team's head coach directly."
+        "Submission failed — please retry, or contact the team's head coach directly.",
       );
       setSubmitting(false);
     }
@@ -380,7 +370,11 @@ export const TryoutsPortal = () => {
     return (
       <PortalShell>
         <div className="py-10">
-          <PhaseCard tone="error" icon={Icons.Alert} title="Can't open this page">
+          <PhaseCard
+            tone="error"
+            icon={Icons.Alert}
+            title="Can't open this page"
+          >
             {error}
           </PhaseCard>
         </div>
@@ -396,17 +390,16 @@ export const TryoutsPortal = () => {
           <PhaseCard
             tone="success"
             icon={Icons.Check}
-            title={isInterest ? "Thanks for your interest" : "You're in"}
+            title="Thanks for your interest"
           >
             <p>
               <strong className="text-ink">
                 {form.firstName} {form.lastName}
               </strong>{" "}
-              {isInterest
-                ? `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch when tryouts open.`
-                : `is registered for ${team?.name || "tryouts"}. We'll reach out with next steps.`}{" "}
-              Contact at{" "}
-              <strong className="text-ink">{form.email}</strong> ·{" "}
+              {selectedTryoutDate
+                ? `is on ${team?.name || "the team"}'s interest list for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
+                : `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch.`}{" "}
+              Contact at <strong className="text-ink">{form.email}</strong> ·{" "}
               <strong className="text-ink">{form.phone}</strong>.
             </p>
           </PhaseCard>
@@ -440,19 +433,13 @@ export const TryoutsPortal = () => {
         <Eyebrow className="block mb-2 text-ink-3">
           {headerSeasonLabel} · {tryoutAgeLabel}
         </Eyebrow>
-        <h1
-          className="t-display"
-          style={{ color: "var(--team-primary)" }}
-        >
-          {team?.name || "Tryouts"}{" "}
-          {mode === "interest"
-            ? "Player Interest"
-            : `${tryoutAgeLabel} Tryouts`}
+        <h1 className="t-display" style={{ color: "var(--team-primary)" }}>
+          {team?.name || "Tryouts"} Player Interest
         </h1>
         <p className="t-body mt-2 max-w-md mx-auto">
-          {mode === "interest"
-            ? "Let us know your child is interested in playing for this team next season. The head coach will reach out when tryouts open."
-            : `Tryout date ${pinnedDate || ""}. Fill in the details below — fields marked with an asterisk are required.`}
+          Let us know your child is interested in playing for this team. Select
+          a tryout date if one is available, or submit general interest any time
+          during the season.
         </p>
       </header>
 
@@ -476,7 +463,9 @@ export const TryoutsPortal = () => {
                   type="text"
                   required
                   value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, firstName: e.target.value })
+                  }
                   className={INPUT_BASE}
                   style={RING_STYLE}
                 />
@@ -486,7 +475,9 @@ export const TryoutsPortal = () => {
                   type="text"
                   required
                   value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, lastName: e.target.value })
+                  }
                   className={INPUT_BASE}
                   style={RING_STYLE}
                 />
@@ -500,10 +491,9 @@ export const TryoutsPortal = () => {
                   style={RING_STYLE}
                 />
               </Field>
-              <Field label={mode === "interest" ? "Current Team" : "Current Team *"}>
+              <Field label="Current Team">
                 <input
                   type="text"
-                  required={mode === "tryout"}
                   value={form.currentTeam}
                   onChange={(e) =>
                     setForm({ ...form, currentTeam: e.target.value })
@@ -512,88 +502,129 @@ export const TryoutsPortal = () => {
                   style={RING_STYLE}
                 />
               </Field>
-              {mode === "tryout" && (
-                <>
-                  <Field label="Jersey Number (preferred)">
-                    <input
-                      type="text"
-                      value={form.number}
-                      onChange={(e) =>
-                        setForm({ ...form, number: e.target.value })
-                      }
-                      className={INPUT_BASE}
-                      style={RING_STYLE}
-                    />
-                  </Field>
+              <>
+                <Field label="Jersey Number (preferred)">
+                  <input
+                    type="text"
+                    value={form.number}
+                    onChange={(e) =>
+                      setForm({ ...form, number: e.target.value })
+                    }
+                    className={INPUT_BASE}
+                    style={RING_STYLE}
+                  />
+                </Field>
+                {activeTryoutDates.length > 0 && (
                   <Field label="Tryout Date">
-                    <div
-                      className={`${INPUT_BASE} bg-app text-ink font-bold cursor-not-allowed`}
-                      style={RING_STYLE}
-                      aria-label="Tryout date (locked)"
-                    >
-                      {pinnedDate || "—"}
-                    </div>
-                  </Field>
-                  <Field label="Bats">
                     <select
-                      value={form.bats}
-                      onChange={(e) => setForm({ ...form, bats: e.target.value })}
+                      value={selectedTryoutDate}
+                      onChange={(e) => setSelectedTryoutDate(e.target.value)}
                       className={INPUT_BASE}
                       style={RING_STYLE}
                     >
-                      <option value="R">Right</option>
-                      <option value="L">Left</option>
-                      <option value="S">Switch</option>
+                      <option value="">General interest / not sure yet</option>
+                      {activeTryoutDates.map((date: string) => (
+                        <option key={date} value={date}>
+                          {date}
+                        </option>
+                      ))}
                     </select>
                   </Field>
-                  <Field label="Throws">
-                    <select
-                      value={form.throws}
-                      onChange={(e) =>
-                        setForm({ ...form, throws: e.target.value })
-                      }
-                      className={INPUT_BASE}
-                      style={RING_STYLE}
-                    >
-                      <option value="R">Right</option>
-                      <option value="L">Left</option>
-                    </select>
-                  </Field>
-                </>
-              )}
+                )}
+                <Field label="Bats">
+                  <select
+                    value={form.bats}
+                    onChange={(e) => setForm({ ...form, bats: e.target.value })}
+                    className={INPUT_BASE}
+                    style={RING_STYLE}
+                  >
+                    <option value="R">Right</option>
+                    <option value="L">Left</option>
+                    <option value="S">Switch</option>
+                  </select>
+                </Field>
+                <Field label="Throws">
+                  <select
+                    value={form.throws}
+                    onChange={(e) =>
+                      setForm({ ...form, throws: e.target.value })
+                    }
+                    className={INPUT_BASE}
+                    style={RING_STYLE}
+                  >
+                    <option value="R">Right</option>
+                    <option value="L">Left</option>
+                  </select>
+                </Field>
+              </>
             </div>
 
-            <Field label="Positions your player can play">
-              <div className="flex flex-wrap gap-2">
-                {positions.map((pos) => {
-                  const active = form.comfortablePositions.includes(pos);
-                  return (
-                    <button
-                      key={pos}
-                      type="button"
-                      onClick={() => togglePos(pos)}
-                      aria-pressed={active}
-                      className="min-w-[44px] px-3 py-2 text-[11px] font-black uppercase tracking-widest rounded-full border-2 transition-all tabular-nums shadow-sm"
-                      style={
-                        active
-                          ? {
-                              backgroundColor: "var(--team-primary)",
-                              color: "var(--team-tertiary)",
-                              borderColor: "var(--team-primary)",
-                            }
-                          : {
-                              backgroundColor: "var(--surface)",
-                              color: "var(--ink-2)",
-                              borderColor: "var(--line)",
-                            }
-                      }
-                    >
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Primary Position">
+                <select
+                  value={form.primaryPosition}
+                  onChange={(e) =>
+                    setPosition("primaryPosition", e.target.value)
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                >
+                  <option value="">Select primary position</option>
+                  {positions.map((pos) => (
+                    <option key={pos} value={pos}>
                       {pos}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Secondary Position (optional)">
+                <select
+                  value={form.secondaryPosition}
+                  onChange={(e) =>
+                    setPosition("secondaryPosition", e.target.value)
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                >
+                  <option value="">None</option>
+                  {positions.map((pos) => (
+                    <option key={pos} value={pos}>
+                      {pos}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Does your player pitch? *">
+                <select
+                  required
+                  value={form.canPitch}
+                  onChange={(e) =>
+                    setForm({ ...form, canPitch: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                >
+                  <option value="">Select</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </Field>
+              <Field label="Does your player catch? *">
+                <select
+                  required
+                  value={form.canCatch}
+                  onChange={(e) =>
+                    setForm({ ...form, canCatch: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                >
+                  <option value="">Select</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </select>
+              </Field>
+            </div>
           </section>
 
           <section className="space-y-4">
@@ -670,8 +701,7 @@ export const TryoutsPortal = () => {
               </>
             ) : (
               <>
-                <Icons.Check className="w-4 h-4" />{" "}
-                {mode === "interest" ? "Submit Interest" : "Submit Signup"}
+                <Icons.Check className="w-4 h-4" /> Submit Interest
               </>
             )}
           </Button>
@@ -688,7 +718,8 @@ export const TryoutsPortal = () => {
             : "Contact the head coach"}
           {team.headCoachEmail ? (
             <>
-              {" "}at{" "}
+              {" "}
+              at{" "}
               <a
                 href={`mailto:${team.headCoachEmail}`}
                 className="font-bold text-ink underline"
