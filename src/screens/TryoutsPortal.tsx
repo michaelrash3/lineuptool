@@ -29,6 +29,20 @@ const getTryoutAgeLabel = (teamAge: any) => {
   return `${n + 1}U`;
 };
 
+const getNextSpringSeasonLabel = (currentSeason: any) => {
+  const match = String(currentSeason || "")
+    .trim()
+    .match(/^(Spring|Fall)\s+(\d{4})$/i);
+  if (!match) return "Next Season";
+
+  const year = Number.parseInt(match[2], 10);
+  if (Number.isNaN(year)) return "Next Season";
+
+  // Interest links are for the next spring tryout cycle, not merely the
+  // next chronological season after the current team season.
+  return `Spring ${year + 1}`;
+};
+
 // 8U plays 10 defenders → LF, LCF, RCF, RF (LC + RC cover center, no
 // lone CF). 9U+ plays 9 defenders → LF, CF, RF. Anything younger than
 // 8U or unknown defaults to the 8U layout.
@@ -154,6 +168,13 @@ export const TryoutsPortal = () => {
   }, [team?.name, mode]);
 
   const tryoutAgeLabel = useMemo(() => getTryoutAgeLabel(team?.teamAge), [team?.teamAge]);
+  const headerSeasonLabel = useMemo(
+    () =>
+      mode === "interest"
+        ? getNextSpringSeasonLabel(team?.currentSeason)
+        : team?.currentSeason || "Next Season",
+    [mode, team?.currentSeason]
+  );
   const positions = useMemo(() => {
     const outfield = getOutfieldPositions(tryoutAgeLabel);
     return ["P", "C", "1B", "2B", "3B", "SS", ...outfield];
@@ -417,7 +438,7 @@ export const TryoutsPortal = () => {
           />
         )}
         <Eyebrow className="block mb-2 text-ink-3">
-          {team?.currentSeason || "Next Season"} · {tryoutAgeLabel}
+          {headerSeasonLabel} · {tryoutAgeLabel}
         </Eyebrow>
         <h1
           className="t-display"
