@@ -339,20 +339,22 @@ const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
   const [date, setDate] = useState("");
   const today = new Date().toISOString().slice(0, 10);
   const dates: string[] = Array.isArray(team.tryoutDates)
-    ? [
-        ...new Set(
+    ? Array.from(
+        new Set<string>(
           team.tryoutDates
             .map((d: any) => String(d || "").trim())
             .filter(Boolean),
         ),
-      ].sort()
+      ).sort()
     : [];
   const futureDates = dates.filter((d) => d >= today);
 
   const saveDates = (nextDates: string[]) => {
-    const cleaned = [
-      ...new Set(nextDates.map((d) => String(d || "").trim()).filter(Boolean)),
-    ].sort();
+    const cleaned = Array.from(
+      new Set<string>(
+        nextDates.map((d) => String(d || "").trim()).filter(Boolean),
+      ),
+    ).sort();
     updateTeam?.({ tryoutDates: cleaned });
   };
 
