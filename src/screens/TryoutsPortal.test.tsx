@@ -36,12 +36,12 @@ const mirrorDoc = {
   }),
 };
 
-const renderPortal = () => {
+const renderPortal = (doc = mirrorDoc) => {
   // Queries fire in order: tryoutShareId, tryoutDateSlugs (array-contains),
   // tryoutDateSlug (legacy). Share resolves → interest mode; the rest are empty.
   mockGetDocs.mockResolvedValue({ empty: true, docs: [] });
   mockGetDocs
-    .mockResolvedValueOnce({ empty: false, docs: [mirrorDoc] })
+    .mockResolvedValueOnce({ empty: false, docs: [doc] })
     .mockResolvedValueOnce({ empty: true, docs: [] })
     .mockResolvedValueOnce({ empty: true, docs: [] });
   return render(
@@ -92,6 +92,27 @@ const fill = (label: RegExp, value: string) =>
 beforeEach(() => {
   mockGetDocs.mockReset();
   mockUpdateDoc.mockClear();
+});
+
+describe("TryoutsPortal interest header", () => {
+  it.each(["Spring 2026", "Fall 2026"])(
+    "shows next spring season and next age for an 8U %s team",
+    async (currentSeason) => {
+      const eightUMirrorDoc = {
+        id: "team1",
+        data: () => ({
+          name: "Rockets",
+          currentSeason,
+          tryoutShareId: "abc",
+          teamAge: "8U",
+        }),
+      };
+
+      renderPortal(eightUMirrorDoc);
+
+      expect(await screen.findByText("Spring 2027 · 9U")).toBeInTheDocument();
+    }
+  );
 });
 
 describe("TryoutsPortal submit validation", () => {
