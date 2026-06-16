@@ -11,14 +11,20 @@ import { makeOfferLetterContext } from "../utils/offerContext";
 // "Move to tryouts" promotes a lead into team.tryoutSignups for the
 // active tryout cycle. Schema: see InterestSignup in types.ts.
 export const InterestTab = memo(() => {
-  const { team, user, currentRole, deleteInterestSignup, convertInterestToTryout } =
-    useTeam();
+  const {
+    team,
+    user,
+    currentRole,
+    deleteInterestSignup,
+    convertInterestToTryout,
+  } = useTeam();
   const isHead = currentRole !== "assistant";
   // Copyable "interest / tryout invite" draft for a selected lead.
   const [msgLead, setMsgLead] = useState<any | null>(null);
   const leads = useMemo(() => {
     return [...(team?.interestSignups || [])].sort(
-      (a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      (a: any, b: any) =>
+        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
     );
   }, [team?.interestSignups]);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
@@ -54,9 +60,9 @@ export const InterestTab = memo(() => {
             <Icons.Users className="w-6 h-6" /> Player Interest
           </h2>
           <p className="text-xs text-ink-2 font-medium mt-1.5">
-            Parents who submitted the year-round interest survey on your
-            team page. When tryouts open, "Move to Tryouts" promotes a
-            lead into the active tryout list.
+            Parents who submitted the year-round interest survey on your team
+            page. When tryouts open, "Move to Tryouts" promotes a lead into the
+            active tryout list.
           </p>
         </div>
         <div className="pt-5 space-y-3">
@@ -67,7 +73,11 @@ export const InterestTab = memo(() => {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search name, email, current team…"
               className="flex-1 px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2"
-              style={{ "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties}
+              style={
+                {
+                  "--tw-ring-color": "var(--team-primary)",
+                } as React.CSSProperties
+              }
             />
             <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3 tabular-nums shrink-0">
               {visible.length} / {leads.length}
@@ -75,15 +85,18 @@ export const InterestTab = memo(() => {
           </div>
           {leads.length === 0 ? (
             <div className="text-center py-12 bg-surface border border-line rounded-xl">
-              <div className="text-5xl leading-none mb-3 opacity-80" aria-hidden>
+              <div
+                className="text-5xl leading-none mb-3 opacity-80"
+                aria-hidden
+              >
                 🧢
               </div>
               <p className="text-sm font-bold text-ink-3 mb-1">
                 No interest signups yet
               </p>
               <p className="text-xs text-ink-3 font-medium max-w-sm mx-auto">
-                Share your team's standing link or QR code. Parents will
-                appear here as they submit.
+                Share your team's standing link or QR code. Parents will appear
+                here as they submit.
               </p>
             </div>
           ) : visible.length === 0 ? (
@@ -123,6 +136,30 @@ export const InterestTab = memo(() => {
                           Currently with: {lead.currentTeam}
                         </div>
                       )}
+                      {lead.tryoutDate && (
+                        <div className="text-[10px] text-ink-3 font-medium mt-0.5">
+                          Tryout date: {lead.tryoutDate}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {lead.primaryPosition && (
+                          <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface-2 text-ink">
+                            Primary: {lead.primaryPosition}
+                          </span>
+                        )}
+                        {lead.secondaryPosition && (
+                          <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface-2 text-ink">
+                            Secondary: {lead.secondaryPosition}
+                          </span>
+                        )}
+                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface-2 text-ink">
+                          Pitches: {lead.canPitch ? "Yes" : "No"}
+                        </span>
+                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-surface-2 text-ink">
+                          Catches:{" "}
+                          {lead.canCatch || lead.isCatcher ? "Yes" : "No"}
+                        </span>
+                      </div>
                       {Array.isArray(lead.comfortablePositions) &&
                         lead.comfortablePositions.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
@@ -178,7 +215,9 @@ export const InterestTab = memo(() => {
                             ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-loss"
                             : "px-2 py-1 text-ink-3 hover:text-loss hover:bg-loss-bg border border-line"
                         }`}
-                        title={armed ? "Tap again to delete" : "Delete this lead"}
+                        title={
+                          armed ? "Tap again to delete" : "Delete this lead"
+                        }
                         aria-label={armed ? "Confirm delete" : "Delete lead"}
                       >
                         <Icons.Trash className="w-3.5 h-3.5" />
@@ -205,7 +244,7 @@ export const InterestTab = memo(() => {
           ctx={makeOfferLetterContext(
             team,
             user,
-            [msgLead.firstName, msgLead.lastName].filter(Boolean).join(" ")
+            [msgLead.firstName, msgLead.lastName].filter(Boolean).join(" "),
           )}
         />
       )}

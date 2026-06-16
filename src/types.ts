@@ -200,7 +200,11 @@ export interface TryoutSignup {
   number?: string;
   bats?: string;
   throws?: string;
+  primaryPosition?: string;
+  secondaryPosition?: string;
   comfortablePositions?: string[];
+  canPitch?: boolean;
+  canCatch?: boolean;
   isCatcher?: boolean;
   parentName?: string;
   email?: string;
@@ -228,7 +232,12 @@ export interface InterestSignup {
   email: string;
   phone: string;
   currentTeam?: string;
+  tryoutDate?: string;
+  primaryPosition?: string;
+  secondaryPosition?: string;
   comfortablePositions?: string[];
+  canPitch?: boolean;
+  canCatch?: boolean;
   notes?: string;
 }
 
@@ -444,7 +453,11 @@ export interface TeamFinances {
 }
 
 export interface Toast {
-  push: (t: { kind: "success" | "error" | "info"; title: string; message?: string }) => void;
+  push: (t: {
+    kind: "success" | "error" | "info";
+    title: string;
+    message?: string;
+  }) => void;
   dismiss?: (id: string) => void;
 }
 
@@ -509,7 +522,7 @@ export interface TeamContextValue {
   switchTeam: (id: string) => void | Promise<void>;
   createTeam: (
     name?: string,
-    leagueRuleSet?: "NKB" | "USSSA"
+    leagueRuleSet?: "NKB" | "USSSA",
   ) => void | Promise<any>;
   [key: string]: any;
 }

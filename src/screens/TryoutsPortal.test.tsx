@@ -37,53 +37,26 @@ const mirrorDoc = {
 };
 
 const renderPortal = (doc = mirrorDoc) => {
-  // Queries fire in order: tryoutShareId, tryoutDateSlugs (array-contains),
-  // tryoutDateSlug (legacy). Share resolves → interest mode; the rest are empty.
   mockGetDocs.mockResolvedValue({ empty: true, docs: [] });
-  mockGetDocs
-    .mockResolvedValueOnce({ empty: false, docs: [doc] })
-    .mockResolvedValueOnce({ empty: true, docs: [] })
-    .mockResolvedValueOnce({ empty: true, docs: [] });
+  mockGetDocs.mockResolvedValueOnce({ empty: false, docs: [doc] });
   return render(
     <MemoryRouter initialEntries={["/p/abc"]}>
       <Routes>
         <Route path="/p/:slug" element={<TryoutsPortal />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
-// A per-date tryout link. The mirror carries the slug→date mapping; the portal
-// must pin the signup to THIS slug's date, not the first configured date.
-const dateMirrorDoc = {
+const datedMirrorDoc = {
   id: "team1",
   data: () => ({
     name: "Rockets",
     currentSeason: "Spring 2026",
+    tryoutShareId: "abc",
     teamAge: "10U",
-    tryoutsOpen: true,
-    tryoutDates: ["2026-04-10", "2026-05-22"],
-    tryoutDateSlugs: ["rockets-2026-04-10-aaa", "rockets-2026-05-22-bbb"],
-    tryoutDateBySlug: {
-      "rockets-2026-04-10-aaa": "2026-04-10",
-      "rockets-2026-05-22-bbb": "2026-05-22",
-    },
+    tryoutDates: ["2020-04-10", "2099-05-22"],
   }),
-};
-
-const renderDatePortal = (slug: string) => {
-  mockGetDocs.mockResolvedValue({ empty: true, docs: [] });
-  mockGetDocs
-    .mockResolvedValueOnce({ empty: true, docs: [] }) // shareId query
-    .mockResolvedValueOnce({ empty: false, docs: [dateMirrorDoc] }) // array-contains
-    .mockResolvedValueOnce({ empty: true, docs: [] }); // legacy slug query
-  return render(
-    <MemoryRouter initialEntries={[`/p/${slug}`]}>
-      <Routes>
-        <Route path="/p/:slug" element={<TryoutsPortal />} />
-      </Routes>
-    </MemoryRouter>
-  );
 };
 
 const fill = (label: RegExp, value: string) =>
@@ -111,7 +84,7 @@ describe("TryoutsPortal interest header", () => {
       renderPortal(eightUMirrorDoc);
 
       expect(await screen.findByText("Spring 2027 · 9U")).toBeInTheDocument();
-    }
+    },
   );
 });
 
@@ -127,6 +100,12 @@ describe("TryoutsPortal submit validation", () => {
     // jsdom's. A blatantly malformed value would be blocked before our JS runs.
     fill(/email/i, "a@b");
     fill(/phone/i, "5551234");
+    fireEvent.change(screen.getByLabelText(/does your player pitch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "no" },
+    });
     fireEvent.click(screen.getByText("Submit Interest"));
 
     const alert = await screen.findByRole("alert");
@@ -142,6 +121,12 @@ describe("TryoutsPortal submit validation", () => {
     fill(/last name/i, "Rivera");
     fill(/email/i, "parent@example.com");
     fill(/phone/i, "5551234");
+    fireEvent.change(screen.getByLabelText(/does your player pitch/i), {
+      target: { value: "yes" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "no" },
+    });
     fireEvent.click(screen.getByText("Submit Interest"));
 
     await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
@@ -151,29 +136,32 @@ describe("TryoutsPortal submit validation", () => {
   });
 });
 
-describe("TryoutsPortal per-date links", () => {
-  const submitTryout = async () => {
+describe("TryoutsPortal tryout dates on interest link", () => {
+  it("shows only future dates and stores the selected date on the interest lead", async () => {
+    renderPortal(datedMirrorDoc);
+    await screen.findByText("Submit Interest");
+
+    expect(screen.queryByText("2020-04-10")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/tryout date/i), {
+      target: { value: "2099-05-22" },
+    });
     fill(/first name/i, "Ava");
     fill(/last name/i, "Rivera");
-    fill(/current team/i, "Comets");
     fill(/email/i, "parent@example.com");
     fill(/phone/i, "5551234");
-    fireEvent.click(screen.getByText("Submit Signup"));
+    fireEvent.change(screen.getByLabelText(/primary position/i), {
+      target: { value: "P" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "yes" },
+    });
+    fireEvent.click(screen.getByText("Submit Interest"));
+
     await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
-    return mockUpdateDoc.mock.calls[0][1].tryoutSignups.__arrayUnion;
-  };
-
-  it("pins the signup to the SECOND date's slug (not the first)", async () => {
-    renderDatePortal("rockets-2026-05-22-bbb");
-    await screen.findByText("Submit Signup");
-    const signup = await submitTryout();
-    expect(signup.tryoutDate).toBe("2026-05-22");
-  });
-
-  it("pins the signup to the FIRST date's slug", async () => {
-    renderDatePortal("rockets-2026-04-10-aaa");
-    await screen.findByText("Submit Signup");
-    const signup = await submitTryout();
-    expect(signup.tryoutDate).toBe("2026-04-10");
+    const lead = mockUpdateDoc.mock.calls[0][1].interestSignups.__arrayUnion;
+    expect(lead.tryoutDate).toBe("2099-05-22");
+    expect(lead.primaryPosition).toBe("P");
+    expect(lead.canPitch).toBe(true);
+    expect(lead.canCatch).toBe(true);
   });
 });

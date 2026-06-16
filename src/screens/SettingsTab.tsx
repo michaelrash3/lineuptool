@@ -13,7 +13,10 @@ import { signOut } from "firebase/auth";
 import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
 import { LogoColorModal } from "../components/LogoColorModal";
 import { A11yDialog, extractLogoPalette } from "../components/shared";
-import { StorageUsagePanel, TeamManagementPanel } from "./settings/AdvancedSettingsPanel";
+import {
+  StorageUsagePanel,
+  TeamManagementPanel,
+} from "./settings/AdvancedSettingsPanel";
 import {
   getReminderPrefs,
   setReminderPrefs,
@@ -45,10 +48,7 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
           className="absolute -inset-2 w-16 h-16 cursor-pointer opacity-0"
           aria-label={`${label} color picker`}
         />
-        <div
-          className="w-full h-full"
-          style={{ backgroundColor: val }}
-        />
+        <div className="w-full h-full" style={{ backgroundColor: val }} />
       </div>
       <div className="flex-1 min-w-0">
         <span className="block text-[9px] font-black text-ink-3 uppercase tracking-widest mb-1">
@@ -60,7 +60,8 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
           onChange={(e) => {
             const next = e.target.value;
             setDraft(next);
-            if (HEX_RE.test(next)) updateTeam({ [colorKey]: next.toLowerCase() });
+            if (HEX_RE.test(next))
+              updateTeam({ [colorKey]: next.toLowerCase() });
           }}
           onBlur={() => {
             if (!HEX_RE.test(draft)) setDraft(val);
@@ -83,7 +84,6 @@ const TryoutsSettingsPanel = memo(
     team,
     updateTeam,
     generateTryoutShareId,
-    generateTryoutDateLink,
     setTryoutsOpen,
     completeTryouts,
     setRosterCap,
@@ -105,11 +105,9 @@ const TryoutsSettingsPanel = memo(
           <Icons.Users className="w-4 h-4" /> Tryouts
         </h3>
         <p className="text-[11px] text-ink-3 font-medium mb-3">
-          Two link types here. The <strong>Player Interest Link</strong>{" "}
-          works year-round and collects leads into the Interest tab — share
-          it on flyers / your team's home page. The per-date{" "}
-          <strong>Tryout Date Link</strong> below opens an actual signup
-          form with that date pinned (no chooser).
+          Manage one year-round <strong>Player Interest Link</strong>. Add
+          tryout dates here and they appear as a dropdown on that same form; if
+          no future dates are set, families can still submit general interest.
         </p>
         <div className="mb-4 space-y-3">
           <div>
@@ -124,8 +122,8 @@ const TryoutsSettingsPanel = memo(
               className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
             />
             <p className="text-[10px] text-ink-3 font-medium mt-1">
-              Filled into the offer-letter drafts. Stays private — never shown on
-              the public tryouts page.
+              Filled into the offer-letter drafts. Stays private — never shown
+              on the public tryouts page.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -136,7 +134,9 @@ const TryoutsSettingsPanel = memo(
               <input
                 type="text"
                 value={team.headCoachName || ""}
-                onChange={(e) => updateTeam?.({ headCoachName: e.target.value })}
+                onChange={(e) =>
+                  updateTeam?.({ headCoachName: e.target.value })
+                }
                 placeholder="Coach Smith"
                 className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
               />
@@ -171,7 +171,8 @@ const TryoutsSettingsPanel = memo(
                 {shareUrl}
               </code>
               <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg                  value={shareUrl || ""}
+                <QRCodeImg
+                  value={shareUrl || ""}
                   size={120}
                   downloadable
                   filename={`${team.name || "team"}-player-interest-qr`}
@@ -199,8 +200,8 @@ const TryoutsSettingsPanel = memo(
                     </button>
                   </div>
                   <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    Always opens the year-round Interest Survey — works
-                    whether tryouts are open or not.
+                    Always opens the year-round Interest Survey — works whether
+                    tryouts are open or not.
                   </p>
                 </div>
               </div>
@@ -216,12 +217,7 @@ const TryoutsSettingsPanel = memo(
             </button>
           )}
 
-
-          <TryoutDateLinkPanel
-            team={team}
-            generateTryoutDateLink={generateTryoutDateLink}
-            toast={toast}
-          />
+          <TryoutDatesPanel team={team} updateTeam={updateTeam} toast={toast} />
 
           {/* Public-page sync status + manual repair. The portal parents see is
               a sanitized mirror written client-side; if that write fails the
@@ -244,7 +240,7 @@ const TryoutsSettingsPanel = memo(
               <p className="text-[10px] font-medium text-ink-3 leading-snug">
                 {mirrorStale
                   ? "The public tryout/interest page may be out of date. Resync to push your latest branding and dates."
-                  : "Parents see a sanitized copy of your branding + tryout dates. Resync if a link or logo looks stale."}
+                  : "Parents see a sanitized copy of your branding + future tryout dates. Resync if a link, logo, or date looks stale."}
               </p>
             </div>
             <button
@@ -273,7 +269,9 @@ const TryoutsSettingsPanel = memo(
               className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
                 open ? "" : "bg-line-strong"
               }`}
-              style={open ? { backgroundColor: "var(--team-primary)" } : undefined}
+              style={
+                open ? { backgroundColor: "var(--team-primary)" } : undefined
+              }
               aria-label="Toggle tryouts open"
             >
               <span
@@ -283,8 +281,6 @@ const TryoutsSettingsPanel = memo(
               />
             </button>
           </label>
-
-
 
           <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
             <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
@@ -302,7 +298,10 @@ const TryoutsSettingsPanel = memo(
                 type="button"
                 onClick={() => completeTryouts?.()}
                 className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md"
-                style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
+                style={{
+                  backgroundColor: "var(--team-primary)",
+                  color: "var(--team-tertiary)",
+                }}
               >
                 Complete Tryouts
               </button>
@@ -333,73 +332,113 @@ const TryoutsSettingsPanel = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
-
-const TryoutDateLinkPanel = memo(({ team, generateTryoutDateLink, toast }: any) => {
+const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
   const [date, setDate] = useState("");
-  const slug = team.tryoutDateSlug || "";
-  const url =
-    slug && typeof window !== "undefined"
-      ? `${window.location.origin}/tryouts-portal/${slug}`
-      : "";
+  const today = new Date().toISOString().slice(0, 10);
+  const dates: string[] = Array.isArray(team.tryoutDates)
+    ? Array.from(
+        new Set<string>(
+          team.tryoutDates
+            .map((d: any) => String(d || "").trim())
+            .filter(Boolean),
+        ),
+      ).sort()
+    : [];
+  const futureDates = dates.filter((d) => d >= today);
+
+  const saveDates = (nextDates: string[]) => {
+    const cleaned = Array.from(
+      new Set<string>(
+        nextDates.map((d) => String(d || "").trim()).filter(Boolean),
+      ),
+    ).sort();
+    updateTeam?.({ tryoutDates: cleaned });
+  };
 
   return (
-    <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
-      <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-        Tryout date link
+    <div className="bg-surface border border-line rounded-xl p-3 space-y-3">
+      <div>
+        <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
+          Tryout dates
+        </div>
+        <p className="text-[10px] font-medium text-ink-3 leading-snug mt-1">
+          Add one or more dates. Future dates appear in the Player Interest form
+          dropdown; past dates are hidden from families automatically.
+        </p>
       </div>
       <div className="flex gap-2 items-end">
         <div className="flex-1">
-          <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">Tryout Date</label>
-          <input type="date" value={date} onChange={(e)=>setDate(e.target.value)} className="w-full px-3 py-2 bg-surface border border-line rounded-lg" />
+          <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+            Tryout Date
+          </label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full px-3 py-2 bg-surface border border-line rounded-lg"
+          />
         </div>
         <button
           type="button"
           onClick={() => {
-            const made = generateTryoutDateLink?.(date);
-            if (!made) {
+            if (!date) {
               toast.push({ kind: "warn", title: "Enter a tryout date first" });
               return;
             }
-            toast.push({ kind: "success", title: "Date link generated" });
+            saveDates([...dates, date]);
+            setDate("");
+            toast.push({ kind: "success", title: "Tryout date added" });
           }}
-          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-md"
-          style={{ backgroundColor: "var(--team-primary)" }}
+          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-md"
+          style={{
+            backgroundColor: "var(--team-primary)",
+            color: "var(--team-tertiary)",
+          }}
         >
-          Generate Link
+          Add Date
         </button>
       </div>
-      {url ? (
-        <>
-          <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">{url}</code>
-          <div className="flex items-start gap-3 flex-wrap">
-            <QRCodeImg              value={url}
-              size={120}
-              downloadable
-              filename={`${team.name || "team"}-tryouts-${date || "qr"}`}
-            />
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <button
-                type="button"
-                onClick={() => {
-                  if (navigator.clipboard) {
-                    navigator.clipboard.writeText(url);
-                    toast.push({ kind: "success", title: "Date link copied" });
-                  }
-                }}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+      {dates.length > 0 ? (
+        <div className="space-y-1.5">
+          {dates.map((d: any) => {
+            const isPast = String(d) < today;
+            return (
+              <div
+                key={d}
+                className="flex items-center gap-2 bg-app border border-line rounded-lg px-3 py-2"
               >
-                Copy Date Link
-              </button>
-              <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                Scan to open the signup page on a phone — useful at the field.
-              </p>
-            </div>
-          </div>
-        </>
-      ) : null}
+                <span className="text-xs font-black text-ink tabular-nums flex-1">
+                  {d}
+                </span>
+                <span
+                  className={`text-[9px] font-black uppercase tracking-widest ${isPast ? "text-ink-3" : "text-ok"}`}
+                >
+                  {isPast ? "Hidden" : "Visible"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => saveDates(dates.filter((x: any) => x !== d))}
+                  className="px-2 py-1 text-[10px] font-black uppercase tracking-widest text-loss hover:bg-loss-bg rounded-md"
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+          <p className="text-[10px] text-ink-3 font-medium">
+            {futureDates.length} future date
+            {futureDates.length === 1 ? "" : "s"} will show on the public form.
+          </p>
+        </div>
+      ) : (
+        <div className="text-[11px] text-ink-3 font-medium bg-app border border-line rounded-lg p-3">
+          No tryout dates set. The Player Interest link still accepts general
+          interest submissions.
+        </div>
+      )}
     </div>
   );
 });
@@ -429,10 +468,10 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
         <Icons.Users className="w-4 h-4" /> Team Code
       </h3>
       <p className="text-[11px] text-ink-3 font-medium mb-3">
-        Share this 6-character code with anyone you want to invite as
-        an assistant coach. They tap <strong>Join Team</strong> in the
-        header and enter it. Head coaches can promote them later via
-        Coach Roles below. Regenerate any time to rotate the code.
+        Share this 6-character code with anyone you want to invite as an
+        assistant coach. They tap <strong>Join Team</strong> in the header and
+        enter it. Head coaches can promote them later via Coach Roles below.
+        Regenerate any time to rotate the code.
       </p>
       {code ? (
         <div className="space-y-3">
@@ -476,14 +515,15 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
             </button>
           </div>
           <div className="flex items-start gap-3 flex-wrap pt-1">
-            <QRCodeImg              value={url}
+            <QRCodeImg
+              value={url}
               size={120}
               downloadable
               filename={`${team.name || "team"}-join-code-${code}`}
             />
             <p className="text-[10px] font-medium text-ink-3 leading-snug flex-1 min-w-0">
-              Have an assistant coach scan this with their phone — they'll
-              land in-app on Join Team with the code pre-filled.
+              Have an assistant coach scan this with their phone — they'll land
+              in-app on Join Team with the code pre-filled.
             </p>
           </div>
         </div>
@@ -518,9 +558,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
               </h3>
               <p className="text-sm text-ink-2 font-medium mb-5">
                 The current code{" "}
-                <code className="font-mono font-black text-ink">
-                  {code}
-                </code>{" "}
+                <code className="font-mono font-black text-ink">{code}</code>{" "}
                 will stop working immediately. Anyone you've already invited
                 with the old code will need the new one to join.
               </p>
@@ -597,15 +635,12 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
             label="Evaluation events"
             value={`${(team?.evaluationEvents || []).length} entries`}
           />
-          <Row
-            label="Games"
-            value={`${(team?.games || []).length} entries`}
-          />
+          <Row label="Games" value={`${(team?.games || []).length} entries`} />
           {!isOwner && !isMember && (
             <p className="pt-2 text-[10px] text-loss font-bold not-italic font-sans">
-              ⚠ Your UID isn&apos;t in this team&apos;s members[]. Ask the
-              owner to add it via Firestore Console, or sign in with the
-              account whose UID matches ownerId.
+              ⚠ Your UID isn&apos;t in this team&apos;s members[]. Ask the owner
+              to add it via Firestore Console, or sign in with the account whose
+              UID matches ownerId.
             </p>
           )}
           <div className="pt-3 border-t border-line flex flex-wrap gap-2 not-italic font-sans">
@@ -631,7 +666,7 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
                   alert(
                     "Sign-out failed: " +
                       (err?.message || "unknown error") +
-                      ". Try reloading the page."
+                      ". Try reloading the page.",
                   );
                 }
               }}
@@ -689,7 +724,7 @@ const GameRemindersPanel = memo(({ toast }: any) => {
   const supported = notificationsSupported();
   const [prefs, setPrefs] = useState<ReminderPrefs>(getReminderPrefs);
   const [permission, setPermission] = useState<NotificationPermission>(
-    notificationPermission()
+    notificationPermission(),
   );
 
   const persist = useCallback((next: ReminderPrefs) => {
@@ -837,7 +872,10 @@ const GameRemindersPanel = memo(({ toast }: any) => {
                 type="button"
                 disabled={!prefs.enabled}
                 onClick={() =>
-                  persist({ ...prefs, leadTime: opt.id as ReminderPrefs["leadTime"] })
+                  persist({
+                    ...prefs,
+                    leadTime: opt.id as ReminderPrefs["leadTime"],
+                  })
                 }
                 className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   prefs.leadTime === opt.id
@@ -886,7 +924,6 @@ export const SettingsTab = memo(() => {
     setPlayerStatus,
     setPlayerReturning,
     generateTryoutShareId,
-    generateTryoutDateLink,
     setTryoutsOpen,
     completeTryouts,
     setRosterCap,
@@ -961,7 +998,7 @@ export const SettingsTab = memo(() => {
         if (palette.length > 0) setLogoColors({ open: true, palette });
       });
     },
-    [uploadLogo]
+    [uploadLogo],
   );
 
   // Re-run extraction on the already-saved logo for the manual trigger.
@@ -996,7 +1033,9 @@ export const SettingsTab = memo(() => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (ev: ProgressEvent<FileReader>) => {
-        const result = parseGameChangerPastSeasonCsv(String(ev.target?.result ?? ""));
+        const result = parseGameChangerPastSeasonCsv(
+          String(ev.target?.result ?? ""),
+        );
         if (result.error) {
           toast.push({
             kind: "error",
@@ -1028,7 +1067,7 @@ export const SettingsTab = memo(() => {
       reader.readAsText(file);
       e.target.value = "";
     },
-    [players, setPastSeasonImport, toast]
+    [players, setPastSeasonImport, toast],
   );
 
   return (
@@ -1099,820 +1138,846 @@ export const SettingsTab = memo(() => {
             {settingsMenuItems.find((i) => i.id === settingsMenu)?.label}
           </h2>
           <div className="space-y-10">
-          <div className="space-y-10">
-            {settingsMenu === "reminders" && <GameRemindersPanel toast={toast} />}
-            {settingsMenu === "team" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
-                <Icons.Settings className="w-4 h-4" /> Game Default
-                Configuration
-              </h3>
-              <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      League Rules
-                    </label>
-                    <select
-                      value={leagueRuleSet}
-                      onChange={(e) =>
-                        updateTeam({ leagueRuleSet: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      <option value="USSSA">Tournament</option>
-                      <option value="NKB">Rec</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Pitching Format
-                    </label>
-                    <select
-                      value={pitchingFormat}
-                      onChange={(e) =>
-                        updateTeam({ pitchingFormat: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      {leagueRuleSet === "NKB" &&
-                      ["6U", "7U", "8U"].includes(teamAge) ? (
-                        <option value="Machine Pitch">Machine Pitch</option>
-                      ) : leagueRuleSet === "USSSA" && teamAge === "8U" ? (
-                        <>
-                          <option value="Kid Pitch">Kid Pitch</option>
-                          <option value="Coach Pitch">Coach Pitch</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="Kid Pitch">Kid Pitch</option>
-                          <option value="Coach Pitch">Coach Pitch</option>
-                          <option value="Machine Pitch">Machine Pitch</option>
-                        </>
-                      )}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Age Group
-                    </label>
-                    <select
-                      value={teamAge}
-                      onChange={(e) => updateTeam({ teamAge: e.target.value })}
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      <option value="6U">6U</option>
-                      <option value="7U">7U</option>
-                      <option value="8U">8U</option>
-                      <option value="9U">9U</option>
-                      <option value="10U">10U</option>
-                      <option value="11U to 12U">11U to 12U</option>
-                      <option value="13U to 14U">13U to 14U</option>
-                      <option value="15U to 18U">15U to 18U</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Innings
-                    </label>
-                    <select
-                      value={inningsCount}
-                      onChange={(e) =>
-                        updateTeam({ inningsCount: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
-                        <option key={num} value={num}>
-                          {num}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Rotation
-                    </label>
-                    <select
-                      value={positionLock}
-                      onChange={(e) =>
-                        updateTeam({ positionLock: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      <option value="1">1 Inn</option>
-                      <option value="2">2 Inn</option>
-                      <option value="3">3 Inn</option>
-                      <option value="full">Full Game</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Batters
-                    </label>
-                    <select
-                      value={battingSize}
-                      onChange={(e) =>
-                        updateTeam({ battingSize: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      <option value="roster">Roster</option>
-                      <option value="9">9</option>
-                      <option value="10">10</option>
-                      <option value="11">11</option>
-                    </select>
-                  </div>
-                </div>
+            <div className="space-y-10">
+              {settingsMenu === "reminders" && (
+                <GameRemindersPanel toast={toast} />
+              )}
+              {settingsMenu === "team" && (
                 <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                    Defense Mode
-                  </label>
-                  <div className="flex border border-line bg-surface rounded-xl shadow-sm overflow-hidden p-1">
-                    <button
-                      onClick={() => updateTeam({ defenseSize: "9" })}
-                      disabled={isDefenseLocked}
-                      className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
-                        defenseSize === "9"
-                          ? "bg-surface text-ink shadow-sm border border-line"
-                          : "text-ink-3 hover:bg-surface border border-transparent"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      9 Fielders
-                    </button>
-                    <button
-                      onClick={() => updateTeam({ defenseSize: "10" })}
-                      disabled={isDefenseLocked}
-                      className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
-                        defenseSize === "10"
-                          ? "bg-surface text-ink shadow-sm border border-line"
-                          : "text-ink-3 hover:bg-surface border border-transparent"
-                      } disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      10 Fielders
-                    </button>
-                  </div>
-                  {isDefenseLocked ? (
-                    <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
-                      Locked by {leagueRuleSetLabel(leagueRuleSet)} rules
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
-                      Unlocked for Recreational Rules
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Catcher Innings
-                    </label>
-                    <select
-                      value={catcherMaxInnings || "auto"}
-                      onChange={(e) =>
-                        updateTeam({ catcherMaxInnings: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      <option value="auto">Auto (by defense)</option>
-                      <option value="1">Max 1</option>
-                      <option value="2">Max 2</option>
-                      <option value="3">Max 3</option>
-                      <option value="4">Max 4</option>
-                      <option value="none">No limit</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Back-to-back
-                    </label>
-                    {(() => {
-                      const capIsExplicit =
-                        catcherMaxInnings &&
-                        catcherMaxInnings !== "auto" &&
-                        catcherMaxInnings !== "none";
-                      const consecutiveOn = catcherConsecutive !== false;
-                      return (
-                        <button
-                          type="button"
-                          disabled={!capIsExplicit}
-                          onClick={() =>
-                            updateTeam({ catcherConsecutive: !consecutiveOn })
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
+                    <Icons.Settings className="w-4 h-4" /> Game Default
+                    Configuration
+                  </h3>
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          League Rules
+                        </label>
+                        <select
+                          value={leagueRuleSet}
+                          onChange={(e) =>
+                            updateTeam({ leagueRuleSet: e.target.value })
                           }
-                          className={`w-full p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
-                            capIsExplicit && consecutiveOn
-                              ? "bg-[var(--team-primary)] text-white"
-                              : "bg-surface text-ink-3 hover:bg-surface-2"
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          <option value="USSSA">Tournament</option>
+                          <option value="NKB">Rec</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Pitching Format
+                        </label>
+                        <select
+                          value={pitchingFormat}
+                          onChange={(e) =>
+                            updateTeam({ pitchingFormat: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          {leagueRuleSet === "NKB" &&
+                          ["6U", "7U", "8U"].includes(teamAge) ? (
+                            <option value="Machine Pitch">Machine Pitch</option>
+                          ) : leagueRuleSet === "USSSA" && teamAge === "8U" ? (
+                            <>
+                              <option value="Kid Pitch">Kid Pitch</option>
+                              <option value="Coach Pitch">Coach Pitch</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="Kid Pitch">Kid Pitch</option>
+                              <option value="Coach Pitch">Coach Pitch</option>
+                              <option value="Machine Pitch">
+                                Machine Pitch
+                              </option>
+                            </>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Age Group
+                        </label>
+                        <select
+                          value={teamAge}
+                          onChange={(e) =>
+                            updateTeam({ teamAge: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          <option value="6U">6U</option>
+                          <option value="7U">7U</option>
+                          <option value="8U">8U</option>
+                          <option value="9U">9U</option>
+                          <option value="10U">10U</option>
+                          <option value="11U to 12U">11U to 12U</option>
+                          <option value="13U to 14U">13U to 14U</option>
+                          <option value="15U to 18U">15U to 18U</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Innings
+                        </label>
+                        <select
+                          value={inningsCount}
+                          onChange={(e) =>
+                            updateTeam({ inningsCount: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                            <option key={num} value={num}>
+                              {num}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Rotation
+                        </label>
+                        <select
+                          value={positionLock}
+                          onChange={(e) =>
+                            updateTeam({ positionLock: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          <option value="1">1 Inn</option>
+                          <option value="2">2 Inn</option>
+                          <option value="3">3 Inn</option>
+                          <option value="full">Full Game</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Batters
+                        </label>
+                        <select
+                          value={battingSize}
+                          onChange={(e) =>
+                            updateTeam({ battingSize: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          <option value="roster">Roster</option>
+                          <option value="9">9</option>
+                          <option value="10">10</option>
+                          <option value="11">11</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                        Defense Mode
+                      </label>
+                      <div className="flex border border-line bg-surface rounded-xl shadow-sm overflow-hidden p-1">
+                        <button
+                          onClick={() => updateTeam({ defenseSize: "9" })}
+                          disabled={isDefenseLocked}
+                          className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
+                            defenseSize === "9"
+                              ? "bg-surface text-ink shadow-sm border border-line"
+                              : "text-ink-3 hover:bg-surface border border-transparent"
                           } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
-                          {capIsExplicit && consecutiveOn ? "On" : "Off"}
+                          9 Fielders
                         </button>
-                      );
-                    })()}
-                    <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
-                      {catcherMaxInnings &&
-                      catcherMaxInnings !== "auto" &&
-                      catcherMaxInnings !== "none"
-                        ? "Catcher's innings stay consecutive"
-                        : "Set a catcher limit to enable"}
-                    </p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-5 mt-5">
-                  <div>
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Pitch-Count Rules
-                    </label>
-                    <select
-                      value={pitchRuleSet || "littleLeague"}
-                      onChange={(e) =>
-                        updateTeam({ pitchRuleSet: e.target.value })
-                      }
-                      className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                    >
-                      <option value="littleLeague">
-                        Little League / Pitch Smart
-                      </option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
-                      Drives rest rules, the in-game limit, the lineup card, and
-                      the availability planner.
-                    </p>
-                  </div>
-                  {pitchRuleSet === "custom" && (
-                    <div>
+                        <button
+                          onClick={() => updateTeam({ defenseSize: "10" })}
+                          disabled={isDefenseLocked}
+                          className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider transition-all rounded-lg ${
+                            defenseSize === "10"
+                              ? "bg-surface text-ink shadow-sm border border-line"
+                              : "text-ink-3 hover:bg-surface border border-transparent"
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          10 Fielders
+                        </button>
+                      </div>
+                      {isDefenseLocked ? (
+                        <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
+                          Locked by {leagueRuleSetLabel(leagueRuleSet)} rules
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
+                          Unlocked for Recreational Rules
+                        </p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Catcher Innings
+                        </label>
+                        <select
+                          value={catcherMaxInnings || "auto"}
+                          onChange={(e) =>
+                            updateTeam({ catcherMaxInnings: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          <option value="auto">Auto (by defense)</option>
+                          <option value="1">Max 1</option>
+                          <option value="2">Max 2</option>
+                          <option value="3">Max 3</option>
+                          <option value="4">Max 4</option>
+                          <option value="none">No limit</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Back-to-back
+                        </label>
+                        {(() => {
+                          const capIsExplicit =
+                            catcherMaxInnings &&
+                            catcherMaxInnings !== "auto" &&
+                            catcherMaxInnings !== "none";
+                          const consecutiveOn = catcherConsecutive !== false;
+                          return (
+                            <button
+                              type="button"
+                              disabled={!capIsExplicit}
+                              onClick={() =>
+                                updateTeam({
+                                  catcherConsecutive: !consecutiveOn,
+                                })
+                              }
+                              className={`w-full p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
+                                capIsExplicit && consecutiveOn
+                                  ? "bg-[var(--team-primary)] text-white"
+                                  : "bg-surface text-ink-3 hover:bg-surface-2"
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                            >
+                              {capIsExplicit && consecutiveOn ? "On" : "Off"}
+                            </button>
+                          );
+                        })()}
+                        <p className="text-[10px] text-ink-3 mt-2 uppercase tracking-widest font-bold">
+                          {catcherMaxInnings &&
+                          catcherMaxInnings !== "auto" &&
+                          catcherMaxInnings !== "none"
+                            ? "Catcher's innings stay consecutive"
+                            : "Set a catcher limit to enable"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-5 mt-5">
+                      <div>
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Pitch-Count Rules
+                        </label>
+                        <select
+                          value={pitchRuleSet || "littleLeague"}
+                          onChange={(e) =>
+                            updateTeam({ pitchRuleSet: e.target.value })
+                          }
+                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                        >
+                          <option value="littleLeague">
+                            Little League / Pitch Smart
+                          </option>
+                          <option value="custom">Custom</option>
+                        </select>
+                        <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
+                          Drives rest rules, the in-game limit, the lineup card,
+                          and the availability planner.
+                        </p>
+                      </div>
+                      {pitchRuleSet === "custom" && (
+                        <div>
+                          <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                            Daily Pitch Limit
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="200"
+                            value={customPitchLimit || ""}
+                            placeholder="e.g. 85"
+                            onChange={(e) =>
+                              updateTeam({
+                                customPitchLimit:
+                                  parseInt(e.target.value, 10) || 0,
+                              })
+                            }
+                            className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl shadow-sm"
+                          />
+                          <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
+                            Your league's daily max for this age. Rest tiers use
+                            the standard 21/36/51/66 thresholds.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-5">
                       <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Daily Pitch Limit
+                        Stat display
                       </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="200"
-                        value={customPitchLimit || ""}
-                        placeholder="e.g. 85"
-                        onChange={(e) =>
-                          updateTeam({
-                            customPitchLimit:
-                              parseInt(e.target.value, 10) || 0,
-                          })
-                        }
-                        className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl shadow-sm"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        {(["rich", "stripped"] as const).map((mode) => {
+                          const active = (statDisplay || "rich") === mode;
+                          return (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => updateTeam({ statDisplay: mode })}
+                              className={`p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
+                                active
+                                  ? "bg-[var(--team-primary)] text-white"
+                                  : "bg-surface text-ink-3 hover:bg-surface-2"
+                              }`}
+                            >
+                              {mode === "rich" ? "Rich" : "Stripped"}
+                            </button>
+                          );
+                        })}
+                      </div>
                       <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
-                        Your league's daily max for this age. Rest tiers use the
-                        standard 21/36/51/66 thresholds.
+                        Rich shows full charts, tiles, and leaderboards.
+                        Stripped collapses every stat surface to compact,
+                        glanceable rows.
                       </p>
                     </div>
-                  )}
-                </div>
-                <div className="mt-5">
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Stat display
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["rich", "stripped"] as const).map((mode) => {
-                      const active = (statDisplay || "rich") === mode;
-                      return (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => updateTeam({ statDisplay: mode })}
-                          className={`p-3 border border-line text-sm font-black uppercase tracking-wider rounded-xl shadow-sm transition-all ${
-                            active
-                              ? "bg-[var(--team-primary)] text-white"
-                              : "bg-surface text-ink-3 hover:bg-surface-2"
-                          }`}
-                        >
-                          {mode === "rich" ? "Rich" : "Stripped"}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[10px] text-ink-3 mt-2 font-bold leading-tight normal-case tracking-normal">
-                    Rich shows full charts, tiles, and leaderboards. Stripped
-                    collapses every stat surface to compact, glanceable rows.
-                  </p>
-                </div>
-              </div>
-            </div>
-            )}
-            {settingsMenu === "staff" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
-                <Icons.Users className="w-4 h-4" /> Coaching Staff
-              </h3>
-              <div className="space-y-3 mb-4">
-                {coaches.map((c: any) => (
-                  <div
-                    key={c.id}
-                    className="flex justify-between items-center bg-surface p-3 border border-line rounded-xl shadow-sm"
-                  >
-                    <div>
-                      <span className="block text-sm font-black text-ink uppercase">
-                        {c.name}
-                      </span>
-                      <span className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
-                        {c.role}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => removeCoach(c.id)}
-                      className="p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
-                    >
-                      <Icons.Trash className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {isAddingCoach ? (
-                <div className="bg-surface p-4 border border-line rounded-xl space-y-3 shadow-sm">
-                  <input
-                    type="text"
-                    value={newCoachForm.name}
-                    onChange={(e) =>
-                      setNewCoachForm({ ...newCoachForm, name: e.target.value })
-                    }
-                    placeholder="Coach Name"
-                    className="w-full p-2.5 border border-line-strong text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg shadow-inner"
-                  />
-                  <select
-                    value={newCoachForm.role}
-                    onChange={(e) =>
-                      setNewCoachForm({ ...newCoachForm, role: e.target.value })
-                    }
-                    className="w-full p-2.5 border border-line-strong text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg bg-surface shadow-sm"
-                  >
-                    <option value="Head Coach">Head Coach</option>
-                    <option value="Assistant Coach">Assistant Coach</option>
-                  </select>
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={() => addCoach(newCoachForm)}
-                      className="flex-1 text-white text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm transition-transform hover:-translate-y-0.5"
-                      style={{ backgroundColor: primaryColor }}
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => setIsAddingCoach(false)}
-                      className="flex-1 bg-surface border border-line-strong text-ink-2 text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm hover:bg-surface-2 transition-colors"
-                    >
-                      Cancel
-                    </button>
                   </div>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setIsAddingCoach(true)}
-                  className="w-full bg-surface hover:bg-surface-2 text-ink-2 text-xs font-black uppercase tracking-widest py-3.5 rounded-xl border-2 border-dashed border-line-strong transition-colors flex items-center justify-center gap-2 shadow-sm"
-                >
-                  <Icons.Plus className="w-4 h-4" /> Add Coach
-                </button>
               )}
-            </div>
-            )}
-
-            {settingsMenu === "tryouts" && (
-            <TryoutsSettingsPanel
-              team={team}
-              updateTeam={updateTeam}
-              generateTryoutShareId={generateTryoutShareId}
-              generateTryoutDateLink={generateTryoutDateLink}
-              setTryoutsOpen={setTryoutsOpen}
-              completeTryouts={completeTryouts}
-              setRosterCap={setRosterCap}
-              mirrorStale={mirrorStale}
-              resyncPublicMirror={resyncPublicMirror}
-              toast={toast}
-            />
-            )}
-
-            {settingsMenu === "staff" && (
-            <JoinCodePanel
-              team={team}
-              regenerateJoinCode={regenerateJoinCode}
-              toast={toast}
-            />
-            )}
-
-            {settingsMenu === "staff" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
-                <Icons.Users className="w-4 h-4" /> Coach Roles
-              </h3>
-              <p className="text-[11px] text-ink-3 font-medium mb-3">
-                Head coaches can edit lineups, evals, and settings. Assistants
-                submit eval grades and view today&apos;s lineup.
-              </p>
-              <div className="space-y-2 mb-2">
-                {(team.members || [])
-                  .filter((uid: any) => uid !== team.ownerId)
-                  .map((uid: any) => {
-                    const role =
-                      team.coachRoles?.[uid] === "head" ? "head" : "assistant";
-                    const isMe = user && uid === user.uid;
-                    return (
+              {settingsMenu === "staff" && (
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+                    <Icons.Users className="w-4 h-4" /> Coaching Staff
+                  </h3>
+                  <div className="space-y-3 mb-4">
+                    {coaches.map((c: any) => (
                       <div
-                        key={uid}
-                        className="flex justify-between items-center bg-surface p-3 border border-line rounded-xl shadow-sm gap-3"
+                        key={c.id}
+                        className="flex justify-between items-center bg-surface p-3 border border-line rounded-xl shadow-sm"
                       >
-                        <div className="min-w-0">
-                          <div className="text-xs font-black text-ink truncate">
-                            {isMe ? "You" : uid.slice(0, 12) + "…"}
-                          </div>
-                          <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
-                            {role === "head" ? "Head Coach" : "Assistant Coach"}
-                          </div>
+                        <div>
+                          <span className="block text-sm font-black text-ink uppercase">
+                            {c.name}
+                          </span>
+                          <span className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
+                            {c.role}
+                          </span>
                         </div>
                         <button
-                          type="button"
-                          onClick={() =>
-                            setCoachRole?.(
-                              uid,
-                              role === "head" ? "assistant" : "head"
-                            )
-                          }
-                          className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong hover:bg-surface-2 whitespace-nowrap"
+                          onClick={() => removeCoach(c.id)}
+                          className="p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
                         >
-                          {role === "head" ? "Make Assistant" : "Make Head"}
+                          <Icons.Trash className="w-4 h-4" />
                         </button>
                       </div>
-                    );
-                  })}
-                {(team.members || []).filter((uid: any) => uid !== team.ownerId)
-                  .length === 0 && (
-                  <p className="text-[11px] text-ink-3 font-medium italic">
-                    No other coaches have joined yet.
-                  </p>
-                )}
-              </div>
-            </div>
-            )}
-
-            {settingsMenu === "staff" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
-                <Icons.Clipboard className="w-4 h-4" /> Eval Reminders
-              </h3>
-              <label className="flex items-start gap-3 bg-surface border border-line p-3 rounded-xl shadow-sm cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={team.emailEvalRemindersDisabled !== true}
-                  onChange={(e) =>
-                    updateTeam({
-                      emailEvalRemindersDisabled: !e.target.checked,
-                    })
-                  }
-                  className="mt-0.5 w-4 h-4 accent-[var(--team-primary)]"
-                />
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-black uppercase tracking-widest text-ink">
-                    Email eval reminders to coaches
-                  </span>
-                  <span className="block text-[11px] text-ink-3 font-medium mt-0.5">
-                    When an eval round is due, send a single reminder
-                    email from your signed-in Gmail to every coach who
-                    hasn&apos;t submitted. Cool-off of 7 days between
-                    batches.
-                  </span>
-                </span>
-              </label>
-              {team.lastEvalEmailedAt && (
-                <p className="text-[10px] text-ink-3 font-medium mt-2 px-1">
-                  Last reminder batch sent{" "}
-                  {new Date(team.lastEvalEmailedAt).toLocaleDateString()}
-                </p>
-              )}
-            </div>
-            )}
-
-          </div>
-
-          <div className="space-y-10">
-            {settingsMenu === "team" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line/50 pb-3 flex items-center gap-2">
-                <Icons.MapPin className="w-4 h-4" /> Team Identity & Season
-              </h3>
-              <div className="space-y-5">
-                <div className="flex flex-col sm:flex-row gap-5">
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                      Current Season
-                    </label>
-                    <input
-                      type="text"
-                      value={currentSeason}
-                      onChange={(e) =>
-                        updateTeam({ currentSeason: e.target.value })
-                      }
-                      placeholder="Spring 2026"
-                      className="w-full p-3 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={() => setAdvanceSeasonOpen(true)}
-                      className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
-                      style={{
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                      }}
-                    >
-                      <Icons.Forward className="w-4 h-4" /> Advance Season
-                    </button>
-                  </div>
-                </div>
-
-                <p className="text-[11px] text-ink-3 font-medium">
-                  Marks each player as Returning or Released when you advance
-                  to the next season. Stats from finished games are archived
-                  to season history.
-                </p>
-
-                <div className="mt-6 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={exportRosterCsv}
-                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
-                  >
-                    <Icons.Forward className="w-3.5 h-3.5" /> Export Roster CSV
-                  </button>
-                  <button
-                    type="button"
-                    onClick={exportNewPlayersCsv}
-                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
-                  >
-                    <Icons.Forward className="w-3.5 h-3.5" /> Export New Players CSV
-                  </button>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                    Team Colors
-                  </label>
-                  <div className="bg-surface p-4 border border-line rounded-xl shadow-sm space-y-3">
-                    {[
-                      {
-                        key: "primaryColor",
-                        val: primaryColor,
-                        label: "Primary",
-                      },
-                      {
-                        key: "secondaryColor",
-                        val: secondaryColor,
-                        label: "Accent",
-                      },
-                      {
-                        key: "tertiaryColor",
-                        val: tertiaryColor,
-                        label: "Tertiary",
-                      },
-                    ].map(({ key, val, label }) => (
-                      <TeamColorPicker
-                        key={key}
-                        colorKey={key}
-                        val={val}
-                        label={label}
-                        updateTeam={updateTeam}
-                      />
                     ))}
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3 bg-surface p-3 border border-line rounded-xl shadow-sm">
-                    <span className="text-[9px] font-black text-ink-3 uppercase tracking-widest mr-1">
-                      Live Preview
-                    </span>
-                    <span
-                      className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-sm tabular-nums"
-                      style={{
-                        backgroundColor: primaryColor,
-                        color: tertiaryColor,
-                      }}
-                    >
-                      8-3
-                    </span>
-                    <span
-                      className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border"
-                      style={{
-                        backgroundColor: secondaryColor,
-                        color: primaryColor,
-                        borderColor: primaryColor,
-                      }}
-                    >
-                      Today
-                    </span>
-                    <button
-                      type="button"
-                      className="text-[11px] px-4 py-2 font-black uppercase tracking-widest rounded-xl shadow-md cursor-default"
-                      style={{
-                        backgroundColor: primaryColor,
-                        color: tertiaryColor,
-                      }}
-                      tabIndex={-1}
-                    >
-                      Primary Button
-                    </button>
-                    <span
-                      className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full border cursor-default"
-                      style={{
-                        backgroundColor: secondaryColor,
-                        color: primaryColor,
-                        borderColor: primaryColor,
-                      }}
-                    >
-                      Active Tab
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                    Logo Upload
-                  </label>
-                  <div className="flex items-center gap-4 bg-surface p-4 border border-line rounded-xl shadow-sm">
-                    {logoUrl ? (
-                      <div className="relative group">
-                        <img
-                          src={logoUrl}
-                          alt="Logo"
-                          className="w-16 h-16 object-contain bg-surface border border-line p-1.5 rounded-xl shadow-sm"
-                        />
+                  {isAddingCoach ? (
+                    <div className="bg-surface p-4 border border-line rounded-xl space-y-3 shadow-sm">
+                      <input
+                        type="text"
+                        value={newCoachForm.name}
+                        onChange={(e) =>
+                          setNewCoachForm({
+                            ...newCoachForm,
+                            name: e.target.value,
+                          })
+                        }
+                        placeholder="Coach Name"
+                        className="w-full p-2.5 border border-line-strong text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg shadow-inner"
+                      />
+                      <select
+                        value={newCoachForm.role}
+                        onChange={(e) =>
+                          setNewCoachForm({
+                            ...newCoachForm,
+                            role: e.target.value,
+                          })
+                        }
+                        className="w-full p-2.5 border border-line-strong text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-lg bg-surface shadow-sm"
+                      >
+                        <option value="Head Coach">Head Coach</option>
+                        <option value="Assistant Coach">Assistant Coach</option>
+                      </select>
+                      <div className="flex gap-3 pt-2">
                         <button
-                          onClick={() => updateTeam({ logoUrl: "" })}
-                          className="absolute -top-2 -right-2 p-1.5 bg-surface border border-line text-loss hover:bg-loss-bg hover:text-loss rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => addCoach(newCoachForm)}
+                          className="flex-1 text-white text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm transition-transform hover:-translate-y-0.5"
+                          style={{ backgroundColor: primaryColor }}
                         >
-                          <Icons.X className="w-3 h-3" />
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setIsAddingCoach(false)}
+                          className="flex-1 bg-surface border border-line-strong text-ink-2 text-xs font-black uppercase tracking-widest py-3 rounded-lg shadow-sm hover:bg-surface-2 transition-colors"
+                        >
+                          Cancel
                         </button>
                       </div>
-                    ) : (
-                      <div className="w-16 h-16 bg-surface border border-line border-dashed rounded-xl flex items-center justify-center">
-                        <Icons.Upload className="w-6 h-6 text-ink-3" />
-                      </div>
-                    )}
-                    <label
-                      htmlFor="settings-logo-upload"
-                      className="flex-1 bg-surface border border-line-strong hover:bg-surface-2 rounded-xl p-3.5 text-xs text-center cursor-pointer font-black text-ink uppercase tracking-widest transition-colors shadow-sm"
-                    >
-                      Choose File{" "}
-                      <input
-                        id="settings-logo-upload"
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={handleLogoUpload}
-                      />
-                    </label>
-                  </div>
-                  {logoUrl && (
+                    </div>
+                  ) : (
                     <button
-                      type="button"
-                      onClick={pullColorsFromLogo}
-                      className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink bg-surface border border-line rounded-lg px-3 py-1.5 shadow-sm hover:bg-surface-2 transition-colors"
+                      onClick={() => setIsAddingCoach(true)}
+                      className="w-full bg-surface hover:bg-surface-2 text-ink-2 text-xs font-black uppercase tracking-widest py-3.5 rounded-xl border-2 border-dashed border-line-strong transition-colors flex items-center justify-center gap-2 shadow-sm"
                     >
-                      <Icons.Palette className="w-3 h-3" /> Pull colors from logo
+                      <Icons.Plus className="w-4 h-4" /> Add Coach
                     </button>
                   )}
-                  <p className="text-[10px] text-ink-3 mt-2 font-medium">
-                    PNG/JPG up to 1 MB. Stored inline in your team document.
+                </div>
+              )}
+
+              {settingsMenu === "tryouts" && (
+                <TryoutsSettingsPanel
+                  team={team}
+                  updateTeam={updateTeam}
+                  generateTryoutShareId={generateTryoutShareId}
+                  setTryoutsOpen={setTryoutsOpen}
+                  completeTryouts={completeTryouts}
+                  setRosterCap={setRosterCap}
+                  mirrorStale={mirrorStale}
+                  resyncPublicMirror={resyncPublicMirror}
+                  toast={toast}
+                />
+              )}
+
+              {settingsMenu === "staff" && (
+                <JoinCodePanel
+                  team={team}
+                  regenerateJoinCode={regenerateJoinCode}
+                  toast={toast}
+                />
+              )}
+
+              {settingsMenu === "staff" && (
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+                    <Icons.Users className="w-4 h-4" /> Coach Roles
+                  </h3>
+                  <p className="text-[11px] text-ink-3 font-medium mb-3">
+                    Head coaches can edit lineups, evals, and settings.
+                    Assistants submit eval grades and view today&apos;s lineup.
                   </p>
-                </div>
-              </div>
-            </div>
-            )}
-            {settingsMenu === "imports" && (
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
-                <Icons.Cloud className="w-4 h-4" /> Data Management
-              </h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <label
-                    htmlFor="settings-import-schedule-csv"
-                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
-                  >
-                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
-                      Import
-                      <br />
-                      Schedule CSV
-                    </span>
-                    <input
-                      id="settings-import-schedule-csv"
-                      type="file"
-                      className="sr-only"
-                      accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
-                      onChange={uploadScheduleCsv}
-                    />
-                  </label>
-                  <label
-                    htmlFor="settings-import-roster-csv"
-                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
-                  >
-                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
-                      Import
-                      <br />
-                      Roster / Stats CSV
-                    </span>
-                    <input
-                      id="settings-import-roster-csv"
-                      type="file"
-                      className="sr-only"
-                      accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
-                      onChange={uploadStatsCsv}
-                    />
-                  </label>
-                  <label
-                    htmlFor="settings-import-past-season-csv"
-                    className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
-                  >
-                    <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-warnfg mb-3 transition-colors" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
-                      Import
-                      <br />
-                      Past Season CSV
-                    </span>
-                    <input
-                      id="settings-import-past-season-csv"
-                      type="file"
-                      className="sr-only"
-                      accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
-                      onChange={startPastSeasonImport}
-                    />
-                  </label>
-                </div>
-                <div className="flex gap-4 pt-4">
-                  <button
-                    onClick={exportBackup}
-                    className="flex-1 bg-surface border border-line-strong rounded-xl py-3.5 text-[10px] sm:text-xs font-black uppercase tracking-widest text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center justify-center gap-2"
-                  >
-                    <Icons.Download className="w-4 h-4" /> Backup
-                  </button>
-                  <label
-                    htmlFor="settings-restore-backup"
-                    className="flex-1 bg-surface border border-line-strong rounded-xl py-3.5 text-[10px] sm:text-xs text-center cursor-pointer font-black uppercase tracking-widest text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center justify-center gap-2"
-                  >
-                    <Icons.Upload className="w-4 h-4" /> Restore{" "}
-                    <input
-                      id="settings-restore-backup"
-                      type="file"
-                      accept=".json"
-                      className="sr-only"
-                      onChange={importBackup}
-                    />
-                  </label>
-                </div>
-              </div>
-            </div>
-            )}
-            {settingsMenu === "advanced" && <StorageUsagePanel team={team} />}
-            {settingsMenu === "advanced" && (
-              <DiagnosticsPanel team={team} user={user} activeTeamId={activeTeamId} />
-            )}
-            {settingsMenu === "advanced" && (
-              <TeamManagementPanel
-                teams={teams}
-                leaveTeamCmd={leaveTeamCmd}
-                deleteTeamCmd={deleteTeamCmd}
-              />
-            )}
-            {settingsMenu === "advanced" && realRole === "head" && (
-              <div className="pt-6 border-t border-line/50">
-                <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
-                  Testing
-                </div>
-                <div className="bg-warn-bg border border-warn-bg rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div>
-                    <h4 className="font-bold text-ink text-sm">
-                      View as Assistant Coach
-                    </h4>
-                    <p className="text-[11px] text-ink-2 mt-1 font-medium leading-snug max-w-md">
-                      Preview the assistant experience. Revert anytime from
-                      the header chip or this toggle.
-                    </p>
+                  <div className="space-y-2 mb-2">
+                    {(team.members || [])
+                      .filter((uid: any) => uid !== team.ownerId)
+                      .map((uid: any) => {
+                        const role =
+                          team.coachRoles?.[uid] === "head"
+                            ? "head"
+                            : "assistant";
+                        const isMe = user && uid === user.uid;
+                        return (
+                          <div
+                            key={uid}
+                            className="flex justify-between items-center bg-surface p-3 border border-line rounded-xl shadow-sm gap-3"
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-black text-ink truncate">
+                                {isMe ? "You" : uid.slice(0, 12) + "…"}
+                              </div>
+                              <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
+                                {role === "head"
+                                  ? "Head Coach"
+                                  : "Assistant Coach"}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setCoachRole?.(
+                                  uid,
+                                  role === "head" ? "assistant" : "head",
+                                )
+                              }
+                              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-line-strong hover:bg-surface-2 whitespace-nowrap"
+                            >
+                              {role === "head" ? "Make Assistant" : "Make Head"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    {(team.members || []).filter(
+                      (uid: any) => uid !== team.ownerId,
+                    ).length === 0 && (
+                      <p className="text-[11px] text-ink-3 font-medium italic">
+                        No other coaches have joined yet.
+                      </p>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setViewAsRole?.(
-                        viewAsRole === "assistant" ? null : "assistant"
-                      )
-                    }
-                    className={`shrink-0 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
-                      viewAsRole === "assistant"
-                        ? "bg-warn-bg text-warnfg hover:bg-warn-bg"
-                        : "bg-surface border border-line text-warnfg hover:bg-surface-2"
-                    }`}
-                  >
-                    {viewAsRole === "assistant" ? "Revert to Head" : "View as Assistant"}
-                  </button>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+
+              {settingsMenu === "staff" && (
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+                    <Icons.Clipboard className="w-4 h-4" /> Eval Reminders
+                  </h3>
+                  <label className="flex items-start gap-3 bg-surface border border-line p-3 rounded-xl shadow-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={team.emailEvalRemindersDisabled !== true}
+                      onChange={(e) =>
+                        updateTeam({
+                          emailEvalRemindersDisabled: !e.target.checked,
+                        })
+                      }
+                      className="mt-0.5 w-4 h-4 accent-[var(--team-primary)]"
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-black uppercase tracking-widest text-ink">
+                        Email eval reminders to coaches
+                      </span>
+                      <span className="block text-[11px] text-ink-3 font-medium mt-0.5">
+                        When an eval round is due, send a single reminder email
+                        from your signed-in Gmail to every coach who hasn&apos;t
+                        submitted. Cool-off of 7 days between batches.
+                      </span>
+                    </span>
+                  </label>
+                  {team.lastEvalEmailedAt && (
+                    <p className="text-[10px] text-ink-3 font-medium mt-2 px-1">
+                      Last reminder batch sent{" "}
+                      {new Date(team.lastEvalEmailedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-10">
+              {settingsMenu === "team" && (
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line/50 pb-3 flex items-center gap-2">
+                    <Icons.MapPin className="w-4 h-4" /> Team Identity & Season
+                  </h3>
+                  <div className="space-y-5">
+                    <div className="flex flex-col sm:flex-row gap-5">
+                      <div className="flex-1">
+                        <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                          Current Season
+                        </label>
+                        <input
+                          type="text"
+                          value={currentSeason}
+                          onChange={(e) =>
+                            updateTeam({ currentSeason: e.target.value })
+                          }
+                          placeholder="Spring 2026"
+                          className="w-full p-3 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          onClick={() => setAdvanceSeasonOpen(true)}
+                          className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
+                          style={{
+                            backgroundColor: "var(--team-primary)",
+                            color: "var(--team-tertiary)",
+                          }}
+                        >
+                          <Icons.Forward className="w-4 h-4" /> Advance Season
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-ink-3 font-medium">
+                      Marks each player as Returning or Released when you
+                      advance to the next season. Stats from finished games are
+                      archived to season history.
+                    </p>
+
+                    <div className="mt-6 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={exportRosterCsv}
+                        className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
+                      >
+                        <Icons.Forward className="w-3.5 h-3.5" /> Export Roster
+                        CSV
+                      </button>
+                      <button
+                        type="button"
+                        onClick={exportNewPlayersCsv}
+                        className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 flex items-center gap-2"
+                      >
+                        <Icons.Forward className="w-3.5 h-3.5" /> Export New
+                        Players CSV
+                      </button>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                        Team Colors
+                      </label>
+                      <div className="bg-surface p-4 border border-line rounded-xl shadow-sm space-y-3">
+                        {[
+                          {
+                            key: "primaryColor",
+                            val: primaryColor,
+                            label: "Primary",
+                          },
+                          {
+                            key: "secondaryColor",
+                            val: secondaryColor,
+                            label: "Accent",
+                          },
+                          {
+                            key: "tertiaryColor",
+                            val: tertiaryColor,
+                            label: "Tertiary",
+                          },
+                        ].map(({ key, val, label }) => (
+                          <TeamColorPicker
+                            key={key}
+                            colorKey={key}
+                            val={val}
+                            label={label}
+                            updateTeam={updateTeam}
+                          />
+                        ))}
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-3 bg-surface p-3 border border-line rounded-xl shadow-sm">
+                        <span className="text-[9px] font-black text-ink-3 uppercase tracking-widest mr-1">
+                          Live Preview
+                        </span>
+                        <span
+                          className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg shadow-sm tabular-nums"
+                          style={{
+                            backgroundColor: primaryColor,
+                            color: tertiaryColor,
+                          }}
+                        >
+                          8-3
+                        </span>
+                        <span
+                          className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border"
+                          style={{
+                            backgroundColor: secondaryColor,
+                            color: primaryColor,
+                            borderColor: primaryColor,
+                          }}
+                        >
+                          Today
+                        </span>
+                        <button
+                          type="button"
+                          className="text-[11px] px-4 py-2 font-black uppercase tracking-widest rounded-xl shadow-md cursor-default"
+                          style={{
+                            backgroundColor: primaryColor,
+                            color: tertiaryColor,
+                          }}
+                          tabIndex={-1}
+                        >
+                          Primary Button
+                        </button>
+                        <span
+                          className="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-full border cursor-default"
+                          style={{
+                            backgroundColor: secondaryColor,
+                            color: primaryColor,
+                            borderColor: primaryColor,
+                          }}
+                        >
+                          Active Tab
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                        Logo Upload
+                      </label>
+                      <div className="flex items-center gap-4 bg-surface p-4 border border-line rounded-xl shadow-sm">
+                        {logoUrl ? (
+                          <div className="relative group">
+                            <img
+                              src={logoUrl}
+                              alt="Logo"
+                              className="w-16 h-16 object-contain bg-surface border border-line p-1.5 rounded-xl shadow-sm"
+                            />
+                            <button
+                              onClick={() => updateTeam({ logoUrl: "" })}
+                              className="absolute -top-2 -right-2 p-1.5 bg-surface border border-line text-loss hover:bg-loss-bg hover:text-loss rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <Icons.X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-16 h-16 bg-surface border border-line border-dashed rounded-xl flex items-center justify-center">
+                            <Icons.Upload className="w-6 h-6 text-ink-3" />
+                          </div>
+                        )}
+                        <label
+                          htmlFor="settings-logo-upload"
+                          className="flex-1 bg-surface border border-line-strong hover:bg-surface-2 rounded-xl p-3.5 text-xs text-center cursor-pointer font-black text-ink uppercase tracking-widest transition-colors shadow-sm"
+                        >
+                          Choose File{" "}
+                          <input
+                            id="settings-logo-upload"
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={handleLogoUpload}
+                          />
+                        </label>
+                      </div>
+                      {logoUrl && (
+                        <button
+                          type="button"
+                          onClick={pullColorsFromLogo}
+                          className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-ink-2 hover:text-ink bg-surface border border-line rounded-lg px-3 py-1.5 shadow-sm hover:bg-surface-2 transition-colors"
+                        >
+                          <Icons.Palette className="w-3 h-3" /> Pull colors from
+                          logo
+                        </button>
+                      )}
+                      <p className="text-[10px] text-ink-3 mt-2 font-medium">
+                        PNG/JPG up to 1 MB. Stored inline in your team document.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {settingsMenu === "imports" && (
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+                    <Icons.Cloud className="w-4 h-4" /> Data Management
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <label
+                        htmlFor="settings-import-schedule-csv"
+                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
+                      >
+                        <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
+                          Import
+                          <br />
+                          Schedule CSV
+                        </span>
+                        <input
+                          id="settings-import-schedule-csv"
+                          type="file"
+                          className="sr-only"
+                          accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
+                          onChange={uploadScheduleCsv}
+                        />
+                      </label>
+                      <label
+                        htmlFor="settings-import-roster-csv"
+                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
+                      >
+                        <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
+                          Import
+                          <br />
+                          Roster / Stats CSV
+                        </span>
+                        <input
+                          id="settings-import-roster-csv"
+                          type="file"
+                          className="sr-only"
+                          accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
+                          onChange={uploadStatsCsv}
+                        />
+                      </label>
+                      <label
+                        htmlFor="settings-import-past-season-csv"
+                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
+                      >
+                        <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-warnfg mb-3 transition-colors" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
+                          Import
+                          <br />
+                          Past Season CSV
+                        </span>
+                        <input
+                          id="settings-import-past-season-csv"
+                          type="file"
+                          className="sr-only"
+                          accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
+                          onChange={startPastSeasonImport}
+                        />
+                      </label>
+                    </div>
+                    <div className="flex gap-4 pt-4">
+                      <button
+                        onClick={exportBackup}
+                        className="flex-1 bg-surface border border-line-strong rounded-xl py-3.5 text-[10px] sm:text-xs font-black uppercase tracking-widest text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <Icons.Download className="w-4 h-4" /> Backup
+                      </button>
+                      <label
+                        htmlFor="settings-restore-backup"
+                        className="flex-1 bg-surface border border-line-strong rounded-xl py-3.5 text-[10px] sm:text-xs text-center cursor-pointer font-black uppercase tracking-widest text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <Icons.Upload className="w-4 h-4" /> Restore{" "}
+                        <input
+                          id="settings-restore-backup"
+                          type="file"
+                          accept=".json"
+                          className="sr-only"
+                          onChange={importBackup}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {settingsMenu === "advanced" && <StorageUsagePanel team={team} />}
+              {settingsMenu === "advanced" && (
+                <DiagnosticsPanel
+                  team={team}
+                  user={user}
+                  activeTeamId={activeTeamId}
+                />
+              )}
+              {settingsMenu === "advanced" && (
+                <TeamManagementPanel
+                  teams={teams}
+                  leaveTeamCmd={leaveTeamCmd}
+                  deleteTeamCmd={deleteTeamCmd}
+                />
+              )}
+              {settingsMenu === "advanced" && realRole === "head" && (
+                <div className="pt-6 border-t border-line/50">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
+                    Testing
+                  </div>
+                  <div className="bg-warn-bg border border-warn-bg rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <h4 className="font-bold text-ink text-sm">
+                        View as Assistant Coach
+                      </h4>
+                      <p className="text-[11px] text-ink-2 mt-1 font-medium leading-snug max-w-md">
+                        Preview the assistant experience. Revert anytime from
+                        the header chip or this toggle.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setViewAsRole?.(
+                          viewAsRole === "assistant" ? null : "assistant",
+                        )
+                      }
+                      className={`shrink-0 px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors ${
+                        viewAsRole === "assistant"
+                          ? "bg-warn-bg text-warnfg hover:bg-warn-bg"
+                          : "bg-surface border border-line text-warnfg hover:bg-surface-2"
+                      }`}
+                    >
+                      {viewAsRole === "assistant"
+                        ? "Revert to Head"
+                        : "View as Assistant"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

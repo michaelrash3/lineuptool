@@ -29,7 +29,6 @@ export const useTryoutFlows = ({
     return id;
   }, [updateTeam]);
 
-
   const generateTryoutDateLink = useCallback(
     (rawDate: any) => {
       const date = String(rawDate || "").trim();
@@ -37,7 +36,9 @@ export const useTryoutFlows = ({
       const base = String(activeTeamId || "").replace(/[^a-zA-Z0-9_-]/g, "");
       const rand = Math.random().toString(36).slice(2, 8);
       const slug = `${base || "team"}-${date}-${rand}`;
-      const dates = Array.isArray(teamData.tryoutDates) ? teamData.tryoutDates : [];
+      const dates = Array.isArray(teamData.tryoutDates)
+        ? teamData.tryoutDates
+        : [];
       const nextDates = dates.includes(date) ? dates : [...dates, date];
       // Persist an explicit slug→date mapping so the portal pins the exact date
       // this link was generated for. We append (never replace): a date can be
@@ -46,7 +47,7 @@ export const useTryoutFlows = ({
       // backward compatibility with the legacy single-slug portal/mirror path.
       const existingLinks = Array.isArray(teamData.tryoutDateLinks)
         ? teamData.tryoutDateLinks.filter(
-            (l: any) => l && l.slug && l.date && l.slug !== slug
+            (l: any) => l && l.slug && l.date && l.slug !== slug,
           )
         : [];
       const nextLinks = [...existingLinks, { slug, date }];
@@ -59,7 +60,7 @@ export const useTryoutFlows = ({
       });
       return slug;
     },
-    [activeTeamId, teamData.tryoutDates, teamData.tryoutDateLinks, updateTeam]
+    [activeTeamId, teamData.tryoutDates, teamData.tryoutDateLinks, updateTeam],
   );
 
   const setTryoutsOpen = useCallback(
@@ -69,7 +70,7 @@ export const useTryoutFlows = ({
         tryoutsPhase: open ? "open" : "intake_closed",
       });
     },
-    [updateTeam]
+    [updateTeam],
   );
 
   const completeTryouts = useCallback(() => {
@@ -82,13 +83,12 @@ export const useTryoutFlows = ({
       if (!Number.isFinite(n) || n <= 0) return;
       updateTeam({ rosterCap: n });
     },
-    [updateTeam]
+    [updateTeam],
   );
 
   const appendTryoutSignup = useCallback(
     (signup: any) => {
-      const id =
-        signup.id || "ts-" + Math.random().toString(36).slice(2, 10);
+      const id = signup.id || "ts-" + Math.random().toString(36).slice(2, 10);
       const entry = {
         id,
         submittedAt: signup.submittedAt || new Date().toISOString(),
@@ -99,27 +99,29 @@ export const useTryoutFlows = ({
       updateTeam({ tryoutSignups: next });
       return entry;
     },
-    [teamData.tryoutSignups, updateTeam]
+    [teamData.tryoutSignups, updateTeam],
   );
 
   const updateTryoutSignup = useCallback(
     (id: any, patch: any) => {
       const next = (teamData.tryoutSignups || []).map((s: any) =>
-        s.id === id ? { ...s, ...patch } : s
+        s.id === id ? { ...s, ...patch } : s,
       );
       updateTeam({ tryoutSignups: next });
     },
-    [teamData.tryoutSignups, updateTeam]
+    [teamData.tryoutSignups, updateTeam],
   );
 
   const deleteTryoutSignup = useCallback(
     (id: any) => {
       if (!id) return;
       // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
-      const next = (teamData.tryoutSignups || []).filter((s: any) => s.id !== id);
+      const next = (teamData.tryoutSignups || []).filter(
+        (s: any) => s.id !== id,
+      );
       updateTeam({ tryoutSignups: next });
     },
-    [teamData.tryoutSignups, updateTeam]
+    [teamData.tryoutSignups, updateTeam],
   );
 
   // Bulk-remove signups in a SINGLE write. Calling deleteTryoutSignup() in a
@@ -136,7 +138,7 @@ export const useTryoutFlows = ({
       if (removed > 0) updateTeam({ tryoutSignups: next });
       return removed;
     },
-    [teamData.tryoutSignups, updateTeam]
+    [teamData.tryoutSignups, updateTeam],
   );
 
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
@@ -144,10 +146,12 @@ export const useTryoutFlows = ({
   const deleteInterestSignup = useCallback(
     (id: any) => {
       if (!id) return;
-      const next = (teamData.interestSignups || []).filter((s: any) => s.id !== id);
+      const next = (teamData.interestSignups || []).filter(
+        (s: any) => s.id !== id,
+      );
       updateTeam({ interestSignups: next });
     },
-    [teamData.interestSignups, updateTeam]
+    [teamData.interestSignups, updateTeam],
   );
 
   // Promote an interest-survey lead into a real tryout signup. Useful
@@ -157,7 +161,9 @@ export const useTryoutFlows = ({
   const convertInterestToTryout = useCallback(
     (id: any) => {
       if (!id) return;
-      const lead = (teamData.interestSignups || []).find((s: any) => s.id === id);
+      const lead = (teamData.interestSignups || []).find(
+        (s: any) => s.id === id,
+      );
       if (!lead) return;
       const signup = {
         id: `ts-${Math.random().toString(36).slice(2, 10)}`,
@@ -169,11 +175,18 @@ export const useTryoutFlows = ({
         email: lead.email || "",
         phone: lead.phone || "",
         currentTeam: lead.currentTeam || "",
+        tryoutDate: lead.tryoutDate || "",
+        primaryPosition: lead.primaryPosition || "",
+        secondaryPosition: lead.secondaryPosition || "",
+        canPitch: lead.canPitch === true,
+        canCatch: lead.canCatch === true || lead.isCatcher === true,
+        isCatcher: lead.canCatch === true || lead.isCatcher === true,
         comfortablePositions: [
-          ...(Array.isArray(lead.comfortablePositions) ? lead.comfortablePositions : []).filter(
-            (p: any) => p !== "C"
-          ),
-          ...(lead.isCatcher === true ? ["C"] : []),
+          ...(Array.isArray(lead.comfortablePositions)
+            ? lead.comfortablePositions
+            : []
+          ).filter((p: any) => p !== "C"),
+          ...(lead.canCatch === true || lead.isCatcher === true ? ["C"] : []),
         ],
         notes: lead.notes || "",
         status: "tryout",
@@ -181,7 +194,7 @@ export const useTryoutFlows = ({
       updateTeam({
         tryoutSignups: [...(teamData.tryoutSignups || []), signup],
         interestSignups: (teamData.interestSignups || []).filter(
-          (s: any) => s.id !== id
+          (s: any) => s.id !== id,
         ),
       });
       toast.push({
@@ -190,7 +203,7 @@ export const useTryoutFlows = ({
         message: `${lead.firstName} ${lead.lastName}`.trim(),
       });
     },
-    [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast]
+    [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast],
   );
 
   // Tryout grades live in team.evaluationEvents alongside roster
@@ -201,12 +214,10 @@ export const useTryoutFlows = ({
       if (!user || !signupId) return;
       const date = new Date().toISOString().slice(0, 10);
       const existing = (teamData.evaluationEvents || []).find(
-        (e: any) =>
-          e.tryoutSignupId === signupId && e.evaluatorId === user.uid
+        (e: any) => e.tryoutSignupId === signupId && e.evaluatorId === user.uid,
       );
       const event = {
-        id:
-          existing?.id || "ev-" + Math.random().toString(36).slice(2, 10),
+        id: existing?.id || "ev-" + Math.random().toString(36).slice(2, 10),
         date,
         coachRole: coachRole || "Assistant",
         evaluatorId: user.uid,
@@ -216,12 +227,12 @@ export const useTryoutFlows = ({
       };
       const next = existing
         ? teamData.evaluationEvents.map((e: any) =>
-            e.id === existing.id ? event : e
+            e.id === existing.id ? event : e,
           )
         : [...(teamData.evaluationEvents || []), event];
       updateTeam({ evaluationEvents: next });
     },
-    [user, teamData.evaluationEvents, updateTeam]
+    [user, teamData.evaluationEvents, updateTeam],
   );
 
   // Accept-offer flow. Tryout accepts are oriented to the NEXT season by
@@ -231,7 +242,9 @@ export const useTryoutFlows = ({
   // target="current" to pull a kid straight onto the CURRENT roster now.
   const acceptTryout = useCallback(
     (id: any, target: "next" | "current" = "next") => {
-      const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === id);
+      const signup = (teamData.tryoutSignups || []).find(
+        (s: any) => s.id === id,
+      );
       if (!signup) return;
       const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim();
 
@@ -247,9 +260,10 @@ export const useTryoutFlows = ({
           bats: signup.bats || "R",
           throws: signup.throws || "R",
           comfortablePositions: [
-            ...(Array.isArray(signup.comfortablePositions) ? signup.comfortablePositions : []).filter(
-              (p: any) => p !== "C"
-            ),
+            ...(Array.isArray(signup.comfortablePositions)
+              ? signup.comfortablePositions
+              : []
+            ).filter((p: any) => p !== "C"),
             ...(signup.isCatcher === true ? ["C"] : []),
           ],
           parentName: signup.parentName || "",
@@ -262,7 +276,9 @@ export const useTryoutFlows = ({
           tryoutSignupId: signup.id,
         };
         updateTeam({
-          tryoutSignups: (teamData.tryoutSignups || []).filter((s: any) => s.id !== id),
+          tryoutSignups: (teamData.tryoutSignups || []).filter(
+            (s: any) => s.id !== id,
+          ),
           players: [...(teamData.players || []), player],
         });
         toast.push({
@@ -275,7 +291,7 @@ export const useTryoutFlows = ({
       // Default: accept for NEXT season. Keep them in the Tryouts tab marked
       // "accepted"; advanceSeason brings them onto the roster.
       const nextSignups = (teamData.tryoutSignups || []).map((s: any) =>
-        s.id === id ? { ...s, status: "accepted" } : s
+        s.id === id ? { ...s, status: "accepted" } : s,
       );
       updateTeam({ tryoutSignups: nextSignups });
       toast.push({
@@ -284,7 +300,7 @@ export const useTryoutFlows = ({
         message: "Joins the roster automatically when you Advance Season.",
       });
     },
-    [teamData.tryoutSignups, teamData.players, updateTeam, toast]
+    [teamData.tryoutSignups, teamData.players, updateTeam, toast],
   );
 
   return {
