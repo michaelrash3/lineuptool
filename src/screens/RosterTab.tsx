@@ -14,7 +14,8 @@ const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
 
 const FILTER_CHIPS = [
   { id: "present", label: "Present" },
-  { id: "absent", label: "Absent" },
+  { id: "inactive", label: "Inactive" },
+  { id: "departed", label: "Departed" },
   { id: "pitchers", label: "Pitchers" },
   { id: "catchers", label: "Catchers" },
   { id: "infield", label: "Infield" },
@@ -38,12 +39,21 @@ const playerComfortable = (player: any, pos: any) => {
   return player.primaryPosition === pos;
 };
 
+const getRosterStatus = (player: any) => {
+  if (player.rosterStatus === "departed") return "departed";
+  if (player.present === false || player.rosterStatus === "inactive") return "inactive";
+  return "active";
+};
+
 const playerMatchesFilter = (player: any, filterId: any) => {
+  const rosterStatus = getRosterStatus(player);
   switch (filterId) {
     case "present":
-      return player.present !== false;
-    case "absent":
-      return player.present === false;
+      return rosterStatus === "active";
+    case "inactive":
+      return rosterStatus === "inactive";
+    case "departed":
+      return rosterStatus === "departed";
     case "pitchers":
       return playerComfortable(player, "P");
     case "catchers":
@@ -65,7 +75,9 @@ const playerMatchesFilter = (player: any, filterId: any) => {
 };
 
 const PlayerRow = memo(({ player, currentSeason, onOpenProfile, onSelectStats, selectedForStats, showPositionTag, logoUrl, stripped }: any) => {
-  const absent = player.present === false;
+  const rosterStatus = getRosterStatus(player);
+  const absent = rosterStatus !== "active";
+  const hasDeparted = rosterStatus === "departed";
   const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
 
   return (
@@ -146,7 +158,7 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, onSelectStats, s
                   ? "0 0 0 3px rgba(148,163,184,0.18)"
                   : "0 0 0 3px rgba(16,185,129,0.18)",
               }}
-              title={absent ? "Absent" : "Present"}
+              title={hasDeparted ? "Departed" : absent ? "Inactive" : "Present"}
             />
           </div>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -159,8 +171,12 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, onSelectStats, s
               </span>
             )}
             {absent && (
-              <span className="t-chip px-2 py-1 rounded-md bg-loss-bg border border-line text-loss">
-                Out
+              <span
+                className={`t-chip px-2 py-1 rounded-md border border-line ${
+                  hasDeparted ? "bg-warn-bg text-warnfg" : "bg-loss-bg text-loss"
+                }`}
+              >
+                {hasDeparted ? "Departed" : "Inactive"}
               </span>
             )}
           </div>
@@ -296,6 +312,11 @@ export const RosterTab = memo(() => {
     });
   }, [sortedRosterPlayers, searchQuery, activeFilters]);
 
+  const activeRosterCount = useMemo(
+    () => players.filter((p: any) => getRosterStatus(p) === "active").length,
+    [players]
+  );
+
   const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
 
   return (
@@ -329,7 +350,7 @@ export const RosterTab = memo(() => {
                   color: "var(--team-primary)",
                 }}
               >
-                {players.length} Active
+                {activeRosterCount} Active
               </span>
             </h2>
           </div>

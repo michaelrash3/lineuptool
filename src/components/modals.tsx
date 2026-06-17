@@ -51,6 +51,27 @@ const RecentMovementPanel = React.lazy(() =>
 const ABSENCE_DATE_INPUT_CLASS =
   "w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner";
 
+const rosterStatusOf = (player: any) => {
+  if (player?.rosterStatus === "departed") return "departed";
+  if (player?.present === false || player?.rosterStatus === "inactive") return "inactive";
+  return "active";
+};
+
+const ROSTER_STATUS_COPY: Record<string, { label: string; help: string }> = {
+  active: {
+    label: "Active",
+    help: "Available for games and practices.",
+  },
+  inactive: {
+    label: "Inactive",
+    help: "Temporarily hidden from game-day attendance and lineups.",
+  },
+  departed: {
+    label: "Departed",
+    help: "No longer on the season roster, but kept for stats and records.",
+  },
+};
+
 const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -1074,6 +1095,33 @@ export const PlayerProfileModal = memo(() => {
                 </div>
               </div>
 
+              <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+                <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
+                  <Icons.Users className="w-4 h-4" /> Roster Status
+                </h4>
+                <p className="text-[11px] text-ink-3 font-medium mb-3 leading-snug">
+                  Use <strong className="text-ink">Departed</strong> when a player is no longer with the team before the season ends. They stay in history and reports, but stop appearing in game-day attendance.
+                </p>
+                <select
+                  value={rosterStatusOf(player)}
+                  onChange={(e) => {
+                    const rosterStatus = e.target.value;
+                    updatePlayer(player.id, {
+                      rosterStatus,
+                      present: rosterStatus === "active",
+                    });
+                  }}
+                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive / temporarily away</option>
+                  <option value="departed">Departed / no longer with team</option>
+                </select>
+                <p className="mt-2 text-[11px] text-ink-3 font-medium">
+                  {ROSTER_STATUS_COPY[rosterStatusOf(player)]?.help}
+                </p>
+              </div>
+
               <ScheduledAbsencesCard
                 player={player}
                 updatePlayer={updatePlayer}
@@ -1799,15 +1847,18 @@ export const PlayerProfileModal = memo(() => {
           
             <button
               onClick={() =>
-                updatePlayer(player.id, { present: player.present === false })
+                updatePlayer(player.id, {
+                  present: rosterStatusOf(player) !== "active",
+                  rosterStatus: rosterStatusOf(player) === "active" ? "inactive" : "active",
+                })
               }
               className={`text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line ${
-                player.present === false
+                rosterStatusOf(player) !== "active"
                   ? "bg-win-bg hover:opacity-90 text-win"
                   : "bg-warn-bg hover:opacity-90 text-warnfg"
               }`}
             >
-              {player.present === false ? "MARK ACTIVE" : "MARK INACTIVE"}
+              {rosterStatusOf(player) !== "active" ? "MARK ACTIVE" : "MARK INACTIVE"}
             </button>
             <button
               onClick={() => setShowReport(true)}
