@@ -1116,7 +1116,7 @@ export const ScheduleTab = memo(() => {
 
         </div>
 
-        {lineup && (
+        {lineup && !isTournamentGame && (
           <div className="bg-surface shadow-sm border border-line print:border-none print:shadow-none rounded-2xl overflow-hidden mb-12">
             <div className="p-5 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden bg-surface border-b border-line">
               <div className="flex items-center gap-4">
