@@ -19,6 +19,7 @@ export interface OfferLetterContext {
   // the caller is responsible for warning the coach before drafting.
   teamFees: string;
   deposit: string;
+  depositDueDate: string;
   coachName: string;
   coachEmail: string;
   coachPhone: string;
@@ -41,6 +42,14 @@ const phoneClause = (ctx: OfferLetterContext): string =>
     ? ` or call me at ${ctx.coachPhone}`
     : "";
 
+const clubName = (ctx: OfferLetterContext): string => `${ctx.teamName || "our team"} Baseball Club`;
+
+const rosterOfferSubject = (ctx: OfferLetterContext): string =>
+  `${ctx.teamName || "Our Team"} Baseball Roster Offer`;
+
+const coveredItems =
+  "These fees cover three uniform tops, two pairs of pants, two hats, a bat bag, access to an indoor facility for practices starting in January, and 3 to 5 tournaments between the Fall and Spring seasons. We will provide fundraising opportunities throughout the year to help reduce these costs.";
+
 export const OFFER_LETTER_LABELS: Record<OfferLetterKind, string> = {
   returning: "Returning Player Offer",
   newPlayer: "New Player Offer",
@@ -53,15 +62,20 @@ export const buildOfferLetter = (
   ctx: OfferLetterContext
 ): OfferLetterDraft => {
   const team = ctx.teamName || "our team";
+  const club = clubName(ctx);
+  const dueDate = ctx.depositDueDate || "[Deposit Due Date]";
+
   if (kind === "returning") {
     return {
-      subject: `${team} — Returning Player Offer for ${ctx.playerName}`,
+      subject: rosterOfferSubject(ctx),
       body: [
         `Dear ${ctx.playerName},`,
         "",
-        `We are excited to invite you back to the ${team} for the upcoming season. Your hard work and dedication have been a great asset to our team, and we look forward to continuing our success together.`,
+        `We are pleased to invite you back to the ${club} for the upcoming season. Your hard work and dedication continue to be a great asset to our team.`,
         "",
-        `The total team fees for the upcoming season are ${ctx.teamFees}. We will provide fundraising opportunities throughout the year to help reduce these fees. To secure your roster spot, a deposit of ${ctx.deposit} is required.`,
+        `The team fees for the upcoming season are ${ctx.teamFees}. ${coveredItems}`,
+        "",
+        `To secure your roster spot, a deposit of ${ctx.deposit} is required by ${dueDate}.`,
         "",
         `Please let us know your decision within 48 hours of receiving this offer. To accept, please reply directly to this message confirming your acceptance${phoneClause(
           ctx
@@ -73,26 +87,30 @@ export const buildOfferLetter = (
       ].join("\n"),
     };
   }
+
   if (kind === "newPlayer") {
     return {
-      subject: `${team} — Roster Offer for ${ctx.playerName}`,
+      subject: rosterOfferSubject(ctx),
       body: [
         `Dear ${ctx.playerName},`,
         "",
-        `Congratulations! We are thrilled to offer you a roster spot with the ${team} for the upcoming season. We were very impressed with your performance at tryouts and believe you will be a fantastic addition to our team.`,
+        `We are pleased to offer you a roster spot with the ${club} for the upcoming season. We were impressed with your performance at tryouts and believe you will be a great addition to our team.`,
         "",
-        `The total team fees for the season are ${ctx.teamFees}, and a deposit of ${ctx.deposit} is required. We will also offer fundraising opportunities to help reduce these fees.`,
+        `The team fees for the season are ${ctx.teamFees}. ${coveredItems}`,
         "",
-        `You have 48 hours to accept this offer. To officially accept and secure your spot on the roster, please reply to this message with your acceptance${phoneClause(
+        `To officially accept this offer and secure your spot, a deposit of ${ctx.deposit} is required by ${dueDate}.`,
+        "",
+        `You have 48 hours to accept this offer. To accept, please reply to this message confirming your acceptance${phoneClause(
           ctx
         )}.`,
         "",
-        `Welcome to the ${team}! If you or your parents have any questions, please reach out to me.`,
+        `Welcome to the ${team}. If you or your parents have any questions, please reach out to me.`,
         "",
         signature(ctx),
       ].join("\n"),
     };
   }
+
   if (kind === "interest") {
     return {
       subject: `${team} — Tryout Info for ${ctx.playerName}`,
@@ -111,15 +129,15 @@ export const buildOfferLetter = (
       ].join("\n"),
     };
   }
-  // rejection
+
   return {
-    subject: `${team} — Thank You for Trying Out`,
+    subject: `${team} Baseball Tryouts Update`,
     body: [
       `Dear ${ctx.playerName},`,
       "",
-      `Thank you for attending the tryouts for the ${team}. We appreciate the time and effort you put into showcasing your skills on the field.`,
+      `Thank you for attending the tryouts for the ${club}. We appreciate the time and effort you put into showcasing your skills on the field.`,
       "",
-      `This year, we had a highly competitive group of players, and we have limited roster spots available. Unfortunately, we are unable to offer you a position on the team for the upcoming season.`,
+      `We had a highly competitive group of players this year, and we have a very limited number of roster spots available. We are unable to offer you a position on the team for the upcoming season.`,
       "",
       `We encourage you to keep practicing and playing hard. We wish you the best of luck in your upcoming baseball season.`,
       "",

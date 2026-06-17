@@ -41,7 +41,7 @@ export const OfferLetterModal = memo(
     const missingMoney =
       kind !== "rejection" &&
       kind !== "interest" &&
-      (!ctx.teamFees || !ctx.deposit);
+      (!ctx.teamFees || !ctx.deposit || !ctx.depositDueDate);
 
     const copy = async () => {
       try {
@@ -94,8 +94,8 @@ export const OfferLetterModal = memo(
         <div className="space-y-3">
           {missingMoney && (
             <div className="text-xs font-bold text-warnfg bg-warn-bg border border-line rounded-lg px-3 py-2">
-              Set next season&apos;s team fee and deposit in Finances so the
-              amounts fill in automatically.
+              Set next season&apos;s team fee, deposit, and deposit due date in
+              Finances so the amounts fill in automatically.
             </div>
           )}
           <div>
