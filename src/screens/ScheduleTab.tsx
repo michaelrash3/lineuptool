@@ -250,8 +250,8 @@ export const ScheduleTab = memo(() => {
   const [saveTemplateName, setSaveTemplateName] = useState("");
   const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<string | null>(null);
   const [gcImportOpen, setGcImportOpen] = useState(false);
-  // Tournament games show the Starting Lineup card by default — the full
-  // inning grid is opt-in (the scripted plan below covers the changes).
+  // Tournament games should still expose the generated lineup grid before
+  // in-game mode so coaches can review and make manual swaps.
 
   // Auto-sync the GameChanger schedule when the Schedule tab opens. Runs only
   // when a feed URL is saved and the user can edit, throttled per team so
@@ -1116,7 +1116,7 @@ export const ScheduleTab = memo(() => {
 
         </div>
 
-        {lineup && !isTournamentGame && (
+        {lineup && (
           <div className="bg-surface shadow-sm border border-line print:border-none print:shadow-none rounded-2xl overflow-hidden mb-12">
             <div className="p-5 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden bg-surface border-b border-line">
               <div className="flex items-center gap-4">
