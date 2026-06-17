@@ -1130,7 +1130,7 @@ export const ScheduleTab = memo(() => {
                   />
                 </div>
                 <h2 className="text-xl font-black text-ink uppercase tracking-wider">
-                  Active Lineup Grid
+                  {isTournamentGame ? "Starting Lineup" : "Active Lineup Grid"}
                 </h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
@@ -1209,12 +1209,14 @@ export const ScheduleTab = memo(() => {
               </h2>
             </div>
 
-            <LineupGrid
-              lineup={lineup}
-              positions={getPositionsForInning(presentCount, gameDefenseSize)}
-              swapSelection={canEdit ? swapSelection : null}
-              onCellClick={canEdit ? handleCellClick : undefined}
-            />
+            {!isTournamentGame && (
+              <LineupGrid
+                lineup={lineup}
+                positions={getPositionsForInning(presentCount, gameDefenseSize)}
+                swapSelection={canEdit ? swapSelection : null}
+                onCellClick={canEdit ? handleCellClick : undefined}
+              />
+            )}
 
             {/* Relief options the tournament generator surfaced (pitch-count
                 checked). The scripted starters/subs plan was removed — the
