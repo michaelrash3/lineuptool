@@ -75,6 +75,32 @@ describe("RosterTab", () => {
     expect(screen.queryByText("RBI", { selector: "div" })).toBeNull();
   });
 
+
+  it("distinguishes temporarily inactive players from departed players", async () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: {
+          players: [
+            ...players,
+            { id: "p3", name: "Zoe Kim", number: "18", present: false, rosterStatus: "departed" },
+            { id: "p4", name: "Lily Chen", number: "22", present: false, rosterStatus: "inactive" },
+          ],
+          games: [],
+        },
+        currentRole: "head",
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+
+    expect(screen.getByText("2 Active")).toBeInTheDocument();
+    expect(screen.getAllByText("Departed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Inactive").length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Departed" }));
+    expect(screen.getByText("Zoe Kim")).toBeInTheDocument();
+    expect(screen.queryByText("Lily Chen")).toBeNull();
+  });
+
   it("stats side panel shows team leaders and switches to a player on jersey tap", async () => {
     renderWithProviders(<RosterTab />, {
       team: {
