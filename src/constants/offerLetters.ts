@@ -50,6 +50,32 @@ const rosterOfferSubject = (ctx: OfferLetterContext): string =>
 const coveredItems =
   "These fees cover three uniform tops, two pairs of pants, two hats, a bat bag, access to an indoor facility for practices starting in January, and 3 to 5 tournaments between the Fall and Spring seasons. We will provide fundraising opportunities throughout the year to help reduce these costs.";
 
+const formatOfferDate = (date: string): string => {
+  const trimmed = date.trim();
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!isoMatch) return trimmed;
+
+  const [, year, month, day] = isoMatch;
+  const y = Number(year);
+  const m = Number(month);
+  const d = Number(day);
+  const utc = new Date(Date.UTC(y, m - 1, d));
+  if (
+    utc.getUTCFullYear() !== y ||
+    utc.getUTCMonth() !== m - 1 ||
+    utc.getUTCDate() !== d
+  ) {
+    return trimmed;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(utc);
+};
+
 export const OFFER_LETTER_LABELS: Record<OfferLetterKind, string> = {
   returning: "Returning Player Offer",
   newPlayer: "New Player Offer",
@@ -63,7 +89,9 @@ export const buildOfferLetter = (
 ): OfferLetterDraft => {
   const team = ctx.teamName || "our team";
   const club = clubName(ctx);
-  const dueDate = ctx.depositDueDate || "[Deposit Due Date]";
+  const dueDate = ctx.depositDueDate
+    ? formatOfferDate(ctx.depositDueDate)
+    : "[Deposit Due Date]";
 
   if (kind === "returning") {
     return {

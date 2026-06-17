@@ -6,7 +6,7 @@ const ctx: OfferLetterContext = {
   teamName: "Trash Pandas",
   teamFees: "$1,200",
   deposit: "$300",
-  depositDueDate: "March 1, 2026",
+  depositDueDate: "2026-03-19",
   coachName: "Coach Mike",
   coachEmail: "mike@example.com",
   coachPhone: "(555) 123-4567",
@@ -18,7 +18,7 @@ describe("buildOfferLetter", () => {
     expect(subject).toBe("Trash Pandas Baseball Roster Offer");
     expect(body).toContain("invite you back to the Trash Pandas Baseball Club");
     expect(body).toContain("$1,200");
-    expect(body).toContain("deposit of $300 is required by March 1, 2026");
+    expect(body).toContain("deposit of $300 is required by March 19, 2026");
     expect(body).toContain("three uniform tops");
     expect(body).toContain("within 48 hours");
     expect(body).toContain("call me at (555) 123-4567");
@@ -31,7 +31,7 @@ describe("buildOfferLetter", () => {
     expect(subject).toBe("Trash Pandas Baseball Roster Offer");
     expect(body).toContain("pleased to offer you a roster spot");
     expect(body).toContain("$1,200");
-    expect(body).toContain("$300 is required by March 1, 2026");
+    expect(body).toContain("$300 is required by March 19, 2026");
     expect(body).toContain("48 hours");
     expect(body).toContain("Welcome to the Trash Pandas.");
   });
