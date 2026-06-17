@@ -162,10 +162,10 @@ describe("ScheduleTab", () => {
     expect(teamValue.deleteSavedGame).toHaveBeenCalledWith("g1");
   });
 
-  it("does not show the Active Lineup Grid in tournament game edit view", () => {
+  it("shows the Active Lineup Grid in tournament game edit view when a lineup exists", () => {
     renderGameEditor("USSSA");
 
-    expect(screen.queryByText("Active Lineup Grid")).not.toBeInTheDocument();
+    expect(screen.getByText("Active Lineup Grid")).toBeInTheDocument();
   });
 
   it("shows the Active Lineup Grid in non-tournament game edit view when a lineup exists", () => {
