@@ -9,6 +9,7 @@ import {
   restampEvalDueDates,
   emailPromptStatus,
   isReturning,
+  getReturningDecision,
   lineupSlotMatchesPlayer,
   isGameFinalized,
   buildSeasonBenchImbalance,
@@ -417,6 +418,29 @@ describe("emailPromptStatus", () => {
     const s = emailPromptStatus(team, new Date(2026, 6, 15)); // mid-July
     expect(s.active).toBe(false);
     expect(s.reason).toBe("no cadence active");
+  });
+});
+
+
+describe("getReturningDecision planning helper", () => {
+  it("returns unknown when modern returning intent is missing", () => {
+    expect(getReturningDecision({})).toBe("unknown");
+    expect(getReturningDecision({ playerStatus: "returning" })).toBe("unknown");
+  });
+
+  it("maps explicit yes/no intent", () => {
+    expect(getReturningDecision({ returning: true })).toBe("yes");
+    expect(getReturningDecision({ returning: false })).toBe("no");
+  });
+
+  it("maps legacy released/declined statuses to no", () => {
+    expect(getReturningDecision({ playerStatus: "released" })).toBe("no");
+    expect(getReturningDecision({ playerStatus: "declined" })).toBe("no");
+  });
+
+  it("lets explicit returning intent beat legacy status", () => {
+    expect(getReturningDecision({ returning: true, playerStatus: "released" })).toBe("yes");
+    expect(getReturningDecision({ returning: false, playerStatus: "returning" })).toBe("no");
   });
 });
 

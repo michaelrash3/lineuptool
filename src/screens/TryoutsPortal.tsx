@@ -338,9 +338,20 @@ export const TryoutsPortal = () => {
           tryoutDate: selectedTryoutDate || "",
           notes: cleanForm.notes,
         };
+        const selectedDate = selectedTryoutDate || "";
+        const isDatedTryoutSignup = selectedDate && team?.tryoutsOpen === true;
+        const destination = isDatedTryoutSignup ? "tryoutSignups" : "interestSignups";
+        const submission = isDatedTryoutSignup
+          ? {
+              ...lead,
+              id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+              status: "tryout",
+              tryoutDate: selectedDate,
+            }
+          : lead;
         await updateDoc(
           doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-          { interestSignups: arrayUnion(lead) },
+          { [destination]: arrayUnion(submission) },
         );
       }
       setPhase("sent");
@@ -396,7 +407,9 @@ export const TryoutsPortal = () => {
               <strong className="text-ink">
                 {form.firstName} {form.lastName}
               </strong>{" "}
-              {selectedTryoutDate
+              {selectedTryoutDate && team?.tryoutsOpen === true
+                ? `is signed up for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
+                : selectedTryoutDate
                 ? `is on ${team?.name || "the team"}'s interest list for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
                 : `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch.`}{" "}
               Contact at <strong className="text-ink">{form.email}</strong> ·{" "}

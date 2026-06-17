@@ -693,10 +693,15 @@ export const useImportExportFlows = ({
   // legacy playerStatus reads at read-time so existing rosters work
   // unchanged.
   const setPlayerReturning = useCallback(
-    (playerId: string, value: boolean) => {
-      const next = (teamData.players || []).map((p: any) =>
-        p.id === playerId ? { ...p, returning: value === true } : p
-      );
+    (playerId: string, value: boolean | null | undefined) => {
+      const next = (teamData.players || []).map((p: any) => {
+        if (p.id !== playerId) return p;
+        if (value == null) {
+          const { returning: _cleared, ...rest } = p;
+          return rest;
+        }
+        return { ...p, returning: value === true };
+      });
       updateTeam({ players: next });
     },
     [teamData.players, updateTeam]
