@@ -31,6 +31,18 @@ const lineup = [
     RF: { id: "p9", name: "Right Field" },
     BENCH: [],
   },
+  {
+    P: { id: "p2", name: "Catcher" },
+    C: { id: "p1", name: "Pitcher" },
+    "1B": { id: "p3", name: "First Base" },
+    "2B": { id: "p4", name: "Second Base" },
+    "3B": { id: "p5", name: "Third Base" },
+    SS: { id: "p6", name: "Shortstop" },
+    LF: { id: "p7", name: "Left Field" },
+    CF: { id: "p8", name: "Center Field" },
+    RF: { id: "p9", name: "Right Field" },
+    BENCH: [],
+  },
 ];
 
 const players = [
@@ -45,8 +57,9 @@ const players = [
   { id: "p9", name: "Right Field" },
 ];
 
-const renderGameEditor = (leagueRuleSet: string) =>
-  renderWithProviders(<ScheduleTab />, {
+const renderGameEditor = (leagueRuleSet: string) => {
+  const handleCellClick = jest.fn();
+  return renderWithProviders(<ScheduleTab />, {
     team: {
       team: {
         ...baseTeam,
@@ -82,12 +95,13 @@ const renderGameEditor = (leagueRuleSet: string) =>
       lineup,
       battingLineup: players,
       swapSelection: null,
-      handleCellClick: jest.fn(),
+      handleCellClick,
       addInning: jest.fn(),
       removeInning: jest.fn(),
       moveBatter: jest.fn(),
     },
   });
+};
 
 describe("ScheduleTab", () => {
   it("renders the schedule header and the empty state with no games", () => {
@@ -162,10 +176,37 @@ describe("ScheduleTab", () => {
     expect(teamValue.deleteSavedGame).toHaveBeenCalledWith("g1");
   });
 
-  it("shows the Active Lineup Grid in tournament game edit view when a lineup exists", () => {
+  it("shows the Starting Lineup in tournament game edit view when a lineup exists", () => {
     renderGameEditor("USSSA");
 
-    expect(screen.getByText("Active Lineup Grid")).toBeInTheDocument();
+    expect(screen.getByText("Starting Lineup")).toBeInTheDocument();
+  });
+
+  it("does not show the Active Lineup Grid in tournament game edit view", () => {
+    renderGameEditor("USSSA");
+
+    expect(screen.queryByText("Active Lineup Grid")).not.toBeInTheDocument();
+  });
+
+  it("only shows the first inning for tournament game lineups", () => {
+    renderGameEditor("USSSA");
+
+    expect(screen.getByText("Inn 1")).toBeInTheDocument();
+    expect(screen.queryByText("Inn 2")).not.toBeInTheDocument();
+  });
+
+  it("keeps the tournament starting lineup editable", async () => {
+    const { uiValue } = renderGameEditor("USSSA");
+
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Inning 1, P: Pitcher" })[0]
+    );
+
+    expect(uiValue.handleCellClick).toHaveBeenCalledWith(
+      0,
+      "P",
+      expect.objectContaining({ id: "p1", name: "Pitcher" })
+    );
   });
 
   it("shows the Active Lineup Grid in non-tournament game edit view when a lineup exists", () => {

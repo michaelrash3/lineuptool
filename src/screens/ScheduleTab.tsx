@@ -358,6 +358,8 @@ export const ScheduleTab = memo(() => {
     const presentPlayers = players.filter(
       (p: any) => currentGameAttendance[p.id] !== false
     );
+    const editableLineup =
+      isTournamentGame && lineup?.length ? lineup.slice(0, 1) : lineup;
     const presentCount = presentPlayers.length;
 
     return (
@@ -1116,7 +1118,7 @@ export const ScheduleTab = memo(() => {
 
         </div>
 
-        {lineup && (
+        {editableLineup && (
           <div className="bg-surface shadow-sm border border-line print:border-none print:shadow-none rounded-2xl overflow-hidden mb-12">
             <div className="p-5 flex flex-col lg:flex-row justify-between items-center gap-4 print:hidden bg-surface border-b border-line">
               <div className="flex items-center gap-4">
@@ -1130,11 +1132,11 @@ export const ScheduleTab = memo(() => {
                   />
                 </div>
                 <h2 className="text-xl font-black text-ink uppercase tracking-wider">
-                  Active Lineup Grid
+                  {isTournamentGame ? "Starting Lineup" : "Active Lineup Grid"}
                 </h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
-                {canEdit && (
+                {canEdit && !isTournamentGame && (
                   <div className="flex items-center bg-surface border border-line rounded-xl overflow-hidden shadow-sm">
                     <button
                       onClick={removeInning}
@@ -1210,7 +1212,7 @@ export const ScheduleTab = memo(() => {
             </div>
 
             <LineupGrid
-              lineup={lineup}
+              lineup={editableLineup}
               positions={getPositionsForInning(presentCount, gameDefenseSize)}
               swapSelection={canEdit ? swapSelection : null}
               onCellClick={canEdit ? handleCellClick : undefined}
