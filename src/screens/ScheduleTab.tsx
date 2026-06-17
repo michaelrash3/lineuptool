@@ -1130,11 +1130,11 @@ export const ScheduleTab = memo(() => {
                   />
                 </div>
                 <h2 className="text-xl font-black text-ink uppercase tracking-wider">
-                  Active Lineup Grid
+                  {isTournamentGame ? "Starting Lineup" : "Active Lineup Grid"}
                 </h2>
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
-                {canEdit && (
+                {canEdit && !isTournamentGame && (
                   <div className="flex items-center bg-surface border border-line rounded-xl overflow-hidden shadow-sm">
                     <button
                       onClick={removeInning}
@@ -1209,12 +1209,53 @@ export const ScheduleTab = memo(() => {
               </h2>
             </div>
 
-            <LineupGrid
-              lineup={lineup}
-              positions={getPositionsForInning(presentCount, gameDefenseSize)}
-              swapSelection={canEdit ? swapSelection : null}
-              onCellClick={canEdit ? handleCellClick : undefined}
-            />
+            {isTournamentGame ? (
+              <div className="p-6 print:p-4 bg-transparent">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {getPositionsForInning(presentCount, gameDefenseSize).map((pos) => {
+                    const assignedPlayer = lineup[0]?.[pos];
+                    return (
+                      <div
+                        key={pos}
+                        className="bg-surface border border-line rounded-xl p-3 shadow-sm flex items-center gap-3"
+                      >
+                        <span className="font-black text-[11px] w-10 text-center text-ink uppercase tracking-widest shrink-0">
+                          {pos}
+                        </span>
+                        <div className="h-8 w-px bg-line shrink-0" />
+                        <span className="text-sm font-black text-ink truncate">
+                          {assignedPlayer?.name || "Unassigned"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(lineup[0]?.BENCH || []).length > 0 && (
+                  <div className="mt-5 pt-5 border-t border-line/80">
+                    <h3 className="text-xs font-black text-ink-3 uppercase tracking-widest mb-3">
+                      Bench
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {(lineup[0]?.BENCH || []).map((player: any) => (
+                        <span
+                          key={player.id}
+                          className="bg-surface border border-line rounded-full px-3 py-1.5 text-xs font-bold text-ink"
+                        >
+                          {player.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <LineupGrid
+                lineup={lineup}
+                positions={getPositionsForInning(presentCount, gameDefenseSize)}
+                swapSelection={canEdit ? swapSelection : null}
+                onCellClick={canEdit ? handleCellClick : undefined}
+              />
+            )}
 
             {/* Relief options the tournament generator surfaced (pitch-count
                 checked). The scripted starters/subs plan was removed — the
