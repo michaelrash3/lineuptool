@@ -27,6 +27,8 @@ import {
   formatStatValue,
 } from "./modals/statTrend";
 import { PlayerDevelopmentReport } from "./PlayerDevelopmentReport";
+import { OfferLetterModal } from "./OfferLetterModal";
+import { makeOfferLetterContext } from "../utils/offerContext";
 
 // The chart-bearing components load lazily from ./modals/statTrendViz so this
 // eager module doesn't drag the recharts chunk into the startup bundle.
@@ -516,6 +518,7 @@ export const PlayerProfileModal = memo(() => {
     updatePastSeason,
     removePastSeason,
     currentRole,
+    user,
   } = useTeam();
   // Per-player development report (printable / shareable one-pager).
   const [showReport, setShowReport] = useState(false);
@@ -576,6 +579,7 @@ export const PlayerProfileModal = memo(() => {
   }, []);
 
   const [editingContact, setEditingContact] = useState(false);
+  const [showReturningOffer, setShowReturningOffer] = useState(false);
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -763,6 +767,7 @@ export const PlayerProfileModal = memo(() => {
     setEditingContact(false);
     setEditingPlayerName(false);
     setTrendStatKey(null);
+    setShowReturningOffer(false);
   };
 
   return (
@@ -1746,18 +1751,26 @@ export const PlayerProfileModal = memo(() => {
             }`}
           >
             <h3 className="t-h3">Contact</h3>
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
                 <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
                   <Icons.User className="w-4 h-4" /> Family Contact
                 </h4>
-                
+                <div className="flex flex-wrap gap-2">
                   <button
+                    type="button"
+                    onClick={() => setShowReturningOffer(true)}
+                    className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <Icons.FileText className="w-3.5 h-3.5" /> Returning Offer
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => setEditingContact(!editingContact)}
                     className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                   >
                     {editingContact ? "Done" : "Edit"}
                   </button>
-                
+                </div>
               </div>
               {[
                 { key: "parentName", label: "Parent / Guardian Name" },
@@ -1822,6 +1835,15 @@ export const PlayerProfileModal = memo(() => {
           </div>
         </div>
       </A11yDialog>
+      {showReturningOffer && (
+        <OfferLetterModal
+          open
+          onClose={() => setShowReturningOffer(false)}
+          kind="returning"
+          recipientEmail={player.email}
+          ctx={makeOfferLetterContext(team, user, player.name)}
+        />
+      )}
       {showReport && (
         <PlayerDevelopmentReport
           open

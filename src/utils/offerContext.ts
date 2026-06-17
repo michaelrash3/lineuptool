@@ -24,6 +24,7 @@ export const makeOfferLetterContext = (
     teamName: team?.name || "our team",
     teamFees: fee != null && fee > 0 ? formatCurrency(fee) : "",
     deposit: deposit != null && deposit > 0 ? formatCurrency(deposit) : "",
+    depositDueDate: finances.depositDueDate || "",
     coachName: user?.displayName || "Your coach",
     coachEmail: user?.email || "",
     coachPhone: (team?.headCoachPhone as string) || "",
