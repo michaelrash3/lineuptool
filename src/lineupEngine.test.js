@@ -3116,6 +3116,40 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     expect(res.lineup[0].P.id).toBe("t3");
   });
 
+  it("forced relief pitcher reruns best defense instead of doing a simple swap", () => {
+    const depthChart = {
+      P: ["t0"],
+      C: ["t2"],
+      "1B": ["t3"],
+      "2B": ["t4"],
+      "3B": ["t5"],
+      SS: ["t1"],
+      LF: ["t6"],
+      CF: ["t7"],
+      RF: ["t8"],
+    };
+    const baseline = generateTournamentLineup(input({ depthChart }));
+    expect(baseline.error).toBeUndefined();
+    expect(baseline.lineup[0].P.id).toBe("t0");
+    expect(baseline.lineup[0].BENCH.map((p) => p.id)).toContain("t10");
+
+    const relief = generateTournamentLineup(
+      input({
+        depthChart,
+        firstInningOverridesById: { P: "t10" },
+      })
+    );
+    expect(relief.error).toBeUndefined();
+    expect(relief.lineup[0].P.id).toBe("t10");
+    // If the in-game change were modeled as a simple P<->bench swap, the
+    // outgoing pitcher would just take t10's old bench spot. The tournament
+    // generator should instead keep optimizing the remaining defense.
+    expect(relief.lineup[0].SS.id).toBe("t1");
+    expect(relief.lineup[0].C.id).toBe("t2");
+    expect(relief.lineup[0]["1B"].id).toBe("t3");
+    expect(relief.lineup[0].BENCH.map((p) => p.id)).not.toContain("t1");
+  });
+
   it("relief options exclude the starter and carry pitch-count status", () => {
     // t0 threw 60 yesterday → can't start today and shows as not-ready relief.
     const tired = roster.map((p) =>

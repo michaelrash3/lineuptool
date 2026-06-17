@@ -1,8 +1,9 @@
 import React, { memo, useState, useRef, useCallback, useEffect } from "react";
 import { Icons } from "../icons";
-import { formatGameDateDisplay } from "../utils/helpers";
+import { formatGameDateDisplay, sameDayRoleSets } from "../utils/helpers";
 import {
   checkPitchEligibility,
+  generateTournamentLineup,
   maxPitchesForAge,
   resolvePitchRuleSet,
 } from "../lineupEngine";
@@ -257,9 +258,9 @@ export const InGameView = memo(() => {
   // One-tap pitcher assignment from the Available pool. Rec games swap the
   // chosen player into the P slot for the CURRENT inning only (reusing
   // performSwap, which keeps undo history + haptics). Tournament games
-  // re-flow the rest of the game in one tap: from this inning on, the new
-  // pitcher takes the mound and the outgoing pitcher takes whatever cell
-  // the new pitcher held in each remaining inning.
+  // re-run the tournament generator from the current active participants,
+  // force the selected reliever into P, and copy the generated defense to
+  // this inning plus every remaining inning.
   const assignPitcher = (playerId: any) => {
     if (game.tournamentPlan) {
       assignPitcherRestOfGame(playerId);
@@ -287,52 +288,93 @@ export const InGameView = memo(() => {
     performSwap({ type: "position", pos: "P" }, sourceSel);
   };
 
-  // Tournament pitching change: apply the P swap inning-by-inning from the
-  // current inning through the end, locating the new pitcher's cell in each
-  // inning (it can differ across scripted sub windows). One undo entry
-  // restores the whole pre-change lineup.
+  // Tournament pitching change: preserve completed innings, rebuild the best
+  // current/future defense with the selected reliever forced to P, and record
+  // one whole-lineup undo snapshot. This intentionally does NOT swap the
+  // pulled pitcher into the reliever's old field/bench spot.
   const assignPitcherRestOfGame = (playerId: any) => {
     if (!canEdit) return;
     const base = pendingLineup ?? game.lineup;
-    let changed = false;
-    let newPitcherName = "";
-    const next = base.map((innState: any, idx: number) => {
-      if (idx < currentInning || !innState) return innState;
-      let sourceSel: any = null;
-      for (const pos of positionOrder) {
-        if (innState[pos]?.id === playerId) {
-          sourceSel = { type: "position", pos };
-          break;
-        }
-      }
-      if (!sourceSel) {
-        const onBench = (innState.BENCH || []).find(
-          (p: any) => p?.id === playerId
-        );
-        if (onBench) sourceSel = { type: "bench", playerId };
-      }
-      if (!sourceSel) return innState;
-      if (sourceSel.type === "position" && sourceSel.pos === "P")
-        return innState;
-      const swapped = applySwap(innState, { type: "position", pos: "P" }, sourceSel);
-      if (!swapped) return innState;
-      newPitcherName = (swapped.P as any)?.name || newPitcherName;
-      changed = true;
-      return swapped;
+    const current = base[currentInning];
+    if (!current) return;
+
+    const activeIds = new Set<string>();
+    for (const pos of Object.keys(current || {})) {
+      if (pos === "BENCH") continue;
+      const p = current[pos];
+      if (p?.id) activeIds.add(p.id);
+    }
+    for (const p of current.BENCH || []) if (p?.id) activeIds.add(p.id);
+
+    const roster = team.players || [];
+    const byId = new Map<string, any>(roster.map((p: any) => [p.id, p]));
+    const activePlayers = [...activeIds]
+      .map((id) => byId.get(id))
+      .filter(Boolean) as any[];
+
+    if (!activeIds.has(playerId) || activePlayers.length === 0) return;
+    if (current.P?.id === playerId) return;
+
+    const result = generateTournamentLineup({
+      activePlayers,
+      allPlayers: roster.length ? roster : activePlayers,
+      games: team.games || [],
+      evaluationEvents: team.evaluationEvents || [],
+      currentGame: game,
+      firstInningOverridesById: { P: playerId },
+      totalInnings: base.length,
+      leagueRuleSet: game.leagueRuleSet || team.leagueRuleSet,
+      competitive: true,
+      depthChart: team.depthChart,
+      pitchRuleSet: resolvePitchRuleSet({
+        pitchRuleSet: team.pitchRuleSet,
+        customPitchLimit: team.customPitchLimit,
+        customRestTiers: team.customRestTiers,
+      }),
+      sameDayRoles: sameDayRoleSets(roster, game.date, game.id),
+      teamAge: team.teamAge,
+      defenseSize: game.defenseSize || team.defenseSize,
+      positionLock: game.positionLock || team.positionLock,
+      battingSize: game.battingSize || team.battingSize,
+      pitchingFormat: game.pitchingFormat || team.pitchingFormat,
+      catcherMaxInnings: game.catcherMaxInnings || team.catcherMaxInnings,
+      catcherConsecutive: game.catcherConsecutive ?? team.catcherConsecutive,
+      isBigGame: game.isBigGame === true,
+      seed: Date.now() + Math.floor(Math.random() * 1e6),
+      relaxFairness: game.applySeasonalFairness === false,
     });
-    if (!changed) return;
+
+    if (result.error) {
+      toast.push({
+        kind: "error",
+        title: "Pitching change failed",
+        message: result.error,
+        duration: 0,
+      });
+      return;
+    }
+
+    const changedInning = result.lineup?.[0];
+    if (!changedInning) return;
+    const cloneInning = (inning: any) => ({
+      ...inning,
+      BENCH: Array.isArray(inning.BENCH) ? [...inning.BENCH] : [],
+    });
+    const next = base.map((innState: any, idx: number) =>
+      idx < currentInning ? innState : cloneInning(changedInning)
+    );
+    const newPitcherName = (changedInning.P as any)?.name || "New pitcher";
+
     setPendingLineup(next);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
     flushTimerRef.current = setTimeout(flush, 500);
-    setInGameUndoStack(
-      [{ lineup: base }, ...inGameUndoStack].slice(0, 5)
-    );
+    setInGameUndoStack([{ lineup: base }, ...inGameUndoStack].slice(0, 5));
     setInGameSelection(null);
     tapHaptic();
     toast.push({
       kind: "success",
       title: "Pitching change",
-      message: `${newPitcherName || "New pitcher"} takes the mound from inning ${
+      message: `${newPitcherName} takes the mound from inning ${
         currentInning + 1
       } on — the rest of the lineup re-flowed around it.`,
     });
