@@ -651,6 +651,23 @@ export const isReturning = (
   return true;
 };
 
+// Planning-specific returning intent for Tryouts. Unlike isReturning(),
+// missing modern intent is intentionally Unknown so coaches do not plan
+// as if every current roster player has confirmed for next season.
+export type ReturningDecision = "yes" | "no" | "unknown";
+
+export const getReturningDecision = (
+  player: { returning?: boolean; playerStatus?: string } | null | undefined
+): ReturningDecision => {
+  if (!player) return "unknown";
+  if (player.returning === true) return "yes";
+  if (player.returning === false) return "no";
+  if (player.playerStatus === "released" || player.playerStatus === "declined") {
+    return "no";
+  }
+  return "unknown";
+};
+
 // True when a SlimPlayer (or any { id, name } slot from game.lineup or a
 // bench list) refers to the given roster player. Primary check is on
 // id; fallback handles the orphan-id case where a roster player was

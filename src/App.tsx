@@ -1663,31 +1663,47 @@ const TeamProvider = ({ children }: any) => {
     // afterward — they don't carry over to the new season regardless of
     // whether they were promoted (interest signups are untouched).
     const promotionSet = new Set(tryoutsToPromote);
-    const promotedPlayers = (teamData.tryoutSignups || [])
+    const promotedPairs = (teamData.tryoutSignups || [])
       .filter((s: any) => promotionSet.has(s.id))
-      .map((s: any) => ({
-        id: "p-" + Math.random().toString(36).slice(2, 10),
-        name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
-        number: s.tryoutNumber || s.number || "",
-        dob: s.dob || "",
-        bats: s.bats || "R",
-        throws: s.throws || "R",
-        comfortablePositions: [
-          ...(Array.isArray(s.comfortablePositions) ? s.comfortablePositions : []).filter(
-            (p: any) => p !== "C"
-          ),
-          ...(s.isCatcher === true ? ["C"] : []),
-        ],
-        parentName: s.parentName || "",
-        email: s.email || "",
-        phone: s.phone || "",
-        present: true,
-        playerStatus: "returning",
-        pastSeasons: [],
-        stats: blankStats(),
-        pitching: { recentPitches: 0, lastPitchDate: null },
-        tryoutSignupId: s.id,
-      }));
+      .map((s: any) => {
+        const player = {
+          id: "p-" + Math.random().toString(36).slice(2, 10),
+          name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
+          number: s.tryoutNumber || s.number || "",
+          dob: s.dob || "",
+          bats: s.bats || "R",
+          throws: s.throws || "R",
+          comfortablePositions: [
+            ...(Array.isArray(s.comfortablePositions) ? s.comfortablePositions : []).filter(
+              (p: any) => p !== "C"
+            ),
+            ...(s.isCatcher === true ? ["C"] : []),
+          ],
+          parentName: s.parentName || "",
+          email: s.email || "",
+          phone: s.phone || "",
+          present: true,
+          playerStatus: "returning",
+          pastSeasons: [],
+          stats: blankStats(),
+          pitching: { recentPitches: 0, lastPitchDate: null },
+          tryoutSignupId: s.id,
+        };
+        return { signup: s, player };
+      });
+    const promotedPlayers = promotedPairs.map(({ player }: any) => player);
+
+    const depositAmount = Math.max(0, Number(teamData.finances?.depositAmount) || 0);
+    const promotedDepositPayments = depositAmount > 0
+      ? promotedPairs
+          .filter(({ signup }: any) => signup.status === "accepted" && signup.depositPaid === true)
+          .map(({ signup, player }: any) => ({
+            id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
+            playerId: player.id,
+            date: String(signup.depositPaidAt || nowIso).slice(0, 10),
+            amount: depositAmount,
+          }))
+      : [];
 
     // Seed the new season's Preseason eval round: returning players carry
     // their most recent eval forward, promoted tryouts carry their tryout
@@ -1698,6 +1714,20 @@ const TeamProvider = ({ children }: any) => {
       promotedPlayers,
       { date: dateToIsoLocal(new Date()), evaluatorId: user?.uid }
     );
+
+    const newSeasonFinances = rollFinances
+      ? rollFinancesForNewSeason(teamData.finances, archivedSeason, nowIso)
+      : teamData.finances;
+    const financesWithTryoutDeposits =
+      promotedDepositPayments.length > 0 || rollFinances
+        ? {
+            ...(newSeasonFinances || {}),
+            payments: [
+              ...(((newSeasonFinances as any)?.payments || []) as any[]),
+              ...promotedDepositPayments,
+            ],
+          }
+        : undefined;
 
     // allowEmptyPlayers: a roster where nobody returns (and no tryout
     // promotions) is legitimately empty after an explicitly-confirmed
@@ -1712,13 +1742,9 @@ const TeamProvider = ({ children }: any) => {
         tryoutSignups: [],
         tryoutsOpen: false,
         lastSeasonAdvanceAt: nowIso,
-        ...(rollFinances
+        ...(financesWithTryoutDeposits
           ? {
-              finances: rollFinancesForNewSeason(
-                teamData.finances,
-                archivedSeason,
-                nowIso
-              ),
+              finances: financesWithTryoutDeposits,
             }
           : {}),
       },
@@ -3340,14 +3366,12 @@ const MainShell = () => {
     icon: Icons.Users,
     label: "Tryouts",
   };
-  // Head-only "Interest" tab. Only surfaces in the nav when the team
-  // has at least one interest signup (otherwise it's just a dead
-  // pixel for coaches who don't use the feature). The route stays
-  // accessible regardless so heads can find it via direct URL.
-  const interestButton =
-    !isAssistant && (team?.interestSignups?.length ?? 0) > 0
-      ? { id: "interest", icon: Icons.Clipboard, label: "Interest" }
-      : null;
+  // Head-only "Interest" tab. Keep it visible for heads even before the
+  // first lead so coaches can always open the inbox and confirm whether a
+  // dated submission landed in Interest or Tryouts.
+  const interestButton = !isAssistant
+    ? { id: "interest", icon: Icons.Clipboard, label: "Interest" }
+    : null;
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },

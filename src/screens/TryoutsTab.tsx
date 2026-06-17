@@ -10,7 +10,7 @@ import {
   getEvalCategoriesForTeam,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
-import { calculateBaseballAge } from "../utils/helpers";
+import { calculateBaseballAge, getReturningDecision } from "../utils/helpers";
 import { A11yDialog } from "../components/shared";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
@@ -65,12 +65,13 @@ const tryoutIsTooOld = (signup: any, team: any) => {
 // as "not yet evaluated" so the head knows to grade them first.
 const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: any) => {
   const rosterCap = Number(team?.rosterCap) || 12;
-  const returners = (team?.players || []).filter(
-    (p: any) =>
-      p.playerStatus !== "released" &&
-      p.playerStatus !== "declined" &&
-      p.playerStatus !== "accepted"
+  const currentRoster = (team?.players || []).filter(
+    (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout"
   );
+  const returningYes = currentRoster.filter((p: any) => getReturningDecision(p) === "yes");
+  const returningNo = currentRoster.filter((p: any) => getReturningDecision(p) === "no");
+  const returningUnknown = currentRoster.filter((p: any) => getReturningDecision(p) === "unknown");
+  const returners = returningYes;
   // Accepted tryouts are held in tryoutSignups (status "accepted") until
   // Advance Season — they already own a slot, so they don't compete.
   const acceptedSignups = (tryoutSignups || []).filter(
@@ -117,6 +118,9 @@ const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: a
   return {
     rosterCap,
     returnerCount: returners.length,
+    returningYesCount: returningYes.length,
+    returningNoCount: returningNo.length,
+    returningUnknownCount: returningUnknown.length,
     acceptedCount: acceptedSignups.length,
     slotsRemaining,
     makeIt,
@@ -134,9 +138,9 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any) => {
   const rosterCap = Number(team.rosterCap) || 12;
   const returners = (team.players || []).filter(
     (p: any) =>
-      p.playerStatus !== "released" &&
-      p.playerStatus !== "declined" &&
-      p.playerStatus !== "accepted"
+      p.playerStatus !== "accepted" &&
+      p.playerStatus !== "tryout" &&
+      getReturningDecision(p) === "yes"
   );
   // Combined grades cover ONLY current roster players via getCombinedGrades.
   // For each returner, sum the eval scores; sort descending.
@@ -203,6 +207,75 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any) => {
   return { verdict, tryoutScore, cutoff, positionalFit, rosterCap };
 };
 
+const rosterEvalScore = (player: any, evaluationEvents: any[], team: any) => {
+  const grades = getCombinedGrades(evaluationEvents || [], [player], {
+    teamAge: team?.teamAge,
+    games: team?.games || [],
+  });
+  const g = grades[player.id];
+  if (!g) return null;
+  return Object.values(g).reduce(
+    (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
+    0
+  );
+};
+
+const ReturningIntentPanel = memo(({ team, evaluationEvents, setPlayerReturning }: any) => {
+  const players = (team?.players || []).filter(
+    (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout"
+  );
+  if (players.length === 0) return null;
+  return (
+    <div className="glass-card p-4 sm:p-5 space-y-3">
+      <div>
+        <h3 className="t-h3 flex items-center gap-2">
+          <Icons.Clipboard className="w-4 h-4" /> Returning Intent
+        </h3>
+        <p className="text-xs text-ink-3 font-medium mt-1">
+          Head-coach planning assumptions only. Advance Season remains the final confirmation.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {players.map((p: any) => {
+          const decision = getReturningDecision(p);
+          const score = rosterEvalScore(p, evaluationEvents || [], team);
+          return (
+            <div key={p.id} className="flex items-center gap-3 flex-wrap bg-surface border border-line rounded-xl p-3">
+              <div className="flex-1 min-w-[160px]">
+                <div className="text-sm font-black text-ink">{p.name}</div>
+                <div className="text-[11px] text-ink-3 font-bold">
+                  Latest eval: {score == null ? "—" : score.toFixed(0)}
+                </div>
+              </div>
+              <div className="flex items-center gap-1" aria-label={`${p.name} returning intent`}>
+                {[["yes", "Yes"], ["no", "No"], ["unknown", "Unknown"]].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPlayerReturning?.(p.id, value === "unknown" ? null : value === "yes")}
+                    className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
+                      decision === value
+                        ? "bg-team-primary text-team-tertiary border-team-primary"
+                        : "bg-surface border-line text-ink-2 hover:bg-surface-2"
+                    }`}
+                    style={
+                      decision === value
+                        ? { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)", borderColor: "var(--team-primary)" }
+                        : undefined
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 // Three-bucket projection of who's likely to make the team — modeled
 // after the RosterDecisionsPanel on the Evaluation tab. Reads the
 // roster object built by computeRosterBuckets above; render-only,
@@ -242,11 +315,16 @@ const TeamImpactPanel = memo(({ roster }: any) => {
           <Icons.Clipboard className="w-4 h-4" /> Roster Projection
         </h3>
         <span className="t-eyebrow text-ink-3">
-          {roster.returnerCount} returning
-          {roster.acceptedCount > 0 ? ` · ${roster.acceptedCount} accepted` : ""}{" "}
+          {roster.returningYesCount} returning yes · {roster.returningNoCount} no · {roster.returningUnknownCount} unknown
+          {roster.acceptedCount > 0 ? ` · ${roster.acceptedCount} accepted tryout${roster.acceptedCount === 1 ? "" : "s"}` : ""}{" "}
           · {roster.slotsRemaining} open of {roster.rosterCap}
         </span>
       </div>
+      {roster.returningUnknownCount > 0 && (
+        <p className="text-xs text-warnfg font-bold bg-warn-bg border border-line rounded-lg px-3 py-2">
+          Projection uses confirmed Yes returners only; Unknown players are not counted toward next season slots until updated.
+        </p>
+      )}
       {empty ? (
         <p className="text-xs text-ink-3 font-medium italic">
           Grade {roster.notGraded.length > 0
@@ -331,6 +409,7 @@ export const TryoutsTab = memo(() => {
     deleteTryoutSignups,
     acceptTryout,
     saveTryoutEvaluation,
+    setPlayerReturning,
   } = useTeam();
   const toast = useToast();
   const {
@@ -510,6 +589,14 @@ export const TryoutsTab = memo(() => {
         </div>
       </div>
 
+      {isHead && (
+        <ReturningIntentPanel
+          team={team}
+          evaluationEvents={evaluationEvents}
+          setPlayerReturning={setPlayerReturning}
+        />
+      )}
+
       {isHead && roster && (tryoutSignups || []).length > 0 && (
         <TeamImpactPanel roster={roster} />
       )}
@@ -597,6 +684,7 @@ export const TryoutsTab = memo(() => {
                         </>
                       )}
                       {new Date(s.submittedAt).toLocaleDateString()}
+                      {s.tryoutDate ? ` · Tryout date: ${s.tryoutDate}` : ""}
                     </div>
                   </div>
                   {isHead && (
@@ -651,6 +739,25 @@ export const TryoutsTab = memo(() => {
                     </div>
                   )}
                   <StatusPill status={s.status} />
+                  {isHead && (s.status === "offered" || s.status === "accepted") && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateTryoutSignup?.(s.id, {
+                          depositPaid: !s.depositPaid,
+                          depositPaidAt: !s.depositPaid ? new Date().toISOString() : null,
+                        })
+                      }
+                      aria-pressed={s.depositPaid === true}
+                      className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
+                        s.depositPaid
+                          ? "bg-win-bg border-line text-win"
+                          : "bg-surface border-line text-ink-2 hover:bg-surface-2"
+                      }`}
+                    >
+                      {s.depositPaid ? "Deposit Paid" : "Mark Deposit Paid"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() =>

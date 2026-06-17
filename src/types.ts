@@ -83,9 +83,9 @@ export interface Player {
   // them back per game.
   absences?: string[];
   // Will this kid come back next season? Explicit boolean as of the
-  // returning-Y/N change. Default-undefined means "yes" — back-compat
-  // with rounds saved before this field existed. AdvanceSeasonModal
-  // explicitly sets false when the HC toggles a kid off.
+  // returning-Y/N change. For Advance Season, missing still means "yes"
+  // for back-compat via isReturning(); Tryouts planning treats missing as
+  // "unknown" via getReturningDecision().
   returning?: boolean;
   // Workflow status — slimmed to tryout-flow states only as of the
   // returning-Y/N change. The legacy "returning" / "released" values
@@ -211,6 +211,12 @@ export interface TryoutSignup {
   phone?: string;
   notes?: string;
   status?: "tryout" | "offered" | "accepted" | "declined";
+  tryoutDate?: string;
+  // Deposit commitment collected after an offer/acceptance. When an accepted
+  // tryout is promoted during Advance Season, this can seed the new season
+  // finances ledger as that player's first club-fee payment.
+  depositPaid?: boolean;
+  depositPaidAt?: string;
   // Attendance + check-in fields (set by the HC at tryouts).
   // present === true → showed up; false → no-show (eligible for bulk
   // delete via the End Tryout flow). Missing → not yet marked.

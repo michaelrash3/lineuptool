@@ -55,6 +55,7 @@ const datedMirrorDoc = {
     currentSeason: "Spring 2026",
     tryoutShareId: "abc",
     teamAge: "10U",
+    tryoutsOpen: true,
     tryoutDates: ["2020-04-10", "2099-05-22"],
   }),
 };
@@ -137,7 +138,7 @@ describe("TryoutsPortal submit validation", () => {
 });
 
 describe("TryoutsPortal tryout dates on interest link", () => {
-  it("shows only future dates and stores the selected date on the interest lead", async () => {
+  it("shows only future dates and stores a selected open tryout date as a tryout signup", async () => {
     renderPortal(datedMirrorDoc);
     await screen.findByText("Submit Interest");
 
@@ -158,10 +159,46 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     fireEvent.click(screen.getByText("Submit Interest"));
 
     await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
+    const signup = mockUpdateDoc.mock.calls[0][1].tryoutSignups.__arrayUnion;
+    expect(signup.tryoutDate).toBe("2099-05-22");
+    expect(signup.status).toBe("tryout");
+    expect(signup.primaryPosition).toBe("P");
+    expect(signup.canPitch).toBe(true);
+    expect(signup.canCatch).toBe(true);
+  });
+
+  it("keeps selected dates as interest leads when tryouts are not open", async () => {
+    renderPortal({
+      id: "team1",
+      data: () => ({
+        name: "Rockets",
+        currentSeason: "Spring 2026",
+        tryoutShareId: "abc",
+        teamAge: "10U",
+        tryoutsOpen: false,
+        tryoutDates: ["2099-05-22"],
+      }),
+    });
+    await screen.findByText("Submit Interest");
+
+    fireEvent.change(screen.getByLabelText(/tryout date/i), {
+      target: { value: "2099-05-22" },
+    });
+    fill(/first name/i, "Ava");
+    fill(/last name/i, "Rivera");
+    fill(/email/i, "parent@example.com");
+    fill(/phone/i, "5551234");
+    fireEvent.change(screen.getByLabelText(/does your player pitch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.change(screen.getByLabelText(/does your player catch/i), {
+      target: { value: "no" },
+    });
+    fireEvent.click(screen.getByText("Submit Interest"));
+
+    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
     const lead = mockUpdateDoc.mock.calls[0][1].interestSignups.__arrayUnion;
     expect(lead.tryoutDate).toBe("2099-05-22");
-    expect(lead.primaryPosition).toBe("P");
-    expect(lead.canPitch).toBe(true);
-    expect(lead.canCatch).toBe(true);
   });
+
 });
