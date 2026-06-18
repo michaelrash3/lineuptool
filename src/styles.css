@@ -402,21 +402,49 @@ body::before {
   box-shadow: var(--shadow-card), var(--card-ring);
 }
 
-/* Shared tab canvas for dashboard-style screens: wider, denser, and consistent
-   across the app without using frosted surfaces for content cards. */
+/* Shared tab canvas for dashboard-style screens. Desktop should use the
+   available width, bringing panels up beside each other whenever they can fit
+   and still read as functional dashboard cards. */
 .dashboard-shell {
   width: 100%;
-  max-width: 96rem;
-  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
 }
 
 .dashboard-shell > * + * {
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 @media (min-width: 1024px) {
-  .dashboard-shell > * + * {
-    margin-top: 1.25rem;
+  .dashboard-shell {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-auto-flow: dense;
+    align-items: start;
+    gap: 1.25rem;
+  }
+
+  .dashboard-shell > * {
+    grid-column: span 6;
+    min-width: 0;
+  }
+
+  /* Keep lead/hero panels and data-dense tables full-width. Everything else
+     gets a chance to sit side-by-side on desktop instead of staying in a long
+     vertical stack. */
+  .dashboard-shell > :first-child,
+  .dashboard-shell > .lg\:dashboard-full,
+  .dashboard-shell > .xl\:dashboard-full,
+  .dashboard-shell > :has(table),
+  .dashboard-shell > :has(.overflow-x-auto),
+  .dashboard-shell > :has(.min-w-full) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1536px) {
+  .dashboard-shell > .dashboard-third {
+    grid-column: span 4;
   }
 }
 
