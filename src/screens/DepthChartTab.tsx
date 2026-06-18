@@ -9,7 +9,7 @@ import {
   calcDefensiveScore,
   suggestPrimaryPosition,
 } from "../lineupEngine";
-import { canonicalizeOutfield, isActiveRosterPlayer } from "../utils/helpers";
+import { canonicalizeOutfield } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 
 // Full position names for the card headers.
@@ -138,7 +138,7 @@ const PositionCard = memo(
     };
 
     return (
-      <section className="border-b border-line pb-3">
+      <div className="glass cc-sheen shadow-card border border-line overflow-hidden">
         <div
           className="h-1 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -266,7 +266,7 @@ const PositionCard = memo(
             ))}
           </ol>
         )}
-      </section>
+      </div>
     );
   }
 );
@@ -276,10 +276,7 @@ export const DepthChartTab = memo(() => {
   const { openPlayerProfile } = useUI();
   // Memoized off `team` so the `|| fallback` defaults stay referentially stable
   // as deps for the useMemo blocks below.
-  const players: any[] = useMemo(
-    () => ((team as any).players || []).filter(isActiveRosterPlayer),
-    [team]
-  );
+  const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const evaluationEvents: any[] = useMemo(
     () => (team as any).evaluationEvents || [],
     [team]
@@ -365,8 +362,8 @@ export const DepthChartTab = memo(() => {
   };
 
   return (
-    <div className="dashboard-shell dashboard-shell--dense">
-      <div className="pb-4 border-b border-line flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="space-y-4 max-w-screen-2xl mx-auto">
+      <div className="glass cc-sheen shadow-card border border-line px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div
             className="p-2 rounded-full"
@@ -384,16 +381,16 @@ export const DepthChartTab = memo(() => {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-x-5 gap-y-1 text-center md:min-w-[22rem]">
-          <div>
+        <div className="grid grid-cols-3 gap-2 text-center md:min-w-[22rem]">
+          <div className="border border-line bg-surface/60 px-3 py-2">
             <div className="t-stat-num-sm tabular-nums">{players.length}</div>
             <div className="t-meta">Players</div>
           </div>
-          <div>
+          <div className="border border-line bg-surface/60 px-3 py-2">
             <div className="t-stat-num-sm tabular-nums">{board.length}</div>
             <div className="t-meta">Positions</div>
           </div>
-          <div>
+          <div className="border border-line bg-surface/60 px-3 py-2">
             <div className="t-stat-num-sm tabular-nums">
               {Object.keys(depthChart).length}
             </div>
@@ -403,14 +400,14 @@ export const DepthChartTab = memo(() => {
       </div>
 
       {players.length === 0 ? (
-        <div className="py-8 text-center text-ink-3 font-medium">
+        <div className="glass cc-sheen shadow-card border border-line p-8 text-center text-ink-3 font-medium">
           <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
             📋
           </div>
           Add players to your roster to build a depth chart.
         </div>
       ) : (
-        <div className="dashboard-full dashboard-card-grid dashboard-card-grid--depth">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {board.map(({ pos, ranked, customized }) => (
             <PositionCard
               key={pos}

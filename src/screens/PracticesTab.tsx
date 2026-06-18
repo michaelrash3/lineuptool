@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
-import { formatGameDateDisplay, isDepartedPlayer } from "../utils/helpers";
+import { formatGameDateDisplay } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
 
@@ -435,7 +435,7 @@ export const PracticesTab = memo(() => {
   const [adding, setAdding] = useState(false);
 
   const players = useMemo(
-    () => (team.players || []).filter((p: any) => p && p.inactive !== true && !isDepartedPlayer(p)),
+    () => (team.players || []).filter((p: any) => p && p.inactive !== true),
     [team.players]
   );
 
@@ -471,7 +471,7 @@ export const PracticesTab = memo(() => {
   }, [practices, players]);
 
   return (
-    <div className="dashboard-shell dashboard-shell--balanced">
+    <div className="space-y-6">
       <div className="pb-4 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span

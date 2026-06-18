@@ -8,8 +8,6 @@ import {
   isGameFinalized,
   deriveTournaments,
   isPlayerScheduledOut,
-  isActiveRosterPlayer,
-  isDepartedPlayer,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
@@ -365,8 +363,8 @@ export const ScheduleTab = memo(() => {
     const presentCount = presentPlayers.length;
 
     return (
-      <div className="dashboard-shell dashboard-shell--balanced">
-        <div className="dashboard-full border-b border-line pb-6 print:hidden">
+      <div className="space-y-6">
+        <div className="border-b border-line pb-6 print:hidden">
           <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line">
             <div className="flex items-center gap-4">
               <button
@@ -962,7 +960,7 @@ export const ScheduleTab = memo(() => {
                   {/* Inactive roster players don't take attendance — reactivate
                       them from the Roster tab to list them again. */}
                   {players
-                    .filter(isActiveRosterPlayer)
+                    .filter((p: any) => p.present !== false)
                     .map((p: any) => {
                     const scheduledOut = isPlayerScheduledOut(
                       p,
@@ -1004,11 +1002,11 @@ export const ScheduleTab = memo(() => {
                     );
                   })}
                 </div>
-                {players.some((p: any) => p.present === false && !isDepartedPlayer(p)) && (
+                {players.some((p: any) => p.present === false) && (
                   <p className="mt-2 text-[10px] font-bold text-ink-3">
-                    {players.filter((p: any) => p.present === false && !isDepartedPlayer(p)).length}{" "}
+                    {players.filter((p: any) => p.present === false).length}{" "}
                     inactive player
-                    {players.filter((p: any) => p.present === false && !isDepartedPlayer(p)).length === 1
+                    {players.filter((p: any) => p.present === false).length === 1
                       ? ""
                       : "s"}{" "}
                     not listed — reactivate from the Roster tab.

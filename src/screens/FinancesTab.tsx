@@ -30,7 +30,6 @@ import {
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
-  isActiveRosterPlayer,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
 import type { BudgetItem, TeamFinances } from "../types";
@@ -59,8 +58,8 @@ const BUDGET_PRESETS: Array<{
 ];
 
 // Same section chrome the Stats tab uses, kept local to the screen.
-const SectionCard = ({ icon: Icon, title, subtitle, children, className = "" }: any) => (
-  <section className={className}>
+const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
+  <section>
     <div className="pb-3 mb-1 border-b border-line-strong flex items-center gap-3">
       <Icon className="w-5 h-5 shrink-0" style={{ color: "var(--team-primary)" }} />
       <div className="min-w-0">
@@ -128,7 +127,7 @@ export const FinancesTab = memo(() => {
   const { team, updateTeam } = useTeam();
   const { openPlayerProfile } = useUI();
   const players: any[] = useMemo(
-    () => ((team as any).players || []).filter(isActiveRosterPlayer),
+    () => (team as any).players || [],
     [team]
   );
   const finances: TeamFinances = useMemo(
@@ -665,7 +664,7 @@ export const FinancesTab = memo(() => {
   };
 
   return (
-    <div className="dashboard-shell dashboard-shell--balanced">
+    <div className="max-w-5xl mx-auto space-y-6">
       {/* Club balance hero */}
       <FinanceHero
         balanceNow={summary.balanceNow}
@@ -682,7 +681,6 @@ export const FinancesTab = memo(() => {
         <SectionCard
           icon={Icons.Clipboard}
           title="Cash Flow"
-          className="dashboard-span-2"
         >
           <div className="pt-4 grid lg:grid-cols-2 gap-6 items-center">
             <CashflowChart months={months} />
@@ -703,7 +701,6 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Users}
         title="Collections — this season"
-        className="dashboard-span-2"
       >
         <div className="py-3 border-b border-line space-y-2">
           {carryoverPendingTotal > 0 && payerCount > 0 && (
@@ -1005,7 +1002,6 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Wallet}
         title="Ledger"
-        className="dashboard-full"
       >
         <div className="pt-4 space-y-3">
           <form onSubmit={addTransaction} className="flex flex-col sm:flex-row gap-2">
@@ -1457,7 +1453,6 @@ export const FinancesTab = memo(() => {
       <SectionCard
         icon={Icons.Clipboard}
         title="Budget Planner — next season"
-        className="dashboard-span-2"
       >
         <div className="p-4 sm:p-5 space-y-3">
           {/* Rough estimate learned from this season's money. Empty planner →

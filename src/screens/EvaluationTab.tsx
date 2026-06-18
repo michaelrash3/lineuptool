@@ -11,7 +11,6 @@ import {
   calculateBaseballAge,
   evalStatHint,
   evalRoundRecency,
-  isActiveRosterPlayer,
 } from "../utils/helpers";
 import {
   EVAL_CATEGORIES,
@@ -131,13 +130,9 @@ export const RosterDecisionsPanel = memo(() => {
     teamAge,
     currentSeason,
   } = team;
-  const activePlayers = useMemo(
-    () => (players || []).filter(isActiveRosterPlayer),
-    [players]
-  );
 
   const decisions = useMemo(() => {
-    if (!activePlayers || activePlayers.length === 0) return null;
+    if (!players || players.length === 0) return null;
 
     // Eval rounds for this user, oldest first
     const myEvals = (evaluationEvents || [])
@@ -156,7 +151,7 @@ export const RosterDecisionsPanel = memo(() => {
         sums[f] = 0;
         counts[f] = 0;
       }
-      for (const p of activePlayers) {
+      for (const p of players) {
         const s = p.stats || {};
         for (const f of fields) {
           const v = +s[f];
@@ -182,7 +177,7 @@ export const RosterDecisionsPanel = memo(() => {
       return parseInt(m[m.length - 1], 10);
     })();
 
-    const decisionRows = activePlayers.map((player: any) => {
+    const decisionRows = players.map((player: any) => {
       // ---- Latest eval grade (average across categories) ----
       let latestEvalAvg = null;
       const playerCats = getEvalCategoriesForPlayer(team?.pitchingFormat, player);
@@ -434,7 +429,7 @@ export const RosterDecisionsPanel = memo(() => {
     }
 
     return decisionRows;
-  }, [activePlayers, evaluationEvents, user, teamAge, currentSeason, team?.pitchingFormat]);
+  }, [players, evaluationEvents, user, teamAge, currentSeason, team?.pitchingFormat]);
 
   if (!decisions || decisions.length === 0) return null;
 
@@ -1252,7 +1247,7 @@ export const EvaluationTab = memo(() => {
   // order coaches call kids on the field. Numeric sort; unnumbered
   // players sink to the bottom with name as the tie-break.
   const players = useMemo(() => {
-    return (rawPlayers || []).filter(isActiveRosterPlayer).slice().sort((a: any, b: any) => {
+    return (rawPlayers || []).slice().sort((a: any, b: any) => {
       const na = parseInt(a.number, 10);
       const nb = parseInt(b.number, 10);
       const aValid = Number.isFinite(na);
@@ -1535,8 +1530,8 @@ export const EvaluationTab = memo(() => {
   const hasLastRound = myRounds.length > 0;
 
   return (
-    <div className="dashboard-shell dashboard-shell--balanced">
-      <div className="dashboard-span-2">
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div>
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}

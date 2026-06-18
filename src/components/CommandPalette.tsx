@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { isActiveRosterPlayer, isGameFinalized } from "../utils/helpers";
+import { isGameFinalized } from "../utils/helpers";
 
 // Lightweight fuzzy match: case-insensitive substring score. Returns -1 if
 // the query has zero characters present in the candidate; otherwise lower
@@ -61,7 +61,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
   const allItems = useMemo(() => {
     if (!team) return [];
     const items = [];
-    const players = (team.players || []).filter(isActiveRosterPlayer);
+    const players = team.players || [];
     const games = team.games || [];
 
     for (const p of players) {
