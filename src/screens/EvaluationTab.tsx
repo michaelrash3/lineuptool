@@ -1536,7 +1536,7 @@ export const EvaluationTab = memo(() => {
 
   return (
     <div className="dashboard-shell dashboard-shell--balanced">
-      <div>
+      <div className="dashboard-span-2">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}

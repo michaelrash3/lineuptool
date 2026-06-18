@@ -408,6 +408,8 @@ body::before {
    utilities so compact cards, forms, and summaries can condense while
    data-dense sections still get the room they need. */
 .dashboard-shell {
+  --dashboard-card-min: 20rem;
+  --dashboard-card-max: 34rem;
   width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -420,29 +422,60 @@ body::before {
 
 @media (min-width: 1024px) {
   .dashboard-shell {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(100%, var(--dashboard-card-min)), var(--dashboard-card-max))
+    );
     grid-auto-flow: dense;
     align-items: start;
+    justify-content: start;
     gap: 1.25rem;
   }
 
   .dashboard-shell > * {
-    grid-column: span 6;
     min-width: 0;
   }
 
-  .dashboard-shell--dense > * {
-    grid-column: span 4;
+  .dashboard-shell--dense {
+    --dashboard-card-min: 16rem;
+    --dashboard-card-max: 24rem;
   }
 
-  .dashboard-shell--wide > * {
-    grid-column: span 8;
+  .dashboard-shell--balanced {
+    --dashboard-card-min: 20rem;
+    --dashboard-card-max: 32rem;
   }
 
-  .dashboard-shell > :first-child,
+  .dashboard-shell--wide {
+    --dashboard-card-min: 28rem;
+    --dashboard-card-max: 48rem;
+  }
+
   .dashboard-shell > .dashboard-full,
   .dashboard-shell > .lg\:dashboard-full {
     grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+  }
+
+  .dashboard-shell > .dashboard-span-2 {
+    grid-column: span 2;
+  }
+
+  .dashboard-shell > .dashboard-span-3 {
+    grid-column: span 3;
+  }
+
+  .dashboard-shell > .dashboard-fit {
+    justify-self: start;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .dashboard-shell > .dashboard-table-fit {
+    min-width: min(100%, 30rem);
+    width: fit-content;
+    max-width: 100%;
   }
 
   .dashboard-shell > .dashboard-span-2 {
@@ -468,16 +501,48 @@ body::before {
     gap: 1.5rem;
   }
 
-  .dashboard-shell--balanced > * {
-    grid-column: span 4;
-  }
-
-  .dashboard-shell--wide > * {
-    grid-column: span 6;
-  }
-
   .dashboard-shell > .dashboard-third {
-    grid-column: span 4;
+    grid-column: auto;
+  }
+
+  .dashboard-shell > .xl\:dashboard-full {
+    grid-column: 1 / -1;
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.dashboard-card-grid {
+  --dashboard-grid-min: 18rem;
+  --dashboard-grid-max: 1fr;
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--dashboard-grid-min)), var(--dashboard-grid-max))
+  );
+}
+
+.dashboard-card-grid--dense {
+  --dashboard-grid-min: 14rem;
+  --dashboard-grid-max: 20rem;
+  justify-content: start;
+}
+
+.dashboard-card-grid--depth {
+  --dashboard-grid-min: 18.5rem;
+  --dashboard-grid-max: 1fr;
+}
+
+@media (min-width: 1536px) {
+  .dashboard-card-grid--depth {
+    grid-template-columns: repeat(auto-fit, minmax(19.5rem, 1fr));
+  }
+}
+
+@media (min-width: 1920px) {
+  .dashboard-card-grid--depth {
+    grid-template-columns: repeat(4, minmax(19.5rem, 1fr));
   }
 
   .dashboard-shell > .xl\:dashboard-full {
