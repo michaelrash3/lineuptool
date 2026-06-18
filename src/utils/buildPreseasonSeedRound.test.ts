@@ -34,20 +34,31 @@ describe("buildPreseasonSeedRound", () => {
     expect(round.date).toBe("2026-08-15");
   });
 
-  it("seeds promoted tryouts from their tryout eval, preferring the Head's", () => {
+  it("seeds promoted tryouts from date-grouped tryout sessions with head/assistant halves", () => {
+    const tryoutSessions = [
+      {
+        id: "tryout-2026-06-18",
+        date: "2026-06-18",
+        gradesByEvaluator: {
+          head: { coachRole: "Head", grades: { s9: { hitting: 5, fielding: 3 } } },
+          a1: { coachRole: "Assistant", grades: { s9: { hitting: 3, fielding: 5 } } },
+          a2: { coachRole: "Assistant", grades: { s9: { hitting: 1, fielding: 3 } } },
+        },
+      },
+    ];
+    const round = buildPreseasonSeedRound(
+      [],
+      [],
+      [{ id: "pNew", tryoutSignupId: "s9" }],
+      { ...meta, tryoutSessions }
+    );
+    expect(round.grades.pNew).toEqual({ hitting: 4, fielding: 4 });
+  });
+
+  it("can migrate legacy per-signup tryout evals into the preseason seed", () => {
     const endingEvents = [
-      {
-        id: "t-asst",
-        tryoutSignupId: "s9",
-        coachRole: "Assistant",
-        grades: { signup: { hitting: 3 } },
-      },
-      {
-        id: "t-head",
-        tryoutSignupId: "s9",
-        coachRole: "Head",
-        grades: { signup: { hitting: 4, speed: 5 } },
-      },
+      { id: "t-asst", date: "2026-06-18", tryoutSignupId: "s9", evaluatorId: "a1", coachRole: "Assistant", grades: { signup: { hitting: 3 } } },
+      { id: "t-head", date: "2026-06-18", tryoutSignupId: "s9", evaluatorId: "h1", coachRole: "Head", grades: { signup: { hitting: 5 } } },
     ];
     const round = buildPreseasonSeedRound(
       endingEvents,
@@ -55,7 +66,7 @@ describe("buildPreseasonSeedRound", () => {
       [{ id: "pNew", tryoutSignupId: "s9" }],
       meta
     );
-    expect(round.grades.pNew).toEqual({ hitting: 4, speed: 5 });
+    expect(round.grades.pNew).toEqual({ hitting: 4 });
   });
 
   it("returns null when there is nothing to seed", () => {

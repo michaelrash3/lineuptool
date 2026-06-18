@@ -1712,7 +1712,11 @@ const TeamProvider = ({ children }: any) => {
       teamData.evaluationEvents || [],
       updatedPlayers,
       promotedPlayers,
-      { date: dateToIsoLocal(new Date()), evaluatorId: user?.uid }
+      {
+        date: dateToIsoLocal(new Date()),
+        evaluatorId: user?.uid,
+        tryoutSessions: teamData.tryoutSessions || [],
+      }
     );
 
     const newSeasonFinances = rollFinances
@@ -1739,6 +1743,7 @@ const TeamProvider = ({ children }: any) => {
         players: [...updatedPlayers, ...promotedPlayers],
         games: [],
         evaluationEvents: preseasonRound ? [preseasonRound] : [],
+        tryoutSessions: [],
         tryoutSignups: [],
         tryoutsOpen: false,
         lastSeasonAdvanceAt: nowIso,
@@ -1941,6 +1946,7 @@ const TeamProvider = ({ children }: any) => {
     deleteInterestSignup,
     convertInterestToTryout,
     saveTryoutEvaluation,
+    saveTryoutEvaluations,
     acceptTryout,
   } = useTryoutFlows({ teamData, updateTeam, toast, user, activeTeamId });
 
@@ -2467,6 +2473,7 @@ const TeamProvider = ({ children }: any) => {
       convertInterestToTryout,
       acceptTryout,
       saveTryoutEvaluation,
+      saveTryoutEvaluations,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,
@@ -2552,6 +2559,7 @@ const TeamProvider = ({ children }: any) => {
       convertInterestToTryout,
       acceptTryout,
       saveTryoutEvaluation,
+      saveTryoutEvaluations,
       saveLineupTemplate,
       applyLineupTemplate,
       deleteLineupTemplate,

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { blankStats } from "../utils/helpers";
+import { blankStats, normalizeTryoutSessions } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Tryout + interest-signup flows extracted from App.tsx's TeamProvider.
@@ -206,33 +206,97 @@ export const useTryoutFlows = ({
     [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast],
   );
 
-  // Tryout grades live in team.evaluationEvents alongside roster
-  // evals but carry `tryoutSignupId` so getCombinedGrades ignores them
-  // when scoring the roster. One event per (evaluator, signup).
+  // Tryout grades live in date-grouped tryoutSessions, separate from the
+  // roster evaluationEvents collection. Each date has one session; each
+  // evaluator owns a grades map keyed by signup id inside that session.
   const saveTryoutEvaluation = useCallback(
-    (signupId: any, grades: any, coachRole: any) => {
+    (signupId: any, grades: any, coachRole: any, rawDate?: any) => {
       if (!user || !signupId) return;
-      const date = new Date().toISOString().slice(0, 10);
-      const existing = (teamData.evaluationEvents || []).find(
-        (e: any) => e.tryoutSignupId === signupId && e.evaluatorId === user.uid,
-      );
-      const event = {
-        id: existing?.id || "ev-" + Math.random().toString(36).slice(2, 10),
+      const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === signupId);
+      const date = String(rawDate || signup?.tryoutDate || new Date().toISOString().slice(0, 10));
+      const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+      const sessions = normalizeTryoutSessions(teamData);
+      const existing = sessions.find((s: any) => s.id === sessionId);
+      const now = Date.now();
+      const session = existing || {
+        id: sessionId,
         date,
+        label: `Tryout · ${date}`,
+        createdAt: now,
+        signupIds: [],
+        gradesByEvaluator: {},
+      };
+      const evaluator = session.gradesByEvaluator?.[user.uid] || {
         coachRole: coachRole || "Assistant",
         evaluatorId: user.uid,
-        label: `Tryout · ${signupId}`,
-        tryoutSignupId: signupId,
-        grades: { signup: { ...grades } },
+        grades: {},
+      };
+      const nextSession = {
+        ...session,
+        updatedAt: now,
+        signupIds: Array.from(new Set([...(session.signupIds || []), signupId])),
+        gradesByEvaluator: {
+          ...(session.gradesByEvaluator || {}),
+          [user.uid]: {
+            ...evaluator,
+            coachRole: coachRole || evaluator.coachRole || "Assistant",
+            evaluatorId: user.uid,
+            updatedAt: now,
+            grades: { ...(evaluator.grades || {}), [signupId]: { ...grades } },
+          },
+        },
       };
       const next = existing
-        ? teamData.evaluationEvents.map((e: any) =>
-            e.id === existing.id ? event : e,
-          )
-        : [...(teamData.evaluationEvents || []), event];
-      updateTeam({ evaluationEvents: next });
+        ? sessions.map((s: any) => (s.id === sessionId ? nextSession : s))
+        : [...sessions, nextSession];
+      updateTeam({ tryoutSessions: next });
     },
-    [user, teamData.evaluationEvents, updateTeam],
+    [user, teamData, updateTeam],
+  );
+
+  const saveTryoutEvaluations = useCallback(
+    (entries: any[], coachRole: any) => {
+      if (!user) return;
+      const sessions = normalizeTryoutSessions(teamData);
+      const byId = new Map(sessions.map((session: any) => [session.id, session]));
+      const now = Date.now();
+      for (const entry of entries || []) {
+        if (!entry?.signupId) continue;
+        const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === entry.signupId);
+        const date = String(entry.date || signup?.tryoutDate || new Date().toISOString().slice(0, 10));
+        const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+        const session: any = byId.get(sessionId) || {
+          id: sessionId,
+          date,
+          label: `Tryout · ${date}`,
+          createdAt: now,
+          signupIds: [],
+          gradesByEvaluator: {},
+        };
+        const evaluator = session.gradesByEvaluator?.[user.uid] || {
+          coachRole: coachRole || "Assistant",
+          evaluatorId: user.uid,
+          grades: {},
+        };
+        byId.set(sessionId, {
+          ...session,
+          updatedAt: now,
+          signupIds: Array.from(new Set([...(session.signupIds || []), entry.signupId])),
+          gradesByEvaluator: {
+            ...(session.gradesByEvaluator || {}),
+            [user.uid]: {
+              ...evaluator,
+              coachRole: coachRole || evaluator.coachRole || "Assistant",
+              evaluatorId: user.uid,
+              updatedAt: now,
+              grades: { ...(evaluator.grades || {}), [entry.signupId]: { ...(entry.grades || {}) } },
+            },
+          },
+        });
+      }
+      updateTeam({ tryoutSessions: [...byId.values()] });
+    },
+    [user, teamData, updateTeam],
   );
 
   // Accept-offer flow. Tryout accepts are oriented to the NEXT season by
@@ -316,6 +380,7 @@ export const useTryoutFlows = ({
     deleteInterestSignup,
     convertInterestToTryout,
     saveTryoutEvaluation,
+    saveTryoutEvaluations,
     acceptTryout,
   };
 };

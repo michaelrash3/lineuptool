@@ -247,6 +247,24 @@ export interface InterestSignup {
   notes?: string;
 }
 
+export interface TryoutSessionEvaluatorGrades {
+  coachRole?: "Head" | "Assistant";
+  evaluatorId?: string;
+  evaluatorName?: string;
+  grades?: Record<string, GradeMap>;
+  updatedAt?: number;
+}
+
+export interface TryoutSession {
+  id: string;
+  date: string;
+  label?: string;
+  createdAt?: number;
+  updatedAt?: number;
+  signupIds?: string[];
+  gradesByEvaluator?: Record<string, TryoutSessionEvaluatorGrades>;
+}
+
 export interface Team {
   name?: string;
   primaryColor?: string;
@@ -264,6 +282,7 @@ export interface Team {
   tryoutsPhase?: "open" | "intake_closed" | "completed";
   rosterCap?: number;
   tryoutSignups?: TryoutSignup[];
+  tryoutSessions?: TryoutSession[];
   // Year-round interest survey leads (PR 2). Lives outside tryoutsOpen
   // gate — the public form is always available at the standing share
   // URL so flyers stay useful between tryout cycles.

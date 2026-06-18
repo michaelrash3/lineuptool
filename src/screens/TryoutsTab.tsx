@@ -10,7 +10,7 @@ import {
   getEvalCategoriesForTeam,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
-import { calculateBaseballAge, getReturningDecision } from "../utils/helpers";
+import { calculateBaseballAge, getReturningDecision, normalizeTryoutSessions, combinedTryoutGradeForSignup, evaluatorTryoutGradeForSignup } from "../utils/helpers";
 import { A11yDialog } from "../components/shared";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
@@ -63,7 +63,7 @@ const tryoutIsTooOld = (signup: any, team: any) => {
 // up into Will Make / On The Bubble / Likely Cut piles. Too-old kids
 // are surfaced separately regardless of grade. Ungraded kids surface
 // as "not yet evaluated" so the head knows to grade them first.
-const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: any) => {
+const computeRosterBuckets = (team: any, tryoutSessions: any, tryoutSignups: any) => {
   const rosterCap = Number(team?.rosterCap) || 12;
   const currentRoster = (team?.players || []).filter(
     (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout"
@@ -83,10 +83,7 @@ const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: a
   );
 
   const scoreOfSignup = (signup: any) => {
-    const ev = (evaluationEvents || []).find(
-      (e: any) => e.tryoutSignupId === signup.id
-    );
-    const grade = ev?.grades?.signup ?? ev?.grades?.["__signup__"];
+    const grade = combinedTryoutGradeForSignup(tryoutSessions, signup.id, signup.tryoutDate);
     if (!grade) return null;
     return Object.values(grade).reduce(
       (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
@@ -134,7 +131,7 @@ const computeRosterBuckets = (team: any, evaluationEvents: any, tryoutSignups: a
 // Bottom-N + positional-fit impact analysis. Returning roster is the
 // current team.players excluding any with status === "released" /
 // "declined" / "accepted" (accepted are the tryouts themselves).
-const computeImpact = (signup: any, team: any, evaluationEvents: any) => {
+const computeImpact = (signup: any, team: any, evaluationEvents: any, tryoutSessions: any) => {
   const rosterCap = Number(team.rosterCap) || 12;
   const returners = (team.players || []).filter(
     (p: any) =>
@@ -163,13 +160,10 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any) => {
   const cutoff = nth?.score ?? 0;
   const wouldBumpName = nth?.p?.name || null;
 
-  // Tryout kid's eval score — only computed if a coach has actually
-  // graded them via team.evaluationEvents entries that reference the
-  // signup id. Until grades exist we surface "not graded yet".
-  const tryoutEvent = (evaluationEvents || []).find(
-    (e: any) => e.tryoutSignupId === signup.id
-  );
-  const tryoutGrade = tryoutEvent?.grades?.signup ?? tryoutEvent?.grades?.["__signup__"];
+  // Tryout kid's eval score — only computed once a coach has graded them
+  // in the date-grouped Tryouts session. Until grades exist we surface
+  // "not graded yet".
+  const tryoutGrade = combinedTryoutGradeForSignup(tryoutSessions, signup.id, signup.tryoutDate);
   const tryoutScore = tryoutGrade
     ? Object.values(tryoutGrade).reduce(
         (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
@@ -409,17 +403,23 @@ export const TryoutsTab = memo(() => {
     deleteTryoutSignups,
     acceptTryout,
     saveTryoutEvaluation,
+    saveTryoutEvaluations,
     setPlayerReturning,
   } = useTeam();
   const toast = useToast();
   const {
     tryoutSignups,
     evaluationEvents,
+    tryoutSessions: rawTryoutSessions,
     defenseSize,
     pitchingFormat,
   } = team;
 
-  const [openSignupId, setOpenSignupId] = useState(null);
+  const tryoutSessions = useMemo(
+    () => normalizeTryoutSessions(team),
+    [team]
+  );
+  const [openSignupIds, setOpenSignupIds] = useState(() => new Set());
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   // Two-tap confirm on signup delete — the trash icon previously fired
@@ -460,9 +460,9 @@ export const TryoutsTab = memo(() => {
   const roster = useMemo(
     () =>
       isHead
-        ? computeRosterBuckets(team, evaluationEvents, tryoutSignups)
+        ? computeRosterBuckets(team, tryoutSessions, tryoutSignups)
         : null,
-    [isHead, team, evaluationEvents, tryoutSignups]
+    [isHead, team, tryoutSessions, tryoutSignups]
   );
   // Map signup.id → "make" | "bubble" | "cut" | "ungraded" | "tooOld"
   // for the per-row badge.
@@ -491,56 +491,69 @@ export const TryoutsTab = memo(() => {
     [pitchingFormat]
   );
 
-  const openSignup = openSignupId
-    ? (tryoutSignups || []).find((s: any) => s.id === openSignupId)
-    : null;
-
-  // Local grade state for the currently-open signup card.
-  const [localGrades, setLocalGrades] = useState<Record<string, any>>({});
+  const [localGradesBySignup, setLocalGradesBySignup] = useState<Record<string, any>>({});
   React.useEffect(() => {
-    if (!openSignupId || !user) {
-      setLocalGrades({});
+    if (!user) {
+      setLocalGradesBySignup({});
       return;
     }
-    const ev = (evaluationEvents || []).find(
-      (e: any) =>
-        e.tryoutSignupId === openSignupId &&
-        e.evaluatorId === user.uid
-    );
-    const seed: Record<string, any> = ev?.grades?.signup ?? ev?.grades?.["__signup__"] ?? {};
-    const next: Record<string, any> = {};
-    for (const c of activeCategories) next[c.id] = seed[c.id] ?? EVAL_SCALE_DEFAULT;
-    if (seed.notes) next.notes = seed.notes;
-    if (Array.isArray(seed.suggestedPositions))
-      next.suggestedPositions = seed.suggestedPositions;
-    setLocalGrades(next);
-  }, [openSignupId, user, evaluationEvents, activeCategories]);
+    setLocalGradesBySignup((prev) => {
+      const next = { ...prev };
+      for (const signup of tryoutSignups || []) {
+        if (next[signup.id]) continue;
+        const seed: Record<string, any> = evaluatorTryoutGradeForSignup(
+          tryoutSessions,
+          signup.id,
+          user.uid,
+          signup.tryoutDate
+        ) ?? {};
+        const seeded: Record<string, any> = {};
+        for (const c of activeCategories) seeded[c.id] = seed[c.id] ?? EVAL_SCALE_DEFAULT;
+        if (seed.notes) seeded.notes = seed.notes;
+        if (Array.isArray(seed.suggestedPositions)) seeded.suggestedPositions = seed.suggestedPositions;
+        next[signup.id] = seeded;
+      }
+      return next;
+    });
+  }, [user, tryoutSignups, tryoutSessions, activeCategories]);
 
-  const setLocalGrade = (_pid: any, catId: any, value: any) =>
-    setLocalGrades((prev) => ({ ...prev, [catId]: value }));
-  const setLocalNotes = (_pid: any, notes: any) =>
-    setLocalGrades((prev) => ({ ...prev, notes }));
-  const toggleLocalPos = (_pid: any, pos: any) =>
-    setLocalGrades((prev) => {
-      const list = Array.isArray(prev.suggestedPositions)
-        ? prev.suggestedPositions
-        : [];
+  const updateLocalSignupGrades = (signupId: string, updater: (prev: any) => any) =>
+    setLocalGradesBySignup((prev) => ({ ...prev, [signupId]: updater(prev[signupId] || {}) }));
+
+  const setLocalGrade = (pid: any, catId: any, value: any) =>
+    updateLocalSignupGrades(pid, (prev) => ({ ...prev, [catId]: value }));
+  const setLocalNotes = (pid: any, notes: any) =>
+    updateLocalSignupGrades(pid, (prev) => ({ ...prev, notes }));
+  const toggleLocalPos = (pid: any, pos: any) =>
+    updateLocalSignupGrades(pid, (prev) => {
+      const list = Array.isArray(prev.suggestedPositions) ? prev.suggestedPositions : [];
       return {
         ...prev,
-        suggestedPositions: list.includes(pos)
-          ? list.filter((p: any) => p !== pos)
-          : [...list, pos],
+        suggestedPositions: list.includes(pos) ? list.filter((p: any) => p !== pos) : [...list, pos],
       };
     });
 
-  const saveTryoutEval = () => {
-    if (!openSignup) return;
+  const saveTryoutEval = (signup: any) => {
+    if (!signup) return;
     saveTryoutEvaluation?.(
-      openSignup.id,
-      localGrades,
-      isHead ? "Head" : "Assistant"
+      signup.id,
+      localGradesBySignup[signup.id] || {},
+      isHead ? "Head" : "Assistant",
+      signup.tryoutDate
     );
     toast.push({ kind: "success", title: "Tryout eval saved" });
+  };
+
+  const saveVisibleTryoutEvals = () => {
+    saveTryoutEvaluations?.(
+      filtered.map((signup: any) => ({
+        signupId: signup.id,
+        date: signup.tryoutDate,
+        grades: localGradesBySignup[signup.id] || {},
+      })),
+      isHead ? "Head" : "Assistant"
+    );
+    toast.push({ kind: "success", title: `${filtered.length} tryout eval${filtered.length === 1 ? "" : "s"} saved` });
   };
 
   // Recruiting letters are COPYABLE drafts (Gmail send is unreliable here), so
@@ -632,6 +645,16 @@ export const TryoutsTab = memo(() => {
             {s}
           </button>
         ))}
+        {filtered.length > 0 && (
+          <button
+            type="button"
+            onClick={saveVisibleTryoutEvals}
+            className="ml-auto px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-lg shadow-sm"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          >
+            Save Visible Evals
+          </button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -643,9 +666,9 @@ export const TryoutsTab = memo(() => {
         <div className="space-y-2">
           {filtered.map((s: any) => {
             const impact = isHead
-              ? computeImpact(s, team, evaluationEvents)
+              ? computeImpact(s, team, evaluationEvents, tryoutSessions)
               : null;
-            const expanded = openSignupId === s.id;
+            const expanded = openSignupIds.has(s.id);
             const bucket = bucketBySignupId.get(s.id);
             const bucketCfg = bucket ? (BUCKET_BADGES as any)[bucket] : null;
             const presence = s.present; // true | false | undefined
@@ -761,7 +784,12 @@ export const TryoutsTab = memo(() => {
                   <button
                     type="button"
                     onClick={() =>
-                      setOpenSignupId(expanded ? null : s.id)
+                      setOpenSignupIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(s.id)) next.delete(s.id);
+                        else next.add(s.id);
+                        return next;
+                      })
                     }
                     className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
                   >
@@ -867,7 +895,7 @@ export const TryoutsTab = memo(() => {
                           name: `${s.firstName} ${s.lastName}`,
                           number: s.number,
                         }}
-                        grades={localGrades}
+                        grades={localGradesBySignup[s.id] || {}}
                         activeCategories={activeCategories}
                         positions={activePositions}
                         onGradeChange={setLocalGrade}
@@ -877,7 +905,7 @@ export const TryoutsTab = memo(() => {
                       <div className="flex justify-end gap-2 mt-2">
                         <button
                           type="button"
-                          onClick={saveTryoutEval}
+                          onClick={() => saveTryoutEval(s)}
                           className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
                           style={{ backgroundColor: "var(--team-primary)" }}
                         >
