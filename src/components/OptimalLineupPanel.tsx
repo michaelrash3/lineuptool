@@ -2,7 +2,7 @@ import React, { memo, useMemo } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import { generateLineup, buildCompetitiveLineup } from "../lineupEngine";
-import { isGameFinalized, formatGameDateDisplay } from "../utils/helpers";
+import { isActiveRosterPlayer, isGameFinalized, formatGameDateDisplay } from "../utils/helpers";
 import { getLocalDateString, leagueRuleSetLabel } from "../constants/ui";
 
 // Roster-side preview of the recommended lineup for the next game, built from
@@ -39,7 +39,7 @@ export const OptimalLineupPanel = memo(() => {
 
   // Present = roster's own present/absent marking (what the coach toggles here).
   const present = useMemo(
-    () => (players || []).filter((p: any) => p.present !== false),
+    () => (players || []).filter(isActiveRosterPlayer),
     [players]
   );
 

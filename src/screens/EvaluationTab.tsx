@@ -11,6 +11,7 @@ import {
   calculateBaseballAge,
   evalStatHint,
   evalRoundRecency,
+  isActiveRosterPlayer,
 } from "../utils/helpers";
 import {
   EVAL_CATEGORIES,
@@ -130,9 +131,13 @@ export const RosterDecisionsPanel = memo(() => {
     teamAge,
     currentSeason,
   } = team;
+  const activePlayers = useMemo(
+    () => (players || []).filter(isActiveRosterPlayer),
+    [players]
+  );
 
   const decisions = useMemo(() => {
-    if (!players || players.length === 0) return null;
+    if (!activePlayers || activePlayers.length === 0) return null;
 
     // Eval rounds for this user, oldest first
     const myEvals = (evaluationEvents || [])
@@ -151,7 +156,7 @@ export const RosterDecisionsPanel = memo(() => {
         sums[f] = 0;
         counts[f] = 0;
       }
-      for (const p of players) {
+      for (const p of activePlayers) {
         const s = p.stats || {};
         for (const f of fields) {
           const v = +s[f];
@@ -177,7 +182,7 @@ export const RosterDecisionsPanel = memo(() => {
       return parseInt(m[m.length - 1], 10);
     })();
 
-    const decisionRows = players.map((player: any) => {
+    const decisionRows = activePlayers.map((player: any) => {
       // ---- Latest eval grade (average across categories) ----
       let latestEvalAvg = null;
       const playerCats = getEvalCategoriesForPlayer(team?.pitchingFormat, player);
@@ -429,7 +434,7 @@ export const RosterDecisionsPanel = memo(() => {
     }
 
     return decisionRows;
-  }, [players, evaluationEvents, user, teamAge, currentSeason, team?.pitchingFormat]);
+  }, [activePlayers, evaluationEvents, user, teamAge, currentSeason, team?.pitchingFormat]);
 
   if (!decisions || decisions.length === 0) return null;
 
@@ -1247,7 +1252,7 @@ export const EvaluationTab = memo(() => {
   // order coaches call kids on the field. Numeric sort; unnumbered
   // players sink to the bottom with name as the tie-break.
   const players = useMemo(() => {
-    return (rawPlayers || []).slice().sort((a: any, b: any) => {
+    return (rawPlayers || []).filter(isActiveRosterPlayer).slice().sort((a: any, b: any) => {
       const na = parseInt(a.number, 10);
       const nb = parseInt(b.number, 10);
       const aValid = Number.isFinite(na);

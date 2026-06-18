@@ -94,6 +94,7 @@ import {
   mergeTeamEntries,
   blockedRosterWipeReason,
   isPlayerScheduledOut,
+  isActiveRosterPlayer,
   financeSummary,
   formatCurrency,
   rollFinancesForNewSeason,
@@ -2778,7 +2779,7 @@ const UIProvider = ({ children }: any) => {
       for (const p of team.team.players) {
         if (next[p.id] === undefined) {
           next[p.id] =
-            p.present !== false && !isPlayerScheduledOut(p, gameDate);
+            isActiveRosterPlayer(p) && !isPlayerScheduledOut(p, gameDate);
           changed = true;
         }
       }

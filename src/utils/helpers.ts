@@ -3413,6 +3413,14 @@ export const rollFinancesForNewSeason = (
   };
 };
 
+// ---------- Roster status helpers ----------
+
+export const isDepartedPlayer = (player: any): boolean =>
+  player?.rosterStatus === "departed";
+
+export const isActiveRosterPlayer = (player: any): boolean =>
+  !!player && !isDepartedPlayer(player) && player.present !== false;
+
 // ---------- Team-list safety (user settings doc) ----------
 
 export type TeamListEntry = { id: string; name?: string };

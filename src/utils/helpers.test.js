@@ -41,6 +41,8 @@ import {
   latestGameLineMovement,
   seasonSeriesFromGameLines,
   isPlayerScheduledOut,
+  isDepartedPlayer,
+  isActiveRosterPlayer,
   addAbsenceDateRange,
   removeAbsenceDates,
   foldAbsenceRanges,
@@ -1816,6 +1818,19 @@ describe("mergeTeamEntries (settings teams-list safety)", () => {
       { id: "" },
     ]);
     expect(merged).toEqual([{ id: "t1", name: "My Team" }]);
+  });
+});
+
+describe("roster visibility helpers", () => {
+  it("treats departed players as non-active even if legacy present is true", () => {
+    expect(isDepartedPlayer({ rosterStatus: "departed", present: true })).toBe(true);
+    expect(isActiveRosterPlayer({ rosterStatus: "departed", present: true })).toBe(false);
+  });
+
+  it("keeps inactive and active roster visibility separate", () => {
+    expect(isActiveRosterPlayer({ id: "p1", present: false, rosterStatus: "inactive" })).toBe(false);
+    expect(isActiveRosterPlayer({ id: "p2", present: true, rosterStatus: "active" })).toBe(true);
+    expect(isActiveRosterPlayer({ id: "p3" })).toBe(true);
   });
 });
 

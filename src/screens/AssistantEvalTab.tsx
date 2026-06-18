@@ -13,6 +13,7 @@ import {
 } from "../constants/ui";
 import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList } from "../lineupEngine";
+import { isActiveRosterPlayer } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 
@@ -146,7 +147,7 @@ export const AssistantEvalTab = memo(() => {
   // how coaches verbally call kids on the field. Numeric sort with name
   // as a tiebreaker; unnumbered players sink to the bottom.
   const orderedPlayers = (players || [])
-    .filter((p: any) => p.present !== false)
+    .filter(isActiveRosterPlayer)
     .slice()
     .sort((a: any, b: any) => {
       const na = parseInt(a.number, 10);

@@ -9,7 +9,7 @@ import {
   calcDefensiveScore,
   suggestPrimaryPosition,
 } from "../lineupEngine";
-import { canonicalizeOutfield } from "../utils/helpers";
+import { canonicalizeOutfield, isActiveRosterPlayer } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 
 // Full position names for the card headers.
@@ -276,7 +276,10 @@ export const DepthChartTab = memo(() => {
   const { openPlayerProfile } = useUI();
   // Memoized off `team` so the `|| fallback` defaults stay referentially stable
   // as deps for the useMemo blocks below.
-  const players: any[] = useMemo(() => (team as any).players || [], [team]);
+  const players: any[] = useMemo(
+    () => ((team as any).players || []).filter(isActiveRosterPlayer),
+    [team]
+  );
   const evaluationEvents: any[] = useMemo(
     () => (team as any).evaluationEvents || [],
     [team]
