@@ -1071,7 +1071,7 @@ export const SettingsTab = memo(() => {
   );
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="dashboard-shell">
       <div className="pb-4 mb-5 border-b border-line flex items-center gap-3">
         <span
           className="block h-5 w-1 rounded-sm"

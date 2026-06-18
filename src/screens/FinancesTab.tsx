@@ -664,7 +664,7 @@ export const FinancesTab = memo(() => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="dashboard-shell">
       {/* Club balance hero */}
       <FinanceHero
         balanceNow={summary.balanceNow}

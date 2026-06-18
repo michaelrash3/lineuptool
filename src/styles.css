@@ -402,6 +402,24 @@ body::before {
   box-shadow: var(--shadow-card), var(--card-ring);
 }
 
+/* Shared tab canvas for dashboard-style screens: wider, denser, and consistent
+   across the app without using frosted surfaces for content cards. */
+.dashboard-shell {
+  width: 100%;
+  max-width: 96rem;
+  margin-inline: auto;
+}
+
+.dashboard-shell > * + * {
+  margin-top: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .dashboard-shell > * + * {
+    margin-top: 1.25rem;
+  }
+}
+
 /* Frosted glass panel — translucent, blurred, luminous edge. Use for floating
    chrome (headers, menus, command palette, sticky bars). */
 .glass {

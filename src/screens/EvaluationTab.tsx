@@ -1530,7 +1530,7 @@ export const EvaluationTab = memo(() => {
   const hasLastRound = myRounds.length > 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="dashboard-shell">
       <div>
         <div
           className="h-1.5 w-full"

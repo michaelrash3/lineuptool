@@ -178,7 +178,7 @@ export const AssistantEvalTab = memo(() => {
 
   if (viewingPastRound) {
     return (
-      <div className="max-w-5xl mx-auto space-y-4">
+      <div className="dashboard-shell">
         <div className="border-b border-line pb-5 flex items-center justify-between gap-3">
           <div>
             <h2 className="t-h2">Past Round</h2>
@@ -211,7 +211,7 @@ export const AssistantEvalTab = memo(() => {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
+    <div className="dashboard-shell">
       <div>
         <div
           className="h-1.5 w-full"

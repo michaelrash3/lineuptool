@@ -471,7 +471,7 @@ export const PracticesTab = memo(() => {
   }, [practices, players]);
 
   return (
-    <div className="space-y-6">
+    <div className="dashboard-shell">
       <div className="pb-4 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span
