@@ -1,4 +1,4 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import {
@@ -116,18 +116,37 @@ const orderForPosition = (
 // Per-position ranked card. Head coaches can nudge players up/down; the order
 // persists to team.depthChart. Assistants see it read-only.
 const PositionCard = memo(
-  ({ pos, ranked, customized, canEdit, onMove, onReset, onOpen }: any) => {
+  ({
+    pos,
+    ranked,
+    customized,
+    canEdit,
+    onDropPlayer,
+    onMove,
+    onReset,
+    onOpen,
+  }: any) => {
     const ids: string[] = ranked.map((p: any) => p.id);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+    const finishDrop = (toIndex: number) => {
+      if (!draggingId) return;
+      onDropPlayer(pos, ids, draggingId, toIndex);
+      setDraggingId(null);
+      setDropIndex(null);
+    };
+
     return (
-      <div className="border border-line">
+      <div className="glass cc-sheen shadow-card border border-line overflow-hidden">
         <div
-          className="h-1.5 w-full"
+          className="h-1 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
         />
-        <div className="p-4 border-b border-line flex items-center justify-between gap-3">
+        <div className="px-3 py-2.5 border-b border-line flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span
-              className="inline-flex items-center justify-center min-w-[2.25rem] px-2 py-1 rounded-lg text-xs font-black tracking-widest"
+              className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-sm text-[11px] font-black tracking-widest"
               style={{
                 backgroundColor: "var(--team-primary-15)",
                 color: "var(--team-primary)",
@@ -150,23 +169,66 @@ const PositionCard = memo(
         </div>
 
         {ranked.length === 0 ? (
-          <div className="p-4 text-xs text-ink-3 font-medium">
+          <div className="px-3 py-4 text-xs text-ink-3 font-medium">
             No players are set comfortable here yet.
           </div>
         ) : (
-          <ol className="divide-y divide-line">
+          <ol
+            className="divide-y divide-line"
+            onDragOver={(event) => {
+              if (!canEdit || !draggingId) return;
+              event.preventDefault();
+              setDropIndex(ranked.length);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              finishDrop(ranked.length);
+            }}
+          >
             {ranked.map((p: any, idx: number) => (
               <li
                 key={p.id}
-                className="px-3 py-2 flex items-center gap-3 hover:bg-surface transition-colors"
+                draggable={canEdit}
+                onDragStart={(event) => {
+                  setDraggingId(p.id);
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", p.id);
+                }}
+                onDragEnter={(event) => {
+                  event.stopPropagation();
+                  canEdit && draggingId && setDropIndex(idx);
+                }}
+                onDragOver={(event) => {
+                  if (!canEdit || !draggingId) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropIndex(idx);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  finishDrop(idx);
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDropIndex(null);
+                }}
+                className={`px-2.5 py-1.5 flex items-center gap-2 transition-colors ${
+                  canEdit ? "cursor-grab active:cursor-grabbing" : ""
+                } ${draggingId === p.id ? "opacity-45" : "hover:bg-surface"} ${
+                  dropIndex === idx && draggingId !== p.id
+                    ? "bg-[var(--team-primary-15)] shadow-[inset_3px_0_0_var(--team-primary)]"
+                    : ""
+                }`}
               >
-                <span className="w-5 text-center font-black tabular-nums text-ink-3 text-xs">
+                <span className="w-5 text-center font-black tabular-nums text-ink-3 text-[11px]">
                   {idx + 1}
                 </span>
                 <button
                   type="button"
                   onClick={() => onOpen?.(p.id)}
-                  className="flex-1 min-w-0 text-left font-extrabold text-ink hover:text-team-primary truncate"
+                  className="flex-1 min-w-0 text-left text-sm font-extrabold text-ink hover:text-team-primary truncate"
                 >
                   {p.name}
                   {p.number != null && p.number !== "" && (
@@ -176,13 +238,16 @@ const PositionCard = memo(
                   )}
                 </button>
                 {canEdit && (
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div
+                    className="flex items-center gap-1 shrink-0"
+                    aria-label="Reorder controls"
+                  >
                     <button
                       type="button"
                       onClick={() => onMove(pos, ids, idx, -1)}
                       disabled={idx === 0}
                       aria-label={`Move ${p.name} up`}
-                      className="p-1 rounded-md border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 rounded-sm border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <Icons.ChevronUp className="w-4 h-4" />
                     </button>
@@ -191,7 +256,7 @@ const PositionCard = memo(
                       onClick={() => onMove(pos, ids, idx, 1)}
                       disabled={idx === ranked.length - 1}
                       aria-label={`Move ${p.name} down`}
-                      className="p-1 rounded-md border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="p-1 rounded-sm border border-line text-ink-2 hover:bg-surface-2 disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                       <Icons.ChevronDown className="w-4 h-4" />
                     </button>
@@ -276,15 +341,30 @@ export const DepthChartTab = memo(() => {
     updateTeam({ depthChart: { ...depthChart, [pos]: next } });
   };
 
+  const dropPlayer = (
+    pos: string,
+    ids: string[],
+    playerId: string,
+    toIndex: number
+  ) => {
+    const fromIndex = ids.indexOf(playerId);
+    if (fromIndex < 0) return;
+    const next = [...ids];
+    const [moved] = next.splice(fromIndex, 1);
+    const adjustedIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    next.splice(Math.max(0, Math.min(adjustedIndex, next.length)), 0, moved);
+    updateTeam({ depthChart: { ...depthChart, [pos]: next } });
+  };
+
   const reset = (pos: string) => {
     const { [pos]: _drop, ...rest } = depthChart;
     updateTeam({ depthChart: rest });
   };
 
   return (
-    <div className="space-y-6">
-      <div className="border-b border-line pb-6">
-        <div className="px-1 py-4 flex items-center gap-3">
+    <div className="space-y-4 max-w-screen-2xl mx-auto">
+      <div className="glass cc-sheen shadow-card border border-line px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
           <div
             className="p-2 rounded-full"
             style={{ backgroundColor: "var(--team-primary-15)" }}
@@ -296,19 +376,38 @@ export const DepthChartTab = memo(() => {
           </div>
           <div>
             <h1 className="t-h1">Depth Chart</h1>
+            <p className="t-body text-xs mt-0.5">
+              Drag players into order, or use the arrow buttons for precise moves.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center md:min-w-[22rem]">
+          <div className="border border-line bg-surface/60 px-3 py-2">
+            <div className="t-stat-num-sm tabular-nums">{players.length}</div>
+            <div className="t-meta">Players</div>
+          </div>
+          <div className="border border-line bg-surface/60 px-3 py-2">
+            <div className="t-stat-num-sm tabular-nums">{board.length}</div>
+            <div className="t-meta">Positions</div>
+          </div>
+          <div className="border border-line bg-surface/60 px-3 py-2">
+            <div className="t-stat-num-sm tabular-nums">
+              {Object.keys(depthChart).length}
+            </div>
+            <div className="t-meta">Custom</div>
           </div>
         </div>
       </div>
 
       {players.length === 0 ? (
-        <div className="border-b border-line p-8 text-center text-ink-3 font-medium">
+        <div className="glass cc-sheen shadow-card border border-line p-8 text-center text-ink-3 font-medium">
           <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
             📋
           </div>
           Add players to your roster to build a depth chart.
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {board.map(({ pos, ranked, customized }) => (
             <PositionCard
               key={pos}
@@ -316,6 +415,7 @@ export const DepthChartTab = memo(() => {
               ranked={ranked}
               customized={customized}
               canEdit={canEdit}
+              onDropPlayer={dropPlayer}
               onMove={move}
               onReset={reset}
               onOpen={openPlayerProfile}
