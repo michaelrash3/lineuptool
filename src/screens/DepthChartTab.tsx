@@ -138,7 +138,7 @@ const PositionCard = memo(
     };
 
     return (
-      <div className="glass cc-sheen shadow-card border border-line overflow-hidden">
+      <section className="border-b border-line pb-3">
         <div
           className="h-1 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -266,7 +266,7 @@ const PositionCard = memo(
             ))}
           </ol>
         )}
-      </div>
+      </section>
     );
   }
 );
@@ -362,8 +362,8 @@ export const DepthChartTab = memo(() => {
   };
 
   return (
-    <div className="space-y-4 max-w-screen-2xl mx-auto">
-      <div className="glass cc-sheen shadow-card border border-line px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <div className="dashboard-shell">
+      <div className="pb-4 border-b border-line flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div
             className="p-2 rounded-full"
@@ -381,16 +381,16 @@ export const DepthChartTab = memo(() => {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center md:min-w-[22rem]">
-          <div className="border border-line bg-surface/60 px-3 py-2">
+        <div className="grid grid-cols-3 gap-x-5 gap-y-1 text-center md:min-w-[22rem]">
+          <div>
             <div className="t-stat-num-sm tabular-nums">{players.length}</div>
             <div className="t-meta">Players</div>
           </div>
-          <div className="border border-line bg-surface/60 px-3 py-2">
+          <div>
             <div className="t-stat-num-sm tabular-nums">{board.length}</div>
             <div className="t-meta">Positions</div>
           </div>
-          <div className="border border-line bg-surface/60 px-3 py-2">
+          <div>
             <div className="t-stat-num-sm tabular-nums">
               {Object.keys(depthChart).length}
             </div>
@@ -400,7 +400,7 @@ export const DepthChartTab = memo(() => {
       </div>
 
       {players.length === 0 ? (
-        <div className="glass cc-sheen shadow-card border border-line p-8 text-center text-ink-3 font-medium">
+        <div className="py-8 text-center text-ink-3 font-medium">
           <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
             📋
           </div>

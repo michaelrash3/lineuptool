@@ -53,7 +53,7 @@ export const InterestTab = memo(() => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="dashboard-shell">
       <div>
         <div className="border-b border-line pb-5">
           <h2 className="t-h2 flex items-center gap-3">

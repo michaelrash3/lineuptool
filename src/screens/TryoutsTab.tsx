@@ -708,7 +708,7 @@ export const TryoutsTab = memo(() => {
   const [acceptChoice, setAcceptChoice] = useState<any | null>(null);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="dashboard-shell">
       <div className="glass-card">
         <div
           className="h-1.5 w-full"
