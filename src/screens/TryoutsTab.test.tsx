@@ -110,6 +110,33 @@ describe("computeRosterProjection", () => {
     expect(projection.nextBest[0]).toMatchObject({ kind: "tryout", name: "Open Candidate" });
   });
 
+  it("values left-handed pitchers without giving them middle-infield fit credit", () => {
+    const team = baseTeam({
+      rosterCap: 2,
+      players: [
+        { id: "yes-1", name: "Locked Returner", returning: true, comfortablePositions: ["C"] },
+      ],
+    });
+    const projection = computeRosterProjection(
+      team,
+      session("lefty-1", grade(3, ["P", "SS"])),
+      [
+        {
+          id: "lefty-1",
+          firstName: "Lefty",
+          lastName: "Arm",
+          status: "tryout",
+          throws: "L",
+          tryoutDate: "2026-07-01",
+        },
+      ],
+      []
+    );
+
+    expect(projection.recommended[0].fitReasons).toEqual(["fills P"]);
+    expect(projection.recommended[0].fitBonus).toBe(8);
+  });
+
   it("surfaces ungraded candidates as needing evaluation", () => {
     const team = baseTeam({
       players: [

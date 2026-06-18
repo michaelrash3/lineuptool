@@ -196,6 +196,19 @@ export const EVAL_SCALE_DEFAULT = 3;
 // EVAL_SCALE_DEFAULT) adds nothing, weak pitching never subtracts, and an elite
 // pitcher (all max) earns the full bonus. Returns 0..PITCHER_ROSTER_PREMIUM_MAX.
 export const PITCHER_ROSTER_PREMIUM_MAX = 15;
+export const LEFT_HANDED_PITCHER_ROSTER_PREMIUM = 4;
+
+export const isLeftHandedThrower = (player?: { throws?: string | null }): boolean =>
+  String(player?.throws || "").trim().toUpperCase().startsWith("L");
+
+export const leftHandedPitcherRosterPremium = (player?: {
+  comfortablePositions?: string[];
+  throws?: string | null;
+}): number =>
+  playerIsPitcher(player) && isLeftHandedThrower(player)
+    ? LEFT_HANDED_PITCHER_ROSTER_PREMIUM
+    : 0;
+
 export const pitcherRosterPremium = (
   pitcherScore: number,
   weightSum: number

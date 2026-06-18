@@ -4,6 +4,8 @@ import {
   playerIsPitcher,
   playerIsCatcher,
   pitcherRosterPremium,
+  leftHandedPitcherRosterPremium,
+  LEFT_HANDED_PITCHER_ROSTER_PREMIUM,
   PITCHER_ROSTER_PREMIUM_MAX,
   EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
@@ -20,6 +22,14 @@ describe("playerIsPitcher / playerIsCatcher", () => {
     expect(playerIsCatcher({ comfortablePositions: ["1B"] })).toBe(false);
     expect(playerIsPitcher(undefined)).toBe(false);
     expect(playerIsCatcher({})).toBe(false);
+  });
+
+  it("adds the scarcity premium only for left-handed pitchers", () => {
+    expect(leftHandedPitcherRosterPremium({ comfortablePositions: ["P"], throws: "L" })).toBe(
+      LEFT_HANDED_PITCHER_ROSTER_PREMIUM
+    );
+    expect(leftHandedPitcherRosterPremium({ comfortablePositions: ["P"], throws: "R" })).toBe(0);
+    expect(leftHandedPitcherRosterPremium({ comfortablePositions: ["1B"], throws: "L" })).toBe(0);
   });
 });
 
