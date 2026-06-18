@@ -477,6 +477,23 @@ body::before {
     width: fit-content;
     max-width: 100%;
   }
+
+  .dashboard-shell > .dashboard-span-2 {
+    grid-column: span 6;
+  }
+
+  .dashboard-shell > .dashboard-span-3 {
+    grid-column: span 9;
+  }
+
+  .dashboard-shell > .dashboard-fit {
+    grid-column: span 4;
+  }
+
+  .dashboard-shell > .dashboard-table-fit {
+    grid-column: span 6;
+    min-width: min(100%, 30rem);
+  }
 }
 
 @media (min-width: 1536px) {
@@ -515,6 +532,36 @@ body::before {
 .dashboard-card-grid--depth {
   --dashboard-grid-min: 18.5rem;
   --dashboard-grid-max: 1fr;
+}
+
+@media (min-width: 1536px) {
+  .dashboard-card-grid--depth {
+    grid-template-columns: repeat(auto-fit, minmax(19.5rem, 1fr));
+  }
+}
+
+@media (min-width: 1920px) {
+  .dashboard-card-grid--depth {
+    grid-template-columns: repeat(4, minmax(19.5rem, 1fr));
+  }
+
+  .dashboard-shell > .xl\:dashboard-full {
+    grid-column: 1 / -1;
+  }
+}
+
+.dashboard-card-grid {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.dashboard-card-grid--dense {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.dashboard-card-grid--depth {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18.5rem), 1fr));
 }
 
 @media (min-width: 1536px) {
