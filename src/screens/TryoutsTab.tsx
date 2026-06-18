@@ -8,6 +8,7 @@ import {
 } from "../lineupEngine";
 import {
   getEvalCategoriesForTeam,
+  getEvalCategoriesForPlayer,
   EVAL_SCALE_DEFAULT,
 } from "../constants/ui";
 import { calculateBaseballAge, getReturningDecision, normalizeTryoutSessions, combinedTryoutGradeForSignup, evaluatorTryoutGradeForSignup } from "../utils/helpers";
@@ -56,14 +57,96 @@ const tryoutIsTooOld = (signup: any, team: any) => {
   return age > ceiling;
 };
 
-// Roster-decision 3-bucket projection across the tryout pool. Returners
-// are concrete (they're on the team), so the question is only who fills
-// the remaining slots. Tryouts compete with each other on cumulative
-// eval grade — same scoring the per-row impact used to do, just rolled
-// up into Will Make / On The Bubble / Likely Cut piles. Too-old kids
-// are surfaced separately regardless of grade. Ungraded kids surface
-// as "not yet evaluated" so the head knows to grade them first.
-const computeRosterBuckets = (team: any, tryoutSessions: any, tryoutSignups: any) => {
+type RosterProjectionCandidateKind = "unknown" | "tryout";
+type RosterProjectionBucket = "recommended" | "next" | "below";
+
+export type RosterProjectionCandidate = {
+  kind: RosterProjectionCandidateKind;
+  id: string;
+  name: string;
+  player?: any;
+  signup?: any;
+  score: number | null;
+  baseScore: number | null;
+  fitBonus: number;
+  fitReasons: string[];
+  bucket?: RosterProjectionBucket;
+};
+
+type RosterProjection = {
+  rosterCap: number;
+  returningYesCount: number;
+  returningNoCount: number;
+  returningUnknownCount: number;
+  acceptedCount: number;
+  lockedCount: number;
+  slotsRemaining: number;
+  recommended: RosterProjectionCandidate[];
+  nextBest: RosterProjectionCandidate[];
+  belowLine: RosterProjectionCandidate[];
+  needsEvaluation: RosterProjectionCandidate[];
+  tooOld: any[];
+};
+
+const numericGradeScore = (grade: any, categories: any[]) => {
+  if (!grade) return null;
+  let score = 0;
+  let used = 0;
+  for (const cat of categories || []) {
+    if (cat?.inputKind === "mph") continue;
+    const value = grade?.[cat.id];
+    if (typeof value !== "number" || !Number.isFinite(value)) continue;
+    score += value * (Number(cat.weight) || 1);
+    used++;
+  }
+  return used > 0 ? score : null;
+};
+
+const hasRosterEvaluation = (playerId: string, evaluationEvents: any[]) =>
+  (evaluationEvents || []).some((e: any) => {
+    if (e?.tryoutSignupId || e?.tryoutSessionId) return false;
+    return !!e?.grades?.[playerId];
+  });
+
+const positionsForTryout = (grade: any, signup: any): string[] => {
+  if (Array.isArray(grade?.suggestedPositions) && grade.suggestedPositions.length) {
+    return grade.suggestedPositions;
+  }
+  return Array.isArray(signup?.comfortablePositions) ? signup.comfortablePositions : [];
+};
+
+const uniquePositions = (positions: any[]) =>
+  [...new Set((positions || []).map((p) => String(p || "").trim()).filter(Boolean))];
+
+const fitBonusForPositions = (positions: string[], lockedPositions: Map<string, number>) => {
+  let fitBonus = 0;
+  const fitReasons: string[] = [];
+  for (const pos of uniquePositions(positions)) {
+    const count = lockedPositions.get(pos) || 0;
+    if (count === 0) {
+      fitBonus += 4;
+      fitReasons.push(`fills ${pos}`);
+    } else if ((pos === "P" || pos === "C") && count < 2) {
+      fitBonus += 3;
+      fitReasons.push(`thin at ${pos}`);
+    } else if (count < 3) {
+      fitBonus += 1;
+      fitReasons.push(`adds ${pos} depth`);
+    }
+  }
+  return { fitBonus, fitReasons };
+};
+
+// Combined next-season roster projection. Confirmed Yes returners and accepted
+// tryouts are locked slots. Unknown current players and eligible, undecided,
+// graded tryouts compete together for the remaining slots on weighted eval
+// score plus an explainable positional-fit bonus.
+export const computeRosterProjection = (
+  team: any,
+  tryoutSessions: any,
+  tryoutSignups: any,
+  evaluationEvents: any[] = []
+): RosterProjection => {
   const rosterCap = Number(team?.rosterCap) || 12;
   const currentRoster = (team?.players || []).filter(
     (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout"
@@ -71,59 +154,93 @@ const computeRosterBuckets = (team: any, tryoutSessions: any, tryoutSignups: any
   const returningYes = currentRoster.filter((p: any) => getReturningDecision(p) === "yes");
   const returningNo = currentRoster.filter((p: any) => getReturningDecision(p) === "no");
   const returningUnknown = currentRoster.filter((p: any) => getReturningDecision(p) === "unknown");
-  const returners = returningYes;
-  // Accepted tryouts are held in tryoutSignups (status "accepted") until
-  // Advance Season — they already own a slot, so they don't compete.
-  const acceptedSignups = (tryoutSignups || []).filter(
-    (s: any) => s.status === "accepted"
-  );
-  const slotsRemaining = Math.max(
-    0,
-    rosterCap - returners.length - acceptedSignups.length
-  );
+  const acceptedSignups = (tryoutSignups || []).filter((s: any) => s.status === "accepted");
+  const lockedCount = returningYes.length + acceptedSignups.length;
+  const slotsRemaining = Math.max(0, rosterCap - lockedCount);
 
-  const scoreOfSignup = (signup: any) => {
-    const grade = combinedTryoutGradeForSignup(tryoutSessions, signup.id, signup.tryoutDate);
-    if (!grade) return null;
-    return Object.values(grade).reduce(
-      (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
-      0
-    );
+  const lockedPositions = new Map<string, number>();
+  const addLockedPositions = (positions: any[]) => {
+    for (const pos of uniquePositions(positions)) lockedPositions.set(pos, (lockedPositions.get(pos) || 0) + 1);
   };
+  returningYes.forEach((p: any) => addLockedPositions(p.comfortablePositions || []));
+  acceptedSignups.forEach((s: any) => {
+    const grade = combinedTryoutGradeForSignup(tryoutSessions, s.id, s.tryoutDate);
+    addLockedPositions(positionsForTryout(grade, s));
+  });
+
+  const rosterGrades = getCombinedGrades(evaluationEvents || [], returningUnknown, {
+    teamAge: team?.teamAge,
+    games: team?.games || [],
+  });
+
+  const graded: RosterProjectionCandidate[] = [];
+  const needsEvaluation: RosterProjectionCandidate[] = [];
+
+  for (const player of returningUnknown) {
+    const categories = getEvalCategoriesForPlayer(team?.pitchingFormat, player);
+    const baseScore = hasRosterEvaluation(player.id, evaluationEvents || [])
+      ? numericGradeScore(rosterGrades[player.id], categories)
+      : null;
+    const { fitBonus, fitReasons } = fitBonusForPositions(player.comfortablePositions || [], lockedPositions);
+    const candidate: RosterProjectionCandidate = {
+      kind: "unknown",
+      id: player.id,
+      name: player.name || "Unknown player",
+      player,
+      baseScore,
+      fitBonus,
+      fitReasons,
+      score: baseScore == null ? null : baseScore + fitBonus,
+    };
+    if (candidate.score == null) needsEvaluation.push(candidate);
+    else graded.push(candidate);
+  }
 
   const tooOld = [];
-  const notGraded = [];
-  const graded = [];
-  for (const s of tryoutSignups || []) {
-    if (s.status === "declined" || s.status === "accepted") continue;
-    if (tryoutIsTooOld(s, team)) {
-      tooOld.push(s);
+  for (const signup of tryoutSignups || []) {
+    if (signup.status === "declined" || signup.status === "accepted") continue;
+    if (tryoutIsTooOld(signup, team)) {
+      tooOld.push(signup);
       continue;
     }
-    const score = scoreOfSignup(s);
-    if (score == null) notGraded.push(s);
-    else graded.push({ signup: s, score });
+    const grade = combinedTryoutGradeForSignup(tryoutSessions, signup.id, signup.tryoutDate);
+    const positions = positionsForTryout(grade, signup);
+    const categories = getEvalCategoriesForPlayer(team?.pitchingFormat, { comfortablePositions: positions });
+    const baseScore = numericGradeScore(grade, categories);
+    const { fitBonus, fitReasons } = fitBonusForPositions(positions, lockedPositions);
+    const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim() || "Tryout candidate";
+    const candidate: RosterProjectionCandidate = {
+      kind: "tryout",
+      id: signup.id,
+      name,
+      signup,
+      baseScore,
+      fitBonus,
+      fitReasons,
+      score: baseScore == null ? null : baseScore + fitBonus,
+    };
+    if (candidate.score == null) needsEvaluation.push(candidate);
+    else graded.push(candidate);
   }
-  graded.sort((a, b) => b.score - a.score);
-  const makeIt = graded.slice(0, slotsRemaining);
-  const bubble = graded.slice(
-    slotsRemaining,
-    slotsRemaining + Math.max(slotsRemaining, 3)
-  );
-  const cut = graded.slice(slotsRemaining + Math.max(slotsRemaining, 3));
+
+  graded.sort((a, b) => (b.score || 0) - (a.score || 0) || a.name.localeCompare(b.name));
+  const recommended = graded.slice(0, slotsRemaining).map((c) => ({ ...c, bucket: "recommended" as const }));
+  const nextWindow = Math.max(slotsRemaining, 3);
+  const nextBest = graded.slice(slotsRemaining, slotsRemaining + nextWindow).map((c) => ({ ...c, bucket: "next" as const }));
+  const belowLine = graded.slice(slotsRemaining + nextWindow).map((c) => ({ ...c, bucket: "below" as const }));
 
   return {
     rosterCap,
-    returnerCount: returners.length,
     returningYesCount: returningYes.length,
     returningNoCount: returningNo.length,
     returningUnknownCount: returningUnknown.length,
     acceptedCount: acceptedSignups.length,
+    lockedCount,
     slotsRemaining,
-    makeIt,
-    bubble,
-    cut,
-    notGraded,
+    recommended,
+    nextBest,
+    belowLine,
+    needsEvaluation,
     tooOld,
   };
 };
@@ -174,7 +291,7 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any, tryoutSess
   // Positional fit. Count how thin the roster is at each position the
   // signup is comfortable with. < 3 returners = "fills X" callout.
   const positionalFit = [];
-  const positions = signup.comfortablePositions || [];
+  const positions = positionsForTryout(tryoutGrade, signup);
   for (const pos of positions) {
     const count = returners.filter((p: any) =>
       (p.comfortablePositions || []).includes(pos)
@@ -278,30 +395,30 @@ const TeamImpactPanel = memo(({ roster }: any) => {
   const buckets = [
     {
       key: "make",
-      title: "Will Make Team",
-      sub: `Top ${roster.slotsRemaining} graded — fill open slots`,
+      title: "Recommended Fillers",
+      sub: `Top fit scores for open roster spots`,
       tone: "bg-win-bg border-line text-win",
       countTone: "text-win",
-      items: roster.makeIt,
+      items: roster.recommended,
     },
     {
       key: "bubble",
-      title: "On The Bubble",
-      sub: "Need another look before final cuts",
+      title: "Next Best",
+      sub: "Best remaining bubble or upgrade candidates",
       tone: "bg-warn-bg border-line text-warnfg",
       countTone: "text-warnfg",
-      items: roster.bubble,
+      items: roster.nextBest,
     },
     {
       key: "cut",
-      title: "Likely Cut",
-      sub: "Below the line on cumulative grade",
+      title: "Below Line",
+      sub: "Below current roster-fit line",
       tone: "bg-app border-line text-ink",
       countTone: "text-ink-3",
-      items: roster.cut,
+      items: roster.belowLine,
     },
   ];
-  const empty = roster.makeIt.length + roster.bubble.length + roster.cut.length === 0;
+  const empty = roster.recommended.length + roster.nextBest.length + roster.belowLine.length === 0;
   return (
     <div className="glass-card p-4 sm:p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -316,14 +433,19 @@ const TeamImpactPanel = memo(({ roster }: any) => {
       </div>
       {roster.returningUnknownCount > 0 && (
         <p className="text-xs text-warnfg font-bold bg-warn-bg border border-line rounded-lg px-3 py-2">
-          Projection uses confirmed Yes returners only; Unknown players are not counted toward next season slots until updated.
+          Confirmed Yes returners and accepted tryouts are locked. Unknown current players compete with eligible tryout candidates for the remaining spots.
+        </p>
+      )}
+      {roster.slotsRemaining === 0 && (
+        <p className="text-xs text-ink-3 font-bold bg-surface-2 border border-line rounded-lg px-3 py-2">
+          No open competitive spots: confirmed returners plus accepted tryouts already fill the roster cap. The lists below show bubble or upgrade candidates only.
         </p>
       )}
       {empty ? (
         <p className="text-xs text-ink-3 font-medium italic">
-          Grade {roster.notGraded.length > 0
-            ? `the ${roster.notGraded.length} ungraded tryout${roster.notGraded.length === 1 ? "" : "s"} `
-            : "tryout players "}
+          Grade {roster.needsEvaluation.length > 0
+            ? `the ${roster.needsEvaluation.length} candidate${roster.needsEvaluation.length === 1 ? "" : "s"} needing evaluation `
+            : "candidates "}
           to see the roster projection.
         </p>
       ) : (
@@ -348,16 +470,20 @@ const TeamImpactPanel = memo(({ roster }: any) => {
                 <div className="text-[10px] italic opacity-70">—</div>
               ) : (
                 <ul className="space-y-0.5">
-                  {b.items.map(({ signup, score }: any) => (
+                  {b.items.map((candidate: any) => (
                     <li
-                      key={signup.id}
-                      className="flex items-baseline justify-between gap-2 text-[11px]"
+                      key={candidate.id}
+                      className="flex items-start justify-between gap-2 text-[11px]"
                     >
-                      <span className="font-bold truncate">
-                        {signup.firstName} {signup.lastName}
+                      <span className="min-w-0">
+                        <span className="font-bold truncate block">{candidate.name}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
+                          {candidate.kind === "unknown" ? "Current unknown" : "Tryout"}
+                          {candidate.fitReasons.length > 0 ? ` · ${candidate.fitReasons.join(", ")}` : ""}
+                        </span>
                       </span>
                       <span className="font-black tabular-nums opacity-80 shrink-0">
-                        {score.toFixed(0)}
+                        {candidate.score.toFixed(0)}
                       </span>
                     </li>
                   ))}
@@ -367,11 +493,11 @@ const TeamImpactPanel = memo(({ roster }: any) => {
           ))}
         </div>
       )}
-      {(roster.notGraded.length > 0 || roster.tooOld.length > 0) && (
+      {(roster.needsEvaluation.length > 0 || roster.tooOld.length > 0) && (
         <div className="flex flex-wrap gap-2 pt-1">
-          {roster.notGraded.length > 0 && (
+          {roster.needsEvaluation.length > 0 && (
             <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md bg-surface-2 border border-line text-ink-2">
-              {roster.notGraded.length} ungraded
+              {roster.needsEvaluation.length} ungraded
             </span>
           )}
           {roster.tooOld.length > 0 && (
@@ -386,9 +512,9 @@ const TeamImpactPanel = memo(({ roster }: any) => {
 });
 
 const BUCKET_BADGES = {
-  make: { label: "Will Make", className: "bg-win-bg text-win border-line" },
-  bubble: { label: "Bubble", className: "bg-warn-bg text-warnfg border-line" },
-  cut: { label: "Likely Cut", className: "bg-surface-2 text-ink-2 border-line" },
+  make: { label: "Recommended", className: "bg-win-bg text-win border-line" },
+  bubble: { label: "Next Best", className: "bg-warn-bg text-warnfg border-line" },
+  cut: { label: "Below Line", className: "bg-surface-2 text-ink-2 border-line" },
   ungraded: { label: "Ungraded", className: "bg-surface text-ink-3 border-line" },
   tooOld: { label: "Too Old", className: "bg-warn-bg text-warnfg border-line" },
 };
@@ -460,20 +586,20 @@ export const TryoutsTab = memo(() => {
   const roster = useMemo(
     () =>
       isHead
-        ? computeRosterBuckets(team, tryoutSessions, tryoutSignups)
+        ? computeRosterProjection(team, tryoutSessions, tryoutSignups, evaluationEvents || [])
         : null,
-    [isHead, team, tryoutSessions, tryoutSignups]
+    [isHead, team, tryoutSessions, tryoutSignups, evaluationEvents]
   );
   // Map signup.id → "make" | "bubble" | "cut" | "ungraded" | "tooOld"
   // for the per-row badge.
   const bucketBySignupId = useMemo(() => {
     const map = new Map();
     if (!roster) return map;
-    roster.makeIt.forEach(({ signup }) => map.set(signup.id, "make"));
-    roster.bubble.forEach(({ signup }) => map.set(signup.id, "bubble"));
-    roster.cut.forEach(({ signup }) => map.set(signup.id, "cut"));
-    roster.notGraded.forEach((s) => map.set(s.id, "ungraded"));
-    roster.tooOld.forEach((s) => map.set(s.id, "tooOld"));
+    roster.recommended.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "make"); });
+    roster.nextBest.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "bubble"); });
+    roster.belowLine.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "cut"); });
+    roster.needsEvaluation.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "ungraded"); });
+    roster.tooOld.forEach((s: any) => map.set(s.id, "tooOld"));
     return map;
   }, [roster]);
   const noShowCount = useMemo(
