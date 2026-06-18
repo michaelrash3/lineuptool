@@ -87,7 +87,7 @@ describe("HomeTab", () => {
             },
             {
               id: "g2",
-              date: "2026-06-17",
+              date: "2026-06-19",
               status: "draft",
               opponent: "Bears",
               time: "10:00",
