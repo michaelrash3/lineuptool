@@ -10,6 +10,8 @@ import {
   getEvalCategoriesForTeam,
   getEvalCategoriesForPlayer,
   EVAL_SCALE_DEFAULT,
+  leftHandedPitcherRosterPremium,
+  isLeftHandedThrower,
 } from "../constants/ui";
 import { calculateBaseballAge, getReturningDecision, normalizeTryoutSessions, combinedTryoutGradeForSignup, evaluatorTryoutGradeForSignup } from "../utils/helpers";
 import { A11yDialog } from "../components/shared";
@@ -118,10 +120,21 @@ const positionsForTryout = (grade: any, signup: any): string[] => {
 const uniquePositions = (positions: any[]) =>
   [...new Set((positions || []).map((p) => String(p || "").trim()).filter(Boolean))];
 
-const fitBonusForPositions = (positions: string[], lockedPositions: Map<string, number>) => {
-  let fitBonus = 0;
+const LEFTY_LIMITED_INFIELD_POSITIONS = new Set(["2B", "3B", "SS"]);
+
+const fitBonusForPositions = (
+  positions: string[],
+  lockedPositions: Map<string, number>,
+  playerLike?: any
+) => {
+  let fitBonus = leftHandedPitcherRosterPremium({
+    comfortablePositions: positions,
+    throws: playerLike?.throws,
+  });
   const fitReasons: string[] = [];
+  const leftyThrower = isLeftHandedThrower(playerLike);
   for (const pos of uniquePositions(positions)) {
+    if (leftyThrower && LEFTY_LIMITED_INFIELD_POSITIONS.has(pos)) continue;
     const count = lockedPositions.get(pos) || 0;
     if (count === 0) {
       fitBonus += 4;
@@ -181,7 +194,7 @@ export const computeRosterProjection = (
     const baseScore = hasRosterEvaluation(player.id, evaluationEvents || [])
       ? numericGradeScore(rosterGrades[player.id], categories)
       : null;
-    const { fitBonus, fitReasons } = fitBonusForPositions(player.comfortablePositions || [], lockedPositions);
+    const { fitBonus, fitReasons } = fitBonusForPositions(player.comfortablePositions || [], lockedPositions, player);
     const candidate: RosterProjectionCandidate = {
       kind: "unknown",
       id: player.id,
@@ -207,7 +220,7 @@ export const computeRosterProjection = (
     const positions = positionsForTryout(grade, signup);
     const categories = getEvalCategoriesForPlayer(team?.pitchingFormat, { comfortablePositions: positions });
     const baseScore = numericGradeScore(grade, categories);
-    const { fitBonus, fitReasons } = fitBonusForPositions(positions, lockedPositions);
+    const { fitBonus, fitReasons } = fitBonusForPositions(positions, lockedPositions, signup);
     const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim() || "Tryout candidate";
     const candidate: RosterProjectionCandidate = {
       kind: "tryout",

@@ -20,6 +20,7 @@ import {
   getEvalCategoriesForPlayer,
   playerIsPitcher,
   pitcherRosterPremium,
+  leftHandedPitcherRosterPremium,
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
@@ -64,7 +65,10 @@ const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number
     teamAge,
     neutralFill: true,
   });
-  return pitcherRosterPremium(score, PITCH_WEIGHT_SUM);
+  return (
+    pitcherRosterPremium(score, PITCH_WEIGHT_SUM) +
+    leftHandedPitcherRosterPremium(player)
+  );
 };
 
 // 11 standard positions surfaced as a per-player chip row so the coach
@@ -224,7 +228,8 @@ export const RosterDecisionsPanel = memo(() => {
 
       // ---- Total Score (out of 100) ----
       // The same number the grading cards already produce — universal score
-      // blended from grades + imported stats, plus the pitcher premium. This
+      // blended from grades + imported stats, plus pitcher premiums (including
+      // the small scarcity bump for left-handed pitchers). This
       // is the headline "eval number" for roster decisions, judged RELATIVE
       // to the team's own average below (a 54 means something different on a
       // team averaging 70 than one averaging 55).
