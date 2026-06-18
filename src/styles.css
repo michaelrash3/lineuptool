@@ -402,9 +402,11 @@ body::before {
   box-shadow: var(--shadow-card), var(--card-ring);
 }
 
-/* Shared tab canvas for dashboard-style screens. Desktop should use the
-   available width, bringing panels up beside each other whenever they can fit
-   and still read as functional dashboard cards. */
+/* Shared tab canvas for dashboard-style screens.
+   The shell intentionally avoids content-sniffing selectors such as
+   :has(table). Screens opt in to wider/full-width behavior with explicit
+   utilities so compact cards, forms, and summaries can condense while
+   data-dense sections still get the room they need. */
 .dashboard-shell {
   width: 100%;
   display: grid;
@@ -429,22 +431,83 @@ body::before {
     min-width: 0;
   }
 
-  /* Keep lead/hero panels and data-dense tables full-width. Everything else
-     gets a chance to sit side-by-side on desktop instead of staying in a long
-     vertical stack. */
+  .dashboard-shell--dense > * {
+    grid-column: span 4;
+  }
+
+  .dashboard-shell--wide > * {
+    grid-column: span 8;
+  }
+
   .dashboard-shell > :first-child,
-  .dashboard-shell > .lg\:dashboard-full,
-  .dashboard-shell > .xl\:dashboard-full,
-  .dashboard-shell > :has(table),
-  .dashboard-shell > :has(.overflow-x-auto),
-  .dashboard-shell > :has(.min-w-full) {
+  .dashboard-shell > .dashboard-full,
+  .dashboard-shell > .lg\:dashboard-full {
     grid-column: 1 / -1;
+  }
+
+  .dashboard-shell > .dashboard-span-2 {
+    grid-column: span 6;
+  }
+
+  .dashboard-shell > .dashboard-span-3 {
+    grid-column: span 9;
+  }
+
+  .dashboard-shell > .dashboard-fit {
+    grid-column: span 4;
+  }
+
+  .dashboard-shell > .dashboard-table-fit {
+    grid-column: span 6;
+    min-width: min(100%, 30rem);
   }
 }
 
 @media (min-width: 1536px) {
+  .dashboard-shell {
+    gap: 1.5rem;
+  }
+
+  .dashboard-shell--balanced > * {
+    grid-column: span 4;
+  }
+
+  .dashboard-shell--wide > * {
+    grid-column: span 6;
+  }
+
   .dashboard-shell > .dashboard-third {
     grid-column: span 4;
+  }
+
+  .dashboard-shell > .xl\:dashboard-full {
+    grid-column: 1 / -1;
+  }
+}
+
+.dashboard-card-grid {
+  display: grid;
+  gap: 0.875rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.dashboard-card-grid--dense {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.dashboard-card-grid--depth {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18.5rem), 1fr));
+}
+
+@media (min-width: 1536px) {
+  .dashboard-card-grid--depth {
+    grid-template-columns: repeat(auto-fit, minmax(19.5rem, 1fr));
+  }
+}
+
+@media (min-width: 1920px) {
+  .dashboard-card-grid--depth {
+    grid-template-columns: repeat(4, minmax(19.5rem, 1fr));
   }
 }
 
