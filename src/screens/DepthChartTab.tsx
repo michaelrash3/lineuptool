@@ -365,7 +365,7 @@ export const DepthChartTab = memo(() => {
   };
 
   return (
-    <div className="dashboard-shell">
+    <div className="dashboard-shell dashboard-shell--dense">
       <div className="pb-4 border-b border-line flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -410,7 +410,7 @@ export const DepthChartTab = memo(() => {
           Add players to your roster to build a depth chart.
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="dashboard-full dashboard-card-grid dashboard-card-grid--depth">
           {board.map(({ pos, ranked, customized }) => (
             <PositionCard
               key={pos}

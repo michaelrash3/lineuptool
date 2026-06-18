@@ -320,11 +320,11 @@ export const RosterTab = memo(() => {
   const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
 
   return (
-    <div className="dashboard-shell">
+    <div className="dashboard-shell dashboard-shell--balanced">
       <PitcherRankingPanel />
       <PitchingPlanPanel />
       <ArmCarePanel />
-      <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
+      <div className="dashboard-full space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
       <div className="border-b border-line pb-6">
         <div
           className="h-1.5 w-full"

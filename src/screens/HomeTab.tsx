@@ -1200,7 +1200,7 @@ const UpcomingWeekSection = memo(
         <h2 className="text-sm font-black uppercase tracking-tight text-ink mb-3">
           This Week
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
+        <div className="dashboard-card-grid dashboard-card-grid--dense">
           {items.map((it) => (
             <button
               key={`${it.kind}-${it.id}`}
@@ -1797,7 +1797,7 @@ export const HomeTab = memo(() => {
 
       {/* Insight tiles row — only renders when there's a player to show */}
       {hasPlayers && (
-        <StaggerList className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <StaggerList className="dashboard-card-grid dashboard-card-grid--dense">
           {isKidPitch && (
             <StaggerItem>
               <PitcherAvailabilityTile

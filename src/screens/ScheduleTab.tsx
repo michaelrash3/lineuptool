@@ -365,8 +365,8 @@ export const ScheduleTab = memo(() => {
     const presentCount = presentPlayers.length;
 
     return (
-      <div className="dashboard-shell">
-        <div className="border-b border-line pb-6 print:hidden">
+      <div className="dashboard-shell dashboard-shell--balanced">
+        <div className="dashboard-full border-b border-line pb-6 print:hidden">
           <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 border-b border-line">
             <div className="flex items-center gap-4">
               <button

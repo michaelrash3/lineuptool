@@ -1535,8 +1535,8 @@ export const EvaluationTab = memo(() => {
   const hasLastRound = myRounds.length > 0;
 
   return (
-    <div className="dashboard-shell">
-      <div>
+    <div className="dashboard-shell dashboard-shell--balanced">
+      <div className="dashboard-span-2">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
