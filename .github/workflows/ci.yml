@@ -37,17 +37,17 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      # Fail the build on new high/critical advisories. The tree is clean as of
-      # the jspdf 4 upgrade, so this is now a hard gate (was advisory while the
-      # react-router / protobufjs / dompurify issues were still outstanding).
+      # Fail the build on new high/critical production advisories. Dev-server
+      # toolchain advisories do not ship in the Vite production bundle, so keep
+      # this gate focused on runtime dependencies.
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Typecheck
         run: npx tsc --noEmit

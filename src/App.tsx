@@ -3420,7 +3420,7 @@ const MainShell = () => {
           className="fixed inset-0 z-0 pointer-events-none print:hidden grid place-items-center overflow-hidden"
         >
           <div
-            className="w-[min(96vw,1290px)] aspect-square bg-center bg-no-repeat bg-contain opacity-[0.05] dark:opacity-[0.07]"
+            className="w-[min(77vw,1030px)] aspect-square bg-center bg-no-repeat bg-contain opacity-[0.05] dark:opacity-[0.07]"
             style={{ backgroundImage: `url(${team.logoUrl})` }}
           />
         </div>
