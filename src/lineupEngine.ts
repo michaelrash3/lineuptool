@@ -254,7 +254,7 @@ export function getCombinedGrades(
 ): Record<string, GradeMap> {
   let latestHead = null;
   for (const e of evaluationEvents) {
-    if (e.coachRole !== "Head") continue;
+    if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Head") continue;
     // evalRoundRecency < 0 ⇔ e is strictly newer (createdAt breaks date ties).
     if (!latestHead || evalRoundRecency(e, latestHead) < 0)
       latestHead = e;
@@ -262,7 +262,7 @@ export function getCombinedGrades(
 
   const latestAssistantByEvaluator = new Map();
   for (const e of evaluationEvents) {
-    if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
+    if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Assistant" || !e.evaluatorId) continue;
     const cur = latestAssistantByEvaluator.get(e.evaluatorId);
     if (!cur || evalRoundRecency(e, cur) < 0) {
       latestAssistantByEvaluator.set(e.evaluatorId, e);

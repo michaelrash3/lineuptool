@@ -97,12 +97,37 @@ describe("useTryoutFlows", () => {
     expect(patch.players[0].comfortablePositions).toContain("C");
   });
 
-  it("saveTryoutEvaluation records a tryout eval event", () => {
-    const { result, updateTeam } = setup();
+  it("saveTryoutEvaluation records a date-grouped tryout session", () => {
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }, { id: "s2", tryoutDate: "2026-06-18" }],
+    });
     act(() => result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"));
-    const ev = updateTeam.mock.calls[0][0].evaluationEvents[0];
-    expect(ev).toMatchObject({ tryoutSignupId: "s1", evaluatorId: "u1", coachRole: "Head" });
-    expect(ev.grades.signup).toEqual({ fielding: 4 });
+    const session = updateTeam.mock.calls[0][0].tryoutSessions[0];
+    expect(session).toMatchObject({ id: "tryout-2026-06-18", date: "2026-06-18" });
+    expect(session.gradesByEvaluator.u1).toMatchObject({ evaluatorId: "u1", coachRole: "Head" });
+    expect(session.gradesByEvaluator.u1.grades.s1).toEqual({ fielding: 4 });
+  });
+
+  it("saveTryoutEvaluations saves multiple kids into one date session in one write", () => {
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }, { id: "s2", tryoutDate: "2026-06-18" }],
+    });
+    act(() =>
+      result.current.saveTryoutEvaluations(
+        [
+          { signupId: "s1", date: "2026-06-18", grades: { fielding: 4 } },
+          { signupId: "s2", date: "2026-06-18", grades: { fielding: 5 } },
+        ],
+        "Head"
+      )
+    );
+    expect(updateTeam).toHaveBeenCalledTimes(1);
+    const session = updateTeam.mock.calls[0][0].tryoutSessions[0];
+    expect(session.signupIds).toEqual(["s1", "s2"]);
+    expect(session.gradesByEvaluator.u1.grades).toMatchObject({
+      s1: { fielding: 4 },
+      s2: { fielding: 5 },
+    });
   });
 
   it("convertInterestToTryout moves a lead into tryoutSignups", () => {

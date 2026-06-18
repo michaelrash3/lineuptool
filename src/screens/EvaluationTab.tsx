@@ -133,7 +133,7 @@ export const RosterDecisionsPanel = memo(() => {
     // Eval rounds for this user, oldest first
     const myEvals = (evaluationEvents || [])
       .filter(
-        (e: any) => e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
+        (e: any) => !e.tryoutSignupId && !e.tryoutSessionId && e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
       )
       .sort((a: any, b: any) => evalRoundRecency(b, a));
 
@@ -971,7 +971,7 @@ const AssistantSubmissionsPanel = memo(
   const latestByAssistant = useMemo(() => {
     const m = new Map();
     for (const e of evaluationEvents || []) {
-      if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
+      if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Assistant" || !e.evaluatorId) continue;
       const cur = m.get(e.evaluatorId);
       if (!cur || evalRoundRecency(e, cur) < 0) {
         m.set(e.evaluatorId, e);
@@ -1324,7 +1324,7 @@ export const EvaluationTab = memo(() => {
   const myRounds = useMemo(() => {
     return (evaluationEvents || [])
       .filter(
-        (e: any) => e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
+        (e: any) => !e.tryoutSignupId && !e.tryoutSessionId && e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
       )
       .sort(evalRoundRecency);
   }, [evaluationEvents, user]);
@@ -1335,7 +1335,7 @@ export const EvaluationTab = memo(() => {
   const assistantRounds = useMemo(() => {
     const m = new Map();
     for (const e of evaluationEvents || []) {
-      if (e.coachRole !== "Assistant" || !e.evaluatorId) continue;
+      if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Assistant" || !e.evaluatorId) continue;
       const cur = m.get(e.evaluatorId);
       if (!cur || evalRoundRecency(e, cur) < 0) m.set(e.evaluatorId, e);
     }

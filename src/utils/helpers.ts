@@ -2024,6 +2024,116 @@ export const evalRoundRecency = (
   return (b?.createdAt || 0) - (a?.createdAt || 0);
 };
 
+
+const tryoutSessionIdForDate = (date: string) => `tryout-${String(date || "undated").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+export const normalizeTryoutSessions = (team: any): any[] => {
+  const sessions = Array.isArray(team?.tryoutSessions)
+    ? team.tryoutSessions.map((s: any) => ({
+        ...s,
+        signupIds: Array.isArray(s.signupIds) ? [...s.signupIds] : [],
+        gradesByEvaluator: { ...(s.gradesByEvaluator || {}) },
+      }))
+    : [];
+  const byId = new Map(sessions.map((session: any) => [session.id, session]));
+  for (const e of team?.evaluationEvents || []) {
+    if (!e?.tryoutSignupId || !e?.evaluatorId || !e?.grades?.signup) continue;
+    const signup = (team?.tryoutSignups || []).find((s: any) => s.id === e.tryoutSignupId);
+    const date = signup?.tryoutDate || e.date || "undated";
+    const id = tryoutSessionIdForDate(date);
+    const session: any = byId.get(id) || {
+      id,
+      date,
+      label: `Tryout · ${date}`,
+      createdAt: e.createdAt || Date.now(),
+      updatedAt: e.createdAt || Date.now(),
+      signupIds: [],
+      gradesByEvaluator: {},
+    };
+    const evaluatorKey = e.evaluatorId;
+    const evaluator = session.gradesByEvaluator[evaluatorKey] || {
+      coachRole: e.coachRole || "Assistant",
+      evaluatorId: e.evaluatorId,
+      evaluatorName: e.evaluatorName,
+      grades: {},
+    };
+    evaluator.grades = { ...(evaluator.grades || {}), [e.tryoutSignupId]: { ...e.grades.signup } };
+    evaluator.updatedAt = e.createdAt || Date.now();
+    session.gradesByEvaluator[evaluatorKey] = evaluator;
+    if (!session.signupIds.includes(e.tryoutSignupId)) session.signupIds.push(e.tryoutSignupId);
+    byId.set(id, session);
+  }
+  return [...byId.values()];
+};
+
+export const combinedTryoutGradeForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+  date?: string
+): any | null => {
+  if (!signupId) return null;
+  const matches = (sessions || []).filter((s: any) =>
+    (!date || s.date === date) && Object.values(s.gradesByEvaluator || {}).some((eg: any) => eg?.grades?.[signupId])
+  );
+  const session = matches.sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+  if (!session) return null;
+  const headGrades: any[] = [];
+  const assistantGrades: any[] = [];
+  for (const eg of Object.values(session.gradesByEvaluator || {}) as any[]) {
+    const g = eg?.grades?.[signupId];
+    if (!g) continue;
+    if (eg.coachRole === "Head") headGrades.push(g);
+    else assistantGrades.push(g);
+  }
+  const avg = (grades: any[]) => {
+    if (!grades.length) return null;
+    const out: Record<string, any> = {};
+    const keys = new Set<string>();
+    grades.forEach((g) => Object.keys(g || {}).forEach((k) => keys.add(k)));
+    for (const key of keys) {
+      if (key === "notes" || key === "suggestedPositions") {
+        const latest = [...grades].reverse().find((g) => g?.[key]);
+        if (latest) out[key] = latest[key];
+        continue;
+      }
+      const vals = grades.map((g) => g?.[key]).filter((v) => typeof v === "number");
+      if (vals.length) out[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    }
+    return out;
+  };
+  const head = avg(headGrades);
+  const assistants = avg(assistantGrades);
+  if (head && assistants) {
+    const out: Record<string, any> = {};
+    const keys = new Set([...Object.keys(head), ...Object.keys(assistants)]);
+    for (const key of keys) {
+      if (key === "notes" || key === "suggestedPositions") out[key] = head[key] ?? assistants[key];
+      else {
+        const hv = head[key];
+        const av = assistants[key];
+        if (typeof hv === "number" && typeof av === "number") out[key] = Math.round((hv + av) / 2);
+        else out[key] = hv ?? av;
+      }
+    }
+    return out;
+  }
+  return head || assistants;
+};
+
+export const evaluatorTryoutGradeForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+  evaluatorId: string | null | undefined,
+  date?: string
+): any | null => {
+  if (!signupId || !evaluatorId) return null;
+  const session = (sessions || [])
+    .filter((s: any) => !date || s.date === date)
+    .sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .find((s: any) => s.gradesByEvaluator?.[evaluatorId]?.grades?.[signupId]);
+  return session?.gradesByEvaluator?.[evaluatorId]?.grades?.[signupId] || null;
+};
+
 // Advance-Season eval seeding. The new season starts with a single "Preseason"
 // eval round so coaches don't begin blind: each returning player carries their
 // MOST RECENT eval from the ending season, and each promoted tryout carries
@@ -2040,7 +2150,7 @@ export const buildPreseasonSeedRound = (
   endingEvents: any[],
   returningPlayers: any[],
   promotedPlayers: any[],
-  meta: { date: string; evaluatorId?: string }
+  meta: { date: string; evaluatorId?: string; tryoutSessions?: any[] }
 ): any | null => {
   const grades: Record<string, any> = {};
 
@@ -2060,19 +2170,11 @@ export const buildPreseasonSeedRound = (
     }
   }
 
-  // Promoted tryouts → their tryout eval (grades.signup), preferring the Head's.
-  const tryoutEvents = (endingEvents || [])
-    .filter((e: any) => e?.tryoutSignupId && e?.grades?.signup)
-    .slice()
-    .sort(
-      (a: any, b: any) =>
-        (b.coachRole === "Head" ? 1 : 0) - (a.coachRole === "Head" ? 1 : 0)
-    );
+  const tryoutSessions = meta.tryoutSessions || normalizeTryoutSessions({ evaluationEvents: endingEvents });
   for (const p of promotedPlayers || []) {
     const sid = p?.tryoutSignupId;
     if (!sid || !p?.id) continue;
-    const ev = tryoutEvents.find((e: any) => e.tryoutSignupId === sid);
-    const g = ev?.grades?.signup;
+    const g = combinedTryoutGradeForSignup(tryoutSessions, sid);
     if (g && typeof g === "object" && Object.keys(g).length > 0) {
       grades[p.id] = { ...g };
     }
