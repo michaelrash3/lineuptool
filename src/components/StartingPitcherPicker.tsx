@@ -7,6 +7,7 @@ import {
   calcPitcherScore,
   resolvePitchRuleSet,
 } from "../lineupEngine";
+import { isActiveRosterPlayer } from "../utils/helpers";
 
 // Whether a present player is a pitching candidate: explicit "P" in their
 // comfortable positions, else (legacy) not restricted from P, else allow —
@@ -74,7 +75,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     const dateStr = game.date;
     const att = currentGameAttendance || {};
     const present = ((players || []) as any[]).filter(
-      (p) => p && p.present !== false && att[p.id] !== false
+      (p) => isActiveRosterPlayer(p) && att[p.id] !== false
     );
     // Pitching candidates among present players; if nobody is marked as a
     // pitcher, fall back to everyone present so the coach is never stuck.

@@ -13,6 +13,7 @@ import {
   buildSeasonBenchImbalance,
   recentGameLines,
   aggregateGameLines,
+  isActiveRosterPlayer,
 } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 import { Sparkline } from "../components/charts/Sparkline";
@@ -354,7 +355,10 @@ export const StatsTab = memo(() => {
   const { team, currentRole } = useTeam();
   const { openPlayerProfile } = useUI();
   const stripped = (team as any).statDisplay === "stripped";
-  const players: any[] = useMemo(() => (team as any).players || [], [team]);
+  const players: any[] = useMemo(
+    () => ((team as any).players || []).filter(isActiveRosterPlayer),
+    [team]
+  );
   const games: any[] = useMemo(() => (team as any).games || [], [team]);
   const evaluationEvents: any[] = useMemo(
     () => (team as any).evaluationEvents || [],

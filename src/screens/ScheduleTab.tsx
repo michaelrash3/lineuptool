@@ -8,6 +8,8 @@ import {
   isGameFinalized,
   deriveTournaments,
   isPlayerScheduledOut,
+  isActiveRosterPlayer,
+  isDepartedPlayer,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
@@ -960,7 +962,7 @@ export const ScheduleTab = memo(() => {
                   {/* Inactive roster players don't take attendance — reactivate
                       them from the Roster tab to list them again. */}
                   {players
-                    .filter((p: any) => p.present !== false)
+                    .filter(isActiveRosterPlayer)
                     .map((p: any) => {
                     const scheduledOut = isPlayerScheduledOut(
                       p,
@@ -1002,11 +1004,11 @@ export const ScheduleTab = memo(() => {
                     );
                   })}
                 </div>
-                {players.some((p: any) => p.present === false) && (
+                {players.some((p: any) => p.present === false && !isDepartedPlayer(p)) && (
                   <p className="mt-2 text-[10px] font-bold text-ink-3">
-                    {players.filter((p: any) => p.present === false).length}{" "}
+                    {players.filter((p: any) => p.present === false && !isDepartedPlayer(p)).length}{" "}
                     inactive player
-                    {players.filter((p: any) => p.present === false).length === 1
+                    {players.filter((p: any) => p.present === false && !isDepartedPlayer(p)).length === 1
                       ? ""
                       : "s"}{" "}
                     not listed — reactivate from the Roster tab.

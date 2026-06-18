@@ -30,6 +30,7 @@ import {
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
+  isActiveRosterPlayer,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
 import type { BudgetItem, TeamFinances } from "../types";
@@ -127,7 +128,7 @@ export const FinancesTab = memo(() => {
   const { team, updateTeam } = useTeam();
   const { openPlayerProfile } = useUI();
   const players: any[] = useMemo(
-    () => (team as any).players || [],
+    () => ((team as any).players || []).filter(isActiveRosterPlayer),
     [team]
   );
   const finances: TeamFinances = useMemo(
