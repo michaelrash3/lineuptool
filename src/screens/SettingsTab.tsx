@@ -1071,7 +1071,7 @@ export const SettingsTab = memo(() => {
   );
 
   return (
-    <div className="dashboard-shell dashboard-shell--balanced">
+    <div className="max-w-5xl mx-auto">
       <div className="pb-4 mb-5 border-b border-line flex items-center gap-3">
         <span
           className="block h-5 w-1 rounded-sm"
@@ -1079,7 +1079,7 @@ export const SettingsTab = memo(() => {
         />
         <h1 className="t-h1">Settings</h1>
       </div>
-      <div className="dashboard-full lg:flex lg:gap-8">
+      <div className="lg:flex lg:gap-8">
         {/* Category nav — sidebar on desktop, drill-in list on mobile. */}
         <nav
           className={`lg:w-52 lg:shrink-0 ${

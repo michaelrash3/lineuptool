@@ -13,7 +13,6 @@ import {
   buildSeasonBenchImbalance,
   recentGameLines,
   aggregateGameLines,
-  isActiveRosterPlayer,
 } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 import { Sparkline } from "../components/charts/Sparkline";
@@ -333,8 +332,8 @@ const BenchEquityTable = memo(({ rows, onOpen }: any) => {
   );
 });
 
-const SectionCard = ({ icon: Icon, title, subtitle, children, className = "" }: any) => (
-  <div className={`border-b border-line pb-6 ${className}`}>
+const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
+  <div className="border-b border-line pb-6">
     <div className="px-1 py-4 flex items-center gap-3">
       <div
         className="p-2 rounded-full shrink-0"
@@ -355,10 +354,7 @@ export const StatsTab = memo(() => {
   const { team, currentRole } = useTeam();
   const { openPlayerProfile } = useUI();
   const stripped = (team as any).statDisplay === "stripped";
-  const players: any[] = useMemo(
-    () => ((team as any).players || []).filter(isActiveRosterPlayer),
-    [team]
-  );
+  const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const games: any[] = useMemo(() => (team as any).games || [], [team]);
   const evaluationEvents: any[] = useMemo(
     () => (team as any).evaluationEvents || [],
@@ -472,7 +468,7 @@ export const StatsTab = memo(() => {
 
   if (players.length === 0) {
     return (
-      <div className="dashboard-shell dashboard-shell--balanced">
+      <div className="space-y-6">
         <div className="py-8 text-center text-ink-3 font-medium">
           <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
             📊
@@ -484,7 +480,7 @@ export const StatsTab = memo(() => {
   }
 
   return (
-    <div className="dashboard-shell dashboard-shell--balanced">
+    <div className="space-y-6">
       {/* Arm-care overuse banner — pulled up to the top so a coach sees it
           before anything else. Kid-Pitch head coaches only. */}
       {armAlerts.length > 0 && (
@@ -524,7 +520,6 @@ export const StatsTab = memo(() => {
         <SectionCard
           icon={Icons.Chart}
           title="Recent Form"
-          className="dashboard-full"
         >
           <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
@@ -605,7 +600,6 @@ export const StatsTab = memo(() => {
       <SectionCard
         icon={Icons.Bat}
         title="Player Stats"
-        className="dashboard-full"
       >
         <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
@@ -646,7 +640,6 @@ export const StatsTab = memo(() => {
         <SectionCard
           icon={Icons.Clock}
           title="Bench Equity & Attendance"
-          className="dashboard-full"
         >
           <BenchEquityTable rows={benchRows} onOpen={openPlayerProfile} />
         </SectionCard>

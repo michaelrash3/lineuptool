@@ -13,7 +13,6 @@ import {
 } from "../constants/ui";
 import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList } from "../lineupEngine";
-import { isActiveRosterPlayer } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
 
@@ -147,7 +146,7 @@ export const AssistantEvalTab = memo(() => {
   // how coaches verbally call kids on the field. Numeric sort with name
   // as a tiebreaker; unnumbered players sink to the bottom.
   const orderedPlayers = (players || [])
-    .filter(isActiveRosterPlayer)
+    .filter((p: any) => p.present !== false)
     .slice()
     .sort((a: any, b: any) => {
       const na = parseInt(a.number, 10);
@@ -179,8 +178,8 @@ export const AssistantEvalTab = memo(() => {
 
   if (viewingPastRound) {
     return (
-      <div className="dashboard-shell dashboard-shell--balanced">
-        <div className="dashboard-span-2 border-b border-line pb-5 flex items-center justify-between gap-3">
+      <div className="max-w-5xl mx-auto space-y-4">
+        <div className="border-b border-line pb-5 flex items-center justify-between gap-3">
           <div>
             <h2 className="t-h2">Past Round</h2>
             <p className="t-eyebrow text-ink-3 mt-1">
@@ -195,7 +194,7 @@ export const AssistantEvalTab = memo(() => {
             Back to Form
           </button>
         </div>
-        <div className="dashboard-span-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {orderedPlayers.map((p: any) => (
             <EvalGradeCard
               key={`past-${p.id}`}
@@ -212,8 +211,8 @@ export const AssistantEvalTab = memo(() => {
   }
 
   return (
-    <div className="dashboard-shell dashboard-shell--balanced">
-      <div className="dashboard-span-2">
+    <div className="max-w-5xl mx-auto space-y-4">
+      <div>
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}

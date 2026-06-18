@@ -5,7 +5,7 @@ import {
   generateTournamentLineup as engineGenerateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
-import { isActiveRosterPlayer, sameDayRoleSets } from "../utils/helpers";
+import { sameDayRoleSets } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Lineup generation, undo, save, templates, and mid-game player removal —
@@ -61,7 +61,7 @@ export const useLineupActions = ({
       const presentPlayers = teamData.players.filter(
         // Roster-inactive kids never play, even if a stale attendance map
         // still has them marked present from before they went inactive.
-        (p: any) => isActiveRosterPlayer(p) && currentGameAttendance[p.id] !== false
+        (p: any) => p.present !== false && currentGameAttendance[p.id] !== false
       );
       if (presentPlayers.length < 7) {
         toast.push({
@@ -250,7 +250,7 @@ export const useLineupActions = ({
       return;
     }
     const presentPlayers = teamData.players.filter(
-      (p: any) => isActiveRosterPlayer(p) && currentGameAttendance[p.id] !== false
+      (p: any) => p.present !== false && currentGameAttendance[p.id] !== false
     );
     if (presentPlayers.length < 7) {
       toast.push({
@@ -362,7 +362,7 @@ export const useLineupActions = ({
       return;
     }
     const presentPlayers = teamData.players.filter(
-      (p: any) => isActiveRosterPlayer(p) && currentGameAttendance[p.id] !== false
+      (p: any) => p.present !== false && currentGameAttendance[p.id] !== false
     );
     if (presentPlayers.length < 1) {
       toast.push({ kind: "error", title: "No players present to bat" });
@@ -483,7 +483,7 @@ export const useLineupActions = ({
     const presentCount = (teamData.players || []).filter(
       (p: any) =>
         p &&
-        isActiveRosterPlayer(p) &&
+        p.present !== false &&
         (currentGameAttendance || {})[p.id] !== false
     ).length;
     // Kid Pitch: the coach picks the starting pitcher first (Starting Pitcher
@@ -618,7 +618,6 @@ export const useLineupActions = ({
         if (!p?.id) return false;
         if (p.id === playerId) return false;
         if (existingRemovals[p.id]) return false;
-        if (!isActiveRosterPlayer(p)) return false;
         if (attendance[p.id] === false) return false;
         return true;
       });
