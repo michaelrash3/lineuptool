@@ -532,6 +532,7 @@ const PastSeasonForm = memo(
 export const PlayerProfileModal = memo(() => {
   const {
     team,
+    updateTeam,
     updatePlayer,
     updatePlayerNested,
     removePlayer,
@@ -1893,6 +1894,9 @@ export const PlayerProfileModal = memo(() => {
           kind="returning"
           recipientEmail={player.email}
           ctx={makeOfferLetterContext(team, user, player.name)}
+          onSaveNextSeasonMoney={(patch) =>
+            updateTeam?.({ finances: { ...(team.finances || {}), ...patch } })
+          }
         />
       )}
       {showReport && (

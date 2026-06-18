@@ -1990,12 +1990,13 @@ export const SettingsTab = memo(() => {
         nextSeasonLabel={nextSeasonLabel}
         team={team}
         user={user}
+        updateTeam={updateTeam}
         setPlayerStatus={setPlayerStatus}
         setPlayerReturning={setPlayerReturning}
         onClose={() => setAdvanceSeasonOpen(false)}
-        onConfirm={({ tryoutsToPromote = [] } = {}) => {
+        onConfirm={({ tryoutsToPromote = [], tryoutDepositPayments = {} } = {}) => {
           setAdvanceSeasonOpen(false);
-          advanceSeason({ skipConfirm: true, tryoutsToPromote });
+          advanceSeason({ skipConfirm: true, tryoutsToPromote, tryoutDepositPayments });
         }}
       />
 

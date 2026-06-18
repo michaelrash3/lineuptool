@@ -45,6 +45,7 @@ export const AdvanceSeasonModal = memo(
     user,
     onClose,
     onConfirm,
+    updateTeam,
     setPlayerStatus, // legacy; kept in the prop list for back-compat
     setPlayerReturning,
   }: any) => {
@@ -56,15 +57,22 @@ export const AdvanceSeasonModal = memo(
     const [promoteIds, setPromoteIds] = useState(() => new Set());
     // Returning-player offer letter draft (copyable), opened from a row.
     const [offerPlayer, setOfferPlayer] = useState<any | null>(null);
+    const [depositPaid, setDepositPaid] = useState<Record<string, boolean>>({});
+    const [depositPaidAt, setDepositPaidAt] = useState<Record<string, string>>({});
 
     // Re-seed the pre-checked accepts each time the modal opens.
     useEffect(() => {
       if (!open) return;
-      setPromoteIds(
-        new Set(
-          (tryoutSignups || [])
-            .filter((s: any) => s.status === "accepted")
-            .map((s: any) => s.id)
+      const accepted = (tryoutSignups || []).filter((s: any) => s.status === "accepted");
+      setPromoteIds(new Set(accepted.map((s: any) => s.id)));
+      setDepositPaid(
+        Object.fromEntries(accepted.map((s: any) => [s.id, s.depositPaid === true]))
+      );
+      setDepositPaidAt(
+        Object.fromEntries(
+          accepted
+            .filter((s: any) => s.depositPaidAt)
+            .map((s: any) => [s.id, String(s.depositPaidAt).slice(0, 10)])
         )
       );
     }, [open, tryoutSignups]);
@@ -147,7 +155,14 @@ export const AdvanceSeasonModal = memo(
       if (busy) return;
       setBusy(true);
       try {
-        await onConfirm?.({ tryoutsToPromote: Array.from(promoteIds) });
+        await onConfirm?.({
+          tryoutsToPromote: Array.from(promoteIds),
+          tryoutDepositPayments: Object.fromEntries(
+            Array.from(promoteIds)
+              .filter((id: any) => depositPaid[String(id)] === true)
+              .map((id: any) => [String(id), depositPaidAt[String(id)] || ""])
+          ),
+        });
       } finally {
         setBusy(false);
       }
@@ -385,6 +400,39 @@ export const AdvanceSeasonModal = memo(
                             </span>
                           )}
                         </div>
+                        {checked && (
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                            <label className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3">
+                              <input
+                                type="checkbox"
+                                checked={depositPaid[s.id] === true}
+                                onChange={(e) =>
+                                  setDepositPaid((prev) => ({
+                                    ...prev,
+                                    [s.id]: e.target.checked,
+                                  }))
+                                }
+                                className="w-3.5 h-3.5 accent-emerald-600"
+                                aria-label={`${s.firstName} ${s.lastName} paid deposit`}
+                              />
+                              Deposit paid
+                            </label>
+                            {depositPaid[s.id] === true && (
+                              <input
+                                type="date"
+                                value={depositPaidAt[s.id] || ""}
+                                onChange={(e) =>
+                                  setDepositPaidAt((prev) => ({
+                                    ...prev,
+                                    [s.id]: e.target.value,
+                                  }))
+                                }
+                                aria-label={`${s.firstName} ${s.lastName} deposit paid date`}
+                                className="px-2 py-1 rounded-lg border border-line bg-surface text-[11px] font-bold text-ink"
+                              />
+                            )}
+                          </div>
+                        )}
                       </li>
                     );
                   })}
@@ -435,6 +483,9 @@ export const AdvanceSeasonModal = memo(
           kind="returning"
           recipientEmail={offerPlayer.email}
           ctx={makeOfferLetterContext(team, user, offerPlayer.name)}
+          onSaveNextSeasonMoney={(patch) =>
+            updateTeam?.({ finances: { ...(team.finances || {}), ...patch } })
+          }
         />
       )}
       </>

@@ -1693,18 +1693,6 @@ const TeamProvider = ({ children }: any) => {
       });
     const promotedPlayers = promotedPairs.map(({ player }: any) => player);
 
-    const depositAmount = Math.max(0, Number(teamData.finances?.depositAmount) || 0);
-    const promotedDepositPayments = depositAmount > 0
-      ? promotedPairs
-          .filter(({ signup }: any) => signup.status === "accepted" && signup.depositPaid === true)
-          .map(({ signup, player }: any) => ({
-            id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
-            playerId: player.id,
-            date: String(signup.depositPaidAt || nowIso).slice(0, 10),
-            amount: depositAmount,
-          }))
-      : [];
-
     // Seed the new season's Preseason eval round: returning players carry
     // their most recent eval forward, promoted tryouts carry their tryout
     // evaluation. Null when there's nothing to seed → start with no rounds.
@@ -1722,6 +1710,19 @@ const TeamProvider = ({ children }: any) => {
     const newSeasonFinances = rollFinances
       ? rollFinancesForNewSeason(teamData.finances, archivedSeason, nowIso)
       : teamData.finances;
+    const depositAmount = Math.max(0, Number((newSeasonFinances as any)?.depositAmount) || 0);
+    const tryoutDepositPayments = (opts?.tryoutDepositPayments || {}) as Record<string, string>;
+    const promotedDepositPayments = depositAmount > 0
+      ? promotedPairs
+          .filter(({ signup }: any) => tryoutDepositPayments[signup.id] != null)
+          .map(({ signup, player }: any) => ({
+            id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
+            playerId: player.id,
+            date: String(tryoutDepositPayments[signup.id] || nowIso).slice(0, 10),
+            amount: depositAmount,
+          }))
+      : [];
+
     const financesWithTryoutDeposits =
       promotedDepositPayments.length > 0 || rollFinances
         ? {
