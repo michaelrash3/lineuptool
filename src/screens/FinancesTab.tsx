@@ -224,6 +224,7 @@ export const FinancesTab = memo(() => {
   const [payInputs, setPayInputs] = useState<Record<string, string>>({});
   const [feeInput, setFeeInput] = useState<string | null>(null);
   const [depositInput, setDepositInput] = useState<string | null>(null);
+  const [nextDepositInput, setNextDepositInput] = useState<string | null>(null);
   // ---- Ledger form state (money in / money out)
   const [txnDir, setTxnDir] = useState<"in" | "out">("out");
   const [txnDate, setTxnDate] = useState(dateToIsoLocal(new Date()));
@@ -651,6 +652,15 @@ export const FinancesTab = memo(() => {
       writeFinances({ depositAmount: Math.round(n * 100) / 100 });
     }
     setDepositInput(null);
+  };
+
+  const commitNextDeposit = () => {
+    if (nextDepositInput == null) return;
+    const n = Number(String(nextDepositInput).replace(/[$,\s]/g, ""));
+    if (Number.isFinite(n) && n >= 0) {
+      writeFinances({ nextDepositAmount: Math.round(n * 100) / 100 });
+    }
+    setNextDepositInput(null);
   };
 
   return (
@@ -1881,6 +1891,56 @@ export const FinancesTab = memo(() => {
               </span>
             </label>
           </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
+            <label className="flex flex-col gap-1">
+              <span className="t-eyebrow text-ink-3">Next season deposit</span>
+              {nextDepositInput == null ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setNextDepositInput(String(finances.nextDepositAmount || ""))
+                  }
+                  className="text-left font-black tabular-nums text-ink hover:text-team-primary"
+                  aria-label="Edit next season deposit amount"
+                >
+                  {finances.nextDepositAmount
+                    ? formatCurrency(finances.nextDepositAmount)
+                    : "Add amount"}
+                </button>
+              ) : (
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  autoFocus
+                  value={nextDepositInput}
+                  onChange={(e) => setNextDepositInput(e.target.value)}
+                  onBlur={commitNextDeposit}
+                  onKeyDown={(e) => e.key === "Enter" && commitNextDeposit()}
+                  aria-label="Next season deposit"
+                  className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                  style={FORM_INPUT_RING_STYLE}
+                />
+              )}
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="t-eyebrow text-ink-3">Next season deposit due</span>
+              <input
+                type="date"
+                value={finances.nextDepositDueDate || ""}
+                onChange={(e) =>
+                  writeFinances({ nextDepositDueDate: e.target.value })
+                }
+                aria-label="Next season deposit due date"
+                className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                style={FORM_INPUT_RING_STYLE}
+              />
+            </label>
+            <p className="sm:col-span-2 t-meta text-ink-3">
+              Offer letters use these next-season deposit values. They promote
+              into the current collection schedule when you advance seasons.
+            </p>
+          </div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-line">
             <div className="t-body text-ink-2">
               Budget total:{" "}
@@ -1921,6 +1981,19 @@ export const FinancesTab = memo(() => {
                   </span>{" "}
                   — it becomes the team fee when the new season starts in the
                   Fall.
+                </div>
+              )}
+
+              {finances.nextDepositAmount != null && finances.nextDepositAmount > 0 && (
+                <div className="t-meta text-ink-3 mt-1">
+                  Next season's deposit is set to{" "}
+                  <span className="font-black tabular-nums">
+                    {formatCurrency(finances.nextDepositAmount)}
+                  </span>
+                  {finances.nextDepositDueDate && (
+                    <> due {finances.nextDepositDueDate}</>
+                  )}
+                  .
                 </div>
               )}
             </div>

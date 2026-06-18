@@ -2162,7 +2162,7 @@ describe("finances money math", () => {
 
   it("rollFinancesForNewSeason carries the balance, resets collections, promotes the planned fee", () => {
     const rolled = rollFinancesForNewSeason(
-      { ...finances, nextClubFee: 1000, feeExemptIds: ["kid3"] },
+      { ...finances, nextClubFee: 1000, nextDepositAmount: 250, nextDepositDueDate: "2027-07-15", feeExemptIds: ["kid3"] },
       "Spring 2027",
       "2027-06-01T12:00:00.000Z"
     );
@@ -2175,7 +2175,11 @@ describe("finances money math", () => {
       amount: 675,
     });
     expect(rolled.clubFee).toBe(1000); // planned fee promoted
+    expect(rolled.depositAmount).toBe(250);
+    expect(rolled.depositDueDate).toBe("2027-07-15");
     expect(rolled.nextClubFee).toBeUndefined();
+    expect(rolled.nextDepositAmount).toBeUndefined();
+    expect(rolled.nextDepositDueDate).toBeUndefined();
     expect(rolled.feeExemptIds).toBeUndefined(); // waivers die with the year
     expect(rolled.budgetItems).toEqual(finances.budgetItems); // plan kept
     expect(rolled.pastSeasons).toEqual([
@@ -2211,17 +2215,23 @@ describe("finances money math", () => {
     expect(rollFinancesForNewSeason(planOnly, "Spring 2027", "x")).toBe(planOnly);
   });
 
-  it("rollFinancesForNewSeason promotes a planned fee even with no money recorded", () => {
-    // Codex review (#297): a coach who only planned a fee was promised it
+  it("rollFinancesForNewSeason promotes planned fee and deposit even with no money recorded", () => {
+    // Codex review (#297): a coach who only planned money was promised it
     // takes effect at the new season — even before any ledger activity.
     const planned = {
       nextClubFee: 250,
+      nextDepositAmount: 100,
+      nextDepositDueDate: "2027-07-15",
       feeExemptIds: ["kid9"],
       budgetItems: [{ id: "b", label: "Balls", amount: 10 }],
     };
     const rolled = rollFinancesForNewSeason(planned, "Spring 2027", "2027-06-01");
     expect(rolled.clubFee).toBe(250);
+    expect(rolled.depositAmount).toBe(100);
+    expect(rolled.depositDueDate).toBe("2027-07-15");
     expect(rolled.nextClubFee).toBeUndefined();
+    expect(rolled.nextDepositAmount).toBeUndefined();
+    expect(rolled.nextDepositDueDate).toBeUndefined();
     expect(rolled.feeExemptIds).toBeUndefined();
     expect(rolled.budgetItems).toEqual(planned.budgetItems);
     expect(rolled.incomes).toEqual([]);

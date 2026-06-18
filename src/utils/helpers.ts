@@ -3313,7 +3313,9 @@ export const rollFinancesForNewSeason = (
     (finances?.incomes || []).length > 0 ||
     (finances?.expenses || []).length > 0;
   const hasPlannedFee = finances?.nextClubFee != null;
-  if (!finances || (!hadActivity && !hasPlannedFee)) return finances;
+  const hasPlannedDeposit =
+    finances?.nextDepositAmount != null || !!finances?.nextDepositDueDate;
+  if (!finances || (!hadActivity && !hasPlannedFee && !hasPlannedDeposit)) return finances;
   const date = String(dateIso || "").slice(0, 10);
   // Sponsorship pledges planned for the incoming year become real income
   // entries in the new year's ledger, named after the sponsor.
@@ -3331,13 +3333,17 @@ export const rollFinancesForNewSeason = (
     // is no balance to carry and no year worth archiving.
     const {
       nextClubFee: promoted,
+      nextDepositAmount: promotedDeposit,
+      nextDepositDueDate: promotedDepositDueDate,
       feeExemptIds: _cleared,
       sponsorships: _converted,
       ...rest
     } = finances;
     return {
       ...rest,
-      clubFee: promoted,
+      clubFee: promoted != null ? promoted : finances.clubFee,
+      depositAmount: promotedDeposit != null ? promotedDeposit : finances.depositAmount,
+      depositDueDate: promotedDepositDueDate || finances.depositDueDate,
       payments: [],
       incomes: pledgedIncomes,
       expenses: [],
@@ -3376,6 +3382,8 @@ export const rollFinancesForNewSeason = (
       : [];
   const {
     nextClubFee: _promoted,
+    nextDepositAmount: _promotedDeposit,
+    nextDepositDueDate: _promotedDepositDueDate,
     feeExemptIds: _cleared,
     sponsorships: _rolled,
     ...rest
@@ -3384,6 +3392,11 @@ export const rollFinancesForNewSeason = (
     ...rest,
     clubFee:
       finances.nextClubFee != null ? finances.nextClubFee : finances.clubFee,
+    depositAmount:
+      finances.nextDepositAmount != null
+        ? finances.nextDepositAmount
+        : finances.depositAmount,
+    depositDueDate: finances.nextDepositDueDate || finances.depositDueDate,
     payments: [],
     incomes,
     expenses,

@@ -524,6 +524,7 @@ export const TryoutsTab = memo(() => {
     team,
     user,
     currentRole,
+    updateTeam,
     updateTryoutSignup,
     deleteTryoutSignup,
     deleteTryoutSignups,
@@ -888,25 +889,6 @@ export const TryoutsTab = memo(() => {
                     </div>
                   )}
                   <StatusPill status={s.status} />
-                  {isHead && (s.status === "offered" || s.status === "accepted") && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateTryoutSignup?.(s.id, {
-                          depositPaid: !s.depositPaid,
-                          depositPaidAt: !s.depositPaid ? new Date().toISOString() : null,
-                        })
-                      }
-                      aria-pressed={s.depositPaid === true}
-                      className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
-                        s.depositPaid
-                          ? "bg-win-bg border-line text-win"
-                          : "bg-surface border-line text-ink-2 hover:bg-surface-2"
-                      }`}
-                    >
-                      {s.depositPaid ? "Deposit Paid" : "Mark Deposit Paid"}
-                    </button>
-                  )}
                   <button
                     type="button"
                     onClick={() =>
@@ -1148,6 +1130,9 @@ export const TryoutsTab = memo(() => {
               .filter(Boolean)
               .join(" ")
           )}
+          onSaveNextSeasonMoney={(patch) =>
+            updateTeam({ finances: { ...(team.finances || {}), ...patch } })
+          }
           onDelivered={() =>
             updateTryoutSignup?.(offerDraft.signup.id, {
               status: offerDraft.kind === "rejection" ? "declined" : "offered",

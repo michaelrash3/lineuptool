@@ -212,9 +212,10 @@ export interface TryoutSignup {
   notes?: string;
   status?: "tryout" | "offered" | "accepted" | "declined";
   tryoutDate?: string;
-  // Deposit commitment collected after an offer/acceptance. When an accepted
-  // tryout is promoted during Advance Season, this can seed the new season
-  // finances ledger as that player's first club-fee payment.
+  // Deposit commitment captured during Advance Season for accepted tryouts.
+  // The Tryouts tab does not collect deposits during the current season; when
+  // promoted, these fields can seed the new season finances ledger as that
+  // player's first club-fee payment.
   depositPaid?: boolean;
   depositPaidAt?: string;
   // Attendance + check-in fields (set by the HC at tryouts).
@@ -454,6 +455,12 @@ export interface TeamFinances {
   // advances into a new Fall — planning never disturbs the in-progress
   // collection cycle.
   nextClubFee?: number;
+  // NEXT season's planned up-front deposit and due date, captured with the
+  // Budget Planner so offer letters can quote the incoming year without
+  // disturbing this season's collection schedule. Promoted to depositAmount /
+  // depositDueDate when the season advances.
+  nextDepositAmount?: number;
+  nextDepositDueDate?: string;
   // Players exempt from the club fee (fall-only pickups, scholarships).
   // They never count toward "still owed" or the suggested-fee split.
   feeExemptIds?: PlayerId[];
