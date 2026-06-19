@@ -765,7 +765,7 @@ const TOTAL_SCORE_CATEGORY_WEIGHTS =
   // coachability(3.0) + contact + power + plateDiscipline + approach
   2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 3.0 + 1.5 + 1.0 + 1.0 + 1.5;
 // Max possible raw total = 5 × sum(category weights) + 10 (max offensive) × 2.
-const TOTAL_SCORE_MAX =
+export const TOTAL_SCORE_MAX =
   5 * TOTAL_SCORE_CATEGORY_WEIGHTS + 10 * 2.0; // = 105
 
 export function calculateTotalScore(
@@ -1136,7 +1136,7 @@ export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
 };
 
 // Pitcher score scale (1–5 grades × weights). Max ≈ 32.5.
-const PITCHER_EVAL_MAX =
+export const PITCHER_EVAL_MAX =
   5 * Object.values(PITCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
 
 // Imported GameChanger pitching stats → 0–1 quality. Each spec is
@@ -1193,24 +1193,24 @@ export function calcPitcherStatsQuality(
 // imported. Returns null when there's no reading.
 // Internal copy of the age velocity benchmarks (mirrors AGE_VELOCITY_BENCHMARKS
 // in src/constants/ui.ts — the engine deliberately keeps its own labelless copy
-// so it stays standalone). Returns [floor, ceiling] = [age average-low, elite],
-// so a reading at the age's average-low scores ~0 quality and an elite reading
-// scores 1.0.
+// so it stays standalone). Returns [floor, ceiling] = [recreational low, elite threshold],
+// so a competitive/travel-band reading gets meaningful credit and an elite
+// reading scores 1.0.
 function veloBandForAge(teamAge: string | undefined): [number, number] {
   const n = (() => {
     const m = String(teamAge || "").match(/(\d+)/g);
     return Math.min(15, Math.max(7, m ? parseInt(m[m.length - 1], 10) : 10));
   })();
   const BANDS: Record<number, [number, number]> = {
-    7: [35, 45],
-    8: [40, 50],
-    9: [40, 55],
-    10: [45, 55],
-    11: [45, 60],
-    12: [50, 65],
-    13: [55, 70],
-    14: [60, 75],
-    15: [65, 80],
+    7: [30, 50],
+    8: [30, 50],
+    9: [35, 55],
+    10: [40, 58],
+    11: [43, 60],
+    12: [45, 65],
+    13: [50, 70],
+    14: [55, 75],
+    15: [55, 75],
   };
   return BANDS[n];
 }
@@ -1280,7 +1280,7 @@ const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
   receiving: 1.0,
 };
 
-const CATCHER_EVAL_MAX =
+export const CATCHER_EVAL_MAX =
   5 * Object.values(CATCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
 
 // 0..1 normalizer shared by the stat-quality helpers.

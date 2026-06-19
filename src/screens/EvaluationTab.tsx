@@ -19,6 +19,7 @@ import {
   getEvalCategoriesForTeam,
   getEvalCategoriesForPlayer,
   playerIsPitcher,
+  playerIsCatcher,
   pitcherRosterPremium,
   leftHandedPitcherRosterPremium,
   isKidPitchFormat,
@@ -30,6 +31,10 @@ import {
 import {
   calculateTotalScore,
   calcPitcherScore,
+  calcCatcherScore,
+  TOTAL_SCORE_MAX,
+  PITCHER_EVAL_MAX,
+  CATCHER_EVAL_MAX,
   PITCHER_SCORE_WEIGHTS,
   getCombinedGrades,
   suggestPrimaryPosition,
@@ -51,6 +56,34 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   (a, b) => a + b,
   0
 );
+
+// Eval-card score: normalize every applicable bucket back to a percentage.
+// Adding pitcher/catcher points should expand the denominator, not let a
+// multi-position player exceed (or be capped against) a smaller 100-point base.
+// This intentionally excludes the left-handed-pitcher roster scarcity bump;
+// lefty value is only considered inside the Roster Decisions advisory logic.
+const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
+  const stats = player?.stats || null;
+  let earned = (calculateTotalScore(grades, stats) / 100) * TOTAL_SCORE_MAX;
+  let possible = TOTAL_SCORE_MAX;
+
+  if (playerIsPitcher(player)) {
+    earned +=
+      calcPitcherScore(grades, stats, {
+        topMph: stats?.pTopMph ?? player?.pitching?.topMph,
+        teamAge,
+        neutralFill: true,
+      });
+    possible += PITCHER_EVAL_MAX;
+  }
+
+  if (playerIsCatcher(player)) {
+    earned += calcCatcherScore(grades, stats);
+    possible += CATCHER_EVAL_MAX;
+  }
+
+  return Math.min(100, Math.max(0, Math.round((earned / possible) * 100)));
+};
 
 // Roster-decision premium: pitching WELL puts a kid a leg up when comparing
 // players. Additive on top of the universal Total Score (never subtracts), so a
@@ -1548,8 +1581,7 @@ export const EvaluationTab = memo(() => {
         const grades = { ...DEFAULT_GRADES, ...savedGrades };
         const totalScore = Math.min(
           100,
-          calculateTotalScore(grades, player.stats) +
-            pitcherPremium(savedGrades, player, teamAge)
+          evalTotalScore(grades, player, teamAge)
         );
         const primarySuggestion = suggestPrimaryPosition(player, grades, {
           kidPitch: isKidPitchFormat(pitchingFormat),
@@ -1893,12 +1925,11 @@ export const EvaluationTab = memo(() => {
                 pitchingFormat,
                 player
               );
-              // Roster-decision value: universal Total Score plus a pitching
-              // premium for pitchers (additive — never penalizes non-pitchers).
+              // Eval value: percentage-normalized score across the universal
+              // bucket plus any applicable pitcher/catcher buckets.
               const totalScore = Math.min(
                 100,
-                calculateTotalScore(grades, player.stats) +
-                  pitcherPremium(savedGrades, player, teamAge)
+                evalTotalScore(grades, player, teamAge)
               );
               const expanded = expandedPlayerIds.has(player.id);
               const rankRow = rankByPlayerId.get(player.id) as any;

@@ -63,7 +63,7 @@
     "test:rules": "firebase emulators:exec --only firestore \"vitest run --config firestore-tests/vitest.config.ts\""
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "browserslist": [
     ">0.2%",
