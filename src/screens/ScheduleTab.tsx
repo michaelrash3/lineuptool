@@ -1490,7 +1490,10 @@ export const ScheduleTab = memo(() => {
           </button>
         </div>
       )}
-      <div className="p-0">
+      {/* Desktop control-panel: game list left + season-summary rail right.
+          On lg+ the list is flex-1 and the rail is a fixed-width sidebar. */}
+      <div className="lg:flex lg:items-start lg:gap-6 mt-4">
+      <div className="lg:flex-1 lg:min-w-0 p-0 border border-line rounded-2xl overflow-hidden">
         {games.length === 0 ? (
           <div className="text-center py-20 bg-transparent">
             {logoUrl ? (
@@ -1836,6 +1839,135 @@ export const ScheduleTab = memo(() => {
               })}
           </div>
         )}
+      </div>
+
+      {/* Desktop season-summary rail — hidden on mobile/tablet */}
+      {(() => {
+        const today = new Date();
+        today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+        const todayStr = today.toISOString().split("T")[0];
+        const finalGames = sortedGames.filter((g: any) => isGameFinalized(g));
+        const upcomingGames = sortedGames.filter(
+          (g: any) => !isGameFinalized(g) && (g.status || "scheduled") !== "postponed"
+        );
+        const nextGame = upcomingGames[0] ?? null;
+        const lineupReadyCount = upcomingGames.filter((g: any) => !!g.lineup).length;
+        const lineupNeededCount = upcomingGames.filter((g: any) => !g.lineup).length;
+        const postponedCount = sortedGames.filter(
+          (g: any) => (g.status || "scheduled") === "postponed"
+        ).length;
+        return (
+          <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:shrink-0 gap-4">
+            {/* Season record panel */}
+            <div className="border border-line rounded-2xl bg-surface p-5">
+              <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                Season Record
+              </p>
+              {record.wins > 0 || record.losses > 0 || record.ties > 0 ? (
+                <>
+                  <div className="flex items-end gap-1 mb-4">
+                    <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                      {record.wins}
+                    </span>
+                    <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
+                    <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                      {record.losses}
+                    </span>
+                    {record.ties > 0 && (
+                      <>
+                        <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
+                        <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                          {record.ties}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line">
+                    <div className="text-center">
+                      <div className="text-lg font-black text-win tabular-nums">{record.wins}</div>
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Wins</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-black text-loss tabular-nums">{record.losses}</div>
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Losses</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-black text-ink tabular-nums">{finalGames.length}</div>
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Played</div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs font-semibold text-ink-3">No results yet</p>
+              )}
+            </div>
+
+            {/* Upcoming panel */}
+            <div className="border border-line rounded-2xl bg-surface p-5">
+              <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                Upcoming
+              </p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-ink-2">Remaining</span>
+                  <span className="text-sm font-black text-ink tabular-nums">{upcomingGames.length}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-ink-2">Lineup Ready</span>
+                  <span className="text-sm font-black text-win tabular-nums">{lineupReadyCount}</span>
+                </div>
+                {lineupNeededCount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-ink-2">Lineup Needed</span>
+                    <span className="text-sm font-black text-warnfg tabular-nums">{lineupNeededCount}</span>
+                  </div>
+                )}
+                {postponedCount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-ink-2">Postponed</span>
+                    <span className="text-sm font-black text-ink-3 tabular-nums">{postponedCount}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Next game spotlight */}
+            {nextGame && (
+              <div className="border border-line rounded-2xl bg-surface p-5">
+                <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                  Next Game
+                </p>
+                <p className="text-base font-black text-ink uppercase tracking-tight mb-1">
+                  {nextGame.isHome === false ? "@ " : "vs. "}{nextGame.opponent}
+                </p>
+                <p className="text-xs font-bold text-ink-3 mb-3">
+                  {formatGameDateDisplay(nextGame.date)}
+                  {isoInstantToLocalTime(nextGame.startUtc) && (
+                    <> · {isoInstantToLocalTime(nextGame.startUtc)}</>
+                  )}
+                </p>
+                {nextGame.lineup ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-win-bg text-win text-[10px] font-black uppercase tracking-wider">
+                    <Icons.Check className="w-3 h-3" /> Lineup Ready
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warn-bg text-warnfg text-[10px] font-black uppercase tracking-wider">
+                    <Icons.Clock className="w-3 h-3" /> Lineup Needed
+                  </span>
+                )}
+                {nextGame.date === todayStr && (
+                  <div
+                    className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-white ml-2"
+                    style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+                  >
+                    Today
+                  </div>
+                )}
+              </div>
+            )}
+          </aside>
+        );
+      })()}
       </div>
 
       {saveTemplateOpen && (
