@@ -30,6 +30,8 @@ import {
   calculateTotalScore,
   calcPitcherScore,
   PITCHER_SCORE_WEIGHTS,
+  getCombinedGrades,
+  suggestPrimaryPosition,
 } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts";
 import { A11yDialog } from "../components/shared";
@@ -1242,7 +1244,13 @@ export const EvaluationTab = memo(() => {
     evalTrendPlayerId,
     setEvalTrendPlayerId,
   } = useUI();
-  const { players: rawPlayers, primaryColor, evaluationEvents } = team;
+  const {
+    players: rawPlayers,
+    primaryColor,
+    evaluationEvents,
+    pitchingFormat,
+    teamAge,
+  } = team;
   // Sort eval cards by jersey number so the head can scan in the same
   // order coaches call kids on the field. Numeric sort; unnumbered
   // players sink to the bottom with name as the tie-break.
@@ -1299,12 +1307,12 @@ export const EvaluationTab = memo(() => {
   const lastSavedRef = useRef("");
 
   const activeCategories = useMemo(
-    () => getEvalCategoriesForTeam(team?.pitchingFormat),
-    [team?.pitchingFormat]
+    () => getEvalCategoriesForTeam(pitchingFormat),
+    [pitchingFormat]
   );
   const includeKidPitchAddons = useMemo(
-    () => isKidPitchFormat(team?.pitchingFormat),
-    [team?.pitchingFormat]
+    () => isKidPitchFormat(pitchingFormat),
+    [pitchingFormat]
   );
   const visibleGroups = useMemo(() => {
     const base = [...EVAL_GROUPS_UNIVERSAL];
@@ -1528,6 +1536,37 @@ export const EvaluationTab = memo(() => {
   }, [myRounds, players, teamEvalGrades, setTeamEvalGrades]);
 
   const hasLastRound = myRounds.length > 0;
+
+  const rankingRows = useMemo(() => {
+    const combinedGrades = getCombinedGrades(evaluationEvents || [], players || [], {
+      teamAge,
+    });
+    return players
+      .map((player: any) => {
+        const savedGrades = teamEvalGrades[player.id] || combinedGrades[player.id] || {};
+        const grades = { ...DEFAULT_GRADES, ...savedGrades };
+        const totalScore = Math.min(
+          100,
+          calculateTotalScore(grades, player.stats) +
+            pitcherPremium(savedGrades, player, teamAge)
+        );
+        const primarySuggestion = suggestPrimaryPosition(player, grades, {
+          kidPitch: isKidPitchFormat(pitchingFormat),
+          teamAge,
+        });
+        return { player, totalScore, primarySuggestion };
+      })
+      .sort((a: any, b: any) =>
+        b.totalScore !== a.totalScore
+          ? b.totalScore - a.totalScore
+          : String(a.player.name || "").localeCompare(String(b.player.name || ""))
+      )
+      .map((row: any, idx: number) => ({ ...row, rank: idx + 1 }));
+  }, [evaluationEvents, players, pitchingFormat, teamAge, teamEvalGrades]);
+
+  const rankByPlayerId = useMemo(() => {
+    return new Map(rankingRows.map((row: any) => [row.player.id, row]));
+  }, [rankingRows]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -1804,7 +1843,8 @@ export const EvaluationTab = memo(() => {
         {/* Per-player grading cards. One column on mobile, two on lg+
             screens. Replaces the legacy desktop table — same chip rows
             as the assistant flow so head + assistant inputs match. */}
-        <div className="px-1 py-3 space-y-2">
+        <div className="px-1 py-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 space-y-4 lg:space-y-0">
+          <div className="space-y-2">
           {players.length > 0 && (
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
               <span className="t-eyebrow text-ink-3">
@@ -1838,7 +1878,8 @@ export const EvaluationTab = memo(() => {
               No players on the roster yet.
             </div>
           ) : (
-            players.map((player: any) => {
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            {players.map((player: any) => {
               const savedGrades = teamEvalGrades[player.id] || {};
               const grades = {
                 ...DEFAULT_GRADES,
@@ -1848,7 +1889,7 @@ export const EvaluationTab = memo(() => {
               // pitching/catching specialty), so non-pitchers/non-catchers
               // aren't shown — or scored on — spots that don't apply to them.
               const playerCats = getEvalCategoriesForPlayer(
-                team?.pitchingFormat,
+                pitchingFormat,
                 player
               );
               // Roster-decision value: universal Total Score plus a pitching
@@ -1856,9 +1897,14 @@ export const EvaluationTab = memo(() => {
               const totalScore = Math.min(
                 100,
                 calculateTotalScore(grades, player.stats) +
-                  pitcherPremium(savedGrades, player, team?.teamAge)
+                  pitcherPremium(savedGrades, player, teamAge)
               );
               const expanded = expandedPlayerIds.has(player.id);
+              const rankRow = rankByPlayerId.get(player.id) as any;
+              const primarySuggestion = rankRow?.primarySuggestion || suggestPrimaryPosition(player, grades, {
+                kidPitch: isKidPitchFormat(pitchingFormat),
+                teamAge,
+              });
               // Count how many categories the coach has graded (any non-default
               // chip click) so the collapsed row can show progress at a glance.
               // Optional measurement fields (Pitch Velocity) don't count toward
@@ -1872,13 +1918,13 @@ export const EvaluationTab = memo(() => {
               return (
                 <div
                   key={`mc-${player.id}`}
-                  className="border-b border-line"
+                  className="bg-surface-1 border border-line rounded-xl overflow-hidden"
                 >
                   <button
                     type="button"
                     onClick={() => togglePlayerExpanded(player.id)}
                     aria-expanded={expanded}
-                    className="w-full px-1 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
+                    className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
                   >
                     <Icons.ChevronRight
                       className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
@@ -1893,6 +1939,11 @@ export const EvaluationTab = memo(() => {
                     <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-ink truncate">
                       {player.name}
                     </span>
+                    {rankRow && (
+                      <span className="text-[10px] font-black text-ink-2 shrink-0 tabular-nums" title="Team rank">
+                        #{rankRow.rank}
+                      </span>
+                    )}
                     <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
                       {gradedCount}/{requiredCats.length}
                     </span>
@@ -1908,14 +1959,14 @@ export const EvaluationTab = memo(() => {
                     </span>
                   </button>
                   {expanded && (
-                    <div className="px-1 pb-4 pt-1 border-t border-line space-y-2.5">
+                    <div className="px-3 pb-4 pt-3 border-t border-line space-y-2.5">
                       <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 pt-0.5">
                         Your Evaluation
                       </div>
                       {playerCats.map((cat) => (
                         <div
                           key={cat.id}
-                          className="flex items-start justify-between gap-3"
+                          className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3"
                         >
                           <div className="flex-1 min-w-0">
                             <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 flex items-center gap-1.5 flex-wrap">
@@ -1971,9 +2022,19 @@ export const EvaluationTab = memo(() => {
                         </div>
                       ))}
                       <div className="pt-1.5 border-t border-line">
-                        <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
-                          Suggested Positions
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
+                            Position Fit Notes
+                          </div>
+                          {primarySuggestion && (
+                            <span className="text-[10px] font-black text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5">
+                              Best fit: {primarySuggestion.position}
+                            </span>
+                          )}
                         </div>
+                        <p className="text-[10px] text-ink-3 mb-2 leading-snug">
+                          Mark spots to review on the Depth Chart; use the best-fit hint for primary-position decisions.
+                        </p>
                         <div className="flex flex-wrap gap-1">
                           {SUGGESTED_POSITIONS.map((pos) => {
                             const active = (
@@ -2030,7 +2091,49 @@ export const EvaluationTab = memo(() => {
                   )}
                 </div>
               );
-            })
+            })}
+            </div>
+          )}
+          </div>
+          {players.length > 0 && (
+            <aside className="lg:sticky lg:top-24 bg-surface border border-line rounded-xl p-3 space-y-3">
+              <div>
+                <div className="t-eyebrow text-ink-3">Complete Ranking</div>
+                <p className="text-[10px] text-ink-3 mt-1 leading-snug">
+                  Ranked by Total Score from the current grades. Best-fit positions are hints, not automatic assignments.
+                </p>
+              </div>
+              <div className="space-y-1.5 max-h-[70vh] overflow-auto pr-1">
+                {rankingRows.map((row: any) => (
+                  <button
+                    key={`rank-${row.player.id}`}
+                    type="button"
+                    onClick={() => {
+                      setExpandedPlayerIds((prev) => new Set(prev).add(row.player.id));
+                    }}
+                    className="w-full grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
+                    title="Open this player's evaluation card"
+                  >
+                    <span className="text-xs font-black tabular-nums text-ink-2">#{row.rank}</span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black uppercase text-ink truncate">{row.player.name}</span>
+                      <span className="block text-[10px] font-bold text-ink-3 truncate">
+                        {row.primarySuggestion ? `Fit: ${row.primarySuggestion.position}` : "Fit: review"}
+                      </span>
+                    </span>
+                    <span
+                      className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md"
+                      style={{
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                      }}
+                    >
+                      {row.totalScore}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
           )}
         </div>
 
