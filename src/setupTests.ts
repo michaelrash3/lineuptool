@@ -23,6 +23,49 @@ if (!("ResizeObserver" in globalThis)) {
   };
 }
 
+// jsdom can't navigate. Several components call window.location.reload() after
+// destructive actions (sign-out, team reset — see ErrorBoundary, Chrome,
+// WelcomeChooser, SettingsTab). Under jsdom that logs a noisy "Not implemented:
+// navigation to another Document" stack on every run and, in some CI sandboxes,
+// stalls the worker waiting on a navigation that never resolves. The Location
+// instance's methods are non-configurable, so swap the whole `window.location`
+// for a Proxy that no-ops the navigation methods and forwards everything else
+// (href, pathname, search, ...) to the real object.
+const NAV_NOOPS = new Set(["reload", "assign", "replace"]);
+const realLocation = window.location;
+const stubbedLocation = new Proxy(realLocation, {
+  get(target, prop, receiver) {
+    if (typeof prop === "string" && NAV_NOOPS.has(prop)) return () => {};
+    const value = Reflect.get(target, prop, receiver);
+    return typeof value === "function" ? value.bind(target) : value;
+  },
+});
+try {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: stubbedLocation,
+  });
+} catch {
+  // Environment locks window.location; the navigation warning is harmless noise.
+}
+
+// Native <form> submission also makes jsdom attempt a navigation (same warning).
+// A capture-phase guard cancels only the navigation default — it runs before
+// React's onSubmit, and preventDefault does not stop propagation, so component
+// submit handlers still fire normally.
+window.addEventListener("submit", (event) => event.preventDefault(), true);
+
+// Programmatic download links (a CSV/PDF export builds a detached <a download>
+// and calls a.click() — e.g. FinancesTab's ledger export). The detached anchor
+// never reaches the window listener above, and its click makes jsdom attempt a
+// navigation. There is nothing to download under jsdom, so short-circuit the
+// click for download anchors; regular links keep their default behavior.
+const realAnchorClick = HTMLAnchorElement.prototype.click;
+HTMLAnchorElement.prototype.click = function click(this: HTMLAnchorElement) {
+  if (this.hasAttribute("download")) return;
+  return realAnchorClick.apply(this);
+};
+
 // jsdom has no matchMedia. framer-motion's `MotionConfig reducedMotion="user"`
 // and src/lib/celebrate.ts both query prefers-reduced-motion through it.
 if (!window.matchMedia) {

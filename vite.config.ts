@@ -77,5 +77,12 @@ export default defineConfig({
     setupFiles: "./src/setupTests.ts",
     // Match CRA: only our own source is under test; node_modules excluded.
     include: ["src/**/*.{test,spec}.{js,jsx,ts,tsx}"],
+    // Fail fast instead of hanging. CI auto-merges any green run, so a wedged
+    // test (e.g. an unresolved navigation or a never-settling promise) must turn
+    // the run RED quickly rather than burning to the job's wall-clock cap. These
+    // bound a single test, a hook, and per-suite teardown respectively.
+    testTimeout: 15000,
+    hookTimeout: 15000,
+    teardownTimeout: 10000,
   },
 });

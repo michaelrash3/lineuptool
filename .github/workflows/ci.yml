@@ -55,8 +55,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # --bail=1 stops at the first failing test so a broken run goes red fast
+      # (auto-merge gates on this job; no value in grinding through 800 more
+      # tests once one has failed). Local `npm test` stays full-run for debugging.
       - name: Unit tests
-        run: npm test
+        run: npm test -- --bail=1
         env:
           CI: true
 
