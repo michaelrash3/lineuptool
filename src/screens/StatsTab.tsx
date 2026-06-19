@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
@@ -362,8 +362,36 @@ export const StatsTab = memo(() => {
   );
 
   const [category, setCategory] = useState<string>("batting");
+  const [statFormat, setStatFormat] = useState<"all" | "machine" | "kid">("all");
   const activeCat =
     CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
+
+  const filteredGames = useMemo(() => {
+    if (statFormat === "all") return games;
+    return games.filter((g: any) => {
+      const fmt = String(g.pitchingFormat || (team as any).pitchingFormat || "");
+      const kid = isKidPitchFormat(fmt);
+      return statFormat === "kid" ? kid : !kid;
+    });
+  }, [games, statFormat, team]);
+
+  const statScopeLabel =
+    statFormat === "kid"
+      ? "Kid Pitch"
+      : statFormat === "machine"
+      ? "Machine/Coach Pitch"
+      : "All Formats";
+
+  const scopedStatsForPlayer = useCallback(
+    (p: any) => {
+      if (statFormat === "all") return p.stats || {};
+      const lines = filteredGames
+        .map((g: any) => g?.playerStats?.[p.id])
+        .filter((line: any) => line && typeof line === "object");
+      return lines.length > 0 ? aggregateGameLines(lines) : {};
+    },
+    [filteredGames, statFormat]
+  );
 
   // Eval Total Score per player, surfaced as the "Overall" column.
   const rows: StatRow[] = useMemo(() => {
@@ -371,15 +399,18 @@ export const StatsTab = memo(() => {
       teamAge: (team as any).teamAge,
       games,
     });
-    return players.map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      number: p.number,
-      primaryPosition: p.primaryPosition,
-      stats: p.stats || {},
-      total: calculateTotalScore(grades[p.id], p.stats),
-    }));
-  }, [players, evaluationEvents, team, games]);
+    return players.map((p: any) => {
+      const scopedStats = scopedStatsForPlayer(p);
+      return {
+        id: p.id,
+        name: p.name,
+        number: p.number,
+        primaryPosition: p.primaryPosition,
+        stats: scopedStats,
+        total: calculateTotalScore(grades[p.id], scopedStats),
+      };
+    });
+  }, [players, evaluationEvents, team, games, scopedStatsForPlayer]);
 
   const benchRows = useMemo(() => {
     const m = buildSeasonBenchImbalance(games, "", players);
@@ -396,11 +427,12 @@ export const StatsTab = memo(() => {
   const recentForm = useMemo(() => {
     return players
       .map((p: any) => {
-        const lines = recentGameLines(games, p.id, 3);
+        const lines = recentGameLines(filteredGames, p.id, 3);
         if (lines.length === 0) return null;
         const agg = aggregateGameLines(lines.map((l) => l.line));
-        const seasonAvg = Number(p.stats?.avg);
-        const seasonQab = Number(p.stats?.qab);
+        const scopedStats = scopedStatsForPlayer(p);
+        const seasonAvg = Number(scopedStats?.avg);
+        const seasonQab = Number(scopedStats?.qab);
         let delta: number | null = null;
         let basis: "avg" | "qab" | null = null;
         if (
@@ -424,7 +456,7 @@ export const StatsTab = memo(() => {
       .sort(
         (a: any, b: any) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity)
       );
-  }, [games, players]);
+  }, [filteredGames, players, scopedStatsForPlayer]);
 
   // Per-player eval-grade trend (avg grade per Head round, chronological) for
   // the inline sparkline. Only players with ≥2 rounds get a line.
@@ -600,8 +632,10 @@ export const StatsTab = memo(() => {
       <SectionCard
         icon={Icons.Bat}
         title="Player Stats"
+        subtitle={`Showing ${statScopeLabel} stats${statFormat === "all" ? "" : " from per-game imports"}`}
       >
-        <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2">
+        <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
+          <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((c) => {
             const on = c.id === category;
             return (
@@ -624,6 +658,29 @@ export const StatsTab = memo(() => {
               </button>
             );
           })}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["all", "All Formats"],
+              ["machine", "Machine/Coach"],
+              ["kid", "Kid Pitch"],
+            ].map(([id, label]) => {
+              const on = statFormat === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setStatFormat(id as "all" | "machine" | "kid")}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
+                    on ? "border-team-primary text-team-primary" : "border-line text-ink-2"
+                  }`}
+                  title="Filter stat lines by game pitching format"
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
         <StatsTable
           key={activeCat.id}

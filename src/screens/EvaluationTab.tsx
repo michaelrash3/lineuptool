@@ -92,7 +92,8 @@ const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
 // are stats-graded (schema v9), the premium now reflects the imported pitching
 // stats plus the coach's Composure grade. neutralFill keeps a partial stat
 // line comparable against the all-categories neutral baseline; zero-signal
-// pitching still earns nothing.
+// pitching still earns nothing. Left-handed scarcity is applied only to the
+// hidden roster-decision standing below, not to the visible score badge.
 const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number => {
   if (!playerIsPitcher(player)) return 0;
   const stats = player?.stats || null;
@@ -101,10 +102,7 @@ const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number
     teamAge,
     neutralFill: true,
   });
-  return (
-    pitcherRosterPremium(score, PITCH_WEIGHT_SUM) +
-    leftHandedPitcherRosterPremium(player)
-  );
+  return pitcherRosterPremium(score, PITCH_WEIGHT_SUM);
 };
 
 // 11 standard positions surfaced as a per-player chip row so the coach
@@ -278,6 +276,13 @@ export const RosterDecisionsPanel = memo(() => {
         calculateTotalScore({ ...DEFAULT_GRADES, ...savedGrades }, player.stats) +
           pitcherPremium(savedGrades, player, teamAge)
       );
+      // Hidden decision standing: left-handed pitcher scarcity matters for the
+      // coach's roster advisory, but it is intentionally not shown in the
+      // score badge so handedness cannot be reverse-engineered as extra points.
+      const decisionScore = Math.min(
+        100,
+        totalScore + leftHandedPitcherRosterPremium(player)
+      );
 
       // ---- Age eligibility ----
       const baseballAge = calculateBaseballAge(player.dob, currentSeason);
@@ -340,8 +345,15 @@ export const RosterDecisionsPanel = memo(() => {
 
       // 2) Strong Fit — earn it with positive signal across the board.
       if (bucket !== "younger") {
-        const noNegatives = !evalBelowBar && !statsBelowBar && evalTrend !== "declining";
-        const positiveSignal = evalAboveBar || stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
+        const noNegatives =
+          !evalBelowBar &&
+          !statsBelowBar &&
+          evalTrend !== "declining" &&
+          // With machine/coach-pitch batting stats available, do not call a
+          // below-team bat a Strong Fit solely because subjective evals are
+          // good. They can still be a Fit, but Strong is for clear standouts.
+          (statsRatio == null || statsRatio >= 1.0);
+        const positiveSignal = stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
         if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
           bucket = "strong";
           if (evalAboveBar) {
@@ -394,6 +406,7 @@ export const RosterDecisionsPanel = memo(() => {
         playingUp,
         latestEvalAvg,
         totalScore,
+        decisionScore,
         evalTrend,
         evalDelta,
         evalCount: evalsForPlayer.length,
@@ -423,7 +436,7 @@ export const RosterDecisionsPanel = memo(() => {
     const compositeOf = (d: any) =>
       d.latestEvalAvg == null && d.statsRatio == null
         ? null
-        : d.totalScore / 100;
+        : d.decisionScore / 100;
     const withComp = decisionRows.map((d: any) => ({ d, c: compositeOf(d) }));
     const scored = withComp.map((x: any) => x.c).filter((c: any) => c != null);
     const mean = scored.length
@@ -435,7 +448,12 @@ export const RosterDecisionsPanel = memo(() => {
         )
       : 0;
     const belowLine = mean - sd;
-    const teamAvgScore = Math.round(mean * 100);
+    const visibleScores = decisionRows
+      .filter((d: any) => d.latestEvalAvg != null || d.statsRatio != null)
+      .map((d: any) => d.totalScore);
+    const teamAvgScore = visibleScores.length
+      ? Math.round(visibleScores.reduce((a: number, b: number) => a + b, 0) / visibleScores.length)
+      : Math.round(mean * 100);
     for (const x of withComp) {
       // perfScore drives the within-bucket card sort below (was never set).
       x.d.perfScore = x.c != null ? x.c : mean;
