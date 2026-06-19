@@ -1693,8 +1693,19 @@ export const EvaluationTab = memo(() => {
           </div>
         </div>
 
+        {/* Desktop control-panel: 3-column workspace.
+            Left rail (col-span-3): round/player selector + save explanation.
+            Middle (col-span-6): insights, assistant submissions, quick-set, grading cards.
+            Right rail (col-span-3): live Complete Ranking.
+            Section order is unchanged, so on mobile/tablet the columns stack in
+            the exact same order as before — only lg:+ gets the grid. */}
+        <div className="lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start space-y-6 lg:space-y-0">
+
+        {/* Left rail: round/player selector controls */}
+        <div className="lg:col-span-3 space-y-4">
+
         {/* Round selection bar */}
-        <div className="px-1 py-3 border-b border-line flex flex-col sm:flex-row gap-3 sm:items-center">
+        <div className="px-1 py-3 border-b border-line flex flex-col sm:flex-row lg:flex-col lg:items-stretch gap-3 sm:items-center">
           <label className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-2 shrink-0">
               Eval:
@@ -1843,6 +1854,11 @@ export const EvaluationTab = memo(() => {
           </p>
         </div>
 
+        </div>{/* end left rail */}
+
+        {/* Middle column: insights, assistant submissions, quick-set, grading cards */}
+        <div className="lg:col-span-6 space-y-4 min-w-0">
+
         {/* Round-over-round auto-flags (standouts / regressions / category drops) */}
         <InsightsPanel
           rounds={myRounds}
@@ -1894,10 +1910,10 @@ export const EvaluationTab = memo(() => {
           </button>
         </div>
 
-        {/* Per-player grading cards. One column on mobile, two on lg+
-            screens. Replaces the legacy desktop table — same chip rows
-            as the assistant flow so head + assistant inputs match. */}
-        <div className="px-1 py-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 space-y-4 lg:space-y-0">
+        {/* Per-player grading cards — single column inside the col-span-6
+            middle. Same chip rows as the assistant flow so head + assistant
+            inputs match. */}
+        <div className="px-1 py-3">
           <div className="space-y-2">
           {players.length > 0 && (
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
@@ -1932,7 +1948,7 @@ export const EvaluationTab = memo(() => {
               No players on the roster yet.
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
             {players.map((player: any) => {
               const savedGrades = teamEvalGrades[player.id] || {};
               const grades = {
@@ -2158,6 +2174,12 @@ export const EvaluationTab = memo(() => {
             </div>
           )}
           </div>
+        </div>{/* end cards wrapper */}
+
+        </div>{/* end middle column */}
+
+        {/* Right rail: live Complete Ranking */}
+        <div className="lg:col-span-3">
           {players.length > 0 && (
             <aside className="lg:sticky lg:top-24 bg-surface border border-line rounded-xl p-3 space-y-3">
               <div>
@@ -2198,7 +2220,9 @@ export const EvaluationTab = memo(() => {
               </div>
             </aside>
           )}
-        </div>
+        </div>{/* end right rail */}
+
+        </div>{/* end 3-column workspace grid */}
 
       </div>
 
