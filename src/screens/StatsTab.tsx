@@ -513,8 +513,7 @@ export const StatsTab = memo(() => {
 
   return (
     <div className="space-y-6">
-      {/* Arm-care overuse banner — pulled up to the top so a coach sees it
-          before anything else. Kid-Pitch head coaches only. */}
+      {/* Arm-care overuse banner — full width, always first. */}
       {armAlerts.length > 0 && (
         <div className="border-l-4 border-l-warnfg">
           <div className="p-4 sm:p-5 bg-warn-bg flex items-start gap-3">
@@ -546,8 +545,14 @@ export const StatsTab = memo(() => {
         </div>
       )}
 
-      {/* Recent form — who's hot / cold over their last imported game lines.
-          Leads the tab: the freshest signal a coach acts on between games. */}
+      {/* Desktop control-panel: two-column layout.
+          Left col (8/12): Recent Form + Player Stats — the dense data tables.
+          Right col (4/12): Bench Equity + Position/Arm-Care panels — context rail.
+          Mobile/tablet: single-column stack, unchanged. */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
+        <div className="lg:col-span-8 space-y-6">
+
+      {/* Recent form — who's hot / cold over their last imported game lines. */}
       {recentForm.length > 0 && (
         <SectionCard
           icon={Icons.Chart}
@@ -692,25 +697,23 @@ export const StatsTab = memo(() => {
         />
       </SectionCard>
 
-      {/* Bench equity & attendance */}
-      {benchRows.length > 0 && (
-        <SectionCard
-          icon={Icons.Clock}
-          title="Bench Equity & Attendance"
-        >
-          <BenchEquityTable rows={benchRows} onOpen={openPlayerProfile} />
-        </SectionCard>
-      )}
+        </div>{/* end left col */}
 
-      {/* Position variety + arm care (reuse existing panels; each self-gates —
-          arm care shows only for Kid-Pitch head coaches with logged outings).
-          On lg they sit side by side as control-panel cards. `flex-1` targets
-          only the rendered children, so when one panel returns null the other
-          fills the row instead of leaving a half-empty column. */}
-      <div className="lg:flex lg:items-start lg:gap-6 lg:[&>*]:flex-1 lg:[&>*]:min-w-0">
-        <PositionVarietyPanel />
-        <ArmCarePanel />
-      </div>
+        {/* Right rail: Bench Equity + Position/Arm-Care panels */}
+        <div className="lg:col-span-4 space-y-6">
+          {benchRows.length > 0 && (
+            <SectionCard
+              icon={Icons.Clock}
+              title="Bench Equity & Attendance"
+            >
+              <BenchEquityTable rows={benchRows} onOpen={openPlayerProfile} />
+            </SectionCard>
+          )}
+          <PositionVarietyPanel />
+          <ArmCarePanel />
+        </div>{/* end right col */}
+
+      </div>{/* end desktop grid */}
     </div>
   );
 });
