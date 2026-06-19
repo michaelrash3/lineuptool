@@ -91,6 +91,47 @@ Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` f
    - `CommandPalette.tsx` — ⌘K
    - `PitcherRankingPanel.tsx`, `EvalGradeCard.tsx` — eval surfaces
 
+## Desktop layout (control-panel spec)
+
+Screens are authored mobile-first (the vast majority of responsive classes are
+`sm:`). On wide desktops that left every tab as one stretched, edge-to-edge
+column. The desktop direction is a **control panel**: each tab composes its
+sections into side-by-side panels so a coach sees more at a glance. The rollout
+is **one tab per PR**; this spec is the shared contract that keeps them
+consistent. (A previous attempt — a single content-agnostic
+`auto-fit`/`grid-auto-flow: dense` `.dashboard-shell` with opt-in span classes —
+produced ragged, inconsistent layouts and was reverted in PR #384. Don't bring it
+back.)
+
+Rules:
+
+- **Desktop-only, behind `lg:` (≥1024px).** Phone/tablet keep today's single
+  column; a layout PR's `<lg` rendering must stay byte-identical. Every layout
+  class is `lg:`-prefixed.
+- **Shared canvas.** The content column is capped and centered once, at the
+  `<main>` in `src/App.tsx` (`lg:max-w-[1440px] lg:mx-auto`) — not per tab — so
+  every screen shares the same width and gutters.
+- **Designed compositions, not algorithms.** Hand-place each panel
+  (`lg:flex`/`lg:grid` with explicit `lg:col-span-*` or independent flex
+  columns). Never `auto-fit` or `grid-auto-flow: dense`. Prefer **independent
+  flex columns** (`lg:flex lg:items-start`) for a main + rail split — a shared
+  CSS-grid row makes a tall column stretch its neighbor's rows and leave gaps,
+  which is what looked broken before.
+- **Panels reuse the existing primitives.** `GlassCard` / `.glass` and the
+  semantic type classes (`.t-h1`, `.t-eyebrow`, `.t-body`) in
+  `src/components/shared.tsx` / `src/styles.css`. Apply panel chrome with `lg:`
+  utilities (`lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5`) so
+  the mobile markup is untouched. Don't invent a new card system.
+- **Put content where its width wants to be.** Data-dense, already-gridded
+  sections (insight-tile rows, leaderboards, the `This Week` strip) stay
+  full-width; compact summaries (record, coaches) go in a `lg:w-[22rem]` rail.
+
+**Reference implementation — `HomeTab` (`src/screens/HomeTab.tsx`):** the
+next-game hero is the main column (`lg:flex-1`) beside a rail
+(`lg:w-[22rem]`) holding the season record and coaches as `lg:` panels; the
+`This Week` strip, insight tiles, and leaderboards remain full-width. Copy this
+pattern for the next tab.
+
 ## State flow
 
 ```
