@@ -408,7 +408,7 @@ export const DepthChartTab = memo(() => {
           Add players to your roster to build a depth chart.
         </div>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {board.map(({ pos, ranked, customized }) => (
             <PositionCard
               key={pos}

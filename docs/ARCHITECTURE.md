@@ -178,7 +178,7 @@ A brand-new signed-in user has no team yet. Instead of auto-creating "My Team" (
 ## Where things are NOT
 
 - **No subcollections.** Roster, schedule, eval history all live on the single team document. Adding a subcollection has been considered for `tryoutSignups` (write-heavy on portal opens) but isn't done.
-- **No service worker / offline mode.** `manifest.json` enables Add to Home Screen but the app needs network for Firestore.
+- **Service worker / PWA.** `vite-plugin-pwa` (`registerType: "autoUpdate"`) registers a Workbox service worker that pre-caches the JS/CSS bundle and app shell. Firestore still needs network for live data — the SW covers the app shell only, not data offline. `manifest.json` also enables Add to Home Screen.
 - **No Cloud Functions.** Everything is client + rules.
 - **No state management library.** Two React contexts and `useReducer`-free `useState`/`useCallback` patterns carry it.
 - **No CSS-in-JS.** Tokens in `src/styles.css`, components style with Tailwind + the `t-*` semantic classes.
