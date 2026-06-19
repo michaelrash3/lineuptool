@@ -2410,16 +2410,16 @@ describe("velocity in pitcher score (age-relative)", () => {
   test("calcVelocityQuality normalizes against the age band", () => {
     expect(calcVelocityQuality(null, "10U")).toBeNull();
     expect(calcVelocityQuality(0, "10U")).toBeNull();
-    // 10U band [45,55] (age average-low → elite)
-    expect(calcVelocityQuality(40, "10U")).toBeCloseTo(0); // below floor → clamp 0
-    expect(calcVelocityQuality(45, "10U")).toBeCloseTo(0);
-    expect(calcVelocityQuality(55, "10U")).toBeCloseTo(1);
-    expect(calcVelocityQuality(50, "10U")).toBeCloseTo(0.5);
-    // 13U to 14U band [60,75] -> 67.5 is the midpoint
-    expect(calcVelocityQuality(67.5, "13U to 14U")).toBeCloseTo(0.5);
+    // 10U chart band [40,58] (recreational low → elite threshold)
+    expect(calcVelocityQuality(35, "10U")).toBeCloseTo(0); // below floor → clamp 0
+    expect(calcVelocityQuality(40, "10U")).toBeCloseTo(0);
+    expect(calcVelocityQuality(58, "10U")).toBeCloseTo(1);
+    expect(calcVelocityQuality(49, "10U")).toBeCloseTo(0.5);
+    // 13U to 14U uses the 14U chart band [55,75] -> 65 is the midpoint
+    expect(calcVelocityQuality(65, "13U to 14U")).toBeCloseTo(0.5);
     // same raw mph is "better" for a younger team
-    expect(calcVelocityQuality(50, "10U")).toBeGreaterThan(
-      calcVelocityQuality(50, "13U to 14U")
+    expect(calcVelocityQuality(49, "10U")).toBeGreaterThan(
+      calcVelocityQuality(49, "13U to 14U")
     );
   });
 

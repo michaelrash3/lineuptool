@@ -68,26 +68,27 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     description: "Soft hands, clean glove work, presents a steady target." },
 ];
 
-// Youth pitch-velocity benchmarks by age (mph): the typical "average" band and
-// the "elite" threshold. Source table provided by coaches; used both to show
-// context in the eval form and to grade a reading age-relative (avgLow → floor,
-// elite → ceiling) so a hard thrower for their level scores well regardless of
-// division. Ages outside 7–15 clamp to the nearest listed age.
+// Youth pitch-velocity benchmarks by age (mph), based on the coach-provided
+// chart: recreational low end, competitive/travel high end, and the lower edge
+// of the elite-outlier band. The engine uses avgLow -> elite as the scoring
+// range so a player in the competitive/travel band receives meaningful credit
+// without requiring an outlier reading. Ages outside the chart clamp to the
+// nearest listed fallback row.
 export interface VeloBenchmark {
   avgLow: number;
   avgHigh: number;
   elite: number;
 }
 export const AGE_VELOCITY_BENCHMARKS: Record<number, VeloBenchmark> = {
-  7: { avgLow: 35, avgHigh: 40, elite: 45 },
-  8: { avgLow: 40, avgHigh: 45, elite: 50 },
-  9: { avgLow: 40, avgHigh: 50, elite: 55 },
-  10: { avgLow: 45, avgHigh: 50, elite: 55 },
-  11: { avgLow: 45, avgHigh: 55, elite: 60 },
-  12: { avgLow: 50, avgHigh: 60, elite: 65 },
-  13: { avgLow: 55, avgHigh: 65, elite: 70 },
-  14: { avgLow: 60, avgHigh: 70, elite: 75 },
-  15: { avgLow: 65, avgHigh: 75, elite: 80 },
+  7: { avgLow: 30, avgHigh: 45, elite: 50 },
+  8: { avgLow: 30, avgHigh: 45, elite: 50 },
+  9: { avgLow: 35, avgHigh: 48, elite: 55 },
+  10: { avgLow: 40, avgHigh: 53, elite: 58 },
+  11: { avgLow: 43, avgHigh: 55, elite: 60 },
+  12: { avgLow: 45, avgHigh: 58, elite: 65 },
+  13: { avgLow: 50, avgHigh: 65, elite: 70 },
+  14: { avgLow: 55, avgHigh: 72, elite: 75 },
+  15: { avgLow: 55, avgHigh: 72, elite: 75 },
 };
 // Pull the numeric age out of a teamAge label ("8U", "13U to 14U" → 8 / 14),
 // clamped to the benchmark table's range.
