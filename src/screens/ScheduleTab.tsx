@@ -250,6 +250,9 @@ export const ScheduleTab = memo(() => {
   const [saveTemplateName, setSaveTemplateName] = useState("");
   const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<string | null>(null);
   const [gcImportOpen, setGcImportOpen] = useState(false);
+  // Desktop master-detail: tracks which game is previewed in the right rail.
+  // Separate from selectedGameId (which opens the full-screen editor).
+  const [desktopPreviewId, setDesktopPreviewId] = useState<string | null>(null);
   // Tournament games should still expose the generated lineup grid before
   // in-game mode so coaches can review and make manual swaps.
 
@@ -1549,23 +1552,35 @@ export const ScheduleTab = memo(() => {
                   : "";
                 const dnum = gd ? String(Number(gd)) : "";
 
+                const isDesktopPreview = desktopPreviewId === game.id;
                 return (
                   <div
                     key={game.id}
                     className={`relative border-b border-line transition-colors hover:bg-surface-2 ${
                       isPostponed ? "opacity-60" : ""
-                    }`}
+                    } ${isDesktopPreview ? "lg:bg-surface-2" : ""}`}
                   >
-                    {/* Left accent edge highlights today's game. */}
+                    {/* Left accent edge: today's game uses team primary; desktop-selected uses a secondary accent. */}
                     <div
                       className="absolute inset-y-0 left-0 w-1"
                       style={{
                         backgroundColor: isToday
                           ? "var(--team-primary)"
+                          : isDesktopPreview
+                          ? "var(--color-line-strong)"
                           : "transparent",
                       }}
                     />
-                    <div className="py-3.5 pl-5 pr-1 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    {/* Invisible desktop click target over the info area to set the preview panel. */}
+                    <button
+                      className="hidden lg:block absolute inset-0 z-0 cursor-pointer bg-transparent border-0"
+                      aria-label={`Preview ${game.opponent}`}
+                      tabIndex={-1}
+                      onClick={() =>
+                        setDesktopPreviewId(isDesktopPreview ? null : game.id)
+                      }
+                    />
+                    <div className="relative z-10 py-3.5 pl-5 pr-1 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                       <div className="flex items-start gap-4 sm:gap-5 min-w-0">
                         {/* Scoreboard-style date block */}
                         <div className="shrink-0 w-11 text-center rounded-md border border-line overflow-hidden">
@@ -1856,114 +1871,302 @@ export const ScheduleTab = memo(() => {
         const postponedCount = sortedGames.filter(
           (g: any) => (g.status || "scheduled") === "postponed"
         ).length;
+
+        const previewGame = desktopPreviewId
+          ? sortedGames.find((g: any) => g.id === desktopPreviewId) ?? null
+          : null;
+
         return (
           <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:shrink-0 gap-4">
-            {/* Season record panel */}
-            <div className="border border-line rounded-2xl bg-surface p-5">
-              <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
-                Season Record
-              </p>
-              {record.wins > 0 || record.losses > 0 || record.ties > 0 ? (
-                <>
-                  <div className="flex items-end gap-1 mb-4">
-                    <span className="text-4xl font-black text-ink tabular-nums leading-none">
-                      {record.wins}
-                    </span>
-                    <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
-                    <span className="text-4xl font-black text-ink tabular-nums leading-none">
-                      {record.losses}
-                    </span>
-                    {record.ties > 0 && (
-                      <>
+            {previewGame ? (
+              /* ── Game detail panel ── */
+              (() => {
+                const pg = previewGame;
+                const pgStatus = pg.status || "scheduled";
+                const pgFinal = isGameFinalized(pg);
+                const pgPostponed = pgStatus === "postponed";
+                const pgIsToday = pg.date === todayStr;
+                const pgResult = pgFinal
+                  ? Number(pg.teamScore) > Number(pg.opponentScore)
+                    ? "win"
+                    : Number(pg.teamScore) < Number(pg.opponentScore)
+                    ? "loss"
+                    : "tie"
+                  : null;
+                const pgCanStartInGame =
+                  pgIsToday && !pgPostponed && !pgFinal && pg.lineup;
+                return (
+                  <>
+                    {/* Header with close */}
+                    <div className="border border-line rounded-2xl bg-surface p-5">
+                      <div className="flex items-start justify-between gap-2 mb-4">
+                        <div>
+                          <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
+                            Game Detail
+                          </p>
+                          <h3 className="text-lg font-black text-ink uppercase tracking-tight leading-tight">
+                            {pg.isHome === false ? "@ " : "vs. "}{pg.opponent}
+                          </h3>
+                        </div>
+                        <button
+                          onClick={() => setDesktopPreviewId(null)}
+                          className="shrink-0 p-1.5 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-ink transition-colors"
+                          aria-label="Close preview"
+                        >
+                          <Icons.X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Status chip row */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {pgIsToday && !pgFinal && !pgPostponed && (
+                          <span
+                            className="t-chip px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider"
+                            style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+                          >
+                            Today
+                          </span>
+                        )}
+                        {pgFinal && pgResult && (
+                          <span
+                            className={`t-chip px-2.5 py-1 rounded-md border text-[10px] font-black uppercase tracking-wider tabular-nums ${
+                              pgResult === "win"
+                                ? "bg-win-bg text-win border-line"
+                                : pgResult === "loss"
+                                ? "bg-loss-bg text-loss border-line"
+                                : "bg-warn-bg text-warnfg border-line"
+                            }`}
+                          >
+                            {pgResult === "win" ? "W" : pgResult === "loss" ? "L" : "T"}{" "}
+                            {pg.teamScore}-{pg.opponentScore}
+                          </span>
+                        )}
+                        {pgPostponed && (
+                          <span className="t-chip bg-surface-2 text-ink px-2.5 py-1 rounded-md border border-line-strong text-[10px] font-black uppercase tracking-wider">
+                            Postponed
+                          </span>
+                        )}
+                        {!pgFinal && !pgPostponed && (
+                          pg.lineup ? (
+                            <span className="t-chip bg-win-bg text-win px-2.5 py-1 rounded-md border border-line text-[10px] font-black uppercase tracking-wider">
+                              Lineup Ready
+                            </span>
+                          ) : (
+                            <span className="t-chip bg-warn-bg text-warnfg px-2.5 py-1 rounded-md border border-line text-[10px] font-black uppercase tracking-wider">
+                              Lineup Needed
+                            </span>
+                          )
+                        )}
+                        {pg.isScrimmage && (
+                          <span className="t-chip bg-surface-2 text-ink-2 px-2.5 py-1 rounded-md border border-line-strong text-[10px] font-black uppercase tracking-wider">
+                            Scrimmage
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Detail rows */}
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center gap-2 text-ink-2">
+                          <Icons.Clock className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+                          <span className="font-bold">
+                            {formatGameDateDisplay(pg.date)}
+                            {isoInstantToLocalTime(pg.startUtc) && (
+                              <> · {isoInstantToLocalTime(pg.startUtc)}</>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-ink-2">
+                          <Icons.FileText className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+                          <span className="font-bold">
+                            {leagueRuleSetLabel(pg.leagueRuleSet || leagueRuleSet)}{" · "}
+                            {pg.pitchingFormat || pitchingFormat}
+                          </span>
+                        </div>
+                        {pg.location && (
+                          <div className="flex items-start gap-2 text-ink-2">
+                            <Icons.Pitch className="w-3.5 h-3.5 shrink-0 text-ink-3 mt-0.5" />
+                            <span className="font-bold">{String(pg.location).split("\n")[0]}</span>
+                          </div>
+                        )}
+                        {pg.lineup && (
+                          <div className="flex items-center gap-2 text-ink-2">
+                            <Icons.Users className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+                            <span className="font-bold">
+                              {pg.lineup.length} inning{pg.lineup.length !== 1 ? "s" : ""} planned
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-2">
+                      {(canEdit || pg.lineup) && (
+                        <button
+                          onClick={() => {
+                            setSelectedGameId(pg.id);
+                            setOpponentName(pg.opponent);
+                            setLineup(pg.lineup || null);
+                            setBattingLineup(pg.battingLineup || null);
+                            setCurrentGameAttendance(pg.attendance || {});
+                          }}
+                          className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
+                        >
+                          {!canEdit ? (
+                            <Icons.Clipboard className="w-4 h-4" />
+                          ) : pg.lineup ? (
+                            <Icons.Edit className="w-4 h-4" />
+                          ) : (
+                            <Icons.Clipboard className="w-4 h-4" />
+                          )}
+                          {!canEdit ? "Gameplan" : pg.lineup ? "Edit Game" : "Plan Game"}
+                        </button>
+                      )}
+                      {pgCanStartInGame && (
+                        <button
+                          onClick={() => {
+                            setInGameId(pg.id);
+                            setInGameInning(0);
+                            setInGameSelection(null);
+                            setInGameUndoStack([]);
+                          }}
+                          className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-md bg-green-600 hover:bg-green-700 text-white transition-transform hover:-translate-y-0.5 whitespace-nowrap"
+                        >
+                          <Icons.Refresh className="w-4 h-4" /> In-Game
+                        </button>
+                      )}
+                      {!pgPostponed && canEdit && (
+                        <button
+                          onClick={() => setScoringGameId(scoringGameId === pg.id ? null : pg.id)}
+                          className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border transition-colors whitespace-nowrap ${
+                            pgFinal
+                              ? "bg-surface text-ink border-line hover:bg-surface-2"
+                              : "border-transparent text-white"
+                          }`}
+                          style={!pgFinal ? { backgroundColor: primaryColor, color: tertiaryColor } : {}}
+                        >
+                          <Icons.FileText className="w-4 h-4" />
+                          {pgFinal ? "Edit Score" : "Final Score"}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                );
+              })()
+            ) : (
+              /* ── Season summary panels (default) ── */
+              <>
+                {/* Season record panel */}
+                <div className="border border-line rounded-2xl bg-surface p-5">
+                  <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                    Season Record
+                  </p>
+                  {record.wins > 0 || record.losses > 0 || record.ties > 0 ? (
+                    <>
+                      <div className="flex items-end gap-1 mb-4">
+                        <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                          {record.wins}
+                        </span>
                         <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
                         <span className="text-4xl font-black text-ink tabular-nums leading-none">
-                          {record.ties}
+                          {record.losses}
                         </span>
-                      </>
+                        {record.ties > 0 && (
+                          <>
+                            <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
+                            <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                              {record.ties}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line">
+                        <div className="text-center">
+                          <div className="text-lg font-black text-win tabular-nums">{record.wins}</div>
+                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Wins</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-black text-loss tabular-nums">{record.losses}</div>
+                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Losses</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-black text-ink tabular-nums">{finalGames.length}</div>
+                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Played</div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-xs font-semibold text-ink-3">No results yet</p>
+                  )}
+                </div>
+
+                {/* Upcoming panel */}
+                <div className="border border-line rounded-2xl bg-surface p-5">
+                  <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                    Upcoming
+                  </p>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-ink-2">Remaining</span>
+                      <span className="text-sm font-black text-ink tabular-nums">{upcomingGames.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-ink-2">Lineup Ready</span>
+                      <span className="text-sm font-black text-win tabular-nums">{lineupReadyCount}</span>
+                    </div>
+                    {lineupNeededCount > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-ink-2">Lineup Needed</span>
+                        <span className="text-sm font-black text-warnfg tabular-nums">{lineupNeededCount}</span>
+                      </div>
+                    )}
+                    {postponedCount > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-ink-2">Postponed</span>
+                        <span className="text-sm font-black text-ink-3 tabular-nums">{postponedCount}</span>
+                      </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line">
-                    <div className="text-center">
-                      <div className="text-lg font-black text-win tabular-nums">{record.wins}</div>
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Wins</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-black text-loss tabular-nums">{record.losses}</div>
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Losses</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-black text-ink tabular-nums">{finalGames.length}</div>
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Played</div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="text-xs font-semibold text-ink-3">No results yet</p>
-              )}
-            </div>
-
-            {/* Upcoming panel */}
-            <div className="border border-line rounded-2xl bg-surface p-5">
-              <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
-                Upcoming
-              </p>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-ink-2">Remaining</span>
-                  <span className="text-sm font-black text-ink tabular-nums">{upcomingGames.length}</span>
+                  <p className="text-[10px] font-semibold text-ink-3 mt-4 pt-3 border-t border-line">
+                    Click a game to see details
+                  </p>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-ink-2">Lineup Ready</span>
-                  <span className="text-sm font-black text-win tabular-nums">{lineupReadyCount}</span>
-                </div>
-                {lineupNeededCount > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-ink-2">Lineup Needed</span>
-                    <span className="text-sm font-black text-warnfg tabular-nums">{lineupNeededCount}</span>
-                  </div>
-                )}
-                {postponedCount > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-ink-2">Postponed</span>
-                    <span className="text-sm font-black text-ink-3 tabular-nums">{postponedCount}</span>
-                  </div>
-                )}
-              </div>
-            </div>
 
-            {/* Next game spotlight */}
-            {nextGame && (
-              <div className="border border-line rounded-2xl bg-surface p-5">
-                <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
-                  Next Game
-                </p>
-                <p className="text-base font-black text-ink uppercase tracking-tight mb-1">
-                  {nextGame.isHome === false ? "@ " : "vs. "}{nextGame.opponent}
-                </p>
-                <p className="text-xs font-bold text-ink-3 mb-3">
-                  {formatGameDateDisplay(nextGame.date)}
-                  {isoInstantToLocalTime(nextGame.startUtc) && (
-                    <> · {isoInstantToLocalTime(nextGame.startUtc)}</>
-                  )}
-                </p>
-                {nextGame.lineup ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-win-bg text-win text-[10px] font-black uppercase tracking-wider">
-                    <Icons.Check className="w-3 h-3" /> Lineup Ready
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warn-bg text-warnfg text-[10px] font-black uppercase tracking-wider">
-                    <Icons.Clock className="w-3 h-3" /> Lineup Needed
-                  </span>
-                )}
-                {nextGame.date === todayStr && (
-                  <div
-                    className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-white ml-2"
-                    style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-                  >
-                    Today
+                {/* Next game spotlight */}
+                {nextGame && (
+                  <div className="border border-line rounded-2xl bg-surface p-5">
+                    <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                      Next Game
+                    </p>
+                    <p className="text-base font-black text-ink uppercase tracking-tight mb-1">
+                      {nextGame.isHome === false ? "@ " : "vs. "}{nextGame.opponent}
+                    </p>
+                    <p className="text-xs font-bold text-ink-3 mb-3">
+                      {formatGameDateDisplay(nextGame.date)}
+                      {isoInstantToLocalTime(nextGame.startUtc) && (
+                        <> · {isoInstantToLocalTime(nextGame.startUtc)}</>
+                      )}
+                    </p>
+                    {nextGame.lineup ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-win-bg text-win text-[10px] font-black uppercase tracking-wider">
+                        <Icons.Check className="w-3 h-3" /> Lineup Ready
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warn-bg text-warnfg text-[10px] font-black uppercase tracking-wider">
+                        <Icons.Clock className="w-3 h-3" /> Lineup Needed
+                      </span>
+                    )}
+                    {nextGame.date === todayStr && (
+                      <div
+                        className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ml-2"
+                        style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+                      >
+                        Today
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
+              </>
             )}
           </aside>
         );
