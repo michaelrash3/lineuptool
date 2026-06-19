@@ -703,9 +703,14 @@ export const StatsTab = memo(() => {
       )}
 
       {/* Position variety + arm care (reuse existing panels; each self-gates —
-          arm care shows only for Kid-Pitch head coaches with logged outings). */}
-      <PositionVarietyPanel />
-      <ArmCarePanel />
+          arm care shows only for Kid-Pitch head coaches with logged outings).
+          On lg they sit side by side as control-panel cards. `flex-1` targets
+          only the rendered children, so when one panel returns null the other
+          fills the row instead of leaving a half-empty column. */}
+      <div className="lg:flex lg:items-start lg:gap-6 lg:[&>*]:flex-1 lg:[&>*]:min-w-0">
+        <PositionVarietyPanel />
+        <ArmCarePanel />
+      </div>
     </div>
   );
 });
