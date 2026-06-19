@@ -131,8 +131,8 @@ describe("ScheduleTab", () => {
       },
     });
     expect(screen.queryByText("No Games Scheduled")).not.toBeInTheDocument();
-    expect(screen.getByText(/Rays/)).toBeInTheDocument();
-    expect(screen.getByText(/Cubs/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Rays/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Cubs/).length).toBeGreaterThan(0);
   });
 
   it("submits the add-game form with the entered values (interaction)", async () => {
