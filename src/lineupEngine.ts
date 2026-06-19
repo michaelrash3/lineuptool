@@ -765,7 +765,7 @@ const TOTAL_SCORE_CATEGORY_WEIGHTS =
   // coachability(3.0) + contact + power + plateDiscipline + approach
   2.5 + 2.0 + 1.5 + 1.5 + 1.5 + 2.0 + 3.0 + 1.5 + 1.0 + 1.0 + 1.5;
 // Max possible raw total = 5 × sum(category weights) + 10 (max offensive) × 2.
-const TOTAL_SCORE_MAX =
+export const TOTAL_SCORE_MAX =
   5 * TOTAL_SCORE_CATEGORY_WEIGHTS + 10 * 2.0; // = 105
 
 export function calculateTotalScore(
@@ -1136,7 +1136,7 @@ export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
 };
 
 // Pitcher score scale (1–5 grades × weights). Max ≈ 32.5.
-const PITCHER_EVAL_MAX =
+export const PITCHER_EVAL_MAX =
   5 * Object.values(PITCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
 
 // Imported GameChanger pitching stats → 0–1 quality. Each spec is
@@ -1193,24 +1193,24 @@ export function calcPitcherStatsQuality(
 // imported. Returns null when there's no reading.
 // Internal copy of the age velocity benchmarks (mirrors AGE_VELOCITY_BENCHMARKS
 // in src/constants/ui.ts — the engine deliberately keeps its own labelless copy
-// so it stays standalone). Returns [floor, ceiling] = [age average-low, elite],
-// so a reading at the age's average-low scores ~0 quality and an elite reading
-// scores 1.0.
+// so it stays standalone). Returns [floor, ceiling] = [recreational low, elite threshold],
+// so a competitive/travel-band reading gets meaningful credit and an elite
+// reading scores 1.0.
 function veloBandForAge(teamAge: string | undefined): [number, number] {
   const n = (() => {
     const m = String(teamAge || "").match(/(\d+)/g);
     return Math.min(15, Math.max(7, m ? parseInt(m[m.length - 1], 10) : 10));
   })();
   const BANDS: Record<number, [number, number]> = {
-    7: [35, 45],
-    8: [40, 50],
-    9: [40, 55],
-    10: [45, 55],
-    11: [45, 60],
-    12: [50, 65],
-    13: [55, 70],
-    14: [60, 75],
-    15: [65, 80],
+    7: [30, 50],
+    8: [30, 50],
+    9: [35, 55],
+    10: [40, 58],
+    11: [43, 60],
+    12: [45, 65],
+    13: [50, 70],
+    14: [55, 75],
+    15: [55, 75],
   };
   return BANDS[n];
 }
@@ -1280,7 +1280,7 @@ const CATCHER_SCORE_WEIGHTS: Record<string, number> = {
   receiving: 1.0,
 };
 
-const CATCHER_EVAL_MAX =
+export const CATCHER_EVAL_MAX =
   5 * Object.values(CATCHER_SCORE_WEIGHTS).reduce((a, b) => a + b, 0);
 
 // 0..1 normalizer shared by the stat-quality helpers.
@@ -1409,13 +1409,21 @@ export function getActivePositionList(
 // maxes), and return the best one. P and C reuse the same eval scorers the depth
 // chart ranks them by, so the suggestion never drifts from the chart.
 const POSITION_FIT_WEIGHTS: Record<string, Record<string, number>> = {
-  "1B": { glove: 3, armAccuracy: 1, baseballIQ: 1 },
-  "2B": { glove: 2, range: 2, armAccuracy: 1.5, baseballIQ: 1 },
-  "3B": { glove: 2, range: 1.5, armStrength: 2.5, armAccuracy: 1.5, baseballIQ: 1 },
-  SS: { glove: 2.5, range: 2.5, armStrength: 2, armAccuracy: 1.5, baseballIQ: 1.5 },
-  LF: { range: 2, glove: 1.5, armStrength: 1, baserunning: 1 },
-  CF: { range: 3, glove: 1.5, armStrength: 1.5, baserunning: 1.5 },
-  RF: { range: 2, glove: 1.5, armStrength: 2, baserunning: 1 },
+  "1B": { glove: 3, armAccuracy: 1.25, baseballIQ: 1.25, range: 0.5, armStrength: 0.25 },
+  "2B": { glove: 2.25, range: 2.25, armAccuracy: 1.75, baseballIQ: 1.5, baserunning: 0.75, armStrength: 0.75 },
+  "3B": { glove: 2.25, range: 1.25, armStrength: 2.5, armAccuracy: 1.75, baseballIQ: 1.25 },
+  SS: { glove: 2.75, range: 2.75, armStrength: 2.25, armAccuracy: 1.75, baseballIQ: 1.75, baserunning: 1 },
+  LF: { glove: 1.75, range: 2, armAccuracy: 1.25, armStrength: 0.75, baserunning: 1, baseballIQ: 0.75 },
+  CF: { glove: 2, range: 3.25, armStrength: 1.5, armAccuracy: 1.25, baserunning: 1.75, baseballIQ: 1.5 },
+  RF: { glove: 1.75, range: 2, armStrength: 2.25, armAccuracy: 1.25, baserunning: 1, baseballIQ: 0.75 },
+};
+
+const POSITION_DEMAND_BONUS: Record<string, number> = {
+  SS: 0.05,
+  CF: 0.035,
+  "2B": 0.015,
+  "3B": 0.015,
+  RF: 0.015,
 };
 
 const FIT_READERS: Record<string, (g: any) => number> = {
@@ -1427,7 +1435,7 @@ const FIT_READERS: Record<string, (g: any) => number> = {
   baseballIQ: (g) => g?.baseballIQ ?? 3,
 };
 
-function fieldFitScore(pos: string, grades: GradeMap | null | undefined): number {
+export function fieldFitScore(pos: string, grades: GradeMap | null | undefined): number {
   const w = POSITION_FIT_WEIGHTS[canonicalizeOutfield(pos)];
   if (!w) return 0;
   const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
@@ -1437,12 +1445,35 @@ function fieldFitScore(pos: string, grades: GradeMap | null | undefined): number
     score += (FIT_READERS[k]?.(g) ?? 3) * weight;
     max += 5 * weight;
   }
-  return max > 0 ? score / max : 0;
+  return max > 0 ? Math.min(1, score / max + (POSITION_DEMAND_BONUS[canonicalizeOutfield(pos)] || 0)) : 0;
+}
+
+function positionFitSignal(pos: string, grades: GradeMap | null | undefined): number {
+  const weights = POSITION_FIT_WEIGHTS[canonicalizeOutfield(pos)];
+  const g = { ...DEFAULT_GRADES, ...(grades || {}) } as Record<string, number>;
+  if (!weights) {
+    const keys =
+      pos === "P"
+        ? ["velocity", "strikes", "offSpeed", "composure"]
+        : ["receiving", "blocking", "throwing", "armAccuracy"];
+    const total = keys.reduce((sum, key) => sum + Math.abs(((g as any)[key] ?? 3) - 3), 0);
+    return Math.min(1, total / (keys.length * 2));
+  }
+  let weightedDeviation = 0;
+  let totalWeight = 0;
+  for (const [key, weight] of Object.entries(weights)) {
+    weightedDeviation += Math.abs((FIT_READERS[key]?.(g) ?? 3) - 3) * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? Math.min(1, weightedDeviation / (totalWeight * 2)) : 0;
 }
 
 export interface PrimarySuggestion {
-  position: string;
+  position: string | null;
   fit: number; // 0..1 normalized fit, for display / tie-debugging
+  confidence: number;
+  alternatives: Array<{ position: string; fit: number }>;
+  reason?: string;
 }
 
 // Suggest a player's best-fit primary from their (combined) eval grades. Only
@@ -1467,7 +1498,7 @@ export function suggestPrimaryPosition(
       ? comfort
       : ["1B", "2B", "3B", "SS", "LF", "CF", "RF"];
 
-  let best: PrimarySuggestion | null = null;
+  const scored: Array<{ position: string; fit: number; signal: number }> = [];
   for (const pos of candidates) {
     let fit: number;
     if (pos === "P") {
@@ -1481,9 +1512,28 @@ export function suggestPrimaryPosition(
     } else {
       fit = fieldFitScore(pos, grades);
     }
-    if (!best || fit > best.fit + 1e-9) best = { position: pos, fit };
+    scored.push({ position: pos, fit, signal: positionFitSignal(pos, grades) });
   }
-  return best;
+  if (scored.length === 0) return null;
+  scored.sort((a, b) =>
+    b.fit !== a.fit ? b.fit - a.fit : a.position.localeCompare(b.position)
+  );
+  const [best, second] = scored;
+  const margin = second ? best.fit - second.fit : best.signal;
+  const confidence = Math.max(0, Math.min(1, margin * 8 + best.signal * 0.55));
+  const alternatives = scored.slice(1, 4).map(({ position, fit }) => ({ position, fit }));
+  const hasSignal = best.signal >= 0.12 || best.fit >= 0.72;
+  const separated = scored.length === 1 ? hasSignal : margin >= 0.01;
+  if (!hasSignal || !separated) {
+    return {
+      position: null,
+      fit: best.fit,
+      confidence,
+      alternatives: scored.slice(0, 3).map(({ position, fit }) => ({ position, fit })),
+      reason: !hasSignal ? "not-enough-position-signal" : "position-scores-too-close",
+    };
+  }
+  return { position: best.position, fit: best.fit, confidence, alternatives };
 }
 
 // Pool size by game type (9U+ Kid Pitch only). Pool = spread across the

@@ -7,6 +7,7 @@ import {
   calcPitcherScore,
   calcCatcherScore,
   calcDefensiveScore,
+  fieldFitScore,
   suggestPrimaryPosition,
 } from "../lineupEngine";
 import { canonicalizeOutfield } from "../utils/helpers";
@@ -57,7 +58,7 @@ const scoreForPlayer = (
     return kidPitch
       ? calcCatcherScore(grades, player?.stats)
       : calcDefensiveScore(grades, player?.stats);
-  return calcDefensiveScore(grades, player?.stats);
+  return fieldFitScore(pos, grades) * 100 || calcDefensiveScore(grades, player?.stats);
 };
 
 // Does a position match a player's (canonical) primary? CF collapses onto the
@@ -304,7 +305,7 @@ export const DepthChartTab = memo(() => {
     const m = new Map<string, string | null>();
     for (const p of players) {
       const s = suggestPrimaryPosition(p, combinedGrades[p.id], { kidPitch, teamAge });
-      m.set(p.id, s ? s.position : null);
+      m.set(p.id, s?.position || null);
     }
     return m;
   }, [players, combinedGrades, kidPitch, teamAge]);

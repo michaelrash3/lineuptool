@@ -97,6 +97,31 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
     expect(s?.position).toBe("CF");
   });
 
+  it("marks all-neutral field fits for review instead of defaulting to first base", () => {
+    const s = suggestPrimaryPosition({}, base);
+    expect(s?.position).toBeNull();
+    expect(s?.reason).toBe("not-enough-position-signal");
+    expect(s?.alternatives.length).toBeGreaterThan(0);
+  });
+
+  it("does not blindly pick first base when neutral comfortable positions are tied", () => {
+    const s = suggestPrimaryPosition({ comfortablePositions: ["1B", "2B", "3B"] }, base);
+    expect(s?.position).toBeNull();
+    expect(s?.confidence).toBeLessThan(0.25);
+  });
+
+  it("can prefer first base when the profile has a real first-base signal", () => {
+    const grades = { ...base, glove: 5, armAccuracy: 5, baseballIQ: 5, range: 2, armStrength: 2 };
+    const s = suggestPrimaryPosition({ comfortablePositions: ["1B", "2B", "3B"] }, grades);
+    expect(s?.position).toBe("1B");
+  });
+
+  it("uses arm strength to separate right field from left field", () => {
+    const grades = { ...base, glove: 4, range: 4, armStrength: 5, armAccuracy: 4 };
+    const s = suggestPrimaryPosition({ comfortablePositions: ["LF", "RF"] }, grades);
+    expect(s?.position).toBe("RF");
+  });
+
   it("returns null for a missing player", () => {
     expect(suggestPrimaryPosition(null, base)).toBeNull();
   });
@@ -228,7 +253,7 @@ describe("stat-derived tangible grades (v9)", () => {
     const { statArmGrade } = await import("./lineupEngine");
     expect(statArmGrade({})).toBeNull(); // infield arm isn't in youth stats
     expect(
-      statArmGrade({}, { topMph: 55, teamAge: "10U" })
+      statArmGrade({}, { topMph: 58, teamAge: "10U" })
     ).toBeCloseTo(5);
     expect(statArmGrade({ fCsPct: 0.55, fSbAtt: 12 })).toBeCloseTo(5);
   });
@@ -330,18 +355,36 @@ describe("stat-derived tangible grades (v9)", () => {
         id: "e1",
         date: "2026-04-01",
         coachRole: "Head",
-        grades: { p1: { strikes: 1, pitchVelo: 55 } },
+        grades: { p1: { strikes: 1, pitchVelo: 58 } },
       },
     ];
     const combined = getCombinedGrades(events, players, { teamAge: "10U" });
     // The raw mph is preserved, and overlaid as an age-relative velocity grade
-    // (55 mph at 10U is elite → 5).
-    expect(combined.p1.pitchVelo).toBe(55);
+    // (58 mph at 10U is elite → 5).
+    expect(combined.p1.pitchVelo).toBe(58);
     expect(combined.p1.velocity).toBe(5);
     // …and it lifts the pitcher score versus the same pitcher with no reading.
     const withVelo = calcPitcherScore(combined.p1, null, { teamAge: "10U" });
     const noVelo = calcPitcherScore({ strikes: 1 }, null, { teamAge: "10U" });
     expect(withVelo).toBeGreaterThan(noVelo);
+  });
+
+  it("uses the chart-based 8U 30-50 mph velocity scoring band", async () => {
+    const { getCombinedGrades } = await import("./lineupEngine");
+    const players: any[] = [{ id: "p1", name: "Ace", comfortablePositions: ["P"] }];
+    const low = getCombinedGrades(
+      [{ id: "e1", date: "2026-04-01", coachRole: "Head", grades: { p1: { pitchVelo: 30 } } }],
+      players,
+      { teamAge: "8U" }
+    );
+    const high = getCombinedGrades(
+      [{ id: "e2", date: "2026-04-02", coachRole: "Head", grades: { p1: { pitchVelo: 40 } } }],
+      players,
+      { teamAge: "8U" }
+    );
+
+    expect(low.p1.velocity).toBe(1);
+    expect(high.p1.velocity).toBe(3);
   });
 
   it("ignores a blank Pitch Velocity (optional — no penalty)", async () => {

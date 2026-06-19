@@ -19,17 +19,25 @@ import {
   getEvalCategoriesForTeam,
   getEvalCategoriesForPlayer,
   playerIsPitcher,
+  playerIsCatcher,
   pitcherRosterPremium,
   leftHandedPitcherRosterPremium,
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
   EVAL_SCALE_DEFAULT,
+  velocityGradeFromMph,
 } from "../constants/ui";
 import {
   calculateTotalScore,
   calcPitcherScore,
+  calcCatcherScore,
+  TOTAL_SCORE_MAX,
+  PITCHER_EVAL_MAX,
+  CATCHER_EVAL_MAX,
   PITCHER_SCORE_WEIGHTS,
+  getCombinedGrades,
+  suggestPrimaryPosition,
 } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts";
 import { A11yDialog } from "../components/shared";
@@ -49,6 +57,34 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   0
 );
 
+// Eval-card score: normalize every applicable bucket back to a percentage.
+// Adding pitcher/catcher points should expand the denominator, not let a
+// multi-position player exceed (or be capped against) a smaller 100-point base.
+// This intentionally excludes the left-handed-pitcher roster scarcity bump;
+// lefty value is only considered inside the Roster Decisions advisory logic.
+const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
+  const stats = player?.stats || null;
+  let earned = (calculateTotalScore(grades, stats) / 100) * TOTAL_SCORE_MAX;
+  let possible = TOTAL_SCORE_MAX;
+
+  if (playerIsPitcher(player)) {
+    earned +=
+      calcPitcherScore(grades, stats, {
+        topMph: stats?.pTopMph ?? player?.pitching?.topMph,
+        teamAge,
+        neutralFill: true,
+      });
+    possible += PITCHER_EVAL_MAX;
+  }
+
+  if (playerIsCatcher(player)) {
+    earned += calcCatcherScore(grades, stats);
+    possible += CATCHER_EVAL_MAX;
+  }
+
+  return Math.min(100, Math.max(0, Math.round((earned / possible) * 100)));
+};
+
 // Roster-decision premium: pitching WELL puts a kid a leg up when comparing
 // players. Additive on top of the universal Total Score (never subtracts), so a
 // strong pitcher out-ranks an equal non-pitcher and non-pitchers are unchanged.
@@ -56,7 +92,8 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
 // are stats-graded (schema v9), the premium now reflects the imported pitching
 // stats plus the coach's Composure grade. neutralFill keeps a partial stat
 // line comparable against the all-categories neutral baseline; zero-signal
-// pitching still earns nothing.
+// pitching still earns nothing. Left-handed scarcity is applied only to the
+// hidden roster-decision standing below, not to the visible score badge.
 const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number => {
   if (!playerIsPitcher(player)) return 0;
   const stats = player?.stats || null;
@@ -65,10 +102,7 @@ const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number
     teamAge,
     neutralFill: true,
   });
-  return (
-    pitcherRosterPremium(score, PITCH_WEIGHT_SUM) +
-    leftHandedPitcherRosterPremium(player)
-  );
+  return pitcherRosterPremium(score, PITCH_WEIGHT_SUM);
 };
 
 // 11 standard positions surfaced as a per-player chip row so the coach
@@ -242,6 +276,13 @@ export const RosterDecisionsPanel = memo(() => {
         calculateTotalScore({ ...DEFAULT_GRADES, ...savedGrades }, player.stats) +
           pitcherPremium(savedGrades, player, teamAge)
       );
+      // Hidden decision standing: left-handed pitcher scarcity matters for the
+      // coach's roster advisory, but it is intentionally not shown in the
+      // score badge so handedness cannot be reverse-engineered as extra points.
+      const decisionScore = Math.min(
+        100,
+        totalScore + leftHandedPitcherRosterPremium(player)
+      );
 
       // ---- Age eligibility ----
       const baseballAge = calculateBaseballAge(player.dob, currentSeason);
@@ -304,8 +345,15 @@ export const RosterDecisionsPanel = memo(() => {
 
       // 2) Strong Fit — earn it with positive signal across the board.
       if (bucket !== "younger") {
-        const noNegatives = !evalBelowBar && !statsBelowBar && evalTrend !== "declining";
-        const positiveSignal = evalAboveBar || stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
+        const noNegatives =
+          !evalBelowBar &&
+          !statsBelowBar &&
+          evalTrend !== "declining" &&
+          // With machine/coach-pitch batting stats available, do not call a
+          // below-team bat a Strong Fit solely because subjective evals are
+          // good. They can still be a Fit, but Strong is for clear standouts.
+          (statsRatio == null || statsRatio >= 1.0);
+        const positiveSignal = stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
         if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
           bucket = "strong";
           if (evalAboveBar) {
@@ -358,6 +406,7 @@ export const RosterDecisionsPanel = memo(() => {
         playingUp,
         latestEvalAvg,
         totalScore,
+        decisionScore,
         evalTrend,
         evalDelta,
         evalCount: evalsForPlayer.length,
@@ -387,7 +436,7 @@ export const RosterDecisionsPanel = memo(() => {
     const compositeOf = (d: any) =>
       d.latestEvalAvg == null && d.statsRatio == null
         ? null
-        : d.totalScore / 100;
+        : d.decisionScore / 100;
     const withComp = decisionRows.map((d: any) => ({ d, c: compositeOf(d) }));
     const scored = withComp.map((x: any) => x.c).filter((c: any) => c != null);
     const mean = scored.length
@@ -399,7 +448,12 @@ export const RosterDecisionsPanel = memo(() => {
         )
       : 0;
     const belowLine = mean - sd;
-    const teamAvgScore = Math.round(mean * 100);
+    const visibleScores = decisionRows
+      .filter((d: any) => d.latestEvalAvg != null || d.statsRatio != null)
+      .map((d: any) => d.totalScore);
+    const teamAvgScore = visibleScores.length
+      ? Math.round(visibleScores.reduce((a: number, b: number) => a + b, 0) / visibleScores.length)
+      : Math.round(mean * 100);
     for (const x of withComp) {
       // perfScore drives the within-bucket card sort below (was never set).
       x.d.perfScore = x.c != null ? x.c : mean;
@@ -1242,7 +1296,13 @@ export const EvaluationTab = memo(() => {
     evalTrendPlayerId,
     setEvalTrendPlayerId,
   } = useUI();
-  const { players: rawPlayers, primaryColor, evaluationEvents } = team;
+  const {
+    players: rawPlayers,
+    primaryColor,
+    evaluationEvents,
+    pitchingFormat,
+    teamAge,
+  } = team;
   // Sort eval cards by jersey number so the head can scan in the same
   // order coaches call kids on the field. Numeric sort; unnumbered
   // players sink to the bottom with name as the tie-break.
@@ -1299,12 +1359,12 @@ export const EvaluationTab = memo(() => {
   const lastSavedRef = useRef("");
 
   const activeCategories = useMemo(
-    () => getEvalCategoriesForTeam(team?.pitchingFormat),
-    [team?.pitchingFormat]
+    () => getEvalCategoriesForTeam(pitchingFormat),
+    [pitchingFormat]
   );
   const includeKidPitchAddons = useMemo(
-    () => isKidPitchFormat(team?.pitchingFormat),
-    [team?.pitchingFormat]
+    () => isKidPitchFormat(pitchingFormat),
+    [pitchingFormat]
   );
   const visibleGroups = useMemo(() => {
     const base = [...EVAL_GROUPS_UNIVERSAL];
@@ -1528,6 +1588,39 @@ export const EvaluationTab = memo(() => {
   }, [myRounds, players, teamEvalGrades, setTeamEvalGrades]);
 
   const hasLastRound = myRounds.length > 0;
+
+  const rankingRows = useMemo(() => {
+    const combinedGrades = getCombinedGrades(evaluationEvents || [], players || [], {
+      teamAge,
+    });
+    return players
+      .map((player: any) => {
+        const savedGrades = {
+          ...(combinedGrades[player.id] || {}),
+          ...(teamEvalGrades[player.id] || {}),
+        };
+        const grades = { ...DEFAULT_GRADES, ...savedGrades };
+        const totalScore = Math.min(
+          100,
+          evalTotalScore(grades, player, teamAge)
+        );
+        const primarySuggestion = suggestPrimaryPosition(player, grades, {
+          kidPitch: isKidPitchFormat(pitchingFormat),
+          teamAge,
+        });
+        return { player, totalScore, primarySuggestion };
+      })
+      .sort((a: any, b: any) =>
+        b.totalScore !== a.totalScore
+          ? b.totalScore - a.totalScore
+          : String(a.player.name || "").localeCompare(String(b.player.name || ""))
+      )
+      .map((row: any, idx: number) => ({ ...row, rank: idx + 1 }));
+  }, [evaluationEvents, players, pitchingFormat, teamAge, teamEvalGrades]);
+
+  const rankByPlayerId = useMemo(() => {
+    return new Map(rankingRows.map((row: any) => [row.player.id, row]));
+  }, [rankingRows]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -1804,7 +1897,8 @@ export const EvaluationTab = memo(() => {
         {/* Per-player grading cards. One column on mobile, two on lg+
             screens. Replaces the legacy desktop table — same chip rows
             as the assistant flow so head + assistant inputs match. */}
-        <div className="px-1 py-3 space-y-2">
+        <div className="px-1 py-3 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-4 space-y-4 lg:space-y-0">
+          <div className="space-y-2">
           {players.length > 0 && (
             <div className="flex items-center justify-between gap-2 px-1 pb-1">
               <span className="t-eyebrow text-ink-3">
@@ -1838,7 +1932,8 @@ export const EvaluationTab = memo(() => {
               No players on the roster yet.
             </div>
           ) : (
-            players.map((player: any) => {
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            {players.map((player: any) => {
               const savedGrades = teamEvalGrades[player.id] || {};
               const grades = {
                 ...DEFAULT_GRADES,
@@ -1848,17 +1943,21 @@ export const EvaluationTab = memo(() => {
               // pitching/catching specialty), so non-pitchers/non-catchers
               // aren't shown — or scored on — spots that don't apply to them.
               const playerCats = getEvalCategoriesForPlayer(
-                team?.pitchingFormat,
+                pitchingFormat,
                 player
               );
-              // Roster-decision value: universal Total Score plus a pitching
-              // premium for pitchers (additive — never penalizes non-pitchers).
+              // Eval value: percentage-normalized score across the universal
+              // bucket plus any applicable pitcher/catcher buckets.
               const totalScore = Math.min(
                 100,
-                calculateTotalScore(grades, player.stats) +
-                  pitcherPremium(savedGrades, player, team?.teamAge)
+                evalTotalScore(grades, player, teamAge)
               );
               const expanded = expandedPlayerIds.has(player.id);
+              const rankRow = rankByPlayerId.get(player.id) as any;
+              const primarySuggestion = rankRow?.primarySuggestion || suggestPrimaryPosition(player, grades, {
+                kidPitch: isKidPitchFormat(pitchingFormat),
+                teamAge,
+              });
               // Count how many categories the coach has graded (any non-default
               // chip click) so the collapsed row can show progress at a glance.
               // Optional measurement fields (Pitch Velocity) don't count toward
@@ -1872,13 +1971,13 @@ export const EvaluationTab = memo(() => {
               return (
                 <div
                   key={`mc-${player.id}`}
-                  className="border-b border-line"
+                  className="bg-surface-1 border border-line rounded-xl overflow-hidden"
                 >
                   <button
                     type="button"
                     onClick={() => togglePlayerExpanded(player.id)}
                     aria-expanded={expanded}
-                    className="w-full px-1 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
+                    className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
                   >
                     <Icons.ChevronRight
                       className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
@@ -1893,6 +1992,11 @@ export const EvaluationTab = memo(() => {
                     <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-ink truncate">
                       {player.name}
                     </span>
+                    {rankRow && (
+                      <span className="text-[10px] font-black text-ink-2 shrink-0 tabular-nums" title="Team rank">
+                        #{rankRow.rank}
+                      </span>
+                    )}
                     <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
                       {gradedCount}/{requiredCats.length}
                     </span>
@@ -1908,14 +2012,14 @@ export const EvaluationTab = memo(() => {
                     </span>
                   </button>
                   {expanded && (
-                    <div className="px-1 pb-4 pt-1 border-t border-line space-y-2.5">
+                    <div className="px-3 pb-4 pt-3 border-t border-line space-y-2.5">
                       <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 pt-0.5">
                         Your Evaluation
                       </div>
                       {playerCats.map((cat) => (
                         <div
                           key={cat.id}
-                          className="flex items-start justify-between gap-3"
+                          className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3"
                         >
                           <div className="flex-1 min-w-0">
                             <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 flex items-center gap-1.5 flex-wrap">
@@ -1940,25 +2044,35 @@ export const EvaluationTab = memo(() => {
                             )}
                           </div>
                           {cat.inputKind === "mph" ? (
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min={0}
-                              max={120}
-                              value={grades[cat.id] ?? ""}
-                              onChange={(e) =>
-                                setGrade(
-                                  player.id,
-                                  cat.id,
-                                  e.target.value === ""
-                                    ? null
-                                    : Number(e.target.value)
-                                )
-                              }
-                              placeholder="mph"
-                              aria-label={`${player.name} ${cat.label} (mph)`}
-                              className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
-                            />
+                            <div className="flex items-center justify-end gap-2 flex-wrap">
+                              {(() => {
+                                const mphScore = velocityGradeFromMph(Number(grades[cat.id]), teamAge);
+                                return mphScore != null ? (
+                                  <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-1">
+                                    Age score {mphScore}/5
+                                  </span>
+                                ) : null;
+                              })()}
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={120}
+                                value={grades[cat.id] ?? ""}
+                                onChange={(e) =>
+                                  setGrade(
+                                    player.id,
+                                    cat.id,
+                                    e.target.value === ""
+                                      ? null
+                                      : Number(e.target.value)
+                                  )
+                                }
+                                placeholder="mph"
+                                aria-label={`${player.name} ${cat.label} (mph)`}
+                                className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
+                              />
+                            </div>
                           ) : (
                             <GradeChipRow
                               value={grades[cat.id]}
@@ -1971,9 +2085,19 @@ export const EvaluationTab = memo(() => {
                         </div>
                       ))}
                       <div className="pt-1.5 border-t border-line">
-                        <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
-                          Suggested Positions
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
+                            Position Fit Notes
+                          </div>
+                          {primarySuggestion && (
+                            <span className="text-[10px] font-black text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5">
+                              Best fit: {primarySuggestion.position}
+                            </span>
+                          )}
                         </div>
+                        <p className="text-[10px] text-ink-3 mb-2 leading-snug">
+                          Mark positions to consider on the Depth Chart; use the best-fit hint for primary-position decisions.
+                        </p>
                         <div className="flex flex-wrap gap-1">
                           {SUGGESTED_POSITIONS.map((pos) => {
                             const active = (
@@ -2030,7 +2154,49 @@ export const EvaluationTab = memo(() => {
                   )}
                 </div>
               );
-            })
+            })}
+            </div>
+          )}
+          </div>
+          {players.length > 0 && (
+            <aside className="lg:sticky lg:top-24 bg-surface border border-line rounded-xl p-3 space-y-3">
+              <div>
+                <div className="t-eyebrow text-ink-3">Complete Ranking</div>
+                <p className="text-[10px] text-ink-3 mt-1 leading-snug">
+                  Ranked by Total Score from the current grades. Best-fit positions are hints, not automatic assignments.
+                </p>
+              </div>
+              <div className="space-y-1.5 max-h-[70vh] overflow-auto pr-1">
+                {rankingRows.map((row: any) => (
+                  <button
+                    key={`rank-${row.player.id}`}
+                    type="button"
+                    onClick={() => {
+                      setExpandedPlayerIds((prev) => new Set(prev).add(row.player.id));
+                    }}
+                    className="w-full grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
+                    title="Open this player's evaluation card"
+                  >
+                    <span className="text-xs font-black tabular-nums text-ink-2">#{row.rank}</span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-black uppercase text-ink truncate">{row.player.name}</span>
+                      <span className="block text-[10px] font-bold text-ink-3 truncate">
+                        {row.primarySuggestion?.position ? `Fit: ${row.primarySuggestion.position}` : "Fit: review"}
+                      </span>
+                    </span>
+                    <span
+                      className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md"
+                      style={{
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                      }}
+                    >
+                      {row.totalScore}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
           )}
         </div>
 
