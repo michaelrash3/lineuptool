@@ -165,6 +165,14 @@ const PlayerRow = memo(({ player, currentSeason, onOpenProfile, onSelectStats, s
             <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
               B/T · {player.bats || "R"}/{player.throws || "R"}
             </span>
+            {Array.isArray(player.comfortablePositions) && player.comfortablePositions.length > 0 && (
+              <span
+                className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink"
+                title="Positions to consider on the Depth Chart"
+              >
+                Depth Chart Consider · {player.comfortablePositions.join(", ")}
+              </span>
+            )}
             {player.dob && (
               <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
                 Age {calculateBaseballAge(player.dob, currentSeason) || "?"}

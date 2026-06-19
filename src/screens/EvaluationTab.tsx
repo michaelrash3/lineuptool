@@ -25,6 +25,7 @@ import {
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
   EVAL_SCALE_DEFAULT,
+  velocityGradeFromMph,
 } from "../constants/ui";
 import {
   calculateTotalScore,
@@ -1991,25 +1992,35 @@ export const EvaluationTab = memo(() => {
                             )}
                           </div>
                           {cat.inputKind === "mph" ? (
-                            <input
-                              type="number"
-                              inputMode="numeric"
-                              min={0}
-                              max={120}
-                              value={grades[cat.id] ?? ""}
-                              onChange={(e) =>
-                                setGrade(
-                                  player.id,
-                                  cat.id,
-                                  e.target.value === ""
-                                    ? null
-                                    : Number(e.target.value)
-                                )
-                              }
-                              placeholder="mph"
-                              aria-label={`${player.name} ${cat.label} (mph)`}
-                              className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
-                            />
+                            <div className="flex items-center justify-end gap-2 flex-wrap">
+                              {(() => {
+                                const mphScore = velocityGradeFromMph(Number(grades[cat.id]), teamAge);
+                                return mphScore != null ? (
+                                  <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-1">
+                                    Age score {mphScore}/5
+                                  </span>
+                                ) : null;
+                              })()}
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={120}
+                                value={grades[cat.id] ?? ""}
+                                onChange={(e) =>
+                                  setGrade(
+                                    player.id,
+                                    cat.id,
+                                    e.target.value === ""
+                                      ? null
+                                      : Number(e.target.value)
+                                  )
+                                }
+                                placeholder="mph"
+                                aria-label={`${player.name} ${cat.label} (mph)`}
+                                className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
+                              />
+                            </div>
                           ) : (
                             <GradeChipRow
                               value={grades[cat.id]}
@@ -2033,7 +2044,7 @@ export const EvaluationTab = memo(() => {
                           )}
                         </div>
                         <p className="text-[10px] text-ink-3 mb-2 leading-snug">
-                          Mark spots to review on the Depth Chart; use the best-fit hint for primary-position decisions.
+                          Mark positions to consider on the Depth Chart; use the best-fit hint for primary-position decisions.
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {SUGGESTED_POSITIONS.map((pos) => {

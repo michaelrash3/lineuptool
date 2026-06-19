@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { EVAL_SCALE_LABELS, EVAL_SCALE_DEFAULT } from "../constants/ui";
+import { EVAL_SCALE_LABELS, EVAL_SCALE_DEFAULT, velocityGradeFromMph } from "../constants/ui";
 import { evalStatHint } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
@@ -103,6 +103,7 @@ interface EvalGradeCardProps {
   readOnly?: boolean;
   rightSlot?: React.ReactNode;
   positions?: string[];
+  teamAge?: string;
 }
 
 export const EvalGradeCard = memo(
@@ -119,6 +120,7 @@ export const EvalGradeCard = memo(
     // superset for back-compat; callers that know team.defenseSize should
     // pass `getActivePositionList(team.defenseSize)` from lineupEngine.
     positions = EVAL_SUGGESTED_POSITIONS,
+    teamAge,
   }: EvalGradeCardProps) => {
     const playerGrades = grades || {};
     return (
@@ -146,6 +148,7 @@ export const EvalGradeCard = memo(
             const hint = evalStatHint(cat.id, player.stats, player.pitching);
             const hasMph =
               value != null && value !== "" && Number.isFinite(Number(value));
+            const mphScore = hasMph ? velocityGradeFromMph(Number(value), teamAge) : null;
             return (
               <div key={cat.id}>
                 <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -170,7 +173,7 @@ export const EvalGradeCard = memo(
                         <>
                           {value}
                           <span className="text-[10px] text-ink-3 font-bold ml-1">
-                            mph
+                            mph{mphScore != null ? ` · ${mphScore}/5 age score` : ""}
                           </span>
                         </>
                       ) : (
@@ -186,23 +189,30 @@ export const EvalGradeCard = memo(
                     </div>
                   )
                 ) : isMph ? (
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={0}
-                    max={120}
-                    value={value ?? ""}
-                    onChange={(e) =>
-                      onGradeChange?.(
-                        player.id,
-                        cat.id,
-                        e.target.value === "" ? null : Number(e.target.value)
-                      )
-                    }
-                    placeholder="mph"
-                    aria-label={`${player.name} ${cat.label} (mph)`}
-                    className="w-24 px-2.5 py-2 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums"
-                  />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={120}
+                      value={value ?? ""}
+                      onChange={(e) =>
+                        onGradeChange?.(
+                          player.id,
+                          cat.id,
+                          e.target.value === "" ? null : Number(e.target.value)
+                        )
+                      }
+                      placeholder="mph"
+                      aria-label={`${player.name} ${cat.label} (mph)`}
+                      className="w-24 px-2.5 py-2 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums"
+                    />
+                    {mphScore != null && (
+                      <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-1">
+                        Age score {mphScore}/5
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <GradeChipRow
                     value={value}
@@ -215,7 +225,7 @@ export const EvalGradeCard = memo(
           })}
           <div>
             <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-              Suggested Positions
+              Depth Chart Positions to Consider
             </div>
             <div className="flex flex-wrap gap-1.5">
               {positions.map((pos) => {

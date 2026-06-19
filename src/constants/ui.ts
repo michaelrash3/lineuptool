@@ -190,6 +190,15 @@ export const EVAL_SCALE_LABELS = [
 export const EVAL_SCALE_MAX = 5;
 export const EVAL_SCALE_DEFAULT = 3;
 
+export const velocityGradeFromMph = (mph: number | null | undefined, teamAge?: string): number | null => {
+  if (typeof mph !== "number" || !Number.isFinite(mph) || mph <= 0) return null;
+  const b = velocityBenchmarkForAge(teamAge);
+  const span = b.elite - b.avgLow;
+  if (span <= 0) return null;
+  const quality = Math.min(1, Math.max(0, (mph - b.avgLow) / span));
+  return Math.max(1, Math.min(EVAL_SCALE_MAX, Math.round(1 + quality * (EVAL_SCALE_MAX - 1))));
+};
+
 // Roster-decision premium for pitching well. Pure: takes a player's
 // eval-weighted pitcher score and the sum of those weights, and rewards only
 // pitching ABOVE the neutral grade — so default/ungraded pitching (every cat at
