@@ -664,8 +664,8 @@ export const FinancesTab = memo(() => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Club balance hero */}
+    <div className="max-w-5xl mx-auto lg:max-w-none space-y-6">
+      {/* Club balance hero — full width */}
       <FinanceHero
         balanceNow={summary.balanceNow}
         collected={summary.collected}
@@ -676,26 +676,14 @@ export const FinancesTab = memo(() => {
         months={months}
       />
 
-      {/* Insights: monthly cash flow + spending by category */}
-      {ledger.length > 0 && (
-        <SectionCard
-          icon={Icons.Clipboard}
-          title="Cash Flow"
-        >
-          <div className="pt-4 grid lg:grid-cols-2 gap-6 items-center">
-            <CashflowChart months={months} />
-            <SpendingDonut
-              slices={[
-                ...(finances.budgetItems || []).map((b) => ({
-                  label: b.label,
-                  value: actuals.byItem[b.id] || 0,
-                })),
-                { label: "Unplanned", value: actuals.unplanned },
-              ]}
-            />
-          </div>
-        </SectionCard>
-      )}
+      {/* Desktop control-panel: two-column layout.
+          Left (7/12): Collections + Ledger — the operational data.
+          Right (5/12): Cash Flow charts — visual summaries.
+          On mobile/tablet the columns stack in natural document order. */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
+
+        {/* Left column: Collections + Ledger */}
+        <div className="lg:col-span-7 space-y-6">
 
       {/* Collections */}
       <SectionCard
@@ -1449,6 +1437,34 @@ export const FinancesTab = memo(() => {
           )}
         </div>
       </SectionCard>
+
+        </div>{/* end left col */}
+
+        {/* Right column: Cash Flow charts */}
+        <div className="lg:col-span-5 space-y-6">
+          {ledger.length > 0 && (
+            <SectionCard
+              icon={Icons.Clipboard}
+              title="Cash Flow"
+            >
+              <div className="pt-4 space-y-6">
+                <CashflowChart months={months} />
+                <SpendingDonut
+                  slices={[
+                    ...(finances.budgetItems || []).map((b) => ({
+                      label: b.label,
+                      value: actuals.byItem[b.id] || 0,
+                    })),
+                    { label: "Unplanned", value: actuals.unplanned },
+                  ]}
+                />
+              </div>
+            </SectionCard>
+          )}
+        </div>{/* end right col */}
+
+      </div>{/* end desktop grid */}
+
       {/* Budget Planner */}
       <SectionCard
         icon={Icons.Clipboard}
