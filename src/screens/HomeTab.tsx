@@ -1594,6 +1594,12 @@ export const HomeTab = memo(() => {
         promptStatus={promptStatus}
         todayStr={todayStr}
       />
+
+      {/* Desktop control-panel region: the next-game hero (main column) sits
+          beside a status rail (season record + coaches). Below lg it collapses
+          back to the normal vertical stack, preserving the mobile experience. */}
+      <div className="space-y-8 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
+        <div className="lg:flex-1 lg:min-w-0">
       {hasGames ? (
         <UpcomingGameCard
           primaryColor={primaryColor}
@@ -1616,17 +1622,11 @@ export const HomeTab = memo(() => {
           }}
         />
       )}
+        </div>
 
-      <UpcomingWeekSection
-        games={games}
-        practices={practices}
-        todayStr={todayStr}
-        onOpenGame={() => setActiveTab("schedule")}
-        onOpenPractices={() => setActiveTab("practices")}
-      />
-
-      {/* ===== Season scoreboard — open/fluid, matches the dashboard ===== */}
-      <div className="relative pb-7 border-b border-line">
+        <aside className="space-y-8 lg:space-y-6 lg:w-[22rem] lg:shrink-0">
+      {/* ===== Season scoreboard — open/fluid; becomes a rail panel at lg ===== */}
+      <div className="relative pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
@@ -1738,7 +1738,7 @@ export const HomeTab = memo(() => {
             {Math.round(seasonHero.diff)} · Roster {players.length}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-line">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 mt-5 pt-4 border-t border-line">
             {[
               { k: "Runs For", v: seasonHero.runsFor },
               { k: "Against", v: seasonHero.runsAgainst },
@@ -1771,7 +1771,7 @@ export const HomeTab = memo(() => {
 
       {/* Coaches */}
       {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
-        <div className="space-y-3 pb-7 border-b border-line">
+        <div className="space-y-3 pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
           {headCoaches.length > 0 && (
             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
               <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
@@ -1794,6 +1794,16 @@ export const HomeTab = memo(() => {
           )}
         </div>
       )}
+        </aside>
+      </div>
+
+      <UpcomingWeekSection
+        games={games}
+        practices={practices}
+        todayStr={todayStr}
+        onOpenGame={() => setActiveTab("schedule")}
+        onOpenPractices={() => setActiveTab("practices")}
+      />
 
       {/* Insight tiles row — only renders when there's a player to show */}
       {hasPlayers && (

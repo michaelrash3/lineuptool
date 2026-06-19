@@ -3427,7 +3427,11 @@ const MainShell = () => {
       )}
       <OfflineBanner />
       <AppHeader navButtons={navButtons} />
-      <main className="relative z-10 w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
+      {/* Desktop "control-panel" canvas: cap and center the content column on
+          wide screens so tab layouts compose into panels instead of stretching
+          edge-to-edge. Gated at lg so phone/tablet stay full-bleed and
+          byte-identical. See the Desktop layout spec in docs/ARCHITECTURE.md. */}
+      <main className="relative z-10 w-full lg:max-w-[1440px] lg:mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
         <ErrorBoundary resetKey={location.pathname}>
         {/* Keyed entrance-only transition: replays on navigation. Exit
