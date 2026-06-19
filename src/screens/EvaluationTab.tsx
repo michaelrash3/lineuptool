@@ -1577,7 +1577,10 @@ export const EvaluationTab = memo(() => {
     });
     return players
       .map((player: any) => {
-        const savedGrades = teamEvalGrades[player.id] || combinedGrades[player.id] || {};
+        const savedGrades = {
+          ...(combinedGrades[player.id] || {}),
+          ...(teamEvalGrades[player.id] || {}),
+        };
         const grades = { ...DEFAULT_GRADES, ...savedGrades };
         const totalScore = Math.min(
           100,
@@ -2160,7 +2163,7 @@ export const EvaluationTab = memo(() => {
                     <span className="min-w-0">
                       <span className="block text-xs font-black uppercase text-ink truncate">{row.player.name}</span>
                       <span className="block text-[10px] font-bold text-ink-3 truncate">
-                        {row.primarySuggestion ? `Fit: ${row.primarySuggestion.position}` : "Fit: review"}
+                        {row.primarySuggestion?.position ? `Fit: ${row.primarySuggestion.position}` : "Fit: review"}
                       </span>
                     </span>
                     <span
