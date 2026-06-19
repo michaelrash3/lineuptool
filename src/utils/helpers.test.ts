@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import {
   normalizeDateToIso,
   parseCsvRecords,
@@ -217,7 +217,7 @@ describe("evalDueDatesForYear", () => {
       }
     }
     expect(year).not.toBeNull();
-    const dates = evalDueDatesForYear(year);
+    const dates = evalDueDatesForYear(year!);
     const mar15s = dates.filter(
       (d) => d.getMonth() === 2 && d.getDate() === 15
     );
@@ -235,7 +235,7 @@ describe("evalDueDatesForYear", () => {
       }
     }
     expect(year).not.toBeNull();
-    const dates = evalDueDatesForYear(year);
+    const dates = evalDueDatesForYear(year!);
     const hasSep1 = dates.some(
       (d) => d.getMonth() === 8 && d.getDate() === 1
     );
@@ -580,7 +580,7 @@ describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
   // appears under id "old-sam" in game 1 (written before he was deleted
   // from the roster) and under "new-sam" in game 2 (after re-add). The
   // current roster only has "new-sam".
-  const game = (id, samId) => ({
+  const game = (id: any, samId: any) => ({
     id,
     status: "final",
     teamScore: 1,
@@ -610,9 +610,9 @@ describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
     const sam = out.get("new-sam");
     expect(sam).toBeDefined();
     // Sam fielded 1 inning in each game → 2 total across both games.
-    expect(sam.totalDefense).toBe(2);
-    expect(sam.gamesAttended).toBe(2);
-    expect(sam.totalBench).toBe(2);
+    expect(sam!.totalDefense).toBe(2);
+    expect(sam!.gamesAttended).toBe(2);
+    expect(sam!.totalBench).toBe(2);
     // The orphan key must not survive — its innings were coalesced.
     expect(out.get("old-sam")).toBeUndefined();
   });
@@ -640,7 +640,7 @@ describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
 });
 
 describe("evalRoundDateForSave", () => {
-  const isoLocal = (d) =>
+  const isoLocal = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
       d.getDate()
     ).padStart(2, "0")}`;
@@ -824,7 +824,7 @@ describe("gamesDueForReminder", () => {
   // Fix "now" to a local-noon anchor so the local-calendar-day math is stable
   // regardless of the machine's timezone.
   const now = new Date(2026, 4, 10, 12, 0, 0); // 2026-05-10 local
-  const iso = (d) => {
+  const iso = (d: Date) => {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const day = String(d.getDate()).padStart(2, "0");
@@ -866,7 +866,7 @@ describe("gamesDueForReminder", () => {
       now
     );
     expect(due.map((g) => g.id)).toEqual(["today", "tom"]);
-    expect(due.find((g) => g.id === "tom").whenLabel).toBe("Tomorrow");
+    expect(due.find((g) => g.id === "tom")!.whenLabel).toBe("Tomorrow");
   });
 
   it("skips finalized, postponed, past, and undated games", () => {
@@ -1194,10 +1194,10 @@ describe("recordPitchingOuting", () => {
       const d = `2026-05-${String(i).padStart(2, "0")}`;
       p = recordPitchingOuting(p, d, i);
     }
-    expect(p.log).toHaveLength(12);
+    expect(p!.log).toHaveLength(12);
     // Newest retained, oldest dropped.
-    expect(p.log[0].date).toBe("2026-05-15");
-    expect(p.log[p.log.length - 1].date).toBe("2026-05-04");
+    expect(p!.log[0].date).toBe("2026-05-15");
+    expect(p!.log[p!.log.length - 1].date).toBe("2026-05-04");
   });
 
   it("preserves other pitching fields", () => {
@@ -1208,17 +1208,17 @@ describe("recordPitchingOuting", () => {
   it("keeps separate entries for two games on the same date (doubleheader)", () => {
     let p = recordPitchingOuting(null, "2026-05-01", 30, "g1");
     p = recordPitchingOuting(p, "2026-05-01", 25, "g2");
-    expect(p.log).toEqual([
+    expect(p!.log).toEqual([
       { date: "2026-05-01", pitches: 25, gameId: "g2" },
       { date: "2026-05-01", pitches: 30, gameId: "g1" },
     ]);
-    expect(p.recentPitches).toBe(25);
+    expect(p!.recentPitches).toBe(25);
   });
 
   it("updates in place when the same game is re-finalized (by gameId)", () => {
     let p = recordPitchingOuting(null, "2026-05-01", 30, "g1");
     p = recordPitchingOuting(p, "2026-05-01", 42, "g1");
-    expect(p.log).toEqual([{ date: "2026-05-01", pitches: 42, gameId: "g1" }]);
+    expect(p!.log).toEqual([{ date: "2026-05-01", pitches: 42, gameId: "g1" }]);
   });
 
   it("preserves a legacy date-keyed entry when a new game is added that day", () => {
@@ -1235,7 +1235,7 @@ describe("recordPitchingOuting", () => {
 describe("summarizePitchingWorkload", () => {
   it("returns zeros for a pitcher with no log", () => {
     expect(summarizePitchingWorkload(null)).toEqual({ outings: 0, totalPitches: 0, maxPitches: 0, lastDate: null });
-    expect(summarizePitchingWorkload({ recentPitches: 5 })).toMatchObject({ outings: 0, totalPitches: 0 });
+    expect(summarizePitchingWorkload({ recentPitches: 5 } as any)).toMatchObject({ outings: 0, totalPitches: 0 });
   });
 
   it("sums totals, tracks the high, and the latest date", () => {
@@ -1267,7 +1267,7 @@ describe("estimateDocSizeBytes", () => {
   });
 
   it("returns 0 for unserializable input rather than throwing", () => {
-    const circular = {};
+    const circular: any = {};
     circular.self = circular;
     expect(estimateDocSizeBytes(circular)).toBe(0);
   });
@@ -1278,7 +1278,7 @@ describe("estimateDocSizeBytes", () => {
 });
 
 describe("buildSeasonPositionVariety", () => {
-  const inning = (assign) => ({ ...assign, BENCH: [] });
+  const inning = (assign: any) => ({ ...assign, BENCH: [] });
   // p1: SS both innings (infield only); p2: LF then CF (outfield only);
   // p3: P then C (battery).
   const finalGame = {
@@ -1296,8 +1296,8 @@ describe("buildSeasonPositionVariety", () => {
     const m = buildSeasonPositionVariety([finalGame], [
       { id: "p1" }, { id: "p2" }, { id: "p3" },
     ]);
-    expect(m.get("p1").byPosition).toEqual({ SS: 2 });
-    expect(m.get("p1")).toMatchObject({ totalDefense: 2, distinctPositions: 1, infieldInnings: 2, outfieldInnings: 0 });
+    expect(m.get("p1")!.byPosition).toEqual({ SS: 2 });
+    expect(m.get("p1")!).toMatchObject({ totalDefense: 2, distinctPositions: 1, infieldInnings: 2, outfieldInnings: 0 });
     expect(m.get("p2")).toMatchObject({ outfieldInnings: 2, infieldInnings: 0, distinctPositions: 2 });
     expect(m.get("p3")).toMatchObject({ batteryInnings: 2, distinctPositions: 2 });
   });
@@ -1315,7 +1315,7 @@ describe("buildSeasonPositionVariety", () => {
       lineup: [inning({ SS: { id: "old1", name: "Ava Rivera" } })],
     };
     const m = buildSeasonPositionVariety([g], [{ id: "p1", name: "Ava Rivera" }]);
-    expect(m.get("p1").byPosition).toEqual({ SS: 1 });
+    expect(m.get("p1")!.byPosition).toEqual({ SS: 1 });
     expect(m.has("old1")).toBe(false);
   });
 });
@@ -1335,7 +1335,7 @@ describe("record standings helpers", () => {
 });
 
 describe("buildSeasonSummary", () => {
-  const g = (id, date, opp, ts, os) => ({
+  const g = (id: any, date: any, opp: any, ts: any, os: any) => ({
     id, date, opponent: opp, status: "final", teamScore: ts, opponentScore: os,
   });
 
@@ -1504,7 +1504,7 @@ describe("recordCatchingOuting + sameDayRoleSets", () => {
     expect(c.log).toHaveLength(2);
     // Re-finalizing g1 replaces its entry in place.
     c = recordCatchingOuting(c, "2026-05-10", 4, "g1");
-    expect(c.log.filter((o) => o.gameId === "g1")).toEqual([
+    expect(c.log.filter((o: any) => o.gameId === "g1")).toEqual([
       { date: "2026-05-10", innings: 4, gameId: "g1" },
     ]);
     expect(c.log).toHaveLength(2);
@@ -1548,7 +1548,7 @@ describe("parseGameChangerStatsCsv", () => {
       "First,Last,AB,H,AVG,HR,RBI\n" +
       "Sammy,Sosa,3,2,.667,1,3\n" +
       "Totals,,3,2,.667,1,3\n";
-    const out = parseGameChangerStatsCsv(csv);
+    const out = parseGameChangerStatsCsv(csv) as any;
     expect(out.error).toBeUndefined();
     expect(out.rows).toHaveLength(1);
     expect(out.rows[0].name).toBe("Sammy Sosa");
@@ -1556,7 +1556,7 @@ describe("parseGameChangerStatsCsv", () => {
   });
 
   it("rejects a non-GameChanger file with a clear error", () => {
-    const out = parseGameChangerStatsCsv("First,Last,Email\nA,B,a@b.c\n");
+    const out = parseGameChangerStatsCsv("First,Last,Email\nA,B,a@b.c\n") as any;
     expect(out.error).toMatch(/GameChanger/i);
   });
 });
@@ -1577,7 +1577,7 @@ describe("stripPitchingStatsForFormat", () => {
 });
 
 describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
-  const game = (id, playerStats, extra = {}) => ({ id, playerStats, ...extra });
+  const game = (id: any, playerStats: any, extra: any = {}) => ({ id, playerStats, ...extra });
 
   it("sums counting stats and recomputes AVG exactly from H/AB", () => {
     const games = [
@@ -1586,7 +1586,7 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
     ];
     const season = deriveSeasonFromGameLines(games, "p1");
     expect(season).toMatchObject({ ab: 5, h: 3, hr: 1 });
-    expect(season.avg).toBeCloseTo(3 / 5);
+    expect(season!.avg).toBeCloseTo(3 / 5);
   });
 
   it("season pitching comes ONLY from kid-pitch games on a mixed schedule", () => {
@@ -1603,13 +1603,13 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
     ];
     const season = deriveSeasonFromGameLines(games, "p1");
     // Batting sums across ALL games…
-    expect(season.ab).toBe(6);
-    expect(season.h).toBe(2);
+    expect(season!.ab).toBe(6);
+    expect(season!.h).toBe(2);
     // …pitching only from the two kid-pitch lines.
-    expect(season.pIp).toBe(3);
-    expect(season.pBf).toBe(12);
+    expect(season!.pIp).toBe(3);
+    expect(season!.pBf).toBe(12);
     // pEra is pIp-weighted: (3*2 + 6*1) / 3 = 4
-    expect(season.pEra).toBeCloseTo(4);
+    expect(season!.pEra).toBeCloseTo(4);
   });
 
   it("weights rate stats by sample (QAB% by AB)", () => {
@@ -1618,7 +1618,7 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
       game("g2", { p1: { ab: 1, qab: 1.0 } }),
     ];
     const season = deriveSeasonFromGameLines(games, "p1");
-    expect(season.qab).toBeCloseTo((0.5 * 4 + 1.0 * 1) / 5);
+    expect(season!.qab).toBeCloseTo((0.5 * 4 + 1.0 * 1) / 5);
   });
 
   it("returns null when the player has no game lines (season CSV stays)", () => {
@@ -1637,11 +1637,11 @@ describe("latestGameLineMovement (Recent Movement from per-game imports)", () =>
   it("compares the season derived with vs without the newest game", () => {
     const move = latestGameLineMovement(games, "p1");
     expect(move).toBeTruthy();
-    expect(move.date).toBe("2026-05-01");
+    expect(move!.date).toBe("2026-05-01");
     // Prior = game a only; current = a + b summed.
-    expect(move.prior.avg).toBeCloseTo(1 / 4);
-    expect(move.current.avg).toBeCloseTo(4 / 8);
-    expect(move.current.ops).toBeGreaterThan(move.prior.ops);
+    expect(move!.prior.avg).toBeCloseTo(1 / 4);
+    expect(move!.current.avg).toBeCloseTo(4 / 8);
+    expect(move!.current.ops).toBeGreaterThan(move!.prior.ops);
   });
 
   it("needs at least two game lines — one game has no before/after", () => {
@@ -1792,7 +1792,7 @@ describe("mergeTeamEntries (settings teams-list safety)", () => {
 
   it("preserves the server list when local state is transiently empty (the clobber bug)", () => {
     const server = [{ id: "t-real", name: "My Real Team" }];
-    const localState = []; // raced/empty React state
+    const localState: any[] = []; // raced/empty React state
     const merged = mergeTeamEntries(server, localState, [
       { id: "t-new", name: "Accidental Team" },
     ]);
@@ -1813,7 +1813,7 @@ describe("mergeTeamEntries (settings teams-list safety)", () => {
   it("ignores null/undefined lists and entries without ids, and defaults blank names", () => {
     const merged = mergeTeamEntries(null, undefined, [
       { id: "t1" },
-      { name: "no id" },
+      { name: "no id" } as any,
       { id: "" },
     ]);
     expect(merged).toEqual([{ id: "t1", name: "My Team" }]);
@@ -1842,7 +1842,7 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
   it("allows non-empty players writes and writes that don't touch players", () => {
     expect(blockedRosterWipeReason({ players: roster }, roster, true)).toBeNull();
     expect(blockedRosterWipeReason({ players: [{ id: "p9" }] }, roster, false)).toBeNull();
-    expect(blockedRosterWipeReason({ name: "Hawks" }, roster, false)).toBeNull();
+    expect(blockedRosterWipeReason({ name: "Hawks" } as any, roster, false)).toBeNull();
     expect(blockedRosterWipeReason({}, roster, true)).toBeNull();
   });
 
@@ -1938,7 +1938,7 @@ describe("finances money math", () => {
   it("budgetTotal sums flat + quantity items and tolerates malformed entries", () => {
     expect(budgetTotal(finances)).toBeCloseTo(3850.5);
     expect(budgetTotal(null)).toBe(0);
-    expect(budgetTotal({ budgetItems: [{ amount: "nope" }, null] })).toBe(0);
+    expect(budgetTotal({ budgetItems: [{ amount: "nope" } as any, null as any] })).toBe(0);
   });
 
   it("incomeTotal sums sponsorships/fundraising", () => {
@@ -1983,8 +1983,8 @@ describe("finances money math", () => {
       sponsorshipTotal({
         sponsorships: [
           { id: "s1", sponsor: "A", amount: 100 },
-          { id: "s2", sponsor: "B", amount: "nope" },
-          null,
+          { id: "s2", sponsor: "B", amount: "nope" } as any,
+          null as any,
         ],
       })
     ).toBe(100);
@@ -2005,7 +2005,7 @@ describe("finances money math", () => {
 
   it("financeSummary never reports negative owed for overpayment", () => {
     const s = financeSummary(
-      { clubFee: 100, payments: [{ id: "p", playerId: "kid1", amount: 130 }] },
+      { clubFee: 100, payments: [{ id: "p", playerId: "kid1", date: "2026-01-01", amount: 130 }] },
       [{ id: "kid1" }]
     );
     expect(s.stillOwed).toBe(0);
@@ -2032,7 +2032,7 @@ describe("finances money math", () => {
   it("unattributed fundraising splits evenly across all paying families", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", fundraising: true, amount: 30 }],
+      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 30 }],
       payments: [],
     };
     const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
@@ -2046,7 +2046,7 @@ describe("finances money math", () => {
   it("attributed fundraising credits only that child's fee", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", fundraising: true, amount: 40, playerId: "k1" }],
+      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 40, playerId: "k1" }],
       payments: [],
     };
     const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
@@ -2061,7 +2061,7 @@ describe("finances money math", () => {
     const fin = {
       clubFee: 100,
       // k1 raises 160 — 100 covers their fee, the 60 surplus splits across all 3.
-      incomes: [{ id: "f", fundraising: true, amount: 160, playerId: "k1" }],
+      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 160, playerId: "k1" }],
       payments: [],
     };
     const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
@@ -2076,7 +2076,7 @@ describe("finances money math", () => {
   it("fundraising credited to an exempt/off-roster child rolls fully to the team", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", fundraising: true, amount: 30, playerId: "ghost" }],
+      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 30, playerId: "ghost" }],
       payments: [],
     };
     const two = [{ id: "k1" }, { id: "k2" }];
@@ -2089,8 +2089,8 @@ describe("finances money math", () => {
     const fin = {
       clubFee: 100,
       incomes: [
-        { id: "a", fundraising: true, amount: 30 },
-        { id: "b", fundraising: true, amount: 30 },
+        { id: "a", date: "2026-01-01", label: "Fundraiser A", fundraising: true, amount: 30 },
+        { id: "b", date: "2026-01-01", label: "Fundraiser B", fundraising: true, amount: 30 },
       ],
       payments: [],
     };
@@ -2109,8 +2109,8 @@ describe("finances money math", () => {
     const base = {
       clubFee: 150,
       payments: [
-        { id: "p1", playerId: "kid1", amount: 150 }, // paid in full
-        { id: "p2", playerId: "kid2", amount: 75 }, // partial
+        { id: "p1", playerId: "kid1", date: "2026-01-01", amount: 150 }, // paid in full
+        { id: "p2", playerId: "kid2", date: "2026-01-01", amount: 75 }, // partial
         // kid3: nothing
       ],
     };
@@ -2167,23 +2167,23 @@ describe("finances money math", () => {
       "Spring 2027",
       "2027-06-01T12:00:00.000Z"
     );
-    expect(rolled.payments).toEqual([]);
-    expect(rolled.expenses).toEqual([]);
-    expect(rolled.incomes).toHaveLength(1);
-    expect(rolled.incomes[0]).toMatchObject({
+    expect(rolled!.payments).toEqual([]);
+    expect(rolled!.expenses).toEqual([]);
+    expect(rolled!.incomes!).toHaveLength(1);
+    expect(rolled!.incomes![0]).toMatchObject({
       date: "2027-06-01",
       label: "Carried over (through Spring 2027)",
       amount: 675,
     });
-    expect(rolled.clubFee).toBe(1000); // planned fee promoted
-    expect(rolled.depositAmount).toBe(250);
-    expect(rolled.depositDueDate).toBe("2027-07-15");
-    expect(rolled.nextClubFee).toBeUndefined();
-    expect(rolled.nextDepositAmount).toBeUndefined();
-    expect(rolled.nextDepositDueDate).toBeUndefined();
-    expect(rolled.feeExemptIds).toBeUndefined(); // waivers die with the year
-    expect(rolled.budgetItems).toEqual(finances.budgetItems); // plan kept
-    expect(rolled.pastSeasons).toEqual([
+    expect(rolled!.clubFee).toBe(1000); // planned fee promoted
+    expect(rolled!.depositAmount).toBe(250);
+    expect(rolled!.depositDueDate).toBe("2027-07-15");
+    expect(rolled!.nextClubFee).toBeUndefined();
+    expect(rolled!.nextDepositAmount).toBeUndefined();
+    expect(rolled!.nextDepositDueDate).toBeUndefined();
+    expect(rolled!.feeExemptIds).toBeUndefined(); // waivers die with the year
+    expect(rolled!.budgetItems).toEqual(finances.budgetItems); // plan kept
+    expect(rolled!.pastSeasons).toEqual([
       {
         season: "through Spring 2027",
         collected: 235,
@@ -2201,13 +2201,13 @@ describe("finances money math", () => {
       expenses: [{ id: "e", date: "2026-10-01", label: "Entry", amount: 200 }],
     };
     const rolled = rollFinancesForNewSeason(broke, "Spring 2027", "2027-06-01");
-    expect(rolled.incomes).toEqual([]);
-    expect(rolled.expenses).toHaveLength(1);
-    expect(rolled.expenses[0]).toMatchObject({
+    expect(rolled!.incomes).toEqual([]);
+    expect(rolled!.expenses!).toHaveLength(1);
+    expect(rolled!.expenses![0]).toMatchObject({
       label: "Debt carried over (through Spring 2027)",
       amount: 150,
     });
-    expect(rolled.clubFee).toBe(100); // no planned fee → current fee kept
+    expect(rolled!.clubFee).toBe(100); // no planned fee → current fee kept
   });
 
   it("rollFinancesForNewSeason passes through when nothing was recorded", () => {
@@ -2227,16 +2227,16 @@ describe("finances money math", () => {
       budgetItems: [{ id: "b", label: "Balls", amount: 10 }],
     };
     const rolled = rollFinancesForNewSeason(planned, "Spring 2027", "2027-06-01");
-    expect(rolled.clubFee).toBe(250);
-    expect(rolled.depositAmount).toBe(100);
-    expect(rolled.depositDueDate).toBe("2027-07-15");
-    expect(rolled.nextClubFee).toBeUndefined();
-    expect(rolled.nextDepositAmount).toBeUndefined();
-    expect(rolled.nextDepositDueDate).toBeUndefined();
-    expect(rolled.feeExemptIds).toBeUndefined();
-    expect(rolled.budgetItems).toEqual(planned.budgetItems);
-    expect(rolled.incomes).toEqual([]);
-    expect(rolled.pastSeasons).toBeUndefined(); // nothing worth archiving
+    expect(rolled!.clubFee).toBe(250);
+    expect(rolled!.depositAmount).toBe(100);
+    expect(rolled!.depositDueDate).toBe("2027-07-15");
+    expect(rolled!.nextClubFee).toBeUndefined();
+    expect(rolled!.nextDepositAmount).toBeUndefined();
+    expect(rolled!.nextDepositDueDate).toBeUndefined();
+    expect(rolled!.feeExemptIds).toBeUndefined();
+    expect(rolled!.budgetItems).toEqual(planned.budgetItems);
+    expect(rolled!.incomes).toEqual([]);
+    expect(rolled!.pastSeasons).toBeUndefined(); // nothing worth archiving
   });
 
   it("rollFinancesForNewSeason converts sponsorship pledges into new-year income", () => {
@@ -2252,13 +2252,13 @@ describe("finances money math", () => {
       "2027-06-01"
     );
     // Carry-over first, then the pledge as named income.
-    expect(rolled.incomes).toHaveLength(2);
-    expect(rolled.incomes[1]).toMatchObject({
+    expect(rolled!.incomes!).toHaveLength(2);
+    expect(rolled!.incomes![1]).toMatchObject({
       label: "Sponsorship — Smith Hardware",
       amount: 500,
       date: "2027-06-01",
     });
-    expect(rolled.sponsorships).toBeUndefined(); // pledges don't roll twice
+    expect(rolled!.sponsorships).toBeUndefined(); // pledges don't roll twice
   });
 
   it("budgetActuals buckets linked spending per category, unlinked as unplanned", () => {
@@ -2304,7 +2304,7 @@ describe("finances money math", () => {
   it("owesReminderText reflects per-child fundraising credit in each family's owed", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", fundraising: true, amount: 40, playerId: "kid2" }],
+      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 40, playerId: "kid2" }],
       payments: [],
     };
     const text = owesReminderText(fin, players);
