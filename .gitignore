@@ -153,3 +153,4 @@ vite.config.ts.timestamp-*
 
 # local repro scratch (contains private team data — never commit)
 src/__repro*
+.claude/
