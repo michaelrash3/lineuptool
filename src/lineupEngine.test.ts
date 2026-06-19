@@ -92,7 +92,7 @@ const baseGame = (overrides = {}) => ({
   ...overrides,
 });
 
-const buildLineup = (opts: any = {}) => {
+const buildLineup = (opts: any = {}): any => {
   const players = opts.players;
   return generateLineup({
     activePlayers: players,
@@ -194,10 +194,10 @@ describe("catcher pre-assignment respects primaryPosition", () => {
     });
     expect(result.error).toBeUndefined();
     const caughtPairs = result.lineup!
-      .map((inn) => (inn.C as any)?.id)
+      .map((inn: any) => (inn.C as any)?.id)
       .filter(Boolean);
     // The primary-C kid should be the catcher in at least one inning.
-    expect(caughtPairs.some((id) => id === "the_catcher")).toBe(true);
+    expect(caughtPairs.some((id: any) => id === "the_catcher")).toBe(true);
   });
 
   test("without any primary-C kid, falls back to high-defScore tiebreaker", () => {
@@ -214,7 +214,7 @@ describe("catcher pre-assignment respects primaryPosition", () => {
     });
     expect(result.error).toBeUndefined();
     // p0 should appear behind the plate at least once.
-    const seen = new Set(result.lineup!.map((inn) => (inn.C as any)?.id).filter(Boolean));
+    const seen = new Set(result.lineup!.map((inn: any) => (inn.C as any)?.id).filter(Boolean));
     expect(seen.has("p0")).toBe(true);
   });
 });
@@ -257,7 +257,7 @@ describe("catcher eligibility (C in comfortablePositions)", () => {
       expect(result.error).toBeUndefined();
       const seen = catchersSeen(result.lineup!);
       expect(seen.length).toBeGreaterThan(0);
-      expect(seen.some((id) => nonCatcherIds.includes(id))).toBe(false);
+      expect(seen.some((id: any) => nonCatcherIds.includes(id))).toBe(false);
     }
   });
 
@@ -267,7 +267,7 @@ describe("catcher eligibility (C in comfortablePositions)", () => {
       const result = buildLineup({ players, defenseSize: "9", seed });
       expect(result.error).toBeUndefined();
       const seen = catchersSeen(result.lineup!);
-      expect(seen.some((id) => nonCatcherIds.includes(id))).toBe(false);
+      expect(seen.some((id: any) => nonCatcherIds.includes(id))).toBe(false);
     }
   });
 
@@ -295,7 +295,7 @@ describe("catcher eligibility (C in comfortablePositions)", () => {
       const result = buildLineup({ players, defenseSize: "10", seed });
       expect(result.error).toBeUndefined();
       const seen = catchersSeen(result.lineup!);
-      expect(seen.some((id) => emptyIds.includes(id))).toBe(false);
+      expect(seen.some((id: any) => emptyIds.includes(id))).toBe(false);
     }
   });
 
@@ -331,7 +331,7 @@ describe("catcher eligibility (C in comfortablePositions)", () => {
 const catchingInnings = (lineup: any, playerId: any) =>
   lineup
     .map((inn: any, i: any) => ((inn.C as any)?.id === playerId ? i : -1))
-    .filter((i) => i >= 0);
+    .filter((i: any) => i >= 0);
 
 // Map of catcherId -> sorted innings caught, for every kid who caught.
 const catcherInningMap = (lineup: any) => {
@@ -346,7 +346,7 @@ const catcherInningMap = (lineup: any) => {
 };
 
 const isContiguous = (sorted: any) =>
-  sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
+  sorted.every((v: any, i: any) => i === 0 || v === sorted[i - 1] + 1);
 
 // ---------------------------------------------------------------------------
 // Rotation lock yields to avoid stranding a scarce position.
@@ -832,7 +832,7 @@ describe("primary-position pre-pin", () => {
     });
     expect(result.error).toBeUndefined();
     for (const inn of result.lineup!) {
-      const wasBenched = (inn.BENCH || []).some((p) => p?.id === "ace");
+      const wasBenched = (inn.BENCH || []).some((p: any) => p?.id === "ace");
       if (wasBenched) continue;
       // On the field → must be at SS.
       expect((inn["SS"] as any)?.id).toBe("ace");
@@ -944,8 +944,8 @@ describe("primary-position pre-pin", () => {
         seed,
       });
       if (result.error) continue;
-      const acePos = result.lineup!.map((inn) => {
-        if ((inn.BENCH || []).some((p) => p?.id === "ace")) return "BENCH";
+      const acePos = result.lineup!.map((inn: any) => {
+        if ((inn.BENCH || []).some((p: any) => p?.id === "ace")) return "BENCH";
         for (const k of Object.keys(inn)) {
           if (k === "BENCH") continue;
           if ((inn[k] as any)?.id === "ace") return k;
@@ -954,7 +954,7 @@ describe("primary-position pre-pin", () => {
       });
       if (acePos.includes("BENCH")) benchedAtLeastOnce = true;
       // Walk innings: any non-BENCH inning that isn't 3B is a violation.
-      const wrong = acePos.filter((p) => p !== null && p !== "BENCH" && p !== "3B");
+      const wrong = acePos.filter((p: any) => p !== null && p !== "BENCH" && p !== "3B");
       if (wrong.length > 0) violations.push({ seed, acePos });
     }
     expect(benchedAtLeastOnce).toBe(true); // sanity: roster size forces sits
@@ -1236,7 +1236,7 @@ describe("batting order — NKB 7U/8U youth strategy", () => {
     // be a tied .600 kid — that's fine; the point is that powerScore
     // (HR/RBI/SLG) can't promote the power_only kid into the leadoff spot
     // or above the real OPS bat.
-    expect(result.battingLineup![2].id).toBe("ops_real");
+    expect((result.battingLineup! as any[])[2].id).toBe("ops_real");
   });
 
   test("USSSA at 8U keeps the existing Tango strategy (powerScore at cleanup)", () => {
@@ -1274,7 +1274,7 @@ describe("batting order — NKB 7U/8U youth strategy", () => {
     expect(roles).not.toContain("#3 OPS");
     expect(roles).not.toContain("Cleanup OPS");
     // Slugger should land in the top half (Tango promotes him).
-    const sluggerIdx = result.battingLineup!.findIndex((p) => p.id === "slugger");
+    const sluggerIdx = result.battingLineup!.findIndex((p: any) => p?.id === "slugger");
     expect(sluggerIdx).toBeGreaterThanOrEqual(0);
     expect(sluggerIdx).toBeLessThan(5);
   });
@@ -1291,7 +1291,7 @@ describe("batting order — NKB 7U/8U youth strategy", () => {
       activePlayers: players, allPlayers: players, evaluationEvents: [],
       leagueRuleSet: "NKB", teamAge: "8U", battingSize: "roster", seed: 1234,
     });
-    expect(a.battingLineup!.map((p) => p.id)).toEqual(b.battingLineup!.map((p) => p.id));
+    expect(a.battingLineup!.map((p: any) => p?.id)).toEqual(b.battingLineup!.map((p: any) => p?.id));
   });
 
   test("re-roll: different seeds reshuffle similarly-rated kids", () => {
@@ -1310,7 +1310,7 @@ describe("batting order — NKB 7U/8U youth strategy", () => {
         activePlayers: players, allPlayers: players, evaluationEvents: [],
         leagueRuleSet: "NKB", teamAge: "8U", battingSize: "roster", seed: s,
       });
-      seen.add(r.battingLineup!.map((p) => p.id).join(","));
+      seen.add(r.battingLineup!.map((p: any) => p?.id).join(","));
     }
     // 20 seeds should produce a handful of distinct orders, not just one.
     expect(seen.size).toBeGreaterThan(1);
@@ -1516,7 +1516,7 @@ describe("mid-game rebuild fairness", () => {
     expect(direct.error).toBeUndefined();
     // Replayed innings 0..3 should match currentLineup verbatim.
     for (let i = 0; i < 4; i++) {
-      expect(direct.lineup![i].BENCH[0]?.id).toBe(currentLineup[i].BENCH[0].id);
+      expect((direct.lineup![i].BENCH || [])[0]?.id).toBe(currentLineup[i].BENCH[0].id);
     }
     // The fix: p0 should NOT be benched again in innings 4 or 5.
     for (let i = 4; i < 6; i++) {
@@ -1679,7 +1679,7 @@ const isPitcherEligible = (player: any, targetDate: any, ageGroup: any) => {
   if (!pitching || !pitching.lastPitchDate || !pitching.recentPitches) return true;
   const recent = pitching.recentPitches;
   if (recent === 0) return true;
-  if (recent >= (PITCH_LIMITS_FUZZ[ageGroup] || 105)) return false;
+  if (recent >= ((PITCH_LIMITS_FUZZ as Record<string, number>)[ageGroup] || 105)) return false;
   return daysBetween(pitching.lastPitchDate, targetDate) >= restDaysRequired(recent);
 };
 
@@ -1703,7 +1703,7 @@ const makeFuzzRoster9Plus = (size: any, seed: any, targetDate: any) => {
     // ~30% of roster has pitching state — some recent, some over the limit,
     // some safely rested. Walks the gamut so the engine has to skip them
     // appropriately.
-    let pitching = { recentPitches: 0, lastPitchDate: null };
+    let pitching: { recentPitches: number; lastPitchDate: string | null } = { recentPitches: 0, lastPitchDate: null };
     if (r() < 0.3) {
       const recent = Math.floor(r() * 80); // 0..79
       // Last pitched 0..5 days before targetDate
@@ -1947,7 +1947,7 @@ describe("catcher-cap fuzz — explicit cap is never violated", () => {
 describe("catcher cap holds under position lock (carryover regression)", () => {
   for (let s = 1; s <= 6; s++) {
     const players = makeFuzzRoster(12, s * 17 + 3);
-    const build = (extra) =>
+    const build = (extra: any) =>
       generateLineup({
         activePlayers: players,
         allPlayers: players,
@@ -2043,7 +2043,7 @@ describe("D4 — pitcher scoring + pool sizing", () => {
     expect(getPitcherPoolSize("bracket")).toBe(3);
     expect(getPitcherPoolSize("league")).toBe(3);
     expect(getPitcherPoolSize(undefined)).toBe(3);
-    expect(getPitcherPoolSize(null)).toBe(3);
+    expect(getPitcherPoolSize(null as any)).toBe(3);
   });
 });
 
@@ -2060,7 +2060,7 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
   const POS9 = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
   // p0 sits 4 innings, p1 sits 2 (one bench slot per inning, 9-fielder).
   const bench = [0, 0, 1, 0, 1, 0];
-  const finalGame = (id, date, status, slimFor) => ({
+  const finalGame = (id: any, date: any, status: any, slimFor: any) => ({
     id,
     date,
     opponent: "Opp",
@@ -2068,7 +2068,7 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
     teamScore: 7,
     opponentScore: 1,
     lineup: bench.map((benchIdx) => {
-      const inning = {};
+      const inning: Record<string, any> = {};
       const field = [...Array(10).keys()].filter((idx) => idx !== benchIdx);
       POS9.forEach((pos, k) => {
         inning[pos] = slimFor(field[k]);
@@ -2081,7 +2081,7 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
   // fielder, so with NO usable history the engine seats them first.
   const weakP0 = () => {
     const players = makeRoster(10);
-    const grades = {};
+    const grades: Record<string, any> = {};
     for (let i = 0; i < 10; i++) {
       const lo = i === 0;
       grades[`p${i}`] = {
@@ -2094,14 +2094,14 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
     }
     return { players, ev: [headEval(grades)] };
   };
-  const benchCount = (lineup, id) =>
-    lineup.filter((inn) => (inn.BENCH || []).some((b) => b?.id === id)).length;
+  const benchCount = (lineup: any[], id: any) =>
+    lineup.filter((inn: any) => (inn.BENCH || []).some((b: any) => b?.id === id)).length;
   const dates = ["2026-04-01", "2026-04-08", "2026-04-15"];
 
   test("re-added roster (old ids in history) — under-played kid is not benched first", () => {
     const { players, ev } = weakP0();
     // History snapshots use OLD ids but the players' real names.
-    const slimOld = (i) => ({ id: "OLD" + i, name: `Player ${i}`, number: "" });
+    const slimOld = (i: number) => ({ id: "OLD" + i, name: `Player ${i}`, number: "" });
     const games = dates.map((d, gi) => finalGame("g" + gi, d, "final", slimOld));
     for (let seed = 1; seed <= 5; seed++) {
       const result = buildLineup({
@@ -2122,7 +2122,7 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
 
   test("legacy 'completed' games still feed fairness", () => {
     const { players, ev } = weakP0();
-    const slimCur = (i) => ({ id: `p${i}`, name: `Player ${i}`, number: "" });
+    const slimCur = (i: number) => ({ id: `p${i}`, name: `Player ${i}`, number: "" });
     const games = dates.map((d, gi) =>
       finalGame("g" + gi, d, "completed", slimCur)
     );
@@ -2162,30 +2162,30 @@ describe("maxPitchesForAge", () => {
 });
 
 describe("checkPitchEligibility", () => {
-  const pitcher = (recentPitches, lastPitchDate) => ({
+  const pitcher = (recentPitches: any, lastPitchDate: any) => ({
     id: "p",
     pitching: { recentPitches, lastPitchDate },
   });
 
   it("is eligible when the pitcher has never pitched", () => {
-    expect(checkPitchEligibility(pitcher(0, null), "2026-05-10", "10U")).toBe(true);
+    expect(checkPitchEligibility(pitcher(0, null) as any, "2026-05-10", "10U")).toBe(true);
   });
 
   it("is ineligible at or over the age limit", () => {
     // 10U limit is 75.
-    expect(checkPitchEligibility(pitcher(75, "2026-05-09"), "2026-05-10", "10U")).toBe(false);
+    expect(checkPitchEligibility(pitcher(75, "2026-05-09") as any, "2026-05-10", "10U")).toBe(false);
   });
 
   it("requires rest days scaled to the recent count", () => {
     // 60 pitches => 3 days rest required. 2 days later: not yet eligible.
-    expect(checkPitchEligibility(pitcher(60, "2026-05-08"), "2026-05-10", "10U")).toBe(false);
+    expect(checkPitchEligibility(pitcher(60, "2026-05-08") as any, "2026-05-10", "10U")).toBe(false);
     // 4 days later: eligible.
-    expect(checkPitchEligibility(pitcher(60, "2026-05-08"), "2026-05-12", "10U")).toBe(true);
+    expect(checkPitchEligibility(pitcher(60, "2026-05-08") as any, "2026-05-12", "10U")).toBe(true);
   });
 });
 
 describe("buildPitchingPlan", () => {
-  const P = (id, opts = {}) => ({
+  const P = (id: string, opts: any = {}) => ({
     id,
     name: id,
     comfortablePositions: opts.positions || ["P"],
@@ -2420,7 +2420,7 @@ describe("velocity in pitcher score (age-relative)", () => {
     expect(calcVelocityQuality(65, "13U to 14U")).toBeCloseTo(0.5);
     // same raw mph is "better" for a younger team
     expect(calcVelocityQuality(49, "10U")).toBeGreaterThan(
-      calcVelocityQuality(49, "13U to 14U")
+      calcVelocityQuality(49, "13U to 14U")!
     );
   });
 
@@ -2598,7 +2598,7 @@ describe("dual-role Pool/Bracket deployment (catch pool, pitch bracket)", () => 
       pitching: { recentPitches: 30, lastPitchDate: "2026-01-01" },
     },
   });
-  const run = (gameType) =>
+  const run = (gameType: any) =>
     buildLineup({
       players,
       pitchingFormat: "Kid Pitch",
@@ -2688,7 +2688,7 @@ describe("configurable pitch-count rule sets", () => {
       pitchRuleSet: "custom",
       customPitchLimit: 50,
     });
-    const p = { pitching: { recentPitches: 60, lastPitchDate: "2026-05-10" } };
+    const p = { pitching: { recentPitches: 60, lastPitchDate: "2026-05-10" } } as any;
     // Far enough out that rest is satisfied: under LL (75) they're eligible,
     // but over a custom 50 max they're maxed out.
     expect(checkPitchEligibility(p, "2026-06-01", "9U", ll)).toBe(true);
@@ -2701,7 +2701,7 @@ describe("configurable pitch-count rule sets", () => {
       customPitchLimit: 100,
       customRestTiers: [{ min: 20, days: 7 }],
     });
-    const p = { pitching: { recentPitches: 25, lastPitchDate: "2026-05-10" } };
+    const p = { pitching: { recentPitches: 25, lastPitchDate: "2026-05-10" } } as any;
     // 4 days later: standard LL would clear (>=21 needs 1 day), but the custom
     // tier requires 7.
     expect(checkPitchEligibility(p, "2026-05-14", "9U", resolvePitchRuleSet({}))).toBe(true);
@@ -2732,8 +2732,8 @@ describe("doubleheader / same-day cumulative rest", () => {
     expect(
       mostRecentDayPitches({
         log: [
-          { date: "2026-05-10", pitches: 30, gameId: "g1" },
-          { date: "2026-05-10", pitches: 30, gameId: "g2" },
+          { date: "2026-05-10", pitches: 30, gameId: "g1" } as any,
+          { date: "2026-05-10", pitches: 30, gameId: "g2" } as any,
         ],
       })
     ).toEqual({ pitches: 60, date: "2026-05-10" });
@@ -2758,11 +2758,11 @@ describe("doubleheader / same-day cumulative rest", () => {
     const dh = {
       pitching: {
         log: [
-          { date: "2026-05-10", pitches: 30, gameId: "g1" },
-          { date: "2026-05-10", pitches: 30, gameId: "g2" },
+          { date: "2026-05-10", pitches: 30, gameId: "g1" } as any,
+          { date: "2026-05-10", pitches: 30, gameId: "g2" } as any,
         ],
       },
-    };
+    } as any;
     // 2 days later would clear if only the last 30-pitch outing counted — it must not.
     expect(checkPitchEligibility(dh, "2026-05-12", "9U")).toBe(false);
     expect(checkPitchEligibility(dh, "2026-05-13", "9U")).toBe(false); // 3 days
@@ -2777,11 +2777,11 @@ describe("doubleheader / same-day cumulative rest", () => {
         comfortablePositions: ["P"],
         pitching: {
           log: [
-            { date: "2026-05-10", pitches: 40, gameId: "g1" },
-            { date: "2026-05-10", pitches: 40, gameId: "g2" },
+            { date: "2026-05-10", pitches: 40, gameId: "g1" } as any,
+            { date: "2026-05-10", pitches: 40, gameId: "g2" } as any,
           ],
         },
-      },
+      } as any,
     ];
     // 80 >= 9U max (75) -> maxed, and the displayed count is the 80 total.
     const plan = buildPitchingPlan(players, "2026-05-20", "9U");
@@ -2796,10 +2796,10 @@ describe("analyzePitchingWorkload (arm care)", () => {
       {
         log: [
           { date: "2026-05-01", pitches: 40 },
-          { date: "2026-05-08", pitches: 30, gameId: "g1" },
-          { date: "2026-05-08", pitches: 20, gameId: "g2" },
+          { date: "2026-05-08", pitches: 30, gameId: "g1" } as any,
+          { date: "2026-05-08", pitches: 20, gameId: "g2" } as any,
         ],
-      },
+      } as any,
       undefined,
       "2026-05-10"
     );
@@ -2915,7 +2915,7 @@ describe("sole-eligible position anchors survive benching", () => {
   // 10 players, 9 fielders → 1 bench slot/inning. p0 is the ONLY SS-cleared
   // kid AND the weakest defender, so the old bench logic always sat them.
   const soleSsRoster = () => {
-    const overrides = { p0: { comfortablePositions: [...ALL_POSITIONS] } };
+    const overrides: Record<string, any> = { p0: { comfortablePositions: [...ALL_POSITIONS] } };
     for (let i = 1; i < 10; i++) {
       overrides[`p${i}`] = {
         comfortablePositions: ALL_POSITIONS.filter((p) => p !== "SS"),
@@ -2992,7 +2992,7 @@ describe("few-eligible scarce positions never strand (joint coverage)", () => {
   // 8 present are restricted from SS — the exact shape the coach hit. A valid
   // lineup exists (4 kids cover 3 premium spots with one to spare).
   const premiumRoster = () => {
-    const overrides = {};
+    const overrides: Record<string, any> = {};
     // Only p0 and p1 are cleared for SS AND 1B (and nothing else scarce). Every
     // inning BOTH must play (one at SS, one at 1B) — neither can sit or catch.
     overrides.p0 = { comfortablePositions: ["P", "1B", "2B", "SS", "LF", "CF", "RF"] };
@@ -3041,7 +3041,7 @@ describe("few-eligible scarce positions never strand (joint coverage)", () => {
       expect(result.error).toBeUndefined();
     }
   });
-}, 30000);
+});
 
 // ---------------------------------------------------------------------------
 // Tournament-mode pipeline (parallel to the Rec generator)
@@ -3064,15 +3064,15 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     seed: 42,
     ...over,
   });
-  const fieldIds = (inn) =>
+  const fieldIds = (inn: any) =>
     Object.entries(inn)
       .filter(([k]) => k !== "BENCH")
-      .map(([k, v]) => `${k}:${v.id}`)
+      .map(([k, v]: [string, any]) => `${k}:${v.id}`)
       .sort()
       .join("|");
 
   it("starters hold 1-2 and 5-6; every sub enters inning 3 and exits after 4", () => {
-    const res = generateTournamentLineup(input());
+    const res = generateTournamentLineup(input()) as any;
     expect(res.error).toBeUndefined();
     expect(res.lineup).toHaveLength(6);
     // Innings 1,2,5,6 are the starting nine; 3,4 are the sub window.
@@ -3082,12 +3082,12 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     expect(fieldIds(res.lineup[3])).toBe(fieldIds(res.lineup[2]));
     expect(fieldIds(res.lineup[2])).not.toBe(fieldIds(res.lineup[0]));
     // Both bench players take the field in inning 3.
-    const benchIds = res.lineup[0].BENCH.map((b) => b.id);
+    const benchIds = res.lineup[0].BENCH.map((b: any) => b.id);
     expect(benchIds).toHaveLength(2);
     const inning3 = new Set(
       Object.entries(res.lineup[2])
         .filter(([k]) => k !== "BENCH")
-        .map(([, v]) => v.id)
+        .map(([, v]: [string, any]) => v.id)
     );
     for (const id of benchIds) expect(inning3.has(id)).toBe(true);
     // Plan metadata mirrors the grid and names who each sub replaces.
@@ -3104,15 +3104,15 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
   });
 
   it("never auto-subs the pitcher or catcher mid-game", () => {
-    const res = generateTournamentLineup(input());
-    expect(new Set(res.lineup.map((inn) => inn.P.id)).size).toBe(1);
-    expect(new Set(res.lineup.map((inn) => inn.C.id)).size).toBe(1);
+    const res = generateTournamentLineup(input()) as any;
+    expect(new Set(res.lineup.map((inn: any) => inn.P.id)).size).toBe(1);
+    expect(new Set(res.lineup.map((inn: any) => inn.C.id)).size).toBe(1);
   });
 
   it("honors the coach's depth chart for starter slots", () => {
     const res = generateTournamentLineup(
       input({ depthChart: { SS: ["t7"], P: ["t3"] } })
-    );
+    ) as any;
     expect(res.lineup[0].SS.id).toBe("t7");
     expect(res.lineup[0].P.id).toBe("t3");
   });
@@ -3129,17 +3129,17 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
       CF: ["t7"],
       RF: ["t8"],
     };
-    const baseline = generateTournamentLineup(input({ depthChart }));
+    const baseline = generateTournamentLineup(input({ depthChart })) as any;
     expect(baseline.error).toBeUndefined();
     expect(baseline.lineup[0].P.id).toBe("t0");
-    expect(baseline.lineup[0].BENCH.map((p) => p.id)).toContain("t10");
+    expect(baseline.lineup[0].BENCH.map((p: any) => p.id)).toContain("t10");
 
     const relief = generateTournamentLineup(
       input({
         depthChart,
         firstInningOverridesById: { P: "t10" },
       })
-    );
+    ) as any;
     expect(relief.error).toBeUndefined();
     expect(relief.lineup[0].P.id).toBe("t10");
     // If the in-game change were modeled as a simple P<->bench swap, the
@@ -3148,7 +3148,7 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     expect(relief.lineup[0].SS.id).toBe("t1");
     expect(relief.lineup[0].C.id).toBe("t2");
     expect(relief.lineup[0]["1B"].id).toBe("t3");
-    expect(relief.lineup[0].BENCH.map((p) => p.id)).not.toContain("t1");
+    expect(relief.lineup[0].BENCH.map((p: any) => p.id)).not.toContain("t1");
   });
 
   it("relief options exclude the starter and carry pitch-count status", () => {
@@ -3160,19 +3160,19 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     );
     const res = generateTournamentLineup(
       input({ activePlayers: tired, allPlayers: tired })
-    );
+    ) as any;
     expect(res.error).toBeUndefined();
     const starterP = res.lineup[0].P.id;
     expect(starterP).not.toBe("t0");
-    const ids = res.tournament.reliefOptions.map((r) => r.id);
+    const ids = res.tournament.reliefOptions.map((r: any) => r.id);
     expect(ids).not.toContain(starterP);
-    const t0 = res.tournament.reliefOptions.find((r) => r.id === "t0");
+    const t0 = res.tournament.reliefOptions.find((r: any) => r.id === "t0");
     expect(t0).toBeTruthy();
     expect(t0.status).not.toBe("ready");
   });
 
   it("4-inning game: subs play 3-4 with no starter return stint", () => {
-    const res = generateTournamentLineup(input({ totalInnings: 4 }));
+    const res = generateTournamentLineup(input({ totalInnings: 4 })) as any;
     expect(res.lineup).toHaveLength(4);
     expect(res.tournament.substitutions.length).toBeGreaterThan(0);
     for (const sub of res.tournament.substitutions) {
@@ -3187,12 +3187,12 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     }));
     const res = generateTournamentLineup(
       input({ activePlayers: noPitchers, allPlayers: noPitchers })
-    );
+    ) as any;
     expect(res.error).toMatch(/No eligible player available for P/);
   });
 
   it("explicit catcher cap hands C off after the cap and benches the starter", () => {
-    const res = generateTournamentLineup(input({ catcherMaxInnings: "3" }));
+    const res = generateTournamentLineup(input({ catcherMaxInnings: "3" })) as any;
     expect(res.error).toBeUndefined();
     const starterC = res.lineup[0].C.id;
     // Innings 1–3 the starter catches; 4–6 the relief catcher takes over.
@@ -3204,18 +3204,18 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     expect(res.lineup[5].C.id).toBe(reliefC);
     // The plan scripts the handoff; the displaced starter sits from inning 4.
     const handoff = res.tournament.substitutions.find(
-      (s) => s.position === "C"
+      (s: any) => s.position === "C"
     );
     expect(handoff).toBeTruthy();
     expect(handoff.inning).toBe(4);
     expect(handoff.out.id).toBe(starterC);
     expect(handoff.in.id).toBe(reliefC);
-    expect(res.lineup[3].BENCH.map((b) => b.id)).toContain(starterC);
+    expect(res.lineup[3].BENCH.map((b: any) => b.id)).toContain(starterC);
     // Nobody is in two places at once in any inning.
     for (const inn of res.lineup) {
       const ids = Object.entries(inn)
         .filter(([k]) => k !== "BENCH")
-        .map(([, v]) => v.id);
+        .map(([, v]: [string, any]) => v.id);
       expect(new Set(ids).size).toBe(ids.length);
       // Field + bench covers the full roster exactly once.
       expect(ids.length + inn.BENCH.length).toBe(roster.length);
@@ -3226,9 +3226,9 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     for (const setting of ["auto", "none", undefined]) {
       const res = generateTournamentLineup(
         input({ catcherMaxInnings: setting })
-      );
+      ) as any;
       expect(res.error).toBeUndefined();
-      expect(new Set(res.lineup.map((inn) => inn.C.id)).size).toBe(1);
+      expect(new Set(res.lineup.map((inn: any) => inn.C.id)).size).toBe(1);
     }
   });
 });
