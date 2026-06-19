@@ -7,7 +7,6 @@ import {
   getCombinedGrades,
 } from "../lineupEngine";
 import {
-  getEvalCategoriesForTeam,
   getEvalCategoriesForPlayer,
   EVAL_SCALE_DEFAULT,
   leftHandedPitcherRosterPremium,
@@ -553,6 +552,7 @@ export const TryoutsTab = memo(() => {
     tryoutSessions: rawTryoutSessions,
     defenseSize,
     pitchingFormat,
+    teamAge,
   } = team;
 
   const tryoutSessions = useMemo(
@@ -626,8 +626,19 @@ export const TryoutsTab = memo(() => {
     () => getActivePositionList(defenseSize),
     [defenseSize]
   );
-  const activeCategories = useMemo(
-    () => getEvalCategoriesForTeam(pitchingFormat),
+  const evalPlayerForSignup = (signup: any, grade: any = {}) => ({
+    comfortablePositions: Array.isArray(grade?.suggestedPositions) && grade.suggestedPositions.length
+      ? grade.suggestedPositions
+      : Array.isArray(signup?.comfortablePositions)
+      ? signup.comfortablePositions
+      : signup?.isCatcher
+      ? ["C"]
+      : [],
+  });
+  const activeCategoriesForSignup = (signup: any, grade: any = {}) =>
+    getEvalCategoriesForPlayer(pitchingFormat, evalPlayerForSignup(signup, grade));
+  const seedCategories = useMemo(
+    () => getEvalCategoriesForPlayer(pitchingFormat, { comfortablePositions: ["P", "C"] }),
     [pitchingFormat]
   );
 
@@ -648,14 +659,14 @@ export const TryoutsTab = memo(() => {
           signup.tryoutDate
         ) ?? {};
         const seeded: Record<string, any> = {};
-        for (const c of activeCategories) seeded[c.id] = seed[c.id] ?? EVAL_SCALE_DEFAULT;
+        for (const c of seedCategories) seeded[c.id] = c.inputKind === "mph" ? seed[c.id] : seed[c.id] ?? EVAL_SCALE_DEFAULT;
         if (seed.notes) seeded.notes = seed.notes;
         if (Array.isArray(seed.suggestedPositions)) seeded.suggestedPositions = seed.suggestedPositions;
         next[signup.id] = seeded;
       }
       return next;
     });
-  }, [user, tryoutSignups, tryoutSessions, activeCategories]);
+  }, [user, tryoutSignups, tryoutSessions, seedCategories]);
 
   const updateLocalSignupGrades = (signupId: string, updater: (prev: any) => any) =>
     setLocalGradesBySignup((prev) => ({ ...prev, [signupId]: updater(prev[signupId] || {}) }));
@@ -1017,8 +1028,9 @@ export const TryoutsTab = memo(() => {
                           number: s.number,
                         }}
                         grades={localGradesBySignup[s.id] || {}}
-                        activeCategories={activeCategories}
+                        activeCategories={activeCategoriesForSignup(s, localGradesBySignup[s.id] || {})}
                         positions={activePositions}
+                        teamAge={teamAge}
                         onGradeChange={setLocalGrade}
                         onPositionToggle={toggleLocalPos}
                         onNotesChange={setLocalNotes}
