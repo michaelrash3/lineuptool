@@ -66,6 +66,11 @@ HTMLAnchorElement.prototype.click = function click(this: HTMLAnchorElement) {
   return realAnchorClick.apply(this);
 };
 
+// canvas-confetti fires requestAnimationFrame callbacks that outlive the test
+// and then crash when jsdom's canvas is torn down (clearRect on null). The
+// celebration is cosmetic; stub the whole module so the RAF loop never starts.
+vi.mock("canvas-confetti", () => ({ default: () => {} }));
+
 // jsdom has no matchMedia. framer-motion's `MotionConfig reducedMotion="user"`
 // and src/lib/celebrate.ts both query prefers-reduced-motion through it.
 if (!window.matchMedia) {
