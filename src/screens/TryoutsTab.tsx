@@ -719,7 +719,7 @@ export const TryoutsTab = memo(() => {
   const [acceptChoice, setAcceptChoice] = useState<any | null>(null);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="max-w-6xl mx-auto lg:max-w-none space-y-4">
       <div className="glass-card">
         <div
           className="h-1.5 w-full"
@@ -753,17 +753,12 @@ export const TryoutsTab = memo(() => {
         </div>
       </div>
 
-      {isHead && (
-        <ReturningIntentPanel
-          team={team}
-          evaluationEvents={evaluationEvents}
-          setPlayerReturning={setPlayerReturning}
-        />
-      )}
-
-      {isHead && roster && (tryoutSignups || []).length > 0 && (
-        <TeamImpactPanel roster={roster} />
-      )}
+      {/* Desktop control-panel: signup list (main) + planning rail (right).
+          The Returning Intent + Roster Projection panels are head-coach-only,
+          so the right rail only exists for head coaches; assistants get the
+          list at full width. Mobile/tablet: single-column stack, unchanged. */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-4 lg:space-y-0">
+        <div className={`${isHead ? "lg:col-span-8" : "lg:col-span-12"} space-y-4`}>
 
       <div className="glass-card p-3 flex flex-wrap items-center gap-2">
         <input
@@ -1084,6 +1079,24 @@ export const TryoutsTab = memo(() => {
           })}
         </div>
       )}
+
+        </div>{/* end main col */}
+
+        {/* Planning rail — head coaches only */}
+        {isHead && (
+          <aside className="lg:col-span-4 space-y-4">
+            <ReturningIntentPanel
+              team={team}
+              evaluationEvents={evaluationEvents}
+              setPlayerReturning={setPlayerReturning}
+            />
+            {roster && (tryoutSignups || []).length > 0 && (
+              <TeamImpactPanel roster={roster} />
+            )}
+          </aside>
+        )}
+
+      </div>{/* end desktop grid */}
 
       {endTryoutOpen && (
         <div
