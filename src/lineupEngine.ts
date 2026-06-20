@@ -89,6 +89,37 @@ type BenchFailure = {
   playerName?: string;
 };
 
+// Options bag for the inner position-scoring function.
+type PickBestOpts = {
+  pos: string;
+  inn: number;
+  profiled: ProfiledPlayer[];
+  used: Set<string | unknown>;
+  benchedSet: Set<string | unknown>;
+  state: Map<string, PlayerState>;
+  positionHistory: Map<string, Map<string, { total: number; bigGame: number }>>;
+  headGrades: Record<string, GradeMap>;
+  defenseSize?: string;
+  positionLock?: string;
+  leagueRuleSet?: string;
+  teamAge?: string;
+  targetDateStr?: string;
+  leftyPenalty?: number;
+  isLockInning?: boolean;
+  isBigGame?: boolean;
+  competitive?: boolean;
+  pitcherPoolIds?: Set<string> | null;
+  depthChartRank?: Map<string, Map<string, number>>;
+  chartedPlayerIds?: Set<string>;
+  isKidPitch?: boolean;
+  pitchRules?: PitchRuleSet;
+  sameDayRoles?: { pitched?: Set<string>; caught?: Set<string> } | null;
+  catcherCap?: number;
+  rand: () => number;
+  premiumPositions: Set<string>;
+  positionFlexibility: Map<string, number>;
+};
+
 // Inning-block representation for catcher rotation (back-to-back stints).
 type CatcherBlock = number[];
 
@@ -4350,12 +4381,12 @@ function tryBuildLineup(ctx: TryBuildCtx):
     // season fairness entirely). Per-player state (positions/history/bench)
     // is mutated only AFTER a slot set is committed below, so building twice
     // here is side-effect free.
-    const buildSlots = (useLock: any) => {
+    const buildSlots = (useLock: boolean) => {
       const inningSlots: Record<string, any> = {};
       if (inn === 0) {
         for (const pos in firstInningOverridesById) {
           const pid = firstInningOverridesById[pos];
-          const player = profiled.find((p: any) => p.id === pid);
+          const player = profiled.find((p) => p.id === pid);
           if (!player || !positionsToFill.includes(pos)) continue;
           if (benchedSet.has(pid))
             return {
@@ -4376,7 +4407,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
 
       const used = new Set(Object.values(inningSlots).map((p) => p.id));
       const remainingPositions = positionsToFill.filter(
-        (pos: any) => !inningSlots[pos],
+        (pos) => !inningSlots[pos],
       );
 
       // Consecutive-catcher mode: catcher is fixed by the precomputed schedule
@@ -4384,7 +4415,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
       if (catcherInningBlocks && !inningSlots["C"]) {
         const catcherId = catcherByInning.get(inn);
         if (catcherId) {
-          const catcher = profiled.find((p: any) => p.id === catcherId);
+          const catcher = profiled.find((p) => p.id === catcherId);
           if (
             catcher &&
             !benchedSet.has(catcherId) &&
@@ -4487,7 +4518,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
         // Collect (pos, player) pairs from last inning where the player is still
         // available and the position still needs filling.
         for (const pos of [...remainingPositions]) {
-          const prevPlayer = prevInning?.[pos];
+          const prevPlayer = prevInning?.[pos] as any;
           if (!prevPlayer) continue;
           if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
           if (used.has(prevPlayer.id)) continue; // already placed
@@ -4525,7 +4556,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
       // with no candidate for (say) RF at inning 3 because the OF rotation
       // lock or "can't play same spot back-to-back" rule eliminated every
       // remaining kid.
-      const posScarcity = remainingPositions.map((pos: any) => {
+      const posScarcity = remainingPositions.map((pos) => {
         let count = 0;
         for (const p of profiled) {
           if (used.has(p.id) || benchedSet.has(p.id)) continue;
@@ -4570,7 +4601,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
       });
 
       // Sort by fewest eligible candidates first. Tie-breaker is random.
-      posScarcity.sort((a: any, b: any) => {
+      posScarcity.sort((a, b) => {
         if (a.count !== b.count) return a.count - b.count;
         return a.r - b.r;
       });
@@ -4778,7 +4809,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
 
 // ---------- Position scoring ----------
 
-function pickBestForPosition(opts: any): any {
+function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
   const {
     pos,
     inn,
@@ -4827,14 +4858,22 @@ function pickBestForPosition(opts: any): any {
     pitcherPoolIds &&
     pitcherPoolIds.size > 0
   ) {
-    const poolCandidates: any[] = [];
+    const poolCandidates: Array<{
+      p: ProfiledPlayer;
+      st: PlayerState;
+      recent: number;
+    }> = [];
     for (const p of profiled) {
       if (!pitcherPoolIds.has(p.id)) continue;
       if (used.has(p.id) || benchedSet.has(p.id)) continue;
       if (isPositionBlocked(p, "P")) continue;
       const st = state.get(p.id)!;
       // Same-day dual-role (Kid Pitch): don't pitch a kid who caught earlier.
-      if (isKidPitch && dualRoleBlocked(st, "P", p.id, sameDayRoles)) continue;
+      if (
+        isKidPitch &&
+        dualRoleBlocked(st, "P", p.id, sameDayRoles ?? undefined)
+      )
+        continue;
       const playedHereLast = inn > 0 && st.history[inn - 1] === "P";
       const pCount = st.positions["P"] || 0;
       // Mirror the existing rule: a kid can pitch consecutively but not
@@ -4869,12 +4908,18 @@ function pickBestForPosition(opts: any): any {
 
     // KID PITCH same-day dual-role: a kid never pitches AND catches in one game
     // (arm health). Ceremonial P (machine/coach) is exempt — see isKidPitch.
-    if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles)) continue;
+    if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles ?? undefined))
+      continue;
 
     if (pos === "P" && defenseSize === "9") {
       if (
         leagueRuleSet === "NKB" &&
-        !checkPitchEligibility(p, targetDateStr, teamAge ?? "", pitchRules)
+        !checkPitchEligibility(
+          p,
+          targetDateStr ?? "",
+          teamAge ?? "",
+          pitchRules,
+        )
       )
         continue;
       const pCount = st.positions["P"] || 0;
@@ -4884,7 +4929,7 @@ function pickBestForPosition(opts: any): any {
     if (pos === "C") {
       if (!isCatcherEligible(p)) continue;
       const cCap = Number.isFinite(catcherCap)
-        ? catcherCap
+        ? catcherCap!
         : defenseSize === "10"
           ? 2
           : 3;
@@ -4960,7 +5005,7 @@ function pickBestForPosition(opts: any): any {
     }
 
     if (p.throws === "L") {
-      if (INFIELD_NON_1B.has(pos)) score += leftyPenalty;
+      if (INFIELD_NON_1B.has(pos)) score += leftyPenalty ?? 0;
       else if (pos === "1B") score -= 3;
     }
 
