@@ -3396,6 +3396,30 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     expect(new Set(res.lineup.map((inn: any) => inn.C.id)).size).toBe(1);
   });
 
+  it("honors multi-position inning-0 pins (in-game recalibrate around a move)", () => {
+    // The in-game "move a player's position" path re-runs this generator with
+    // the swapped spots + kept battery pinned. Pins for P, C, and field spots
+    // must all be seated, not just P.
+    const res = generateTournamentLineup(
+      input({
+        firstInningOverridesById: { P: "t8", C: "t9", "3B": "t10", SS: "t1" },
+      }),
+    ) as any;
+    expect(res.error).toBeUndefined();
+    expect(res.lineup[0].P.id).toBe("t8");
+    expect(res.lineup[0].C.id).toBe("t9");
+    expect(res.lineup[0]["3B"].id).toBe("t10");
+    expect(res.lineup[0].SS.id).toBe("t1");
+    // The pinned field players hold their spot every inning they're on the field.
+    for (const inn of res.lineup) {
+      if (inn["3B"])
+        expect((inn.BENCH || []).every((b: any) => b.id !== "t10"));
+      const benched = (inn.BENCH || []).map((b: any) => b.id);
+      if (!benched.includes("t10")) expect(inn["3B"].id).toBe("t10");
+      if (!benched.includes("t1")) expect(inn.SS.id).toBe("t1");
+    }
+  });
+
   it("utilizes primaryPosition: a tagged kid plays their spot, not parked", () => {
     // Tag two kids with primary positions (no depth chart). Equal grades, so the
     // +primary nudge is what seats them — and whenever they're on the field they
