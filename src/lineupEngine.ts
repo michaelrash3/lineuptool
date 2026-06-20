@@ -2596,20 +2596,29 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   const assigned = new Map<string, ProfiledPlayer>(); // pos → profiled player
   const used = new Set<string>();
 
-  // Honor a coach-selected starting pitcher (Starting Pitcher picker): seat
-  // them at P before the scarcity fill so the projected lineup is built around
-  // the coach's choice, not the top-ranked arm. Falls back to the normal pick
-  // if the chosen player isn't present or isn't eligible to pitch this game.
-  const forcedPitcherId = (firstInningOverridesById || {}).P;
-  let pendingOrder = fillOrder;
-  if (forcedPitcherId && positions.includes("P")) {
-    const fp = byId.get(forcedPitcherId);
-    if (fp && eligibleFor("P", fp)) {
-      assigned.set("P", fp);
-      used.add(fp.id);
-      pendingOrder = fillOrder.filter((pos) => pos !== "P");
+  // Honor coach position pins for inning 0: the Starting Pitcher picker (P), and
+  // in-game manual moves / pitching changes that re-run this generator (the
+  // swapped spots + the kept battery). Seat each pinned player at their position
+  // BEFORE the scarcity fill so the lineup is built around the coach's choices,
+  // not the top-ranked option. A pin is skipped if the player isn't present, is
+  // already seated, or isn't eligible there (so P still falls back to the normal
+  // pick when the chosen arm can't go).
+  const overridePins = firstInningOverridesById || {};
+  for (const pos of fillOrder) {
+    const pid = overridePins[pos];
+    if (!pid || assigned.has(pos)) continue;
+    const pp = byId.get(pid);
+    if (
+      pp &&
+      !used.has(pp.id) &&
+      positions.includes(pos) &&
+      eligibleFor(pos, pp)
+    ) {
+      assigned.set(pos, pp);
+      used.add(pp.id);
     }
   }
+  const pendingOrder = fillOrder.filter((pos) => !assigned.has(pos));
 
   for (const pos of pendingOrder) {
     const candidates = profiled

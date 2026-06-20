@@ -329,10 +329,37 @@ export const InGameView = memo(() => {
   // one whole-lineup undo snapshot. This intentionally does NOT swap the
   // pulled pitcher into the reliever's old field/bench spot.
   const assignPitcherRestOfGame = (playerId: any) => {
-    if (!canEdit) return;
     const base = pendingLineup ?? game.lineup;
     const current = base[currentInning];
     if (!current) return;
+    if (current.P?.id === playerId) return;
+    recalibrateRestOfGame(
+      { P: playerId },
+      {
+        title: "Pitching change",
+        message: (rebuiltCurrent: any) =>
+          `${
+            (rebuiltCurrent.P as any)?.name || "New pitcher"
+          } takes the mound from inning ${
+            currentInning + 1
+          } on — the rest of the lineup re-flowed around it.`,
+      },
+    );
+  };
+
+  // Re-optimize the current + remaining innings with a set of position pins,
+  // keeping the innings already played. Shared by the pitching change (pin P)
+  // and a manual position move (pin the swapped spots + keep the battery). The
+  // fair rotation keeps rotating around the pins. Tournament games only — Rec
+  // games don't run the tournament generator. Returns true if it rebuilt.
+  const recalibrateRestOfGame = (
+    overrides: Record<string, string>,
+    opts: { title: string; message: (rebuiltCurrent: any) => string },
+  ): boolean => {
+    if (!canEdit) return false;
+    const base = pendingLineup ?? game.lineup;
+    const current = base[currentInning];
+    if (!current) return false;
 
     const activeIds = new Set<string>();
     for (const pos of Object.keys(current || {})) {
@@ -347,9 +374,11 @@ export const InGameView = memo(() => {
     const activePlayers = [...activeIds]
       .map((id) => byId.get(id))
       .filter(Boolean) as any[];
-
-    if (!activeIds.has(playerId) || activePlayers.length === 0) return;
-    if (current.P?.id === playerId) return;
+    if (activePlayers.length === 0) return false;
+    // Drop pins for anyone not actually in this inning (defensive).
+    const pins: Record<string, string> = {};
+    for (const [pos, id] of Object.entries(overrides))
+      if (id && activeIds.has(id)) pins[pos] = id;
 
     const result = generateTournamentLineup({
       activePlayers,
@@ -357,7 +386,7 @@ export const InGameView = memo(() => {
       games: team.games || [],
       evaluationEvents: team.evaluationEvents || [],
       currentGame: game,
-      firstInningOverridesById: { P: playerId },
+      firstInningOverridesById: pins,
       totalInnings: base.length,
       leagueRuleSet: game.leagueRuleSet || team.leagueRuleSet,
       competitive: true,
@@ -383,22 +412,22 @@ export const InGameView = memo(() => {
     if (result.error) {
       toast.push({
         kind: "error",
-        title: "Pitching change failed",
+        title: `${opts.title} failed`,
         message: result.error,
         duration: 0,
       });
-      return;
+      return false;
     }
 
     const rebuilt = result.lineup;
-    if (!rebuilt || !rebuilt[currentInning]) return;
+    if (!rebuilt || !rebuilt[currentInning]) return false;
     const cloneInning = (inning: any) => ({
       ...inning,
       BENCH: Array.isArray(inning.BENCH) ? [...inning.BENCH] : [],
     });
     // Keep the innings already played; for the rest, take the corresponding
     // inning from the rebuild so the fair rotation KEEPS rotating around the
-    // new pitcher (not a single inning frozen across the rest of the game).
+    // pins (not a single inning frozen across the rest of the game).
     const next = base.map((innState: any, idx: number) =>
       idx < currentInning
         ? innState
@@ -406,8 +435,6 @@ export const InGameView = memo(() => {
           ? cloneInning(rebuilt[idx])
           : innState,
     );
-    const newPitcherName =
-      (rebuilt[currentInning].P as any)?.name || "New pitcher";
 
     setPendingLineup(next);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
@@ -417,11 +444,10 @@ export const InGameView = memo(() => {
     tapHaptic();
     toast.push({
       kind: "success",
-      title: "Pitching change",
-      message: `${newPitcherName} takes the mound from inning ${
-        currentInning + 1
-      } on — the rest of the lineup re-flowed around it.`,
+      title: opts.title,
+      message: opts.message(rebuilt[currentInning]),
     });
+    return true;
   };
 
   // Resolve from the roster whether a slim player is cleared to catch
@@ -545,6 +571,37 @@ export const InGameView = memo(() => {
         } from inning ${currentInning + 1} on.`,
       });
       return;
+    }
+
+    // A POSITION MOVE (both cells on the field) in a tournament game
+    // recalibrates the rest of the game: the two swapped players are pinned to
+    // their new spots and the current battery (P/C) is kept for continuity,
+    // then the generator re-optimizes the remaining innings' defense + rotation
+    // around them. Innings already played are untouched. Rec games keep the
+    // current-inning-only behavior below.
+    if (
+      !isSubstitution &&
+      game.tournamentPlan &&
+      currentInning < liveLineup.length - 1 &&
+      firstSel.type === "position" &&
+      secondSel.type === "position"
+    ) {
+      const cur = (pendingLineup ?? game.lineup)[currentInning];
+      const pins: Record<string, string> = {};
+      if ((cur?.P as any)?.id) pins.P = (cur.P as any).id; // keep the pitcher
+      if ((cur?.C as any)?.id) pins.C = (cur.C as any).id; // keep the catcher
+      // The swap wins for the two tapped spots (firstSel now holds playerB,
+      // secondSel now holds playerA).
+      pins[firstSel.pos] = playerB.id;
+      pins[secondSel.pos] = playerA.id;
+      const did = recalibrateRestOfGame(pins, {
+        title: "Defense recalibrated",
+        message: () =>
+          `Lineup re-flowed around your change from inning ${
+            currentInning + 1
+          } on.`,
+      });
+      if (did) return; // otherwise fall back to a current-inning-only swap
     }
 
     patchInning(currentInning, next);
