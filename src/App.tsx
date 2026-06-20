@@ -32,9 +32,11 @@ import {
   deleteDoc,
   updateDoc,
   arrayRemove,
+  DocumentSnapshot,
+  FirestoreError,
 } from "firebase/firestore";
 import { Icons } from "./icons";
-import type { ToastInput } from "./types";
+import type { ToastInput, Team, Game } from "./types";
 import { auth, db, appId } from "./firebase";
 import {
   ToastContext,
@@ -425,7 +427,7 @@ const ToastContainer = memo(
    SECTION 17 · TeamProvider — owns team state, Firebase subscriptions, actions
    This replaces the prop-drilled state/actions object in the original.
 ============================================================================ */
-const TeamProvider = ({ children }: any) => {
+const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const toast = useToast();
   const { confirm, promptText } = useConfirm();
 
@@ -611,11 +613,11 @@ const TeamProvider = ({ children }: any) => {
       "teams",
     );
     let unsub = () => {};
-    let retryTimeout: any = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let permissionRetried = false;
 
-    const handleSnap = async (snap: any) => {
+    const handleSnap = async (snap: DocumentSnapshot) => {
       if (cancelled) return;
       setTeamsLoadFailed(false);
       let data = snap.exists() ? snap.data() : null;
@@ -687,7 +689,7 @@ const TeamProvider = ({ children }: any) => {
     // permission-denied. Retry once before surfacing — and either way mark
     // the load as FAILED rather than "no teams", so the WelcomeChooser never
     // walks a coach with a real team through team creation off a read error.
-    const handleErr = (err: any) => {
+    const handleErr = (err: FirestoreError) => {
       if (cancelled) return;
       if (err?.code === "permission-denied" && !permissionRetried) {
         permissionRetried = true;
@@ -738,11 +740,11 @@ const TeamProvider = ({ children }: any) => {
       activeTeamId,
     );
     let unsub = () => {};
-    let retryTimeout: any = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let permissionRetried = false;
 
-    const handleSnap = (snap: any) => {
+    const handleSnap = (snap: DocumentSnapshot) => {
       if (cancelled) return;
       if (snap.exists()) {
         const raw = snap.data();
@@ -1027,7 +1029,7 @@ const TeamProvider = ({ children }: any) => {
     // rules engine yet. Swallow the first permission-denied error and
     // re-subscribe after a short delay; only surface a toast if the
     // retry also fails.
-    const handleErr = (err: any) => {
+    const handleErr = (err: FirestoreError) => {
       if (cancelled) return;
       if (err?.code === "permission-denied" && !permissionRetried) {
         permissionRetried = true;
@@ -1063,7 +1065,7 @@ const TeamProvider = ({ children }: any) => {
   // toast when the caller surfaces its own (e.g. a rollback + retry message).
   const persistTeam = useCallback(
     async (
-      updates: any,
+      updates: Partial<Team>,
       opts?: { silent?: boolean; allowEmptyPlayers?: boolean },
     ): Promise<boolean> => {
       if (!activeTeamId) return false;
@@ -1096,7 +1098,12 @@ const TeamProvider = ({ children }: any) => {
       // to {id, name, number} to stay under the Firestore 1MB document limit.
       let toPersist = updates;
       if (Array.isArray(updates.games)) {
-        toPersist = { ...updates, games: updates.games.map(slimGame) };
+        toPersist = {
+          ...updates,
+          games: updates.games
+            .map(slimGame)
+            .filter((g): g is Game => g != null),
+        };
       }
       // Player photos were removed from the app — they lived as inline base64 on
       // each player and pushed this single team doc toward the 1 MB cap. Never
@@ -1112,7 +1119,7 @@ const TeamProvider = ({ children }: any) => {
         };
       }
       // Scrub any undefined values from the tree — Firestore rejects them.
-      toPersist = scrubUndefined(toPersist);
+      toPersist = scrubUndefined(toPersist) as Partial<Team>;
 
       // Storage-headroom guard: the whole team is one Firestore doc (1 MiB cap).
       // Estimate the post-merge size (games slimmed as they will be stored) and
@@ -2697,7 +2704,7 @@ const TeamProvider = ({ children }: any) => {
    Bridges back to TeamProvider through `uiBridge` ref so generate/save can
    read the current UI state without re-rendering on every keystroke.
 ============================================================================ */
-const UIProvider = ({ children }: any) => {
+const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const team = useTeam();
   const toast = useToast();
 
