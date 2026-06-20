@@ -11,7 +11,7 @@ interface UseTryoutFlowsArgs {
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
   user: { uid: string } | null | undefined;
-  activeTeamId: string;
+  activeTeamId: string | null;
 }
 
 export const useTryoutFlows = ({

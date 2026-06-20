@@ -1,4 +1,5 @@
 import React, { memo, useMemo, useState } from "react";
+import type { Player, Game, Practice } from "../types";
 import { Icons } from "../icons";
 import {
   formatGameDateDisplay,
@@ -63,403 +64,432 @@ const PITCHING_STATS = [
    - Use --team-* CSS vars so it retints with team theme
    - Bigger date+opponent line, clearer day-state chip
 =========================================================================== */
-const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
-  const { team, currentRole } = useTeam();
-  // Assistants can't author a lineup, so swap the dual-state CTA for a
-  // single read-only "Gameplan" view-button that only appears once the
-  // head has set the lineup. When no lineup exists yet, hide the CTA
-  // entirely — pointing them at a Schedule screen they can't act on
-  // would be misleading.
-  const isAssistant = currentRole === "assistant";
-  const {
-    setActiveTab,
-    setSelectedGameId,
-    setOpponentName,
-    setLineup,
-    setBattingLineup,
-    setCurrentGameAttendance,
-    setScoringGameId,
-    setInGameId,
-    setInGameInning,
-    setInGameSelection,
-    setInGameUndoStack,
-    setIsAddingGame,
-  } = useUI();
+interface UpcomingGameCardProps {
+  primaryColor?: string;
+  tertiaryColor?: string;
+  onPlayerClick?: (id: string) => void;
+}
+const UpcomingGameCard = memo(
+  ({ primaryColor, tertiaryColor }: UpcomingGameCardProps) => {
+    const { team, currentRole } = useTeam();
+    // Assistants can't author a lineup, so swap the dual-state CTA for a
+    // single read-only "Gameplan" view-button that only appears once the
+    // head has set the lineup. When no lineup exists yet, hide the CTA
+    // entirely — pointing them at a Schedule screen they can't act on
+    // would be misleading.
+    const isAssistant = currentRole === "assistant";
+    const {
+      setActiveTab,
+      setSelectedGameId,
+      setOpponentName,
+      setLineup,
+      setBattingLineup,
+      setCurrentGameAttendance,
+      setScoringGameId,
+      setInGameId,
+      setInGameInning,
+      setInGameSelection,
+      setInGameUndoStack,
+      setIsAddingGame,
+    } = useUI();
 
-  const { games, leagueRuleSet, pitchingFormat } = team;
+    const { games, leagueRuleSet, pitchingFormat } = team;
 
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().split("T")[0];
-  }, []);
+    const todayStr = useMemo(() => {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().split("T")[0];
+    }, []);
 
-  // Deep-link to a specific game's editor in the Schedule tab (mirrors the
-  // hero card's CTA, reused by the compact "no game this week" state).
-  const goToGame = (g: any) => {
-    setSelectedGameId(g.id);
-    setOpponentName(g.opponent);
-    setLineup(g.lineup || null);
-    setBattingLineup(g.battingLineup || null);
-    setCurrentGameAttendance(g.attendance || {});
-    setActiveTab("schedule");
-  };
+    // Deep-link to a specific game's editor in the Schedule tab (mirrors the
+    // hero card's CTA, reused by the compact "no game this week" state).
+    const goToGame = (g: Game) => {
+      setSelectedGameId(g.id);
+      setOpponentName(g.opponent);
+      setLineup(g.lineup || null);
+      setBattingLineup(g.battingLineup || null);
+      setCurrentGameAttendance(g.attendance || {});
+      setActiveTab("schedule");
+    };
 
-  // Compact fallback card — keeps the "Next Game" slot anchored (never blank)
-  // when there's no game inside the prep window. Same chrome as the hero card.
-  const renderCompact = ({ title, subtitle, cta }: any) => (
-    <div className="relative pb-7 border-b border-line">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-4 min-w-0">
-          <div
-            className="p-3 rounded-xl shrink-0"
-            style={{ backgroundColor: `${primaryColor}15` }}
-          >
-            <Icons.Calendar
-              className="w-6 h-6"
-              style={{ color: primaryColor }}
-            />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
-              Next Game
-            </div>
-            <h3 className="font-black text-lg sm:text-xl text-ink uppercase tracking-tight leading-tight">
-              {title}
-            </h3>
-            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1">
-              {subtitle}
-            </p>
-          </div>
-        </div>
-        {cta}
-      </div>
-    </div>
-  );
-
-  const addGameBtn = !isAssistant ? (
-    <button
-      onClick={() => {
-        setActiveTab("schedule");
-        setIsAddingGame(true);
-      }}
-      className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
-      style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-    >
-      <Icons.Plus className="w-4 h-4" /> Add Game
-    </button>
-  ) : null;
-
-  const upcoming = useMemo(() => {
-    const eligible = (games || [])
-      .filter((g: any) => (g.status || "scheduled") !== "postponed")
-      // Once a score is entered the game is "in the books" — drop it so the
-      // card advances to the next game to prep, however far out it is.
-      .filter((g: any) => !isGameFinalized(g))
-      .filter((g: any) => g.date && g.date >= todayStr)
-      .sort((a: any, b: any) => a.date.localeCompare(b.date));
-    if (eligible.length === 0) return null;
-    const next = eligible[0];
-    const dayDiff = Math.round(
-      (new Date(next.date).getTime() - new Date(todayStr).getTime()) / 86400000,
-    );
-    const sameDayCount = eligible.filter(
-      (g: any) => g.date === next.date,
-    ).length;
-    return { game: next, dayDiff, sameDayCount };
-  }, [games, todayStr]);
-
-  // No upcoming game (every scheduled game has a score, or none are ahead).
-  // Keep the Dashboard anchored with a compact prompt instead of vanishing.
-  if (!upcoming) {
-    return renderCompact({
-      title: "No upcoming games",
-      subtitle: "Every scheduled game is in the books.",
-      cta: addGameBtn,
-    });
-  }
-
-  const { game, dayDiff, sameDayCount } = upcoming;
-
-  // Outside the one-week prep window the "Next Game" hero would be premature,
-  // so show a compact line with the matchup + date instead (never blank).
-  if (dayDiff > 7) {
-    return renderCompact({
-      title: "No game this week",
-      subtitle: `Next: vs ${game.opponent} · ${formatGameDateDisplay(
-        game.date,
-      )} · in ${dayDiff} days`,
-      // Mirror the Schedule list's `(canEdit || game.lineup)` guard: an
-      // assistant can only open a game once the head has set a lineup.
-      // Without this, the View CTA would deep-link them into the game
-      // editor's ungated setup controls before any lineup exists.
-      cta:
-        !isAssistant || game.lineup ? (
-          <button
-            onClick={() => goToGame(game)}
-            className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
-            style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-          >
-            <Icons.Clipboard className="w-4 h-4" /> View
-          </button>
-        ) : null,
-    });
-  }
-
-  const isFinal = isGameFinalized(game);
-
-  // At-a-glance attendance state for the next game, so the coach doesn't build
-  // a lineup before confirming who's coming. `attendance` maps playerId→bool;
-  // an empty map means nobody's been marked yet (everyone defaults present).
-  const attMap = game.attendance || {};
-  const attMarked = Object.keys(attMap).length;
-  const attOut = Object.values(attMap).filter((v) => v === false).length;
-
-  let whenLabel;
-  if (dayDiff === 0) whenLabel = "Today";
-  else if (dayDiff === 1) whenLabel = "Tomorrow";
-  else if (dayDiff <= 6) {
-    const [y, m, d] = game.date.split("-");
-    const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
-    whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
-  } else {
-    // More than a week out — a weekday name alone is ambiguous, so show the
-    // distance. The full date still appears on the line below.
-    whenLabel = `In ${dayDiff} days`;
-  }
-  const fullDate = formatGameDateDisplay(game.date);
-  // Scoreboard-style date block (MON / DD).
-  const [gy, gm, gd] = (game.date || "").split("-");
-  const dateBlockObj = gy
-    ? new Date(Number(gy), Number(gm) - 1, Number(gd))
-    : null;
-  const monthAbbr = dateBlockObj
-    ? dateBlockObj
-        .toLocaleDateString(undefined, { month: "short" })
-        .toUpperCase()
-    : "";
-  const dayNum = gd ? String(Number(gd)) : "";
-
-  const openInSchedule = () => goToGame(game);
-  const openScoreEditor = () => {
-    setScoringGameId(game.id);
-    setActiveTab("schedule");
-  };
-  // Drop straight into live In-Game mode from the dashboard — the one-tap
-  // gameday action once a lineup exists.
-  const startGame = () => {
-    setInGameId(game.id);
-    setInGameInning(0);
-    setInGameSelection(null);
-    setInGameUndoStack([]);
-  };
-  // On gameday the dashboard flips into "Start Game" mode: the live in-game
-  // launch becomes the headline CTA and lineup/score edits drop to secondary
-  // outline chips. Until a lineup exists you can't start, so "Plan Lineup"
-  // takes the headline slot instead.
-  const isGameDay = dayDiff === 0 && !isFinal;
-  const result = isFinal
-    ? game.teamScore > game.opponentScore
-      ? "win"
-      : game.teamScore < game.opponentScore
-        ? "loss"
-        : "tie"
-    : null;
-
-  return (
-    <div className="relative pb-7 border-b border-line">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
-        <div className="flex items-center gap-4 sm:gap-5 min-w-0">
-          {/* Scoreboard-style date block */}
-          <div
-            className="shrink-0 w-16 text-center rounded-xl border overflow-hidden shadow-sm"
-            style={{ borderColor: `${primaryColor}55` }}
-          >
+    // Compact fallback card — keeps the "Next Game" slot anchored (never blank)
+    // when there's no game inside the prep window. Same chrome as the hero card.
+    interface CompactProps {
+      title: string;
+      subtitle: string;
+      cta: React.ReactNode;
+    }
+    const renderCompact = ({ title, subtitle, cta }: CompactProps) => (
+      <div className="relative pb-7 border-b border-line">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-4 min-w-0">
             <div
-              className="text-[9px] font-black uppercase tracking-widest py-1"
+              className="p-3 rounded-xl shrink-0"
+              style={{ backgroundColor: `${primaryColor}15` }}
+            >
+              <Icons.Calendar
+                className="w-6 h-6"
+                style={{ color: primaryColor }}
+              />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
+                Next Game
+              </div>
+              <h3 className="font-black text-lg sm:text-xl text-ink uppercase tracking-tight leading-tight">
+                {title}
+              </h3>
+              <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1">
+                {subtitle}
+              </p>
+            </div>
+          </div>
+          {cta}
+        </div>
+      </div>
+    );
+
+    const addGameBtn = !isAssistant ? (
+      <button
+        onClick={() => {
+          setActiveTab("schedule");
+          setIsAddingGame(true);
+        }}
+        className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+        style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+      >
+        <Icons.Plus className="w-4 h-4" /> Add Game
+      </button>
+    ) : null;
+
+    const upcoming = useMemo(() => {
+      const eligible = (games || [])
+        .filter((g: Game) => (g.status || "scheduled") !== "postponed")
+        // Once a score is entered the game is "in the books" — drop it so the
+        // card advances to the next game to prep, however far out it is.
+        .filter((g: Game) => !isGameFinalized(g))
+        .filter((g: Game) => g.date && g.date >= todayStr)
+        .sort((a: Game, b: Game) => (a.date ?? "").localeCompare(b.date ?? ""));
+      if (eligible.length === 0) return null;
+      const next = eligible[0];
+      const dayDiff = Math.round(
+        (new Date(next.date!).getTime() - new Date(todayStr).getTime()) /
+          86400000,
+      );
+      const sameDayCount = eligible.filter(
+        (g: Game) => g.date === next.date,
+      ).length;
+      return { game: next, dayDiff, sameDayCount };
+    }, [games, todayStr]);
+
+    // No upcoming game (every scheduled game has a score, or none are ahead).
+    // Keep the Dashboard anchored with a compact prompt instead of vanishing.
+    if (!upcoming) {
+      return renderCompact({
+        title: "No upcoming games",
+        subtitle: "Every scheduled game is in the books.",
+        cta: addGameBtn,
+      });
+    }
+
+    const { game, dayDiff, sameDayCount } = upcoming;
+
+    // Outside the one-week prep window the "Next Game" hero would be premature,
+    // so show a compact line with the matchup + date instead (never blank).
+    if (dayDiff > 7) {
+      return renderCompact({
+        title: "No game this week",
+        subtitle: `Next: vs ${game.opponent} · ${formatGameDateDisplay(
+          game.date,
+        )} · in ${dayDiff} days`,
+        // Mirror the Schedule list's `(canEdit || game.lineup)` guard: an
+        // assistant can only open a game once the head has set a lineup.
+        // Without this, the View CTA would deep-link them into the game
+        // editor's ungated setup controls before any lineup exists.
+        cta:
+          !isAssistant || game.lineup ? (
+            <button
+              onClick={() => goToGame(game)}
+              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
-              {monthAbbr}
-            </div>
-            <div className="text-3xl font-black tabular-nums text-ink py-1.5">
-              {dayNum}
-            </div>
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
-                Next Game
-              </span>
-              <span
-                className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md"
+              <Icons.Clipboard className="w-4 h-4" /> View
+            </button>
+          ) : null,
+      });
+    }
+
+    const isFinal = isGameFinalized(game);
+
+    // At-a-glance attendance state for the next game, so the coach doesn't build
+    // a lineup before confirming who's coming. `attendance` maps playerId→bool;
+    // an empty map means nobody's been marked yet (everyone defaults present).
+    const attMap = game.attendance || {};
+    const attMarked = Object.keys(attMap).length;
+    const attOut = Object.values(attMap).filter((v) => v === false).length;
+
+    let whenLabel;
+    if (dayDiff === 0) whenLabel = "Today";
+    else if (dayDiff === 1) whenLabel = "Tomorrow";
+    else if (dayDiff <= 6) {
+      const [y, m, d] = game.date.split("-");
+      const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
+      whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
+    } else {
+      // More than a week out — a weekday name alone is ambiguous, so show the
+      // distance. The full date still appears on the line below.
+      whenLabel = `In ${dayDiff} days`;
+    }
+    const fullDate = formatGameDateDisplay(game.date);
+    // Scoreboard-style date block (MON / DD).
+    const [gy, gm, gd] = (game.date || "").split("-");
+    const dateBlockObj = gy
+      ? new Date(Number(gy), Number(gm) - 1, Number(gd))
+      : null;
+    const monthAbbr = dateBlockObj
+      ? dateBlockObj
+          .toLocaleDateString(undefined, { month: "short" })
+          .toUpperCase()
+      : "";
+    const dayNum = gd ? String(Number(gd)) : "";
+
+    const openInSchedule = () => goToGame(game);
+    const openScoreEditor = () => {
+      setScoringGameId(game.id);
+      setActiveTab("schedule");
+    };
+    // Drop straight into live In-Game mode from the dashboard — the one-tap
+    // gameday action once a lineup exists.
+    const startGame = () => {
+      setInGameId(game.id);
+      setInGameInning(0);
+      setInGameSelection(null);
+      setInGameUndoStack([]);
+    };
+    // On gameday the dashboard flips into "Start Game" mode: the live in-game
+    // launch becomes the headline CTA and lineup/score edits drop to secondary
+    // outline chips. Until a lineup exists you can't start, so "Plan Lineup"
+    // takes the headline slot instead.
+    const isGameDay = dayDiff === 0 && !isFinal;
+    const result = isFinal
+      ? game.teamScore > game.opponentScore
+        ? "win"
+        : game.teamScore < game.opponentScore
+          ? "loss"
+          : "tie"
+      : null;
+
+    return (
+      <div className="relative pb-7 border-b border-line">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+          <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+            {/* Scoreboard-style date block */}
+            <div
+              className="shrink-0 w-16 text-center rounded-xl border overflow-hidden shadow-sm"
+              style={{ borderColor: `${primaryColor}55` }}
+            >
+              <div
+                className="text-[9px] font-black uppercase tracking-widest py-1"
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
-                {whenLabel}
-              </span>
-              {isFinal && (
+                {monthAbbr}
+              </div>
+              <div className="text-3xl font-black tabular-nums text-ink py-1.5">
+                {dayNum}
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                  Next Game
+                </span>
                 <span
-                  className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border tabular-nums ${
-                    result === "win"
-                      ? "bg-win-bg text-win border-line"
-                      : result === "loss"
-                        ? "bg-loss-bg text-loss border-line"
-                        : "bg-warn-bg text-warnfg border-line"
-                  }`}
-                >
-                  {result === "win" ? "W" : result === "loss" ? "L" : "T"}{" "}
-                  {game.teamScore}-{game.opponentScore}
-                </span>
-              )}
-              {!isFinal && game.lineup && (
-                <span className="bg-win-bg text-win text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
-                  Lineup Ready
-                </span>
-              )}
-              {!isFinal && !game.lineup && (
-                <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
-                  Lineup Needed
-                </span>
-              )}
-              {/* Attendance state. Shows who's out at a glance; nudges the
-                  coach to set attendance during prep (only when none marked
-                  and there's no lineup yet, to avoid nagging coaches who
-                  don't track it). */}
-              {!isFinal && attOut > 0 && (
-                <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line tabular-nums">
-                  {attOut} Out
-                </span>
-              )}
-              {!isFinal && attMarked > 0 && attOut === 0 && (
-                <span className="bg-win-bg text-win text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
-                  All In
-                </span>
-              )}
-              {!isFinal && attMarked === 0 && !game.lineup && (
-                <span className="bg-surface-2 text-ink-3 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
-                  Set Attendance
-                </span>
-              )}
-            </div>
-            <h3 className="font-black text-xl sm:text-2xl text-ink uppercase tracking-tight leading-tight">
-              {game.isHome === false ? "@ " : "VS. "}
-              {game.opponent}
-            </h3>
-            <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
-              <Icons.Clock className="w-3.5 h-3.5" /> {fullDate}
-              {isoInstantToLocalTime(game.startUtc) && (
-                <>
-                  <span className="text-ink-3">·</span>
-                  <span>{isoInstantToLocalTime(game.startUtc)}</span>
-                </>
-              )}
-              <span className="text-ink-3">|</span>
-              <span>
-                {leagueRuleSetLabel(game.leagueRuleSet || leagueRuleSet)}{" "}
-                {game.pitchingFormat || pitchingFormat}
-              </span>
-              {game.location && (
-                <>
-                  <span className="text-ink-3">|</span>
-                  <span className="normal-case tracking-normal">
-                    {String(game.location).split("\n")[0]}
-                  </span>
-                </>
-              )}
-              {sameDayCount > 1 && (
-                <>
-                  <span className="text-ink-3">|</span>
-                  <span className="text-team-primary">
-                    +{sameDayCount - 1} more{" "}
-                    {whenLabel.toLowerCase() === "today" ? "today" : "this day"}
-                  </span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
-          {isAssistant ? (
-            // Assistants can't author or run a game — only peek at the plan.
-            game.lineup && (
-              <button
-                onClick={openInSchedule}
-                className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
-                style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-              >
-                <Icons.Clipboard className="w-4 h-4" /> Gameplan
-              </button>
-            )
-          ) : isGameDay ? (
-            <>
-              {game.lineup ? (
-                // Headline gameday CTA — straight into live In-Game mode.
-                <button
-                  onClick={startGame}
-                  className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg bg-green-600 text-white hover:bg-green-700"
-                >
-                  <Icons.Forward className="w-4 h-4" /> Start Game
-                </button>
-              ) : (
-                // No lineup yet — you can't start, so making one is the
-                // headline action.
-                <button
-                  onClick={openInSchedule}
-                  className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg"
+                  className="text-[10px] font-extrabold uppercase tracking-widest px-2 py-0.5 rounded-md"
                   style={{
                     backgroundColor: primaryColor,
                     color: tertiaryColor,
                   }}
                 >
-                  <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
-                </button>
-              )}
-              {/* Secondary gameday actions — demoted to outline chips so the
-                  headline CTA stays the obvious one-tap. */}
-              {game.lineup && (
+                  {whenLabel}
+                </span>
+                {isFinal && (
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border tabular-nums ${
+                      result === "win"
+                        ? "bg-win-bg text-win border-line"
+                        : result === "loss"
+                          ? "bg-loss-bg text-loss border-line"
+                          : "bg-warn-bg text-warnfg border-line"
+                    }`}
+                  >
+                    {result === "win" ? "W" : result === "loss" ? "L" : "T"}{" "}
+                    {game.teamScore}-{game.opponentScore}
+                  </span>
+                )}
+                {!isFinal && game.lineup && (
+                  <span className="bg-win-bg text-win text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
+                    Lineup Ready
+                  </span>
+                )}
+                {!isFinal && !game.lineup && (
+                  <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
+                    Lineup Needed
+                  </span>
+                )}
+                {/* Attendance state. Shows who's out at a glance; nudges the
+                  coach to set attendance during prep (only when none marked
+                  and there's no lineup yet, to avoid nagging coaches who
+                  don't track it). */}
+                {!isFinal && attOut > 0 && (
+                  <span className="bg-warn-bg text-warnfg text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line tabular-nums">
+                    {attOut} Out
+                  </span>
+                )}
+                {!isFinal && attMarked > 0 && attOut === 0 && (
+                  <span className="bg-win-bg text-win text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
+                    All In
+                  </span>
+                )}
+                {!isFinal && attMarked === 0 && !game.lineup && (
+                  <span className="bg-surface-2 text-ink-3 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border border-line">
+                    Set Attendance
+                  </span>
+                )}
+              </div>
+              <h3 className="font-black text-xl sm:text-2xl text-ink uppercase tracking-tight leading-tight">
+                {game.isHome === false ? "@ " : "VS. "}
+                {game.opponent}
+              </h3>
+              <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
+                <Icons.Clock className="w-3.5 h-3.5" /> {fullDate}
+                {isoInstantToLocalTime(game.startUtc) && (
+                  <>
+                    <span className="text-ink-3">·</span>
+                    <span>{isoInstantToLocalTime(game.startUtc)}</span>
+                  </>
+                )}
+                <span className="text-ink-3">|</span>
+                <span>
+                  {leagueRuleSetLabel(game.leagueRuleSet || leagueRuleSet)}{" "}
+                  {game.pitchingFormat || pitchingFormat}
+                </span>
+                {game.location && (
+                  <>
+                    <span className="text-ink-3">|</span>
+                    <span className="normal-case tracking-normal">
+                      {String(game.location).split("\n")[0]}
+                    </span>
+                  </>
+                )}
+                {sameDayCount > 1 && (
+                  <>
+                    <span className="text-ink-3">|</span>
+                    <span className="text-team-primary">
+                      +{sameDayCount - 1} more{" "}
+                      {whenLabel.toLowerCase() === "today"
+                        ? "today"
+                        : "this day"}
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+            {isAssistant ? (
+              // Assistants can't author or run a game — only peek at the plan.
+              game.lineup && (
                 <button
                   onClick={openInSchedule}
+                  className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                  style={{
+                    backgroundColor: primaryColor,
+                    color: tertiaryColor,
+                  }}
+                >
+                  <Icons.Clipboard className="w-4 h-4" /> Gameplan
+                </button>
+              )
+            ) : isGameDay ? (
+              <>
+                {game.lineup ? (
+                  // Headline gameday CTA — straight into live In-Game mode.
+                  <button
+                    onClick={startGame}
+                    className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg bg-green-600 text-white hover:bg-green-700"
+                  >
+                    <Icons.Forward className="w-4 h-4" /> Start Game
+                  </button>
+                ) : (
+                  // No lineup yet — you can't start, so making one is the
+                  // headline action.
+                  <button
+                    onClick={openInSchedule}
+                    className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg"
+                    style={{
+                      backgroundColor: primaryColor,
+                      color: tertiaryColor,
+                    }}
+                  >
+                    <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
+                  </button>
+                )}
+                {/* Secondary gameday actions — demoted to outline chips so the
+                  headline CTA stays the obvious one-tap. */}
+                {game.lineup && (
+                  <button
+                    onClick={openInSchedule}
+                    className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  >
+                    <Icons.Edit className="w-4 h-4" /> Edit Lineup
+                  </button>
+                )}
+                <button
+                  onClick={openScoreEditor}
                   className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
                 >
-                  <Icons.Edit className="w-4 h-4" /> Edit Lineup
+                  <Icons.FileText className="w-4 h-4" /> Final Score
                 </button>
-              )}
+              </>
+            ) : (
+              // Prep mode (game is still days out) — building the lineup is the
+              // primary action.
               <button
-                onClick={openScoreEditor}
-                className="flex-1 sm:flex-none text-xs px-4 py-2.5 bg-surface text-ink border border-line font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                onClick={openInSchedule}
+                className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
+                style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
-                <Icons.FileText className="w-4 h-4" /> Final Score
+                {game.lineup ? (
+                  <>
+                    <Icons.Edit className="w-4 h-4" /> Edit Lineup
+                  </>
+                ) : (
+                  <>
+                    <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
+                  </>
+                )}
               </button>
-            </>
-          ) : (
-            // Prep mode (game is still days out) — building the lineup is the
-            // primary action.
-            <button
-              onClick={openInSchedule}
-              className="flex-1 sm:flex-none text-xs px-6 py-3 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-md"
-              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-            >
-              {game.lineup ? (
-                <>
-                  <Icons.Edit className="w-4 h-4" /> Edit Lineup
-                </>
-              ) : (
-                <>
-                  <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
-                </>
-              )}
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 /* ===========================================================================
    InsightTile — small, presentational shell shared by every tile in the
    row. Header has an icon halo + title + optional CTA chip; body slot is
    freeform for each tile's content.
 =========================================================================== */
+interface InsightTileProps {
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  title: string;
+  accent?: "primary" | "success" | "warn" | "danger" | "info" | "slate";
+  onClick?: () => void;
+  ctaLabel?: string;
+  children?: React.ReactNode;
+}
 const InsightTile = memo(
   ({
     icon: Icon,
@@ -468,7 +498,7 @@ const InsightTile = memo(
     onClick,
     ctaLabel,
     children,
-  }: any) => {
+  }: InsightTileProps) => {
     // Semantic-lane tokens flip with [data-theme] so the halos don't glare
     // in dark mode.
     const ACCENT_STYLES = {
@@ -479,7 +509,7 @@ const InsightTile = memo(
       info: { halo: "var(--info-bg)", text: "var(--info-fg)" },
       slate: { halo: "var(--surface-2)", text: "var(--ink-2)" },
     };
-    const styles = (ACCENT_STYLES as any)[accent] || ACCENT_STYLES.slate;
+    const styles = ACCENT_STYLES[accent] || ACCENT_STYLES.slate;
     return (
       <div className="flex flex-col h-full">
         <div className="pb-2.5 mb-3 border-b border-line flex items-center gap-3">
@@ -511,8 +541,19 @@ const InsightTile = memo(
    PitcherAvailabilityTile — Kid Pitch only. Counts how many rostered
    pitchers are eligible today by the engine's checkPitchEligibility rules.
 =========================================================================== */
+interface PitcherAvailabilityTileProps {
+  players: Player[];
+  teamAge?: string;
+  todayStr: string;
+  onOpenRoster?: () => void;
+}
 const PitcherAvailabilityTile = memo(
-  ({ players, teamAge, todayStr, onOpenRoster }: any) => {
+  ({
+    players,
+    teamAge,
+    todayStr,
+    onOpenRoster,
+  }: PitcherAvailabilityTileProps) => {
     const stats = useMemo(() => {
       let eligible = 0;
       let resting = 0;
@@ -524,7 +565,7 @@ const PitcherAvailabilityTile = memo(
         const restricted =
           Array.isArray(p.restrictions) && p.restrictions.includes("P");
         if (restricted) continue;
-        const isEligible = checkPitchEligibility(p, todayStr, teamAge);
+        const isEligible = checkPitchEligibility(p, todayStr, teamAge ?? "");
         const recent = p.pitching?.recentPitches || 0;
         if (isEligible && recent === 0) {
           eligible++;
@@ -596,91 +637,110 @@ const PitcherAvailabilityTile = memo(
 =========================================================================== */
 const RECENT_MOVEMENT_PER_DIRECTION = 2;
 
-const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
-  const movers = useMemo(() => {
-    const all: Array<{ player: any; delta: number }> = [];
-    for (const p of players || []) {
-      const history = Array.isArray(p?.statsHistory) ? p.statsHistory : [];
-      let priorOps: number | null = null;
-      let curOps = Number(p.stats?.ops) || 0;
-      if (history.length > 0) {
-        priorOps = Number(history[history.length - 1]?.stats?.ops) || 0;
-      } else {
-        const move = latestGameLineMovement(games, p.id);
-        if (move) {
-          priorOps = Number(move.prior.ops) || 0;
-          curOps = Number(move.current.ops) || curOps;
+interface RecentMovementTileProps {
+  players: Player[];
+  games: Game[];
+  onPlayerClick?: (id: string) => void;
+}
+const RecentMovementTile = memo(
+  ({ players, games, onPlayerClick }: RecentMovementTileProps) => {
+    const movers = useMemo(() => {
+      const all: Array<{ player: Player; delta: number }> = [];
+      for (const p of players || []) {
+        const history = Array.isArray(p?.statsHistory) ? p.statsHistory : [];
+        let priorOps: number | null = null;
+        let curOps = Number(p.stats?.ops) || 0;
+        if (history.length > 0) {
+          priorOps = Number(history[history.length - 1]?.stats?.ops) || 0;
+        } else {
+          const move = latestGameLineMovement(games, p.id);
+          if (move) {
+            priorOps = Number(move.prior.ops) || 0;
+            curOps = Number(move.current.ops) || curOps;
+          }
         }
+        if (priorOps == null) continue;
+        if (priorOps === 0 && curOps === 0) continue;
+        const delta = curOps - priorOps;
+        if (Math.abs(delta) < 0.005) continue;
+        all.push({ player: p, delta });
       }
-      if (priorOps == null) continue;
-      if (priorOps === 0 && curOps === 0) continue;
-      const delta = curOps - priorOps;
-      if (Math.abs(delta) < 0.005) continue;
-      all.push({ player: p, delta });
-    }
-    // Risers first (biggest jump on top), then fallers (biggest drop last).
-    all.sort((a, b) => b.delta - a.delta);
-    return all;
-  }, [players, games]);
+      // Risers first (biggest jump on top), then fallers (biggest drop last).
+      all.sort((a, b) => b.delta - a.delta);
+      return all;
+    }, [players, games]);
 
-  if (movers.length === 0) {
+    if (movers.length === 0) {
+      return (
+        <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
+          <p className="text-[11px] text-ink-3 font-medium italic">
+            Import stats again after your next game to track movement — it shows
+            once a player has two stat updates to compare.
+          </p>
+        </InsightTile>
+      );
+    }
+
+    const fmt = (n: number) =>
+      (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
+    // movers is sorted by delta desc, so the biggest jumps lead and the
+    // biggest drops close the list.
+    const shown = [
+      ...movers
+        .filter((m) => m.delta > 0)
+        .slice(0, RECENT_MOVEMENT_PER_DIRECTION),
+      ...movers
+        .filter((m) => m.delta < 0)
+        .slice(-RECENT_MOVEMENT_PER_DIRECTION),
+    ];
+
     return (
       <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
-        <p className="text-[11px] text-ink-3 font-medium italic">
-          Import stats again after your next game to track movement — it shows
-          once a player has two stat updates to compare.
-        </p>
-      </InsightTile>
-    );
-  }
-
-  const fmt = (n: any) =>
-    (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
-  // movers is sorted by delta desc, so the biggest jumps lead and the
-  // biggest drops close the list.
-  const shown = [
-    ...movers
-      .filter((m) => m.delta > 0)
-      .slice(0, RECENT_MOVEMENT_PER_DIRECTION),
-    ...movers.filter((m) => m.delta < 0).slice(-RECENT_MOVEMENT_PER_DIRECTION),
-  ];
-
-  return (
-    <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
-      <div className="space-y-1.5">
-        {shown.map(({ player, delta }) => (
-          <button
-            key={player.id}
-            type="button"
-            onClick={() => onPlayerClick?.(player.id)}
-            className={`w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
-              delta > 0
-                ? "bg-win-bg/40 hover:bg-win-bg"
-                : "bg-loss-bg/40 hover:bg-loss-bg"
-            }`}
-          >
-            <span className="t-body-bold truncate text-ink">{player.name}</span>
-            <span
-              className={`t-stat-num-sm tabular-nums shrink-0 ${
-                delta > 0 ? "text-win" : "text-loss"
+        <div className="space-y-1.5">
+          {shown.map(({ player, delta }) => (
+            <button
+              key={player.id}
+              type="button"
+              onClick={() => onPlayerClick?.(player.id)}
+              className={`w-full text-left flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border border-line/80 transition-colors shadow-sm ${
+                delta > 0
+                  ? "bg-win-bg/40 hover:bg-win-bg"
+                  : "bg-loss-bg/40 hover:bg-loss-bg"
               }`}
             >
-              {delta > 0 ? "↑" : "↓"} OPS {fmt(delta)}
-            </span>
-          </button>
-        ))}
-      </div>
-    </InsightTile>
-  );
-});
+              <span className="t-body-bold truncate text-ink">
+                {player.name}
+              </span>
+              <span
+                className={`t-stat-num-sm tabular-nums shrink-0 ${
+                  delta > 0 ? "text-win" : "text-loss"
+                }`}
+              >
+                {delta > 0 ? "↑" : "↓"} OPS {fmt(delta)}
+              </span>
+            </button>
+          ))}
+        </div>
+      </InsightTile>
+    );
+  },
+);
 
 /* ===========================================================================
    EvalMomentumTile — auto-flags top standouts/regressions between the two
    most recent evaluation rounds. Mirrors InsightsPanel logic from
    EvaluationTab without rendering the heavy round-comparison UI.
 =========================================================================== */
+interface EvalMomentumTileProps {
+  players: Player[];
+  evaluationEvents?: Array<{
+    date?: string;
+    grades?: Record<string, Record<string, number | string | undefined>>;
+  }>;
+  onOpenEval?: () => void;
+}
 const EvalMomentumTile = memo(
-  ({ players, evaluationEvents, onOpenEval }: any) => {
+  ({ players, evaluationEvents, onOpenEval }: EvalMomentumTileProps) => {
     const flags = useMemo(() => {
       if (!Array.isArray(evaluationEvents) || evaluationEvents.length < 2) {
         return { top: null, bottom: null };
@@ -690,7 +750,9 @@ const EvalMomentumTile = memo(
       );
       const latest = sorted[0];
       const prev = sorted[1];
-      const avgUniversal = (g: any) => {
+      const avgUniversal = (
+        g: Record<string, number | string | undefined> | undefined | null,
+      ) => {
         if (!g) return null;
         const keys = [
           "contact",
@@ -730,7 +792,7 @@ const EvalMomentumTile = memo(
 
     if (!flags.top && !flags.bottom) return null;
 
-    const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(1);
+    const fmt = (n: number) => (n >= 0 ? "+" : "") + n.toFixed(1);
 
     return (
       <InsightTile
@@ -771,19 +833,26 @@ const EvalMomentumTile = memo(
    TeamTrendTile — last-5 W/L sparkline + run differential, derived from
    finalized games in `team.games`.
 =========================================================================== */
-const TeamTrendTile = memo(({ games }: any) => {
+interface TeamTrendTileProps {
+  games: Game[];
+}
+const TeamTrendTile = memo(({ games }: TeamTrendTileProps) => {
   const data = useMemo(() => {
     const finals = (games || [])
       .filter(countsTowardStats)
-      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+      .sort((a: Game, b: Game) => String(a.date).localeCompare(String(b.date)));
     const last5 = finals.slice(-5);
-    const results = last5.map((g: any) => {
-      if (g.teamScore > g.opponentScore) return "W";
-      if (g.teamScore < g.opponentScore) return "L";
+    // teamScore / opponentScore live in Game's [key: string]: unknown index
+    const score = (g: Game, k: "teamScore" | "opponentScore") =>
+      Number(g[k]) || 0;
+    const results = last5.map((g: Game) => {
+      if (score(g, "teamScore") > score(g, "opponentScore")) return "W";
+      if (score(g, "teamScore") < score(g, "opponentScore")) return "L";
       return "T";
     });
     const diff = last5.reduce(
-      (acc: any, g: any) => acc + (g.teamScore - g.opponentScore),
+      (acc: number, g: Game) =>
+        acc + score(g, "teamScore") - score(g, "opponentScore"),
       0,
     );
     return { results, diff, count: last5.length };
@@ -795,13 +864,13 @@ const TeamTrendTile = memo(({ games }: any) => {
     <InsightTile icon={Icons.Bat} title="Last 5 Games" accent="primary">
       <div className="flex items-baseline gap-3 mb-3">
         <span className="t-stat-num text-ink">
-          {data.results.filter((r: any) => r === "W").length}
+          {data.results.filter((r) => r === "W").length}
           <span className="text-ink-3 text-2xl">-</span>
-          {data.results.filter((r: any) => r === "L").length}
-          {data.results.filter((r: any) => r === "T").length > 0 && (
+          {data.results.filter((r) => r === "L").length}
+          {data.results.filter((r) => r === "T").length > 0 && (
             <>
               <span className="text-ink-3 text-2xl">-</span>
-              {data.results.filter((r: any) => r === "T").length}
+              {data.results.filter((r) => r === "T").length}
             </>
           )}
         </span>
@@ -819,7 +888,7 @@ const TeamTrendTile = memo(({ games }: any) => {
         </span>
       </div>
       <div className="flex items-center gap-1.5">
-        {data.results.map((r: any, i: any) => (
+        {data.results.map((r, i) => (
           <span
             key={i}
             className={`flex-1 h-7 rounded-md grid place-items-center t-button text-white ${
@@ -850,119 +919,135 @@ const TeamTrendTile = memo(({ games }: any) => {
    spot kids who keep falling behind and decide whether to nudge it (e.g.
    move someone to a Big Game position for a game).
 =========================================================================== */
-const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
-  const rows = React.useMemo(() => {
-    const imbalance = buildSeasonBenchImbalance(games, "", players);
-    return (players || [])
-      .map((p: any) => {
-        const data = imbalance.get(p.id) || {
-          totalDefense: 0,
-          expectedDefense: 0,
-          gamesAttended: 0,
-        };
-        return {
-          player: p,
-          delta: data.totalDefense - data.expectedDefense,
-          gamesAttended: data.gamesAttended,
-        };
-      })
-      .filter((r: any) => r.gamesAttended > 0);
-  }, [players, games]);
+interface BenchEquityTileProps {
+  players: Player[];
+  games: Game[];
+  onPlayerClick?: (id: string) => void;
+}
+const BenchEquityTile = memo(
+  ({ players, games, onPlayerClick }: BenchEquityTileProps) => {
+    const rows = React.useMemo(() => {
+      const imbalance = buildSeasonBenchImbalance(games, "", players);
+      return (players || [])
+        .map((p: Player) => {
+          const data = imbalance.get(p.id) || {
+            totalDefense: 0,
+            expectedDefense: 0,
+            gamesAttended: 0,
+          };
+          return {
+            player: p,
+            delta: data.totalDefense - data.expectedDefense,
+            gamesAttended: data.gamesAttended,
+          };
+        })
+        .filter((r) => r.gamesAttended > 0);
+    }, [players, games]);
 
-  const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
-  if (rows.length === 0) {
-    return (
-      <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
-        <p className="t-body text-ink-3 italic text-xs">
-          No finalized games yet. Once you finalize a game, each kid's
-          season-wide bench vs play balance will surface here.
-        </p>
-      </InsightTile>
-    );
-  }
-  if (!anyImbalance) {
-    return (
-      <InsightTile icon={Icons.Users} title="Bench Equity" accent="success">
-        <p className="t-body text-win text-xs font-bold">
-          Everyone's within 1 inning of their fair share across the season. Keep
-          it up.
-        </p>
-      </InsightTile>
-    );
-  }
-  // Two ends: the kid who's been benched the LEAST (positive delta = played
-  // more than fair share, red), and the kid who's been benched the MOST
-  // (negative delta = played less than fair share, green-to-amber). Pull
-  // the top-2 on each side so the tile stays compact.
-  const sortedByDelta = [...rows].sort((a, b) => b.delta - a.delta);
-  const overPlayed = sortedByDelta.filter((r) => r.delta >= 1).slice(0, 2);
-  const underPlayed = sortedByDelta
-    .filter((r) => r.delta <= -1)
-    .slice(-2)
-    .reverse();
-  const renderRow = ({ player, delta }: any) => {
-    const rounded = Math.round(delta);
-    const isOver = rounded > 0;
-    return (
-      <button
-        key={player.id}
-        type="button"
-        onClick={() => onPlayerClick?.(player.id)}
-        className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-surface-2 transition-colors text-left"
-      >
-        <span className="text-xs font-black uppercase tracking-tight text-ink truncate">
-          {player.name}
-        </span>
-        <span
-          className={`shrink-0 text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded-md border ${
-            isOver
-              ? "bg-loss-bg border-line text-loss"
-              : "bg-win-bg border-line text-win"
-          }`}
-          title={
-            isOver
-              ? "Played more than fair share this season"
-              : "Played less than fair share this season"
-          }
+    const anyImbalance = rows.some((r) => Math.abs(r.delta) >= 1);
+    if (rows.length === 0) {
+      return (
+        <InsightTile icon={Icons.Users} title="Bench Equity" accent="slate">
+          <p className="t-body text-ink-3 italic text-xs">
+            No finalized games yet. Once you finalize a game, each kid's
+            season-wide bench vs play balance will surface here.
+          </p>
+        </InsightTile>
+      );
+    }
+    if (!anyImbalance) {
+      return (
+        <InsightTile icon={Icons.Users} title="Bench Equity" accent="success">
+          <p className="t-body text-win text-xs font-bold">
+            Everyone's within 1 inning of their fair share across the season.
+            Keep it up.
+          </p>
+        </InsightTile>
+      );
+    }
+    // Two ends: the kid who's been benched the LEAST (positive delta = played
+    // more than fair share, red), and the kid who's been benched the MOST
+    // (negative delta = played less than fair share, green-to-amber). Pull
+    // the top-2 on each side so the tile stays compact.
+    const sortedByDelta = [...rows].sort((a, b) => b.delta - a.delta);
+    const overPlayed = sortedByDelta.filter((r) => r.delta >= 1).slice(0, 2);
+    const underPlayed = sortedByDelta
+      .filter((r) => r.delta <= -1)
+      .slice(-2)
+      .reverse();
+    const renderRow = ({
+      player,
+      delta,
+    }: {
+      player: Player;
+      delta: number;
+    }) => {
+      const rounded = Math.round(delta);
+      const isOver = rounded > 0;
+      return (
+        <button
+          key={player.id}
+          type="button"
+          onClick={() => onPlayerClick?.(player.id)}
+          className="w-full flex items-center justify-between gap-2 px-2 py-1 rounded-md hover:bg-surface-2 transition-colors text-left"
         >
-          {isOver ? "+" : ""}
-          {rounded} inn
-        </span>
-      </button>
+          <span className="text-xs font-black uppercase tracking-tight text-ink truncate">
+            {player.name}
+          </span>
+          <span
+            className={`shrink-0 text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded-md border ${
+              isOver
+                ? "bg-loss-bg border-line text-loss"
+                : "bg-win-bg border-line text-win"
+            }`}
+            title={
+              isOver
+                ? "Played more than fair share this season"
+                : "Played less than fair share this season"
+            }
+          >
+            {isOver ? "+" : ""}
+            {rounded} inn
+          </span>
+        </button>
+      );
+    };
+    return (
+      <InsightTile icon={Icons.Users} title="Bench Equity" accent="warn">
+        <div className="space-y-2">
+          {underPlayed.length > 0 && (
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-widest text-win mb-0.5">
+                Owed innings
+              </div>
+              <div className="flex flex-col">{underPlayed.map(renderRow)}</div>
+            </div>
+          )}
+          {overPlayed.length > 0 && (
+            <div>
+              <div className="text-[9px] font-black uppercase tracking-widest text-loss mb-0.5">
+                Has played extra
+              </div>
+              <div className="flex flex-col">{overPlayed.map(renderRow)}</div>
+            </div>
+          )}
+          <p className="text-[10px] font-medium text-ink-3 italic leading-snug pt-0.5">
+            Engine biases new lineups to even this out, but lean on Big Game
+            bench picks if a gap keeps growing.
+          </p>
+        </div>
+      </InsightTile>
     );
-  };
-  return (
-    <InsightTile icon={Icons.Users} title="Bench Equity" accent="warn">
-      <div className="space-y-2">
-        {underPlayed.length > 0 && (
-          <div>
-            <div className="text-[9px] font-black uppercase tracking-widest text-win mb-0.5">
-              Owed innings
-            </div>
-            <div className="flex flex-col">{underPlayed.map(renderRow)}</div>
-          </div>
-        )}
-        {overPlayed.length > 0 && (
-          <div>
-            <div className="text-[9px] font-black uppercase tracking-widest text-loss mb-0.5">
-              Has played extra
-            </div>
-            <div className="flex flex-col">{overPlayed.map(renderRow)}</div>
-          </div>
-        )}
-        <p className="text-[10px] font-medium text-ink-3 italic leading-snug pt-0.5">
-          Engine biases new lineups to even this out, but lean on Big Game bench
-          picks if a gap keeps growing.
-        </p>
-      </div>
-    </InsightTile>
-  );
-});
+  },
+);
 
 // ===== Team season summary tile — team-wide batting (+ kid-pitch pitching) =====
-const MiniStatGrid = memo(({ cells }: any) => (
+interface MiniStatGridProps {
+  cells: [string, string][];
+}
+const MiniStatGrid = memo(({ cells }: MiniStatGridProps) => (
   <div className="grid grid-cols-3 gap-1.5">
-    {cells.map(([label, val]: any) => (
+    {cells.map(([label, val]) => (
       <div
         key={label}
         className="bg-surface-2 border border-line rounded-lg px-1.5 py-1.5 text-center"
@@ -978,60 +1063,70 @@ const MiniStatGrid = memo(({ cells }: any) => (
   </div>
 ));
 
-const TeamSummaryTile = memo(({ players, isKidPitch }: any) => {
-  const agg = useMemo(() => teamStatAverages(players), [players]);
-  const n = (k: string, ...alts: string[]) => {
-    for (const key of [k, ...alts]) {
-      const v = (agg as any)[key];
-      if (typeof v === "number" && Number.isFinite(v)) return v as number;
-    }
-    return undefined;
-  };
-  const f3 = (v?: number) =>
-    v === undefined
-      ? "—"
-      : v > 0 && v < 1
-        ? v.toFixed(3).replace(/^0/, "")
-        : v.toFixed(3);
-  const f2 = (v?: number) => (v === undefined ? "—" : v.toFixed(2));
-  const fI = (v?: number) => (v === undefined ? "—" : Math.round(v).toString());
-  const hasAny = Object.keys(agg).length > 0;
-  return (
-    <InsightTile icon={Icons.Bat} title="Team Summary" accent="primary">
-      {!hasAny ? (
-        <p className="t-body text-ink-3 italic">No stats imported yet.</p>
-      ) : (
-        <div className="space-y-2">
-          <MiniStatGrid
-            cells={[
-              ["AVG", f3(n("avg"))],
-              ["OBP", f3(n("obp"))],
-              ["OPS", f3(n("ops"))],
-              ["H", fI(n("h"))],
-              ["HR", fI(n("hr"))],
-              ["RBI", fI(n("rbi"))],
-            ]}
-          />
-          {isKidPitch && (
-            <>
-              <div className="t-eyebrow text-ink-3 pt-0.5">Pitching</div>
-              <MiniStatGrid
-                cells={[
-                  ["ERA", f2(n("pEra", "era"))],
-                  ["WHIP", f2(n("pWhip"))],
-                  ["IP", f2(n("pIp", "ip"))],
-                ]}
-              />
-            </>
-          )}
-        </div>
-      )}
-    </InsightTile>
-  );
-});
+interface TeamSummaryTileProps {
+  players: Player[];
+  isKidPitch: boolean;
+}
+const TeamSummaryTile = memo(
+  ({ players, isKidPitch }: TeamSummaryTileProps) => {
+    const agg = useMemo(() => teamStatAverages(players), [players]);
+    const n = (k: string, ...alts: string[]) => {
+      for (const key of [k, ...alts]) {
+        const v = (agg as Record<string, unknown>)[key];
+        if (typeof v === "number" && Number.isFinite(v)) return v as number;
+      }
+      return undefined;
+    };
+    const f3 = (v?: number) =>
+      v === undefined
+        ? "—"
+        : v > 0 && v < 1
+          ? v.toFixed(3).replace(/^0/, "")
+          : v.toFixed(3);
+    const f2 = (v?: number) => (v === undefined ? "—" : v.toFixed(2));
+    const fI = (v?: number) =>
+      v === undefined ? "—" : Math.round(v).toString();
+    const hasAny = Object.keys(agg).length > 0;
+    return (
+      <InsightTile icon={Icons.Bat} title="Team Summary" accent="primary">
+        {!hasAny ? (
+          <p className="t-body text-ink-3 italic">No stats imported yet.</p>
+        ) : (
+          <div className="space-y-2">
+            <MiniStatGrid
+              cells={[
+                ["AVG", f3(n("avg"))],
+                ["OBP", f3(n("obp"))],
+                ["OPS", f3(n("ops"))],
+                ["H", fI(n("h"))],
+                ["HR", fI(n("hr"))],
+                ["RBI", fI(n("rbi"))],
+              ]}
+            />
+            {isKidPitch && (
+              <>
+                <div className="t-eyebrow text-ink-3 pt-0.5">Pitching</div>
+                <MiniStatGrid
+                  cells={[
+                    ["ERA", f2(n("pEra", "era"))],
+                    ["WHIP", f2(n("pWhip"))],
+                    ["IP", f2(n("pIp", "ip"))],
+                  ]}
+                />
+              </>
+            )}
+          </div>
+        )}
+      </InsightTile>
+    );
+  },
+);
 
 // ===== Run differential + streak + last-5 form =====
-const RunStreakTile = memo(({ games }: any) => {
+interface RunStreakTileProps {
+  games: Game[];
+}
+const RunStreakTile = memo(({ games }: RunStreakTileProps) => {
   const s = useMemo(() => buildSeasonSummary(games), [games]);
   if (s.gamesPlayed === 0) {
     return (
@@ -1099,19 +1194,27 @@ const RunStreakTile = memo(({ games }: any) => {
 });
 
 // ===== Attendance overview (games + practices) =====
-const attIsPresent = (v: any) => v === true || v === "present";
-const attIsAbsent = (v: any) => v === false || v === "absent"; // "excused" excluded
+const attIsPresent = (v: unknown) => v === true || v === "present";
+const attIsAbsent = (v: unknown) => v === false || v === "absent"; // "excused" excluded
 
+interface AttendanceTileProps {
+  players: Player[];
+  games: Game[];
+  practices: Practice[];
+  onPlayerClick?: (id: string) => void;
+}
 const AttendanceTile = memo(
-  ({ players, games, practices, onPlayerClick }: any) => {
+  ({ players, games, practices, onPlayerClick }: AttendanceTileProps) => {
     const data = useMemo(() => {
       const events = [
         ...(games || [])
-          .filter((g: any) => g.attendance && Object.keys(g.attendance).length)
-          .map((g: any) => g.attendance),
+          .filter((g: Game) => g.attendance && Object.keys(g.attendance).length)
+          .map((g: Game) => g.attendance as Record<string, unknown>),
         ...(practices || [])
-          .filter((p: any) => p.attendance && Object.keys(p.attendance).length)
-          .map((p: any) => p.attendance),
+          .filter(
+            (p: Practice) => p.attendance && Object.keys(p.attendance).length,
+          )
+          .map((p: Practice) => p.attendance as Record<string, unknown>),
       ];
       if (events.length === 0) return null;
       let present = 0;
@@ -1133,10 +1236,12 @@ const AttendanceTile = memo(
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
         .map(([pid, count]) => ({
-          player: (players || []).find((p: any) => p.id === pid),
+          player: (players || []).find((p: Player) => p.id === pid),
           count,
         }))
-        .filter((x) => x.player);
+        .filter(
+          (x): x is { player: Player; count: number } => x.player != null,
+        );
       return { rate, eventCount: events.length, topAbsent };
     }, [players, games, practices]);
     if (!data) {
@@ -1162,7 +1267,7 @@ const AttendanceTile = memo(
             <div>
               <div className="t-eyebrow text-ink-3 mb-1">Most absences</div>
               <ul className="space-y-1">
-                {data.topAbsent.map(({ player, count }: any) => (
+                {data.topAbsent.map(({ player, count }) => (
                   <li
                     key={player.id}
                     className="flex items-center justify-between gap-2"
@@ -1191,25 +1296,38 @@ const AttendanceTile = memo(
 );
 
 // ===== "This Week" — upcoming games + practices in the next 7 days =====
+interface UpcomingWeekSectionProps {
+  games: Game[];
+  practices: Practice[];
+  todayStr: string;
+  onOpenGame?: () => void;
+  onOpenPractices?: () => void;
+}
 const UpcomingWeekSection = memo(
-  ({ games, practices, todayStr, onOpenGame, onOpenPractices }: any) => {
+  ({
+    games,
+    practices,
+    todayStr,
+    onOpenGame,
+    onOpenPractices,
+  }: UpcomingWeekSectionProps) => {
     const items = useMemo(() => {
       const horizonDate = new Date(`${todayStr}T00:00:00`);
       horizonDate.setDate(horizonDate.getDate() + 7);
       const horizon = horizonDate.toISOString().slice(0, 10);
       const inWindow = (d: string) => d && d >= todayStr && d <= horizon;
       const g = (games || [])
-        .filter((x: any) => inWindow(x.date) && !isGameFinalized(x))
-        .map((x: any) => ({
+        .filter((x: Game) => inWindow(x.date ?? "") && !isGameFinalized(x))
+        .map((x: Game) => ({
           kind: "game" as const,
           id: x.id,
-          date: x.date,
+          date: x.date ?? "",
           time: x.time || "",
           title: x.opponent ? `vs ${x.opponent}` : "Game",
         }));
       const p = (practices || [])
-        .filter((x: any) => inWindow(x.date) && x.status !== "cancelled")
-        .map((x: any) => ({
+        .filter((x: Practice) => inWindow(x.date) && x.status !== "cancelled")
+        .map((x: Practice) => ({
           kind: "practice" as const,
           id: x.id,
           date: x.date,
@@ -1279,262 +1397,289 @@ const UP_NEXT_ACCENTS: Record<string, { bg: string; fg: string }> = {
   primary: { bg: "var(--team-primary-15)", fg: "var(--team-primary)" },
 };
 
-export const UpNextPanel = memo(({ isHead, promptStatus, todayStr }: any) => {
-  const { team } = useTeam();
-  const {
-    setActiveTab,
-    setSelectedGameId,
-    setOpponentName,
-    setLineup,
-    setBattingLineup,
-    setCurrentGameAttendance,
-  } = useUI();
-  const { games, players, finances } = team;
-  // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
-  // row reappears next session if the underlying task still isn't done.
-  const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
+interface UpNextPanelProps {
+  isHead: boolean;
+  promptStatus: {
+    active: boolean;
+    kind?: string | null;
+    nextDueDate?: string | null;
+  } | null;
+  todayStr: string;
+}
+export const UpNextPanel = memo(
+  ({ isHead, promptStatus, todayStr }: UpNextPanelProps) => {
+    const { team } = useTeam();
+    const {
+      setActiveTab,
+      setSelectedGameId,
+      setOpponentName,
+      setLineup,
+      setBattingLineup,
+      setCurrentGameAttendance,
+    } = useUI();
+    const { games, players, finances } = team;
+    // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
+    // row reappears next session if the underlying task still isn't done.
+    const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
 
-  const items = useMemo(() => {
-    const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
-    const daysUntil = (iso: string | null) =>
-      iso
-        ? Math.round(
-            (new Date(`${iso}T00:00:00`).getTime() - todayMs) / 86400000,
-          )
-        : null;
+    const items = useMemo(() => {
+      const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
+      const daysUntil = (iso: string | null) =>
+        iso
+          ? Math.round(
+              (new Date(`${iso}T00:00:00`).getTime() - todayMs) / 86400000,
+            )
+          : null;
 
-    // Classify a due date into urgency for sorting + the chip it shows.
-    const dueMeta = (iso: string | null) => {
-      const d = daysUntil(iso);
-      if (d == null) return { bump: 0, accent: "money", tag: "" };
-      if (d < 0) return { bump: 40, accent: "danger", tag: "Overdue" };
-      if (d === 0) return { bump: 35, accent: "danger", tag: "Due today" };
-      if (d <= 7) return { bump: 25, accent: "warn", tag: `Due in ${d}d` };
-      return {
-        bump: 0,
-        accent: "money",
-        tag: `Due ${formatGameDateDisplay(iso)}`,
+      // Classify a due date into urgency for sorting + the chip it shows.
+      const dueMeta = (iso: string | null) => {
+        const d = daysUntil(iso);
+        if (d == null) return { bump: 0, accent: "money", tag: "" };
+        if (d < 0) return { bump: 40, accent: "danger", tag: "Overdue" };
+        if (d === 0) return { bump: 35, accent: "danger", tag: "Due today" };
+        if (d <= 7) return { bump: 25, accent: "warn", tag: `Due in ${d}d` };
+        return {
+          bump: 0,
+          accent: "money",
+          tag: `Due ${formatGameDateDisplay(iso)}`,
+        };
       };
-    };
 
-    const goToGame = (g: any) => {
-      setSelectedGameId(g.id);
-      setOpponentName(g.opponent);
-      setLineup(g.lineup || null);
-      setBattingLineup(g.battingLineup || null);
-      setCurrentGameAttendance(g.attendance || {});
-      setActiveTab("schedule");
-    };
+      const goToGame = (g: Game) => {
+        setSelectedGameId(g.id);
+        setOpponentName(g.opponent);
+        setLineup(g.lineup || null);
+        setBattingLineup(g.battingLineup || null);
+        setCurrentGameAttendance(g.attendance || {});
+        setActiveTab("schedule");
+      };
 
-    const out: any[] = [];
-
-    // ----- Eval cadence (both roles) -----
-    if (promptStatus?.active) {
-      out.push({
-        id: "eval",
-        priority: 60,
-        accent: "info",
-        icon: Icons.Clipboard,
-        title: isHead
-          ? "Start this round's evaluations"
-          : "Send your evaluations to the head coach",
-        sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
-          promptStatus.nextDueDate
-            ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
-            : ""
-        }`,
-        tag: "Evals",
-        ctaLabel: "Open",
-        onClick: () => setActiveTab("evaluation"),
-      });
-    }
-
-    // The rest are head-coach actions only.
-    if (isHead) {
-      // ----- Next game: lineup + attendance -----
-      const next = (games || [])
-        .filter((g: any) => (g.status || "scheduled") !== "postponed")
-        .filter((g: any) => !isGameFinalized(g))
-        .filter((g: any) => g.date && g.date >= todayStr)
-        .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
-      if (next) {
-        const dd = daysUntil(next.date) ?? 99;
-        const when =
-          dd === 0 ? "today" : dd === 1 ? "tomorrow" : `in ${dd} days`;
-        if (dd <= 7 && !next.lineup) {
-          out.push({
-            id: "lineup",
-            priority: dd <= 1 ? 100 : 82,
-            accent: dd <= 1 ? "danger" : "warn",
-            icon: Icons.Clipboard,
-            title: `Build the lineup vs ${next.opponent}`,
-            sub: `${formatGameDateDisplay(next.date)} · ${when}`,
-            tag: "Lineup",
-            ctaLabel: "Build",
-            onClick: () => goToGame(next),
-          });
-        }
-        const attMarked = Object.keys(next.attendance || {}).length;
-        if (dd <= 2 && attMarked === 0) {
-          out.push({
-            id: "attendance",
-            priority: 68,
-            accent: "warn",
-            icon: Icons.Users,
-            title: `Confirm who's coming vs ${next.opponent}`,
-            sub: `Attendance not set · game ${when}`,
-            tag: "Attendance",
-            ctaLabel: "Set",
-            onClick: () => goToGame(next),
-          });
-        }
+      interface UpNextItem {
+        id: string;
+        priority: number;
+        accent: string;
+        icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+        title: string;
+        sub: string;
+        tag: string;
+        ctaLabel: string;
+        onClick: () => void;
       }
+      const out: UpNextItem[] = [];
 
-      // ----- Team Fees: deposit + full fee -----
-      const fees = teamFeesStatus(finances, players);
-      if (fees.depositAmount > 0 && fees.depositOwedCount > 0) {
-        const m = dueMeta(fees.depositDueDate);
+      // ----- Eval cadence (both roles) -----
+      if (promptStatus?.active) {
         out.push({
-          id: "fees-deposit",
-          priority: 50 + m.bump,
-          accent: m.accent,
-          icon: Icons.Wallet,
-          title: `${fees.depositOwedCount} famil${
-            fees.depositOwedCount === 1 ? "y" : "ies"
-          } owe the team-fee deposit`,
-          sub: `${formatCurrency(fees.depositOutstanding)} in deposits outstanding`,
-          tag: m.tag || "Deposit",
-          ctaLabel: "Collect",
-          onClick: () => setActiveTab("finances"),
+          id: "eval",
+          priority: 60,
+          accent: "info",
+          icon: Icons.Clipboard,
+          title: isHead
+            ? "Start this round's evaluations"
+            : "Send your evaluations to the head coach",
+          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
+            promptStatus.nextDueDate
+              ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
+              : ""
+          }`,
+          tag: "Evals",
+          ctaLabel: "Open",
+          onClick: () => setActiveTab("evaluation"),
         });
       }
-      if (fees.stillOwed > 0) {
-        const m = dueMeta(fees.feeDueDate);
-        out.push({
-          id: "fees-full",
-          priority: 40 + m.bump,
-          accent: m.accent,
-          icon: Icons.Wallet,
-          title: `${formatCurrency(fees.stillOwed)} in team fees outstanding`,
-          sub: `${fees.fullOwedCount} famil${
-            fees.fullOwedCount === 1 ? "y" : "ies"
-          } still owe`,
-          tag: m.tag || "Team Fees",
-          ctaLabel: "Collect",
-          onClick: () => setActiveTab("finances"),
-        });
+
+      // The rest are head-coach actions only.
+      if (isHead) {
+        // ----- Next game: lineup + attendance -----
+        const next = (games || [])
+          .filter((g: Game) => (g.status || "scheduled") !== "postponed")
+          .filter((g: Game) => !isGameFinalized(g))
+          .filter((g: Game) => g.date && g.date >= todayStr)
+          .sort((a: Game, b: Game) =>
+            (a.date ?? "").localeCompare(b.date ?? ""),
+          )[0];
+        if (next) {
+          const dd = daysUntil(next.date) ?? 99;
+          const when =
+            dd === 0 ? "today" : dd === 1 ? "tomorrow" : `in ${dd} days`;
+          if (dd <= 7 && !next.lineup) {
+            out.push({
+              id: "lineup",
+              priority: dd <= 1 ? 100 : 82,
+              accent: dd <= 1 ? "danger" : "warn",
+              icon: Icons.Clipboard,
+              title: `Build the lineup vs ${next.opponent}`,
+              sub: `${formatGameDateDisplay(next.date)} · ${when}`,
+              tag: "Lineup",
+              ctaLabel: "Build",
+              onClick: () => goToGame(next),
+            });
+          }
+          const attMarked = Object.keys(next.attendance || {}).length;
+          if (dd <= 2 && attMarked === 0) {
+            out.push({
+              id: "attendance",
+              priority: 68,
+              accent: "warn",
+              icon: Icons.Users,
+              title: `Confirm who's coming vs ${next.opponent}`,
+              sub: `Attendance not set · game ${when}`,
+              tag: "Attendance",
+              ctaLabel: "Set",
+              onClick: () => goToGame(next),
+            });
+          }
+        }
+
+        // ----- Team Fees: deposit + full fee -----
+        const fees = teamFeesStatus(finances, players);
+        if (fees.depositAmount > 0 && fees.depositOwedCount > 0) {
+          const m = dueMeta(fees.depositDueDate);
+          out.push({
+            id: "fees-deposit",
+            priority: 50 + m.bump,
+            accent: m.accent,
+            icon: Icons.Wallet,
+            title: `${fees.depositOwedCount} famil${
+              fees.depositOwedCount === 1 ? "y" : "ies"
+            } owe the team-fee deposit`,
+            sub: `${formatCurrency(fees.depositOutstanding)} in deposits outstanding`,
+            tag: m.tag || "Deposit",
+            ctaLabel: "Collect",
+            onClick: () => setActiveTab("finances"),
+          });
+        }
+        if (fees.stillOwed > 0) {
+          const m = dueMeta(fees.feeDueDate);
+          out.push({
+            id: "fees-full",
+            priority: 40 + m.bump,
+            accent: m.accent,
+            icon: Icons.Wallet,
+            title: `${formatCurrency(fees.stillOwed)} in team fees outstanding`,
+            sub: `${fees.fullOwedCount} famil${
+              fees.fullOwedCount === 1 ? "y" : "ies"
+            } still owe`,
+            tag: m.tag || "Team Fees",
+            ctaLabel: "Collect",
+            onClick: () => setActiveTab("finances"),
+          });
+        }
       }
-    }
 
-    return out.sort((a, b) => b.priority - a.priority);
-  }, [
-    games,
-    players,
-    finances,
-    isHead,
-    promptStatus,
-    todayStr,
-    setActiveTab,
-    setSelectedGameId,
-    setOpponentName,
-    setLineup,
-    setBattingLineup,
-    setCurrentGameAttendance,
-  ]);
+      return out.sort((a, b) => b.priority - a.priority);
+    }, [
+      games,
+      players,
+      finances,
+      isHead,
+      promptStatus,
+      todayStr,
+      setActiveTab,
+      setSelectedGameId,
+      setOpponentName,
+      setLineup,
+      setBattingLineup,
+      setCurrentGameAttendance,
+    ]);
 
-  const visible = items.filter((i) => !snoozed.has(i.id));
-  if (visible.length === 0) return null;
+    const visible = items.filter((i) => !snoozed.has(i.id));
+    if (visible.length === 0) return null;
 
-  return (
-    <div className="relative rounded-2xl border border-line shadow-card overflow-hidden bg-surface">
-      <div
-        className="absolute inset-y-0 left-0 w-[3px]"
-        style={{
-          background: "var(--team-primary)",
-          boxShadow: "0 0 18px 1px var(--team-primary)",
-        }}
-        aria-hidden="true"
-      />
-      <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-line">
-        <h2 className="text-sm font-black uppercase tracking-tight text-ink">
-          Up Next
-        </h2>
-        <span
-          className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
+    return (
+      <div className="relative rounded-2xl border border-line shadow-card overflow-hidden bg-surface">
+        <div
+          className="absolute inset-y-0 left-0 w-[3px]"
           style={{
-            backgroundColor: "var(--team-primary)",
-            color: "var(--team-tertiary)",
+            background: "var(--team-primary)",
+            boxShadow: "0 0 18px 1px var(--team-primary)",
           }}
-        >
-          {visible.length}
-        </span>
-        <span className="ml-auto t-eyebrow text-ink-3">Sorted by urgency</span>
-      </div>
-      {visible.map((item) => {
-        const accent = UP_NEXT_ACCENTS[item.accent] || UP_NEXT_ACCENTS.primary;
-        const Icon = item.icon;
-        // Row is a flex of two buttons (action + snooze) rather than a button
-        // nesting a button, which is invalid markup.
-        return (
-          <div
-            key={item.id}
-            className="flex items-stretch border-t border-line first:border-t-0"
+          aria-hidden="true"
+        />
+        <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-line">
+          <h2 className="text-sm font-black uppercase tracking-tight text-ink">
+            Up Next
+          </h2>
+          <span
+            className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
+            style={{
+              backgroundColor: "var(--team-primary)",
+              color: "var(--team-tertiary)",
+            }}
           >
-            <button
-              type="button"
-              onClick={item.onClick}
-              className="flex-1 min-w-0 text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-surface-2 transition-colors"
+            {visible.length}
+          </span>
+          <span className="ml-auto t-eyebrow text-ink-3">
+            Sorted by urgency
+          </span>
+        </div>
+        {visible.map((item) => {
+          const accent =
+            UP_NEXT_ACCENTS[item.accent] || UP_NEXT_ACCENTS.primary;
+          const Icon = item.icon;
+          // Row is a flex of two buttons (action + snooze) rather than a button
+          // nesting a button, which is invalid markup.
+          return (
+            <div
+              key={item.id}
+              className="flex items-stretch border-t border-line first:border-t-0"
             >
-              <span
-                className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
-                style={{ backgroundColor: accent.bg }}
+              <button
+                type="button"
+                onClick={item.onClick}
+                className="flex-1 min-w-0 text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-surface-2 transition-colors"
               >
-                <Icon className="w-5 h-5" style={{ color: accent.fg }} />
-              </span>
-              <span className="flex-1 min-w-0">
-                <span className="flex items-center gap-2 flex-wrap">
-                  <span className="t-body-bold text-ink">{item.title}</span>
-                  {item.tag && (
-                    <span
-                      className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
-                      style={{ backgroundColor: accent.bg, color: accent.fg }}
-                    >
-                      {item.tag}
+                <span
+                  className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
+                  style={{ backgroundColor: accent.bg }}
+                >
+                  <Icon className="w-5 h-5" style={{ color: accent.fg }} />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-2 flex-wrap">
+                    <span className="t-body-bold text-ink">{item.title}</span>
+                    {item.tag && (
+                      <span
+                        className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+                        style={{ backgroundColor: accent.bg, color: accent.fg }}
+                      >
+                        {item.tag}
+                      </span>
+                    )}
+                  </span>
+                  {item.sub && (
+                    <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
+                      {item.sub}
                     </span>
                   )}
                 </span>
-                {item.sub && (
-                  <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
-                    {item.sub}
-                  </span>
-                )}
-              </span>
-              <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
-                {item.ctaLabel}
-                <Icons.ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                setSnoozed((prev) => {
-                  const next = new Set(prev);
-                  next.add(item.id);
-                  return next;
-                })
-              }
-              aria-label={`Snooze: ${item.title}`}
-              title="Snooze"
-              className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
-            >
-              <Icons.X className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-});
+                <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
+                  {item.ctaLabel}
+                  <Icons.ChevronRight className="w-3.5 h-3.5" />
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSnoozed((prev) => {
+                    const next = new Set(prev);
+                    next.add(item.id);
+                    return next;
+                  })
+                }
+                aria-label={`Snooze: ${item.title}`}
+                title="Snooze"
+                className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
+              >
+                <Icons.X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  },
+);
 
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
@@ -1565,11 +1710,19 @@ export const HomeTab = memo(() => {
     tertiaryColor,
   } = team;
   const stripped = team.statDisplay === "stripped";
+  // teams/coaches come from TeamContextValue which carries [key:string]:any;
+  // cast to typed arrays so callbacks don't need per-element `: any`.
+  const typedTeams = teams as Array<{ id: string; name?: string }>;
   const activeTeamName =
-    teams.find((t: any) => t.id === activeTeamId)?.name || "TEAM";
-  const headCoaches = coaches.filter((c: any) => c.role === "Head Coach");
-  const assistantCoaches = coaches.filter(
-    (c: any) => c.role === "Assistant Coach",
+    typedTeams.find((t) => t.id === activeTeamId)?.name || "TEAM";
+  interface CoachEntry {
+    role?: string;
+    name?: string;
+  }
+  const typedCoaches = coaches as CoachEntry[];
+  const headCoaches = typedCoaches.filter((c) => c.role === "Head Coach");
+  const assistantCoaches = typedCoaches.filter(
+    (c) => c.role === "Assistant Coach",
   );
 
   const todayStr = useMemo(() => {
@@ -1590,19 +1743,20 @@ export const HomeTab = memo(() => {
   const seasonHero = useMemo(() => {
     const finals = (games || [])
       .filter(countsTowardStats)
-      .sort((a: any, b: any) => String(a.date).localeCompare(String(b.date)));
+      .sort((a: Game, b: Game) => String(a.date).localeCompare(String(b.date)));
+    const gs = (g: Game, k: "teamScore" | "opponentScore") => Number(g[k]) || 0;
     let runsFor = 0;
     let runsAgainst = 0;
     for (const g of finals) {
-      runsFor += Number(g.teamScore) || 0;
-      runsAgainst += Number(g.opponentScore) || 0;
+      runsFor += gs(g, "teamScore");
+      runsAgainst += gs(g, "opponentScore");
     }
     const form = finals
       .slice(-5)
-      .map((g: any) =>
-        g.teamScore > g.opponentScore
+      .map((g: Game) =>
+        gs(g, "teamScore") > gs(g, "opponentScore")
           ? "W"
-          : g.teamScore < g.opponentScore
+          : gs(g, "teamScore") < gs(g, "opponentScore")
             ? "L"
             : "T",
       );
@@ -1694,9 +1848,17 @@ export const HomeTab = memo(() => {
                 played BOTH (otherwise it just repeats the combined record). */}
                 {!stripped &&
                   (() => {
-                    const bf = (record as any).byFormat;
-                    const has = (r: any) => r && r.wins + r.losses + r.ties > 0;
-                    const fmt = (r: any) =>
+                    interface RecordSlice {
+                      wins: number;
+                      losses: number;
+                      ties: number;
+                    }
+                    const bf = (record as Record<string, unknown>).byFormat as
+                      | { kidPitch?: RecordSlice; machine?: RecordSlice }
+                      | undefined;
+                    const has = (r?: RecordSlice) =>
+                      r && r.wins + r.losses + r.ties > 0;
+                    const fmt = (r: RecordSlice) =>
                       r.ties > 0
                         ? `${r.wins}–${r.losses}–${r.ties}`
                         : `${r.wins}–${r.losses}`;
@@ -1705,10 +1867,10 @@ export const HomeTab = memo(() => {
                     return (
                       <div className="flex flex-wrap items-center gap-2 mt-3">
                         <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
-                          Kid Pitch {fmt(bf.kidPitch)}
+                          Kid Pitch {fmt(bf.kidPitch!)}
                         </span>
                         <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
-                          Machine/Coach {fmt(bf.machine)}
+                          Machine/Coach {fmt(bf.machine!)}
                         </span>
                       </div>
                     );
@@ -1746,7 +1908,7 @@ export const HomeTab = memo(() => {
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mr-1">
                   Form
                 </span>
-                {seasonHero.form.map((r: any, i: any) => (
+                {seasonHero.form.map((r: string, i: number) => (
                   <span
                     key={i}
                     className={`w-6 h-6 rounded-sm grid place-items-center text-[10px] font-black ${
@@ -1786,7 +1948,7 @@ export const HomeTab = memo(() => {
                       `${n >= 0 ? "+" : ""}${Math.round(n)}`,
                   },
                   { k: "Roster", v: players.length },
-                ].map((s: any) => (
+                ].map((s) => (
                   <div key={s.k}>
                     <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
                       {s.k}
@@ -1815,7 +1977,7 @@ export const HomeTab = memo(() => {
                     Head Coach
                   </span>
                   <span className="text-sm font-bold text-ink">
-                    {headCoaches.map((c: any) => c.name).join(", ")}
+                    {headCoaches.map((c) => c.name).join(", ")}
                   </span>
                 </div>
               )}
@@ -1825,7 +1987,7 @@ export const HomeTab = memo(() => {
                     Assistant Coaches
                   </span>
                   <span className="text-sm font-bold text-ink">
-                    {assistantCoaches.map((c: any) => c.name).join(", ")}
+                    {assistantCoaches.map((c) => c.name).join(", ")}
                   </span>
                 </div>
               )}
@@ -1939,6 +2101,14 @@ export const HomeTab = memo(() => {
 // Tabbed leaderboard section. All stats render within each tab (no
 // hidden subsets) but the card density is tight so the whole section
 // stays compact.
+interface LeaderboardsSectionProps {
+  players: Player[];
+  isKidPitch: boolean;
+  primaryColor?: string;
+  tertiaryColor?: string;
+  onPlayerClick?: (id: string) => void;
+  stripped?: boolean;
+}
 const LeaderboardsSection = memo(
   ({
     players,
@@ -1947,7 +2117,7 @@ const LeaderboardsSection = memo(
     tertiaryColor,
     onPlayerClick,
     stripped = false,
-  }: any) => {
+  }: LeaderboardsSectionProps) => {
     const tabs = useMemo(() => {
       const out = [
         {
@@ -1965,7 +2135,7 @@ const LeaderboardsSection = memo(
       ];
       // Only show Pitching tab when at least one player has pitched (any IP).
       const anyPitches = (players || []).some(
-        (p: any) =>
+        (p: Player) =>
           Number(p.stats?.ip) > 0 || Number(p.stats?.totalPitches) > 0,
       );
       if (isKidPitch && anyPitches) {

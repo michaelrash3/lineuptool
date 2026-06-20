@@ -11,6 +11,7 @@ import React, {
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import {
   signInWithCustomToken,
+  type User,
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
@@ -32,8 +33,18 @@ import {
   deleteDoc,
   updateDoc,
   arrayRemove,
+  DocumentSnapshot,
+  FirestoreError,
 } from "firebase/firestore";
 import { Icons } from "./icons";
+import type {
+  ToastInput,
+  Team,
+  Game,
+  Inning,
+  SlimPlayer,
+  TournamentPlan,
+} from "./types";
 import { auth, db, appId } from "./firebase";
 import {
   ToastContext,
@@ -207,7 +218,7 @@ const ScreenLoader = () => (
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
 
-const authDiag = (event: any, details = {}) => {
+const authDiag = (event: string, details = {}) => {
   if (typeof console === "undefined") return;
   console.info("[auth-diag]", event, {
     ts: new Date().toISOString(),
@@ -218,19 +229,19 @@ const authDiag = (event: any, details = {}) => {
 /* ============================================================================
    SECTION 5 · Toast system (replaces scattered setGenerationError)
 ============================================================================ */
-const ToastProvider = ({ children }: any) => {
-  const [toasts, setToasts] = useState<any[]>([]);
+const ToastProvider = ({ children }: { children: React.ReactNode }) => {
+  const [toasts, setToasts] = useState<(ToastInput & { id: number })[]>([]);
   const counter = useRef(0);
 
-  const dismiss = useCallback((id: any) => {
+  const dismiss = useCallback((id: number | string) => {
     setToasts((cur) => cur.filter((t) => t.id !== id));
   }, []);
 
   const push = useCallback(
-    (toast: any) => {
+    (toast: ToastInput) => {
       counter.current += 1;
       const id = counter.current;
-      const t = { id, kind: "info", duration: 4000, ...toast };
+      const t = { kind: "info" as const, duration: 4000, ...toast, id };
       setToasts((cur) => [...cur, t]);
       if (t.duration > 0) {
         setTimeout(() => dismiss(id), t.duration);
@@ -281,90 +292,104 @@ const TOAST_TONES = {
   },
 };
 
-const toastIcon = (kind: any) => {
+const toastIcon = (kind: string) => {
   if (kind === "success") return Icons.Check;
   if (kind === "error") return Icons.Alert;
   if (kind === "warn") return Icons.Alert;
   return Icons.Cloud;
 };
 
-const ToastContainer = memo(({ toasts, dismiss }: any) => {
-  // Stays mounted even when empty so AnimatePresence can play exit
-  // animations on the last toast; pointer-events pass through the empty
-  // container.
-  return (
-    <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden pointer-events-none">
-      <AnimatePresence>
-        {toasts.map((t: any) => {
-          const tone = (TOAST_TONES as any)[t.kind] || TOAST_TONES.info;
-          const Icon = toastIcon(t.kind);
-          return (
-            <m.div
-              key={t.id}
-              layout
-              initial={{ opacity: 0, x: 48 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3 pointer-events-auto"
-              role="status"
-            >
-              <span
-                className="absolute left-0 top-0 bottom-0 w-1"
-                style={{ backgroundColor: tone.accent }}
-              />
-              <span
-                className="shrink-0 w-9 h-9 rounded-[10px] grid place-items-center text-white"
-                style={{ background: tone.iconBg, boxShadow: tone.iconShadow }}
+const ToastContainer = memo(
+  ({
+    toasts,
+    dismiss,
+  }: {
+    toasts: (ToastInput & { id: number })[];
+    dismiss: (id: number | string) => void;
+  }) => {
+    // Stays mounted even when empty so AnimatePresence can play exit
+    // animations on the last toast; pointer-events pass through the empty
+    // container.
+    return (
+      <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden pointer-events-none">
+        <AnimatePresence>
+          {toasts.map((t) => {
+            const tone =
+              (TOAST_TONES as Record<string, typeof TOAST_TONES.info>)[
+                t.kind as string
+              ] || TOAST_TONES.info;
+            const Icon = toastIcon(t.kind ?? "info");
+            return (
+              <m.div
+                key={t.id}
+                layout
+                initial={{ opacity: 0, x: 48 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3 pointer-events-auto"
+                role="status"
               >
-                <Icon className="w-[18px] h-[18px]" />
-              </span>
-              <div className="flex-1 min-w-0">
-                {t.title && (
-                  <div
-                    className="t-button text-ink"
-                    style={{ fontSize: "12px" }}
-                  >
-                    {t.title}
-                  </div>
-                )}
-                {t.message && (
-                  <div className="text-[11.5px] font-semibold text-ink-2 mt-0.5 leading-snug">
-                    {t.message}
-                  </div>
-                )}
-              </div>
-              {t.action && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    t.action.onClick();
-                    dismiss(t.id);
-                  }}
-                  className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
+                <span
+                  className="absolute left-0 top-0 bottom-0 w-1"
+                  style={{ backgroundColor: tone.accent }}
+                />
+                <span
+                  className="shrink-0 w-9 h-9 rounded-[10px] grid place-items-center text-white"
                   style={{
-                    color: tone.actionColor,
-                    borderColor: tone.actionBorder,
+                    background: tone.iconBg,
+                    boxShadow: tone.iconShadow,
                   }}
                 >
-                  {t.action.label}
+                  <Icon className="w-[18px] h-[18px]" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  {t.title && (
+                    <div
+                      className="t-button text-ink"
+                      style={{ fontSize: "12px" }}
+                    >
+                      {t.title}
+                    </div>
+                  )}
+                  {t.message && (
+                    <div className="text-[11.5px] font-semibold text-ink-2 mt-0.5 leading-snug">
+                      {t.message}
+                    </div>
+                  )}
+                </div>
+                {t.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      t.action?.onClick();
+                      dismiss(t.id);
+                    }}
+                    className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
+                    style={{
+                      color: tone.actionColor,
+                      borderColor: tone.actionBorder,
+                    }}
+                  >
+                    {t.action.label}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => dismiss(t.id)}
+                  aria-label="Dismiss"
+                  className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
+                >
+                  <Icons.X className="w-3 h-3" />
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => dismiss(t.id)}
-                aria-label="Dismiss"
-                className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
-              >
-                <Icons.X className="w-3 h-3" />
-              </button>
-            </m.div>
-          );
-        })}
-      </AnimatePresence>
-    </div>
-  );
-});
+              </m.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    );
+  },
+);
 
 /* ============================================================================
    SECTION 6 · TeamContext   — see ./contexts
@@ -410,15 +435,15 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
    SECTION 17 · TeamProvider — owns team state, Firebase subscriptions, actions
    This replaces the prop-drilled state/actions object in the original.
 ============================================================================ */
-const TeamProvider = ({ children }: any) => {
+const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const toast = useToast();
   const { confirm, promptText } = useConfirm();
 
   // Auth + team-list state
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [activeTeamId, setActiveTeamId] = useState<any>(null);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [teamData, setTeamData] = useState<any>(DEFAULT_TEAM_DATA);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
@@ -497,15 +522,15 @@ const TeamProvider = ({ children }: any) => {
       // lists teams (stale/raced snapshot), adopt them instead of creating a
       // parallel default team — and never overwrite that list.
       const existingSnap = await getDoc(settingsRef);
-      const existingData: any = existingSnap.exists()
-        ? existingSnap.data()
-        : null;
+      const existingData = existingSnap.exists() ? existingSnap.data() : null;
       const existingTeams = Array.isArray(existingData?.teams)
         ? existingData.teams
         : [];
       if (existingTeams.length > 0) {
         setTeams(existingTeams);
-        setActiveTeamId(existingData.activeTeamId || existingTeams[0].id);
+        setActiveTeamId(
+          (existingData as any)?.activeTeamId || existingTeams[0].id,
+        );
         return existingTeams[0].id;
       }
       const id = "team-" + Math.random().toString(36).substring(2, 10);
@@ -596,11 +621,11 @@ const TeamProvider = ({ children }: any) => {
       "teams",
     );
     let unsub = () => {};
-    let retryTimeout: any = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let permissionRetried = false;
 
-    const handleSnap = async (snap: any) => {
+    const handleSnap = async (snap: DocumentSnapshot) => {
       if (cancelled) return;
       setTeamsLoadFailed(false);
       let data = snap.exists() ? snap.data() : null;
@@ -672,7 +697,7 @@ const TeamProvider = ({ children }: any) => {
     // permission-denied. Retry once before surfacing — and either way mark
     // the load as FAILED rather than "no teams", so the WelcomeChooser never
     // walks a coach with a real team through team creation off a read error.
-    const handleErr = (err: any) => {
+    const handleErr = (err: FirestoreError) => {
       if (cancelled) return;
       if (err?.code === "permission-denied" && !permissionRetried) {
         permissionRetried = true;
@@ -723,11 +748,11 @@ const TeamProvider = ({ children }: any) => {
       activeTeamId,
     );
     let unsub = () => {};
-    let retryTimeout: any = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
     let permissionRetried = false;
 
-    const handleSnap = (snap: any) => {
+    const handleSnap = (snap: DocumentSnapshot) => {
       if (cancelled) return;
       if (snap.exists()) {
         const raw = snap.data();
@@ -824,7 +849,7 @@ const TeamProvider = ({ children }: any) => {
               const isCatcher = comfort.includes("C")
                 ? p.primaryPosition === "C"
                 : p.isCatcher === true;
-              const next = comfort.filter((pos: any) => pos !== "C");
+              const next = comfort.filter((pos: string) => pos !== "C");
               if (isCatcher) next.push("C");
               const { isCatcher: _dropped, ...rest } = p;
               return { ...rest, comfortablePositions: next };
@@ -884,7 +909,7 @@ const TeamProvider = ({ children }: any) => {
                   nextGrades[pid] = grade;
                   continue;
                 }
-                const g: any = grade;
+                const g = grade as Record<string, any>;
                 const out: Record<string, any> = {};
                 for (const k of carry) {
                   if (typeof g[k] === "number") out[k] = g[k];
@@ -1012,7 +1037,7 @@ const TeamProvider = ({ children }: any) => {
     // rules engine yet. Swallow the first permission-denied error and
     // re-subscribe after a short delay; only surface a toast if the
     // retry also fails.
-    const handleErr = (err: any) => {
+    const handleErr = (err: FirestoreError) => {
       if (cancelled) return;
       if (err?.code === "permission-denied" && !permissionRetried) {
         permissionRetried = true;
@@ -1048,7 +1073,7 @@ const TeamProvider = ({ children }: any) => {
   // toast when the caller surfaces its own (e.g. a rollback + retry message).
   const persistTeam = useCallback(
     async (
-      updates: any,
+      updates: Partial<Team>,
       opts?: { silent?: boolean; allowEmptyPlayers?: boolean },
     ): Promise<boolean> => {
       if (!activeTeamId) return false;
@@ -1081,7 +1106,12 @@ const TeamProvider = ({ children }: any) => {
       // to {id, name, number} to stay under the Firestore 1MB document limit.
       let toPersist = updates;
       if (Array.isArray(updates.games)) {
-        toPersist = { ...updates, games: updates.games.map(slimGame) };
+        toPersist = {
+          ...updates,
+          games: updates.games
+            .map(slimGame)
+            .filter((g): g is Game => g != null),
+        };
       }
       // Player photos were removed from the app — they lived as inline base64 on
       // each player and pushed this single team doc toward the 1 MB cap. Never
@@ -1089,7 +1119,7 @@ const TeamProvider = ({ children }: any) => {
       if (Array.isArray(toPersist.players)) {
         toPersist = {
           ...toPersist,
-          players: toPersist.players.map((p: any) => {
+          players: toPersist.players.map((p) => {
             if (!p || !("photoUrl" in p)) return p;
             const { photoUrl: _dropped, ...rest } = p;
             return rest;
@@ -1097,7 +1127,7 @@ const TeamProvider = ({ children }: any) => {
         };
       }
       // Scrub any undefined values from the tree — Firestore rejects them.
-      toPersist = scrubUndefined(toPersist);
+      toPersist = scrubUndefined(toPersist) as Partial<Team>;
 
       // Storage-headroom guard: the whole team is one Firestore doc (1 MiB cap).
       // Estimate the post-merge size (games slimmed as they will be stored) and
@@ -1347,9 +1377,9 @@ const TeamProvider = ({ children }: any) => {
     if (loadedTeamIdRef.current !== activeTeamId) return;
     const players = teamData.players;
     if (!Array.isArray(players) || players.length === 0) return;
-    if (!players.some((p: any) => p && p.photoUrl)) return;
+    if (!players.some((p) => p && p.photoUrl)) return;
     photoStripAttemptedRef.current.add(activeTeamId);
-    const stripped = players.map((p: any) => {
+    const stripped = players.map((p) => {
       if (!p || !("photoUrl" in p)) return p;
       const { photoUrl: _dropped, ...rest } = p;
       return rest;
@@ -1432,7 +1462,7 @@ const TeamProvider = ({ children }: any) => {
 
   // ----- Coach actions -----
   const addCoach = useCallback(
-    (form: any) => {
+    (form: { name: string; role: string }) => {
       if (!form.name.trim()) return;
       const newCoach = {
         id: "c-" + Math.random().toString(36).substring(2, 10),
@@ -1445,8 +1475,10 @@ const TeamProvider = ({ children }: any) => {
   );
 
   const removeCoach = useCallback(
-    (id: any) => {
-      updateTeam({ coaches: teamData.coaches.filter((c: any) => c.id !== id) });
+    (id: string) => {
+      updateTeam({
+        coaches: teamData.coaches.filter((c: { id: string }) => c.id !== id),
+      });
     },
     [teamData.coaches, updateTeam],
   );
@@ -1488,7 +1520,7 @@ const TeamProvider = ({ children }: any) => {
 
   // ----- Team management -----
   const switchTeam = useCallback(
-    async (id: any) => {
+    async (id: string) => {
       setActiveTeamId(id);
       if (!user) return;
       try {
@@ -1510,7 +1542,7 @@ const TeamProvider = ({ children }: any) => {
   );
 
   const createTeam = useCallback(
-    async (name: any, leagueRuleSet?: "NKB" | "USSSA") => {
+    async (name: string = "", leagueRuleSet?: "NKB" | "USSSA") => {
       if (!user || !name.trim()) return false;
       const id = "team-" + Math.random().toString(36).substring(2, 10);
       setSyncStatus("Creating");
@@ -1547,11 +1579,13 @@ const TeamProvider = ({ children }: any) => {
         // if this create was reached through a wrongly-shown WelcomeChooser
         // (teams state transiently empty), `[...teams, new]` would overwrite
         // the settings doc and orphan every existing team.
-        let serverTeams: any = null;
+        let serverTeams: { id: string; name: string }[] | null = null;
         try {
           const settingsSnap = await getDoc(userRef);
           serverTeams = settingsSnap.exists()
-            ? (settingsSnap.data() as any)?.teams
+            ? (((settingsSnap.data() as Record<string, unknown>)?.teams as
+                | { id: string; name: string }[]
+                | undefined) ?? null)
             : null;
         } catch {
           // Read failed — fall back to merging with local state only.
@@ -1583,7 +1617,13 @@ const TeamProvider = ({ children }: any) => {
   );
 
   const advanceSeason = useCallback(
-    async (opts: any = {}) => {
+    async (
+      opts: {
+        skipConfirm?: boolean;
+        tryoutsToPromote?: string[];
+        tryoutDepositPayments?: Record<string, string>;
+      } = {},
+    ) => {
       const { skipConfirm = false, tryoutsToPromote = [] } = opts;
       const computed = computeNextSeason(teamData.currentSeason);
       if (!computed) {
@@ -1762,7 +1802,7 @@ const TeamProvider = ({ children }: any) => {
               ...(Array.isArray(s.comfortablePositions)
                 ? s.comfortablePositions
                 : []
-              ).filter((p: any) => p !== "C"),
+              ).filter((p: string) => p !== "C"),
               ...(s.isCatcher === true ? ["C"] : []),
             ],
             parentName: s.parentName || "",
@@ -1798,7 +1838,7 @@ const TeamProvider = ({ children }: any) => {
         : teamData.finances;
       const depositAmount = Math.max(
         0,
-        Number((newSeasonFinances as any)?.depositAmount) || 0,
+        Number(newSeasonFinances?.depositAmount) || 0,
       );
       const tryoutDepositPayments = (opts?.tryoutDepositPayments ||
         {}) as Record<string, string>;
@@ -1824,7 +1864,7 @@ const TeamProvider = ({ children }: any) => {
           ? {
               ...(newSeasonFinances || {}),
               payments: [
-                ...(((newSeasonFinances as any)?.payments || []) as any[]),
+                ...(newSeasonFinances?.payments || []),
                 ...promotedDepositPayments,
               ],
             }
@@ -1870,7 +1910,7 @@ const TeamProvider = ({ children }: any) => {
   );
 
   const uploadLogo = useCallback(
-    (e: any) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       // Instead of rejecting an oversized logo, auto-shrink it: downscale to a
@@ -1949,7 +1989,7 @@ const TeamProvider = ({ children }: any) => {
     if (!ok) return;
     try {
       await deleteDoc(
-        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId),
+        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
       const remaining = teams.filter((t) => t.id !== activeTeamId);
       const userRef = doc(
@@ -1989,7 +2029,7 @@ const TeamProvider = ({ children }: any) => {
         "public",
         "data",
         "teams",
-        activeTeamId,
+        activeTeamId!,
       );
       // Atomic self-removal: arrayRemove drops only this user without a
       // read-modify-write of the whole members array, so a concurrent join
@@ -2070,7 +2110,7 @@ const TeamProvider = ({ children }: any) => {
       return null;
     }
   });
-  const setViewAsRole = useCallback((next: any) => {
+  const setViewAsRole = useCallback((next: string | null) => {
     setViewAsRoleState(next);
     try {
       if (next) window.sessionStorage.setItem("lineuptool.viewAsRole", next);
@@ -2106,7 +2146,7 @@ const TeamProvider = ({ children }: any) => {
     if (explicit === "assistant") return "assistant";
     if (!teamData.ownerId) {
       const members = Array.isArray(teamData.members) ? teamData.members : [];
-      const others = members.filter((uid: any) => uid && uid !== user.uid);
+      const others = members.filter((uid: string) => uid && uid !== user?.uid);
       if (others.length === 0) return "head";
     }
     return "assistant";
@@ -2156,7 +2196,9 @@ const TeamProvider = ({ children }: any) => {
     if (teamData.ownerId) return;
     if (migrationAttemptedRef.current.has(activeTeamId)) return;
     const members = Array.isArray(teamData.members) ? teamData.members : [];
-    const otherMembers = members.filter((uid: any) => uid && uid !== user.uid);
+    const otherMembers = members.filter(
+      (uid: string) => uid && uid !== user?.uid,
+    );
     const hasCoachRoles =
       teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0;
     if (otherMembers.length > 0 || hasCoachRoles) {
@@ -2210,7 +2252,7 @@ const TeamProvider = ({ children }: any) => {
         ? `${window.location.origin}${window.location.pathname}#/evaluation`
         : "/evaluation";
     const subject = `[${teamName}] Eval round due`;
-    const buildBody = (recipientName: any) =>
+    const buildBody = (recipientName: string | null | undefined) =>
       [
         `Hi ${recipientName || "coach"},`,
         "",
@@ -2232,7 +2274,7 @@ const TeamProvider = ({ children }: any) => {
       // Fall back to skipping: we can't look up emails for legacy
       // members without a contact entry.
       const c = contacts.find(
-        (cc: any) =>
+        (cc: { uid?: string; email?: string; name?: string }) =>
           cc.uid === uid ||
           (cc.email &&
             (teamData.coachRoles || {})[uid] === "assistant" &&
@@ -2271,7 +2313,7 @@ const TeamProvider = ({ children }: any) => {
             to: r.email,
             subject,
             body: buildBody(r.name),
-            fromEmail: user.email,
+            fromEmail: user.email ?? "",
             fromName,
           });
           sent++;
@@ -2469,7 +2511,7 @@ const TeamProvider = ({ children }: any) => {
         else r.ties++;
       };
       tally(combined);
-      if (isKidPitchFormat((g as any).pitchingFormat || teamFmt)) tally(kid);
+      if (isKidPitchFormat((g as Game)?.pitchingFormat || teamFmt)) tally(kid);
       else tally(machine);
     }
     return { ...combined, byFormat: { kidPitch: kid, machine } };
@@ -2682,7 +2724,7 @@ const TeamProvider = ({ children }: any) => {
    Bridges back to TeamProvider through `uiBridge` ref so generate/save can
    read the current UI state without re-rendering on every keystroke.
 ============================================================================ */
-const UIProvider = ({ children }: any) => {
+const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const team = useTeam();
   const toast = useToast();
 
@@ -2695,7 +2737,7 @@ const UIProvider = ({ children }: any) => {
   });
 
   // Schedule tab state
-  const [selectedGameId, setSelectedGameId] = useState<any>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [isAddingGame, setIsAddingGame] = useState(false);
   const [newGameForm, setNewGameForm] = useState({
     date: getLocalDateString(),
@@ -2704,8 +2746,8 @@ const UIProvider = ({ children }: any) => {
     pitchingFormat: "Kid Pitch",
     isScrimmage: false,
   });
-  const [scoringGameId, setScoringGameId] = useState<any>(null); // game whose score is being entered inline
-  const [inGameId, setInGameId] = useState<any>(null); // game currently in In-Game mode
+  const [scoringGameId, setScoringGameId] = useState<string | null>(null); // game whose score is being entered inline
+  const [inGameId, setInGameId] = useState<string | null>(null); // game currently in In-Game mode
   const [inGameInning, setInGameInning] = useState(0); // current inning during in-game mode (0-indexed)
   const [inGameSelection, setInGameSelection] = useState<any>(null); // { type: "position"|"bench", pos?, playerId } — first tap of a swap pair
   const [inGameUndoStack, setInGameUndoStack] = useState<any[]>([]); // last swap undo data
@@ -2713,14 +2755,18 @@ const UIProvider = ({ children }: any) => {
   const [pastSeasonImport, setPastSeasonImport] = useState<any>(null); // null when closed; { rows, season, ageGroup, pitchingFormat, assignments } when open
   const [currentGameAttendance, setCurrentGameAttendance] = useState<any>({});
   const [firstInningLineup, setFirstInningLineup] = useState<any>({});
-  const [lineup, setLineup] = useState<any>(null);
-  const [battingLineup, setBattingLineup] = useState<any>(null);
+  const [lineup, setLineup] = useState<Inning[] | null>(null);
+  const [battingLineup, setBattingLineup] = useState<SlimPlayer[] | null>(null);
   // Penalty score emitted by the engine for the current in-editor lineup
   // (null when no generated lineup is in scope). Lower = better.
-  const [lineupQualityPenalty, setLineupQualityPenalty] = useState<any>(null);
+  const [lineupQualityPenalty, setLineupQualityPenalty] = useState<
+    number | null
+  >(null);
   // Tournament plan (starters / scripted subs / relief options) riding with
   // the current in-editor lineup. Null for Rec lineups.
-  const [tournamentPlan, setTournamentPlan] = useState<any>(null);
+  const [tournamentPlan, setTournamentPlan] = useState<TournamentPlan | null>(
+    null,
+  );
   const [swapSelection, setSwapSelection] = useState<any>(null);
   const [gameSaved, setGameSaved] = useState(false);
   const [opponentName, setOpponentName] = useState("");
@@ -2732,7 +2778,7 @@ const UIProvider = ({ children }: any) => {
 
   // Roster/profile state
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
-  const [viewingPlayerId, setViewingPlayerId] = useState<any>(null);
+  const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
 
   // Coach state
   const [isAddingCoach, setIsAddingCoach] = useState(false);
@@ -2926,23 +2972,27 @@ const UIProvider = ({ children }: any) => {
         setSwapSelection(null);
         return;
       }
-      setLineup((cur: any) => {
+      setLineup((cur: Inning[] | null) => {
         if (!cur) return cur;
-        const next = cur.map((inn: any) => ({
+        const next = cur.map((inn: Inning) => ({
           ...inn,
           BENCH: inn.BENCH ? [...inn.BENCH] : [],
-        }));
+        })) as Inning[];
         const slot = next[innIdx];
         const a = swapSelection.player;
         const b = player;
         if (swapSelection.pos === "BENCH" && pos === "BENCH") return cur;
         if (swapSelection.pos === "BENCH") {
           // a is on bench, b is in pos (or pos empty)
-          slot.BENCH = slot.BENCH.filter((p: any) => p.id !== a.id);
+          slot.BENCH = slot.BENCH!.filter(
+            (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== a.id,
+          );
           if (b) slot.BENCH.push(b);
           slot[pos] = a;
         } else if (pos === "BENCH") {
-          slot.BENCH = slot.BENCH.filter((p: any) => p.id !== b?.id);
+          slot.BENCH = slot.BENCH!.filter(
+            (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== b?.id,
+          );
           slot.BENCH.push(a);
           slot[swapSelection.pos] = null;
         } else {
@@ -2973,8 +3023,8 @@ const UIProvider = ({ children }: any) => {
     setLineup(lineup.slice(0, -1));
   }, [lineup]);
 
-  const moveBatter = useCallback((idx: any, delta: any) => {
-    setBattingLineup((cur: any) => {
+  const moveBatter = useCallback((idx: number, delta: number) => {
+    setBattingLineup((cur: SlimPlayer[] | null) => {
       if (!cur) return cur;
       const target = idx + delta;
       if (target < 0 || target >= cur.length) return cur;
@@ -2985,7 +3035,7 @@ const UIProvider = ({ children }: any) => {
   }, []);
 
   const openPlayerProfile = useCallback(
-    (id: any) => setViewingPlayerId(id),
+    (id: string) => setViewingPlayerId(id),
     [],
   );
 

@@ -74,12 +74,103 @@ type ExtraSitEntry = {
   expectedDef: number;
 };
 
+// Per-player state tracked across innings inside tryBuildLineup.
+type PlayerState = {
+  bench: number;
+  positions: Record<string, number>;
+  history: string[];
+};
+
 // Failure record emitted per attempt by tryBuildLineup.
 type BenchFailure = {
   type: string;
   position?: string;
   inning?: number;
   playerName?: string;
+};
+
+// Options bag for the inner position-scoring function.
+type PickBestOpts = {
+  pos: string;
+  inn: number;
+  profiled: ProfiledPlayer[];
+  used: Set<string | unknown>;
+  benchedSet: Set<string | unknown>;
+  state: Map<string, PlayerState>;
+  positionHistory: Map<string, Map<string, { total: number; bigGame: number }>>;
+  headGrades: Record<string, GradeMap>;
+  defenseSize?: string;
+  positionLock?: string;
+  leagueRuleSet?: string;
+  teamAge?: string;
+  targetDateStr?: string;
+  leftyPenalty?: number;
+  isLockInning?: boolean;
+  isBigGame?: boolean;
+  competitive?: boolean;
+  pitcherPoolIds?: Set<string> | null;
+  depthChartRank?: Map<string, Map<string, number>>;
+  chartedPlayerIds?: Set<string>;
+  isKidPitch?: boolean;
+  pitchRules?: PitchRuleSet;
+  sameDayRoles?: { pitched?: Set<string>; caught?: Set<string> } | null;
+  catcherCap?: number;
+  rand: () => number;
+  premiumPositions: Set<string>;
+  positionFlexibility: Map<string, number>;
+};
+
+// Inning-block representation for catcher rotation (back-to-back stints).
+type CatcherBlock = number[];
+
+// Options for the internal bench-schedule pre-computation pass.
+type BenchScheduleOpts = {
+  profiled: ProfiledPlayer[];
+  totalInnings: number;
+  numToBench: number;
+  competitive?: boolean;
+  priorExtraSits: Map<string, ExtraSitEntry>;
+  firstInningBenchHx: Map<string, number>;
+  topHalfIds: Set<string>;
+  catcherInningBlocks: CatcherBlock[] | null;
+  catcherCap: number;
+  enforceCatcherCap: boolean;
+  positionsToFill: string[];
+  rand: () => number;
+  forcedBenchInning0: Set<string> | null;
+  firstInningOverridesById: Record<string, string>;
+};
+
+// Context passed to each tryBuildLineup attempt.
+type TryBuildCtx = {
+  profiled: ProfiledPlayer[];
+  positionsToFill: string[];
+  numToBench: number;
+  totalInnings: number;
+  isStarter: Set<string>;
+  firstInningOverridesById: Record<string, string>;
+  positionHistory: Map<string, Map<string, { total: number; bigGame: number }>>;
+  firstInningBenchHx: Map<string, number>;
+  benchHistory: Map<string, ExtraSitEntry>;
+  headGrades: Record<string, GradeMap>;
+  defenseSize: string;
+  positionLock?: string;
+  leagueRuleSet?: string;
+  teamAge?: string;
+  targetDateStr: string;
+  leftyPenalty?: number;
+  isBigGame?: boolean;
+  competitive?: boolean;
+  pitcherPoolIds?: Set<string> | null;
+  depthChartRank?: Map<string, Map<string, number>>;
+  chartedPlayerIds?: Set<string>;
+  isKidPitch?: boolean;
+  pitchRules?: PitchRuleSet;
+  sameDayRoles?: { pitched?: Set<string>; caught?: Set<string> };
+  catcherPolicy?: CatcherPolicy;
+  rand: () => number;
+  fromInning?: number;
+  currentLineup?: Inning[] | null;
 };
 
 // ---------- Constants ----------
@@ -377,14 +468,14 @@ export function getCombinedGrades(
     // Pitch Velocity (mph) is a measurement, not a 1–5 grade — never average it
     // or default a missing reading to a number. Take the head coach's reading
     // when present, else the most recent assistant reading.
-    const headVelo = numOrNull((headG as any)?.pitchVelo);
+    const headVelo = numOrNull(headG?.pitchVelo);
     if (headVelo != null) {
-      (grades as any).pitchVelo = headVelo;
+      grades.pitchVelo = headVelo;
     } else {
       for (const ev of assistantEvals) {
-        const v = numOrNull((ev.grades?.[p.id] as any)?.pitchVelo);
+        const v = numOrNull(ev.grades?.[p.id]?.pitchVelo);
         if (v != null) {
-          (grades as any).pitchVelo = v;
+          grades.pitchVelo = v;
           break;
         }
       }
@@ -422,9 +513,7 @@ function getEffectiveStats(player: Player): PlayerStats & {
   __blendWeights?: { current: number; past1: number; past2: number };
 } {
   const cur: PlayerStats = player?.stats || {};
-  const pastAll: any[] = Array.isArray((player as any)?.pastSeasons)
-    ? (player as any).pastSeasons
-    : [];
+  const pastAll = Array.isArray(player?.pastSeasons) ? player.pastSeasons : [];
   // Take up to two most recent past seasons. Sort by descending season string.
   const past = [...pastAll]
     .filter((p) => p && p.stats)
@@ -444,9 +533,9 @@ function getEffectiveStats(player: Player): PlayerStats & {
 
   // Blend rate stats (avg, ops, obp, contact, ld, hard, qab, babip).
   const blend = (key: string): number => {
-    const c = +(cur as any)[key] || 0;
-    const p1 = past[0]?.stats ? +past[0].stats[key] || 0 : 0;
-    const p2 = past[1]?.stats ? +past[1].stats[key] || 0 : 0;
+    const c = Number(cur[key]) || 0;
+    const p1 = past[0]?.stats ? Number(past[0].stats[key]) || 0 : 0;
+    const p2 = past[1]?.stats ? Number(past[1].stats[key]) || 0 : 0;
     return (c * wCur + p1 * wP1 + p2 * wP2) / totalW;
   };
 
@@ -582,12 +671,12 @@ export function statPowerGrade(
     ...stats,
     __slg: slg ?? undefined,
     __xbh: xbh ?? undefined,
-  } as any;
+  };
   const q = bandedQuality(
     enriched,
     [
-      { key: "__slg" as any, w: 1.0, worst: 0.25, best: 0.7 },
-      { key: "__xbh" as any, w: 1.0, worst: 0.0, best: 0.2 },
+      { key: "__slg", w: 1.0, worst: 0.25, best: 0.7 },
+      { key: "__xbh", w: 1.0, worst: 0.0, best: 0.2 },
       { key: "hard", w: 1.25, worst: 0.1, best: 0.4 },
     ],
     true, // batting rates: 0 = not tracked (XBH rate keeps 0 via __xbh below)
@@ -745,14 +834,14 @@ function applyStatGrades(
   const topMph =
     numOrNull(raw.pTopMph) ??
     numOrNull(raw.pFbMph) ??
-    numOrNull((player as any)?.pitching?.topMph) ??
+    numOrNull(player?.pitching?.topMph) ??
     // Coach-entered Pitch Velocity from the eval form, when no imported radar
     // reading exists — feeds the same age-relative velocity grading.
-    numOrNull((grades as any)?.pitchVelo);
+    numOrNull(grades?.pitchVelo);
 
   const set = (v: number | null, ...keys: string[]) => {
     if (v == null) return;
-    for (const k of keys) (out as any)[k] = v;
+    for (const k of keys) out[k] = v;
   };
   set(statContactGrade(batting), "contact");
   set(statPowerGrade(batting), "power");
@@ -998,7 +1087,7 @@ export function checkPitchEligibility(
   ageGroup: string,
   ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET,
 ): boolean {
-  const pitching = (player as any).pitching;
+  const pitching = player.pitching;
   // Same-day total (doubleheaders sum together), not just the last outing.
   const { pitches: recent, date: lastDate } = mostRecentDayPitches(pitching);
   if (!lastDate || !recent) return true;
@@ -1589,7 +1678,7 @@ function positionFitSignal(
         ? ["velocity", "strikes", "offSpeed", "composure"]
         : ["receiving", "blocking", "throwing", "armAccuracy"];
     const total = keys.reduce(
-      (sum, key) => sum + Math.abs(((g as any)[key] ?? 3) - 3),
+      (sum, key) => sum + Math.abs((g[key] ?? 3) - 3),
       0,
     );
     return Math.min(1, total / (keys.length * 2));
@@ -1938,7 +2027,7 @@ function buildFirstInningBenchHistory(
     if (!isFinalizedGame(g)) continue;
     const firstBench = g.lineup[0]?.BENCH;
     if (!firstBench) continue;
-    for (const bp of firstBench as any[]) {
+    for (const bp of firstBench as NonNullable<SlimPlayer>[]) {
       // attendance is keyed by the id stored at game time, so check it on
       // the original slot id; tally under the resolved (current) id.
       if (g.attendance?.[bp.id] === false) continue;
@@ -2011,7 +2100,7 @@ function buildExtraSitHistory(
           idName.set(p.id, p.name);
         }
       }
-      for (const bp of (inning.BENCH || []) as any[]) {
+      for (const bp of (inning.BENCH || []) as NonNullable<SlimPlayer>[]) {
         if (g.attendance?.[bp.id] === false) continue;
         attending.add(bp.id);
         idName.set(bp.id, bp.name);
@@ -2052,7 +2141,7 @@ function buildExtraSitHistory(
     for (const id of attending) benchCount.set(id, 0);
     for (let i = 0; i < innings; i++) {
       const inning = g.lineup[i];
-      for (const bp of (inning.BENCH || []) as any[]) {
+      for (const bp of (inning.BENCH || []) as NonNullable<SlimPlayer>[]) {
         if (!isActiveAtInning(bp.id, i)) continue;
         if (benchCount.has(bp.id)) {
           benchCount.set(bp.id, (benchCount.get(bp.id) ?? 0) + 1);
@@ -2343,7 +2432,11 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
   const combinedGrades = getCombinedGrades(
     evaluationEvents,
     allPlayers || activePlayers,
-    { teamAge, games: (input.games as any) || [] },
+    {
+      teamAge,
+      games:
+        (input.games as Array<{ playerStats?: Record<string, any> }>) || [],
+    },
   );
   const profiled = activePlayers.map((p) => ({
     ...p,
@@ -2407,7 +2500,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     allPlayers,
     games = [],
     evaluationEvents = [],
-    currentGame = {} as any,
+    currentGame = {} as Partial<Game>,
     totalInnings = 6,
     teamAge = "10U",
     defenseSize = "9",
@@ -2433,7 +2526,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   const grades = getCombinedGrades(
     evaluationEvents,
     allPlayers || activePlayers,
-    { teamAge, games: games as any },
+    { teamAge, games },
   );
   const profiled: ProfiledPlayer[] = activePlayers.map((p) => ({
     ...p,
@@ -2447,8 +2540,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     defenseSize,
   );
   const ruleSet = pitchRuleSet || DEFAULT_PITCH_RULE_SET;
-  const gameDate =
-    (currentGame as any).date || new Date().toISOString().slice(0, 10);
+  const gameDate = currentGame.date || new Date().toISOString().slice(0, 10);
   const kidPitch = /kid/i.test(String(pitchingFormat || ""));
   const slim = (p: ProfiledPlayer): SlimPlayer => ({
     id: p.id,
@@ -2468,7 +2560,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   // Higher = better for this slot. Depth chart is authoritative when the
   // coach ranked the position; otherwise position-appropriate engine scores.
   const depthRank = (pos: string, pid: string): number => {
-    const list = (depthChart as any)?.[pos];
+    const list = depthChart?.[pos];
     if (!Array.isArray(list)) return -1;
     return list.indexOf(pid);
   };
@@ -2695,7 +2787,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     .map((r) => ({
       id: r.id,
       name: r.name,
-      number: (r as any).number,
+      number: r.number,
       status: r.status,
       recentPitches: r.recentPitches,
       daysUntilReady: r.daysUntilReady,
@@ -2773,7 +2865,9 @@ export function generateLineup(input: EngineInput): EngineResult {
     caught?: Set<string>;
   }) || { pitched: new Set<string>(), caught: new Set<string>() };
   const gameType =
-    gameTypeInput || (input as any).currentGame?.gameType || "league";
+    (gameTypeInput as string | undefined) ||
+    input.currentGame?.gameType ||
+    "league";
 
   if (!Array.isArray(activePlayers) || activePlayers.length < 7) {
     return {
@@ -2820,7 +2914,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   const usePitcherPool = isKidPitchFormat && teamAgeNumForPool >= 9;
   let pitcherPoolIds: Set<string> = new Set();
   if (usePitcherPool) {
-    const ranked = (activePlayers as any[])
+    const ranked = activePlayers
       .map((p) => ({
         p,
         score: calcPitcherScore(combinedGrades[p.id], p.stats, {
@@ -2842,11 +2936,11 @@ export function generateLineup(input: EngineInput): EngineResult {
     // in pool play; the same-day rule then keeps them off the mound that game.
     // Bracket games keep them in the pool, so your ace catcher can pitch to win.
     if (gameType === "pool" && pitcherPoolIds.size > 1) {
-      const chartC = (depthChart as any)?.["C"];
+      const chartC = depthChart?.["C"];
       let topCatcherId: string | null = null;
       if (Array.isArray(chartC)) {
         for (const id of chartC) {
-          const p = (activePlayers as any[]).find((x) => x.id === id);
+          const p = activePlayers.find((x) => x.id === id);
           if (p && isCatcherEligible(p)) {
             topCatcherId = id;
             break;
@@ -2855,7 +2949,7 @@ export function generateLineup(input: EngineInput): EngineResult {
       }
       if (!topCatcherId) {
         let best = -Infinity;
-        for (const p of activePlayers as any[]) {
+        for (const p of activePlayers) {
           if (!isCatcherEligible(p)) continue;
           const s = calcCatcherScore(combinedGrades[p.id], p.stats);
           if (s > best) {
@@ -2956,7 +3050,7 @@ export function generateLineup(input: EngineInput): EngineResult {
       const inn = currentLineup[i] || {};
       for (const pos of Object.keys(inn)) {
         if (pos === "BENCH") continue;
-        const p = (inn as any)[pos];
+        const p = inn[pos] as SlimPlayer;
         if (!p) continue;
         const cur = benchHistory.get(p.id) || {
           extraSits: 0,
@@ -2967,7 +3061,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         cur.defInn += 1;
         benchHistory.set(p.id, cur);
       }
-      for (const bp of (inn as any).BENCH || []) {
+      for (const bp of inn.BENCH || []) {
         if (!bp) continue;
         const cur = benchHistory.get(bp.id) || {
           extraSits: 0,
@@ -3012,7 +3106,7 @@ export function generateLineup(input: EngineInput): EngineResult {
       qab: +(eff.qab ?? 0),
     };
   });
-  const isStarter = new Set();
+  const isStarter = new Set<string>();
   if (battingSize === "roster") {
     for (const p of profiled) isStarter.add(p.id);
   } else {
@@ -3071,10 +3165,10 @@ export function generateLineup(input: EngineInput): EngineResult {
     firstInnHx: Map<string, number>,
     seasonHx: Map<string, ExtraSitEntry>,
   ) => {
-    let bestLineup = null;
+    let bestLineup: Inning[] | null = null;
     let bestPenalty = Infinity;
-    let bestLockRelaxed = [];
-    const failureReasons = []; // accumulate every failure for diagnostic
+    let bestLockRelaxed: number[] = [];
+    const failureReasons: BenchFailure[] = []; // accumulate every failure for diagnostic
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const rand = mulberry32(baseSeed + attempt * 2654435761);
       const result = tryBuildLineup({
@@ -3108,15 +3202,16 @@ export function generateLineup(input: EngineInput): EngineResult {
         fromInning,
         currentLineup,
       });
-      if (!result.ok) {
-        if (result.failure) failureReasons.push(result.failure);
+      if (!result || !result.ok) {
+        if (result && !result.ok && result.failure)
+          failureReasons.push(result.failure as BenchFailure);
         continue;
       }
-      const { lineup, penalty } = result;
+      const { lineup, penalty, lockRelaxedInnings } = result;
       if (penalty < bestPenalty) {
         bestPenalty = penalty;
         bestLineup = lineup;
-        bestLockRelaxed = result.lockRelaxedInnings || [];
+        bestLockRelaxed = lockRelaxedInnings || [];
         if (penalty === 0) break;
       }
     }
@@ -3291,7 +3386,10 @@ function maxPositionMatching(
   return posToPlayer;
 }
 
-function precomputeBenchSchedule(opts: any): any {
+function precomputeBenchSchedule(opts: BenchScheduleOpts): {
+  schedule: Map<string, Set<number>>;
+  catcherByInning: Map<number, string | null>;
+} | null {
   const {
     profiled,
     totalInnings,
@@ -3584,7 +3682,7 @@ function precomputeBenchSchedule(opts: any): any {
       guard++;
       // Lowest current target takes the next sit; competitive prefers the
       // weakest defender among ties, fairness the most over-played.
-      let best: any = null;
+      let best: (typeof nonAnchors)[number] | null = null;
       for (const x of nonAnchors) {
         const t = targetSits.get(x.p.id) || 0;
         if (t >= sitCeiling) continue;
@@ -3683,7 +3781,7 @@ function precomputeBenchSchedule(opts: any): any {
       const blockSize = block.length;
       const involvesInning0 = block.includes(0);
 
-      const isAvailable = (p: any) => {
+      const isAvailable = (p: ProfiledPlayer) => {
         if (involvesInning0) {
           const lockedPos = firstInningLockedPos.get(p.id);
           // If you forced them to play a specific spot that IS NOT catcher in
@@ -3707,13 +3805,14 @@ function precomputeBenchSchedule(opts: any): any {
         return true;
       };
 
-      const unused = (p: any) => (catcherInnTotals.get(p.id) || 0) === 0;
+      const unused = (p: ProfiledPlayer) =>
+        (catcherInnTotals.get(p.id) || 0) === 0;
 
       // 1. Unused primary catcher, then 2. unused secondary catcher — always
       // prefer spreading the work across distinct kids first. Kids who are the
       // ONLY option for a field position are skipped here (reserving them at C
       // strands that position) and only considered as a last resort.
-      const free = ({ p }: any) => !anchorNonC.has(p.id);
+      const free = ({ p }: { p: ProfiledPlayer }) => !anchorNonC.has(p.id);
       let candidate =
         eligiblePool.find(
           (x) =>
@@ -3841,7 +3940,7 @@ function precomputeBenchSchedule(opts: any): any {
 
   for (let inn = 0; inn < totalInnings; inn++) {
     const slotsThisInning = numToBench;
-    const alreadyBenched = new Set();
+    const alreadyBenched = new Set<string>();
     for (const pid of schedule.keys()) {
       if (schedule.get(pid).has(inn)) alreadyBenched.add(pid);
     }
@@ -3870,7 +3969,7 @@ function precomputeBenchSchedule(opts: any): any {
       const totalPrior = (hist?.benchInn || 0) + (hist?.defInn || 0);
       // Season ratio: lower means under sat across the season.
       // No history  0.5 (neutral).
-      const priorRatio = totalPrior > 0 ? hist.benchInn / totalPrior : 0.5;
+      const priorRatio = totalPrior > 0 ? hist!.benchInn / totalPrior : 0.5;
       eligible.push({
         p,
         debt,
@@ -3892,7 +3991,7 @@ function precomputeBenchSchedule(opts: any): any {
       // minSits to take an extra "overflow" sit by raising their target.
       // (Rare edge case.)
       const overflow = profiled.filter(
-        (p: any) =>
+        (p: ProfiledPlayer) =>
           !alreadyBenched.has(p.id) &&
           !offFieldByInning[inn].has(p.id) &&
           !(inn === 0 && firstInningMustPlay.has(p.id)) &&
@@ -3906,7 +4005,7 @@ function precomputeBenchSchedule(opts: any): any {
         if (eligible.length >= remainingSlots) break;
         const hist = priorExtraSits.get(p.id);
         const totalPrior = (hist?.benchInn || 0) + (hist?.defInn || 0);
-        const priorRatio = totalPrior > 0 ? hist.benchInn / totalPrior : 0.5;
+        const priorRatio = totalPrior > 0 ? hist!.benchInn / totalPrior : 0.5;
         eligible.push({
           p,
           debt: 1,
@@ -4055,7 +4154,15 @@ function precomputeBenchSchedule(opts: any): any {
   return { schedule, catcherByInning };
 }
 
-function tryBuildLineup(ctx: any): any {
+function tryBuildLineup(ctx: TryBuildCtx):
+  | {
+      ok: true;
+      lineup: Inning[];
+      penalty: number;
+      lockRelaxedInnings: number[];
+    }
+  | { ok: false; failure: { type: string; [key: string]: unknown } }
+  | null {
   const {
     profiled,
     positionsToFill,
@@ -4132,7 +4239,7 @@ function tryBuildLineup(ctx: any): any {
     positionFlexibility.set(p.id, n);
   }
 
-  const state = new Map();
+  const state = new Map<string, PlayerState>();
   for (const p of profiled) {
     state.set(p.id, { bench: 0, positions: Object.create(null), history: [] });
   }
@@ -4153,7 +4260,7 @@ function tryBuildLineup(ctx: any): any {
   // policy is NOT consecutive (legacy 9-fielder, or an explicit cap with the
   // toggle off) there are no blocks and the catcher is picked fresh each
   // inning by pickBestForPosition under the per-kid cap.
-  let catcherInningBlocks: any = null;
+  let catcherInningBlocks: CatcherBlock[] | null = null;
   if (catcherConsecutive && Number.isFinite(catcherCap) && catcherCap >= 1) {
     catcherInningBlocks = [];
     const blockSize = Math.max(1, Math.min(catcherCap, totalInnings));
@@ -4167,7 +4274,7 @@ function tryBuildLineup(ctx: any): any {
   }
 
   // Non starters (when batting fewer than roster) must start on the bench.
-  const forcedBenchInning0 = new Set();
+  const forcedBenchInning0 = new Set<string>();
   if (isStarter.size > 0 && isStarter.size < profiled.length) {
     for (const p of profiled) {
       if (!isStarter.has(p.id)) forcedBenchInning0.add(p.id);
@@ -4210,14 +4317,14 @@ function tryBuildLineup(ctx: any): any {
       ? Math.min(fromInning, currentLineup.length, totalInnings)
       : 0;
   for (let inn = 0; inn < mgFromInning; inn++) {
-    const playedInn = currentLineup[inn] || {};
+    const playedInn = currentLineup![inn] || {};
     const seeded: any = {};
     for (const key of Object.keys(playedInn)) {
       if (key === "BENCH") continue;
-      const player = playedInn[key];
-      if (!player) continue;
+      const player = playedInn[key] as SlimPlayer | undefined;
+      if (!player || Array.isArray(player)) continue;
       seeded[key] = player;
-      const st = state.get(player.id);
+      const st = state.get(player.id)!;
       if (st) {
         st.positions[key] = (st.positions[key] || 0) + 1;
         st.history.push(key);
@@ -4227,7 +4334,7 @@ function tryBuildLineup(ctx: any): any {
     const benchOut: any[] = [];
     for (const p of benchArr) {
       if (!p) continue;
-      const st = state.get(p.id);
+      const st = state.get(p.id)!;
       if (st) {
         st.bench++;
         st.history.push("BENCH");
@@ -4248,7 +4355,7 @@ function tryBuildLineup(ctx: any): any {
 
     // Bench assignment: read directly from the precomputed schedule.
     for (const p of profiled) {
-      if (benchSchedule.get(p.id).has(inn)) {
+      if (benchSchedule.get(p.id)?.has(inn)) {
         benchedSet.add(p.id);
       }
     }
@@ -4274,12 +4381,12 @@ function tryBuildLineup(ctx: any): any {
     // season fairness entirely). Per-player state (positions/history/bench)
     // is mutated only AFTER a slot set is committed below, so building twice
     // here is side-effect free.
-    const buildSlots = (useLock: any) => {
+    const buildSlots = (useLock: boolean) => {
       const inningSlots: Record<string, any> = {};
       if (inn === 0) {
         for (const pos in firstInningOverridesById) {
           const pid = firstInningOverridesById[pos];
-          const player = profiled.find((p: any) => p.id === pid);
+          const player = profiled.find((p) => p.id === pid);
           if (!player || !positionsToFill.includes(pos)) continue;
           if (benchedSet.has(pid))
             return {
@@ -4300,7 +4407,7 @@ function tryBuildLineup(ctx: any): any {
 
       const used = new Set(Object.values(inningSlots).map((p) => p.id));
       const remainingPositions = positionsToFill.filter(
-        (pos: any) => !inningSlots[pos],
+        (pos) => !inningSlots[pos],
       );
 
       // Consecutive-catcher mode: catcher is fixed by the precomputed schedule
@@ -4308,7 +4415,7 @@ function tryBuildLineup(ctx: any): any {
       if (catcherInningBlocks && !inningSlots["C"]) {
         const catcherId = catcherByInning.get(inn);
         if (catcherId) {
-          const catcher = profiled.find((p: any) => p.id === catcherId);
+          const catcher = profiled.find((p) => p.id === catcherId);
           if (
             catcher &&
             !benchedSet.has(catcherId) &&
@@ -4367,7 +4474,7 @@ function tryBuildLineup(ctx: any): any {
           if (isPositionBlocked(p, pos)) continue;
           // Mirror pickBestForPosition's per position eligibility checks so we
           // don't pre pin into an illegal slot.
-          const st = state.get(p.id);
+          const st = state.get(p.id)!;
           // Same-day dual-role (Kid Pitch): never pre-pin into P+C same game.
           if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles))
             continue;
@@ -4382,7 +4489,12 @@ function tryBuildLineup(ctx: any): any {
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
-              !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
+              !checkPitchEligibility(
+                p,
+                targetDateStr,
+                teamAge ?? "",
+                pitchRules,
+              )
             )
               continue;
             const pCount = st.positions["P"] || 0;
@@ -4406,7 +4518,7 @@ function tryBuildLineup(ctx: any): any {
         // Collect (pos, player) pairs from last inning where the player is still
         // available and the position still needs filling.
         for (const pos of [...remainingPositions]) {
-          const prevPlayer = prevInning?.[pos];
+          const prevPlayer = prevInning?.[pos] as any;
           if (!prevPlayer) continue;
           if (benchedSet.has(prevPlayer.id)) continue; // they're sitting now
           if (used.has(prevPlayer.id)) continue; // already placed
@@ -4444,13 +4556,13 @@ function tryBuildLineup(ctx: any): any {
       // with no candidate for (say) RF at inning 3 because the OF rotation
       // lock or "can't play same spot back-to-back" rule eliminated every
       // remaining kid.
-      const posScarcity = remainingPositions.map((pos: any) => {
+      const posScarcity = remainingPositions.map((pos) => {
         let count = 0;
         for (const p of profiled) {
           if (used.has(p.id) || benchedSet.has(p.id)) continue;
           if (isPositionBlocked(p, pos)) continue;
 
-          const st = state.get(p.id);
+          const st = state.get(p.id)!;
           const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
 
           if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles))
@@ -4458,7 +4570,12 @@ function tryBuildLineup(ctx: any): any {
           if (pos === "P" && defenseSize === "9") {
             if (
               leagueRuleSet === "NKB" &&
-              !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
+              !checkPitchEligibility(
+                p,
+                targetDateStr,
+                teamAge ?? "",
+                pitchRules,
+              )
             )
               continue;
             const pCount = st.positions["P"] || 0;
@@ -4484,7 +4601,7 @@ function tryBuildLineup(ctx: any): any {
       });
 
       // Sort by fewest eligible candidates first. Tie-breaker is random.
-      posScarcity.sort((a: any, b: any) => {
+      posScarcity.sort((a, b) => {
         if (a.count !== b.count) return a.count - b.count;
         return a.r - b.r;
       });
@@ -4555,13 +4672,14 @@ function tryBuildLineup(ctx: any): any {
         lockRelaxedInnings.push(inn + 1);
       }
     }
-    if (!built.ok) return { ok: false, failure: built.failure };
+    if (!built.ok)
+      return { ok: false, failure: built.failure ?? { type: "unknown" } };
     const inningSlots: Record<string, any> = (built as any).inningSlots;
 
     const benchList = [];
     for (const p of profiled) {
       if (benchedSet.has(p.id)) {
-        const st = state.get(p.id);
+        const st = state.get(p.id)!;
         st.bench++;
         st.history.push("BENCH");
         benchList.push(p);
@@ -4578,7 +4696,7 @@ function tryBuildLineup(ctx: any): any {
             inning: inn + 1,
           },
         };
-      const st = state.get(player.id);
+      const st = state.get(player.id)!;
       st.positions[pos] = (st.positions[pos] || 0) + 1;
       st.history.push(pos);
     }
@@ -4642,7 +4760,7 @@ function tryBuildLineup(ctx: any): any {
   // gets played, then penalize the spread.
   const projectedExtraSits = [];
   for (const p of profiled) {
-    const st = state.get(p.id);
+    const st = state.get(p.id)!;
     const priorExtra = benchHistory.get(p.id)?.extraSits || 0;
     const thisExtra = Math.max(0, st.bench - minBenchPerPlayer);
     projectedExtraSits.push(priorExtra + thisExtra);
@@ -4652,7 +4770,7 @@ function tryBuildLineup(ctx: any): any {
   const extraSitSpread = maxExtra - minExtra;
 
   for (const p of profiled) {
-    const st = state.get(p.id);
+    const st = state.get(p.id)!;
     const b = st.bench;
     if (b > maxBench) maxBench = b;
     if (b < minBench) minBench = b;
@@ -4691,7 +4809,7 @@ function tryBuildLineup(ctx: any): any {
 
 // ---------- Position scoring ----------
 
-function pickBestForPosition(opts: any): any {
+function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
   const {
     pos,
     inn,
@@ -4740,14 +4858,22 @@ function pickBestForPosition(opts: any): any {
     pitcherPoolIds &&
     pitcherPoolIds.size > 0
   ) {
-    const poolCandidates: any[] = [];
+    const poolCandidates: Array<{
+      p: ProfiledPlayer;
+      st: PlayerState;
+      recent: number;
+    }> = [];
     for (const p of profiled) {
       if (!pitcherPoolIds.has(p.id)) continue;
       if (used.has(p.id) || benchedSet.has(p.id)) continue;
       if (isPositionBlocked(p, "P")) continue;
-      const st = state.get(p.id);
+      const st = state.get(p.id)!;
       // Same-day dual-role (Kid Pitch): don't pitch a kid who caught earlier.
-      if (isKidPitch && dualRoleBlocked(st, "P", p.id, sameDayRoles)) continue;
+      if (
+        isKidPitch &&
+        dualRoleBlocked(st, "P", p.id, sameDayRoles ?? undefined)
+      )
+        continue;
       const playedHereLast = inn > 0 && st.history[inn - 1] === "P";
       const pCount = st.positions["P"] || 0;
       // Mirror the existing rule: a kid can pitch consecutively but not
@@ -4777,17 +4903,23 @@ function pickBestForPosition(opts: any): any {
     if (used.has(p.id) || benchedSet.has(p.id)) continue;
     if (isPositionBlocked(p, pos)) continue;
 
-    const st = state.get(p.id);
+    const st = state.get(p.id)!;
     const playedHereLast = inn > 0 && st.history[inn - 1] === pos;
 
     // KID PITCH same-day dual-role: a kid never pitches AND catches in one game
     // (arm health). Ceremonial P (machine/coach) is exempt — see isKidPitch.
-    if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles)) continue;
+    if (isKidPitch && dualRoleBlocked(st, pos, p.id, sameDayRoles ?? undefined))
+      continue;
 
     if (pos === "P" && defenseSize === "9") {
       if (
         leagueRuleSet === "NKB" &&
-        !checkPitchEligibility(p, targetDateStr, teamAge, pitchRules)
+        !checkPitchEligibility(
+          p,
+          targetDateStr ?? "",
+          teamAge ?? "",
+          pitchRules,
+        )
       )
         continue;
       const pCount = st.positions["P"] || 0;
@@ -4797,7 +4929,7 @@ function pickBestForPosition(opts: any): any {
     if (pos === "C") {
       if (!isCatcherEligible(p)) continue;
       const cCap = Number.isFinite(catcherCap)
-        ? catcherCap
+        ? catcherCap!
         : defenseSize === "10"
           ? 2
           : 3;
@@ -4873,7 +5005,7 @@ function pickBestForPosition(opts: any): any {
     }
 
     if (p.throws === "L") {
-      if (INFIELD_NON_1B.has(pos)) score += leftyPenalty;
+      if (INFIELD_NON_1B.has(pos)) score += leftyPenalty ?? 0;
       else if (pos === "1B") score -= 3;
     }
 
