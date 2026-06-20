@@ -508,7 +508,7 @@ export interface ToastInput {
 }
 
 export interface ToastContextValue {
-  push: (t: ToastInput) => void;
+  push: (t: ToastInput) => number;
   dismiss: (id: number | string) => void;
 }
 

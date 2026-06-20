@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 export const ToastContext = createContext<ToastContextValue>({
-  push: () => {},
+  push: () => 0,
   dismiss: () => {},
 });
 export const useToast = (): ToastContextValue => useContext(ToastContext);
