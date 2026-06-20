@@ -80,6 +80,15 @@ export interface Player {
   // Coach-designated primary and secondary positions (big-game pre-pin logic).
   primaryPosition?: string;
   secondaryPosition?: string;
+  // Legacy pitching log (pre-v5 schema). The canonical fields migrated to
+  // PlayerStats (pTopMph, pTopMphDate); this sub-object still appears on
+  // older player docs and is read by the pitching-plan engine.
+  pitching?: {
+    log?: Array<{ date?: string; pitches?: number }>;
+    recentPitches?: number;
+    lastPitchDate?: string;
+    topMph?: number;
+  };
   // ISO yyyy-mm-dd dates the family already knows the kid is unavailable
   // (entered ahead of time on the profile). Games on these dates default
   // the kid to absent in Game Day Attendance; the coach can still toggle
