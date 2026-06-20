@@ -12,6 +12,7 @@ import {
 } from "../lineupEngine";
 import { canonicalizeOutfield } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
+import type { GradeMap, Player, Team } from "../types";
 
 // Full position names for the card headers.
 const POSITION_LABELS: Record<string, string> = {
@@ -31,7 +32,7 @@ const POSITION_LABELS: Record<string, string> = {
 // A player only appears in a position's depth chart if that position is in
 // their Comfortable Positions. Catcher is opt-in (strictly "C" in the list);
 // pitcher is "P" in the list — same model the Roster filters use.
-const comfortableAt = (player: any, pos: string): boolean =>
+const comfortableAt = (player: Player, pos: string): boolean =>
   Array.isArray(player.comfortablePositions) &&
   player.comfortablePositions.includes(pos);
 
@@ -42,8 +43,8 @@ const comfortableAt = (player: any, pos: string): boolean =>
 // pitching well, not just the eye test.
 const scoreForPlayer = (
   pos: string,
-  player: any,
-  grades: Record<string, any>,
+  player: Player,
+  grades: GradeMap,
   kidPitch: boolean,
   teamAge?: string,
 ): number => {
@@ -77,7 +78,7 @@ const samePos = (a?: string, b?: string): boolean =>
 // (tier 2). Within each tier the existing position score breaks the order.
 const primaryTier = (
   pos: string,
-  player: any,
+  player: Player,
   suggestedById: Map<string, string | null>,
 ): number => {
   if (pos === "P") return 0;
@@ -96,13 +97,13 @@ const primaryTier = (
 // off the roster simply drop out.
 const orderForPosition = (
   pos: string,
-  players: any[],
-  grades: Record<string, any>,
+  players: Player[],
+  grades: Record<string, GradeMap>,
   kidPitch: boolean,
   manual: string[] | null,
   suggestedById: Map<string, string | null>,
   teamAge?: string,
-): any[] => {
+): Player[] => {
   const eligible = players.filter((p) => comfortableAt(p, pos));
   const auto = [...eligible].sort((a, b) => {
     const ta = primaryTier(pos, a, suggestedById);
@@ -117,7 +118,9 @@ const orderForPosition = (
   });
   if (!manual || manual.length === 0) return auto;
   const byId = new Map(eligible.map((p) => [p.id, p]));
-  const pinned = manual.map((id) => byId.get(id)).filter(Boolean) as any[];
+  const pinned = manual
+    .map((id) => byId.get(id))
+    .filter((p): p is Player => !!p);
   const pinnedIds = new Set(pinned.map((p) => p.id));
   return [...pinned, ...auto.filter((p) => !pinnedIds.has(p.id))];
 };
@@ -134,8 +137,22 @@ const PositionCard = memo(
     onMove,
     onReset,
     onOpen,
-  }: any) => {
-    const ids: string[] = ranked.map((p: any) => p.id);
+  }: {
+    pos: string;
+    ranked: Player[];
+    customized: boolean;
+    canEdit: boolean;
+    onDropPlayer: (
+      pos: string,
+      ids: string[],
+      playerId: string,
+      toIndex: number,
+    ) => void;
+    onMove: (pos: string, ids: string[], idx: number, dir: -1 | 1) => void;
+    onReset: (pos: string) => void;
+    onOpen?: (id: string) => void;
+  }) => {
+    const ids: string[] = ranked.map((p) => p.id);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [dropIndex, setDropIndex] = useState<number | null>(null);
 
@@ -194,7 +211,7 @@ const PositionCard = memo(
               finishDrop(ranked.length);
             }}
           >
-            {ranked.map((p: any, idx: number) => (
+            {ranked.map((p, idx) => (
               <li
                 key={p.id}
                 draggable={canEdit}
@@ -281,20 +298,20 @@ const PositionCard = memo(
 );
 
 export const DepthChartTab = memo(() => {
-  const { team, currentRole, updateTeam } = useTeam();
+  const { team: teamRaw, currentRole, updateTeam } = useTeam();
   const { openPlayerProfile } = useUI();
+  // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
+  // the known Team shape for this screen.
+  const team = teamRaw as Team;
   // Memoized off `team` so the `|| fallback` defaults stay referentially stable
   // as deps for the useMemo blocks below.
-  const players: any[] = useMemo(() => (team as any).players || [], [team]);
-  const evaluationEvents: any[] = useMemo(
-    () => (team as any).evaluationEvents || [],
-    [team],
-  );
+  const players: Player[] = useMemo(() => team.players || [], [team]);
+  const evaluationEvents = useMemo(() => team.evaluationEvents || [], [team]);
   const depthChart: Record<string, string[]> = useMemo(
-    () => (team as any).depthChart || {},
+    () => team.depthChart || {},
     [team],
   );
-  const { defenseSize, pitchingFormat, teamAge } = team as any;
+  const { defenseSize, pitchingFormat, teamAge } = team;
   const canEdit = currentRole === "head";
   const kidPitch = isKidPitchFormat(pitchingFormat);
 
@@ -302,7 +319,7 @@ export const DepthChartTab = memo(() => {
     () =>
       getCombinedGrades(evaluationEvents, players, {
         teamAge,
-        games: (team as any).games || [],
+        games: team.games || [],
       }),
     [evaluationEvents, players, teamAge, team],
   );

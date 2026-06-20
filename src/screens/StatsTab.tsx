@@ -1,6 +1,20 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, {
+  ComponentType,
+  CSSProperties,
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
+import type {
+  EvaluationEvent,
+  Game,
+  Player,
+  PlayerStats,
+  Team,
+} from "../types";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import {
@@ -14,6 +28,7 @@ import {
   recentGameLines,
   aggregateGameLines,
 } from "../utils/helpers";
+import type { BenchImbalanceEntry } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 import { Sparkline } from "../components/charts/Sparkline";
 
@@ -28,7 +43,7 @@ import { Sparkline } from "../components/charts/Sparkline";
 
 type Kind = "int" | "dec1" | "dec3" | "dec2" | "pct" | "ip";
 
-const numOf = (v: any): number | undefined =>
+const numOf = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) ? v : undefined;
 
 // Format a stat the way the rest of the app does: drop the leading 0 on sub-1
@@ -56,7 +71,7 @@ interface StatRow {
   name: string;
   number?: string | number;
   primaryPosition?: string;
-  stats: any;
+  stats: PlayerStats;
   total: number; // eval Total Score (0–100)
 }
 
@@ -146,7 +161,7 @@ const CATEGORIES = [
 // drawn on a fixed 1–5 scale so rows are comparable. Trends up → team color,
 // down → red, flat → neutral gray. Renders nothing with fewer than two rounds
 // of data.
-const EvalSparkline = memo(({ values }: any) => {
+const EvalSparkline = memo(({ values }: { values?: number[] }) => {
   if (!Array.isArray(values) || values.length < 2) return null;
   const first = values[0];
   const last = values[values.length - 1];
@@ -170,7 +185,19 @@ const EvalSparkline = memo(({ values }: any) => {
 // Sortable per-player stats table for one category. Remounted (via key) when the
 // category changes so the sort resets to that category's marquee stat.
 const StatsTable = memo(
-  ({ rows, cols, defaultKey, onOpen, seriesById }: any) => {
+  ({
+    rows,
+    cols,
+    defaultKey,
+    onOpen,
+    seriesById,
+  }: {
+    rows: StatRow[];
+    cols: Col[];
+    defaultKey: string;
+    onOpen?: (id: string) => void;
+    seriesById?: Map<string, number[]> | null;
+  }) => {
     const allCols: Col[] = useMemo(() => [OVERALL_COL, ...cols], [cols]);
     const initial = useMemo(
       () => allCols.find((c) => c.key === defaultKey) || allCols[0],
@@ -288,62 +315,85 @@ const StatsTable = memo(
 
 // Bench equity & attendance — who's sitting more (or less) than their fair share
 // across finalized games. extraSits > 0 means benched beyond the even split.
-const BenchEquityTable = memo(({ rows, onOpen }: any) => {
-  if (rows.length === 0) return null;
-  return (
-    <div className="overflow-x-auto custom-scrollbar">
-      <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-        <thead className="bg-surface-2 text-ink-2">
-          <tr>
-            <th className="p-2.5 t-eyebrow text-left">Player</th>
-            <th className="p-2.5 t-eyebrow text-center">GP</th>
-            <th className="p-2.5 t-eyebrow text-center">Def Inn</th>
-            <th className="p-2.5 t-eyebrow text-center">Bench Inn</th>
-            <th className="p-2.5 t-eyebrow text-center">Sits +/−</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {rows.map(({ p, e }: any) => {
-            const over = e.extraSits > 0.5;
-            const under = e.extraSits < -0.5;
-            return (
-              <tr key={p.id} className="hover:bg-surface-2">
-                <td className="p-2">
-                  <button
-                    type="button"
-                    onClick={() => onOpen?.(p.id)}
-                    className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
-                  >
-                    {p.name}
-                  </button>
-                </td>
-                <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                  {e.gamesAttended}
-                </td>
-                <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                  {Math.round(e.totalDefense)}
-                </td>
-                <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                  {Math.round(e.totalBench)}
-                </td>
-                <td
-                  className={`p-2 text-center tabular-nums font-black ${
-                    over ? "text-loss" : under ? "text-win" : "text-ink-3"
-                  }`}
-                >
-                  {e.extraSits > 0 ? "+" : ""}
-                  {e.extraSits.toFixed(1)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-});
+interface BenchEquityRow {
+  p: Player;
+  e: BenchImbalanceEntry;
+}
 
-const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
+const BenchEquityTable = memo(
+  ({
+    rows,
+    onOpen,
+  }: {
+    rows: BenchEquityRow[];
+    onOpen?: (id: string) => void;
+  }) => {
+    if (rows.length === 0) return null;
+    return (
+      <div className="overflow-x-auto custom-scrollbar">
+        <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+          <thead className="bg-surface-2 text-ink-2">
+            <tr>
+              <th className="p-2.5 t-eyebrow text-left">Player</th>
+              <th className="p-2.5 t-eyebrow text-center">GP</th>
+              <th className="p-2.5 t-eyebrow text-center">Def Inn</th>
+              <th className="p-2.5 t-eyebrow text-center">Bench Inn</th>
+              <th className="p-2.5 t-eyebrow text-center">Sits +/−</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {rows.map(({ p, e }) => {
+              const over = e.extraSits > 0.5;
+              const under = e.extraSits < -0.5;
+              return (
+                <tr key={p.id} className="hover:bg-surface-2">
+                  <td className="p-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpen?.(p.id)}
+                      className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                    >
+                      {p.name}
+                    </button>
+                  </td>
+                  <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                    {e.gamesAttended}
+                  </td>
+                  <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                    {Math.round(e.totalDefense)}
+                  </td>
+                  <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                    {Math.round(e.totalBench)}
+                  </td>
+                  <td
+                    className={`p-2 text-center tabular-nums font-black ${
+                      over ? "text-loss" : under ? "text-win" : "text-ink-3"
+                    }`}
+                  >
+                    {e.extraSits > 0 ? "+" : ""}
+                    {e.extraSits.toFixed(1)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  },
+);
+
+const SectionCard = ({
+  icon: Icon,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: ComponentType<{ className?: string; style?: CSSProperties }>;
+  title: string;
+  subtitle?: string;
+  children?: React.ReactNode;
+}) => (
   <div className="border-b border-line pb-6">
     <div className="px-1 py-4 flex items-center gap-3">
       <div
@@ -362,13 +412,16 @@ const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
 );
 
 export const StatsTab = memo(() => {
-  const { team, currentRole } = useTeam();
+  const { team: teamRaw, currentRole } = useTeam();
   const { openPlayerProfile } = useUI();
-  const stripped = (team as any).statDisplay === "stripped";
-  const players: any[] = useMemo(() => (team as any).players || [], [team]);
-  const games: any[] = useMemo(() => (team as any).games || [], [team]);
-  const evaluationEvents: any[] = useMemo(
-    () => (team as any).evaluationEvents || [],
+  // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
+  // the known Team shape for this screen.
+  const team = teamRaw as Team;
+  const stripped = team.statDisplay === "stripped";
+  const players: Player[] = useMemo(() => team.players || [], [team]);
+  const games: Game[] = useMemo(() => team.games || [], [team]);
+  const evaluationEvents: EvaluationEvent[] = useMemo(
+    () => team.evaluationEvents || [],
     [team],
   );
 
@@ -380,10 +433,8 @@ export const StatsTab = memo(() => {
 
   const filteredGames = useMemo(() => {
     if (statFormat === "all") return games;
-    return games.filter((g: any) => {
-      const fmt = String(
-        g.pitchingFormat || (team as any).pitchingFormat || "",
-      );
+    return games.filter((g) => {
+      const fmt = String(g.pitchingFormat || team.pitchingFormat || "");
       const kid = isKidPitchFormat(fmt);
       return statFormat === "kid" ? kid : !kid;
     });
@@ -397,11 +448,13 @@ export const StatsTab = memo(() => {
         : "All Formats";
 
   const scopedStatsForPlayer = useCallback(
-    (p: any) => {
+    (p: Player): PlayerStats => {
       if (statFormat === "all") return p.stats || {};
       const lines = filteredGames
-        .map((g: any) => g?.playerStats?.[p.id])
-        .filter((line: any) => line && typeof line === "object");
+        .map((g) => g?.playerStats?.[p.id])
+        .filter(
+          (line): line is PlayerStats => !!line && typeof line === "object",
+        );
       return lines.length > 0 ? aggregateGameLines(lines) : {};
     },
     [filteredGames, statFormat],
@@ -410,10 +463,10 @@ export const StatsTab = memo(() => {
   // Eval Total Score per player, surfaced as the "Overall" column.
   const rows: StatRow[] = useMemo(() => {
     const grades = getCombinedGrades(evaluationEvents, players, {
-      teamAge: (team as any).teamAge,
+      teamAge: team.teamAge,
       games,
     });
-    return players.map((p: any) => {
+    return players.map((p) => {
       const scopedStats = scopedStatsForPlayer(p);
       return {
         id: p.id,
@@ -429,9 +482,9 @@ export const StatsTab = memo(() => {
   const benchRows = useMemo(() => {
     const m = buildSeasonBenchImbalance(games, "", players);
     return players
-      .map((p: any) => ({ p, e: m.get(p.id) }))
-      .filter((x: any) => x.e && x.e.gamesAttended > 0)
-      .sort((a: any, b: any) => b.e.extraSits - a.e.extraSits);
+      .map((p) => ({ p, e: m.get(p.id) }))
+      .filter((x): x is BenchEquityRow => !!x.e && x.e.gamesAttended > 0)
+      .sort((a, b) => b.e.extraSits - a.e.extraSits);
   }, [games, players]);
 
   // Recent form — from per-game imported stat lines (Schedule → Import Stats
@@ -439,8 +492,15 @@ export const StatsTab = memo(() => {
   // compares recent AVG (or QAB% when AVG is absent) against their season
   // number: hot ↑, cold ↓. Players without per-game lines don't appear.
   const recentForm = useMemo(() => {
+    type RecentFormRow = {
+      p: Player;
+      agg: Record<string, number>;
+      games: number;
+      delta: number | null;
+      basis: "avg" | "qab" | null;
+    };
     return players
-      .map((p: any) => {
+      .map((p): RecentFormRow | null => {
         const lines = recentGameLines(filteredGames, p.id, 3);
         if (lines.length === 0) return null;
         const agg = aggregateGameLines(lines.map((l) => l.line));
@@ -466,21 +526,16 @@ export const StatsTab = memo(() => {
         }
         return { p, agg, games: lines.length, delta, basis };
       })
-      .filter(Boolean)
-      .sort(
-        (a: any, b: any) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity),
-      );
+      .filter((r): r is RecentFormRow => r !== null)
+      .sort((a, b) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity));
   }, [filteredGames, players, scopedStatsForPlayer]);
 
   // Per-player eval-grade trend (avg grade per Head round, chronological) for
   // the inline sparkline. Only players with ≥2 rounds get a line.
   const seriesById = useMemo(() => {
     const heads = (evaluationEvents || [])
-      .filter((e: any) => e.coachRole === "Head")
-      .sort(
-        (a: any, b: any) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime(),
-      );
+      .filter((e) => e.coachRole === "Head")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const map = new Map<string, number[]>();
     for (const p of players) {
       const series: number[] = [];
@@ -500,11 +555,7 @@ export const StatsTab = memo(() => {
 
   // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
   const armAlerts = useMemo(() => {
-    if (
-      !(
-        currentRole === "head" && isKidPitchFormat((team as any).pitchingFormat)
-      )
-    )
+    if (!(currentRole === "head" && isKidPitchFormat(team.pitchingFormat)))
       return [];
     const ruleSet = resolvePitchRuleSet(team);
     const out: Array<{ id: string; name: string; messages: string[] }> = [];
@@ -591,62 +642,60 @@ export const StatsTab = memo(() => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {recentForm.map(
-                      ({ p, agg, games: n, delta, basis }: any) => (
-                        <tr key={p.id} className="hover:bg-surface-2">
-                          <td className="p-2">
-                            <button
-                              type="button"
-                              onClick={() => openPlayerProfile(p.id)}
-                              className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                    {recentForm.map(({ p, agg, games: n, delta, basis }) => (
+                      <tr key={p.id} className="hover:bg-surface-2">
+                        <td className="p-2">
+                          <button
+                            type="button"
+                            onClick={() => openPlayerProfile(p.id)}
+                            className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                          >
+                            {p.name}
+                          </button>
+                        </td>
+                        <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                          {n}
+                        </td>
+                        <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                          {fmt(numOf(agg.ab), "int")}
+                        </td>
+                        <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                          {fmt(numOf(agg.h), "int")}
+                        </td>
+                        <td className="p-2 text-center tabular-nums font-black text-ink">
+                          {fmt(numOf(agg.avg), "dec3")}
+                        </td>
+                        <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                          {fmt(numOf(agg.qab), "pct")}
+                        </td>
+                        <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                          {fmt(numOf(agg.hard), "pct")}
+                        </td>
+                        <td className="p-2 text-center">
+                          {delta == null ? (
+                            <span className="text-ink-3 font-bold">—</span>
+                          ) : delta > 0.02 ? (
+                            <span
+                              className="text-xs font-black uppercase tracking-widest text-win"
+                              title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
                             >
-                              {p.name}
-                            </button>
-                          </td>
-                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                            {n}
-                          </td>
-                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                            {fmt(numOf(agg.ab), "int")}
-                          </td>
-                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                            {fmt(numOf(agg.h), "int")}
-                          </td>
-                          <td className="p-2 text-center tabular-nums font-black text-ink">
-                            {fmt(numOf(agg.avg), "dec3")}
-                          </td>
-                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                            {fmt(numOf(agg.qab), "pct")}
-                          </td>
-                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                            {fmt(numOf(agg.hard), "pct")}
-                          </td>
-                          <td className="p-2 text-center">
-                            {delta == null ? (
-                              <span className="text-ink-3 font-bold">—</span>
-                            ) : delta > 0.02 ? (
-                              <span
-                                className="text-xs font-black uppercase tracking-widest text-win"
-                                title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
-                              >
-                                Hot ↑
-                              </span>
-                            ) : delta < -0.02 ? (
-                              <span
-                                className="text-xs font-black uppercase tracking-widest text-loss"
-                                title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
-                              >
-                                Cold ↓
-                              </span>
-                            ) : (
-                              <span className="text-xs font-black uppercase tracking-widest text-ink-3">
-                                Steady
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ),
-                    )}
+                              Hot ↑
+                            </span>
+                          ) : delta < -0.02 ? (
+                            <span
+                              className="text-xs font-black uppercase tracking-widest text-loss"
+                              title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
+                            >
+                              Cold ↓
+                            </span>
+                          ) : (
+                            <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                              Steady
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
