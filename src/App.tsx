@@ -37,7 +37,14 @@ import {
   FirestoreError,
 } from "firebase/firestore";
 import { Icons } from "./icons";
-import type { ToastInput, Team, Game } from "./types";
+import type {
+  ToastInput,
+  Team,
+  Game,
+  Inning,
+  SlimPlayer,
+  TournamentPlan,
+} from "./types";
 import { auth, db, appId } from "./firebase";
 import {
   ToastContext,
@@ -2740,8 +2747,8 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [pastSeasonImport, setPastSeasonImport] = useState<any>(null); // null when closed; { rows, season, ageGroup, pitchingFormat, assignments } when open
   const [currentGameAttendance, setCurrentGameAttendance] = useState<any>({});
   const [firstInningLineup, setFirstInningLineup] = useState<any>({});
-  const [lineup, setLineup] = useState<any>(null);
-  const [battingLineup, setBattingLineup] = useState<any>(null);
+  const [lineup, setLineup] = useState<Inning[] | null>(null);
+  const [battingLineup, setBattingLineup] = useState<SlimPlayer[] | null>(null);
   // Penalty score emitted by the engine for the current in-editor lineup
   // (null when no generated lineup is in scope). Lower = better.
   const [lineupQualityPenalty, setLineupQualityPenalty] = useState<
@@ -2749,7 +2756,9 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   >(null);
   // Tournament plan (starters / scripted subs / relief options) riding with
   // the current in-editor lineup. Null for Rec lineups.
-  const [tournamentPlan, setTournamentPlan] = useState<any>(null);
+  const [tournamentPlan, setTournamentPlan] = useState<TournamentPlan | null>(
+    null,
+  );
   const [swapSelection, setSwapSelection] = useState<any>(null);
   const [gameSaved, setGameSaved] = useState(false);
   const [opponentName, setOpponentName] = useState("");
@@ -2955,23 +2964,27 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
         setSwapSelection(null);
         return;
       }
-      setLineup((cur: any) => {
+      setLineup((cur: Inning[] | null) => {
         if (!cur) return cur;
-        const next = cur.map((inn: any) => ({
+        const next = cur.map((inn: Inning) => ({
           ...inn,
           BENCH: inn.BENCH ? [...inn.BENCH] : [],
-        }));
+        })) as Inning[];
         const slot = next[innIdx];
         const a = swapSelection.player;
         const b = player;
         if (swapSelection.pos === "BENCH" && pos === "BENCH") return cur;
         if (swapSelection.pos === "BENCH") {
           // a is on bench, b is in pos (or pos empty)
-          slot.BENCH = slot.BENCH.filter((p: any) => p.id !== a.id);
+          slot.BENCH = slot.BENCH!.filter(
+            (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== a.id,
+          );
           if (b) slot.BENCH.push(b);
           slot[pos] = a;
         } else if (pos === "BENCH") {
-          slot.BENCH = slot.BENCH.filter((p: any) => p.id !== b?.id);
+          slot.BENCH = slot.BENCH!.filter(
+            (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== b?.id,
+          );
           slot.BENCH.push(a);
           slot[swapSelection.pos] = null;
         } else {
@@ -3002,8 +3015,8 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
     setLineup(lineup.slice(0, -1));
   }, [lineup]);
 
-  const moveBatter = useCallback((idx: any, delta: any) => {
-    setBattingLineup((cur: any) => {
+  const moveBatter = useCallback((idx: number, delta: number) => {
+    setBattingLineup((cur: SlimPlayer[] | null) => {
       if (!cur) return cur;
       const target = idx + delta;
       if (target < 0 || target >= cur.length) return cur;
