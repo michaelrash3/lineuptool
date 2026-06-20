@@ -539,6 +539,31 @@ export const InGameView = memo(() => {
       const pos = posSel.pos;
       const outPlayer = getPlayerAt(liveInning, posSel);
       const inPlayer = firstSel.type === "bench" ? playerA : playerB;
+
+      // Bringing a new PITCHER or CATCHER in off the bench recalibrates the rest
+      // of the game (like the Available-Pitchers change and a position move):
+      // the incoming arm/glove is pinned to the mound/plate, the other half of
+      // the battery is kept for continuity, and the remaining innings re-flow
+      // around them. Tournament games only. Other subs just fill the tapped spot
+      // below.
+      if (game.tournamentPlan && (pos === "P" || pos === "C")) {
+        const cur = (pendingLineup ?? game.lineup)[currentInning];
+        const pins: Record<string, string> = {};
+        if ((cur?.P as any)?.id) pins.P = (cur.P as any).id;
+        if ((cur?.C as any)?.id) pins.C = (cur.C as any).id;
+        pins[pos] = inPlayer.id; // the incoming player takes the tapped slot
+        const did = recalibrateRestOfGame(pins, {
+          title: pos === "P" ? "Pitching change" : "Catcher change",
+          message: () =>
+            `${inPlayer.name} ${
+              pos === "P" ? "takes the mound" : "is behind the plate"
+            } from inning ${
+              currentInning + 1
+            } on — the rest of the lineup re-flowed around it.`,
+        });
+        if (did) return; // otherwise fall through to a fill-forward sub
+      }
+
       const base = pendingLineup ?? game.lineup;
       const newLineup = base.map((innState: any, idx: number) => {
         if (idx < currentInning) return innState;
