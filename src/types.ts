@@ -564,10 +564,9 @@ export type CoachRole = "head" | "assistant";
 // of command functions / setters stays permissive via the `any` index
 // signature and is promoted to real signatures incrementally.
 export interface TeamContextValue {
-  // `team` (the full team-data bag) stays `any` for now via the index
-  // signature — promoting it to `Team` is a dedicated follow-up because the
-  // optional/unknown fields ripple into every consumer. The API surface
-  // below is the high-value, low-cascade tightening.
+  // The full team-data bag. Known fields are typed on `Team`; the long tail
+  // stays reachable through Team's `[key: string]: unknown` index signature.
+  team: Team;
   currentRole: CoachRole;
   realRole: CoachRole;
   updateTeam: (patch: Partial<Team>) => void;

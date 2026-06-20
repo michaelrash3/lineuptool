@@ -461,7 +461,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const [authReady, setAuthReady] = useState(false);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
-  const [teamData, setTeamData] = useState<any>(DEFAULT_TEAM_DATA);
+  const [teamData, setTeamData] = useState<Team>(DEFAULT_TEAM_DATA);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
   const [syncStatus, setSyncStatus] = useState("");
@@ -487,7 +487,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   >(null);
   // Latest team data, readable from persistTeam without widening its deps —
   // used only to estimate the doc size for the storage-headroom guard.
-  const teamDataRef = useRef<any>(teamData);
+  const teamDataRef = useRef<Team>(teamData);
   teamDataRef.current = teamData;
   // One-shot guard so the "approaching storage limit" warning fires once per
   // session instead of on every save once the doc is large.
@@ -1354,7 +1354,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       const prevValues: Record<string, unknown> = {};
       for (const k of Object.keys(updates)) prevValues[k] = prev[k];
 
-      setTeamData((p: any) => ({ ...p, ...updates })); // optimistic
+      setTeamData((p) => ({ ...p, ...updates })); // optimistic
       void persistTeam(updates, {
         silent: true,
         allowEmptyPlayers: opts?.allowEmptyPlayers,
@@ -1363,7 +1363,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // Persistence failed: revert the optimistic patch (but only for keys
         // the user hasn't since changed — see revertOptimisticUpdate) so the UI
         // never silently retains state Firestore rejected, and offer a retry.
-        setTeamData((cur: any) =>
+        setTeamData((cur) =>
           revertOptimisticUpdate(cur, updates, prevValues),
         );
         // Surface the real Firestore error so the failure is self-diagnosing
