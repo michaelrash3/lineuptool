@@ -69,9 +69,10 @@ describe("PlayerInfoPortal", () => {
 
     fill(/first name/i, "  Ava  ");
     fill(/last name/i, "Rivera");
+    fill(/date of birth/i, "2015-04-10");
     fill(/email/i, "parent@example.com");
     fill(/^phone/i, "5551234");
-    fill(/hat size/i, "YL");
+    fill(/hat size/i, "MED-LG");
     fill(/shirt \/ jersey size/i, "Adult S");
     fill(/grade/i, "5th");
     fill(/contact name/i, "Grandma Rivera");
@@ -82,8 +83,9 @@ describe("PlayerInfoPortal", () => {
     const sub =
       mockUpdateDoc.mock.calls[0][1].playerInfoSubmissions.__arrayUnion;
     expect(sub.firstName).toBe("Ava"); // trimmed
+    expect(sub.dob).toBe("2015-04-10");
     expect(sub.email).toBe("parent@example.com");
-    expect(sub.hatSize).toBe("YL");
+    expect(sub.hatSize).toBe("MED-LG");
     expect(sub.shirtSize).toBe("Adult S");
     expect(sub.grade).toBe("5th");
     expect(sub.emergencyName).toBe("Grandma Rivera");

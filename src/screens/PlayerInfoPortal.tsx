@@ -30,8 +30,7 @@ const RING_STYLE = {
   "--tw-ring-color": "var(--team-primary)",
 } as React.CSSProperties;
 
-// Youth → adult apparel size scale. One list drives shirt + pants; hats add an
-// "Adjustable" option up front since most youth caps are snapback/adjustable.
+// Youth → adult apparel size scale. One list drives shirt + pants.
 const APPAREL_SIZES = [
   "YXS",
   "YS",
@@ -44,7 +43,8 @@ const APPAREL_SIZES = [
   "Adult XL",
   "Adult 2XL",
 ];
-const HAT_SIZES = ["Adjustable", ...APPAREL_SIZES];
+// Fitted-cap size ranges (flex-fit), distinct from the apparel scale.
+const HAT_SIZES = ["XS-SM", "SM-MED", "MED-LG", "LG-XL"];
 
 const PortalShell = ({ children, accent = true }: any) => (
   <div className="min-h-screen bg-app relative overflow-hidden">
@@ -119,6 +119,7 @@ export const PlayerInfoPortal = () => {
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
+    dob: "",
     number: "",
     hatSize: "",
     shirtSize: "",
@@ -225,6 +226,7 @@ export const PlayerInfoPortal = () => {
       submittedAt: new Date().toISOString(),
       firstName: clampText(form.firstName, SIGNUP_LIMITS.name),
       lastName: clampText(form.lastName, SIGNUP_LIMITS.name),
+      dob: form.dob || "",
       number: clampText(form.number, SIGNUP_LIMITS.size),
       hatSize: clampText(form.hatSize, SIGNUP_LIMITS.size),
       shirtSize: clampText(form.shirtSize, SIGNUP_LIMITS.size),
@@ -372,6 +374,15 @@ export const PlayerInfoPortal = () => {
                   style={RING_STYLE}
                 />
               </Field>
+              <Field label="Date of Birth">
+                <input
+                  type="date"
+                  value={form.dob}
+                  onChange={(e) => setForm({ ...form, dob: e.target.value })}
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
               <Field label="Jersey Number (preferred)">
                 <input
                   type="text"
@@ -382,6 +393,10 @@ export const PlayerInfoPortal = () => {
                 />
               </Field>
             </div>
+            <p className="t-meta text-ink-3">
+              Date of birth helps your coach match this to the right player on
+              the roster.
+            </p>
           </section>
 
           <section className="space-y-4">

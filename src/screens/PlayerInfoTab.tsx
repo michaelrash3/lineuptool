@@ -38,6 +38,25 @@ export const PlayerInfoTab = memo(() => {
     const full = `${sub.firstName || ""} ${sub.lastName || ""}`
       .trim()
       .toLowerCase();
+    const dob = String(sub.dob || "").trim();
+    // DOB is the strongest signal — a unique birthdate match wins outright,
+    // which also disambiguates two same-named kids.
+    if (dob) {
+      const byDob = players.filter(
+        (p: any) => String(p.dob || "").trim() === dob,
+      );
+      if (byDob.length === 1) return byDob[0].id;
+      // Multiple kids share the birthdate → fall back to name within that set.
+      if (byDob.length > 1 && full) {
+        const hit = byDob.find(
+          (p: any) =>
+            String(p.name || "")
+              .trim()
+              .toLowerCase() === full,
+        );
+        if (hit) return hit.id;
+      }
+    }
     if (!full) return "";
     const hit = players.find(
       (p: any) =>
@@ -119,8 +138,9 @@ export const PlayerInfoTab = memo(() => {
                 No player info submitted yet
               </p>
               <p className="text-xs text-ink-3 font-medium max-w-sm mx-auto">
-                Share your team's Player Info link or QR code (Settings →
-                Tryouts). Submissions will appear here as parents fill it out.
+                Share your team's Player Info link or QR code (found on the
+                Roster page). Submissions will appear here as parents fill it
+                out.
               </p>
             </div>
           ) : visible.length === 0 ? (
@@ -167,6 +187,7 @@ export const PlayerInfoTab = memo(() => {
                         {sub.email} · {sub.phone}
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
+                        <Chip label="DOB" value={sub.dob} />
                         <Chip label="Hat" value={sub.hatSize} />
                         <Chip label="Shirt" value={sub.shirtSize} />
                         <Chip label="Pants" value={sub.pantsSize} />

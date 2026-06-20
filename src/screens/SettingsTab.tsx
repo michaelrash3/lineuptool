@@ -99,13 +99,6 @@ const TryoutsSettingsPanel = memo(
       shareId && typeof window !== "undefined"
         ? `${window.location.origin}/tryouts-portal/${shareId}`
         : null;
-    // Player Info form reuses the SAME share id on a different path — no new
-    // id to generate or distribute. Parents submit uniform/equipment sizing
-    // + logistics for a rostered kid; the coach reviews in the Player Info tab.
-    const playerInfoUrl =
-      shareId && typeof window !== "undefined"
-        ? `${window.location.origin}/player-info-portal/${shareId}`
-        : null;
     return (
       <div>
         <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
@@ -222,46 +215,6 @@ const TryoutsSettingsPanel = memo(
             >
               Generate Player Interest Link
             </button>
-          )}
-
-          {shareId && (
-            <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-                Player Info Form
-              </div>
-              <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
-                {playerInfoUrl}
-              </code>
-              <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg
-                  value={playerInfoUrl || ""}
-                  size={120}
-                  downloadable
-                  filename={`${team.name || "team"}-player-info-qr`}
-                />
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (navigator.clipboard && playerInfoUrl) {
-                          navigator.clipboard.writeText(playerInfoUrl);
-                          toast.push({ kind: "success", title: "Link copied" });
-                        }
-                      }}
-                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    Send to parents to collect uniform/equipment sizing, school,
-                    and an emergency contact. Submissions land in the Player
-                    Info tab.
-                  </p>
-                </div>
-              </div>
-            </div>
           )}
 
           <TryoutDatesPanel team={team} updateTeam={updateTeam} toast={toast} />

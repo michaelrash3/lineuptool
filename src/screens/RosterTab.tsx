@@ -1,8 +1,9 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
-import { useTeam, useUI } from "../contexts";
+import { useTeam, useUI, useToast } from "../contexts";
 import { getPlayerInitials } from "../components/shared";
+import { QRCodeImg } from "../components/QRCodeImg";
 import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
@@ -286,6 +287,96 @@ const PlayerRow = memo(
   },
 );
 
+// Collapsible share card for the public Player Info form. Lives on the Roster
+// page (head-only) because it's about outfitting kids already on the roster.
+// Reuses the team's standing share id on the /player-info-portal/ path — the
+// same id the Tryouts/Interest link uses, so there's nothing extra to generate.
+const PlayerInfoLinkCard = memo(({ team }: any) => {
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const shareId = team?.tryoutShareId;
+  const url =
+    shareId && typeof window !== "undefined"
+      ? `${window.location.origin}/player-info-portal/${shareId}`
+      : null;
+
+  return (
+    <div className="bg-surface border border-line rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-2 transition-colors"
+        aria-expanded={open}
+      >
+        <div
+          className="p-2 rounded-full shrink-0"
+          style={{ backgroundColor: "var(--team-primary-15)" }}
+        >
+          <Icons.Users
+            className="w-4 h-4"
+            style={{ color: "var(--team-primary)" }}
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="t-button text-ink">Player Info Form</div>
+          <p className="text-[11px] text-ink-3 font-medium">
+            Collect uniform sizing, school & emergency contact from parents.
+          </p>
+        </div>
+        <Icons.ChevronDown
+          className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 border-t border-line space-y-3">
+          {url ? (
+            <>
+              <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
+                {url}
+              </code>
+              <div className="flex items-start gap-3 flex-wrap">
+                <QRCodeImg
+                  value={url}
+                  size={120}
+                  downloadable
+                  filename={`${team?.name || "team"}-player-info-qr`}
+                />
+                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (navigator.clipboard) {
+                        navigator.clipboard.writeText(url);
+                        toast.push({ kind: "success", title: "Link copied" });
+                      }
+                    }}
+                    className="self-start px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                  >
+                    Copy
+                  </button>
+                  <p className="text-[10px] font-medium text-ink-3 leading-snug">
+                    Submissions land in the Player Info tab, where you match
+                    each one to a roster player.
+                  </p>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-[11px] text-ink-3 font-medium leading-snug">
+              Generate your team's share link first in{" "}
+              <strong className="text-ink">Settings → Tryouts</strong>. The
+              Player Info form reuses that same link.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export const RosterTab = memo(() => {
   const { team, currentRole } = useTeam();
   const canEdit = currentRole !== "assistant";
@@ -344,6 +435,7 @@ export const RosterTab = memo(() => {
 
   return (
     <div className="w-full space-y-6">
+      {canEdit && <PlayerInfoLinkCard team={team} />}
       <PitcherRankingPanel />
       <PitchingPlanPanel />
       <ArmCarePanel />
