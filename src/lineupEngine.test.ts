@@ -3341,7 +3341,7 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     lineup.filter((inn) => (inn.BENCH || []).some((b: any) => b?.id === id))
       .length;
 
-  it("best nine start, then the bench rotates fairly (everyone plays at least half)", () => {
+  it("best nine start, then the bench rotates lean-fair (everyone plays >= 2/3)", () => {
     const res = generateTournamentLineup(input()) as any;
     expect(res.error).toBeUndefined();
     expect(res.lineup).toHaveLength(6);
@@ -3355,18 +3355,19 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     expect(starters.size).toBe(9);
     expect(res.lineup[0].BENCH).toHaveLength(2);
 
-    // Minimum-play floor: nobody sits more than half the innings (6 -> <= 3).
+    // Lean-fair floor: nobody sits more than a third of the innings (6 -> <= 2),
+    // i.e. everyone plays at least two-thirds.
     const roster11 = Array.from({ length: 11 }, (_, i) => `t${i}`);
     for (const id of roster11) {
-      expect(benchCountOf(res.lineup, id)).toBeLessThanOrEqual(3);
+      expect(benchCountOf(res.lineup, id)).toBeLessThanOrEqual(2);
     }
 
     // The bench rotates across the WHOLE game now (not a fixed 3rd-4th window):
     // each starting sub takes the field for real innings, not just two.
     for (const sub of res.lineup[0].BENCH) {
       const sat = benchCountOf(res.lineup, sub.id);
-      expect(sat).toBeLessThanOrEqual(3);
-      expect(sat).toBeGreaterThanOrEqual(2); // they DO sit some — fair share
+      expect(sat).toBeLessThanOrEqual(2);
+      expect(sat).toBeGreaterThanOrEqual(1); // they DO sit some — fair share
     }
 
     // Nobody is benched two innings back-to-back.
@@ -3393,6 +3394,30 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     const res = generateTournamentLineup(input()) as any;
     expect(new Set(res.lineup.map((inn: any) => inn.P.id)).size).toBe(1);
     expect(new Set(res.lineup.map((inn: any) => inn.C.id)).size).toBe(1);
+  });
+
+  it("utilizes primaryPosition: a tagged kid plays their spot, not parked", () => {
+    // Tag two kids with primary positions (no depth chart). Equal grades, so the
+    // +primary nudge is what seats them — and whenever they're on the field they
+    // should be at that spot (their starter home), never parked elsewhere.
+    const tagged = roster.map((p) =>
+      p.id === "t5"
+        ? { ...p, primaryPosition: "SS" }
+        : p.id === "t3"
+          ? { ...p, primaryPosition: "1B" }
+          : p,
+    );
+    const res = generateTournamentLineup(
+      input({ activePlayers: tagged, allPlayers: tagged }),
+    ) as any;
+    expect(res.error).toBeUndefined();
+    expect(res.lineup[0].SS.id).toBe("t5");
+    expect(res.lineup[0]["1B"].id).toBe("t3");
+    for (const inn of res.lineup) {
+      const benched = (inn.BENCH || []).map((b: any) => b.id);
+      if (!benched.includes("t5")) expect(inn.SS.id).toBe("t5");
+      if (!benched.includes("t3")) expect(inn["1B"].id).toBe("t3");
+    }
   });
 
   it("honors the coach's depth chart for starter slots", () => {
