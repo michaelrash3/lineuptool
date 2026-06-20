@@ -982,7 +982,9 @@ export function checkPitchEligibility(
 export interface PitcherAvailability {
   id: string;
   name: string;
-  number?: string;
+  // Mirrors Player.number, which jersey numbers may be stored as either string
+  // or number; passed through verbatim from the roster.
+  number?: string | number;
   // ready: can pitch on the game date. resting: eligible later (daysUntilReady).
   // maxed: at the per-outing pitch ceiling until their next recorded outing.
   status: "ready" | "resting" | "maxed";
@@ -1005,12 +1007,12 @@ export function buildPitchingPlan(
 ): PitcherAvailability[] {
   const maxP = maxPitchesForAge(ageGroup, ruleSet);
   const pool = (players || []).filter(
-    (p: any) =>
+    (p) =>
       Array.isArray(p.comfortablePositions) &&
       p.comfortablePositions.includes("P"),
   );
   const base = new Date(gameDateStr).getTime();
-  const out: PitcherAvailability[] = pool.map((p: any) => {
+  const out: PitcherAvailability[] = pool.map((p) => {
     const pitching = p.pitching || {};
     // Same-day total (doubleheaders summed), so "maxed" and the displayed count
     // reflect the day's real workload, matching checkPitchEligibility.
