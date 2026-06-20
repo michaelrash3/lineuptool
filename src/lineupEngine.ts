@@ -37,6 +37,7 @@ import type {
   EvaluationEvent,
   GradeMap,
   Game,
+  Inning,
   Player,
   PlayerProfile,
   PlayerStats,
@@ -51,8 +52,35 @@ import {
   evalRoundRecency,
 } from "./utils/helpers";
 
+// Shape of the per-player batting order annotation the engine attaches.
+type BattingReason = {
+  role: string;
+  note: string;
+  effective?: Record<string, number>;
+  blendNote?: string;
+};
+
 // Local alias: a Player with a pre-computed profile bag attached by the engine.
-type ProfiledPlayer = Player & { profile: PlayerProfile };
+type ProfiledPlayer = Player & {
+  profile: PlayerProfile;
+  battingReason?: BattingReason;
+};
+
+// Per-player seasonal bench/defense accumulator built by buildExtraSitHistory.
+type ExtraSitEntry = {
+  extraSits: number;
+  benchInn: number;
+  defInn: number;
+  expectedDef: number;
+};
+
+// Failure record emitted per attempt by tryBuildLineup.
+type BenchFailure = {
+  type: string;
+  position?: string;
+  inning?: number;
+  playerName?: string;
+};
 
 // ---------- Constants ----------
 const POS_10: Position[] = [
@@ -1937,14 +1965,8 @@ function buildExtraSitHistory(
     id?: string,
     name?: string,
   ) => string | undefined = IDENTITY_RESOLVER,
-): Map<
-  string,
-  { extraSits: number; benchInn: number; defInn: number; expectedDef: number }
-> {
-  const out = new Map<
-    string,
-    { extraSits: number; benchInn: number; defInn: number; expectedDef: number }
-  >();
+): Map<string, ExtraSitEntry> {
+  const out = new Map<string, ExtraSitEntry>();
 
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
@@ -1983,7 +2005,7 @@ function buildExtraSitHistory(
     for (const inning of g.lineup) {
       for (const pos in inning) {
         if (pos === "BENCH") continue;
-        const p: any = inning[pos];
+        const p = inning[pos] as SlimPlayer | undefined;
         if (p) {
           attending.add(p.id);
           idName.set(p.id, p.name);
@@ -2337,23 +2359,22 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
   // Mirror the effective stats decoration that generateLineup applies, so
   // the UI sees the same structured `battingReason` shape regardless of
   // which entry point produced the order.
-  battingLineup.forEach((player: any) => {
+  battingLineup.forEach((player) => {
     if (!player || !player.battingReason) return;
-    const eff: any = getEffectiveStats(player);
-    if (eff.__blended && eff.__blendWeights?.current < 0.95) {
+    const eff = getEffectiveStats(player);
+    const bw = eff.__blended ? eff.__blendWeights : undefined;
+    if (bw && bw.current < 0.95) {
       player.battingReason.blendNote = `Stats blended (current ${Math.round(
-        eff.__blendWeights.current * 100,
-      )}% / past ${Math.round(
-        (eff.__blendWeights.past1 + eff.__blendWeights.past2) * 100,
-      )}%)`;
+        bw.current * 100,
+      )}% / past ${Math.round((bw.past1 + bw.past2) * 100)}%)`;
     }
     player.battingReason.effective = {
-      ops: +eff.ops || 0,
-      avg: +eff.avg || 0,
-      obp: +eff.obp || 0,
-      ld: +eff.ld || 0,
-      hard: +eff.hard || 0,
-      qab: +eff.qab || 0,
+      ops: +(eff.ops ?? 0),
+      avg: +(eff.avg ?? 0),
+      obp: +(eff.obp ?? 0),
+      ld: +(eff.ld ?? 0),
+      hard: +(eff.hard ?? 0),
+      qab: +(eff.qab ?? 0),
     };
   });
 
@@ -2628,7 +2649,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     substitutions.filter((s) => s.position !== "C").map((s) => [s.position, s]),
   );
   const reliefCatcherId = catcherHandoff?.in?.id ?? null;
-  const innings: any[] = [];
+  const innings: Inning[] = [];
   for (let i = 1; i <= totalInnings; i++) {
     const inSubWindow =
       subEnterInning != null &&
@@ -2636,8 +2657,8 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
       i <= (subLastInning as number);
     const catcherSwapped =
       catcherHandoff != null && i >= (catcherHandoff.inning as number);
-    const inn: any = {};
-    const benched = new Set(benchPlayers.map((p: any) => p.id));
+    const inn: Inning = {};
+    const benched = new Set(benchPlayers.map((p) => p.id));
     for (const [pos, starter] of assigned) {
       if (pos === "C" && catcherSwapped && catcherHandoff?.in) {
         inn.C = catcherHandoff.in;
@@ -2656,7 +2677,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
         inn[pos] = slim(starter);
       }
     }
-    inn.BENCH = profiled.filter((p: any) => benched.has(p.id)).map(slim);
+    inn.BENCH = profiled.filter((p) => benched.has(p.id)).map(slim);
     innings.push(inn);
   }
 
@@ -2894,8 +2915,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   // competitive, the ledger is empty anyway via effectiveRelax; this also keeps
   // a Rec game from counting Tournament games against its fairness.)
   const ledgerGames = games.filter(
-    (g: any) =>
-      ((g.leagueRuleSet || leagueRuleSet) === "USSSA") === competitive,
+    (g) => ((g.leagueRuleSet || leagueRuleSet) === "USSSA") === competitive,
   );
 
   // Resolver maps orphaned snapshot ids (from a roster delete+re-add) to the
@@ -2971,26 +2991,25 @@ export function generateLineup(input: EngineInput): EngineResult {
   // including role/note appropriate for the chosen strategy (capped vs Tango).
   // We only need to add the recency blend note here, since that depends on
   // info computed in profiles, not in the order builder.
-  battingLineup.forEach((player: any) => {
+  battingLineup.forEach((player) => {
     if (!player || !player.battingReason) return;
-    const eff: any = getEffectiveStats(player);
-    if (eff.__blended && eff.__blendWeights?.current < 0.95) {
+    const eff = getEffectiveStats(player);
+    const bw = eff.__blended ? eff.__blendWeights : undefined;
+    if (bw && bw.current < 0.95) {
       player.battingReason.blendNote = `Stats blended (current ${Math.round(
-        eff.__blendWeights.current * 100,
-      )}% / past ${Math.round(
-        (eff.__blendWeights.past1 + eff.__blendWeights.past2) * 100,
-      )}%)`;
+        bw.current * 100,
+      )}% / past ${Math.round((bw.past1 + bw.past2) * 100)}%)`;
     }
     // Also enrich effective stats from the player's blended profile (the
     // engine's batting math used these blended numbers; the UI should show
     // the same numbers for transparency).
     player.battingReason.effective = {
-      ops: +eff.ops || 0,
-      avg: +eff.avg || 0,
-      obp: +eff.obp || 0,
-      ld: +eff.ld || 0,
-      hard: +eff.hard || 0,
-      qab: +eff.qab || 0,
+      ops: +(eff.ops ?? 0),
+      avg: +(eff.avg ?? 0),
+      obp: +(eff.obp ?? 0),
+      ld: +(eff.ld ?? 0),
+      hard: +(eff.hard ?? 0),
+      qab: +(eff.qab ?? 0),
     };
   });
   const isStarter = new Set();
@@ -3048,7 +3067,10 @@ export function generateLineup(input: EngineInput): EngineResult {
   const MAX_ATTEMPTS = 200;
 
   // Try generation with given history maps. Returns { lineup, penalty } or null.
-  const runAttempts = (firstInnHx: any, seasonHx: any) => {
+  const runAttempts = (
+    firstInnHx: Map<string, number>,
+    seasonHx: Map<string, ExtraSitEntry>,
+  ) => {
     let bestLineup = null;
     let bestPenalty = Infinity;
     let bestLockRelaxed = [];
@@ -3113,7 +3135,7 @@ export function generateLineup(input: EngineInput): EngineResult {
   // inning) — that's the likeliest real cause. Returns both a coach-facing
   // message and the raw dominant type so callers can branch / log on it.
   const describeFailures = (
-    failures: any[],
+    failures: BenchFailure[],
   ): {
     msg: string;
     type: string | null;
