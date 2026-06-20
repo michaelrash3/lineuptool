@@ -77,6 +77,9 @@ export interface Player {
   // position list because C is special (equipment, continuity, smaller
   // group of trained kids).
   isCatcher?: boolean;
+  // Coach-designated primary and secondary positions (big-game pre-pin logic).
+  primaryPosition?: string;
+  secondaryPosition?: string;
   // ISO yyyy-mm-dd dates the family already knows the kid is unavailable
   // (entered ahead of time on the profile). Games on these dates default
   // the kid to absent in Game Day Attendance; the coach can still toggle
