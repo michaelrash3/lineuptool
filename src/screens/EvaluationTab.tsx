@@ -51,6 +51,74 @@ import {
   Tooltip,
 } from "recharts";
 import { ChartFrame, ChartTooltip } from "../components/charts/primitives";
+import type {
+  Player,
+  PlayerStats,
+  GradeMap,
+  EvaluationEvent,
+  EvalCategoryId,
+} from "../types";
+import type { EvalCategory, EvalGroup } from "../constants/ui";
+import type { PrimarySuggestion } from "../lineupEngine";
+
+// A grade record as edited in the UI: the per-category 1–5 grades live under
+// arbitrary string keys (number) alongside the free-text notes and the coach's
+// suggested-positions chips. Modeled as its own interface (rather than
+// GradeMap & …) because the chips array can't satisfy GradeMap's number-only
+// string index. Pass `asGradeMap` when handing one to the scoring engine.
+interface EvalGradeRecord {
+  [categoryId: string]: number | string | string[] | undefined;
+  notes?: string;
+  suggestedPositions?: string[];
+}
+
+// The scoring engine reads only the numeric category grades + notes from a
+// record, so an EvalGradeRecord is safe to treat as a GradeMap there. The two
+// differ structurally only in the suggested-positions chip array, which the
+// engine ignores.
+const asGradeMap = (g: EvalGradeRecord): GradeMap => g as GradeMap;
+
+// `pitching` rides on Player only through its `[key: string]: unknown` index
+// signature, so read the optional radar topMph through a narrowing helper
+// instead of casting at each call site.
+const playerTopMph = (player: Player): number | undefined => {
+  const pitching = (player as { pitching?: { topMph?: number } }).pitching;
+  return pitching?.topMph;
+};
+
+// EvaluationEvent carries several eval-workflow fields only through its
+// `[key: string]: unknown` index signature (tryout linkage + the denormalized
+// evaluator name). Narrow them to their real types locally so reads in this
+// screen are typed without per-access casts.
+interface EvalRound extends EvaluationEvent {
+  tryoutSignupId?: string;
+  tryoutSessionId?: string;
+  evaluatorName?: string;
+}
+
+type DecisionBucket = "strong" | "fit" | "watch" | "younger";
+
+// One row of the Roster Decisions advisory, computed in the panel's useMemo.
+// `perfScore` / `teamAvgScore` / `scoreVsTeam` are filled in by the relative
+// cut-line pass after the initial per-player map.
+interface DecisionRow {
+  player: Player;
+  baseballAge: number | null;
+  playingUp: boolean;
+  latestEvalAvg: number | null;
+  totalScore: number;
+  decisionScore: number;
+  evalTrend: "improving" | "declining" | "flat" | null;
+  evalDelta: number | null;
+  evalCount: number;
+  statsPctVsAvg: number | null;
+  statsRatio: number | null;
+  bucket: DecisionBucket;
+  rationale: string[];
+  perfScore?: number;
+  teamAvgScore?: number;
+  scoreVsTeam?: number | null;
+}
 
 const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   (a, b) => a + b,
@@ -62,14 +130,18 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
 // multi-position player exceed (or be capped against) a smaller 100-point base.
 // This intentionally excludes the left-handed-pitcher roster scarcity bump;
 // lefty value is only considered inside the Roster Decisions advisory logic.
-const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
+const evalTotalScore = (
+  grades: GradeMap,
+  player: Player,
+  teamAge?: string,
+): number => {
   const stats = player?.stats || null;
   let earned = (calculateTotalScore(grades, stats) / 100) * TOTAL_SCORE_MAX;
   let possible = TOTAL_SCORE_MAX;
 
   if (playerIsPitcher(player)) {
     earned += calcPitcherScore(grades, stats, {
-      topMph: stats?.pTopMph ?? player?.pitching?.topMph,
+      topMph: stats?.pTopMph ?? playerTopMph(player),
       teamAge,
       neutralFill: true,
     });
@@ -94,14 +166,14 @@ const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
 // pitching still earns nothing. Left-handed scarcity is applied only to the
 // hidden roster-decision standing below, not to the visible score badge.
 const pitcherPremium = (
-  savedGrades: any,
-  player: any,
+  savedGrades: GradeMap,
+  player: Player,
   teamAge?: string,
 ): number => {
   if (!playerIsPitcher(player)) return 0;
   const stats = player?.stats || null;
   const score = calcPitcherScore(savedGrades, stats, {
-    topMph: stats?.pTopMph ?? player?.pitching?.topMph,
+    topMph: stats?.pTopMph ?? playerTopMph(player),
     teamAge,
     neutralFill: true,
   });
@@ -127,7 +199,7 @@ const SUGGESTED_POSITIONS = [
   "RF",
 ];
 
-const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
+const DEFAULT_GRADES = EVAL_CATEGORIES.reduce<EvalGradeRecord>(
   // Measurement fields (e.g. Pitch Velocity in mph) are optional and have no
   // default — only 1–5 grades seed a starting value.
   (acc, c) =>
@@ -139,7 +211,7 @@ const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
 // (written at save time so reads work without an extra auth roundtrip);
 // fall back to the legacy free-text label, then to a date-only label
 // for ancient rounds with neither field set.
-const formatRoundName = (round: any) => {
+const formatRoundName = (round: EvalRound | null | undefined) => {
   if (!round) return "";
   if (round.evaluatorName) {
     return `${round.evaluatorName} · ${round.date}`;
@@ -148,10 +220,12 @@ const formatRoundName = (round: any) => {
   return `Eval (${round.date})`;
 };
 
-const sanitizeGrades = (g: any) => {
-  const out: Record<string, any> = { ...DEFAULT_GRADES };
+const sanitizeGrades = (g: EvalGradeRecord | null | undefined) => {
+  const out: EvalGradeRecord = { ...DEFAULT_GRADES };
   EVAL_CATEGORIES.forEach((c) => {
-    const v = parseInt(g?.[c.id], 10);
+    // Persisted grades may arrive as number or numeric string; parseInt
+    // tolerates both, so read the raw value loosely before coercing.
+    const v = parseInt(String(g?.[c.id] ?? ""), 10);
     if (Number.isFinite(v))
       out[c.id] = Math.max(1, Math.min(EVAL_SCALE_MAX, v));
   });
@@ -169,22 +243,22 @@ export const RosterDecisionsPanel = memo(() => {
     if (!players || players.length === 0) return null;
 
     // Eval rounds for this user, oldest first
-    const myEvals = (evaluationEvents || [])
+    const myEvals = ((evaluationEvents || []) as EvalRound[])
       .filter(
-        (e: any) =>
+        (e: EvalRound) =>
           !e.tryoutSignupId &&
           !e.tryoutSessionId &&
           e.coachRole === "Head" &&
           (!user || e.evaluatorId === user.uid),
       )
-      .sort((a: any, b: any) => evalRoundRecency(b, a));
+      .sort((a: EvalRound, b: EvalRound) => evalRoundRecency(b, a));
 
     // Compute team-wide stat averages for current season (used as baseline
     // for "below team average" performance signal)
     const statsAvg = (() => {
       const fields = ["ops", "avg", "obp"];
-      const sums = Object.create(null);
-      const counts = Object.create(null);
+      const sums: Record<string, number> = Object.create(null);
+      const counts: Record<string, number> = Object.create(null);
       for (const f of fields) {
         sums[f] = 0;
         counts[f] = 0;
@@ -199,7 +273,7 @@ export const RosterDecisionsPanel = memo(() => {
           }
         }
       }
-      const out = Object.create(null);
+      const out: Record<string, number> = Object.create(null);
       for (const f of fields) {
         out[f] = counts[f] > 0 ? sums[f] / counts[f] : 0;
       }
@@ -215,22 +289,22 @@ export const RosterDecisionsPanel = memo(() => {
       return parseInt(m[m.length - 1], 10);
     })();
 
-    const decisionRows = players.map((player: any) => {
+    const decisionRows: DecisionRow[] = players.map((player: Player) => {
       // ---- Latest eval grade (average across categories) ----
-      let latestEvalAvg = null;
+      let latestEvalAvg: number | null = null;
       const playerCats = getEvalCategoriesForPlayer(
         team?.pitchingFormat,
         player,
       );
       const evalsForPlayer = myEvals
-        .map((ev: any) => {
+        .map((ev: EvalRound) => {
           const g = ev.grades?.[player.id];
           if (!g) return null;
           // Average only over categories that apply to THIS player, so a
           // non-catcher/non-pitcher isn't dragged down by specialties they
           // were never meant to be graded on.
           const vals = playerCats
-            .map((c) => +g[c.id])
+            .map((c) => Number(g[c.id]))
             .filter((v) => Number.isFinite(v));
           if (vals.length === 0) return null;
           return {
@@ -239,15 +313,15 @@ export const RosterDecisionsPanel = memo(() => {
             avg: vals.reduce((a, b) => a + b, 0) / vals.length,
           };
         })
-        .filter(Boolean);
+        .filter((e): e is { date: string; label: string; avg: number } => !!e);
 
       if (evalsForPlayer.length > 0) {
         latestEvalAvg = evalsForPlayer[evalsForPlayer.length - 1].avg;
       }
 
       // ---- Eval trend (first vs latest) ----
-      let evalTrend = null; // "improving" | "declining" | "flat" | null
-      let evalDelta = null;
+      let evalTrend: "improving" | "declining" | "flat" | null = null;
+      let evalDelta: number | null = null;
       if (evalsForPlayer.length >= 2) {
         const first = evalsForPlayer[0].avg;
         const last = evalsForPlayer[evalsForPlayer.length - 1].avg;
@@ -260,11 +334,12 @@ export const RosterDecisionsPanel = memo(() => {
 
       // ---- Stats vs team average ----
       const stats = player.stats || {};
-      let statsPctVsAvg = null;
-      let statsRatio = null;
-      if (Number.isFinite(+stats.ops) && +stats.ops > 0 && statsAvg.ops > 0) {
-        statsPctVsAvg = (+stats.ops / statsAvg.ops - 1) * 100;
-        statsRatio = +stats.ops / statsAvg.ops; // 1.0 = team avg
+      const ops = Number(stats.ops);
+      let statsPctVsAvg: number | null = null;
+      let statsRatio: number | null = null;
+      if (Number.isFinite(ops) && ops > 0 && statsAvg.ops > 0) {
+        statsPctVsAvg = (ops / statsAvg.ops - 1) * 100;
+        statsRatio = ops / statsAvg.ops; // 1.0 = team avg
       }
 
       // ---- Total Score (out of 100) ----
@@ -276,12 +351,12 @@ export const RosterDecisionsPanel = memo(() => {
       // team averaging 70 than one averaging 55).
       const latestRoundForPlayer = [...myEvals]
         .reverse()
-        .find((ev: any) => ev.grades?.[player.id]);
+        .find((ev: EvalRound) => ev.grades?.[player.id]);
       const savedGrades = latestRoundForPlayer?.grades?.[player.id] || {};
       const totalScore = Math.min(
         100,
         calculateTotalScore(
-          { ...DEFAULT_GRADES, ...savedGrades },
+          asGradeMap({ ...DEFAULT_GRADES, ...savedGrades }),
           player.stats,
         ) + pitcherPremium(savedGrades, player, teamAge),
       );
@@ -319,8 +394,8 @@ export const RosterDecisionsPanel = memo(() => {
       // lead with the Total Score (out of 100) badge and the vs-team delta,
       // so the explanation text stays qualitative.
 
-      let bucket = "watch"; // proposal — Strong Fit earned, watch tempered below
-      const rationale = [];
+      let bucket: DecisionBucket = "watch"; // proposal — Strong Fit earned, watch tempered below
+      const rationale: string[] = [];
 
       const stronglyImproving =
         evalTrend === "improving" && evalDelta != null && evalDelta >= 0.5;
@@ -443,29 +518,32 @@ export const RosterDecisionsPanel = memo(() => {
     //
     // Null standing when we have no eval AND no stats for the kid -- can't
     // call them low without data.
-    const compositeOf = (d: any) =>
+    const compositeOf = (d: DecisionRow): number | null =>
       d.latestEvalAvg == null && d.statsRatio == null
         ? null
         : d.decisionScore / 100;
-    const withComp = decisionRows.map((d: any) => ({ d, c: compositeOf(d) }));
-    const scored = withComp.map((x: any) => x.c).filter((c: any) => c != null);
+    const withComp = decisionRows.map((d: DecisionRow) => ({
+      d,
+      c: compositeOf(d),
+    }));
+    const scored = withComp
+      .map((x) => x.c)
+      .filter((c): c is number => c != null);
     const mean = scored.length
-      ? scored.reduce((a: any, b: any) => a + b, 0) / scored.length
+      ? scored.reduce((a, b) => a + b, 0) / scored.length
       : 0;
     const sd = scored.length
       ? Math.sqrt(
-          scored.reduce((a: any, b: any) => a + (b - mean) ** 2, 0) /
-            scored.length,
+          scored.reduce((a, b) => a + (b - mean) ** 2, 0) / scored.length,
         )
       : 0;
     const belowLine = mean - sd;
     const visibleScores = decisionRows
-      .filter((d: any) => d.latestEvalAvg != null || d.statsRatio != null)
-      .map((d: any) => d.totalScore);
+      .filter((d) => d.latestEvalAvg != null || d.statsRatio != null)
+      .map((d) => d.totalScore);
     const teamAvgScore = visibleScores.length
       ? Math.round(
-          visibleScores.reduce((a: number, b: number) => a + b, 0) /
-            visibleScores.length,
+          visibleScores.reduce((a, b) => a + b, 0) / visibleScores.length,
         )
       : Math.round(mean * 100);
     for (const x of withComp) {
@@ -481,7 +559,7 @@ export const RosterDecisionsPanel = memo(() => {
       if (x.c != null && x.c < belowLine) {
         x.d.rationale.unshift(
           `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
-            x.d.scoreVsTeam > 0 ? "+" : ""
+            (x.d.scoreVsTeam ?? 0) > 0 ? "+" : ""
           }${x.d.scoreVsTeam}) — more than a standard deviation back`,
         );
         continue;
@@ -509,28 +587,20 @@ export const RosterDecisionsPanel = memo(() => {
   if (!decisions || decisions.length === 0) return null;
 
   const byBucket = {
-    strong: decisions.filter((d: any) => d.bucket === "strong"),
-    fit: decisions.filter((d: any) => d.bucket === "fit"),
-    watch: decisions.filter((d: any) => d.bucket === "watch"),
-    younger: decisions.filter((d: any) => d.bucket === "younger"),
+    strong: decisions.filter((d) => d.bucket === "strong"),
+    fit: decisions.filter((d) => d.bucket === "fit"),
+    watch: decisions.filter((d) => d.bucket === "watch"),
+    younger: decisions.filter((d) => d.bucket === "younger"),
   };
 
   // Best-standing first for the healthy groups (Strong Fit / Fit); weakest
   // first for the groups that need a decision (Cut Candidates / Cut-Drop).
-  byBucket.strong.sort(
-    (a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0),
-  );
-  byBucket.fit.sort(
-    (a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0),
-  );
-  byBucket.watch.sort(
-    (a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0),
-  );
-  byBucket.younger.sort(
-    (a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0),
-  );
+  byBucket.strong.sort((a, b) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
+  byBucket.fit.sort((a, b) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
+  byBucket.watch.sort((a, b) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
+  byBucket.younger.sort((a, b) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
 
-  const renderCard = (d: any) => (
+  const renderCard = (d: DecisionRow) => (
     <button
       key={d.player.id}
       type="button"
@@ -728,10 +798,10 @@ export const RosterDecisionsPanel = memo(() => {
 
 // Average a player's grades across all the universal categories they have a
 // number for (excludes notes / non-numeric fields).
-const avgUniversal = (gradeRecord: any) => {
+const avgUniversal = (gradeRecord: GradeMap | null | undefined) => {
   if (!gradeRecord) return null;
   const vals = EVAL_CATEGORIES.filter((c) => !c.addOn)
-    .map((c) => +gradeRecord[c.id])
+    .map((c) => Number(gradeRecord[c.id]))
     .filter((v) => Number.isFinite(v) && v >= 1 && v <= EVAL_SCALE_MAX);
   if (vals.length === 0) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
@@ -741,15 +811,24 @@ const avgUniversal = (gradeRecord: any) => {
 // Standouts: average grade up by ≥ 0.75 round-over-round
 // Regressions: average grade down by ≥ 0.75 round-over-round
 // Per-category alerts: any single category dropped 2+ points round-over-round
-const computeFlags = (rounds: any, players: any, activeCategories: any) => {
+const computeFlags = (
+  rounds: EvalRound[],
+  players: Player[],
+  activeCategories: EvalCategory[],
+) => {
   if (!rounds || rounds.length < 2) {
     return { standouts: [], regressions: [], categoryDrops: [] };
   }
   const [latest, previous] = rounds;
-  const standouts: any[] = [];
-  const regressions: any[] = [];
-  const categoryDrops: any[] = [];
-  players.forEach((p: any) => {
+  const standouts: Array<{ player: Player; delta: number }> = [];
+  const regressions: Array<{ player: Player; delta: number }> = [];
+  const categoryDrops: Array<{
+    player: Player;
+    category: EvalCategory;
+    from: number;
+    to: number;
+  }> = [];
+  players.forEach((p: Player) => {
     const latestG = latest.grades?.[p.id];
     const prevG = previous.grades?.[p.id];
     if (!latestG || !prevG) return;
@@ -759,9 +838,9 @@ const computeFlags = (rounds: any, players: any, activeCategories: any) => {
     const delta = a - b;
     if (delta >= 0.75) standouts.push({ player: p, delta });
     if (delta <= -0.75) regressions.push({ player: p, delta });
-    activeCategories.forEach((cat: any) => {
-      const va = +latestG[cat.id];
-      const vb = +prevG[cat.id];
+    activeCategories.forEach((cat: EvalCategory) => {
+      const va = Number(latestG[cat.id]);
+      const vb = Number(prevG[cat.id]);
       if (Number.isFinite(va) && Number.isFinite(vb) && vb - va >= 2) {
         categoryDrops.push({
           player: p,
@@ -781,11 +860,23 @@ const computeFlags = (rounds: any, players: any, activeCategories: any) => {
   };
 };
 
-const fmtDelta = (d: any) =>
+const fmtDelta = (d: number) =>
   `${d >= 0 ? "+" : ""}${d.toFixed(1)}`.replace(/\.0$/, "");
 
+interface InsightsPanelProps {
+  rounds: EvalRound[];
+  players: Player[];
+  activeCategories: EvalCategory[];
+  onPlayerClick: (playerId: string) => void;
+}
+
 const InsightsPanel = memo(
-  ({ rounds, players, activeCategories, onPlayerClick }: any) => {
+  ({
+    rounds,
+    players,
+    activeCategories,
+    onPlayerClick,
+  }: InsightsPanelProps) => {
     const flags = useMemo(
       () => computeFlags(rounds, players, activeCategories),
       [rounds, players, activeCategories],
@@ -897,6 +988,15 @@ const InsightsPanel = memo(
 
 // Side-by-side round comparison view. Lists every player with the per-category
 // delta between two saved rounds (left = older, right = newer).
+interface RoundComparisonViewProps {
+  rounds: EvalRound[];
+  players: Player[];
+  activeCategories: EvalCategory[];
+  onPlayerClick: (playerId: string) => void;
+  onClose: () => void;
+  primaryColor?: string;
+}
+
 const RoundComparisonView = memo(
   ({
     rounds,
@@ -904,12 +1004,11 @@ const RoundComparisonView = memo(
     activeCategories,
     onPlayerClick,
     onClose,
-    primaryColor,
-  }: any) => {
+  }: RoundComparisonViewProps) => {
     const [leftId, setLeftId] = useState(rounds[1]?.id || "");
     const [rightId, setRightId] = useState(rounds[0]?.id || "");
-    const left = rounds.find((r: any) => r.id === leftId);
-    const right = rounds.find((r: any) => r.id === rightId);
+    const left = rounds.find((r: EvalRound) => r.id === leftId);
+    const right = rounds.find((r: EvalRound) => r.id === rightId);
     return (
       <div
         className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm p-4 flex items-end sm:items-center justify-center"
@@ -946,7 +1045,7 @@ const RoundComparisonView = memo(
                 onChange={(e) => setLeftId(e.target.value)}
                 className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
               >
-                {rounds.map((r: any) => (
+                {rounds.map((r: EvalRound) => (
                   <option key={r.id} value={r.id}>
                     {r.label || r.date} — {r.date}
                   </option>
@@ -960,7 +1059,7 @@ const RoundComparisonView = memo(
                 onChange={(e) => setRightId(e.target.value)}
                 className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
               >
-                {rounds.map((r: any) => (
+                {rounds.map((r: EvalRound) => (
                   <option key={r.id} value={r.id}>
                     {r.label || r.date} — {r.date}
                   </option>
@@ -975,7 +1074,7 @@ const RoundComparisonView = memo(
                   <th className="p-3 t-eyebrow text-left w-48 sticky left-0 bg-app z-20 border-r border-line">
                     Player
                   </th>
-                  {activeCategories.map((cat: any) => (
+                  {activeCategories.map((cat: EvalCategory) => (
                     <th key={cat.id} className="p-3 t-eyebrow text-center">
                       {cat.label}
                     </th>
@@ -986,7 +1085,7 @@ const RoundComparisonView = memo(
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {players.map((p: any) => {
+                {players.map((p: Player) => {
                   const lg = left?.grades?.[p.id];
                   const rg = right?.grades?.[p.id];
                   const la = avgUniversal(lg);
@@ -1003,9 +1102,9 @@ const RoundComparisonView = memo(
                           {p.name}
                         </button>
                       </td>
-                      {activeCategories.map((cat: any) => {
-                        const v1 = +lg?.[cat.id];
-                        const v2 = +rg?.[cat.id];
+                      {activeCategories.map((cat: EvalCategory) => {
+                        const v1 = Number(lg?.[cat.id]);
+                        const v2 = Number(rg?.[cat.id]);
                         const has1 = Number.isFinite(v1);
                         const has2 = Number.isFinite(v2);
                         const delta = has1 && has2 ? v2 - v1 : null;
@@ -1060,13 +1159,21 @@ const RoundComparisonView = memo(
 // the per-category grade chips here — those already feed into the
 // combined grade rendered in the main grading area.
 const AssistantSubmissionsPanel = memo(
-  ({ evaluationEvents, players, onDelete }: any) => {
+  ({
+    evaluationEvents,
+    players,
+    onDelete,
+  }: {
+    evaluationEvents?: EvalRound[];
+    players?: Player[];
+    onDelete?: (roundId: string) => void;
+  }) => {
     // Two-tap confirm for delete: first tap arms the row, second commits.
     // Replaces a blocking window.confirm — keeps the head coach in flow.
-    const [pendingDeleteId, setPendingDeleteId] = useState(null);
+    const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     // Pick the most recent eval per assistant (by date).
     const latestByAssistant = useMemo(() => {
-      const m = new Map();
+      const m = new Map<string, EvalRound>();
       for (const e of evaluationEvents || []) {
         if (
           e.tryoutSignupId ||
@@ -1097,8 +1204,8 @@ const AssistantSubmissionsPanel = memo(
         </div>
         <div className="space-y-3">
           {latestByAssistant.map((ev) => {
-            const playersWithSignal = (players || []).filter((p: any) => {
-              const g = ev.grades?.[p.id] || {};
+            const playersWithSignal = (players || []).filter((p: Player) => {
+              const g: EvalGradeRecord = ev.grades?.[p.id] || {};
               const hasPositions =
                 Array.isArray(g.suggestedPositions) &&
                 g.suggestedPositions.length > 0;
@@ -1169,8 +1276,8 @@ const AssistantSubmissionsPanel = memo(
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {playersWithSignal.map((p: any) => {
-                      const g = ev.grades?.[p.id] || {};
+                    {playersWithSignal.map((p: Player) => {
+                      const g: EvalGradeRecord = ev.grades?.[p.id] || {};
                       return (
                         <div
                           key={p.id}
@@ -1182,7 +1289,7 @@ const AssistantSubmissionsPanel = memo(
                           {Array.isArray(g.suggestedPositions) &&
                             g.suggestedPositions.length > 0 && (
                               <div className="flex flex-wrap gap-1 mb-1">
-                                {g.suggestedPositions.map((pos: any) => (
+                                {g.suggestedPositions.map((pos: string) => (
                                   <span
                                     key={pos}
                                     className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg"
@@ -1217,9 +1324,17 @@ const AssistantSubmissionsPanel = memo(
 // and each assistant's submission side by side without thumbing through a
 // separate screen. Only assistants who actually graded this player appear.
 const PlayerAssistantEvals = memo(
-  ({ player, playerCats, assistantRounds }: any) => {
+  ({
+    player,
+    playerCats,
+    assistantRounds,
+  }: {
+    player: Player;
+    playerCats: EvalCategory[];
+    assistantRounds?: EvalRound[];
+  }) => {
     const relevant = (assistantRounds || []).filter(
-      (ev: any) => ev.grades?.[player.id],
+      (ev: EvalRound) => ev.grades?.[player.id],
     );
     if (relevant.length === 0) return null;
     return (
@@ -1228,9 +1343,9 @@ const PlayerAssistantEvals = memo(
           Assistant Evaluations ({relevant.length})
         </div>
         <div className="space-y-2">
-          {relevant.map((ev: any) => {
-            const g = ev.grades?.[player.id] || {};
-            const positions = Array.isArray(g.suggestedPositions)
+          {relevant.map((ev: EvalRound) => {
+            const g: EvalGradeRecord = ev.grades?.[player.id] || {};
+            const positions: string[] = Array.isArray(g.suggestedPositions)
               ? g.suggestedPositions
               : [];
             return (
@@ -1248,8 +1363,8 @@ const PlayerAssistantEvals = memo(
                   </span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1 mb-1">
-                  {playerCats.map((cat: any) => {
-                    const v = +g[cat.id];
+                  {playerCats.map((cat: EvalCategory) => {
+                    const v = Number(g[cat.id]);
                     return (
                       <div
                         key={cat.id}
@@ -1267,7 +1382,7 @@ const PlayerAssistantEvals = memo(
                 </div>
                 {positions.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-1.5">
-                    {positions.map((pos: any) => (
+                    {positions.map((pos: string) => (
                       <span
                         key={pos}
                         className="text-[10px] font-black px-1.5 py-0.5 rounded border bg-surface border-line text-ink-2"
@@ -1291,45 +1406,55 @@ const PlayerAssistantEvals = memo(
   },
 );
 
-const GradeChipRow = memo(({ value, onChange, ariaLabel }: any) => (
-  <div
-    className="flex items-center gap-1"
-    role="radiogroup"
-    aria-label={ariaLabel}
-  >
-    {[1, 2, 3, 4, 5].map((n) => {
-      const isActive = n === value;
-      const label = EVAL_SCALE_LABELS[n - 1];
-      return (
-        <button
-          key={n}
-          type="button"
-          role="radio"
-          aria-checked={isActive}
-          onClick={() => onChange(n)}
-          title={`${n} — ${label}`}
-          aria-label={`${ariaLabel}: ${n} — ${label}`}
-          className="flex items-center justify-center w-8 h-8 rounded-md border text-xs font-black tabular-nums transition-all"
-          style={
-            isActive
-              ? {
-                  backgroundColor: "var(--team-primary)",
-                  color: "var(--team-tertiary)",
-                  borderColor: "var(--team-primary)",
-                }
-              : {
-                  backgroundColor: "var(--surface)",
-                  color: "var(--ink-2)",
-                  borderColor: "var(--line)",
-                }
-          }
-        >
-          {n}
-        </button>
-      );
-    })}
-  </div>
-));
+const GradeChipRow = memo(
+  ({
+    value,
+    onChange,
+    ariaLabel,
+  }: {
+    value?: number;
+    onChange: (n: number) => void;
+    ariaLabel: string;
+  }) => (
+    <div
+      className="flex items-center gap-1"
+      role="radiogroup"
+      aria-label={ariaLabel}
+    >
+      {[1, 2, 3, 4, 5].map((n) => {
+        const isActive = n === value;
+        const label = EVAL_SCALE_LABELS[n - 1];
+        return (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            onClick={() => onChange(n)}
+            title={`${n} — ${label}`}
+            aria-label={`${ariaLabel}: ${n} — ${label}`}
+            className="flex items-center justify-center w-8 h-8 rounded-md border text-xs font-black tabular-nums transition-all"
+            style={
+              isActive
+                ? {
+                    backgroundColor: "var(--team-primary)",
+                    color: "var(--team-tertiary)",
+                    borderColor: "var(--team-primary)",
+                  }
+                : {
+                    backgroundColor: "var(--surface)",
+                    color: "var(--ink-2)",
+                    borderColor: "var(--line)",
+                  }
+            }
+          >
+            {n}
+          </button>
+        );
+      })}
+    </div>
+  ),
+);
 
 export const EvaluationTab = memo(() => {
   const { team, user, saveTeamEvaluation, deleteEvaluation, currentRole } =
@@ -1353,10 +1478,10 @@ export const EvaluationTab = memo(() => {
   // Sort eval cards by jersey number so the head can scan in the same
   // order coaches call kids on the field. Numeric sort; unnumbered
   // players sink to the bottom with name as the tie-break.
-  const players = useMemo(() => {
-    return (rawPlayers || []).slice().sort((a: any, b: any) => {
-      const na = parseInt(a.number, 10);
-      const nb = parseInt(b.number, 10);
+  const players = useMemo<Player[]>(() => {
+    return ((rawPlayers || []) as Player[]).slice().sort((a, b) => {
+      const na = parseInt(String(a.number ?? ""), 10);
+      const nb = parseInt(String(b.number ?? ""), 10);
       const aValid = Number.isFinite(na);
       const bValid = Number.isFinite(nb);
       if (aValid && bValid) {
@@ -1388,14 +1513,18 @@ export const EvaluationTab = memo(() => {
   // `pendingModalDeleteId` is the per-row armed-state id for the
   // modal's two-tap confirm.
   const [manageOpen, setManageOpen] = useState(false);
-  const [pendingModalDeleteId, setPendingModalDeleteId] = useState(null);
+  const [pendingModalDeleteId, setPendingModalDeleteId] = useState<
+    string | null
+  >(null);
   // Player cards are collapsed by default — the eval grid was too tall
   // to scan a 12-kid roster without scrolling for days. Each card now
   // shows a single header row (name + jersey + total + chevron); tap
   // to expand the grading UI. Multi-expand allowed so coaches can
   // compare two kids side-by-side mid-grading.
-  const [expandedPlayerIds, setExpandedPlayerIds] = useState(() => new Set());
-  const togglePlayerExpanded = useCallback((playerId: any) => {
+  const [expandedPlayerIds, setExpandedPlayerIds] = useState(
+    () => new Set<string>(),
+  );
+  const togglePlayerExpanded = useCallback((playerId: string) => {
     setExpandedPlayerIds((prev) => {
       const next = new Set(prev);
       if (next.has(playerId)) next.delete(playerId);
@@ -1421,7 +1550,8 @@ export const EvaluationTab = memo(() => {
   // If a group disappears (e.g. user changed pitchingFormat away from Kid Pitch
   // while viewing the Pitching tab), bounce back to Hitting.
   useEffect(() => {
-    if (!visibleGroups.includes(activeGroup as any)) setActiveGroup("Hitting");
+    if (!visibleGroups.includes(activeGroup as EvalGroup))
+      setActiveGroup("Hitting");
   }, [visibleGroups, activeGroup]);
 
   // Clear any armed-for-delete state when the user switches rounds —
@@ -1434,9 +1564,9 @@ export const EvaluationTab = memo(() => {
   // Eval rounds belonging to this head coach, newest first (createdAt breaks
   // same-date ties so the genuinely newest round leads).
   const myRounds = useMemo(() => {
-    return (evaluationEvents || [])
+    return ((evaluationEvents || []) as EvalRound[])
       .filter(
-        (e: any) =>
+        (e: EvalRound) =>
           !e.tryoutSignupId &&
           !e.tryoutSessionId &&
           e.coachRole === "Head" &&
@@ -1449,8 +1579,8 @@ export const EvaluationTab = memo(() => {
   // under every player so the head sees their grades + all assistant grades
   // together. Same selection rule getCombinedGrades uses: latest per evaluator.
   const assistantRounds = useMemo(() => {
-    const m = new Map();
-    for (const e of evaluationEvents || []) {
+    const m = new Map<string, EvalRound>();
+    for (const e of (evaluationEvents || []) as EvalRound[]) {
       if (
         e.tryoutSignupId ||
         e.tryoutSessionId ||
@@ -1475,7 +1605,7 @@ export const EvaluationTab = memo(() => {
   // offered, not what the button does.
   const isCreatingNew = !selectedRoundId;
   const activeRound = selectedRoundId
-    ? myRounds.find((r: any) => r.id === selectedRoundId)
+    ? myRounds.find((r: EvalRound) => r.id === selectedRoundId)
     : null;
   const activeRoundName = activeRound ? formatRoundName(activeRound) : "";
 
@@ -1534,7 +1664,7 @@ export const EvaluationTab = memo(() => {
   // preventDefault + sets returnValue.
   useEffect(() => {
     if (saveState !== "dirty") return;
-    const onBeforeUnload = (e: any) => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = "";
     };
@@ -1577,7 +1707,7 @@ export const EvaluationTab = memo(() => {
   }, [isCreatingNew, pendingUpdateConfirm, doSave]);
 
   const setGrade = useCallback(
-    (playerId: any, categoryId: any, value: any) => {
+    (playerId: string, categoryId: string, value: number | null) => {
       setTeamEvalGrades({
         ...teamEvalGrades,
         [playerId]: {
@@ -1591,7 +1721,7 @@ export const EvaluationTab = memo(() => {
   );
 
   const setNotes = useCallback(
-    (playerId: any, notesValue: any) => {
+    (playerId: string, notesValue: string) => {
       setTeamEvalGrades({
         ...teamEvalGrades,
         [playerId]: {
@@ -1605,13 +1735,13 @@ export const EvaluationTab = memo(() => {
   );
 
   const toggleSuggestedPosition = useCallback(
-    (playerId: any, pos: any) => {
-      const cur = teamEvalGrades[playerId] || {};
-      const list = Array.isArray(cur.suggestedPositions)
+    (playerId: string, pos: string) => {
+      const cur: EvalGradeRecord = teamEvalGrades[playerId] || {};
+      const list: string[] = Array.isArray(cur.suggestedPositions)
         ? cur.suggestedPositions
         : [];
       const next = list.includes(pos)
-        ? list.filter((p: any) => p !== pos)
+        ? list.filter((p: string) => p !== pos)
         : [...list, pos];
       setTeamEvalGrades({
         ...teamEvalGrades,
@@ -1626,8 +1756,8 @@ export const EvaluationTab = memo(() => {
   );
 
   const applyAllAverage = useCallback(() => {
-    const next: Record<string, any> = {};
-    players.forEach((p: any) => {
+    const next: Record<string, EvalGradeRecord> = {};
+    players.forEach((p: Player) => {
       next[p.id] = {
         ...DEFAULT_GRADES,
         notes: teamEvalGrades[p.id]?.notes || "",
@@ -1639,8 +1769,8 @@ export const EvaluationTab = memo(() => {
   const copyFromLastRound = useCallback(() => {
     const last = myRounds[0];
     if (!last) return;
-    const next: Record<string, any> = {};
-    players.forEach((p: any) => {
+    const next: Record<string, EvalGradeRecord> = {};
+    players.forEach((p: Player) => {
       next[p.id] = sanitizeGrades({
         ...DEFAULT_GRADES,
         ...(last.grades?.[p.id] || {}),
@@ -1661,34 +1791,42 @@ export const EvaluationTab = memo(() => {
       },
     );
     return players
-      .map((player: any) => {
-        const savedGrades = {
+      .map((player: Player) => {
+        const savedGrades: EvalGradeRecord = {
           ...(combinedGrades[player.id] || {}),
           ...(teamEvalGrades[player.id] || {}),
         };
-        const grades = { ...DEFAULT_GRADES, ...savedGrades };
+        const grades: EvalGradeRecord = { ...DEFAULT_GRADES, ...savedGrades };
         const totalScore = Math.min(
           100,
-          evalTotalScore(grades, player, teamAge),
+          evalTotalScore(asGradeMap(grades), player, teamAge),
         );
-        const primarySuggestion = suggestPrimaryPosition(player, grades, {
-          kidPitch: isKidPitchFormat(pitchingFormat),
-          teamAge,
-        });
+        const primarySuggestion = suggestPrimaryPosition(
+          player,
+          asGradeMap(grades),
+          {
+            kidPitch: isKidPitchFormat(pitchingFormat),
+            teamAge,
+          },
+        );
         return { player, totalScore, primarySuggestion };
       })
-      .sort((a: any, b: any) =>
+      .sort((a, b) =>
         b.totalScore !== a.totalScore
           ? b.totalScore - a.totalScore
           : String(a.player.name || "").localeCompare(
               String(b.player.name || ""),
             ),
       )
-      .map((row: any, idx: number) => ({ ...row, rank: idx + 1 }));
+      .map((row, idx: number) => ({ ...row, rank: idx + 1 }));
   }, [evaluationEvents, players, pitchingFormat, teamAge, teamEvalGrades]);
 
+  type RankingRow = (typeof rankingRows)[number];
+
   const rankByPlayerId = useMemo(() => {
-    return new Map(rankingRows.map((row: any) => [row.player.id, row]));
+    return new Map<string, RankingRow>(
+      rankingRows.map((row) => [row.player.id, row]),
+    );
   }, [rankingRows]);
 
   return (
@@ -1803,7 +1941,7 @@ export const EvaluationTab = memo(() => {
                         ? ` (next due in ${promptStatus.daysUntilDue}d)`
                         : ""}
                   </option>
-                  {myRounds.map((r: any) => (
+                  {myRounds.map((r: EvalRound) => (
                     <option key={r.id} value={r.id}>
                       {formatRoundName(r)}
                     </option>
@@ -1994,7 +2132,7 @@ export const EvaluationTab = memo(() => {
                         type="button"
                         onClick={() =>
                           setExpandedPlayerIds(
-                            new Set(players.map((p: any) => p.id)),
+                            new Set(players.map((p: Player) => p.id)),
                           )
                         }
                         className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
@@ -2023,9 +2161,10 @@ export const EvaluationTab = memo(() => {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3">
-                    {players.map((player: any) => {
-                      const savedGrades = teamEvalGrades[player.id] || {};
-                      const grades = {
+                    {players.map((player: Player) => {
+                      const savedGrades: EvalGradeRecord =
+                        teamEvalGrades[player.id] || {};
+                      const grades: EvalGradeRecord = {
                         ...DEFAULT_GRADES,
                         ...savedGrades,
                       };
@@ -2040,13 +2179,13 @@ export const EvaluationTab = memo(() => {
                       // bucket plus any applicable pitcher/catcher buckets.
                       const totalScore = Math.min(
                         100,
-                        evalTotalScore(grades, player, teamAge),
+                        evalTotalScore(asGradeMap(grades), player, teamAge),
                       );
                       const expanded = expandedPlayerIds.has(player.id);
-                      const rankRow = rankByPlayerId.get(player.id) as any;
+                      const rankRow = rankByPlayerId.get(player.id);
                       const primarySuggestion =
                         rankRow?.primarySuggestion ||
-                        suggestPrimaryPosition(player, grades, {
+                        suggestPrimaryPosition(player, asGradeMap(grades), {
                           kidPitch: isKidPitchFormat(pitchingFormat),
                           teamAge,
                         });
@@ -2057,10 +2196,10 @@ export const EvaluationTab = memo(() => {
                       const requiredCats = playerCats.filter(
                         (c) => c.inputKind !== "mph",
                       );
-                      const gradedCount = requiredCats.filter(
-                        (c) =>
-                          Number.isFinite(grades[c.id]) && grades[c.id] > 0,
-                      ).length;
+                      const gradedCount = requiredCats.filter((c) => {
+                        const v = Number(grades[c.id]);
+                        return Number.isFinite(v) && v > 0;
+                      }).length;
                       return (
                         <div
                           key={`mc-${player.id}`}
@@ -2124,7 +2263,11 @@ export const EvaluationTab = memo(() => {
                                         const hint = evalStatHint(
                                           cat.id,
                                           player.stats,
-                                          player.pitching,
+                                          (
+                                            player as {
+                                              pitching?: { topMph?: number };
+                                            }
+                                          ).pitching,
                                         );
                                         return hint ? (
                                           <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5 normal-case tracking-normal">
@@ -2157,7 +2300,11 @@ export const EvaluationTab = memo(() => {
                                         inputMode="numeric"
                                         min={0}
                                         max={120}
-                                        value={grades[cat.id] ?? ""}
+                                        value={
+                                          grades[cat.id] == null
+                                            ? ""
+                                            : Number(grades[cat.id])
+                                        }
                                         onChange={(e) =>
                                           setGrade(
                                             player.id,
@@ -2174,8 +2321,8 @@ export const EvaluationTab = memo(() => {
                                     </div>
                                   ) : (
                                     <GradeChipRow
-                                      value={grades[cat.id]}
-                                      onChange={(v: any) =>
+                                      value={Number(grades[cat.id])}
+                                      onChange={(v: number) =>
                                         setGrade(player.id, cat.id, v)
                                       }
                                       ariaLabel={`${player.name} ${cat.label}`}
@@ -2284,7 +2431,7 @@ export const EvaluationTab = memo(() => {
                   </p>
                 </div>
                 <div className="space-y-1.5 max-h-[70vh] overflow-auto pr-1">
-                  {rankingRows.map((row: any) => (
+                  {rankingRows.map((row) => (
                     <button
                       key={`rank-${row.player.id}`}
                       type="button"
@@ -2341,7 +2488,7 @@ export const EvaluationTab = memo(() => {
           players={players}
           activeCategories={activeCategories}
           primaryColor={primaryColor}
-          onPlayerClick={(id: any) => {
+          onPlayerClick={(id: string) => {
             setComparisonOpen(false);
             setEvalTrendPlayerId(id);
           }}
@@ -2352,7 +2499,7 @@ export const EvaluationTab = memo(() => {
       {/* Trend modal — opens when a player name is clicked */}
       {evalTrendPlayerId && (
         <EvalTrendModal
-          player={players.find((p: any) => p.id === evalTrendPlayerId)}
+          player={players.find((p: Player) => p.id === evalTrendPlayerId)}
           evaluationEvents={evaluationEvents}
           userUid={user?.uid}
           primaryColor={primaryColor}
@@ -2410,7 +2557,7 @@ export const EvaluationTab = memo(() => {
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  {myRounds.map((r: any) => {
+                  {myRounds.map((r: EvalRound) => {
                     const armed = pendingModalDeleteId === r.id;
                     const isActive = r.id === selectedRoundId;
                     return (
@@ -2499,24 +2646,36 @@ export const EvaluationTab = memo(() => {
   );
 });
 export const EvalTrendModal = memo(
-  ({ player, evaluationEvents, userUid, primaryColor, onClose }: any) => {
+  ({
+    player,
+    evaluationEvents,
+    userUid,
+    primaryColor,
+    onClose,
+  }: {
+    player?: Player;
+    evaluationEvents?: EvalRound[];
+    userUid?: string;
+    primaryColor?: string;
+    onClose: () => void;
+  }) => {
     if (!player) return null;
 
     // Collect this user's head-coach evals, oldest first
     const myEvals = (evaluationEvents || [])
       .filter(
-        (e: any) =>
+        (e: EvalRound) =>
           e.coachRole === "Head" && (!userUid || e.evaluatorId === userUid),
       )
-      .sort((a: any, b: any) => evalRoundRecency(b, a));
+      .sort((a: EvalRound, b: EvalRound) => evalRoundRecency(b, a));
 
     // Each category gets its own line. Build series of {label, date, value}
     // entries per category, only including evals where the player has a grade.
     const categorySeries = EVAL_CATEGORIES.map((cat) => {
-      const points = [];
+      const points: Array<{ label: string; date: string; value: number }> = [];
       for (const ev of myEvals) {
         const grade = ev.grades?.[player.id]?.[cat.id];
-        if (Number.isFinite(grade)) {
+        if (typeof grade === "number" && Number.isFinite(grade)) {
           points.push({
             label: ev.label || `Eval (${ev.date})`,
             date: ev.date,
@@ -2528,8 +2687,8 @@ export const EvalTrendModal = memo(
     });
 
     // X-axis evals (use the union of all dates that have any data)
-    const xLabels: any[] = [];
-    const seenIds = new Set();
+    const xLabels: Array<{ id: string; label: string; date: string }> = [];
+    const seenIds = new Set<string>();
     for (const ev of myEvals) {
       // Only include this eval if at least one category has a value
       const hasAny = EVAL_CATEGORIES.some((cat) =>
@@ -2550,7 +2709,10 @@ export const EvalTrendModal = memo(
     // category renders as its own <Line dataKey>. Points match by eval date
     // (same matching the old hand-rolled chart used).
     const chartRows = xLabels.map((x) => {
-      const row: Record<string, any> = { id: x.id, label: x.label };
+      const row: Record<string, string | number> = {
+        id: x.id,
+        label: x.label,
+      };
       for (const cs of categorySeries) {
         const p = cs.points.find((pt) => pt.date === x.date);
         if (p) row[cs.id] = p.value;
