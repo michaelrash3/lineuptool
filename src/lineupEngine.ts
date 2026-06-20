@@ -2579,6 +2579,11 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     else s = p.profile.defensiveScore + (p.profile.overallScore || 0) * 0.05;
     const r = depthRank(pos, p.id);
     if (r >= 0) s += 1000 - r * 50;
+    // Utilize primary positions: a kid you've tagged with this primaryPosition
+    // is preferred for it. The nudge sits ABOVE the raw skill gradient (so a
+    // primary-2B kid plays 2B over a slightly-better-overall kid) but BELOW the
+    // depth chart (≥500 when charted), so your explicit chart still wins.
+    else if (p.primaryPosition === pos) s += 200;
     return s;
   };
 
@@ -2642,13 +2647,14 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
 
   // ---------- Fair, rec-style rotation ----------
   // Tournaments still field your best nine to start, but the bench now rotates
-  // across the WHOLE game instead of a single 3rd-4th window. Every present
-  // player sits at most floor(totalInnings/2) innings (so everyone plays at
-  // least half), the designated subs (players who didn't earn a starting spot)
-  // and then the weakest starters give up their innings first, and nobody is
-  // benched two innings back-to-back when it can be avoided. The pitcher is
-  // fixed for the game (manual relief changes re-run this generator) and the
-  // catcher follows the catcher policy below.
+  // across the WHOLE game instead of a single 3rd-4th window. "Lean fair": every
+  // present player sits at most floor(totalInnings/3) innings (so everyone plays
+  // roughly two-thirds — enough that no parent sees their kid riding the bench),
+  // while the designated subs (players who didn't earn a starting spot) and then
+  // the weakest starters give up their innings first, so the best kids still
+  // play the most. Nobody is benched two innings back-to-back when it can be
+  // avoided. The pitcher is fixed for the game (manual relief changes re-run
+  // this generator) and the catcher follows the catcher policy below.
   const fixedP = assigned.get("P");
   const benchPlayers = profiled
     .filter((p) => !used.has(p.id))
@@ -2709,7 +2715,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   // catcher (handled above).
   const fieldPositions = positions.filter((p) => p !== "P" && p !== "C");
   const benchPerInning = Math.max(0, profiled.length - positions.length);
-  const sitCap = Math.max(1, Math.floor(totalInnings / 2));
+  const sitCap = Math.max(1, Math.floor(totalInnings / 3));
 
   // A player's starting field position (if any) — used to keep starters at
   // their home spot and to bench non-starters first.
@@ -2824,11 +2830,40 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
       }
     }
     if (freePositions.length > 0) {
+      // Utilize primary positions for the fill-ins: a bench kid returning to
+      // the field gets their primaryPosition first when it's open and they're
+      // eligible (so they aren't parked in right field). Resolve two kids who
+      // share a primary by defensive score. Then fill whatever's left.
+      const openPositions = new Set(freePositions);
+      const freePlayers = onField.filter((p) => !placed.has(p.id));
+      for (const pos of freePositions) {
+        if (inn[pos]) continue;
+        const want = freePlayers
+          .filter(
+            (p) =>
+              !placed.has(p.id) &&
+              p.primaryPosition === pos &&
+              fieldEligible(pos, p.id),
+          )
+          .sort(
+            (a, b) => b.profile.defensiveScore - a.profile.defensiveScore,
+          )[0];
+        if (want) {
+          inn[pos] = slim(want);
+          placed.add(want.id);
+          openPositions.delete(pos);
+        }
+      }
+      const remainingPositions = [...openPositions];
       const freeIds = onField.filter((p) => !placed.has(p.id)).map((p) => p.id);
-      let match = maxPositionMatching(freePositions, freeIds, fieldEligible);
-      // Safety net: if keeping starters home boxed us in, rematch the whole
-      // field from scratch (feasibility was guaranteed above).
-      if (match.size < freePositions.length) {
+      let match = maxPositionMatching(
+        remainingPositions,
+        freeIds,
+        fieldEligible,
+      );
+      // Safety net: if the home/primary placements boxed us in, rematch the
+      // whole field from scratch (feasibility was guaranteed above).
+      if (match.size < remainingPositions.length) {
         for (const pos of fieldPositions) delete inn[pos];
         match = maxPositionMatching(
           fieldPositions,
