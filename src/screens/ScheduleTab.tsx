@@ -924,7 +924,8 @@ export const ScheduleTab = memo(() => {
             (currentGame.lineup?.length ?? 0) > 0 &&
             (() => {
               const longest =
-                (currentGame.originalLineup?.length ?? 0) > (currentGame.lineup?.length ?? 0)
+                (currentGame.originalLineup?.length ?? 0) >
+                (currentGame.lineup?.length ?? 0)
                   ? currentGame.originalLineup
                   : currentGame.lineup;
               const maxInnings = (longest ?? []).length;
@@ -952,7 +953,10 @@ export const ScheduleTab = memo(() => {
                           if (!currentGame.originalLineup) {
                             updates.originalLineup = currentGame.lineup;
                           }
-                          updates.lineup = (currentGame.lineup ?? []).slice(0, target);
+                          updates.lineup = (currentGame.lineup ?? []).slice(
+                            0,
+                            target,
+                          );
                         } else if (
                           currentGame.originalLineup &&
                           currentGame.originalLineup.length >= target

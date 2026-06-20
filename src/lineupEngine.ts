@@ -432,7 +432,11 @@ export function getCombinedGrades(
       if (g[catId] != null) return (g[catId] as number) ?? null;
       // Speed + Base Running both seed from the legacy merged grade.
       if (catId === "speed" || catId === "baserunning")
-        return (g.speedBaserunning as number | undefined) ?? (g.speedAgility as number | undefined) ?? null;
+        return (
+          (g.speedBaserunning as number | undefined) ??
+          (g.speedAgility as number | undefined) ??
+          null
+        );
       return null;
     };
 

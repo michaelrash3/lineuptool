@@ -65,7 +65,9 @@ export const InGameView = memo(() => {
   // Resolve the live game without an early return so downstream hooks
   // still execute on null-game renders. The actual null/missing-game
   // bailouts happen below the hook block.
-  const game = inGameId ? (team.games ?? []).find((g: any) => g.id === inGameId) : null;
+  const game = inGameId
+    ? (team.games ?? []).find((g: any) => g.id === inGameId)
+    : null;
   const gameId = game?.id ?? null;
 
   const flush = useCallback(() => {
@@ -372,7 +374,8 @@ export const InGameView = memo(() => {
     const next: Inning[] = base.map((innState: any, idx: number) =>
       idx < currentInning ? innState : cloneInning(changedInning),
     );
-    const newPitcherName = (changedInning.P as SlimPlayer | null)?.name || "New pitcher";
+    const newPitcherName =
+      (changedInning.P as SlimPlayer | null)?.name || "New pitcher";
 
     setPendingLineup(next);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
@@ -716,7 +719,9 @@ export const InGameView = memo(() => {
                 // Warn (don't block) when a count exceeds the age pitch limit —
                 // a safety guardrail the coach can still override for accuracy.
                 if (num > pitchLimit) {
-                  const p = (team.players ?? []).find((pl: any) => pl.id === playerId);
+                  const p = (team.players ?? []).find(
+                    (pl: any) => pl.id === playerId,
+                  );
                   toast.push({
                     kind: "warn",
                     title: "Over pitch limit",
@@ -867,7 +872,9 @@ export const InGameView = memo(() => {
             // player (or someone-then-nobody / nobody-then-someone)
             // surface them so the coach can plan one inning ahead.
             const nextInn = liveLineup[currentInning + 1];
-            const nextPlayer = nextInn ? (nextInn[pos] as SlimPlayer | null) : null;
+            const nextPlayer = nextInn
+              ? (nextInn[pos] as SlimPlayer | null)
+              : null;
             const showNext =
               nextInn && nextPlayer && nextPlayer.id !== player?.id;
             return (

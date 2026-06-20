@@ -2013,7 +2013,11 @@ export const SettingsTab = memo(() => {
         onClose={() => setLogoColors((p) => ({ ...p, open: false }))}
         logoUrl={logoUrl}
         palette={logoColors.palette}
-        current={{ primaryColor: primaryColor ?? "", secondaryColor: secondaryColor ?? "", tertiaryColor: tertiaryColor ?? "" }}
+        current={{
+          primaryColor: primaryColor ?? "",
+          secondaryColor: secondaryColor ?? "",
+          tertiaryColor: tertiaryColor ?? "",
+        }}
         onApply={(colors) => updateTeam(colors)}
       />
     </div>

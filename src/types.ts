@@ -397,7 +397,12 @@ export interface Team {
   coachRoles?: Record<string, string>;
   coachContacts?: Array<{ id?: string; name?: string; email?: string }>;
   // Legacy coach list (predates coachContacts). Kept for back-compat.
-  coaches?: Array<{ id: string; name: string; role: string; [key: string]: unknown }>;
+  coaches?: Array<{
+    id: string;
+    name: string;
+    role: string;
+    [key: string]: unknown;
+  }>;
 
   // ----- Tryouts config -----
   tryoutDates?: string[];

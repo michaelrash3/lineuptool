@@ -46,7 +46,12 @@ export const PitchingPlanPanel = memo(() => {
     () =>
       upcoming.map((g: any) => ({
         game: g,
-        plan: buildPitchingPlan(players || [], g.date, teamAge ?? "", pitchRules),
+        plan: buildPitchingPlan(
+          players || [],
+          g.date,
+          teamAge ?? "",
+          pitchRules,
+        ),
       })),
     [upcoming, players, teamAge, pitchRules],
   );

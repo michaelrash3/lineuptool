@@ -1363,9 +1363,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // Persistence failed: revert the optimistic patch (but only for keys
         // the user hasn't since changed — see revertOptimisticUpdate) so the UI
         // never silently retains state Firestore rejected, and offer a retry.
-        setTeamData((cur) =>
-          revertOptimisticUpdate(cur, updates, prevValues),
-        );
+        setTeamData((cur) => revertOptimisticUpdate(cur, updates, prevValues));
         // Surface the real Firestore error so the failure is self-diagnosing
         // without a console: the code distinguishes a rules rejection
         // (permission-denied) from the size cap (resource-exhausted /
@@ -1505,7 +1503,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const removeCoach = useCallback(
     (id: string) => {
       updateTeam({
-        coaches: (teamData.coaches ?? []).filter((c: { id: string }) => c.id !== id),
+        coaches: (teamData.coaches ?? []).filter(
+          (c: { id: string }) => c.id !== id,
+        ),
       });
     },
     [teamData.coaches, updateTeam],
@@ -1869,7 +1869,11 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       );
 
       const newSeasonFinances = rollFinances
-        ? rollFinancesForNewSeason(teamData.finances, archivedSeason ?? "", nowIso)
+        ? rollFinancesForNewSeason(
+            teamData.finances,
+            archivedSeason ?? "",
+            nowIso,
+          )
         : teamData.finances;
       const depositAmount = Math.max(
         0,
@@ -2902,7 +2906,9 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
       loadedGameRef.current = null;
       return;
     }
-    const game = (gamesRef.current ?? []).find((g: Game) => g.id === selectedGameId);
+    const game = (gamesRef.current ?? []).find(
+      (g: Game) => g.id === selectedGameId,
+    );
     if (!game) return;
     loadedGameRef.current = {
       id: game.id,
@@ -2927,7 +2933,9 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!selectedGameId || !loadedGameRef.current) return;
     if (loadedGameRef.current.id !== selectedGameId) return;
-    const game = (team.team.games ?? []).find((g: Game) => g.id === selectedGameId);
+    const game = (team.team.games ?? []).find(
+      (g: Game) => g.id === selectedGameId,
+    );
     if (!game) return;
 
     const remoteLineupJson = JSON.stringify(game.lineup || null);

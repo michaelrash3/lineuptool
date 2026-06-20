@@ -735,7 +735,10 @@ interface EvalMomentumTileProps {
   players: Player[];
   evaluationEvents?: Array<{
     date?: string;
-    grades?: Record<string, Record<string, number | string | string[] | undefined>>;
+    grades?: Record<
+      string,
+      Record<string, number | string | string[] | undefined>
+    >;
   }>;
   onOpenEval?: () => void;
 }
@@ -751,7 +754,10 @@ const EvalMomentumTile = memo(
       const latest = sorted[0];
       const prev = sorted[1];
       const avgUniversal = (
-        g: Record<string, number | string | string[] | undefined> | undefined | null,
+        g:
+          | Record<string, number | string | string[] | undefined>
+          | undefined
+          | null,
       ) => {
         if (!g) return null;
         const keys = [

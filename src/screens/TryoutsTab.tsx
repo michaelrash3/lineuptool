@@ -1044,7 +1044,12 @@ export const TryoutsTab = memo(() => {
             <div className="space-y-2">
               {filtered.map((s) => {
                 const impact = isHead
-                  ? computeImpact(s, team, evaluationEvents ?? [], tryoutSessions)
+                  ? computeImpact(
+                      s,
+                      team,
+                      evaluationEvents ?? [],
+                      tryoutSessions,
+                    )
                   : null;
                 const expanded = openSignupIds.has(s.id);
                 const bucket = bucketBySignupId.get(s.id);

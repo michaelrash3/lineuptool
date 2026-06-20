@@ -52,7 +52,8 @@ export const OptimalLineupPanel = memo(() => {
       games,
       evaluationEvents,
       currentGame: nextGame,
-      totalInnings: parseInt(String(nextGame.inningsCount || inningsCount || ""), 10) || 6,
+      totalInnings:
+        parseInt(String(nextGame.inningsCount || inningsCount || ""), 10) || 6,
       leagueRuleSet: ruleSet,
       teamAge,
       defenseSize: nextGame.defenseSize || defenseSize,

@@ -83,7 +83,9 @@ export const AssistantEvalTab = memo(() => {
         }
         if (seed[p.id]?.notes) next[p.id].notes = seed[p.id].notes;
         if (Array.isArray(seed[p.id]?.suggestedPositions)) {
-          next[p.id].suggestedPositions = [...(seed[p.id].suggestedPositions as string[])];
+          next[p.id].suggestedPositions = [
+            ...(seed[p.id].suggestedPositions as string[]),
+          ];
         }
       }
       setGrades(next);
