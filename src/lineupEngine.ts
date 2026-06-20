@@ -437,14 +437,14 @@ export function getCombinedGrades(
     // Pitch Velocity (mph) is a measurement, not a 1–5 grade — never average it
     // or default a missing reading to a number. Take the head coach's reading
     // when present, else the most recent assistant reading.
-    const headVelo = numOrNull((headG as any)?.pitchVelo);
+    const headVelo = numOrNull(headG?.pitchVelo);
     if (headVelo != null) {
-      (grades as any).pitchVelo = headVelo;
+      grades.pitchVelo = headVelo;
     } else {
       for (const ev of assistantEvals) {
-        const v = numOrNull((ev.grades?.[p.id] as any)?.pitchVelo);
+        const v = numOrNull(ev.grades?.[p.id]?.pitchVelo);
         if (v != null) {
-          (grades as any).pitchVelo = v;
+          grades.pitchVelo = v;
           break;
         }
       }
@@ -482,9 +482,7 @@ function getEffectiveStats(player: Player): PlayerStats & {
   __blendWeights?: { current: number; past1: number; past2: number };
 } {
   const cur: PlayerStats = player?.stats || {};
-  const pastAll: any[] = Array.isArray((player as any)?.pastSeasons)
-    ? (player as any).pastSeasons
-    : [];
+  const pastAll = Array.isArray(player?.pastSeasons) ? player.pastSeasons : [];
   // Take up to two most recent past seasons. Sort by descending season string.
   const past = [...pastAll]
     .filter((p) => p && p.stats)
@@ -504,9 +502,9 @@ function getEffectiveStats(player: Player): PlayerStats & {
 
   // Blend rate stats (avg, ops, obp, contact, ld, hard, qab, babip).
   const blend = (key: string): number => {
-    const c = +(cur as any)[key] || 0;
-    const p1 = past[0]?.stats ? +past[0].stats[key] || 0 : 0;
-    const p2 = past[1]?.stats ? +past[1].stats[key] || 0 : 0;
+    const c = Number(cur[key]) || 0;
+    const p1 = past[0]?.stats ? Number(past[0].stats[key]) || 0 : 0;
+    const p2 = past[1]?.stats ? Number(past[1].stats[key]) || 0 : 0;
     return (c * wCur + p1 * wP1 + p2 * wP2) / totalW;
   };
 
@@ -642,12 +640,12 @@ export function statPowerGrade(
     ...stats,
     __slg: slg ?? undefined,
     __xbh: xbh ?? undefined,
-  } as any;
+  };
   const q = bandedQuality(
     enriched,
     [
-      { key: "__slg" as any, w: 1.0, worst: 0.25, best: 0.7 },
-      { key: "__xbh" as any, w: 1.0, worst: 0.0, best: 0.2 },
+      { key: "__slg", w: 1.0, worst: 0.25, best: 0.7 },
+      { key: "__xbh", w: 1.0, worst: 0.0, best: 0.2 },
       { key: "hard", w: 1.25, worst: 0.1, best: 0.4 },
     ],
     true, // batting rates: 0 = not tracked (XBH rate keeps 0 via __xbh below)
@@ -805,14 +803,14 @@ function applyStatGrades(
   const topMph =
     numOrNull(raw.pTopMph) ??
     numOrNull(raw.pFbMph) ??
-    numOrNull((player as any)?.pitching?.topMph) ??
+    numOrNull(player?.pitching?.topMph) ??
     // Coach-entered Pitch Velocity from the eval form, when no imported radar
     // reading exists — feeds the same age-relative velocity grading.
-    numOrNull((grades as any)?.pitchVelo);
+    numOrNull(grades?.pitchVelo);
 
   const set = (v: number | null, ...keys: string[]) => {
     if (v == null) return;
-    for (const k of keys) (out as any)[k] = v;
+    for (const k of keys) out[k] = v;
   };
   set(statContactGrade(batting), "contact");
   set(statPowerGrade(batting), "power");
@@ -1058,7 +1056,7 @@ export function checkPitchEligibility(
   ageGroup: string,
   ruleSet: PitchRuleSet = DEFAULT_PITCH_RULE_SET,
 ): boolean {
-  const pitching = (player as any).pitching;
+  const pitching = player.pitching;
   // Same-day total (doubleheaders sum together), not just the last outing.
   const { pitches: recent, date: lastDate } = mostRecentDayPitches(pitching);
   if (!lastDate || !recent) return true;
@@ -1649,7 +1647,7 @@ function positionFitSignal(
         ? ["velocity", "strikes", "offSpeed", "composure"]
         : ["receiving", "blocking", "throwing", "armAccuracy"];
     const total = keys.reduce(
-      (sum, key) => sum + Math.abs(((g as any)[key] ?? 3) - 3),
+      (sum, key) => sum + Math.abs((g[key] ?? 3) - 3),
       0,
     );
     return Math.min(1, total / (keys.length * 2));
@@ -2403,7 +2401,11 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
   const combinedGrades = getCombinedGrades(
     evaluationEvents,
     allPlayers || activePlayers,
-    { teamAge, games: (input.games as any) || [] },
+    {
+      teamAge,
+      games:
+        (input.games as Array<{ playerStats?: Record<string, any> }>) || [],
+    },
   );
   const profiled = activePlayers.map((p) => ({
     ...p,

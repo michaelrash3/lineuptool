@@ -60,6 +60,10 @@ export interface PlayerStats {
   fPb?: number; // passed balls
   fSbAllowed?: number;
   fSbAtt?: number;
+  // Internal computed fields injected by the blending / power-grade helpers.
+  // Never persisted; only live during an engine run.
+  __slg?: number;
+  __xbh?: number;
   [key: string]: number | undefined;
 }
 
@@ -80,6 +84,10 @@ export interface Player {
   // Coach-designated primary and secondary positions (big-game pre-pin logic).
   primaryPosition?: string;
   secondaryPosition?: string;
+  // Per-season historical stats for multi-season stat blending. Each entry
+  // carries a season label and the stats for that year; the engine uses the
+  // two most recent past seasons when current-year AB count is low.
+  pastSeasons?: Array<{ season?: string; stats?: PlayerStats }>;
   // Legacy pitching log (pre-v5 schema). The canonical fields migrated to
   // PlayerStats (pTopMph, pTopMphDate); this sub-object still appears on
   // older player docs and is read by the pitching-plan engine.
