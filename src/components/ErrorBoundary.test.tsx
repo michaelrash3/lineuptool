@@ -20,7 +20,7 @@ describe("ErrorBoundary", () => {
     const { getByText } = render(
       <ErrorBoundary>
         <Boom when />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(getByText("Something went wrong")).toBeInTheDocument();
     expect(getByText("Reload Page")).toBeInTheDocument();
@@ -31,14 +31,14 @@ describe("ErrorBoundary", () => {
     const { getByText, queryByText, rerender } = render(
       <ErrorBoundary resetKey="/settings">
         <Boom when />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(getByText("Something went wrong")).toBeInTheDocument();
 
     rerender(
       <ErrorBoundary resetKey="/roster">
         <Boom when={false} />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(queryByText("Something went wrong")).not.toBeInTheDocument();
     expect(getByText("healthy screen")).toBeInTheDocument();

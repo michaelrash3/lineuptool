@@ -41,7 +41,8 @@ const playerComfortable = (player: any, pos: any) => {
 
 const getRosterStatus = (player: any) => {
   if (player.rosterStatus === "departed") return "departed";
-  if (player.present === false || player.rosterStatus === "inactive") return "inactive";
+  if (player.present === false || player.rosterStatus === "inactive")
+    return "inactive";
   return "active";
 };
 
@@ -74,202 +75,216 @@ const playerMatchesFilter = (player: any, filterId: any) => {
   }
 };
 
-const PlayerRow = memo(({ player, currentSeason, onOpenProfile, onSelectStats, selectedForStats, showPositionTag, logoUrl, stripped }: any) => {
-  const rosterStatus = getRosterStatus(player);
-  const absent = rosterStatus !== "active";
-  const hasDeparted = rosterStatus === "departed";
-  const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
+const PlayerRow = memo(
+  ({
+    player,
+    currentSeason,
+    onOpenProfile,
+    onSelectStats,
+    selectedForStats,
+    showPositionTag,
+    logoUrl,
+    stripped,
+  }: any) => {
+    const rosterStatus = getRosterStatus(player);
+    const absent = rosterStatus !== "active";
+    const hasDeparted = rosterStatus === "departed";
+    const hasStats = player.stats?.ab > 0 || player.stats?.ip > 0;
 
-  return (
-    <div
-      className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch border-b border-line transition-all ${
-        absent ? "opacity-85" : ""
-      } ${selectedForStats ? "ring-2 ring-[var(--team-primary)] ring-inset" : ""}`}
-    >
-      <button
-        type="button"
-        onClick={() => onSelectStats?.(player.id)}
-        title="View stats"
-        aria-label={`View ${player.name} stats`}
-        className="relative grid place-items-center overflow-hidden cursor-pointer"
-        style={{
-          background: absent
-            ? "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 60%), linear-gradient(135deg, #64748b 0%, #475569 60%, #1e293b 100%)"
-            : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
-        }}
+    return (
+      <div
+        className={`grid grid-cols-[100px_1fr] sm:grid-cols-[100px_1fr_auto] items-stretch border-b border-line transition-all ${
+          absent ? "opacity-85" : ""
+        } ${selectedForStats ? "ring-2 ring-[var(--team-primary)] ring-inset" : ""}`}
       >
-        {/* Position tag pinned top-left, jersey number anchored bottom-right,
+        <button
+          type="button"
+          onClick={() => onSelectStats?.(player.id)}
+          title="View stats"
+          aria-label={`View ${player.name} stats`}
+          className="relative grid place-items-center overflow-hidden cursor-pointer"
+          style={{
+            background: absent
+              ? "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.18), transparent 60%), linear-gradient(135deg, #64748b 0%, #475569 60%, #1e293b 100%)"
+              : `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.25), transparent 60%), linear-gradient(135deg, var(--team-primary) 0%, color-mix(in srgb, var(--team-primary) 70%, #0f172a) 60%, #0f172a 100%)`,
+          }}
+        >
+          {/* Position tag pinned top-left, jersey number anchored bottom-right,
             and the transparent logo sits directly on the cell's dark themed
             background (no white fill) in the middle. */}
-        {showPositionTag && player.primaryPosition && (
-          <span
-            className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded font-black uppercase text-white/85 z-10"
-            style={{
-              backgroundColor: "rgba(0,0,0,0.35)",
-              fontSize: "9px",
-              letterSpacing: "0.12em",
-            }}
-          >
-            {player.primaryPosition}
-          </span>
-        )}
-        {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt={player?.name ? `${player.name} — team logo` : "Team logo"}
-            className="w-16 h-16 object-contain"
-            style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }}
-            loading="lazy"
-          />
-        ) : (
-          <span className="grid place-items-center w-16 h-16 rounded-full bg-white/10 font-black text-xl text-white">
-            {getPlayerInitials(player.name)}
-          </span>
-        )}
-        {player.number != null && player.number !== "" && (
-          <span
-            className="absolute bottom-1.5 right-2 font-black text-2xl text-white tabular-nums z-10"
-            style={{
-              letterSpacing: "-0.03em",
-              textShadow: "0 2px 4px rgba(0,0,0,0.55)",
-            }}
-          >
-            {player.number}
-          </span>
-        )}
-      </button>
-
-      <div className="px-3.5 py-3 min-w-0 flex flex-col justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={() => onOpenProfile(player.id)}
-              className="font-black text-base sm:text-lg uppercase tracking-tight text-ink leading-none hover:text-team-primary transition-colors text-left truncate"
-            >
-              {player.name}
-            </button>
+          {showPositionTag && player.primaryPosition && (
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                absent ? "bg-ink-3" : "bg-win"
-              }`}
+              className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded font-black uppercase text-white/85 z-10"
               style={{
-                boxShadow: absent
-                  ? "0 0 0 3px rgba(148,163,184,0.18)"
-                  : "0 0 0 3px rgba(16,185,129,0.18)",
+                backgroundColor: "rgba(0,0,0,0.35)",
+                fontSize: "9px",
+                letterSpacing: "0.12em",
               }}
-              title={hasDeparted ? "Departed" : absent ? "Inactive" : "Present"}
-            />
-          </div>
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
-              B/T · {player.bats || "R"}/{player.throws || "R"}
-            </span>
-            {player.primaryPosition && (
-              <span
-                className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink"
-                title="Primary position"
-              >
-                Primary Position · {player.primaryPosition}
-              </span>
-            )}
-            {player.dob && (
-              <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
-                Age {calculateBaseballAge(player.dob, currentSeason) || "?"}
-              </span>
-            )}
-            {absent && (
-              <span
-                className={`t-chip px-2 py-1 rounded-md border border-line ${
-                  hasDeparted ? "bg-warn-bg text-warnfg" : "bg-loss-bg text-loss"
-                }`}
-              >
-                {hasDeparted ? "Departed" : "Inactive"}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div
-        className={`hidden sm:grid col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-line ${
-          stripped ? "grid-cols-1 sm:w-[150px]" : "grid-cols-4 sm:w-[260px]"
-        }`}
-      >
-        {!hasStats ? (
-          <div className="col-span-full grid place-items-center py-4 text-[10px] font-black text-ink-3 uppercase tracking-widest italic">
-            No Stats Logged
-          </div>
-        ) : stripped ? (
-          <div className="grid place-items-center px-3 py-2.5 text-center">
-            <div className="font-black text-sm tabular-nums text-ink">
-              <span style={{ color: "var(--team-primary)" }}>
-                {formatStat(player.stats?.avg)}
-              </span>
-              <span className="text-ink-3 mx-1">·</span>
-              {formatStat(player.stats?.ops)}
-            </div>
-            <div className="t-eyebrow mt-0.5" style={{ fontSize: "8px" }}>
-              AVG · OPS
-            </div>
-          </div>
-        ) : (
-          <>
-            <div
-              className="text-center px-2 py-2.5 border-r border-line relative"
-              style={{ backgroundColor: "var(--team-primary-15)" }}
             >
-              <div
-                className="t-eyebrow mb-1"
-                style={{ fontSize: "8px", color: "var(--team-primary)" }}
+              {player.primaryPosition}
+            </span>
+          )}
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={player?.name ? `${player.name} — team logo` : "Team logo"}
+              className="w-16 h-16 object-contain"
+              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.45))" }}
+              loading="lazy"
+            />
+          ) : (
+            <span className="grid place-items-center w-16 h-16 rounded-full bg-white/10 font-black text-xl text-white">
+              {getPlayerInitials(player.name)}
+            </span>
+          )}
+          {player.number != null && player.number !== "" && (
+            <span
+              className="absolute bottom-1.5 right-2 font-black text-2xl text-white tabular-nums z-10"
+              style={{
+                letterSpacing: "-0.03em",
+                textShadow: "0 2px 4px rgba(0,0,0,0.55)",
+              }}
+            >
+              {player.number}
+            </span>
+          )}
+        </button>
+
+        <div className="px-3.5 py-3 min-w-0 flex flex-col justify-between gap-2">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => onOpenProfile(player.id)}
+                className="font-black text-base sm:text-lg uppercase tracking-tight text-ink leading-none hover:text-team-primary transition-colors text-left truncate"
               >
-                AVG
-              </div>
-              <div
-                className="font-black text-base tabular-nums"
-                style={{ color: "var(--team-primary)" }}
-              >
-                {formatStat(player.stats?.avg)}
-              </div>
+                {player.name}
+              </button>
               <span
-                className="absolute left-0 right-0 bottom-0 h-[3px]"
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  absent ? "bg-ink-3" : "bg-win"
+                }`}
                 style={{
-                  background:
-                    "linear-gradient(90deg, var(--team-primary), color-mix(in srgb, var(--team-primary) 70%, #0f172a))",
+                  boxShadow: absent
+                    ? "0 0 0 3px rgba(148,163,184,0.18)"
+                    : "0 0 0 3px rgba(16,185,129,0.18)",
                 }}
+                title={
+                  hasDeparted ? "Departed" : absent ? "Inactive" : "Present"
+                }
               />
             </div>
-            <div className="text-center px-2 py-2.5 border-r border-line">
-              <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
-                OPS
-              </div>
-              <div className="font-black text-base text-ink tabular-nums">
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
+                B/T · {player.bats || "R"}/{player.throws || "R"}
+              </span>
+              {player.primaryPosition && (
+                <span
+                  className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink"
+                  title="Primary position"
+                >
+                  Primary Position · {player.primaryPosition}
+                </span>
+              )}
+              {player.dob && (
+                <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink">
+                  Age {calculateBaseballAge(player.dob, currentSeason) || "?"}
+                </span>
+              )}
+              {absent && (
+                <span
+                  className={`t-chip px-2 py-1 rounded-md border border-line ${
+                    hasDeparted
+                      ? "bg-warn-bg text-warnfg"
+                      : "bg-loss-bg text-loss"
+                  }`}
+                >
+                  {hasDeparted ? "Departed" : "Inactive"}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={`hidden sm:grid col-span-2 sm:col-span-1 border-t sm:border-t-0 sm:border-l border-line ${
+            stripped ? "grid-cols-1 sm:w-[150px]" : "grid-cols-4 sm:w-[260px]"
+          }`}
+        >
+          {!hasStats ? (
+            <div className="col-span-full grid place-items-center py-4 text-[10px] font-black text-ink-3 uppercase tracking-widest italic">
+              No Stats Logged
+            </div>
+          ) : stripped ? (
+            <div className="grid place-items-center px-3 py-2.5 text-center">
+              <div className="font-black text-sm tabular-nums text-ink">
+                <span style={{ color: "var(--team-primary)" }}>
+                  {formatStat(player.stats?.avg)}
+                </span>
+                <span className="text-ink-3 mx-1">·</span>
                 {formatStat(player.stats?.ops)}
               </div>
-            </div>
-            <div className="text-center px-2 py-2.5 border-r border-line">
-              <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
-                H
-              </div>
-              <div className="font-black text-base text-ink tabular-nums">
-                {player.stats?.h || 0}
+              <div className="t-eyebrow mt-0.5" style={{ fontSize: "8px" }}>
+                AVG · OPS
               </div>
             </div>
-            <div className="text-center px-2 py-2.5">
-              <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
-                RBI
+          ) : (
+            <>
+              <div
+                className="text-center px-2 py-2.5 border-r border-line relative"
+                style={{ backgroundColor: "var(--team-primary-15)" }}
+              >
+                <div
+                  className="t-eyebrow mb-1"
+                  style={{ fontSize: "8px", color: "var(--team-primary)" }}
+                >
+                  AVG
+                </div>
+                <div
+                  className="font-black text-base tabular-nums"
+                  style={{ color: "var(--team-primary)" }}
+                >
+                  {formatStat(player.stats?.avg)}
+                </div>
+                <span
+                  className="absolute left-0 right-0 bottom-0 h-[3px]"
+                  style={{
+                    background:
+                      "linear-gradient(90deg, var(--team-primary), color-mix(in srgb, var(--team-primary) 70%, #0f172a))",
+                  }}
+                />
               </div>
-              <div className="font-black text-base text-ink tabular-nums">
-                {player.stats?.rbi || 0}
+              <div className="text-center px-2 py-2.5 border-r border-line">
+                <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
+                  OPS
+                </div>
+                <div className="font-black text-base text-ink tabular-nums">
+                  {formatStat(player.stats?.ops)}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+              <div className="text-center px-2 py-2.5 border-r border-line">
+                <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
+                  H
+                </div>
+                <div className="font-black text-base text-ink tabular-nums">
+                  {player.stats?.h || 0}
+                </div>
+              </div>
+              <div className="text-center px-2 py-2.5">
+                <div className="t-eyebrow mb-1" style={{ fontSize: "8px" }}>
+                  RBI
+                </div>
+                <div className="font-black text-base text-ink tabular-nums">
+                  {player.stats?.rbi || 0}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
-
-    </div>
-  );
-});
+    );
+  },
+);
 
 export const RosterTab = memo(() => {
   const { team, currentRole } = useTeam();
@@ -322,7 +337,7 @@ export const RosterTab = memo(() => {
 
   const activeRosterCount = useMemo(
     () => players.filter((p: any) => getRosterStatus(p) === "active").length,
-    [players]
+    [players],
   );
 
   const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
@@ -333,174 +348,181 @@ export const RosterTab = memo(() => {
       <PitchingPlanPanel />
       <ArmCarePanel />
       <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
-      <div className="border-b border-line pb-6">
-        <div
-          className="h-1.5 w-full"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-        <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
-          <div className="flex items-center gap-4">
-            <div
-              className="p-2.5 rounded-full"
-              style={{ backgroundColor: "var(--team-primary-15)" }}
-            >
-              <Icons.Jersey
-                className="w-6 h-6"
-                style={{ color: "var(--team-primary)" }}
-              />
-            </div>
-            <h2 className="t-h2 flex items-center gap-3">
-              Team Roster
-              <span
-                className="t-chip px-2.5 py-1 rounded-lg"
-                style={{
-                  backgroundColor: "var(--team-secondary)",
-                  color: "var(--team-primary)",
-                }}
+        <div className="border-b border-line pb-6">
+          <div
+            className="h-1.5 w-full"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          />
+          <div className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-line">
+            <div className="flex items-center gap-4">
+              <div
+                className="p-2.5 rounded-full"
+                style={{ backgroundColor: "var(--team-primary-15)" }}
               >
-                {activeRosterCount} Active
-              </span>
-            </h2>
-          </div>
-
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => setIsAddingPlayer(true)}
-              className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
-              style={{ color: "var(--team-tertiary)" }}
-            >
-              <Icons.UserPlus className="w-4 h-4" /> Add Player
-            </button>
-          )}
-        </div>
-        {players.length > 0 && (
-          <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-line space-y-3">
-            <div className="relative">
-              <Icons.User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search players by name…"
-                aria-label="Search roster"
-                className="w-full pl-9 pr-9 py-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:border-transparent text-sm font-bold text-ink shadow-sm transition-shadow"
-                style={{ "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties}
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery("")}
-                  aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-ink-3 hover:text-ink rounded-md"
+                <Icons.Jersey
+                  className="w-6 h-6"
+                  style={{ color: "var(--team-primary)" }}
+                />
+              </div>
+              <h2 className="t-h2 flex items-center gap-3">
+                Team Roster
+                <span
+                  className="t-chip px-2.5 py-1 rounded-lg"
+                  style={{
+                    backgroundColor: "var(--team-secondary)",
+                    color: "var(--team-primary)",
+                  }}
                 >
-                  <Icons.X className="w-3.5 h-3.5" />
-                </button>
-              )}
+                  {activeRosterCount} Active
+                </span>
+              </h2>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {FILTER_CHIPS.map((chip) => {
-                const isActive = activeFilters.has(chip.id);
-                return (
+
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setIsAddingPlayer(true)}
+                className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
+                style={{ color: "var(--team-tertiary)" }}
+              >
+                <Icons.UserPlus className="w-4 h-4" /> Add Player
+              </button>
+            )}
+          </div>
+          {players.length > 0 && (
+            <div className="px-4 sm:px-6 pt-4 pb-3 border-b border-line space-y-3">
+              <div className="relative">
+                <Icons.User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search players by name…"
+                  aria-label="Search roster"
+                  className="w-full pl-9 pr-9 py-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:border-transparent text-sm font-bold text-ink shadow-sm transition-shadow"
+                  style={
+                    {
+                      "--tw-ring-color": "var(--team-primary)",
+                    } as React.CSSProperties
+                  }
+                />
+                {searchQuery && (
                   <button
-                    key={chip.id}
                     type="button"
-                    onClick={() => toggleFilter(chip.id)}
-                    aria-pressed={isActive}
-                    className="t-button px-3 py-1.5 min-h-[44px] inline-flex items-center rounded-full border transition-all"
-                    style={
-                      isActive
-                        ? {
-                            backgroundColor: "var(--team-secondary)",
-                            color: "var(--team-primary)",
-                            borderColor: "var(--team-primary)",
-                          }
-                        : {
-                            backgroundColor: "var(--surface)",
-                            color: "var(--ink-2)",
-                            borderColor: "var(--line)",
-                          }
-                    }
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Clear search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-ink-3 hover:text-ink rounded-md"
                   >
-                    {chip.label}
+                    <Icons.X className="w-3.5 h-3.5" />
                   </button>
-                );
-              })}
-              {filtersActive && (
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {FILTER_CHIPS.map((chip) => {
+                  const isActive = activeFilters.has(chip.id);
+                  return (
+                    <button
+                      key={chip.id}
+                      type="button"
+                      onClick={() => toggleFilter(chip.id)}
+                      aria-pressed={isActive}
+                      className="t-button px-3 py-1.5 min-h-[44px] inline-flex items-center rounded-full border transition-all"
+                      style={
+                        isActive
+                          ? {
+                              backgroundColor: "var(--team-secondary)",
+                              color: "var(--team-primary)",
+                              borderColor: "var(--team-primary)",
+                            }
+                          : {
+                              backgroundColor: "var(--surface)",
+                              color: "var(--ink-2)",
+                              borderColor: "var(--line)",
+                            }
+                      }
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
+                {filtersActive && (
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="t-button px-3 py-1.5 min-h-[44px] inline-flex items-center rounded-full text-ink-3 hover:text-ink hover:bg-surface"
+                  >
+                    Clear All
+                  </button>
+                )}
+                <span className="ml-auto t-eyebrow text-ink-3 tabular-nums">
+                  {visiblePlayers.length} / {players.length}
+                </span>
+              </div>
+            </div>
+          )}
+          <div className="p-4 sm:p-6">
+            {players.length === 0 ? (
+              <div className="text-center py-20">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Team Logo"
+                    className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+                  />
+                ) : (
+                  <div
+                    className="text-5xl leading-none mb-4 opacity-80"
+                    aria-hidden
+                  >
+                    🧢
+                  </div>
+                )}
+                <h3 className="t-h3 mb-2 text-ink-3">No Roster Found</h3>
+                <p className="t-body max-w-sm mx-auto">
+                  Manually add players to build your team, or head to Settings
+                  to import your stats file.
+                </p>
+              </div>
+            ) : visiblePlayers.length === 0 ? (
+              <div className="text-center py-12">
+                <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+                <p className="t-body max-w-sm mx-auto">
+                  No players match the current filter — clear to see the full
+                  roster.
+                </p>
                 <button
                   type="button"
                   onClick={clearAll}
-                  className="t-button px-3 py-1.5 min-h-[44px] inline-flex items-center rounded-full text-ink-3 hover:text-ink hover:bg-surface"
+                  className="mt-3 t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2"
                 >
-                  Clear All
+                  Clear Filters
                 </button>
-              )}
-              <span className="ml-auto t-eyebrow text-ink-3 tabular-nums">
-                {visiblePlayers.length} / {players.length}
-              </span>
-            </div>
+              </div>
+            ) : (
+              <StaggerList className="flex flex-col">
+                {visiblePlayers.map((player) => (
+                  <StaggerItem key={player.id}>
+                    <PlayerRow
+                      player={player}
+                      currentSeason={currentSeason}
+                      onOpenProfile={openPlayerProfile}
+                      onSelectStats={setSelectedStatsId}
+                      selectedForStats={player.id === selectedStatsId}
+                      showPositionTag={canEdit}
+                      logoUrl={(team as any)?.logoUrl}
+                      stripped={stripped}
+                    />
+                  </StaggerItem>
+                ))}
+              </StaggerList>
+            )}
           </div>
-        )}
-        <div className="p-4 sm:p-6">
-          {players.length === 0 ? (
-            <div className="text-center py-20">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Team Logo"
-                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                />
-              ) : (
-                <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
-                  🧢
-                </div>
-              )}
-              <h3 className="t-h3 mb-2 text-ink-3">No Roster Found</h3>
-              <p className="t-body max-w-sm mx-auto">
-                Manually add players to build your team, or head to Settings to
-                import your stats file.
-              </p>
-            </div>
-          ) : visiblePlayers.length === 0 ? (
-            <div className="text-center py-12">
-              <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />
-              <p className="t-body max-w-sm mx-auto">
-                No players match the current filter — clear to see the full
-                roster.
-              </p>
-              <button
-                type="button"
-                onClick={clearAll}
-                className="mt-3 t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2"
-              >
-                Clear Filters
-              </button>
-            </div>
-          ) : (
-            <StaggerList className="flex flex-col">
-              {visiblePlayers.map((player) => (
-                <StaggerItem key={player.id}>
-                  <PlayerRow
-                    player={player}
-                    currentSeason={currentSeason}
-                    onOpenProfile={openPlayerProfile}
-                    onSelectStats={setSelectedStatsId}
-                    selectedForStats={player.id === selectedStatsId}
-                    showPositionTag={canEdit}
-                    logoUrl={(team as any)?.logoUrl}
-                    stripped={stripped}
-                  />
-                </StaggerItem>
-              ))}
-            </StaggerList>
-          )}
         </div>
-      </div>
-      <RosterStatsPanel
-        players={players}
-        selectedId={selectedStatsId}
-        onSelect={setSelectedStatsId}
-      />
+        <RosterStatsPanel
+          players={players}
+          selectedId={selectedStatsId}
+          onSelect={setSelectedStatsId}
+        />
       </div>
     </div>
   );

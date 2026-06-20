@@ -20,8 +20,7 @@ export const usePlayerCrud = ({
 }: UsePlayerCrudArgs) => {
   const addPlayer = useCallback(
     (form: any) => {
-      const id =
-        form.id || "p-" + Math.random().toString(36).substring(2, 10);
+      const id = form.id || "p-" + Math.random().toString(36).substring(2, 10);
       const newPlayer = {
         id,
         name: form.name.trim(),
@@ -43,27 +42,27 @@ export const usePlayerCrud = ({
       updateTeam({ players: [...teamData.players, newPlayer] });
       return id;
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   const updatePlayer = useCallback(
     (id: any, updates: any) => {
       const next = teamData.players.map((p: any) =>
-        p.id === id ? { ...p, ...updates } : p
+        p.id === id ? { ...p, ...updates } : p,
       );
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   const updatePlayerNested = useCallback(
     (id: any, key: any, updates: any) => {
       const next = teamData.players.map((p: any) =>
-        p.id === id ? { ...p, [key]: { ...(p[key] || {}), ...updates } } : p
+        p.id === id ? { ...p, [key]: { ...(p[key] || {}), ...updates } } : p,
       );
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   const removePlayer = useCallback(
@@ -93,7 +92,7 @@ export const usePlayerCrud = ({
         for (const pos in inning) {
           if (pos === "BENCH") {
             out.BENCH = (inning.BENCH || []).filter(
-              (p: any) => p && p.id !== id
+              (p: any) => p && p.id !== id,
             );
           } else {
             const slot = inning[pos];
@@ -105,12 +104,13 @@ export const usePlayerCrud = ({
 
       const stripFromGame = (g: any) => {
         const next = { ...g };
-        if (Array.isArray(g.lineup)) next.lineup = g.lineup.map(stripFromInning);
+        if (Array.isArray(g.lineup))
+          next.lineup = g.lineup.map(stripFromInning);
         if (Array.isArray(g.originalLineup))
           next.originalLineup = g.originalLineup.map(stripFromInning);
         if (Array.isArray(g.battingLineup))
           next.battingLineup = g.battingLineup.filter(
-            (p: any) => p && p.id !== id
+            (p: any) => p && p.id !== id,
           );
         if (g.attendance && id in g.attendance) {
           const { [id]: _dropAtt, ...rest } = g.attendance;
@@ -160,7 +160,7 @@ export const usePlayerCrud = ({
       updateTeam,
       toast,
       confirm,
-    ]
+    ],
   );
 
   return { addPlayer, updatePlayer, updatePlayerNested, removePlayer };

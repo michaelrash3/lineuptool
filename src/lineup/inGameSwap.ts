@@ -15,7 +15,7 @@ const bench = (inning: Inning): SlimPlayer[] =>
 // Resolve the player currently occupying a selected cell (undefined if empty).
 export const getPlayerAt = (
   inning: Inning,
-  sel: SwapSel
+  sel: SwapSel,
 ): SlimPlayer | undefined => {
   if (sel.type === "position") return inning[sel.pos] as SlimPlayer | undefined;
   return bench(inning).find((p) => p?.id === sel.playerId);
@@ -30,7 +30,7 @@ export const isCatcherBlocked = (
   secondSel: SwapSel,
   playerA: SlimPlayer | undefined,
   playerB: SlimPlayer | undefined,
-  isClearedToCatch: (player: SlimPlayer | undefined) => boolean
+  isClearedToCatch: (player: SlimPlayer | undefined) => boolean,
 ): boolean =>
   (firstSel.type === "position" &&
     firstSel.pos === "C" &&
@@ -50,7 +50,7 @@ export const isCatcherBlocked = (
 export const applySwap = (
   inning: Inning,
   firstSel: SwapSel,
-  secondSel: SwapSel
+  secondSel: SwapSel,
 ): Inning | null => {
   const playerA = getPlayerAt(inning, firstSel);
   const playerB = getPlayerAt(inning, secondSel);
@@ -63,11 +63,13 @@ export const applySwap = (
   if (secondSel.type === "position") next[secondSel.pos] = playerA;
 
   const benchReplacements = new Map<string, SlimPlayer>();
-  if (firstSel.type === "bench") benchReplacements.set(firstSel.playerId, playerB);
-  if (secondSel.type === "bench") benchReplacements.set(secondSel.playerId, playerA);
+  if (firstSel.type === "bench")
+    benchReplacements.set(firstSel.playerId, playerB);
+  if (secondSel.type === "bench")
+    benchReplacements.set(secondSel.playerId, playerA);
   if (benchReplacements.size > 0) {
     next.BENCH = (next.BENCH as SlimPlayer[]).map((p) =>
-      p && benchReplacements.has(p.id) ? benchReplacements.get(p.id)! : p
+      p && benchReplacements.has(p.id) ? benchReplacements.get(p.id)! : p,
     );
   }
   return next;

@@ -91,7 +91,9 @@ const parseIcsDate = (value: string): string | null => {
 // Pull the opponent + home/away out of a GameChanger SUMMARY. Away (" @ ") is
 // checked before home (" vs ") and we use the LAST separator occurrence so a
 // team name that itself contains "vs"/"@" doesn't mislead the split.
-const parseMatchup = (summary: string): { opponent: string; isHome: boolean | null } => {
+const parseMatchup = (
+  summary: string,
+): { opponent: string; isHome: boolean | null } => {
   const away = summary.lastIndexOf(" @ ");
   if (away !== -1) {
     return { opponent: summary.slice(away + 3).trim(), isHome: false };
@@ -139,8 +141,8 @@ export const parseGameChangerIcs = (icsText: string): GcEvent[] => {
         const startDate = allDay
           ? `${rawStart.slice(0, 4)}-${rawStart.slice(4, 6)}-${rawStart.slice(6, 8)}`
           : startUtc
-          ? isoInstantToLocalDate(startUtc)
-          : null;
+            ? isoInstantToLocalDate(startUtc)
+            : null;
         // A VEVENT with no parseable start is unusable as a game; skip it.
         if (startDate) {
           const { opponent, isHome } = parseMatchup(summary);
@@ -180,9 +182,14 @@ export const isoInstantToLocalDate = (iso: string): string => {
 
 // Format a UTC ISO instant as a local clock time, e.g. "6:00 PM". Returns ""
 // for a missing/unparseable instant so callers can simply skip rendering it.
-export const isoInstantToLocalTime = (iso: string | null | undefined): string => {
+export const isoInstantToLocalTime = (
+  iso: string | null | undefined,
+): string => {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 };

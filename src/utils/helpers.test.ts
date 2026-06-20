@@ -1,4 +1,3 @@
-
 import {
   normalizeDateToIso,
   parseCsvRecords,
@@ -75,19 +74,49 @@ describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
   // row has the real column names. Batting and Pitching both have h/bb here —
   // the extractor must read pitching's, not batting's.
   const labelRow = [
-    "batting", "", "", "",
-    "pitching", "", "", "", "",
-    "fielding", "", "", "",
+    "batting",
+    "",
+    "",
+    "",
+    "pitching",
+    "",
+    "",
+    "",
+    "",
+    "fielding",
+    "",
+    "",
+    "",
   ];
   const headerRow = [
-    "gp", "ops", "h", "bb",
-    "ip", "s%", "h", "bb", "whip",
-    "fpct", "e", "cs%", "pb",
+    "gp",
+    "ops",
+    "h",
+    "bb",
+    "ip",
+    "s%",
+    "h",
+    "bb",
+    "whip",
+    "fpct",
+    "e",
+    "cs%",
+    "pb",
   ];
   const cols = [
-    "10", "0.900", "12", "5",
-    "20.0", "65%", "8", "3", "1.10",
-    ".952", "2", "40%", "1",
+    "10",
+    "0.900",
+    "12",
+    "5",
+    "20.0",
+    "65%",
+    "8",
+    "3",
+    "1.10",
+    ".952",
+    "2",
+    "40%",
+    "1",
   ];
 
   it("reads pitching + fielding columns from their own sections", () => {
@@ -113,14 +142,16 @@ describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
   it("returns {} when the export has no section labels", () => {
     expect(extractAdvancedStats(undefined, headerRow, cols)).toEqual({});
     const noLabels = ["", "", ""];
-    expect(extractAdvancedStats(noLabels, ["ops", "h", "bb"], ["1", "2", "3"])).toEqual({});
+    expect(
+      extractAdvancedStats(noLabels, ["ops", "h", "bb"], ["1", "2", "3"]),
+    ).toEqual({});
   });
 });
 
 describe("CSV helpers", () => {
   it("parses quoted commas, escaped quotes, and embedded newlines", () => {
     const rows = parseCsvRecords(
-      'First,Last,Note\r\nJane,"Smith, Jr.","Line one\nLine two"\r\nBob,"O""Brien","He said ""go"""'
+      'First,Last,Note\r\nJane,"Smith, Jr.","Line one\nLine two"\r\nBob,"O""Brien","He said ""go"""',
     );
 
     expect(rows).toEqual([
@@ -132,7 +163,7 @@ describe("CSV helpers", () => {
 
   it("keeps GameChanger compatibility with quoted newlines", () => {
     const result = parseGameChangerPastSeasonCsv(
-      'First,Last,OPS,AB,H\n"Ava",Rivera,.900,10,4\n"Mia","Stone",.700,8,2\nTotals,,.800,18,6\nGlossary,"ignored\nfooter",,,\n'
+      'First,Last,OPS,AB,H\n"Ava",Rivera,.900,10,4\n"Mia","Stone",.700,8,2\nTotals,,.800,18,6\nGlossary,"ignored\nfooter",,,\n',
     );
 
     expect(result.error).toBeUndefined();
@@ -181,7 +212,7 @@ describe("evalDueDatesForYear", () => {
 
   it("walks weekly Sundays Sep 1–Oct 31 for Fall", () => {
     const fall = evalDueDatesForYear(2026).filter(
-      (d) => d.getMonth() >= 8 && d.getMonth() <= 9
+      (d) => d.getMonth() >= 8 && d.getMonth() <= 9,
     );
     for (const d of fall) {
       expect(d.getDay()).toBe(0);
@@ -219,7 +250,7 @@ describe("evalDueDatesForYear", () => {
     expect(year).not.toBeNull();
     const dates = evalDueDatesForYear(year!);
     const mar15s = dates.filter(
-      (d) => d.getMonth() === 2 && d.getDate() === 15
+      (d) => d.getMonth() === 2 && d.getDate() === 15,
     );
     expect(mar15s.length).toBe(1);
   });
@@ -236,9 +267,7 @@ describe("evalDueDatesForYear", () => {
     }
     expect(year).not.toBeNull();
     const dates = evalDueDatesForYear(year!);
-    const hasSep1 = dates.some(
-      (d) => d.getMonth() === 8 && d.getDate() === 1
-    );
+    const hasSep1 = dates.some((d) => d.getMonth() === 8 && d.getDate() === 1);
     expect(hasSep1).toBe(true);
   });
 });
@@ -296,7 +325,7 @@ describe("evalPromptStatus calendar cadence", () => {
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 1, 2)
+      new Date(2026, 1, 2),
     );
     expect(status.active).toBe(false);
   });
@@ -320,7 +349,7 @@ describe("evalPromptStatus calendar cadence", () => {
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 2, 13)
+      new Date(2026, 2, 13),
     );
     expect(before.active).toBe(false);
     // And the day after the due date — still cleared, not re-nagging.
@@ -328,7 +357,7 @@ describe("evalPromptStatus calendar cadence", () => {
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 2, 16)
+      new Date(2026, 2, 16),
     );
     expect(after.active).toBe(false);
   });
@@ -354,7 +383,7 @@ describe("evalPromptStatus calendar cadence", () => {
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 2, 22)
+      new Date(2026, 2, 22),
     );
     expect(status.active).toBe(true);
     expect(status.nextDueDate).toBe("2026-03-22");
@@ -394,7 +423,7 @@ describe("emailPromptStatus", () => {
   it("respects the reminders-disabled flag", () => {
     const s = emailPromptStatus(
       { ...team, emailEvalRemindersDisabled: true },
-      onFeb1
+      onFeb1,
     );
     expect(s.active).toBe(false);
     expect(s.reason).toBe("reminders disabled");
@@ -422,7 +451,6 @@ describe("emailPromptStatus", () => {
   });
 });
 
-
 describe("getReturningDecision planning helper", () => {
   it("returns unknown when modern returning intent is missing", () => {
     expect(getReturningDecision({})).toBe("unknown");
@@ -440,8 +468,12 @@ describe("getReturningDecision planning helper", () => {
   });
 
   it("lets explicit returning intent beat legacy status", () => {
-    expect(getReturningDecision({ returning: true, playerStatus: "released" })).toBe("yes");
-    expect(getReturningDecision({ returning: false, playerStatus: "returning" })).toBe("no");
+    expect(
+      getReturningDecision({ returning: true, playerStatus: "released" }),
+    ).toBe("yes");
+    expect(
+      getReturningDecision({ returning: false, playerStatus: "returning" }),
+    ).toBe("no");
   });
 });
 
@@ -465,8 +497,12 @@ describe("isReturning legacy fallback", () => {
     expect(isReturning({})).toBe(true);
   });
   it("explicit returning beats legacy playerStatus", () => {
-    expect(isReturning({ returning: false, playerStatus: "returning" })).toBe(false);
-    expect(isReturning({ returning: true, playerStatus: "released" })).toBe(true);
+    expect(isReturning({ returning: false, playerStatus: "returning" })).toBe(
+      false,
+    );
+    expect(isReturning({ returning: true, playerStatus: "released" })).toBe(
+      true,
+    );
   });
 });
 
@@ -492,16 +528,16 @@ describe("lineupSlotMatchesPlayer orphan-id fallback", () => {
     // trigger and incorrectly credit innings to the wrong kid.
     const slot = { id: "old", name: "Mike Smith" };
     const player = { id: "new", name: "Mike Smith" };
-    expect(
-      lineupSlotMatchesPlayer(slot, player, new Set(["new", "old"]))
-    ).toBe(false);
+    expect(lineupSlotMatchesPlayer(slot, player, new Set(["new", "old"]))).toBe(
+      false,
+    );
   });
 
   it("returns false for null/empty slots", () => {
     const player = { id: "p1", name: "Test" };
     expect(lineupSlotMatchesPlayer(null, player, new Set(["p1"]))).toBe(false);
     expect(lineupSlotMatchesPlayer(undefined, player, new Set(["p1"]))).toBe(
-      false
+      false,
     );
   });
 
@@ -556,15 +592,13 @@ describe("isGameFinalized", () => {
         status: "scheduled",
         teamScore: null,
         opponentScore: null,
-      })
+      }),
     ).toBe(false);
   });
   it("returns false for empty-string scores (in-progress ScoreEditor state)", () => {
     // Score editor seeds inputs as "" when no score is set. Number("")
     // is also 0, so the same regression class — strict guard catches it.
-    expect(isGameFinalized({ teamScore: "", opponentScore: "" })).toBe(
-      false
-    );
+    expect(isGameFinalized({ teamScore: "", opponentScore: "" })).toBe(false);
     expect(isGameFinalized({ teamScore: "", opponentScore: 5 })).toBe(false);
     expect(isGameFinalized({ teamScore: 5, opponentScore: "" })).toBe(false);
   });
@@ -642,7 +676,7 @@ describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
 describe("evalRoundDateForSave", () => {
   const isoLocal = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-      d.getDate()
+      d.getDate(),
     ).padStart(2, "0")}`;
 
   it("stamps a save made on a due date with that due date", () => {
@@ -670,7 +704,7 @@ describe("evalRoundDateForSave", () => {
         ...evalDueDatesForYear(2025),
         ...evalDueDatesForYear(2026),
         ...evalDueDatesForYear(2027),
-      ].map(isoLocal)
+      ].map(isoLocal),
     );
     expect(allDue.has(out)).toBe(true);
   });
@@ -847,7 +881,7 @@ describe("gamesDueForReminder", () => {
         { id: "tom", date: tomorrow, opponent: "Cubs" },
       ],
       "morning_of",
-      now
+      now,
     );
     expect(due.map((g) => g.id)).toEqual(["today"]);
     expect(due[0].whenLabel).toBe("Today");
@@ -863,7 +897,7 @@ describe("gamesDueForReminder", () => {
         { id: "later", date: dayAfter },
       ],
       "day_before",
-      now
+      now,
     );
     expect(due.map((g) => g.id)).toEqual(["today", "tom"]);
     expect(due.find((g) => g.id === "tom")!.whenLabel).toBe("Tomorrow");
@@ -881,7 +915,7 @@ describe("gamesDueForReminder", () => {
         { id: "ok", date: today, opponent: "" },
       ],
       "day_before",
-      now
+      now,
     );
     expect(due.map((g) => g.id)).toEqual(["ok"]);
     // Missing opponent falls back to TBD.
@@ -895,7 +929,7 @@ describe("gamesDueForReminder", () => {
         { id: "today", date: "5/10/26" },
       ],
       "day_before",
-      now
+      now,
     );
     expect(due.map((g) => g.id)).toEqual(["today", "tom"]);
     expect(due[0].date).toBe("2026-05-10");
@@ -1036,17 +1070,17 @@ describe("resolveTryoutDateForSlug", () => {
 
   it("pins each slug to its OWN date (never the first configured date)", () => {
     expect(resolveTryoutDateForSlug(team, "hawks-2026-05-22-bbb")).toBe(
-      "2026-05-22"
+      "2026-05-22",
     );
     expect(resolveTryoutDateForSlug(team, "hawks-2026-04-10-aaa")).toBe(
-      "2026-04-10"
+      "2026-04-10",
     );
   });
 
   it("falls back to the link list when no bySlug map is present", () => {
     const legacyish = { tryoutDateLinks: team.tryoutDateLinks };
     expect(resolveTryoutDateForSlug(legacyish, "hawks-2026-05-22-bbb")).toBe(
-      "2026-05-22"
+      "2026-05-22",
     );
   });
 
@@ -1057,9 +1091,9 @@ describe("resolveTryoutDateForSlug", () => {
       tryoutDateSlug: "team-1-2026-05-22-xyz",
       tryoutDates: ["2026-04-10", "2026-05-22"],
     };
-    expect(
-      resolveTryoutDateForSlug(legacy, "team-1-2026-05-22-xyz")
-    ).toBe("2026-05-22");
+    expect(resolveTryoutDateForSlug(legacy, "team-1-2026-05-22-xyz")).toBe(
+      "2026-05-22",
+    );
   });
 
   it("returns '' for an unknown/blank slug", () => {
@@ -1103,7 +1137,9 @@ describe("revertOptimisticUpdate", () => {
     const prevValues = { name: "Old" };
     // User typed again — current.name is a different reference/value now.
     const current = { name: "Newer" };
-    expect(revertOptimisticUpdate(current, attempted, prevValues)).toBe(current);
+    expect(revertOptimisticUpdate(current, attempted, prevValues)).toBe(
+      current,
+    );
   });
 });
 
@@ -1117,7 +1153,7 @@ describe("buildScheduleIcs", () => {
         { id: "g1", date: "05/01/2026", opponent: "Rays", time: "5:30 PM" },
       ],
       "Hawks",
-      now
+      now,
     );
     expect(ics.startsWith("BEGIN:VCALENDAR\r\n")).toBe(true);
     expect(ics.trimEnd().endsWith("END:VCALENDAR")).toBe(true);
@@ -1141,7 +1177,7 @@ describe("buildScheduleIcs", () => {
         { id: "ok", date: "2026-05-04", opponent: "Sox" },
       ],
       "Hawks",
-      now
+      now,
     );
     const uids = [...ics.matchAll(/UID:(.+)/g)].map((m) => m[1].trim());
     expect(uids).toEqual(["game-ok@coachscard"]);
@@ -1151,7 +1187,7 @@ describe("buildScheduleIcs", () => {
     const ics = buildScheduleIcs(
       [{ id: "g", date: "2026-05-01" }],
       "Hawks, AAA",
-      now
+      now,
     );
     expect(ics).toContain("SUMMARY:Hawks\\, AAA vs TBD");
   });
@@ -1168,7 +1204,10 @@ describe("buildScheduleIcs", () => {
 describe("recordPitchingOuting", () => {
   it("starts a log and sets most-recent fields for a first outing", () => {
     const out = recordPitchingOuting(null, "2026-05-01", 40);
-    expect(out).toMatchObject({ recentPitches: 40, lastPitchDate: "2026-05-01" });
+    expect(out).toMatchObject({
+      recentPitches: 40,
+      lastPitchDate: "2026-05-01",
+    });
     expect(out.log).toEqual([{ date: "2026-05-01", pitches: 40 }]);
   });
 
@@ -1234,8 +1273,15 @@ describe("recordPitchingOuting", () => {
 
 describe("summarizePitchingWorkload", () => {
   it("returns zeros for a pitcher with no log", () => {
-    expect(summarizePitchingWorkload(null)).toEqual({ outings: 0, totalPitches: 0, maxPitches: 0, lastDate: null });
-    expect(summarizePitchingWorkload({ recentPitches: 5 } as any)).toMatchObject({ outings: 0, totalPitches: 0 });
+    expect(summarizePitchingWorkload(null)).toEqual({
+      outings: 0,
+      totalPitches: 0,
+      maxPitches: 0,
+      lastDate: null,
+    });
+    expect(
+      summarizePitchingWorkload({ recentPitches: 5 } as any),
+    ).toMatchObject({ outings: 0, totalPitches: 0 });
   });
 
   it("sums totals, tracks the high, and the latest date", () => {
@@ -1258,7 +1304,9 @@ describe("summarizePitchingWorkload", () => {
 describe("estimateDocSizeBytes", () => {
   it("measures UTF-8 byte length of the serialized value", () => {
     expect(estimateDocSizeBytes({})).toBe(2); // "{}"
-    expect(estimateDocSizeBytes({ a: "x" })).toBe(JSON.stringify({ a: "x" }).length);
+    expect(estimateDocSizeBytes({ a: "x" })).toBe(
+      JSON.stringify({ a: "x" }).length,
+    );
   });
 
   it("counts multi-byte characters as multiple bytes", () => {
@@ -1293,17 +1341,34 @@ describe("buildSeasonPositionVariety", () => {
   };
 
   it("tallies innings per position across finalized games", () => {
-    const m = buildSeasonPositionVariety([finalGame], [
-      { id: "p1" }, { id: "p2" }, { id: "p3" },
-    ]);
+    const m = buildSeasonPositionVariety(
+      [finalGame],
+      [{ id: "p1" }, { id: "p2" }, { id: "p3" }],
+    );
     expect(m.get("p1")!.byPosition).toEqual({ SS: 2 });
-    expect(m.get("p1")!).toMatchObject({ totalDefense: 2, distinctPositions: 1, infieldInnings: 2, outfieldInnings: 0 });
-    expect(m.get("p2")).toMatchObject({ outfieldInnings: 2, infieldInnings: 0, distinctPositions: 2 });
-    expect(m.get("p3")).toMatchObject({ batteryInnings: 2, distinctPositions: 2 });
+    expect(m.get("p1")!).toMatchObject({
+      totalDefense: 2,
+      distinctPositions: 1,
+      infieldInnings: 2,
+      outfieldInnings: 0,
+    });
+    expect(m.get("p2")).toMatchObject({
+      outfieldInnings: 2,
+      infieldInnings: 0,
+      distinctPositions: 2,
+    });
+    expect(m.get("p3")).toMatchObject({
+      batteryInnings: 2,
+      distinctPositions: 2,
+    });
   });
 
   it("ignores non-finalized games and bench slots", () => {
-    const scheduled = { id: "g2", status: "scheduled", lineup: [inning({ SS: { id: "p1" } })] };
+    const scheduled = {
+      id: "g2",
+      status: "scheduled",
+      lineup: [inning({ SS: { id: "p1" } })],
+    };
     const m = buildSeasonPositionVariety([scheduled], [{ id: "p1" }]);
     expect(m.size).toBe(0);
   });
@@ -1311,10 +1376,16 @@ describe("buildSeasonPositionVariety", () => {
   it("coalesces a re-added player's history by name onto the live id", () => {
     // Lineup baked an old id "old1"; live roster has the player under "p1".
     const g = {
-      id: "g3", status: "final", teamScore: 1, opponentScore: 0,
+      id: "g3",
+      status: "final",
+      teamScore: 1,
+      opponentScore: 0,
       lineup: [inning({ SS: { id: "old1", name: "Ava Rivera" } })],
     };
-    const m = buildSeasonPositionVariety([g], [{ id: "p1", name: "Ava Rivera" }]);
+    const m = buildSeasonPositionVariety(
+      [g],
+      [{ id: "p1", name: "Ava Rivera" }],
+    );
     expect(m.get("p1")!.byPosition).toEqual({ SS: 1 });
     expect(m.has("old1")).toBe(false);
   });
@@ -1327,16 +1398,20 @@ describe("record standings helpers", () => {
 
     expect(recordWinningPercentage(gcRecord)).toBeCloseTo(0.731, 3);
     expect(recordWinningPercentage(tenFour)).toBeCloseTo(0.714, 3);
-    expect([tenFour, gcRecord].sort(compareRecordsByWinningPercentage)).toEqual([
-      gcRecord,
-      tenFour,
-    ]);
+    expect([tenFour, gcRecord].sort(compareRecordsByWinningPercentage)).toEqual(
+      [gcRecord, tenFour],
+    );
   });
 });
 
 describe("buildSeasonSummary", () => {
   const g = (id: any, date: any, opp: any, ts: any, os: any) => ({
-    id, date, opponent: opp, status: "final", teamScore: ts, opponentScore: os,
+    id,
+    date,
+    opponent: opp,
+    status: "final",
+    teamScore: ts,
+    opponentScore: os,
   });
 
   it("tallies record, runs, run differential, and games played", () => {
@@ -1346,7 +1421,15 @@ describe("buildSeasonSummary", () => {
       g("c", "2026-05-15", "Sox", 4, 4),
       { id: "d", date: "2026-05-22", status: "scheduled" }, // not finalized -> ignored
     ]);
-    expect(s).toMatchObject({ wins: 1, losses: 1, ties: 1, gamesPlayed: 3, runsFor: 11, runsAgainst: 13, runDiff: -2 });
+    expect(s).toMatchObject({
+      wins: 1,
+      losses: 1,
+      ties: 1,
+      gamesPlayed: 3,
+      runsFor: 11,
+      runsAgainst: 13,
+      runDiff: -2,
+    });
   });
 
   it("computes the current win/loss streak from the most recent game, reset by ties", () => {
@@ -1378,7 +1461,14 @@ describe("buildSeasonSummary", () => {
 
   it("is empty/zeroed when there are no finalized games", () => {
     const s = buildSeasonSummary([{ id: "x", status: "scheduled" }]);
-    expect(s).toMatchObject({ gamesPlayed: 0, wins: 0, runDiff: 0, streakType: null, streakCount: 0, results: [] });
+    expect(s).toMatchObject({
+      gamesPlayed: 0,
+      wins: 0,
+      runDiff: 0,
+      streakType: null,
+      streakCount: 0,
+      results: [],
+    });
   });
 });
 
@@ -1453,7 +1543,12 @@ describe("deriveTournaments", () => {
     const games = [
       { id: "a", date: "2026-06-06", leagueRuleSet: "USSSA", gameType: "pool" },
       { id: "b", date: "2026-06-06", leagueRuleSet: "USSSA", gameType: "pool" },
-      { id: "c", date: "2026-06-07", leagueRuleSet: "USSSA", gameType: "bracket" },
+      {
+        id: "c",
+        date: "2026-06-07",
+        leagueRuleSet: "USSSA",
+        gameType: "bracket",
+      },
     ];
     const t = deriveTournaments(games);
     expect(t).toHaveLength(1);
@@ -1465,8 +1560,18 @@ describe("deriveTournaments", () => {
       { id: "solo", date: "2026-06-20", leagueRuleSet: "USSSA" }, // lone
       { id: "rec1", date: "2026-06-06", leagueRuleSet: "NKB" },
       { id: "rec2", date: "2026-06-07", leagueRuleSet: "NKB" },
-      { id: "scrim1", date: "2026-07-04", leagueRuleSet: "USSSA", isScrimmage: true },
-      { id: "scrim2", date: "2026-07-05", leagueRuleSet: "USSSA", isScrimmage: true },
+      {
+        id: "scrim1",
+        date: "2026-07-04",
+        leagueRuleSet: "USSSA",
+        isScrimmage: true,
+      },
+      {
+        id: "scrim2",
+        date: "2026-07-05",
+        leagueRuleSet: "USSSA",
+        isScrimmage: true,
+      },
     ];
     expect(deriveTournaments(games)).toEqual([]);
   });
@@ -1556,13 +1661,25 @@ describe("parseGameChangerStatsCsv", () => {
   });
 
   it("rejects a non-GameChanger file with a clear error", () => {
-    const out = parseGameChangerStatsCsv("First,Last,Email\nA,B,a@b.c\n") as any;
+    const out = parseGameChangerStatsCsv(
+      "First,Last,Email\nA,B,a@b.c\n",
+    ) as any;
     expect(out.error).toMatch(/GameChanger/i);
   });
 });
 
 describe("stripPitchingStatsForFormat", () => {
-  const line = { ab: 3, h: 1, ip: 2, era: 4.5, totalPitches: 30, pIp: 2, pEra: 4.5, pStrikePct: 0.6, fpct: 0.9 };
+  const line = {
+    ab: 3,
+    h: 1,
+    ip: 2,
+    era: 4.5,
+    totalPitches: 30,
+    pIp: 2,
+    pEra: 4.5,
+    pStrikePct: 0.6,
+    fpct: 0.9,
+  };
 
   it("drops every pitching key for Machine/Coach pitch games", () => {
     for (const f of ["Machine Pitch", "Coach Pitch"]) {
@@ -1577,7 +1694,11 @@ describe("stripPitchingStatsForFormat", () => {
 });
 
 describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
-  const game = (id: any, playerStats: any, extra: any = {}) => ({ id, playerStats, ...extra });
+  const game = (id: any, playerStats: any, extra: any = {}) => ({
+    id,
+    playerStats,
+    ...extra,
+  });
 
   it("sums counting stats and recomputes AVG exactly from H/AB", () => {
     const games = [
@@ -1594,7 +1715,7 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
     // derived season pitching reflects only the kid-pitch outings.
     const machineLine = stripPitchingStatsForFormat(
       { ab: 2, h: 1, pIp: 3, pBf: 12, pEra: 9 },
-      "Machine Pitch"
+      "Machine Pitch",
     );
     const games = [
       game("mp", { p1: machineLine }),
@@ -1629,8 +1750,16 @@ describe("deriveSeasonFromGameLines (per-game lines SUM to season)", () => {
 
 describe("latestGameLineMovement (Recent Movement from per-game imports)", () => {
   const games = [
-    { id: "a", date: "2026-04-01", playerStats: { p1: { ab: 4, h: 1, obp: 0.25, ops: 0.5 } } },
-    { id: "b", date: "2026-05-01", playerStats: { p1: { ab: 4, h: 3, obp: 0.75, ops: 1.5 } } },
+    {
+      id: "a",
+      date: "2026-04-01",
+      playerStats: { p1: { ab: 4, h: 1, obp: 0.25, ops: 0.5 } },
+    },
+    {
+      id: "b",
+      date: "2026-05-01",
+      playerStats: { p1: { ab: 4, h: 3, obp: 0.75, ops: 1.5 } },
+    },
     { id: "c", date: "2026-03-01", playerStats: {} }, // no line for p1
   ];
 
@@ -1685,7 +1814,12 @@ describe("isPlayerScheduledOut (front-loaded absence dates)", () => {
 describe("absence date-range helpers", () => {
   it("addAbsenceDateRange walks an inclusive range and merges + sorts", () => {
     const out = addAbsenceDateRange(["2026-07-04"], "2026-06-19", "2026-06-21");
-    expect(out).toEqual(["2026-06-19", "2026-06-20", "2026-06-21", "2026-07-04"]);
+    expect(out).toEqual([
+      "2026-06-19",
+      "2026-06-20",
+      "2026-06-21",
+      "2026-07-04",
+    ]);
   });
 
   it("blank end date adds a single day; duplicates are deduped", () => {
@@ -1705,7 +1839,9 @@ describe("absence date-range helpers", () => {
   });
 
   it("caps absurd ranges at 60 days and ignores unparseable dates", () => {
-    expect(addAbsenceDateRange([], "2026-06-01", "2036-06-01")).toHaveLength(60);
+    expect(addAbsenceDateRange([], "2026-06-01", "2036-06-01")).toHaveLength(
+      60,
+    );
     expect(addAbsenceDateRange(["2026-06-19"], "not-a-date")).toEqual([
       "2026-06-19",
     ]);
@@ -1713,17 +1849,25 @@ describe("absence date-range helpers", () => {
 
   it("removeAbsenceDates drops exactly the given dates", () => {
     expect(
-      removeAbsenceDates(["2026-06-19", "2026-06-20", "2026-07-04"], [
-        "2026-06-19",
-        "2026-06-20",
-      ])
+      removeAbsenceDates(
+        ["2026-06-19", "2026-06-20", "2026-07-04"],
+        ["2026-06-19", "2026-06-20"],
+      ),
     ).toEqual(["2026-07-04"]);
   });
 
   it("foldAbsenceRanges collapses consecutive days into ranges", () => {
-    const ranges = foldAbsenceRanges(["2026-06-22", "2026-06-19", "2026-06-20"]);
+    const ranges = foldAbsenceRanges([
+      "2026-06-22",
+      "2026-06-19",
+      "2026-06-20",
+    ]);
     expect(ranges).toEqual([
-      { from: "2026-06-19", to: "2026-06-20", dates: ["2026-06-19", "2026-06-20"] },
+      {
+        from: "2026-06-19",
+        to: "2026-06-20",
+        dates: ["2026-06-19", "2026-06-20"],
+      },
       { from: "2026-06-22", to: "2026-06-22", dates: ["2026-06-22"] },
     ]);
     expect(foldAbsenceRanges([])).toEqual([]);
@@ -1781,7 +1925,7 @@ describe("mergeTeamEntries (settings teams-list safety)", () => {
     const merged = mergeTeamEntries(
       [{ id: "t1", name: "Hawks" }],
       [{ id: "t2", name: "Owls" }],
-      [{ id: "t3", name: "Bats" }]
+      [{ id: "t3", name: "Bats" }],
     );
     expect(merged).toEqual([
       { id: "t1", name: "Hawks" },
@@ -1801,8 +1945,14 @@ describe("mergeTeamEntries (settings teams-list safety)", () => {
 
   it("dedupes by id, keeping the first non-empty name", () => {
     const merged = mergeTeamEntries(
-      [{ id: "t1", name: "" }, { id: "t2", name: "Owls" }],
-      [{ id: "t1", name: "Hawks" }, { id: "t2", name: "Renamed" }]
+      [
+        { id: "t1", name: "" },
+        { id: "t2", name: "Owls" },
+      ],
+      [
+        { id: "t1", name: "Hawks" },
+        { id: "t2", name: "Renamed" },
+      ],
     );
     expect(merged).toEqual([
       { id: "t1", name: "Hawks" },
@@ -1825,13 +1975,13 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
 
   it("blocks an empty players write before the team doc has loaded", () => {
     expect(blockedRosterWipeReason({ players: [] }, [], false)).toMatch(
-      /hasn't finished loading/
+      /hasn't finished loading/,
     );
   });
 
   it("blocks an empty players write over a loaded non-empty roster", () => {
     expect(blockedRosterWipeReason({ players: [] }, roster, true)).toMatch(
-      /erase 2 players/
+      /erase 2 players/,
     );
   });
 
@@ -1840,15 +1990,23 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
   });
 
   it("allows non-empty players writes and writes that don't touch players", () => {
-    expect(blockedRosterWipeReason({ players: roster }, roster, true)).toBeNull();
-    expect(blockedRosterWipeReason({ players: [{ id: "p9" }] }, roster, false)).toBeNull();
-    expect(blockedRosterWipeReason({ name: "Hawks" } as any, roster, false)).toBeNull();
+    expect(
+      blockedRosterWipeReason({ players: roster }, roster, true),
+    ).toBeNull();
+    expect(
+      blockedRosterWipeReason({ players: [{ id: "p9" }] }, roster, false),
+    ).toBeNull();
+    expect(
+      blockedRosterWipeReason({ name: "Hawks" } as any, roster, false),
+    ).toBeNull();
     expect(blockedRosterWipeReason({}, roster, true)).toBeNull();
   });
 
   it("treats a malformed current roster as empty rather than crashing", () => {
     expect(blockedRosterWipeReason({ players: [] }, null, true)).toBeNull();
-    expect(blockedRosterWipeReason({ players: [] }, undefined, true)).toBeNull();
+    expect(
+      blockedRosterWipeReason({ players: [] }, undefined, true),
+    ).toBeNull();
   });
 });
 
@@ -1860,7 +2018,12 @@ describe("finances money math", () => {
       { id: "b2", label: "Balls", amount: 250.5 },
     ],
     incomes: [
-      { id: "i1", date: "2026-02-20", label: "Smith Hardware sponsorship", amount: 600 },
+      {
+        id: "i1",
+        date: "2026-02-20",
+        label: "Smith Hardware sponsorship",
+        amount: 600,
+      },
     ],
     payments: [
       { id: "p1", playerId: "kid1", date: "2026-03-01", amount: 150 },
@@ -1891,9 +2054,16 @@ describe("finances money math", () => {
   });
 
   it("budgetItemAmount applies sales tax to flagged items only", () => {
-    expect(budgetItemAmount({ amount: 100, taxable: true }, 8.25)).toBeCloseTo(108.25);
+    expect(budgetItemAmount({ amount: 100, taxable: true }, 8.25)).toBeCloseTo(
+      108.25,
+    );
     expect(budgetItemAmount({ amount: 100 }, 8.25)).toBe(100);
-    expect(budgetItemAmount({ qty: 4, unitAmount: 100, amount: 400, taxable: true }, 10)).toBeCloseTo(440);
+    expect(
+      budgetItemAmount(
+        { qty: 4, unitAmount: 100, amount: 400, taxable: true },
+        10,
+      ),
+    ).toBeCloseTo(440);
     expect(budgetItemAmount({ amount: 100, taxable: true })).toBe(100); // no rate set
   });
 
@@ -1924,8 +2094,12 @@ describe("finances money math", () => {
     };
     const two = [{ id: "k1" }, { id: "k2" }];
     expect(suggestedFeePerPlayer(fin, two)).toBe(225); // 205 raw → next $25
-    expect(suggestedFeePerPlayer({ ...fin, feeBufferIncrement: 50 }, two)).toBe(250);
-    expect(suggestedFeePerPlayer({ ...fin, feeBufferIncrement: 0 }, two)).toBe(205);
+    expect(suggestedFeePerPlayer({ ...fin, feeBufferIncrement: 50 }, two)).toBe(
+      250,
+    );
+    expect(suggestedFeePerPlayer({ ...fin, feeBufferIncrement: 0 }, two)).toBe(
+      205,
+    );
   });
 
   it("budgetItemAmount: qty × unit when both present, flat amount otherwise", () => {
@@ -1938,7 +2112,9 @@ describe("finances money math", () => {
   it("budgetTotal sums flat + quantity items and tolerates malformed entries", () => {
     expect(budgetTotal(finances)).toBeCloseTo(3850.5);
     expect(budgetTotal(null)).toBe(0);
-    expect(budgetTotal({ budgetItems: [{ amount: "nope" } as any, null as any] })).toBe(0);
+    expect(
+      budgetTotal({ budgetItems: [{ amount: "nope" } as any, null as any] }),
+    ).toBe(0);
   });
 
   it("incomeTotal sums sponsorships/fundraising", () => {
@@ -1986,7 +2162,7 @@ describe("finances money math", () => {
           { id: "s2", sponsor: "B", amount: "nope" } as any,
           null as any,
         ],
-      })
+      }),
     ).toBe(100);
     expect(sponsorshipTotal(null)).toBe(0);
   });
@@ -2005,8 +2181,13 @@ describe("finances money math", () => {
 
   it("financeSummary never reports negative owed for overpayment", () => {
     const s = financeSummary(
-      { clubFee: 100, payments: [{ id: "p", playerId: "kid1", date: "2026-01-01", amount: 130 }] },
-      [{ id: "kid1" }]
+      {
+        clubFee: 100,
+        payments: [
+          { id: "p", playerId: "kid1", date: "2026-01-01", amount: 130 },
+        ],
+      },
+      [{ id: "kid1" }],
     );
     expect(s.stillOwed).toBe(0);
     expect(s.collected).toBe(130);
@@ -2032,7 +2213,15 @@ describe("finances money math", () => {
   it("unattributed fundraising splits evenly across all paying families", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 30 }],
+      incomes: [
+        {
+          id: "f",
+          date: "2026-01-01",
+          label: "Fundraiser",
+          fundraising: true,
+          amount: 30,
+        },
+      ],
       payments: [],
     };
     const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
@@ -2046,7 +2235,16 @@ describe("finances money math", () => {
   it("attributed fundraising credits only that child's fee", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 40, playerId: "k1" }],
+      incomes: [
+        {
+          id: "f",
+          date: "2026-01-01",
+          label: "Fundraiser",
+          fundraising: true,
+          amount: 40,
+          playerId: "k1",
+        },
+      ],
       payments: [],
     };
     const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
@@ -2061,7 +2259,16 @@ describe("finances money math", () => {
     const fin = {
       clubFee: 100,
       // k1 raises 160 — 100 covers their fee, the 60 surplus splits across all 3.
-      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 160, playerId: "k1" }],
+      incomes: [
+        {
+          id: "f",
+          date: "2026-01-01",
+          label: "Fundraiser",
+          fundraising: true,
+          amount: 160,
+          playerId: "k1",
+        },
+      ],
       payments: [],
     };
     const three = [{ id: "k1" }, { id: "k2" }, { id: "k3" }];
@@ -2076,7 +2283,16 @@ describe("finances money math", () => {
   it("fundraising credited to an exempt/off-roster child rolls fully to the team", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 30, playerId: "ghost" }],
+      incomes: [
+        {
+          id: "f",
+          date: "2026-01-01",
+          label: "Fundraiser",
+          fundraising: true,
+          amount: 30,
+          playerId: "ghost",
+        },
+      ],
       payments: [],
     };
     const two = [{ id: "k1" }, { id: "k2" }];
@@ -2089,8 +2305,20 @@ describe("finances money math", () => {
     const fin = {
       clubFee: 100,
       incomes: [
-        { id: "a", date: "2026-01-01", label: "Fundraiser A", fundraising: true, amount: 30 },
-        { id: "b", date: "2026-01-01", label: "Fundraiser B", fundraising: true, amount: 30 },
+        {
+          id: "a",
+          date: "2026-01-01",
+          label: "Fundraiser A",
+          fundraising: true,
+          amount: 30,
+        },
+        {
+          id: "b",
+          date: "2026-01-01",
+          label: "Fundraiser B",
+          fundraising: true,
+          amount: 30,
+        },
       ],
       payments: [],
     };
@@ -2133,7 +2361,7 @@ describe("finances money math", () => {
           depositDueDate: "2026-03-01",
           feeDueDate: "2026-05-01",
         },
-        feePlayers
+        feePlayers,
       );
       expect(t.depositAmount).toBe(50);
       expect(t.depositOwedCount).toBe(1); // only kid3 (paid 0)
@@ -2145,7 +2373,7 @@ describe("finances money math", () => {
     it("caps the deposit at the effective fee and skips exempt players", () => {
       const t = teamFeesStatus(
         { ...base, depositAmount: 999, feeExemptIds: ["kid3"] },
-        feePlayers
+        feePlayers,
       );
       expect(t.depositAmount).toBe(150); // can't exceed the fee
       expect(t.fullOwedCount).toBe(1); // kid2 only; kid3 waived
@@ -2163,9 +2391,15 @@ describe("finances money math", () => {
 
   it("rollFinancesForNewSeason carries the balance, resets collections, promotes the planned fee", () => {
     const rolled = rollFinancesForNewSeason(
-      { ...finances, nextClubFee: 1000, nextDepositAmount: 250, nextDepositDueDate: "2027-07-15", feeExemptIds: ["kid3"] },
+      {
+        ...finances,
+        nextClubFee: 1000,
+        nextDepositAmount: 250,
+        nextDepositDueDate: "2027-07-15",
+        feeExemptIds: ["kid3"],
+      },
       "Spring 2027",
-      "2027-06-01T12:00:00.000Z"
+      "2027-06-01T12:00:00.000Z",
     );
     expect(rolled!.payments).toEqual([]);
     expect(rolled!.expenses).toEqual([]);
@@ -2211,9 +2445,13 @@ describe("finances money math", () => {
   });
 
   it("rollFinancesForNewSeason passes through when nothing was recorded", () => {
-    expect(rollFinancesForNewSeason(undefined, "Spring 2027", "x")).toBeUndefined();
+    expect(
+      rollFinancesForNewSeason(undefined, "Spring 2027", "x"),
+    ).toBeUndefined();
     const planOnly = { budgetItems: [{ id: "b", label: "Balls", amount: 10 }] };
-    expect(rollFinancesForNewSeason(planOnly, "Spring 2027", "x")).toBe(planOnly);
+    expect(rollFinancesForNewSeason(planOnly, "Spring 2027", "x")).toBe(
+      planOnly,
+    );
   });
 
   it("rollFinancesForNewSeason promotes planned fee and deposit even with no money recorded", () => {
@@ -2226,7 +2464,11 @@ describe("finances money math", () => {
       feeExemptIds: ["kid9"],
       budgetItems: [{ id: "b", label: "Balls", amount: 10 }],
     };
-    const rolled = rollFinancesForNewSeason(planned, "Spring 2027", "2027-06-01");
+    const rolled = rollFinancesForNewSeason(
+      planned,
+      "Spring 2027",
+      "2027-06-01",
+    );
     expect(rolled!.clubFee).toBe(250);
     expect(rolled!.depositAmount).toBe(100);
     expect(rolled!.depositDueDate).toBe("2027-07-15");
@@ -2249,7 +2491,7 @@ describe("finances money math", () => {
         ],
       },
       "Spring 2027",
-      "2027-06-01"
+      "2027-06-01",
     );
     // Carry-over first, then the pledge as named income.
     expect(rolled!.incomes!).toHaveLength(2);
@@ -2265,10 +2507,28 @@ describe("finances money math", () => {
     const fin = {
       budgetItems: [{ id: "bt", label: "Tournaments", amount: 3600 }],
       expenses: [
-        { id: "e1", date: "2026-03-01", label: "Entry", amount: 450, budgetItemId: "bt" },
-        { id: "e2", date: "2026-04-01", label: "Entry 2", amount: 450, budgetItemId: "bt" },
+        {
+          id: "e1",
+          date: "2026-03-01",
+          label: "Entry",
+          amount: 450,
+          budgetItemId: "bt",
+        },
+        {
+          id: "e2",
+          date: "2026-04-01",
+          label: "Entry 2",
+          amount: 450,
+          budgetItemId: "bt",
+        },
         { id: "e3", date: "2026-04-02", label: "Pizza", amount: 60 },
-        { id: "e4", date: "2026-04-03", label: "Old link", amount: 10, budgetItemId: "gone" },
+        {
+          id: "e4",
+          date: "2026-04-03",
+          label: "Old link",
+          amount: 10,
+          budgetItemId: "gone",
+        },
       ],
     };
     const a = budgetActuals(fin);
@@ -2281,7 +2541,12 @@ describe("finances money math", () => {
     const ms = monthlyCashflow(finances, players);
     // Activity spans Feb–Apr 2026 (see fixture) → 3 continuous months.
     expect(ms.map((m) => m.month)).toEqual(["2026-02", "2026-03", "2026-04"]);
-    expect(ms[0]).toMatchObject({ label: "Feb", in: 600, out: 0, balanceEnd: 600 });
+    expect(ms[0]).toMatchObject({
+      label: "Feb",
+      in: 600,
+      out: 0,
+      balanceEnd: 600,
+    });
     expect(ms[1]).toMatchObject({ in: 200, out: 160, balanceEnd: 640 });
     expect(ms[2]).toMatchObject({ in: 35, out: 0, balanceEnd: 675 });
     expect(monthlyCashflow(null)).toEqual([]);
@@ -2291,7 +2556,7 @@ describe("finances money math", () => {
     const text = owesReminderText(
       { ...finances, feeExemptIds: ["kid3"] },
       players,
-      "Spring 2026"
+      "Spring 2026",
     );
     expect(text).toContain("Spring 2026");
     expect(text).toContain("Ben: $75");
@@ -2304,7 +2569,16 @@ describe("finances money math", () => {
   it("owesReminderText reflects per-child fundraising credit in each family's owed", () => {
     const fin = {
       clubFee: 100,
-      incomes: [{ id: "f", date: "2026-01-01", label: "Fundraiser", fundraising: true, amount: 40, playerId: "kid2" }],
+      incomes: [
+        {
+          id: "f",
+          date: "2026-01-01",
+          label: "Fundraiser",
+          fundraising: true,
+          amount: 40,
+          playerId: "kid2",
+        },
+      ],
       payments: [],
     };
     const text = owesReminderText(fin, players);
@@ -2316,9 +2590,16 @@ describe("finances money math", () => {
 
   it("ledgerCsv emits a dated spreadsheet with escaping and running balance", () => {
     const fin = {
-      payments: [{ id: "p", playerId: "kid1", date: "2026-03-01", amount: 100 }],
+      payments: [
+        { id: "p", playerId: "kid1", date: "2026-03-01", amount: 100 },
+      ],
       expenses: [
-        { id: "e", date: "2026-03-05", label: 'Balls, "good" ones', amount: 40 },
+        {
+          id: "e",
+          date: "2026-03-05",
+          label: 'Balls, "good" ones',
+          amount: 40,
+        },
       ],
     };
     const csv = ledgerCsv(fin, players);
@@ -2332,14 +2613,30 @@ describe("finances money math", () => {
     const fin = {
       ...finances,
       pastSeasons: [
-        { season: "through Spring 2026", collected: 1200, otherIncome: 300, spent: 1100, closingBalance: 400 },
+        {
+          season: "through Spring 2026",
+          collected: 1200,
+          otherIncome: 300,
+          spent: 1100,
+          closingBalance: 400,
+        },
       ],
     };
     const rows = yearComparison(fin, players);
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toEqual({ label: "through Spring 2026", in: 1500, out: 1100, closing: 400 });
+    expect(rows[0]).toEqual({
+      label: "through Spring 2026",
+      in: 1500,
+      out: 1100,
+      closing: 400,
+    });
     // Current year from the live fixture: 235 fees + 600 income, 160 spent, 675 balance.
-    expect(rows[1]).toEqual({ label: "This year", in: 835, out: 160, closing: 675 });
+    expect(rows[1]).toEqual({
+      label: "This year",
+      in: 835,
+      out: 160,
+      closing: 675,
+    });
     expect(yearComparison(null, [])).toEqual([]);
   });
 
@@ -2354,7 +2651,9 @@ describe("finances money math", () => {
       "p3", // 04-01 Ben fee +25 -> 665
       "p4", // 04-02 ghost fee +10 -> 675
     ]);
-    expect(rows.map((r) => r.balanceAfter)).toEqual([600, 750, 800, 700, 640, 665, 675]);
+    expect(rows.map((r) => r.balanceAfter)).toEqual([
+      600, 750, 800, 700, 640, 665, 675,
+    ]);
     expect(rows[0]).toMatchObject({ direction: "in", source: "income" });
     expect(rows[1].label).toBe("Team fee — Ava");
     expect(rows[3]).toMatchObject({ direction: "out", source: "expense" });

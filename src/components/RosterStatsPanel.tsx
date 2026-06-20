@@ -73,36 +73,56 @@ const FIELDING: StatDef[] = [
 
 // Marquee leaders. `hi` = higher is better; pitching rate stats require innings
 // so a 0-IP player can't "lead" ERA.
-const LEADERS: Array<{ label: string; kind: Kind; hi: boolean; get: (s: any) => number | undefined; needsIp?: boolean }> = [
+const LEADERS: Array<{
+  label: string;
+  kind: Kind;
+  hi: boolean;
+  get: (s: any) => number | undefined;
+  needsIp?: boolean;
+}> = [
   { label: "OPS", kind: "dec3", hi: true, get: (s) => read(s, "ops") },
   { label: "AVG", kind: "dec3", hi: true, get: (s) => read(s, "avg") },
   { label: "HR", kind: "int", hi: true, get: (s) => read(s, "hr") },
   { label: "RBI", kind: "int", hi: true, get: (s) => read(s, "rbi") },
   { label: "SB", kind: "int", hi: true, get: (s) => read(s, "sb") },
-  { label: "ERA", kind: "dec2", hi: false, needsIp: true, get: (s) => read(s, "pEra", "era") },
-  { label: "WHIP", kind: "dec2", hi: false, needsIp: true, get: (s) => read(s, "pWhip") },
+  {
+    label: "ERA",
+    kind: "dec2",
+    hi: false,
+    needsIp: true,
+    get: (s) => read(s, "pEra", "era"),
+  },
+  {
+    label: "WHIP",
+    kind: "dec2",
+    hi: false,
+    needsIp: true,
+    get: (s) => read(s, "pWhip"),
+  },
 ];
 
-const StatGrid = memo(({ title, defs, stats }: { title: string; defs: StatDef[]; stats: any }) => (
-  <div>
-    <div className="t-eyebrow text-ink-3 mb-1.5">{title}</div>
-    <div className="grid grid-cols-4 gap-1.5">
-      {defs.map((d) => (
-        <div
-          key={d.label}
-          className="bg-surface-2 border border-line rounded-lg px-1.5 py-1.5 text-center"
-        >
-          <div className="text-[9px] font-black uppercase tracking-widest text-ink-3">
-            {d.label}
+const StatGrid = memo(
+  ({ title, defs, stats }: { title: string; defs: StatDef[]; stats: any }) => (
+    <div>
+      <div className="t-eyebrow text-ink-3 mb-1.5">{title}</div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {defs.map((d) => (
+          <div
+            key={d.label}
+            className="bg-surface-2 border border-line rounded-lg px-1.5 py-1.5 text-center"
+          >
+            <div className="text-[9px] font-black uppercase tracking-widest text-ink-3">
+              {d.label}
+            </div>
+            <div className="text-sm font-black tabular-nums text-ink mt-0.5">
+              {fmt(d.get(stats), d.kind)}
+            </div>
           </div>
-          <div className="text-sm font-black tabular-nums text-ink mt-0.5">
-            {fmt(d.get(stats), d.kind)}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
-  </div>
-));
+  ),
+);
 
 export const RosterStatsPanel = memo(
   ({
@@ -116,7 +136,7 @@ export const RosterStatsPanel = memo(
   }) => {
     const selected = useMemo(
       () => players.find((p) => p.id === selectedId) || null,
-      [players, selectedId]
+      [players, selectedId],
     );
 
     const leaders = useMemo(() => {
@@ -127,10 +147,7 @@ export const RosterStatsPanel = memo(
           const v = L.get(p.stats);
           if (v === undefined) continue;
           if (L.needsIp && !(read(p.stats, "pIp", "ip") || 0)) continue;
-          if (
-            bestVal === undefined ||
-            (L.hi ? v > bestVal : v < bestVal)
-          ) {
+          if (bestVal === undefined || (L.hi ? v > bestVal : v < bestVal)) {
             bestVal = v;
             best = p;
           }
@@ -170,9 +187,17 @@ export const RosterStatsPanel = memo(
               </div>
               <StatGrid title="Batting" defs={BATTING} stats={selected.stats} />
               {pitched && (
-                <StatGrid title="Pitching" defs={PITCHING} stats={selected.stats} />
+                <StatGrid
+                  title="Pitching"
+                  defs={PITCHING}
+                  stats={selected.stats}
+                />
               )}
-              <StatGrid title="Fielding" defs={FIELDING} stats={selected.stats} />
+              <StatGrid
+                title="Fielding"
+                defs={FIELDING}
+                stats={selected.stats}
+              />
             </>
           ) : (
             <>
@@ -216,5 +241,5 @@ export const RosterStatsPanel = memo(
         </div>
       </aside>
     );
-  }
+  },
 );

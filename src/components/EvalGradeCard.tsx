@@ -1,5 +1,9 @@
 import React, { memo } from "react";
-import { EVAL_SCALE_LABELS, EVAL_SCALE_DEFAULT, velocityGradeFromMph } from "../constants/ui";
+import {
+  EVAL_SCALE_LABELS,
+  EVAL_SCALE_DEFAULT,
+  velocityGradeFromMph,
+} from "../constants/ui";
 import { evalStatHint } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
@@ -28,50 +32,52 @@ interface GradeChipRowProps {
 }
 
 // The 1–5 chip row reused everywhere a coach picks a grade.
-const GradeChipRow = memo(({ value, onChange, ariaLabel }: GradeChipRowProps) => (
-  <div
-    className="flex items-center gap-1.5 flex-wrap"
-    role="radiogroup"
-    aria-label={ariaLabel}
-  >
-    {[1, 2, 3, 4, 5].map((n) => {
-      const isActive = n === value;
-      const label = EVAL_SCALE_LABELS[n - 1];
-      return (
-        <button
-          key={n}
-          type="button"
-          role="radio"
-          aria-checked={isActive}
-          onClick={() => onChange(n)}
-          title={`${n} — ${label}`}
-          aria-label={`${ariaLabel}: ${n} — ${label}`}
-          className="flex flex-col items-center justify-center min-w-[46px] h-10 px-1.5 rounded-md border transition-all"
-          style={
-            isActive
-              ? {
-                  backgroundColor: "var(--team-primary)",
-                  color: "var(--team-tertiary)",
-                  borderColor: "var(--team-primary)",
-                }
-              : {
-                  backgroundColor: "var(--surface)",
-                  color: "var(--ink-2)",
-                  borderColor: "var(--line)",
-                }
-          }
-        >
-          <span className="text-xs font-black tabular-nums leading-none">
-            {n}
-          </span>
-          <span className="text-[8px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
-            {label}
-          </span>
-        </button>
-      );
-    })}
-  </div>
-));
+const GradeChipRow = memo(
+  ({ value, onChange, ariaLabel }: GradeChipRowProps) => (
+    <div
+      className="flex items-center gap-1.5 flex-wrap"
+      role="radiogroup"
+      aria-label={ariaLabel}
+    >
+      {[1, 2, 3, 4, 5].map((n) => {
+        const isActive = n === value;
+        const label = EVAL_SCALE_LABELS[n - 1];
+        return (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={isActive}
+            onClick={() => onChange(n)}
+            title={`${n} — ${label}`}
+            aria-label={`${ariaLabel}: ${n} — ${label}`}
+            className="flex flex-col items-center justify-center min-w-[46px] h-10 px-1.5 rounded-md border transition-all"
+            style={
+              isActive
+                ? {
+                    backgroundColor: "var(--team-primary)",
+                    color: "var(--team-tertiary)",
+                    borderColor: "var(--team-primary)",
+                  }
+                : {
+                    backgroundColor: "var(--surface)",
+                    color: "var(--ink-2)",
+                    borderColor: "var(--line)",
+                  }
+            }
+          >
+            <span className="text-xs font-black tabular-nums leading-none">
+              {n}
+            </span>
+            <span className="text-[8px] font-extrabold uppercase tracking-widest leading-none mt-1 opacity-90">
+              {label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  ),
+);
 
 // Per-player card used in the assistant eval tab + head EvaluationTab grid.
 // All write callbacks are optional; when omitted the card renders read-only
@@ -96,7 +102,7 @@ interface EvalGradeCardProps {
   onGradeChange?: (
     playerId: string,
     categoryId: string,
-    value: number | null
+    value: number | null,
   ) => void;
   onPositionToggle?: (playerId: string, pos: string) => void;
   onNotesChange?: (playerId: string, notes: string) => void;
@@ -144,11 +150,13 @@ export const EvalGradeCard = memo(
             // Measurement fields (mph) have no 1–5 default — blank until set.
             const value = isMph
               ? playerGrades[cat.id]
-              : playerGrades[cat.id] ?? DEFAULT_GRADE;
+              : (playerGrades[cat.id] ?? DEFAULT_GRADE);
             const hint = evalStatHint(cat.id, player.stats, player.pitching);
             const hasMph =
               value != null && value !== "" && Number.isFinite(Number(value));
-            const mphScore = hasMph ? velocityGradeFromMph(Number(value), teamAge) : null;
+            const mphScore = hasMph
+              ? velocityGradeFromMph(Number(value), teamAge)
+              : null;
             return (
               <div key={cat.id}>
                 <div className="flex items-center justify-between gap-2 mb-0.5">
@@ -173,7 +181,10 @@ export const EvalGradeCard = memo(
                         <>
                           {value}
                           <span className="text-[10px] text-ink-3 font-bold ml-1">
-                            mph{mphScore != null ? ` · ${mphScore}/5 age score` : ""}
+                            mph
+                            {mphScore != null
+                              ? ` · ${mphScore}/5 age score`
+                              : ""}
                           </span>
                         </>
                       ) : (
@@ -200,7 +211,7 @@ export const EvalGradeCard = memo(
                         onGradeChange?.(
                           player.id,
                           cat.id,
-                          e.target.value === "" ? null : Number(e.target.value)
+                          e.target.value === "" ? null : Number(e.target.value),
                         )
                       }
                       placeholder="mph"
@@ -229,9 +240,9 @@ export const EvalGradeCard = memo(
             </div>
             <div className="flex flex-wrap gap-1.5">
               {positions.map((pos) => {
-                const active = (
-                  playerGrades.suggestedPositions || []
-                ).includes(pos);
+                const active = (playerGrades.suggestedPositions || []).includes(
+                  pos,
+                );
                 return (
                   <button
                     key={pos}
@@ -282,5 +293,5 @@ export const EvalGradeCard = memo(
         </div>
       </div>
     );
-  }
+  },
 );

@@ -47,7 +47,9 @@ export const Sparkline = ({
   return (
     <span
       className={`inline-block leading-none ${className}`}
-      {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
+      {...(label
+        ? { role: "img", "aria-label": label }
+        : { "aria-hidden": true })}
     >
       <AreaChart
         width={width}

@@ -40,7 +40,12 @@ describe("SettingsTab", () => {
 
   it("persists a league-rules change via updateTeam (interaction)", async () => {
     const { teamValue } = renderWithProviders(<SettingsTab />, {
-      team: { team: teamData, currentRole: "head", realRole: "head", updateTeam: jest.fn() },
+      team: {
+        team: teamData,
+        currentRole: "head",
+        realRole: "head",
+        updateTeam: jest.fn(),
+      },
       ui: {
         isAddingCoach: false,
         setIsAddingCoach: jest.fn(),

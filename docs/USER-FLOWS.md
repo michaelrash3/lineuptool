@@ -29,6 +29,7 @@ click Create Team ────────────────────�
 ```
 
 Failure modes:
+
 - Popup blocked / closed: handler counts consecutive dismissals; on the 2nd one a tip about third-party cookies / in-app browsers surfaces in the bottom-left error toast.
 - `createTeam` Firestore error: toast pushed, chooser shows inline error, stays open for retry.
 - `joinTeamByCode` invalid code: chooser shows "Code not recognized." stays open.

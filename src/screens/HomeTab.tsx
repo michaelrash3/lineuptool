@@ -19,11 +19,7 @@ import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard, EmptyState } from "../components/shared";
 import { SeasonReportModal } from "../components/SeasonReportModal";
 import { AwardsModal } from "../components/AwardsModal";
-import {
-  StaggerList,
-  StaggerItem,
-  AnimatedNumber,
-} from "../components/motion";
+import { StaggerList, StaggerItem, AnimatedNumber } from "../components/motion";
 import { checkPitchEligibility } from "../lineupEngine";
 
 /* ============================================================================
@@ -119,7 +115,10 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
             className="p-3 rounded-xl shrink-0"
             style={{ backgroundColor: `${primaryColor}15` }}
           >
-            <Icons.Calendar className="w-6 h-6" style={{ color: primaryColor }} />
+            <Icons.Calendar
+              className="w-6 h-6"
+              style={{ color: primaryColor }}
+            />
           </div>
           <div className="min-w-0">
             <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
@@ -162,9 +161,11 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
     if (eligible.length === 0) return null;
     const next = eligible[0];
     const dayDiff = Math.round(
-      (new Date(next.date).getTime() - new Date(todayStr).getTime()) / 86400000
+      (new Date(next.date).getTime() - new Date(todayStr).getTime()) / 86400000,
     );
-    const sameDayCount = eligible.filter((g: any) => g.date === next.date).length;
+    const sameDayCount = eligible.filter(
+      (g: any) => g.date === next.date,
+    ).length;
     return { game: next, dayDiff, sameDayCount };
   }, [games, todayStr]);
 
@@ -186,7 +187,7 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
     return renderCompact({
       title: "No game this week",
       subtitle: `Next: vs ${game.opponent} · ${formatGameDateDisplay(
-        game.date
+        game.date,
       )} · in ${dayDiff} days`,
       // Mirror the Schedule list's `(canEdit || game.lineup)` guard: an
       // assistant can only open a game once the head has set a lineup.
@@ -233,7 +234,9 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
     ? new Date(Number(gy), Number(gm) - 1, Number(gd))
     : null;
   const monthAbbr = dateBlockObj
-    ? dateBlockObj.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
+    ? dateBlockObj
+        .toLocaleDateString(undefined, { month: "short" })
+        .toUpperCase()
     : "";
   const dayNum = gd ? String(Number(gd)) : "";
 
@@ -259,8 +262,8 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
     ? game.teamScore > game.opponentScore
       ? "win"
       : game.teamScore < game.opponentScore
-      ? "loss"
-      : "tie"
+        ? "loss"
+        : "tie"
     : null;
 
   return (
@@ -299,8 +302,8 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
                     result === "win"
                       ? "bg-win-bg text-win border-line"
                       : result === "loss"
-                      ? "bg-loss-bg text-loss border-line"
-                      : "bg-warn-bg text-warnfg border-line"
+                        ? "bg-loss-bg text-loss border-line"
+                        : "bg-warn-bg text-warnfg border-line"
                   }`}
                 >
                   {result === "win" ? "W" : result === "loss" ? "L" : "T"}{" "}
@@ -402,7 +405,10 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
                 <button
                   onClick={openInSchedule}
                   className="flex-1 sm:flex-none text-sm px-7 py-3.5 font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 rounded-xl shadow-lg"
-                  style={{ backgroundColor: primaryColor, color: tertiaryColor }}
+                  style={{
+                    backgroundColor: primaryColor,
+                    color: tertiaryColor,
+                  }}
                 >
                   <Icons.Clipboard className="w-4 h-4" /> Plan Lineup
                 </button>
@@ -455,7 +461,14 @@ const UpcomingGameCard = memo(({ primaryColor, tertiaryColor }: any) => {
    freeform for each tile's content.
 =========================================================================== */
 const InsightTile = memo(
-  ({ icon: Icon, title, accent = "slate", onClick, ctaLabel, children }: any) => {
+  ({
+    icon: Icon,
+    title,
+    accent = "slate",
+    onClick,
+    ctaLabel,
+    children,
+  }: any) => {
     // Semantic-lane tokens flip with [data-theme] so the halos don't glare
     // in dark mode.
     const ACCENT_STYLES = {
@@ -491,84 +504,87 @@ const InsightTile = memo(
         <div className="flex-1 min-h-[80px]">{children}</div>
       </div>
     );
-  }
+  },
 );
 
 /* ===========================================================================
    PitcherAvailabilityTile — Kid Pitch only. Counts how many rostered
    pitchers are eligible today by the engine's checkPitchEligibility rules.
 =========================================================================== */
-const PitcherAvailabilityTile = memo(({ players, teamAge, todayStr, onOpenRoster }: any) => {
-  const stats = useMemo(() => {
-    let eligible = 0;
-    let resting = 0;
-    let maxed = 0;
-    const resters = [];
-    for (const p of players || []) {
-      if (!p) continue;
-      // Only kids the coach considers candidates: not explicitly restricted from P.
-      const restricted = Array.isArray(p.restrictions) && p.restrictions.includes("P");
-      if (restricted) continue;
-      const isEligible = checkPitchEligibility(p, todayStr, teamAge);
-      const recent = p.pitching?.recentPitches || 0;
-      if (isEligible && recent === 0) {
-        eligible++;
-      } else if (isEligible) {
-        // Has recent activity but rest days satisfied
-        eligible++;
-      } else if (recent >= 50) {
-        // Heuristic: 50+ recent pitches = "at the limit" until more rest
-        maxed++;
-        resters.push({ name: p.name, recent, label: "limit" });
-      } else {
-        resting++;
-        resters.push({ name: p.name, recent, label: "rest" });
+const PitcherAvailabilityTile = memo(
+  ({ players, teamAge, todayStr, onOpenRoster }: any) => {
+    const stats = useMemo(() => {
+      let eligible = 0;
+      let resting = 0;
+      let maxed = 0;
+      const resters = [];
+      for (const p of players || []) {
+        if (!p) continue;
+        // Only kids the coach considers candidates: not explicitly restricted from P.
+        const restricted =
+          Array.isArray(p.restrictions) && p.restrictions.includes("P");
+        if (restricted) continue;
+        const isEligible = checkPitchEligibility(p, todayStr, teamAge);
+        const recent = p.pitching?.recentPitches || 0;
+        if (isEligible && recent === 0) {
+          eligible++;
+        } else if (isEligible) {
+          // Has recent activity but rest days satisfied
+          eligible++;
+        } else if (recent >= 50) {
+          // Heuristic: 50+ recent pitches = "at the limit" until more rest
+          maxed++;
+          resters.push({ name: p.name, recent, label: "limit" });
+        } else {
+          resting++;
+          resters.push({ name: p.name, recent, label: "rest" });
+        }
       }
-    }
-    return { eligible, resting, maxed, resters };
-  }, [players, teamAge, todayStr]);
+      return { eligible, resting, maxed, resters };
+    }, [players, teamAge, todayStr]);
 
-  return (
-    <InsightTile
-      icon={Icons.Pitch}
-      title="Pitcher Availability"
-      accent="success"
-      ctaLabel="See Roster"
-      onClick={onOpenRoster}
-    >
-      <div className="flex items-baseline gap-3 mb-3">
-        <div className="t-stat-num text-ink">{stats.eligible}</div>
-        <div className="t-eyebrow">eligible today</div>
-      </div>
-      {stats.resters.length === 0 ? (
-        <p className="text-[11px] text-ink-3 font-medium">
-          Full bullpen available — no rest or pitch-limit holds.
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5">
-          {stats.resters.slice(0, 4).map((r, i) => (
-            <span
-              key={i}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded-md t-chip border ${
-                r.label === "limit"
-                  ? "bg-loss-bg border-line text-loss"
-                  : "bg-warn-bg border-line text-warnfg"
-              }`}
-              title={`${r.recent} recent pitches`}
-            >
-              {r.name}
-            </span>
-          ))}
-          {stats.resters.length > 4 && (
-            <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink-2">
-              +{stats.resters.length - 4}
-            </span>
-          )}
+    return (
+      <InsightTile
+        icon={Icons.Pitch}
+        title="Pitcher Availability"
+        accent="success"
+        ctaLabel="See Roster"
+        onClick={onOpenRoster}
+      >
+        <div className="flex items-baseline gap-3 mb-3">
+          <div className="t-stat-num text-ink">{stats.eligible}</div>
+          <div className="t-eyebrow">eligible today</div>
         </div>
-      )}
-    </InsightTile>
-  );
-});
+        {stats.resters.length === 0 ? (
+          <p className="text-[11px] text-ink-3 font-medium">
+            Full bullpen available — no rest or pitch-limit holds.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {stats.resters.slice(0, 4).map((r, i) => (
+              <span
+                key={i}
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md t-chip border ${
+                  r.label === "limit"
+                    ? "bg-loss-bg border-line text-loss"
+                    : "bg-warn-bg border-line text-warnfg"
+                }`}
+                title={`${r.recent} recent pitches`}
+              >
+                {r.name}
+              </span>
+            ))}
+            {stats.resters.length > 4 && (
+              <span className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink-2">
+                +{stats.resters.length - 4}
+              </span>
+            )}
+          </div>
+        )}
+      </InsightTile>
+    );
+  },
+);
 
 /* ===========================================================================
    RecentMovementTile — OPS movement since the previous stat update. Two
@@ -611,18 +627,21 @@ const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
     return (
       <InsightTile icon={Icons.Refresh} title="Recent Movement" accent="info">
         <p className="text-[11px] text-ink-3 font-medium italic">
-          Import stats again after your next game to track movement — it
-          shows once a player has two stat updates to compare.
+          Import stats again after your next game to track movement — it shows
+          once a player has two stat updates to compare.
         </p>
       </InsightTile>
     );
   }
 
-  const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
+  const fmt = (n: any) =>
+    (n >= 0 ? "+" : "") + n.toFixed(3).replace(/^([-]?)0\./, "$1.");
   // movers is sorted by delta desc, so the biggest jumps lead and the
   // biggest drops close the list.
   const shown = [
-    ...movers.filter((m) => m.delta > 0).slice(0, RECENT_MOVEMENT_PER_DIRECTION),
+    ...movers
+      .filter((m) => m.delta > 0)
+      .slice(0, RECENT_MOVEMENT_PER_DIRECTION),
     ...movers.filter((m) => m.delta < 0).slice(-RECENT_MOVEMENT_PER_DIRECTION),
   ];
 
@@ -640,9 +659,7 @@ const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
                 : "bg-loss-bg/40 hover:bg-loss-bg"
             }`}
           >
-            <span className="t-body-bold truncate text-ink">
-              {player.name}
-            </span>
+            <span className="t-body-bold truncate text-ink">{player.name}</span>
             <span
               className={`t-stat-num-sm tabular-nums shrink-0 ${
                 delta > 0 ? "text-win" : "text-loss"
@@ -662,90 +679,93 @@ const RecentMovementTile = memo(({ players, games, onPlayerClick }: any) => {
    most recent evaluation rounds. Mirrors InsightsPanel logic from
    EvaluationTab without rendering the heavy round-comparison UI.
 =========================================================================== */
-const EvalMomentumTile = memo(({ players, evaluationEvents, onOpenEval }: any) => {
-  const flags = useMemo(() => {
-    if (!Array.isArray(evaluationEvents) || evaluationEvents.length < 2) {
-      return { top: null, bottom: null };
-    }
-    const sorted = [...evaluationEvents].sort((a, b) =>
-      String(b.date).localeCompare(String(a.date))
+const EvalMomentumTile = memo(
+  ({ players, evaluationEvents, onOpenEval }: any) => {
+    const flags = useMemo(() => {
+      if (!Array.isArray(evaluationEvents) || evaluationEvents.length < 2) {
+        return { top: null, bottom: null };
+      }
+      const sorted = [...evaluationEvents].sort((a, b) =>
+        String(b.date).localeCompare(String(a.date)),
+      );
+      const latest = sorted[0];
+      const prev = sorted[1];
+      const avgUniversal = (g: any) => {
+        if (!g) return null;
+        const keys = [
+          "contact",
+          "power",
+          "plateDiscipline",
+          "approach",
+          "glove",
+          "range",
+          "armStrength",
+          "armAccuracy",
+          "speed",
+          "baserunning",
+          "baseballIQ",
+          "coachability",
+        ];
+        const vals = keys
+          .map((k) => Number(g[k]))
+          .filter((v) => Number.isFinite(v) && v >= 1 && v <= 10);
+        if (vals.length === 0) return null;
+        return vals.reduce((a, b) => a + b, 0) / vals.length;
+      };
+      let top = null;
+      let bottom = null;
+      for (const p of players || []) {
+        const a = avgUniversal(latest.grades?.[p.id]);
+        const b = avgUniversal(prev.grades?.[p.id]);
+        if (a == null || b == null) continue;
+        const delta = a - b;
+        if (Math.abs(delta) < 0.4) continue;
+        if (delta > 0 && (!top || delta > top.delta))
+          top = { player: p, delta };
+        if (delta < 0 && (!bottom || delta < bottom.delta))
+          bottom = { player: p, delta };
+      }
+      return { top, bottom };
+    }, [players, evaluationEvents]);
+
+    if (!flags.top && !flags.bottom) return null;
+
+    const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(1);
+
+    return (
+      <InsightTile
+        icon={Icons.Clipboard}
+        title="Eval Momentum"
+        accent="warn"
+        ctaLabel="See Trends"
+        onClick={onOpenEval}
+      >
+        <div className="space-y-2">
+          {flags.top && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="t-body-bold text-ink truncate">
+                {flags.top.player.name}
+              </span>
+              <span className="t-stat-num-sm text-win tabular-nums shrink-0">
+                ↑ {fmt(flags.top.delta)}
+              </span>
+            </div>
+          )}
+          {flags.bottom && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="t-body-bold text-ink truncate">
+                {flags.bottom.player.name}
+              </span>
+              <span className="t-stat-num-sm text-loss tabular-nums shrink-0">
+                ↓ {fmt(flags.bottom.delta)}
+              </span>
+            </div>
+          )}
+        </div>
+      </InsightTile>
     );
-    const latest = sorted[0];
-    const prev = sorted[1];
-    const avgUniversal = (g: any) => {
-      if (!g) return null;
-      const keys = [
-        "contact",
-        "power",
-        "plateDiscipline",
-        "approach",
-        "glove",
-        "range",
-        "armStrength",
-        "armAccuracy",
-        "speed",
-        "baserunning",
-        "baseballIQ",
-        "coachability",
-      ];
-      const vals = keys
-        .map((k) => Number(g[k]))
-        .filter((v) => Number.isFinite(v) && v >= 1 && v <= 10);
-      if (vals.length === 0) return null;
-      return vals.reduce((a, b) => a + b, 0) / vals.length;
-    };
-    let top = null;
-    let bottom = null;
-    for (const p of players || []) {
-      const a = avgUniversal(latest.grades?.[p.id]);
-      const b = avgUniversal(prev.grades?.[p.id]);
-      if (a == null || b == null) continue;
-      const delta = a - b;
-      if (Math.abs(delta) < 0.4) continue;
-      if (delta > 0 && (!top || delta > top.delta)) top = { player: p, delta };
-      if (delta < 0 && (!bottom || delta < bottom.delta))
-        bottom = { player: p, delta };
-    }
-    return { top, bottom };
-  }, [players, evaluationEvents]);
-
-  if (!flags.top && !flags.bottom) return null;
-
-  const fmt = (n: any) => (n >= 0 ? "+" : "") + n.toFixed(1);
-
-  return (
-    <InsightTile
-      icon={Icons.Clipboard}
-      title="Eval Momentum"
-      accent="warn"
-      ctaLabel="See Trends"
-      onClick={onOpenEval}
-    >
-      <div className="space-y-2">
-        {flags.top && (
-          <div className="flex items-center justify-between gap-2">
-            <span className="t-body-bold text-ink truncate">
-              {flags.top.player.name}
-            </span>
-            <span className="t-stat-num-sm text-win tabular-nums shrink-0">
-              ↑ {fmt(flags.top.delta)}
-            </span>
-          </div>
-        )}
-        {flags.bottom && (
-          <div className="flex items-center justify-between gap-2">
-            <span className="t-body-bold text-ink truncate">
-              {flags.bottom.player.name}
-            </span>
-            <span className="t-stat-num-sm text-loss tabular-nums shrink-0">
-              ↓ {fmt(flags.bottom.delta)}
-            </span>
-          </div>
-        )}
-      </div>
-    </InsightTile>
-  );
-});
+  },
+);
 
 /* ===========================================================================
    TeamTrendTile — last-5 W/L sparkline + run differential, derived from
@@ -764,7 +784,7 @@ const TeamTrendTile = memo(({ games }: any) => {
     });
     const diff = last5.reduce(
       (acc: any, g: any) => acc + (g.teamScore - g.opponentScore),
-      0
+      0,
     );
     return { results, diff, count: last5.length };
   }, [games]);
@@ -790,8 +810,8 @@ const TeamTrendTile = memo(({ games }: any) => {
             data.diff > 0
               ? "text-win"
               : data.diff < 0
-              ? "text-loss"
-              : "text-ink-3"
+                ? "text-loss"
+                : "text-ink-3"
           }`}
         >
           {data.diff >= 0 ? "+" : ""}
@@ -806,8 +826,8 @@ const TeamTrendTile = memo(({ games }: any) => {
               r === "W"
                 ? "bg-win-bg0"
                 : r === "L"
-                ? "bg-loss-bg0"
-                : "bg-warn-bg0"
+                  ? "bg-loss-bg0"
+                  : "bg-warn-bg0"
             }`}
             title={`Game ${i + 1}: ${r}`}
           >
@@ -835,12 +855,11 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
     const imbalance = buildSeasonBenchImbalance(games, "", players);
     return (players || [])
       .map((p: any) => {
-        const data =
-          imbalance.get(p.id) || {
-            totalDefense: 0,
-            expectedDefense: 0,
-            gamesAttended: 0,
-          };
+        const data = imbalance.get(p.id) || {
+          totalDefense: 0,
+          expectedDefense: 0,
+          gamesAttended: 0,
+        };
         return {
           player: p,
           delta: data.totalDefense - data.expectedDefense,
@@ -865,8 +884,8 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
     return (
       <InsightTile icon={Icons.Users} title="Bench Equity" accent="success">
         <p className="t-body text-win text-xs font-bold">
-          Everyone's within 1 inning of their fair share across the season.
-          Keep it up.
+          Everyone's within 1 inning of their fair share across the season. Keep
+          it up.
         </p>
       </InsightTile>
     );
@@ -876,9 +895,7 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
   // (negative delta = played less than fair share, green-to-amber). Pull
   // the top-2 on each side so the tile stays compact.
   const sortedByDelta = [...rows].sort((a, b) => b.delta - a.delta);
-  const overPlayed = sortedByDelta
-    .filter((r) => r.delta >= 1)
-    .slice(0, 2);
+  const overPlayed = sortedByDelta.filter((r) => r.delta >= 1).slice(0, 2);
   const underPlayed = sortedByDelta
     .filter((r) => r.delta <= -1)
     .slice(-2)
@@ -934,8 +951,8 @@ const BenchEquityTile = memo(({ players, games, onPlayerClick }: any) => {
           </div>
         )}
         <p className="text-[10px] font-medium text-ink-3 italic leading-snug pt-0.5">
-          Engine biases new lineups to even this out, but lean on Big Game
-          bench picks if a gap keeps growing.
+          Engine biases new lineups to even this out, but lean on Big Game bench
+          picks if a gap keeps growing.
         </p>
       </div>
     </InsightTile>
@@ -953,7 +970,9 @@ const MiniStatGrid = memo(({ cells }: any) => (
         <div className="text-[9px] font-black uppercase tracking-widest text-ink-3">
           {label}
         </div>
-        <div className="text-sm font-black tabular-nums text-ink mt-0.5">{val}</div>
+        <div className="text-sm font-black tabular-nums text-ink mt-0.5">
+          {val}
+        </div>
       </div>
     ))}
   </div>
@@ -969,7 +988,11 @@ const TeamSummaryTile = memo(({ players, isKidPitch }: any) => {
     return undefined;
   };
   const f3 = (v?: number) =>
-    v === undefined ? "—" : v > 0 && v < 1 ? v.toFixed(3).replace(/^0/, "") : v.toFixed(3);
+    v === undefined
+      ? "—"
+      : v > 0 && v < 1
+        ? v.toFixed(3).replace(/^0/, "")
+        : v.toFixed(3);
   const f2 = (v?: number) => (v === undefined ? "—" : v.toFixed(2));
   const fI = (v?: number) => (v === undefined ? "—" : Math.round(v).toString());
   const hasAny = Object.keys(agg).length > 0;
@@ -1040,7 +1063,9 @@ const RunStreakTile = memo(({ games }: any) => {
           </div>
           <div>
             <div className="t-eyebrow text-ink-3">Streak</div>
-            <div className="text-2xl font-black tabular-nums text-ink">{streak}</div>
+            <div className="text-2xl font-black tabular-nums text-ink">
+              {streak}
+            </div>
           </div>
           <div className="ml-auto text-right">
             <div className="t-eyebrow text-ink-3">RF / RA</div>
@@ -1059,8 +1084,8 @@ const RunStreakTile = memo(({ games }: any) => {
                   r.result === "W"
                     ? "bg-win-bg text-win"
                     : r.result === "L"
-                    ? "bg-loss-bg text-loss"
-                    : "bg-surface-2 text-ink-3"
+                      ? "bg-loss-bg text-loss"
+                      : "bg-surface-2 text-ink-3"
                 }`}
               >
                 {r.result}
@@ -1077,90 +1102,93 @@ const RunStreakTile = memo(({ games }: any) => {
 const attIsPresent = (v: any) => v === true || v === "present";
 const attIsAbsent = (v: any) => v === false || v === "absent"; // "excused" excluded
 
-const AttendanceTile = memo(({ players, games, practices, onPlayerClick }: any) => {
-  const data = useMemo(() => {
-    const events = [
-      ...(games || [])
-        .filter((g: any) => g.attendance && Object.keys(g.attendance).length)
-        .map((g: any) => g.attendance),
-      ...(practices || [])
-        .filter((p: any) => p.attendance && Object.keys(p.attendance).length)
-        .map((p: any) => p.attendance),
-    ];
-    if (events.length === 0) return null;
-    let present = 0;
-    let marked = 0;
-    const absById: Record<string, number> = {};
-    for (const att of events) {
-      for (const [pid, v] of Object.entries(att)) {
-        if (attIsPresent(v)) {
-          present++;
-          marked++;
-        } else if (attIsAbsent(v)) {
-          marked++;
-          absById[pid] = (absById[pid] || 0) + 1;
+const AttendanceTile = memo(
+  ({ players, games, practices, onPlayerClick }: any) => {
+    const data = useMemo(() => {
+      const events = [
+        ...(games || [])
+          .filter((g: any) => g.attendance && Object.keys(g.attendance).length)
+          .map((g: any) => g.attendance),
+        ...(practices || [])
+          .filter((p: any) => p.attendance && Object.keys(p.attendance).length)
+          .map((p: any) => p.attendance),
+      ];
+      if (events.length === 0) return null;
+      let present = 0;
+      let marked = 0;
+      const absById: Record<string, number> = {};
+      for (const att of events) {
+        for (const [pid, v] of Object.entries(att)) {
+          if (attIsPresent(v)) {
+            present++;
+            marked++;
+          } else if (attIsAbsent(v)) {
+            marked++;
+            absById[pid] = (absById[pid] || 0) + 1;
+          }
         }
       }
+      const rate = marked > 0 ? present / marked : null;
+      const topAbsent = Object.entries(absById)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([pid, count]) => ({
+          player: (players || []).find((p: any) => p.id === pid),
+          count,
+        }))
+        .filter((x) => x.player);
+      return { rate, eventCount: events.length, topAbsent };
+    }, [players, games, practices]);
+    if (!data) {
+      return (
+        <InsightTile icon={Icons.Users} title="Attendance" accent="slate">
+          <p className="t-body text-ink-3 italic">No attendance marked yet.</p>
+        </InsightTile>
+      );
     }
-    const rate = marked > 0 ? present / marked : null;
-    const topAbsent = Object.entries(absById)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([pid, count]) => ({
-        player: (players || []).find((p: any) => p.id === pid),
-        count,
-      }))
-      .filter((x) => x.player);
-    return { rate, eventCount: events.length, topAbsent };
-  }, [players, games, practices]);
-  if (!data) {
     return (
-      <InsightTile icon={Icons.Users} title="Attendance" accent="slate">
-        <p className="t-body text-ink-3 italic">No attendance marked yet.</p>
+      <InsightTile icon={Icons.Users} title="Attendance" accent="info">
+        <div className="space-y-2.5">
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black tabular-nums text-ink">
+              {data.rate == null ? "—" : `${Math.round(data.rate * 100)}%`}
+            </span>
+            <span className="t-meta text-ink-3">
+              present · {data.eventCount} event
+              {data.eventCount === 1 ? "" : "s"}
+            </span>
+          </div>
+          {data.topAbsent.length > 0 ? (
+            <div>
+              <div className="t-eyebrow text-ink-3 mb-1">Most absences</div>
+              <ul className="space-y-1">
+                {data.topAbsent.map(({ player, count }: any) => (
+                  <li
+                    key={player.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onPlayerClick?.(player.id)}
+                      className="text-xs font-bold text-ink truncate hover:text-team-primary text-left"
+                    >
+                      {player.name}
+                    </button>
+                    <span className="text-[10px] font-black tabular-nums text-loss shrink-0">
+                      {count} miss{count === 1 ? "" : "es"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="t-meta text-ink-3">Perfect attendance so far.</p>
+          )}
+        </div>
       </InsightTile>
     );
-  }
-  return (
-    <InsightTile icon={Icons.Users} title="Attendance" accent="info">
-      <div className="space-y-2.5">
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-black tabular-nums text-ink">
-            {data.rate == null ? "—" : `${Math.round(data.rate * 100)}%`}
-          </span>
-          <span className="t-meta text-ink-3">
-            present · {data.eventCount} event{data.eventCount === 1 ? "" : "s"}
-          </span>
-        </div>
-        {data.topAbsent.length > 0 ? (
-          <div>
-            <div className="t-eyebrow text-ink-3 mb-1">Most absences</div>
-            <ul className="space-y-1">
-              {data.topAbsent.map(({ player, count }: any) => (
-                <li
-                  key={player.id}
-                  className="flex items-center justify-between gap-2"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onPlayerClick?.(player.id)}
-                    className="text-xs font-bold text-ink truncate hover:text-team-primary text-left"
-                  >
-                    {player.name}
-                  </button>
-                  <span className="text-[10px] font-black tabular-nums text-loss shrink-0">
-                    {count} miss{count === 1 ? "" : "es"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <p className="t-meta text-ink-3">Perfect attendance so far.</p>
-        )}
-      </div>
-    </InsightTile>
-  );
-});
+  },
+);
 
 // ===== "This Week" — upcoming games + practices in the next 7 days =====
 const UpcomingWeekSection = memo(
@@ -1190,7 +1218,7 @@ const UpcomingWeekSection = memo(
         }));
       return [...g, ...p]
         .sort((a, b) =>
-          `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)
+          `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`),
         )
         .slice(0, 8);
     }, [games, practices, todayStr]);
@@ -1231,7 +1259,7 @@ const UpcomingWeekSection = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 /* ===========================================================================
@@ -1251,253 +1279,262 @@ const UP_NEXT_ACCENTS: Record<string, { bg: string; fg: string }> = {
   primary: { bg: "var(--team-primary-15)", fg: "var(--team-primary)" },
 };
 
-export const UpNextPanel = memo(
-  ({ isHead, promptStatus, todayStr }: any) => {
-    const { team } = useTeam();
-    const {
-      setActiveTab,
-      setSelectedGameId,
-      setOpponentName,
-      setLineup,
-      setBattingLineup,
-      setCurrentGameAttendance,
-    } = useUI();
-    const { games, players, finances } = team;
-    // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
-    // row reappears next session if the underlying task still isn't done.
-    const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
+export const UpNextPanel = memo(({ isHead, promptStatus, todayStr }: any) => {
+  const { team } = useTeam();
+  const {
+    setActiveTab,
+    setSelectedGameId,
+    setOpponentName,
+    setLineup,
+    setBattingLineup,
+    setCurrentGameAttendance,
+  } = useUI();
+  const { games, players, finances } = team;
+  // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
+  // row reappears next session if the underlying task still isn't done.
+  const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
 
-    const items = useMemo(() => {
-      const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
-      const daysUntil = (iso: string | null) =>
-        iso ? Math.round((new Date(`${iso}T00:00:00`).getTime() - todayMs) / 86400000) : null;
+  const items = useMemo(() => {
+    const todayMs = new Date(`${todayStr}T00:00:00`).getTime();
+    const daysUntil = (iso: string | null) =>
+      iso
+        ? Math.round(
+            (new Date(`${iso}T00:00:00`).getTime() - todayMs) / 86400000,
+          )
+        : null;
 
-      // Classify a due date into urgency for sorting + the chip it shows.
-      const dueMeta = (iso: string | null) => {
-        const d = daysUntil(iso);
-        if (d == null) return { bump: 0, accent: "money", tag: "" };
-        if (d < 0) return { bump: 40, accent: "danger", tag: "Overdue" };
-        if (d === 0) return { bump: 35, accent: "danger", tag: "Due today" };
-        if (d <= 7) return { bump: 25, accent: "warn", tag: `Due in ${d}d` };
-        return { bump: 0, accent: "money", tag: `Due ${formatGameDateDisplay(iso)}` };
+    // Classify a due date into urgency for sorting + the chip it shows.
+    const dueMeta = (iso: string | null) => {
+      const d = daysUntil(iso);
+      if (d == null) return { bump: 0, accent: "money", tag: "" };
+      if (d < 0) return { bump: 40, accent: "danger", tag: "Overdue" };
+      if (d === 0) return { bump: 35, accent: "danger", tag: "Due today" };
+      if (d <= 7) return { bump: 25, accent: "warn", tag: `Due in ${d}d` };
+      return {
+        bump: 0,
+        accent: "money",
+        tag: `Due ${formatGameDateDisplay(iso)}`,
       };
+    };
 
-      const goToGame = (g: any) => {
-        setSelectedGameId(g.id);
-        setOpponentName(g.opponent);
-        setLineup(g.lineup || null);
-        setBattingLineup(g.battingLineup || null);
-        setCurrentGameAttendance(g.attendance || {});
-        setActiveTab("schedule");
-      };
+    const goToGame = (g: any) => {
+      setSelectedGameId(g.id);
+      setOpponentName(g.opponent);
+      setLineup(g.lineup || null);
+      setBattingLineup(g.battingLineup || null);
+      setCurrentGameAttendance(g.attendance || {});
+      setActiveTab("schedule");
+    };
 
-      const out: any[] = [];
+    const out: any[] = [];
 
-      // ----- Eval cadence (both roles) -----
-      if (promptStatus?.active) {
+    // ----- Eval cadence (both roles) -----
+    if (promptStatus?.active) {
+      out.push({
+        id: "eval",
+        priority: 60,
+        accent: "info",
+        icon: Icons.Clipboard,
+        title: isHead
+          ? "Start this round's evaluations"
+          : "Send your evaluations to the head coach",
+        sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
+          promptStatus.nextDueDate
+            ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
+            : ""
+        }`,
+        tag: "Evals",
+        ctaLabel: "Open",
+        onClick: () => setActiveTab("evaluation"),
+      });
+    }
+
+    // The rest are head-coach actions only.
+    if (isHead) {
+      // ----- Next game: lineup + attendance -----
+      const next = (games || [])
+        .filter((g: any) => (g.status || "scheduled") !== "postponed")
+        .filter((g: any) => !isGameFinalized(g))
+        .filter((g: any) => g.date && g.date >= todayStr)
+        .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
+      if (next) {
+        const dd = daysUntil(next.date) ?? 99;
+        const when =
+          dd === 0 ? "today" : dd === 1 ? "tomorrow" : `in ${dd} days`;
+        if (dd <= 7 && !next.lineup) {
+          out.push({
+            id: "lineup",
+            priority: dd <= 1 ? 100 : 82,
+            accent: dd <= 1 ? "danger" : "warn",
+            icon: Icons.Clipboard,
+            title: `Build the lineup vs ${next.opponent}`,
+            sub: `${formatGameDateDisplay(next.date)} · ${when}`,
+            tag: "Lineup",
+            ctaLabel: "Build",
+            onClick: () => goToGame(next),
+          });
+        }
+        const attMarked = Object.keys(next.attendance || {}).length;
+        if (dd <= 2 && attMarked === 0) {
+          out.push({
+            id: "attendance",
+            priority: 68,
+            accent: "warn",
+            icon: Icons.Users,
+            title: `Confirm who's coming vs ${next.opponent}`,
+            sub: `Attendance not set · game ${when}`,
+            tag: "Attendance",
+            ctaLabel: "Set",
+            onClick: () => goToGame(next),
+          });
+        }
+      }
+
+      // ----- Team Fees: deposit + full fee -----
+      const fees = teamFeesStatus(finances, players);
+      if (fees.depositAmount > 0 && fees.depositOwedCount > 0) {
+        const m = dueMeta(fees.depositDueDate);
         out.push({
-          id: "eval",
-          priority: 60,
-          accent: "info",
-          icon: Icons.Clipboard,
-          title: isHead
-            ? "Start this round's evaluations"
-            : "Send your evaluations to the head coach",
-          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
-            promptStatus.nextDueDate
-              ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
-              : ""
-          }`,
-          tag: "Evals",
-          ctaLabel: "Open",
-          onClick: () => setActiveTab("evaluation"),
+          id: "fees-deposit",
+          priority: 50 + m.bump,
+          accent: m.accent,
+          icon: Icons.Wallet,
+          title: `${fees.depositOwedCount} famil${
+            fees.depositOwedCount === 1 ? "y" : "ies"
+          } owe the team-fee deposit`,
+          sub: `${formatCurrency(fees.depositOutstanding)} in deposits outstanding`,
+          tag: m.tag || "Deposit",
+          ctaLabel: "Collect",
+          onClick: () => setActiveTab("finances"),
         });
       }
-
-      // The rest are head-coach actions only.
-      if (isHead) {
-        // ----- Next game: lineup + attendance -----
-        const next = (games || [])
-          .filter((g: any) => (g.status || "scheduled") !== "postponed")
-          .filter((g: any) => !isGameFinalized(g))
-          .filter((g: any) => g.date && g.date >= todayStr)
-          .sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
-        if (next) {
-          const dd = daysUntil(next.date) ?? 99;
-          const when =
-            dd === 0 ? "today" : dd === 1 ? "tomorrow" : `in ${dd} days`;
-          if (dd <= 7 && !next.lineup) {
-            out.push({
-              id: "lineup",
-              priority: dd <= 1 ? 100 : 82,
-              accent: dd <= 1 ? "danger" : "warn",
-              icon: Icons.Clipboard,
-              title: `Build the lineup vs ${next.opponent}`,
-              sub: `${formatGameDateDisplay(next.date)} · ${when}`,
-              tag: "Lineup",
-              ctaLabel: "Build",
-              onClick: () => goToGame(next),
-            });
-          }
-          const attMarked = Object.keys(next.attendance || {}).length;
-          if (dd <= 2 && attMarked === 0) {
-            out.push({
-              id: "attendance",
-              priority: 68,
-              accent: "warn",
-              icon: Icons.Users,
-              title: `Confirm who's coming vs ${next.opponent}`,
-              sub: `Attendance not set · game ${when}`,
-              tag: "Attendance",
-              ctaLabel: "Set",
-              onClick: () => goToGame(next),
-            });
-          }
-        }
-
-        // ----- Team Fees: deposit + full fee -----
-        const fees = teamFeesStatus(finances, players);
-        if (fees.depositAmount > 0 && fees.depositOwedCount > 0) {
-          const m = dueMeta(fees.depositDueDate);
-          out.push({
-            id: "fees-deposit",
-            priority: 50 + m.bump,
-            accent: m.accent,
-            icon: Icons.Wallet,
-            title: `${fees.depositOwedCount} famil${
-              fees.depositOwedCount === 1 ? "y" : "ies"
-            } owe the team-fee deposit`,
-            sub: `${formatCurrency(fees.depositOutstanding)} in deposits outstanding`,
-            tag: m.tag || "Deposit",
-            ctaLabel: "Collect",
-            onClick: () => setActiveTab("finances"),
-          });
-        }
-        if (fees.stillOwed > 0) {
-          const m = dueMeta(fees.feeDueDate);
-          out.push({
-            id: "fees-full",
-            priority: 40 + m.bump,
-            accent: m.accent,
-            icon: Icons.Wallet,
-            title: `${formatCurrency(fees.stillOwed)} in team fees outstanding`,
-            sub: `${fees.fullOwedCount} famil${
-              fees.fullOwedCount === 1 ? "y" : "ies"
-            } still owe`,
-            tag: m.tag || "Team Fees",
-            ctaLabel: "Collect",
-            onClick: () => setActiveTab("finances"),
-          });
-        }
+      if (fees.stillOwed > 0) {
+        const m = dueMeta(fees.feeDueDate);
+        out.push({
+          id: "fees-full",
+          priority: 40 + m.bump,
+          accent: m.accent,
+          icon: Icons.Wallet,
+          title: `${formatCurrency(fees.stillOwed)} in team fees outstanding`,
+          sub: `${fees.fullOwedCount} famil${
+            fees.fullOwedCount === 1 ? "y" : "ies"
+          } still owe`,
+          tag: m.tag || "Team Fees",
+          ctaLabel: "Collect",
+          onClick: () => setActiveTab("finances"),
+        });
       }
+    }
 
-      return out.sort((a, b) => b.priority - a.priority);
-    }, [
-      games,
-      players,
-      finances,
-      isHead,
-      promptStatus,
-      todayStr,
-      setActiveTab,
-      setSelectedGameId,
-      setOpponentName,
-      setLineup,
-      setBattingLineup,
-      setCurrentGameAttendance,
-    ]);
+    return out.sort((a, b) => b.priority - a.priority);
+  }, [
+    games,
+    players,
+    finances,
+    isHead,
+    promptStatus,
+    todayStr,
+    setActiveTab,
+    setSelectedGameId,
+    setOpponentName,
+    setLineup,
+    setBattingLineup,
+    setCurrentGameAttendance,
+  ]);
 
-    const visible = items.filter((i) => !snoozed.has(i.id));
-    if (visible.length === 0) return null;
+  const visible = items.filter((i) => !snoozed.has(i.id));
+  if (visible.length === 0) return null;
 
-    return (
-      <div className="relative rounded-2xl border border-line shadow-card overflow-hidden bg-surface">
-        <div
-          className="absolute inset-y-0 left-0 w-[3px]"
+  return (
+    <div className="relative rounded-2xl border border-line shadow-card overflow-hidden bg-surface">
+      <div
+        className="absolute inset-y-0 left-0 w-[3px]"
+        style={{
+          background: "var(--team-primary)",
+          boxShadow: "0 0 18px 1px var(--team-primary)",
+        }}
+        aria-hidden="true"
+      />
+      <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-line">
+        <h2 className="text-sm font-black uppercase tracking-tight text-ink">
+          Up Next
+        </h2>
+        <span
+          className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
           style={{
-            background: "var(--team-primary)",
-            boxShadow: "0 0 18px 1px var(--team-primary)",
+            backgroundColor: "var(--team-primary)",
+            color: "var(--team-tertiary)",
           }}
-          aria-hidden="true"
-        />
-        <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3.5 border-b border-line">
-          <h2 className="text-sm font-black uppercase tracking-tight text-ink">
-            Up Next
-          </h2>
-          <span
-            className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
-            style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
+        >
+          {visible.length}
+        </span>
+        <span className="ml-auto t-eyebrow text-ink-3">Sorted by urgency</span>
+      </div>
+      {visible.map((item) => {
+        const accent = UP_NEXT_ACCENTS[item.accent] || UP_NEXT_ACCENTS.primary;
+        const Icon = item.icon;
+        // Row is a flex of two buttons (action + snooze) rather than a button
+        // nesting a button, which is invalid markup.
+        return (
+          <div
+            key={item.id}
+            className="flex items-stretch border-t border-line first:border-t-0"
           >
-            {visible.length}
-          </span>
-          <span className="ml-auto t-eyebrow text-ink-3">Sorted by urgency</span>
-        </div>
-        {visible.map((item) => {
-          const accent = UP_NEXT_ACCENTS[item.accent] || UP_NEXT_ACCENTS.primary;
-          const Icon = item.icon;
-          // Row is a flex of two buttons (action + snooze) rather than a button
-          // nesting a button, which is invalid markup.
-          return (
-            <div
-              key={item.id}
-              className="flex items-stretch border-t border-line first:border-t-0"
+            <button
+              type="button"
+              onClick={item.onClick}
+              className="flex-1 min-w-0 text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-surface-2 transition-colors"
             >
-              <button
-                type="button"
-                onClick={item.onClick}
-                className="flex-1 min-w-0 text-left flex items-center gap-3 px-4 sm:px-5 py-3.5 hover:bg-surface-2 transition-colors"
+              <span
+                className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
+                style={{ backgroundColor: accent.bg }}
               >
-                <span
-                  className="shrink-0 w-10 h-10 rounded-xl grid place-items-center"
-                  style={{ backgroundColor: accent.bg }}
-                >
-                  <Icon className="w-5 h-5" style={{ color: accent.fg }} />
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="flex items-center gap-2 flex-wrap">
-                    <span className="t-body-bold text-ink">{item.title}</span>
-                    {item.tag && (
-                      <span
-                        className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
-                        style={{ backgroundColor: accent.bg, color: accent.fg }}
-                      >
-                        {item.tag}
-                      </span>
-                    )}
-                  </span>
-                  {item.sub && (
-                    <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
-                      {item.sub}
+                <Icon className="w-5 h-5" style={{ color: accent.fg }} />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-2 flex-wrap">
+                  <span className="t-body-bold text-ink">{item.title}</span>
+                  {item.tag && (
+                    <span
+                      className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md"
+                      style={{ backgroundColor: accent.bg, color: accent.fg }}
+                    >
+                      {item.tag}
                     </span>
                   )}
                 </span>
-                <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
-                  {item.ctaLabel}
-                  <Icons.ChevronRight className="w-3.5 h-3.5" />
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setSnoozed((prev) => {
-                    const next = new Set(prev);
-                    next.add(item.id);
-                    return next;
-                  })
-                }
-                aria-label={`Snooze: ${item.title}`}
-                title="Snooze"
-                className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
-              >
-                <Icons.X className="w-4 h-4" />
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-);
+                {item.sub && (
+                  <span className="block text-xs text-ink-2 font-medium mt-0.5 truncate">
+                    {item.sub}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 t-button text-ink-3 flex items-center gap-0.5">
+                {item.ctaLabel}
+                <Icons.ChevronRight className="w-3.5 h-3.5" />
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setSnoozed((prev) => {
+                  const next = new Set(prev);
+                  next.add(item.id);
+                  return next;
+                })
+              }
+              aria-label={`Snooze: ${item.title}`}
+              title="Snooze"
+              className="shrink-0 px-3 text-ink-3 hover:text-ink hover:bg-surface-2 transition-colors"
+            >
+              <Icons.X className="w-4 h-4" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
@@ -1511,13 +1548,8 @@ export const HomeTab = memo(() => {
   const [showSeasonReport, setShowSeasonReport] = useState(false);
   const [showAwards, setShowAwards] = useState(false);
   const promptStatus = useMemo(
-    () =>
-      evalPromptStatus(
-        team,
-        user?.uid,
-        isHead ? "Head" : "Assistant"
-      ),
-    [team, user, isHead]
+    () => evalPromptStatus(team, user?.uid, isHead ? "Head" : "Assistant"),
+    [team, user, isHead],
   );
   const {
     players,
@@ -1536,7 +1568,9 @@ export const HomeTab = memo(() => {
   const activeTeamName =
     teams.find((t: any) => t.id === activeTeamId)?.name || "TEAM";
   const headCoaches = coaches.filter((c: any) => c.role === "Head Coach");
-  const assistantCoaches = coaches.filter((c: any) => c.role === "Assistant Coach");
+  const assistantCoaches = coaches.filter(
+    (c: any) => c.role === "Assistant Coach",
+  );
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -1569,8 +1603,8 @@ export const HomeTab = memo(() => {
         g.teamScore > g.opponentScore
           ? "W"
           : g.teamScore < g.opponentScore
-          ? "L"
-          : "T"
+            ? "L"
+            : "T",
       );
     const total = record.wins + record.losses + record.ties;
     const winPctStr =
@@ -1600,200 +1634,203 @@ export const HomeTab = memo(() => {
           back to the normal vertical stack, preserving the mobile experience. */}
       <div className="space-y-8 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
         <div className="lg:flex-1 lg:min-w-0">
-      {hasGames ? (
-        <UpcomingGameCard
-          primaryColor={primaryColor}
-          tertiaryColor={tertiaryColor}
-          onPlayerClick={openPlayerProfile}
-        />
-      ) : (
-        <EmptyState
-          glyph="📅"
-          title="No Games Yet"
-          body="Add your first game to start planning lineups. Once a game exists, the dashboard wakes up — today's game, pitcher availability, and trend insights all flow from here."
-          action={
-            <>
-              <Icons.Plus className="w-4 h-4" /> Add Your First Game
-            </>
-          }
-          onAction={() => {
-            setActiveTab("schedule");
-            setIsAddingGame(true);
-          }}
-        />
-      )}
+          {hasGames ? (
+            <UpcomingGameCard
+              primaryColor={primaryColor}
+              tertiaryColor={tertiaryColor}
+              onPlayerClick={openPlayerProfile}
+            />
+          ) : (
+            <EmptyState
+              glyph="📅"
+              title="No Games Yet"
+              body="Add your first game to start planning lineups. Once a game exists, the dashboard wakes up — today's game, pitcher availability, and trend insights all flow from here."
+              action={
+                <>
+                  <Icons.Plus className="w-4 h-4" /> Add Your First Game
+                </>
+              }
+              onAction={() => {
+                setActiveTab("schedule");
+                setIsAddingGame(true);
+              }}
+            />
+          )}
         </div>
 
         <aside className="space-y-8 lg:space-y-6 lg:w-[22rem] lg:shrink-0">
-      {/* ===== Season scoreboard — open/fluid; becomes a rail panel at lg ===== */}
-      <div className="relative pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span
-                className="block h-3.5 w-1 rounded-sm"
-                style={{ backgroundColor: "var(--team-primary)" }}
-              />
-              <span className="t-eyebrow text-ink-3">{activeTeamName}</span>
-            </div>
-            <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2.5">
-              <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl text-ink">
-                <AnimatedNumber value={record.wins} />
-                <span className="text-ink-3">–</span>
-                <AnimatedNumber value={record.losses} />
-                {record.ties > 0 && (
-                  <>
+          {/* ===== Season scoreboard — open/fluid; becomes a rail panel at lg ===== */}
+          <div className="relative pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="block h-3.5 w-1 rounded-sm"
+                    style={{ backgroundColor: "var(--team-primary)" }}
+                  />
+                  <span className="t-eyebrow text-ink-3">{activeTeamName}</span>
+                </div>
+                <div className="flex items-baseline flex-wrap gap-x-3 gap-y-1 mt-2.5">
+                  <span className="font-black tabular-nums leading-none whitespace-nowrap text-5xl sm:text-6xl text-ink">
+                    <AnimatedNumber value={record.wins} />
                     <span className="text-ink-3">–</span>
-                    <AnimatedNumber value={record.ties} />
-                  </>
-                )}
-              </span>
-              {seasonHero.finalsCount > 0 && (
-                <span className="text-[11px] font-black uppercase tracking-widest leading-tight text-team-primary">
-                  {seasonHero.winPctStr}
-                  <br />
-                  win pct
-                </span>
-              )}
-            </div>
-            {/* Record split by pitching format — shown only when the team has
+                    <AnimatedNumber value={record.losses} />
+                    {record.ties > 0 && (
+                      <>
+                        <span className="text-ink-3">–</span>
+                        <AnimatedNumber value={record.ties} />
+                      </>
+                    )}
+                  </span>
+                  {seasonHero.finalsCount > 0 && (
+                    <span className="text-[11px] font-black uppercase tracking-widest leading-tight text-team-primary">
+                      {seasonHero.winPctStr}
+                      <br />
+                      win pct
+                    </span>
+                  )}
+                </div>
+                {/* Record split by pitching format — shown only when the team has
                 played BOTH (otherwise it just repeats the combined record). */}
-            {!stripped && (() => {
-              const bf = (record as any).byFormat;
-              const has = (r: any) =>
-                r && r.wins + r.losses + r.ties > 0;
-              const fmt = (r: any) =>
-                r.ties > 0
-                  ? `${r.wins}–${r.losses}–${r.ties}`
-                  : `${r.wins}–${r.losses}`;
-              if (!bf || !has(bf.kidPitch) || !has(bf.machine)) return null;
-              return (
-                <div className="flex flex-wrap items-center gap-2 mt-3">
-                  <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
-                    Kid Pitch {fmt(bf.kidPitch)}
-                  </span>
-                  <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
-                    Machine/Coach {fmt(bf.machine)}
-                  </span>
+                {!stripped &&
+                  (() => {
+                    const bf = (record as any).byFormat;
+                    const has = (r: any) => r && r.wins + r.losses + r.ties > 0;
+                    const fmt = (r: any) =>
+                      r.ties > 0
+                        ? `${r.wins}–${r.losses}–${r.ties}`
+                        : `${r.wins}–${r.losses}`;
+                    if (!bf || !has(bf.kidPitch) || !has(bf.machine))
+                      return null;
+                    return (
+                      <div className="flex flex-wrap items-center gap-2 mt-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
+                          Kid Pitch {fmt(bf.kidPitch)}
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-widest tabular-nums px-2 py-1 rounded-sm bg-surface-2 border border-line text-ink-2">
+                          Machine/Coach {fmt(bf.machine)}
+                        </span>
+                      </div>
+                    );
+                  })()}
+              </div>
+              <div className="text-right shrink-0">
+                <div className="t-eyebrow text-ink-3">Season</div>
+                <div className="text-sm font-black uppercase tracking-wide mt-1 text-ink">
+                  {currentSeason}
                 </div>
-              );
-            })()}
-          </div>
-          <div className="text-right shrink-0">
-            <div className="t-eyebrow text-ink-3">Season</div>
-            <div className="text-sm font-black uppercase tracking-wide mt-1 text-ink">
-              {currentSeason}
-            </div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3 mt-1">
-              {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
-            </div>
-            <div className="flex flex-col items-end gap-1.5 mt-2">
-              <button
-                type="button"
-                onClick={() => setShowSeasonReport(true)}
-                className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
-              >
-                <Icons.FileText className="w-3.5 h-3.5" /> Season Report
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAwards(true)}
-                className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
-              >
-                <Icons.Sparkles className="w-3.5 h-3.5" /> Awards
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {!stripped && seasonHero.form.length > 0 && (
-          <div className="flex items-center gap-1.5 mt-5">
-            <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mr-1">
-              Form
-            </span>
-            {seasonHero.form.map((r: any, i: any) => (
-              <span
-                key={i}
-                className={`w-6 h-6 rounded-sm grid place-items-center text-[10px] font-black ${
-                  r === "W" ? "" : "bg-surface-2 border border-line text-ink-3"
-                }`}
-                style={
-                  r === "W"
-                    ? {
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                      }
-                    : undefined
-                }
-              >
-                {r}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {stripped ? (
-          <div className="mt-4 pt-3 border-t border-line text-[11px] font-black uppercase tracking-widest tabular-nums text-ink-2">
-            Run diff {seasonHero.diff >= 0 ? "+" : ""}
-            {Math.round(seasonHero.diff)} · Roster {players.length}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 mt-5 pt-4 border-t border-line">
-            {[
-              { k: "Runs For", v: seasonHero.runsFor },
-              { k: "Against", v: seasonHero.runsAgainst },
-              {
-                k: "Run Diff",
-                v: seasonHero.diff,
-                format: (n: number) =>
-                  `${n >= 0 ? "+" : ""}${Math.round(n)}`,
-              },
-              { k: "Roster", v: players.length },
-            ].map((s: any) => (
-              <div key={s.k}>
-                <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
-                  {s.k}
+                <div className="text-[10px] font-bold uppercase tracking-widest text-ink-3 mt-1">
+                  {teamAge} · {leagueRuleSetLabel(leagueRuleSet)}
                 </div>
-                <div className="text-2xl font-black tabular-nums leading-none mt-1.5 text-ink">
-                  <AnimatedNumber value={s.v} format={s.format} />
+                <div className="flex flex-col items-end gap-1.5 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSeasonReport(true)}
+                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+                  >
+                    <Icons.FileText className="w-3.5 h-3.5" /> Season Report
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAwards(true)}
+                    className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
+                  >
+                    <Icons.Sparkles className="w-3.5 h-3.5" /> Awards
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
 
-        {!stripped && pitchingFormat && (
-          <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-surface-2 border border-line text-ink-2 px-2.5 py-1 rounded-sm">
-            {pitchingFormat}
-          </div>
-        )}
-      </div>
+            {!stripped && seasonHero.form.length > 0 && (
+              <div className="flex items-center gap-1.5 mt-5">
+                <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mr-1">
+                  Form
+                </span>
+                {seasonHero.form.map((r: any, i: any) => (
+                  <span
+                    key={i}
+                    className={`w-6 h-6 rounded-sm grid place-items-center text-[10px] font-black ${
+                      r === "W"
+                        ? ""
+                        : "bg-surface-2 border border-line text-ink-3"
+                    }`}
+                    style={
+                      r === "W"
+                        ? {
+                            backgroundColor: "var(--team-primary)",
+                            color: "var(--team-tertiary)",
+                          }
+                        : undefined
+                    }
+                  >
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
 
-      {/* Coaches */}
-      {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
-        <div className="space-y-3 pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
-          {headCoaches.length > 0 && (
-            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
-                Head Coach
-              </span>
-              <span className="text-sm font-bold text-ink">
-                {headCoaches.map((c: any) => c.name).join(", ")}
-              </span>
+            {stripped ? (
+              <div className="mt-4 pt-3 border-t border-line text-[11px] font-black uppercase tracking-widest tabular-nums text-ink-2">
+                Run diff {seasonHero.diff >= 0 ? "+" : ""}
+                {Math.round(seasonHero.diff)} · Roster {players.length}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 gap-3 mt-5 pt-4 border-t border-line">
+                {[
+                  { k: "Runs For", v: seasonHero.runsFor },
+                  { k: "Against", v: seasonHero.runsAgainst },
+                  {
+                    k: "Run Diff",
+                    v: seasonHero.diff,
+                    format: (n: number) =>
+                      `${n >= 0 ? "+" : ""}${Math.round(n)}`,
+                  },
+                  { k: "Roster", v: players.length },
+                ].map((s: any) => (
+                  <div key={s.k}>
+                    <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                      {s.k}
+                    </div>
+                    <div className="text-2xl font-black tabular-nums leading-none mt-1.5 text-ink">
+                      <AnimatedNumber value={s.v} format={s.format} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!stripped && pitchingFormat && (
+              <div className="mt-4 inline-flex items-center text-[9px] font-extrabold uppercase tracking-widest bg-surface-2 border border-line text-ink-2 px-2.5 py-1 rounded-sm">
+                {pitchingFormat}
+              </div>
+            )}
+          </div>
+
+          {/* Coaches */}
+          {(headCoaches.length > 0 || assistantCoaches.length > 0) && (
+            <div className="space-y-3 pb-7 border-b border-line lg:pb-5 lg:border lg:border-line lg:rounded-2xl lg:bg-surface lg:p-5">
+              {headCoaches.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
+                    Head Coach
+                  </span>
+                  <span className="text-sm font-bold text-ink">
+                    {headCoaches.map((c: any) => c.name).join(", ")}
+                  </span>
+                </div>
+              )}
+              {assistantCoaches.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
+                    Assistant Coaches
+                  </span>
+                  <span className="text-sm font-bold text-ink">
+                    {assistantCoaches.map((c: any) => c.name).join(", ")}
+                  </span>
+                </div>
+              )}
             </div>
           )}
-          {assistantCoaches.length > 0 && (
-            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 sm:w-32 shrink-0 sm:pt-0.5">
-                Assistant Coaches
-              </span>
-              <span className="text-sm font-bold text-ink">
-                {assistantCoaches.map((c: any) => c.name).join(", ")}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
         </aside>
       </div>
 
@@ -1903,10 +1940,22 @@ export const HomeTab = memo(() => {
 // hidden subsets) but the card density is tight so the whole section
 // stays compact.
 const LeaderboardsSection = memo(
-  ({ players, isKidPitch, primaryColor, tertiaryColor, onPlayerClick, stripped = false }: any) => {
+  ({
+    players,
+    isKidPitch,
+    primaryColor,
+    tertiaryColor,
+    onPlayerClick,
+    stripped = false,
+  }: any) => {
     const tabs = useMemo(() => {
       const out = [
-        { id: "offense", label: "Offensive", icon: Icons.Bat, stats: HITTING_STATS },
+        {
+          id: "offense",
+          label: "Offensive",
+          icon: Icons.Bat,
+          stats: HITTING_STATS,
+        },
         {
           id: "defense",
           label: "Defensive",
@@ -1916,7 +1965,8 @@ const LeaderboardsSection = memo(
       ];
       // Only show Pitching tab when at least one player has pitched (any IP).
       const anyPitches = (players || []).some(
-        (p: any) => Number(p.stats?.ip) > 0 || Number(p.stats?.totalPitches) > 0
+        (p: any) =>
+          Number(p.stats?.ip) > 0 || Number(p.stats?.totalPitches) > 0,
       );
       if (isKidPitch && anyPitches) {
         out.push({
@@ -1948,9 +1998,7 @@ const LeaderboardsSection = memo(
                   type="button"
                   onClick={() => setActiveTab(t.id)}
                   className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md transition-colors ${
-                    isActive
-                      ? "shadow-sm"
-                      : "text-ink-3 hover:bg-surface"
+                    isActive ? "shadow-sm" : "text-ink-3 hover:bg-surface"
                   }`}
                   style={
                     isActive
@@ -2004,5 +2052,5 @@ const LeaderboardsSection = memo(
         )}
       </div>
     );
-  }
+  },
 );

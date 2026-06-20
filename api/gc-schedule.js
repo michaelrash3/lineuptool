@@ -40,7 +40,8 @@ module.exports = async function handler(req, res) {
       raw = req.query.url;
     } else if (req && typeof req.url === "string") {
       try {
-        raw = new URL(req.url, "http://localhost").searchParams.get("url") || "";
+        raw =
+          new URL(req.url, "http://localhost").searchParams.get("url") || "";
       } catch (_e) {
         raw = "";
       }
@@ -58,10 +59,14 @@ module.exports = async function handler(req, res) {
       return json(400, { error: "Only https/webcal URLs are allowed" });
     }
     if (!/(^|\.)gc\.com$/i.test(parsed.hostname)) {
-      return json(400, { error: "Only GameChanger (gc.com) feeds are allowed" });
+      return json(400, {
+        error: "Only GameChanger (gc.com) feeds are allowed",
+      });
     }
     if (typeof fetch !== "function") {
-      return json(500, { error: "Server fetch unavailable (Node runtime too old)" });
+      return json(500, {
+        error: "Server fetch unavailable (Node runtime too old)",
+      });
     }
 
     const controller = new AbortController();

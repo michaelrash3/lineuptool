@@ -5,8 +5,22 @@ import { GameLogPanel } from "./GameLogPanel";
 import { renderWithProviders } from "../test-utils";
 
 const games = [
-  { id: "g1", date: "2026-05-01", opponent: "Rays", status: "final", teamScore: 5, opponentScore: 3 },
-  { id: "g2", date: "2026-05-08", opponent: "Cubs", status: "final", teamScore: 2, opponentScore: 6 },
+  {
+    id: "g1",
+    date: "2026-05-01",
+    opponent: "Rays",
+    status: "final",
+    teamScore: 5,
+    opponentScore: 3,
+  },
+  {
+    id: "g2",
+    date: "2026-05-08",
+    opponent: "Cubs",
+    status: "final",
+    teamScore: 2,
+    opponentScore: 6,
+  },
   { id: "g3", date: "2026-05-15", opponent: "Sox", status: "scheduled" },
 ];
 

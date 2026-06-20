@@ -38,10 +38,14 @@
   --line: #e4e9f1;
   --line-strong: #d2dae6;
 
-  --win: #15a34a;  --win-bg: #e7f7ee;
-  --loss: #dc2626; --loss-bg: #fdeaea;
-  --warn-fg: #c2660a; --warn-bg: #fbf0dd;
-  --info-fg: #1d4ed8; --info-bg: #dbeafe;
+  --win: #15a34a;
+  --win-bg: #e7f7ee;
+  --loss: #dc2626;
+  --loss-bg: #fdeaea;
+  --warn-fg: #c2660a;
+  --warn-bg: #fbf0dd;
+  --info-fg: #1d4ed8;
+  --info-bg: #dbeafe;
 
   /* Sharp, architectural geometry — crisp edges read premium. */
   --radius: 4px;
@@ -105,12 +109,17 @@
   --card-ring: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
   /* SHADOWS — soft, layered, premium. */
-  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.18);
+  --shadow-card:
+    0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.18);
   --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
-  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.10), 0 2px 4px -2px rgb(15 23 42 / 0.08);
-  --shadow-lg: 0 18px 30px -12px rgb(15 23 42 / 0.22), 0 6px 12px -8px rgb(15 23 42 / 0.12);
-  --shadow-xl: 0 30px 60px -18px rgb(15 23 42 / 0.30), 0 10px 20px -12px rgb(15 23 42 / 0.16);
-  --shadow-2xl: 0 40px 80px -20px rgb(15 23 42 / 0.40);
+  --shadow-md:
+    0 4px 6px -1px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.08);
+  --shadow-lg:
+    0 18px 30px -12px rgb(15 23 42 / 0.22), 0 6px 12px -8px rgb(15 23 42 / 0.12);
+  --shadow-xl:
+    0 30px 60px -18px rgb(15 23 42 / 0.3),
+    0 10px 20px -12px rgb(15 23 42 / 0.16);
+  --shadow-2xl: 0 40px 80px -20px rgb(15 23 42 / 0.4);
 
   /* GLOWS — team-color halos for CTAs, active states, hero cards. */
   --glow-primary:
@@ -120,11 +129,11 @@
     0 0 0 1px color-mix(in srgb, var(--team-primary) 40%, transparent),
     0 14px 44px -8px color-mix(in srgb, var(--team-primary) 60%, transparent);
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji",
-    sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas,
-    monospace;
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 /* ============================================================================
@@ -141,16 +150,20 @@
   --line: #1e2738;
   --line-strong: #2b3850;
 
-  --win: #34d399;  --win-bg: #0f2a20;
-  --loss: #f87171; --loss-bg: #2a1416;
-  --warn-fg: #fbbf24; --warn-bg: #2a2008;
-  --info-fg: #7eb3f9; --info-bg: #122339;
+  --win: #34d399;
+  --win-bg: #0f2a20;
+  --loss: #f87171;
+  --loss-bg: #2a1416;
+  --warn-fg: #fbbf24;
+  --warn-bg: #2a2008;
+  --info-fg: #7eb3f9;
+  --info-bg: #122339;
 
   /* Glass reads as a faint light film over the dark surface. */
   --surface-glass-1: rgba(255, 255, 255, 0.04);
   --surface-glass-2: rgba(255, 255, 255, 0.06);
   --surface-glass-3: rgba(255, 255, 255, 0.08);
-  --surface-glass-4: rgba(255, 255, 255, 0.10);
+  --surface-glass-4: rgba(255, 255, 255, 0.1);
   --surface-glass-5: rgba(255, 255, 255, 0.14);
   --hairline: rgba(255, 255, 255, 0.08);
   --glass-fill: color-mix(in srgb, var(--surface) 62%, transparent);
@@ -163,7 +176,8 @@
   --team-primary-soft: color-mix(in srgb, var(--team-primary) 22%, #0b111a);
 
   /* In the dark, depth comes from black shadow + a faint top highlight. */
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px -20px rgb(0 0 0 / 0.8);
+  --shadow-card:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px -20px rgb(0 0 0 / 0.8);
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
   --shadow-md: 0 6px 16px -6px rgb(0 0 0 / 0.6);
   --shadow-lg: 0 24px 50px -20px rgb(0 0 0 / 0.75);
@@ -180,7 +194,9 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   font-feature-settings: "cv11", "ss01";
-  transition: background-color 0.25s ease, color 0.25s ease;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease;
 }
 
 /* Cinematic ambient backdrop — a soft team-color aura up top plus a deep
@@ -421,7 +437,9 @@ body::before {
 
 /* Hover-lift used on interactive cards/buttons. */
 .cc-lift {
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 .cc-lift:hover {
   transform: translateY(-2px);
@@ -467,12 +485,19 @@ body::before {
 .btn-premium {
   position: relative;
   background-color: var(--team-primary);
-  box-shadow: var(--glow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+  box-shadow:
+    var(--glow-primary),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition:
+    filter 0.15s ease,
+    transform 0.12s ease,
+    box-shadow 0.15s ease;
 }
 .btn-premium:hover {
   filter: brightness(1.05);
-  box-shadow: var(--glow-primary-strong), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+  box-shadow:
+    var(--glow-primary-strong),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
 .btn-premium:active {
   transform: translateY(0.5px);

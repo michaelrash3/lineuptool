@@ -13,9 +13,27 @@ const upcoming = {
   status: "scheduled",
 };
 const players = [
-  { id: "p1", name: "Ace", number: "1", comfortablePositions: ["P"], pitching: { recentPitches: 0, lastPitchDate: null } },
-  { id: "p2", name: "Maxed Out", number: "2", comfortablePositions: ["P"], pitching: { recentPitches: 90, lastPitchDate: "2099-05-09" } },
-  { id: "p3", name: "Fielder", number: "3", comfortablePositions: ["SS"], pitching: { recentPitches: 0, lastPitchDate: null } },
+  {
+    id: "p1",
+    name: "Ace",
+    number: "1",
+    comfortablePositions: ["P"],
+    pitching: { recentPitches: 0, lastPitchDate: null },
+  },
+  {
+    id: "p2",
+    name: "Maxed Out",
+    number: "2",
+    comfortablePositions: ["P"],
+    pitching: { recentPitches: 90, lastPitchDate: "2099-05-09" },
+  },
+  {
+    id: "p3",
+    name: "Fielder",
+    number: "3",
+    comfortablePositions: ["SS"],
+    pitching: { recentPitches: 0, lastPitchDate: null },
+  },
 ];
 
 const baseTeam = (over: any = {}) => ({
@@ -49,7 +67,10 @@ describe("PitchingPlanPanel", () => {
 
   it("hides for non-Kid-Pitch formats", () => {
     const { container } = renderWithProviders(<PitchingPlanPanel />, {
-      team: { team: baseTeam({ pitchingFormat: "Coach Pitch" }), currentRole: "head" },
+      team: {
+        team: baseTeam({ pitchingFormat: "Coach Pitch" }),
+        currentRole: "head",
+      },
     });
     expect(container).toBeEmptyDOMElement();
   });
@@ -57,7 +78,17 @@ describe("PitchingPlanPanel", () => {
   it("hides when there is no upcoming game", () => {
     const { container } = renderWithProviders(<PitchingPlanPanel />, {
       team: {
-        team: baseTeam({ games: [{ id: "old", date: "2000-01-01", status: "final", teamScore: 1, opponentScore: 0 }] }),
+        team: baseTeam({
+          games: [
+            {
+              id: "old",
+              date: "2000-01-01",
+              status: "final",
+              teamScore: 1,
+              opponentScore: 0,
+            },
+          ],
+        }),
         currentRole: "head",
       },
     });

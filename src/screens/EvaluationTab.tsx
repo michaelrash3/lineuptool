@@ -54,7 +54,7 @@ import { ChartFrame, ChartTooltip } from "../components/charts/primitives";
 
 const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   (a, b) => a + b,
-  0
+  0,
 );
 
 // Eval-card score: normalize every applicable bucket back to a percentage.
@@ -68,12 +68,11 @@ const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
   let possible = TOTAL_SCORE_MAX;
 
   if (playerIsPitcher(player)) {
-    earned +=
-      calcPitcherScore(grades, stats, {
-        topMph: stats?.pTopMph ?? player?.pitching?.topMph,
-        teamAge,
-        neutralFill: true,
-      });
+    earned += calcPitcherScore(grades, stats, {
+      topMph: stats?.pTopMph ?? player?.pitching?.topMph,
+      teamAge,
+      neutralFill: true,
+    });
     possible += PITCHER_EVAL_MAX;
   }
 
@@ -94,7 +93,11 @@ const evalTotalScore = (grades: any, player: any, teamAge?: string): number => {
 // line comparable against the all-categories neutral baseline; zero-signal
 // pitching still earns nothing. Left-handed scarcity is applied only to the
 // hidden roster-decision standing below, not to the visible score badge.
-const pitcherPremium = (savedGrades: any, player: any, teamAge?: string): number => {
+const pitcherPremium = (
+  savedGrades: any,
+  player: any,
+  teamAge?: string,
+): number => {
   if (!playerIsPitcher(player)) return 0;
   const stats = player?.stats || null;
   const score = calcPitcherScore(savedGrades, stats, {
@@ -127,8 +130,9 @@ const SUGGESTED_POSITIONS = [
 const DEFAULT_GRADES = EVAL_CATEGORIES.reduce(
   // Measurement fields (e.g. Pitch Velocity in mph) are optional and have no
   // default — only 1–5 grades seed a starting value.
-  (acc, c) => (c.inputKind === "mph" ? acc : { ...acc, [c.id]: EVAL_SCALE_DEFAULT }),
-  {}
+  (acc, c) =>
+    c.inputKind === "mph" ? acc : { ...acc, [c.id]: EVAL_SCALE_DEFAULT },
+  {},
 );
 
 // Display name for a round: prefer the coach's denormalized last name
@@ -148,7 +152,8 @@ const sanitizeGrades = (g: any) => {
   const out: Record<string, any> = { ...DEFAULT_GRADES };
   EVAL_CATEGORIES.forEach((c) => {
     const v = parseInt(g?.[c.id], 10);
-    if (Number.isFinite(v)) out[c.id] = Math.max(1, Math.min(EVAL_SCALE_MAX, v));
+    if (Number.isFinite(v))
+      out[c.id] = Math.max(1, Math.min(EVAL_SCALE_MAX, v));
   });
   if (typeof g?.notes === "string" && g.notes.trim()) out.notes = g.notes;
   return out;
@@ -157,13 +162,8 @@ const sanitizeGrades = (g: any) => {
 export const RosterDecisionsPanel = memo(() => {
   const { team, user } = useTeam();
   const { setEvalTrendPlayerId } = useUI();
-  const {
-    players,
-    primaryColor,
-    evaluationEvents,
-    teamAge,
-    currentSeason,
-  } = team;
+  const { players, primaryColor, evaluationEvents, teamAge, currentSeason } =
+    team;
 
   const decisions = useMemo(() => {
     if (!players || players.length === 0) return null;
@@ -171,7 +171,11 @@ export const RosterDecisionsPanel = memo(() => {
     // Eval rounds for this user, oldest first
     const myEvals = (evaluationEvents || [])
       .filter(
-        (e: any) => !e.tryoutSignupId && !e.tryoutSessionId && e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
+        (e: any) =>
+          !e.tryoutSignupId &&
+          !e.tryoutSessionId &&
+          e.coachRole === "Head" &&
+          (!user || e.evaluatorId === user.uid),
       )
       .sort((a: any, b: any) => evalRoundRecency(b, a));
 
@@ -214,7 +218,10 @@ export const RosterDecisionsPanel = memo(() => {
     const decisionRows = players.map((player: any) => {
       // ---- Latest eval grade (average across categories) ----
       let latestEvalAvg = null;
-      const playerCats = getEvalCategoriesForPlayer(team?.pitchingFormat, player);
+      const playerCats = getEvalCategoriesForPlayer(
+        team?.pitchingFormat,
+        player,
+      );
       const evalsForPlayer = myEvals
         .map((ev: any) => {
           const g = ev.grades?.[player.id];
@@ -273,15 +280,17 @@ export const RosterDecisionsPanel = memo(() => {
       const savedGrades = latestRoundForPlayer?.grades?.[player.id] || {};
       const totalScore = Math.min(
         100,
-        calculateTotalScore({ ...DEFAULT_GRADES, ...savedGrades }, player.stats) +
-          pitcherPremium(savedGrades, player, teamAge)
+        calculateTotalScore(
+          { ...DEFAULT_GRADES, ...savedGrades },
+          player.stats,
+        ) + pitcherPremium(savedGrades, player, teamAge),
       );
       // Hidden decision standing: left-handed pitcher scarcity matters for the
       // coach's roster advisory, but it is intentionally not shown in the
       // score badge so handedness cannot be reverse-engineered as extra points.
       const decisionScore = Math.min(
         100,
-        totalScore + leftHandedPitcherRosterPremium(player)
+        totalScore + leftHandedPitcherRosterPremium(player),
       );
 
       // ---- Age eligibility ----
@@ -334,11 +343,11 @@ export const RosterDecisionsPanel = memo(() => {
           }
           if (statsWayBelowBar) {
             rationale.push(
-              `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`
+              `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`,
             );
           }
           rationale.push(
-            `Playing up at age ${baseballAge} — better matched to a younger division`
+            `Playing up at age ${baseballAge} — better matched to a younger division`,
           );
         }
       }
@@ -353,7 +362,8 @@ export const RosterDecisionsPanel = memo(() => {
           // below-team bat a Strong Fit solely because subjective evals are
           // good. They can still be a Fit, but Strong is for clear standouts.
           (statsRatio == null || statsRatio >= 1.0);
-        const positiveSignal = stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
+        const positiveSignal =
+          stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
         if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
           bucket = "strong";
           if (evalAboveBar) {
@@ -364,7 +374,7 @@ export const RosterDecisionsPanel = memo(() => {
           }
           if (statsRatio != null && statsRatio >= 1.0) {
             rationale.push(
-              `Stats +${Math.round(((statsRatio as number) - 1) * 100)}% vs team OPS avg`
+              `Stats +${Math.round(((statsRatio as number) - 1) * 100)}% vs team OPS avg`,
             );
           }
         }
@@ -387,7 +397,7 @@ export const RosterDecisionsPanel = memo(() => {
           }
           if (statsBelowBar) {
             rationale.push(
-              `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`
+              `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`,
             );
           } else if (statsAbsent) {
             rationale.push("No stats yet");
@@ -444,7 +454,8 @@ export const RosterDecisionsPanel = memo(() => {
       : 0;
     const sd = scored.length
       ? Math.sqrt(
-          scored.reduce((a: any, b: any) => a + (b - mean) ** 2, 0) / scored.length
+          scored.reduce((a: any, b: any) => a + (b - mean) ** 2, 0) /
+            scored.length,
         )
       : 0;
     const belowLine = mean - sd;
@@ -452,7 +463,10 @@ export const RosterDecisionsPanel = memo(() => {
       .filter((d: any) => d.latestEvalAvg != null || d.statsRatio != null)
       .map((d: any) => d.totalScore);
     const teamAvgScore = visibleScores.length
-      ? Math.round(visibleScores.reduce((a: number, b: number) => a + b, 0) / visibleScores.length)
+      ? Math.round(
+          visibleScores.reduce((a: number, b: number) => a + b, 0) /
+            visibleScores.length,
+        )
       : Math.round(mean * 100);
     for (const x of withComp) {
       // perfScore drives the within-bucket card sort below (was never set).
@@ -468,7 +482,7 @@ export const RosterDecisionsPanel = memo(() => {
         x.d.rationale.unshift(
           `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
             x.d.scoreVsTeam > 0 ? "+" : ""
-          }${x.d.scoreVsTeam}) — more than a standard deviation back`
+          }${x.d.scoreVsTeam}) — more than a standard deviation back`,
         );
         continue;
       }
@@ -483,7 +497,14 @@ export const RosterDecisionsPanel = memo(() => {
     }
 
     return decisionRows;
-  }, [players, evaluationEvents, user, teamAge, currentSeason, team?.pitchingFormat]);
+  }, [
+    players,
+    evaluationEvents,
+    user,
+    teamAge,
+    currentSeason,
+    team?.pitchingFormat,
+  ]);
 
   if (!decisions || decisions.length === 0) return null;
 
@@ -496,10 +517,18 @@ export const RosterDecisionsPanel = memo(() => {
 
   // Best-standing first for the healthy groups (Strong Fit / Fit); weakest
   // first for the groups that need a decision (Cut Candidates / Cut-Drop).
-  byBucket.strong.sort((a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
-  byBucket.fit.sort((a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0));
-  byBucket.watch.sort((a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
-  byBucket.younger.sort((a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0));
+  byBucket.strong.sort(
+    (a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0),
+  );
+  byBucket.fit.sort(
+    (a: any, b: any) => (b.perfScore ?? 0) - (a.perfScore ?? 0),
+  );
+  byBucket.watch.sort(
+    (a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0),
+  );
+  byBucket.younger.sort(
+    (a: any, b: any) => (a.perfScore ?? 0) - (b.perfScore ?? 0),
+  );
 
   const renderCard = (d: any) => (
     <button
@@ -536,8 +565,8 @@ export const RosterDecisionsPanel = memo(() => {
               d.scoreVsTeam > 0
                 ? "text-win"
                 : d.scoreVsTeam < 0
-                ? "text-loss"
-                : "text-ink-3"
+                  ? "text-loss"
+                  : "text-ink-3"
             }`}
             title={`vs team average score ${d.teamAvgScore}`}
           >
@@ -551,15 +580,15 @@ export const RosterDecisionsPanel = memo(() => {
               d.evalTrend === "improving"
                 ? "text-win"
                 : d.evalTrend === "declining"
-                ? "text-loss"
-                : "text-ink-3"
+                  ? "text-loss"
+                  : "text-ink-3"
             }`}
           >
             {d.evalTrend === "improving"
               ? "↑"
               : d.evalTrend === "declining"
-              ? "↓"
-              : "—"}
+                ? "↓"
+                : "—"}
           </span>
         )}
         {d.statsPctVsAvg != null && (
@@ -568,8 +597,8 @@ export const RosterDecisionsPanel = memo(() => {
               d.statsPctVsAvg > 5
                 ? "text-win"
                 : d.statsPctVsAvg < -5
-                ? "text-loss"
-                : "text-ink-3"
+                  ? "text-loss"
+                  : "text-ink-3"
             }`}
           >
             {d.statsPctVsAvg > 0 ? "+" : ""}
@@ -755,116 +784,128 @@ const computeFlags = (rounds: any, players: any, activeCategories: any) => {
 const fmtDelta = (d: any) =>
   `${d >= 0 ? "+" : ""}${d.toFixed(1)}`.replace(/\.0$/, "");
 
-const InsightsPanel = memo(({ rounds, players, activeCategories, onPlayerClick }: any) => {
-  const flags = useMemo(
-    () => computeFlags(rounds, players, activeCategories),
-    [rounds, players, activeCategories]
-  );
-  if (rounds.length < 2) return null;
-  const hasAny =
-    flags.standouts.length || flags.regressions.length || flags.categoryDrops.length;
-  if (!hasAny) return null;
-  return (
-    <div className="px-1 py-4 border-b border-line flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span className="t-eyebrow">Round-Over-Round Insights</span>
-        <span className="text-[10px] font-bold text-ink-3">
-          {rounds[0].label || rounds[0].date} vs {rounds[1].label || rounds[1].date}
-        </span>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {flags.standouts.length > 0 && (
-          <div className="border-l-2 border-win pl-3 py-0.5">
-            <div className="t-eyebrow text-win mb-2.5 flex items-center gap-1.5">
-              <Icons.ChevronUp className="w-3 h-3" /> Standouts
-            </div>
-            <ul className="space-y-1.5">
-              {flags.standouts.map((s) => (
-                <li
-                  key={`std-${s.player.id}`}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onPlayerClick(s.player.id)}
-                    className="t-body-bold text-win hover:underline text-left truncate"
-                  >
-                    {s.player.name}
-                  </button>
-                  <span className="t-stat-num-sm text-win tabular-nums">
-                    {fmtDelta(s.delta)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {flags.regressions.length > 0 && (
-          <div className="border-l-2 border-loss pl-3 py-0.5">
-            <div className="t-eyebrow text-loss mb-2.5 flex items-center gap-1.5">
-              <Icons.ChevronDown className="w-3 h-3" /> Regressions
-            </div>
-            <ul className="space-y-1.5">
-              {flags.regressions.map((r) => (
-                <li
-                  key={`reg-${r.player.id}`}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onPlayerClick(r.player.id)}
-                    className="t-body-bold text-loss hover:underline text-left truncate"
-                  >
-                    {r.player.name}
-                  </button>
-                  <span className="t-stat-num-sm text-loss tabular-nums">
-                    {fmtDelta(r.delta)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-      {flags.categoryDrops.length > 0 && (
-        <div className="border-l-2 border-warnfg pl-3 py-0.5">
-          <div className="t-eyebrow text-warnfg mb-2.5 flex items-center gap-1.5">
-            <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
-          </div>
-          <ul className="space-y-1.5">
-            {flags.categoryDrops.map((d, i) => (
-              <li
-                key={`drop-${d.player.id}-${d.category.id}-${i}`}
-                className="flex items-center justify-between text-sm flex-wrap gap-2"
-              >
-                <span className="flex items-center gap-2 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => onPlayerClick(d.player.id)}
-                    className="t-body-bold text-warnfg hover:underline text-left truncate"
-                  >
-                    {d.player.name}
-                  </button>
-                  <span className="t-eyebrow text-warnfg">
-                    {d.category.label}
-                  </span>
-                </span>
-                <span className="t-stat-num-sm text-warnfg tabular-nums">
-                  {d.from} → {d.to}
-                </span>
-              </li>
-            ))}
-          </ul>
+const InsightsPanel = memo(
+  ({ rounds, players, activeCategories, onPlayerClick }: any) => {
+    const flags = useMemo(
+      () => computeFlags(rounds, players, activeCategories),
+      [rounds, players, activeCategories],
+    );
+    if (rounds.length < 2) return null;
+    const hasAny =
+      flags.standouts.length ||
+      flags.regressions.length ||
+      flags.categoryDrops.length;
+    if (!hasAny) return null;
+    return (
+      <div className="px-1 py-4 border-b border-line flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <span className="t-eyebrow">Round-Over-Round Insights</span>
+          <span className="text-[10px] font-bold text-ink-3">
+            {rounds[0].label || rounds[0].date} vs{" "}
+            {rounds[1].label || rounds[1].date}
+          </span>
         </div>
-      )}
-    </div>
-  );
-});
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {flags.standouts.length > 0 && (
+            <div className="border-l-2 border-win pl-3 py-0.5">
+              <div className="t-eyebrow text-win mb-2.5 flex items-center gap-1.5">
+                <Icons.ChevronUp className="w-3 h-3" /> Standouts
+              </div>
+              <ul className="space-y-1.5">
+                {flags.standouts.map((s) => (
+                  <li
+                    key={`std-${s.player.id}`}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onPlayerClick(s.player.id)}
+                      className="t-body-bold text-win hover:underline text-left truncate"
+                    >
+                      {s.player.name}
+                    </button>
+                    <span className="t-stat-num-sm text-win tabular-nums">
+                      {fmtDelta(s.delta)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {flags.regressions.length > 0 && (
+            <div className="border-l-2 border-loss pl-3 py-0.5">
+              <div className="t-eyebrow text-loss mb-2.5 flex items-center gap-1.5">
+                <Icons.ChevronDown className="w-3 h-3" /> Regressions
+              </div>
+              <ul className="space-y-1.5">
+                {flags.regressions.map((r) => (
+                  <li
+                    key={`reg-${r.player.id}`}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onPlayerClick(r.player.id)}
+                      className="t-body-bold text-loss hover:underline text-left truncate"
+                    >
+                      {r.player.name}
+                    </button>
+                    <span className="t-stat-num-sm text-loss tabular-nums">
+                      {fmtDelta(r.delta)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+        {flags.categoryDrops.length > 0 && (
+          <div className="border-l-2 border-warnfg pl-3 py-0.5">
+            <div className="t-eyebrow text-warnfg mb-2.5 flex items-center gap-1.5">
+              <Icons.Alert className="w-3 h-3" /> Category Drops (-2 or more)
+            </div>
+            <ul className="space-y-1.5">
+              {flags.categoryDrops.map((d, i) => (
+                <li
+                  key={`drop-${d.player.id}-${d.category.id}-${i}`}
+                  className="flex items-center justify-between text-sm flex-wrap gap-2"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onPlayerClick(d.player.id)}
+                      className="t-body-bold text-warnfg hover:underline text-left truncate"
+                    >
+                      {d.player.name}
+                    </button>
+                    <span className="t-eyebrow text-warnfg">
+                      {d.category.label}
+                    </span>
+                  </span>
+                  <span className="t-stat-num-sm text-warnfg tabular-nums">
+                    {d.from} → {d.to}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
+  },
+);
 
 // Side-by-side round comparison view. Lists every player with the per-category
 // delta between two saved rounds (left = older, right = newer).
 const RoundComparisonView = memo(
-  ({ rounds, players, activeCategories, onPlayerClick, onClose, primaryColor }: any) => {
+  ({
+    rounds,
+    players,
+    activeCategories,
+    onPlayerClick,
+    onClose,
+    primaryColor,
+  }: any) => {
     const [leftId, setLeftId] = useState(rounds[1]?.id || "");
     const [rightId, setRightId] = useState(rounds[0]?.id || "");
     const left = rounds.find((r: any) => r.id === leftId);
@@ -950,8 +991,7 @@ const RoundComparisonView = memo(
                   const rg = right?.grades?.[p.id];
                   const la = avgUniversal(lg);
                   const ra = avgUniversal(rg);
-                  const avgDelta =
-                    la != null && ra != null ? ra - la : null;
+                  const avgDelta = la != null && ra != null ? ra - la : null;
                   return (
                     <tr key={p.id} className="hover:bg-surface-2">
                       <td className="p-3 sticky left-0 bg-surface z-10 border-r border-line max-w-[200px]">
@@ -978,9 +1018,7 @@ const RoundComparisonView = memo(
                               {delta != null && delta !== 0 && (
                                 <span
                                   className={`text-[10px] font-black tabular-nums ${
-                                    delta > 0
-                                      ? "text-win"
-                                      : "text-loss"
+                                    delta > 0 ? "text-win" : "text-loss"
                                   }`}
                                 >
                                   {fmtDelta(delta)}
@@ -996,10 +1034,10 @@ const RoundComparisonView = memo(
                             avgDelta == null
                               ? "text-ink-3"
                               : avgDelta > 0
-                              ? "text-win"
-                              : avgDelta < 0
-                              ? "text-loss"
-                              : "text-ink-3"
+                                ? "text-win"
+                                : avgDelta < 0
+                                  ? "text-loss"
+                                  : "text-ink-3"
                           }`}
                         >
                           {avgDelta != null ? fmtDelta(avgDelta) : "—"}
@@ -1014,7 +1052,7 @@ const RoundComparisonView = memo(
         </A11yDialog>
       </div>
     );
-  }
+  },
 );
 
 // Head-only read-only view of every assistant's most recent submission.
@@ -1023,146 +1061,155 @@ const RoundComparisonView = memo(
 // combined grade rendered in the main grading area.
 const AssistantSubmissionsPanel = memo(
   ({ evaluationEvents, players, onDelete }: any) => {
-  // Two-tap confirm for delete: first tap arms the row, second commits.
-  // Replaces a blocking window.confirm — keeps the head coach in flow.
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
-  // Pick the most recent eval per assistant (by date).
-  const latestByAssistant = useMemo(() => {
-    const m = new Map();
-    for (const e of evaluationEvents || []) {
-      if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Assistant" || !e.evaluatorId) continue;
-      const cur = m.get(e.evaluatorId);
-      if (!cur || evalRoundRecency(e, cur) < 0) {
-        m.set(e.evaluatorId, e);
+    // Two-tap confirm for delete: first tap arms the row, second commits.
+    // Replaces a blocking window.confirm — keeps the head coach in flow.
+    const [pendingDeleteId, setPendingDeleteId] = useState(null);
+    // Pick the most recent eval per assistant (by date).
+    const latestByAssistant = useMemo(() => {
+      const m = new Map();
+      for (const e of evaluationEvents || []) {
+        if (
+          e.tryoutSignupId ||
+          e.tryoutSessionId ||
+          e.coachRole !== "Assistant" ||
+          !e.evaluatorId
+        )
+          continue;
+        const cur = m.get(e.evaluatorId);
+        if (!cur || evalRoundRecency(e, cur) < 0) {
+          m.set(e.evaluatorId, e);
+        }
       }
-    }
-    return [...m.values()].sort(evalRoundRecency);
-  }, [evaluationEvents]);
+      return [...m.values()].sort(evalRoundRecency);
+    }, [evaluationEvents]);
 
-  if (latestByAssistant.length === 0) return null;
+    if (latestByAssistant.length === 0) return null;
 
-  return (
-    <div className="px-1 py-4 border-b border-line">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="t-h3">Assistant Submissions</h3>
-        <span className="t-eyebrow text-ink-3">
-          {latestByAssistant.length} assistant
-          {latestByAssistant.length === 1 ? "" : "s"} ·{" "}
-          {Math.round(50)}% weight (split equally with your eval)
-        </span>
-      </div>
-      <div className="space-y-3">
-        {latestByAssistant.map((ev) => {
-          const playersWithSignal = (players || []).filter((p: any) => {
-            const g = ev.grades?.[p.id] || {};
-            const hasPositions =
-              Array.isArray(g.suggestedPositions) &&
-              g.suggestedPositions.length > 0;
-            const hasNotes = !!(g.notes && g.notes.trim());
-            return hasPositions || hasNotes;
-          });
-          return (
-            <div
-              key={ev.id}
-              className="border-b border-line pb-3 last:border-b-0 last:pb-0"
-            >
-              <div className="flex items-baseline justify-between gap-3 mb-2">
-                <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
-                  Assistant · {ev.evaluatorName || ev.evaluatorId?.slice(0, 8) || "—"}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="text-[10px] font-bold text-ink-3">
-                    {ev.date}
+    return (
+      <div className="px-1 py-4 border-b border-line">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="t-h3">Assistant Submissions</h3>
+          <span className="t-eyebrow text-ink-3">
+            {latestByAssistant.length} assistant
+            {latestByAssistant.length === 1 ? "" : "s"} · {Math.round(50)}%
+            weight (split equally with your eval)
+          </span>
+        </div>
+        <div className="space-y-3">
+          {latestByAssistant.map((ev) => {
+            const playersWithSignal = (players || []).filter((p: any) => {
+              const g = ev.grades?.[p.id] || {};
+              const hasPositions =
+                Array.isArray(g.suggestedPositions) &&
+                g.suggestedPositions.length > 0;
+              const hasNotes = !!(g.notes && g.notes.trim());
+              return hasPositions || hasNotes;
+            });
+            return (
+              <div
+                key={ev.id}
+                className="border-b border-line pb-3 last:border-b-0 last:pb-0"
+              >
+                <div className="flex items-baseline justify-between gap-3 mb-2">
+                  <div className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 truncate">
+                    Assistant ·{" "}
+                    {ev.evaluatorName || ev.evaluatorId?.slice(0, 8) || "—"}
                   </div>
-                  {onDelete && (() => {
-                    const armed = pendingDeleteId === ev.id;
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (armed) {
-                            onDelete(ev.id);
-                            setPendingDeleteId(null);
-                          } else {
-                            setPendingDeleteId(ev.id);
-                          }
-                        }}
-                        onBlur={() => {
-                          if (armed) setPendingDeleteId(null);
-                        }}
-                        className={`flex items-center gap-1 rounded-md transition-colors ${
-                          armed
-                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-[var(--loss)]"
-                            : "p-1 text-ink-3 hover:text-loss hover:bg-loss-bg"
-                        }`}
-                        title={
-                          armed
-                            ? "Tap again to delete"
-                            : "Delete this assistant's eval round"
-                        }
-                        aria-label={
-                          armed
-                            ? "Confirm delete assistant eval round"
-                            : "Delete assistant eval round"
-                        }
-                      >
-                        <Icons.Trash className="w-3.5 h-3.5" />
-                        {armed && (
-                          <span className="text-[10px] font-black uppercase tracking-widest">
-                            Confirm
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })()}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="text-[10px] font-bold text-ink-3">
+                      {ev.date}
+                    </div>
+                    {onDelete &&
+                      (() => {
+                        const armed = pendingDeleteId === ev.id;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (armed) {
+                                onDelete(ev.id);
+                                setPendingDeleteId(null);
+                              } else {
+                                setPendingDeleteId(ev.id);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (armed) setPendingDeleteId(null);
+                            }}
+                            className={`flex items-center gap-1 rounded-md transition-colors ${
+                              armed
+                                ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-[var(--loss)]"
+                                : "p-1 text-ink-3 hover:text-loss hover:bg-loss-bg"
+                            }`}
+                            title={
+                              armed
+                                ? "Tap again to delete"
+                                : "Delete this assistant's eval round"
+                            }
+                            aria-label={
+                              armed
+                                ? "Confirm delete assistant eval round"
+                                : "Delete assistant eval round"
+                            }
+                          >
+                            <Icons.Trash className="w-3.5 h-3.5" />
+                            {armed && (
+                              <span className="text-[10px] font-black uppercase tracking-widest">
+                                Confirm
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })()}
+                  </div>
                 </div>
-              </div>
-              {playersWithSignal.length === 0 ? (
-                <p className="text-[11px] text-ink-3 font-medium italic">
-                  Grades submitted — no positions or notes flagged.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {playersWithSignal.map((p: any) => {
-                    const g = ev.grades?.[p.id] || {};
-                    return (
-                      <div
-                        key={p.id}
-                        className="border-t border-line pt-2 first:border-t-0 first:pt-0"
-                      >
-                        <div className="text-[12px] font-black uppercase tracking-tight text-ink mb-1">
-                          {p.name}
-                        </div>
-                        {Array.isArray(g.suggestedPositions) &&
-                          g.suggestedPositions.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-1">
-                              {g.suggestedPositions.map((pos: any) => (
-                                <span
-                                  key={pos}
-                                  className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg"
-                                >
-                                  {pos}
-                                </span>
-                              ))}
-                            </div>
+                {playersWithSignal.length === 0 ? (
+                  <p className="text-[11px] text-ink-3 font-medium italic">
+                    Grades submitted — no positions or notes flagged.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {playersWithSignal.map((p: any) => {
+                      const g = ev.grades?.[p.id] || {};
+                      return (
+                        <div
+                          key={p.id}
+                          className="border-t border-line pt-2 first:border-t-0 first:pt-0"
+                        >
+                          <div className="text-[12px] font-black uppercase tracking-tight text-ink mb-1">
+                            {p.name}
+                          </div>
+                          {Array.isArray(g.suggestedPositions) &&
+                            g.suggestedPositions.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-1">
+                                {g.suggestedPositions.map((pos: any) => (
+                                  <span
+                                    key={pos}
+                                    className="text-[10px] font-black px-1.5 py-0.5 rounded-md border bg-warn-bg border-line text-warnfg"
+                                  >
+                                    {pos}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          {g.notes && g.notes.trim() && (
+                            <p className="text-[11px] text-ink italic leading-snug">
+                              {g.notes}
+                            </p>
                           )}
-                        {g.notes && g.notes.trim() && (
-                          <p className="text-[11px] text-ink italic leading-snug">
-                            {g.notes}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 // Read-only inline readout of every assistant's most-recent grades + notes for
 // ONE player, rendered right inside that player's head-coach grading card. This
@@ -1172,7 +1219,7 @@ const AssistantSubmissionsPanel = memo(
 const PlayerAssistantEvals = memo(
   ({ player, playerCats, assistantRounds }: any) => {
     const relevant = (assistantRounds || []).filter(
-      (ev: any) => ev.grades?.[player.id]
+      (ev: any) => ev.grades?.[player.id],
     );
     if (relevant.length === 0) return null;
     return (
@@ -1241,7 +1288,7 @@ const PlayerAssistantEvals = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 const GradeChipRow = memo(({ value, onChange, ariaLabel }: any) => (
@@ -1324,7 +1371,7 @@ export const EvaluationTab = memo(() => {
   // window opens for this head coach. Past rounds stay viewable + editable.
   const promptStatus = useMemo(
     () => evalPromptStatus(team, user?.uid, "Head"),
-    [team, user]
+    [team, user],
   );
 
   const [saveState, setSaveState] = useState("idle");
@@ -1360,11 +1407,11 @@ export const EvaluationTab = memo(() => {
 
   const activeCategories = useMemo(
     () => getEvalCategoriesForTeam(pitchingFormat),
-    [pitchingFormat]
+    [pitchingFormat],
   );
   const includeKidPitchAddons = useMemo(
     () => isKidPitchFormat(pitchingFormat),
-    [pitchingFormat]
+    [pitchingFormat],
   );
   const visibleGroups = useMemo(() => {
     const base = [...EVAL_GROUPS_UNIVERSAL];
@@ -1389,7 +1436,11 @@ export const EvaluationTab = memo(() => {
   const myRounds = useMemo(() => {
     return (evaluationEvents || [])
       .filter(
-        (e: any) => !e.tryoutSignupId && !e.tryoutSessionId && e.coachRole === "Head" && (!user || e.evaluatorId === user.uid)
+        (e: any) =>
+          !e.tryoutSignupId &&
+          !e.tryoutSessionId &&
+          e.coachRole === "Head" &&
+          (!user || e.evaluatorId === user.uid),
       )
       .sort(evalRoundRecency);
   }, [evaluationEvents, user]);
@@ -1400,7 +1451,13 @@ export const EvaluationTab = memo(() => {
   const assistantRounds = useMemo(() => {
     const m = new Map();
     for (const e of evaluationEvents || []) {
-      if (e.tryoutSignupId || e.tryoutSessionId || e.coachRole !== "Assistant" || !e.evaluatorId) continue;
+      if (
+        e.tryoutSignupId ||
+        e.tryoutSessionId ||
+        e.coachRole !== "Assistant" ||
+        !e.evaluatorId
+      )
+        continue;
       const cur = m.get(e.evaluatorId);
       if (!cur || evalRoundRecency(e, cur) < 0) m.set(e.evaluatorId, e);
     }
@@ -1444,7 +1501,13 @@ export const EvaluationTab = memo(() => {
     ) {
       setSelectedRoundId(myRounds[0].id);
     }
-  }, [explicitNew, promptStatus.active, selectedRoundId, myRounds, setSelectedRoundId]);
+  }, [
+    explicitNew,
+    promptStatus.active,
+    selectedRoundId,
+    myRounds,
+    setSelectedRoundId,
+  ]);
 
   // Track unsaved changes against the last persisted snapshot so the
   // header can show a single, honest "Unsaved changes" indicator until
@@ -1524,7 +1587,7 @@ export const EvaluationTab = memo(() => {
         },
       });
     },
-    [teamEvalGrades, setTeamEvalGrades]
+    [teamEvalGrades, setTeamEvalGrades],
   );
 
   const setNotes = useCallback(
@@ -1538,7 +1601,7 @@ export const EvaluationTab = memo(() => {
         },
       });
     },
-    [teamEvalGrades, setTeamEvalGrades]
+    [teamEvalGrades, setTeamEvalGrades],
   );
 
   const toggleSuggestedPosition = useCallback(
@@ -1559,7 +1622,7 @@ export const EvaluationTab = memo(() => {
         },
       });
     },
-    [teamEvalGrades, setTeamEvalGrades]
+    [teamEvalGrades, setTeamEvalGrades],
   );
 
   const applyAllAverage = useCallback(() => {
@@ -1590,9 +1653,13 @@ export const EvaluationTab = memo(() => {
   const hasLastRound = myRounds.length > 0;
 
   const rankingRows = useMemo(() => {
-    const combinedGrades = getCombinedGrades(evaluationEvents || [], players || [], {
-      teamAge,
-    });
+    const combinedGrades = getCombinedGrades(
+      evaluationEvents || [],
+      players || [],
+      {
+        teamAge,
+      },
+    );
     return players
       .map((player: any) => {
         const savedGrades = {
@@ -1602,7 +1669,7 @@ export const EvaluationTab = memo(() => {
         const grades = { ...DEFAULT_GRADES, ...savedGrades };
         const totalScore = Math.min(
           100,
-          evalTotalScore(grades, player, teamAge)
+          evalTotalScore(grades, player, teamAge),
         );
         const primarySuggestion = suggestPrimaryPosition(player, grades, {
           kidPitch: isKidPitchFormat(pitchingFormat),
@@ -1613,7 +1680,9 @@ export const EvaluationTab = memo(() => {
       .sort((a: any, b: any) =>
         b.totalScore !== a.totalScore
           ? b.totalScore - a.totalScore
-          : String(a.player.name || "").localeCompare(String(b.player.name || ""))
+          : String(a.player.name || "").localeCompare(
+              String(b.player.name || ""),
+            ),
       )
       .map((row: any, idx: number) => ({ ...row, rank: idx + 1 }));
   }, [evaluationEvents, players, pitchingFormat, teamAge, teamEvalGrades]);
@@ -1679,16 +1748,16 @@ export const EvaluationTab = memo(() => {
                 isCreatingNew
                   ? "Save a brand-new eval round"
                   : pendingUpdateConfirm
-                  ? `Tap again to overwrite the saved round "${activeRoundName}"`
-                  : `Overwrite the saved round "${activeRoundName}"`
+                    ? `Tap again to overwrite the saved round "${activeRoundName}"`
+                    : `Overwrite the saved round "${activeRoundName}"`
               }
             >
               <Icons.Save className="w-4 h-4" />
               {isCreatingNew
                 ? "Save as New Round"
                 : pendingUpdateConfirm
-                ? `Overwrite “${activeRoundName}”?`
-                : "Update This Round"}
+                  ? `Overwrite “${activeRoundName}”?`
+                  : "Update This Round"}
             </button>
           </div>
         </div>
@@ -1700,530 +1769,564 @@ export const EvaluationTab = memo(() => {
             Section order is unchanged, so on mobile/tablet the columns stack in
             the exact same order as before — only lg:+ gets the grid. */}
         <div className="lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start space-y-6 lg:space-y-0">
-
-        {/* Left rail: round/player selector controls */}
-        <div className="lg:col-span-3 space-y-4">
-
-        {/* Round selection bar */}
-        <div className="px-1 py-3 border-b border-line flex flex-col sm:flex-row lg:flex-col lg:items-stretch gap-3 sm:items-center">
-          <label className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-2 shrink-0">
-              Eval:
-            </span>
-            <select
-              value={selectedRoundId || "__new"}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v === "__new") {
-                  startNewRound();
-                } else {
-                  setExplicitNew(false);
-                  setSelectedRoundId(v || null);
-                }
-              }}
-              className="flex-1 min-w-0 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 outline-none rounded-lg cursor-pointer hover:bg-surface transition-colors"
-            >
-              {/* Starting a new round is ALWAYS available — the cadence prompt
+          {/* Left rail: round/player selector controls */}
+          <div className="lg:col-span-3 space-y-4">
+            {/* Round selection bar */}
+            <div className="px-1 py-3 border-b border-line flex flex-col sm:flex-row lg:flex-col lg:items-stretch gap-3 sm:items-center">
+              <label className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-ink-2 shrink-0">
+                  Eval:
+                </span>
+                <select
+                  value={selectedRoundId || "__new"}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__new") {
+                      startNewRound();
+                    } else {
+                      setExplicitNew(false);
+                      setSelectedRoundId(v || null);
+                    }
+                  }}
+                  className="flex-1 min-w-0 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 outline-none rounded-lg cursor-pointer hover:bg-surface transition-colors"
+                >
+                  {/* Starting a new round is ALWAYS available — the cadence prompt
                   only decorates the label. Gating it forced coaches into
                   overwriting their previous round between windows. */}
-              <option value="__new">
-                + Start a new Eval
-                {promptStatus.active
-                  ? promptStatus.kind === "preseason"
-                    ? " (preseason due)"
-                    : " (biweekly due)"
-                  : promptStatus.daysUntilDue != null
-                  ? ` (next due in ${promptStatus.daysUntilDue}d)`
-                  : ""}
-              </option>
-              {myRounds.map((r: any) => (
-                <option key={r.id} value={r.id}>
-                  {formatRoundName(r)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {selectedRoundId && (
-            <button
-              type="button"
-              onClick={() => {
-                if (pendingRoundDelete) {
-                  deleteEvaluation?.(selectedRoundId);
-                  setSelectedRoundId(null);
-                  lastSavedRef.current = "";
-                  setSaveState("idle");
-                  setPendingRoundDelete(false);
-                } else {
-                  setPendingRoundDelete(true);
-                }
-              }}
-              onBlur={() => setPendingRoundDelete(false)}
-              className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
-                pendingRoundDelete
-                  ? "px-2.5 py-2 bg-loss-bg text-loss border-line ring-2 ring-[var(--loss)]"
-                  : "p-2 text-ink-3 hover:text-loss hover:bg-loss-bg border-line hover:border-line"
-              }`}
-              title={
-                pendingRoundDelete
-                  ? "Tap again to delete this eval round"
-                  : "Delete this eval round"
-              }
-              aria-label={
-                pendingRoundDelete
-                  ? "Confirm delete selected eval round"
-                  : "Delete selected eval round"
-              }
-            >
-              <Icons.Trash className="w-4 h-4" />
-              {pendingRoundDelete && (
-                <span className="text-[10px] font-black uppercase tracking-widest">
-                  Confirm
+                  <option value="__new">
+                    + Start a new Eval
+                    {promptStatus.active
+                      ? promptStatus.kind === "preseason"
+                        ? " (preseason due)"
+                        : " (biweekly due)"
+                      : promptStatus.daysUntilDue != null
+                        ? ` (next due in ${promptStatus.daysUntilDue}d)`
+                        : ""}
+                  </option>
+                  {myRounds.map((r: any) => (
+                    <option key={r.id} value={r.id}>
+                      {formatRoundName(r)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedRoundId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (pendingRoundDelete) {
+                      deleteEvaluation?.(selectedRoundId);
+                      setSelectedRoundId(null);
+                      lastSavedRef.current = "";
+                      setSaveState("idle");
+                      setPendingRoundDelete(false);
+                    } else {
+                      setPendingRoundDelete(true);
+                    }
+                  }}
+                  onBlur={() => setPendingRoundDelete(false)}
+                  className={`shrink-0 flex items-center gap-1.5 border rounded-lg transition-colors ${
+                    pendingRoundDelete
+                      ? "px-2.5 py-2 bg-loss-bg text-loss border-line ring-2 ring-[var(--loss)]"
+                      : "p-2 text-ink-3 hover:text-loss hover:bg-loss-bg border-line hover:border-line"
+                  }`}
+                  title={
+                    pendingRoundDelete
+                      ? "Tap again to delete this eval round"
+                      : "Delete this eval round"
+                  }
+                  aria-label={
+                    pendingRoundDelete
+                      ? "Confirm delete selected eval round"
+                      : "Delete selected eval round"
+                  }
+                >
+                  <Icons.Trash className="w-4 h-4" />
+                  {pendingRoundDelete && (
+                    <span className="text-[10px] font-black uppercase tracking-widest">
+                      Confirm
+                    </span>
+                  )}
+                </button>
+              )}
+              {!isCreatingNew && activeRound && (
+                <span className="text-[10px] font-bold text-ink-3 italic">
+                  Editing &quot;{formatRoundName(activeRound)}&quot;
                 </span>
               )}
-            </button>
-          )}
-          {!isCreatingNew && activeRound && (
-            <span className="text-[10px] font-bold text-ink-3 italic">
-              Editing &quot;{formatRoundName(activeRound)}&quot;
-            </span>
-          )}
-          {/* Explicit escape hatch: while editing a saved round, branch off
+              {/* Explicit escape hatch: while editing a saved round, branch off
               into a brand-new round instead of overwriting. Available at ALL
               times — the cadence prompt is a reminder, not a gate. */}
-          {!isCreatingNew && (
-            <button
-              type="button"
-              onClick={startNewRound}
-              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
-              title="Start a brand-new eval round instead of overwriting this one"
-            >
-              <Icons.Plus className="w-3.5 h-3.5" />
-              Start New Round
-            </button>
-          )}
-          {myRounds.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setManageOpen(true)}
-              className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
-              title="View, switch between, and delete saved rounds"
-              aria-label="Manage saved eval rounds"
-            >
-              <Icons.Clipboard className="w-3.5 h-3.5" />
-              Manage
-            </button>
-          )}
-          {myRounds.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => setComparisonOpen(true)}
-              className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5 shrink-0"
-              title="Compare any two saved rounds side by side"
-            >
-              <Icons.Forward className="w-3.5 h-3.5" /> Compare Rounds
-            </button>
-          )}
-        </div>
+              {!isCreatingNew && (
+                <button
+                  type="button"
+                  onClick={startNewRound}
+                  className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
+                  title="Start a brand-new eval round instead of overwriting this one"
+                >
+                  <Icons.Plus className="w-3.5 h-3.5" />
+                  Start New Round
+                </button>
+              )}
+              {myRounds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setManageOpen(true)}
+                  className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
+                  title="View, switch between, and delete saved rounds"
+                  aria-label="Manage saved eval rounds"
+                >
+                  <Icons.Clipboard className="w-3.5 h-3.5" />
+                  Manage
+                </button>
+              )}
+              {myRounds.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={() => setComparisonOpen(true)}
+                  className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5 shrink-0"
+                  title="Compare any two saved rounds side by side"
+                >
+                  <Icons.Forward className="w-3.5 h-3.5" /> Compare Rounds
+                </button>
+              )}
+            </div>
 
-        {/* Spells out exactly what Save will do right now — the fix for "is
+            {/* Spells out exactly what Save will do right now — the fix for "is
             this updating a file or starting a new eval?" */}
-        <div className="px-1 py-2 border-b border-line">
-          <p className="text-[11px] font-medium text-ink-2 flex items-center gap-1.5">
-            <Icons.Save className="w-3 h-3 text-ink-3 shrink-0" />
-            {isCreatingNew ? (
-              <>
-                Save creates a{" "}
-                <strong className="font-black text-ink">new eval round</strong>
-                {promptStatus.active
-                  ? promptStatus.kind === "preseason"
-                    ? " (preseason)."
-                    : " (biweekly)."
-                  : myRounds.length > 0
-                  ? ", pre-filled from your latest round."
-                  : "."}
-              </>
-            ) : (
-              <>
-                Save{" "}
-                <strong className="font-black text-ink">
-                  overwrites the saved round
-                </strong>{" "}
-                &ldquo;{activeRoundName}&rdquo; — it does not create a new one.
-              </>
-            )}
-          </p>
-        </div>
+            <div className="px-1 py-2 border-b border-line">
+              <p className="text-[11px] font-medium text-ink-2 flex items-center gap-1.5">
+                <Icons.Save className="w-3 h-3 text-ink-3 shrink-0" />
+                {isCreatingNew ? (
+                  <>
+                    Save creates a{" "}
+                    <strong className="font-black text-ink">
+                      new eval round
+                    </strong>
+                    {promptStatus.active
+                      ? promptStatus.kind === "preseason"
+                        ? " (preseason)."
+                        : " (biweekly)."
+                      : myRounds.length > 0
+                        ? ", pre-filled from your latest round."
+                        : "."}
+                  </>
+                ) : (
+                  <>
+                    Save{" "}
+                    <strong className="font-black text-ink">
+                      overwrites the saved round
+                    </strong>{" "}
+                    &ldquo;{activeRoundName}&rdquo; — it does not create a new
+                    one.
+                  </>
+                )}
+              </p>
+            </div>
+          </div>
+          {/* end left rail */}
 
-        </div>{/* end left rail */}
+          {/* Middle column: insights, assistant submissions, quick-set, grading cards */}
+          <div className="lg:col-span-6 space-y-4 min-w-0">
+            {/* Round-over-round auto-flags (standouts / regressions / category drops) */}
+            <InsightsPanel
+              rounds={myRounds}
+              players={players}
+              activeCategories={activeCategories}
+              onPlayerClick={setEvalTrendPlayerId}
+            />
 
-        {/* Middle column: insights, assistant submissions, quick-set, grading cards */}
-        <div className="lg:col-span-6 space-y-4 min-w-0">
-
-        {/* Round-over-round auto-flags (standouts / regressions / category drops) */}
-        <InsightsPanel
-          rounds={myRounds}
-          players={players}
-          activeCategories={activeCategories}
-          onPlayerClick={setEvalTrendPlayerId}
-        />
-
-        {/* Head-only: read-only view of every assistant's most recent eval
+            {/* Head-only: read-only view of every assistant's most recent eval
             submission so the head can see their suggested positions + notes
             alongside the combined grade. */}
-        <AssistantSubmissionsPanel
-          evaluationEvents={evaluationEvents}
-          players={players}
-          onDelete={deleteEvaluation}
-        />
+            <AssistantSubmissionsPanel
+              evaluationEvents={evaluationEvents}
+              players={players}
+              onDelete={deleteEvaluation}
+            />
 
-        {/* Quick-set toolbar */}
-        <div className="px-1 py-3 border-b border-line flex flex-wrap items-center gap-2">
-          <span className="t-eyebrow mr-1">Quick Set:</span>
-          <button
-            type="button"
-            onClick={copyFromLastRound}
-            disabled={!hasLastRound}
-            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-            title={
-              hasLastRound
-                ? "Copy grades from your most recent saved eval"
-                : "No previous eval to copy from"
-            }
-          >
-            <Icons.Forward className="w-3.5 h-3.5" /> Copy From Last Round
-          </button>
-          <button
-            type="button"
-            onClick={applyAllAverage}
-            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
-            title="Set every category for every player to 3"
-          >
-            <Icons.Refresh className="w-3.5 h-3.5" /> All Average (3)
-          </button>
-          <button
-            type="button"
-            onClick={() => setTeamEvalGrades({})}
-            className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-loss-bg hover:border-line hover:text-loss flex items-center gap-1.5"
-            title="Clear all in-progress grades"
-          >
-            <Icons.X className="w-3.5 h-3.5" /> Clear
-          </button>
-        </div>
+            {/* Quick-set toolbar */}
+            <div className="px-1 py-3 border-b border-line flex flex-wrap items-center gap-2">
+              <span className="t-eyebrow mr-1">Quick Set:</span>
+              <button
+                type="button"
+                onClick={copyFromLastRound}
+                disabled={!hasLastRound}
+                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={
+                  hasLastRound
+                    ? "Copy grades from your most recent saved eval"
+                    : "No previous eval to copy from"
+                }
+              >
+                <Icons.Forward className="w-3.5 h-3.5" /> Copy From Last Round
+              </button>
+              <button
+                type="button"
+                onClick={applyAllAverage}
+                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5"
+                title="Set every category for every player to 3"
+              >
+                <Icons.Refresh className="w-3.5 h-3.5" /> All Average (3)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTeamEvalGrades({})}
+                className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-loss-bg hover:border-line hover:text-loss flex items-center gap-1.5"
+                title="Clear all in-progress grades"
+              >
+                <Icons.X className="w-3.5 h-3.5" /> Clear
+              </button>
+            </div>
 
-        {/* Per-player grading cards — single column inside the col-span-6
+            {/* Per-player grading cards — single column inside the col-span-6
             middle. Same chip rows as the assistant flow so head + assistant
             inputs match. */}
-        <div className="px-1 py-3">
-          <div className="space-y-2">
-          {players.length > 0 && (
-            <div className="flex items-center justify-between gap-2 px-1 pb-1">
-              <span className="t-eyebrow text-ink-3">
-                {expandedPlayerIds.size} of {players.length} open
-              </span>
-              <div className="flex gap-1.5">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpandedPlayerIds(new Set(players.map((p: any) => p.id)))
-                  }
-                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
-                >
-                  Expand All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setExpandedPlayerIds(new Set())}
-                  className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
-                >
-                  Collapse All
-                </button>
-              </div>
-            </div>
-          )}
-          {players.length === 0 ? (
-            <div className="text-center py-10 t-body">
-              <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
-                ⭐
-              </div>
-              No players on the roster yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3">
-            {players.map((player: any) => {
-              const savedGrades = teamEvalGrades[player.id] || {};
-              const grades = {
-                ...DEFAULT_GRADES,
-                ...savedGrades,
-              };
-              // Only the categories that apply to this kid (universal + their
-              // pitching/catching specialty), so non-pitchers/non-catchers
-              // aren't shown — or scored on — spots that don't apply to them.
-              const playerCats = getEvalCategoriesForPlayer(
-                pitchingFormat,
-                player
-              );
-              // Eval value: percentage-normalized score across the universal
-              // bucket plus any applicable pitcher/catcher buckets.
-              const totalScore = Math.min(
-                100,
-                evalTotalScore(grades, player, teamAge)
-              );
-              const expanded = expandedPlayerIds.has(player.id);
-              const rankRow = rankByPlayerId.get(player.id) as any;
-              const primarySuggestion = rankRow?.primarySuggestion || suggestPrimaryPosition(player, grades, {
-                kidPitch: isKidPitchFormat(pitchingFormat),
-                teamAge,
-              });
-              // Count how many categories the coach has graded (any non-default
-              // chip click) so the collapsed row can show progress at a glance.
-              // Optional measurement fields (Pitch Velocity) don't count toward
-              // the required total.
-              const requiredCats = playerCats.filter(
-                (c) => c.inputKind !== "mph"
-              );
-              const gradedCount = requiredCats.filter(
-                (c) => Number.isFinite(grades[c.id]) && grades[c.id] > 0
-              ).length;
-              return (
-                <div
-                  key={`mc-${player.id}`}
-                  className="bg-surface-1 border border-line rounded-xl overflow-hidden"
-                >
-                  <button
-                    type="button"
-                    onClick={() => togglePlayerExpanded(player.id)}
-                    aria-expanded={expanded}
-                    className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
-                  >
-                    <Icons.ChevronRight
-                      className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
-                        expanded ? "rotate-90" : ""
-                      }`}
-                    />
-                    {player.number && (
-                      <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0 w-7 text-center">
-                        #{player.number}
-                      </span>
-                    )}
-                    <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-ink truncate">
-                      {player.name}
+            <div className="px-1 py-3">
+              <div className="space-y-2">
+                {players.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 px-1 pb-1">
+                    <span className="t-eyebrow text-ink-3">
+                      {expandedPlayerIds.size} of {players.length} open
                     </span>
-                    {rankRow && (
-                      <span className="text-[10px] font-black text-ink-2 shrink-0 tabular-nums" title="Team rank">
-                        #{rankRow.rank}
-                      </span>
-                    )}
-                    <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
-                      {gradedCount}/{requiredCats.length}
-                    </span>
-                    <span
-                      className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
-                      style={{
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                      }}
-                      title="Total Score (out of 100)"
-                    >
-                      {totalScore}
-                    </span>
-                  </button>
-                  {expanded && (
-                    <div className="px-3 pb-4 pt-3 border-t border-line space-y-2.5">
-                      <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 pt-0.5">
-                        Your Evaluation
-                      </div>
-                      {playerCats.map((cat) => (
-                        <div
-                          key={cat.id}
-                          className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 flex items-center gap-1.5 flex-wrap">
-                              {cat.label}
-                              {(() => {
-                                const hint = evalStatHint(
-                                  cat.id,
-                                  player.stats,
-                                  player.pitching
-                                );
-                                return hint ? (
-                                  <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5 normal-case tracking-normal">
-                                    {hint}
-                                  </span>
-                                ) : null;
-                              })()}
-                            </span>
-                            {cat.description && (
-                              <span className="text-[10px] font-medium text-ink-3 leading-tight block mt-0.5">
-                                {cat.description}
-                              </span>
-                            )}
-                          </div>
-                          {cat.inputKind === "mph" ? (
-                            <div className="flex items-center justify-end gap-2 flex-wrap">
-                              {(() => {
-                                const mphScore = velocityGradeFromMph(Number(grades[cat.id]), teamAge);
-                                return mphScore != null ? (
-                                  <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-1">
-                                    Age score {mphScore}/5
-                                  </span>
-                                ) : null;
-                              })()}
-                              <input
-                                type="number"
-                                inputMode="numeric"
-                                min={0}
-                                max={120}
-                                value={grades[cat.id] ?? ""}
-                                onChange={(e) =>
-                                  setGrade(
-                                    player.id,
-                                    cat.id,
-                                    e.target.value === ""
-                                      ? null
-                                      : Number(e.target.value)
-                                  )
-                                }
-                                placeholder="mph"
-                                aria-label={`${player.name} ${cat.label} (mph)`}
-                                className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
-                              />
-                            </div>
-                          ) : (
-                            <GradeChipRow
-                              value={grades[cat.id]}
-                              onChange={(v: any) =>
-                                setGrade(player.id, cat.id, v)
-                              }
-                              ariaLabel={`${player.name} ${cat.label}`}
-                            />
-                          )}
-                        </div>
-                      ))}
-                      <div className="pt-1.5 border-t border-line">
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-                            Position Fit Notes
-                          </div>
-                          {primarySuggestion && (
-                            <span className="text-[10px] font-black text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5">
-                              Best fit: {primarySuggestion.position}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-ink-3 mb-2 leading-snug">
-                          Mark positions to consider on the Depth Chart; use the best-fit hint for primary-position decisions.
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {SUGGESTED_POSITIONS.map((pos) => {
-                            const active = (
-                              grades.suggestedPositions || []
-                            ).includes(pos);
-                            return (
-                              <button
-                                key={pos}
-                                type="button"
-                                onClick={() =>
-                                  toggleSuggestedPosition(player.id, pos)
-                                }
-                                className="px-1.5 py-0.5 text-[10px] font-black rounded border transition-all"
-                                style={
-                                  active
-                                    ? {
-                                        backgroundColor: "var(--team-primary)",
-                                        color: "var(--team-tertiary)",
-                                        borderColor: "var(--team-primary)",
-                                      }
-                                    : {
-                                        backgroundColor: "var(--surface)",
-                                        color: "var(--ink-2)",
-                                        borderColor: "var(--line)",
-                                      }
-                                }
-                              >
-                                {pos}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <textarea
-                        value={grades.notes || ""}
-                        onChange={(e) => setNotes(player.id, e.target.value)}
-                        placeholder="Notes"
-                        rows={1}
-                        className="w-full text-xs font-medium border border-line bg-surface text-ink px-2 py-1.5 outline-none rounded-md focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
-                      />
-                      <PlayerAssistantEvals
-                        player={player}
-                        playerCats={playerCats}
-                        assistantRounds={assistantRounds}
-                      />
+                    <div className="flex gap-1.5">
                       <button
                         type="button"
-                        onClick={() => setEvalTrendPlayerId(player.id)}
-                        className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+                        onClick={() =>
+                          setExpandedPlayerIds(
+                            new Set(players.map((p: any) => p.id)),
+                          )
+                        }
+                        className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
                       >
-                        View trend →
+                        Expand All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPlayerIds(new Set())}
+                        className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2"
+                      >
+                        Collapse All
                       </button>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-            </div>
-          )}
-          </div>
-        </div>{/* end cards wrapper */}
-
-        </div>{/* end middle column */}
-
-        {/* Right rail: live Complete Ranking */}
-        <div className="lg:col-span-3">
-          {players.length > 0 && (
-            <aside className="lg:sticky lg:top-24 bg-surface border border-line rounded-xl p-3 space-y-3">
-              <div>
-                <div className="t-eyebrow text-ink-3">Complete Ranking</div>
-                <p className="text-[10px] text-ink-3 mt-1 leading-snug">
-                  Ranked by Total Score from the current grades. Best-fit positions are hints, not automatic assignments.
-                </p>
-              </div>
-              <div className="space-y-1.5 max-h-[70vh] overflow-auto pr-1">
-                {rankingRows.map((row: any) => (
-                  <button
-                    key={`rank-${row.player.id}`}
-                    type="button"
-                    onClick={() => {
-                      setExpandedPlayerIds((prev) => new Set(prev).add(row.player.id));
-                    }}
-                    className="w-full grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
-                    title="Open this player's evaluation card"
-                  >
-                    <span className="text-xs font-black tabular-nums text-ink-2">#{row.rank}</span>
-                    <span className="min-w-0">
-                      <span className="block text-xs font-black uppercase text-ink truncate">{row.player.name}</span>
-                      <span className="block text-[10px] font-bold text-ink-3 truncate">
-                        {row.primarySuggestion?.position ? `Fit: ${row.primarySuggestion.position}` : "Fit: review"}
-                      </span>
-                    </span>
-                    <span
-                      className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md"
-                      style={{
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                      }}
+                  </div>
+                )}
+                {players.length === 0 ? (
+                  <div className="text-center py-10 t-body">
+                    <div
+                      className="text-4xl leading-none mb-3 opacity-80"
+                      aria-hidden
                     >
-                      {row.totalScore}
-                    </span>
-                  </button>
-                ))}
+                      ⭐
+                    </div>
+                    No players on the roster yet.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {players.map((player: any) => {
+                      const savedGrades = teamEvalGrades[player.id] || {};
+                      const grades = {
+                        ...DEFAULT_GRADES,
+                        ...savedGrades,
+                      };
+                      // Only the categories that apply to this kid (universal + their
+                      // pitching/catching specialty), so non-pitchers/non-catchers
+                      // aren't shown — or scored on — spots that don't apply to them.
+                      const playerCats = getEvalCategoriesForPlayer(
+                        pitchingFormat,
+                        player,
+                      );
+                      // Eval value: percentage-normalized score across the universal
+                      // bucket plus any applicable pitcher/catcher buckets.
+                      const totalScore = Math.min(
+                        100,
+                        evalTotalScore(grades, player, teamAge),
+                      );
+                      const expanded = expandedPlayerIds.has(player.id);
+                      const rankRow = rankByPlayerId.get(player.id) as any;
+                      const primarySuggestion =
+                        rankRow?.primarySuggestion ||
+                        suggestPrimaryPosition(player, grades, {
+                          kidPitch: isKidPitchFormat(pitchingFormat),
+                          teamAge,
+                        });
+                      // Count how many categories the coach has graded (any non-default
+                      // chip click) so the collapsed row can show progress at a glance.
+                      // Optional measurement fields (Pitch Velocity) don't count toward
+                      // the required total.
+                      const requiredCats = playerCats.filter(
+                        (c) => c.inputKind !== "mph",
+                      );
+                      const gradedCount = requiredCats.filter(
+                        (c) =>
+                          Number.isFinite(grades[c.id]) && grades[c.id] > 0,
+                      ).length;
+                      return (
+                        <div
+                          key={`mc-${player.id}`}
+                          className="bg-surface-1 border border-line rounded-xl overflow-hidden"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => togglePlayerExpanded(player.id)}
+                            aria-expanded={expanded}
+                            className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-surface transition-colors text-left"
+                          >
+                            <Icons.ChevronRight
+                              className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
+                                expanded ? "rotate-90" : ""
+                              }`}
+                            />
+                            {player.number && (
+                              <span className="text-[11px] font-bold text-ink-3 tabular-nums shrink-0 w-7 text-center">
+                                #{player.number}
+                              </span>
+                            )}
+                            <span className="flex-1 min-w-0 text-sm font-black uppercase tracking-tight text-ink truncate">
+                              {player.name}
+                            </span>
+                            {rankRow && (
+                              <span
+                                className="text-[10px] font-black text-ink-2 shrink-0 tabular-nums"
+                                title="Team rank"
+                              >
+                                #{rankRow.rank}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-ink-3 shrink-0 tabular-nums">
+                              {gradedCount}/{requiredCats.length}
+                            </span>
+                            <span
+                              className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
+                              style={{
+                                backgroundColor: "var(--team-primary)",
+                                color: "var(--team-tertiary)",
+                              }}
+                              title="Total Score (out of 100)"
+                            >
+                              {totalScore}
+                            </span>
+                          </button>
+                          {expanded && (
+                            <div className="px-3 pb-4 pt-3 border-t border-line space-y-2.5">
+                              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 pt-0.5">
+                                Your Evaluation
+                              </div>
+                              {playerCats.map((cat) => (
+                                <div
+                                  key={cat.id}
+                                  className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-[11px] font-extrabold uppercase tracking-widest text-ink-2 flex items-center gap-1.5 flex-wrap">
+                                      {cat.label}
+                                      {(() => {
+                                        const hint = evalStatHint(
+                                          cat.id,
+                                          player.stats,
+                                          player.pitching,
+                                        );
+                                        return hint ? (
+                                          <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5 normal-case tracking-normal">
+                                            {hint}
+                                          </span>
+                                        ) : null;
+                                      })()}
+                                    </span>
+                                    {cat.description && (
+                                      <span className="text-[10px] font-medium text-ink-3 leading-tight block mt-0.5">
+                                        {cat.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {cat.inputKind === "mph" ? (
+                                    <div className="flex items-center justify-end gap-2 flex-wrap">
+                                      {(() => {
+                                        const mphScore = velocityGradeFromMph(
+                                          Number(grades[cat.id]),
+                                          teamAge,
+                                        );
+                                        return mphScore != null ? (
+                                          <span className="text-[10px] font-black tabular-nums text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-1">
+                                            Age score {mphScore}/5
+                                          </span>
+                                        ) : null;
+                                      })()}
+                                      <input
+                                        type="number"
+                                        inputMode="numeric"
+                                        min={0}
+                                        max={120}
+                                        value={grades[cat.id] ?? ""}
+                                        onChange={(e) =>
+                                          setGrade(
+                                            player.id,
+                                            cat.id,
+                                            e.target.value === ""
+                                              ? null
+                                              : Number(e.target.value),
+                                          )
+                                        }
+                                        placeholder="mph"
+                                        aria-label={`${player.name} ${cat.label} (mph)`}
+                                        className="w-20 shrink-0 px-2 py-1.5 text-sm bg-surface text-ink placeholder:text-ink-3 border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums text-right"
+                                      />
+                                    </div>
+                                  ) : (
+                                    <GradeChipRow
+                                      value={grades[cat.id]}
+                                      onChange={(v: any) =>
+                                        setGrade(player.id, cat.id, v)
+                                      }
+                                      ariaLabel={`${player.name} ${cat.label}`}
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                              <div className="pt-1.5 border-t border-line">
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
+                                    Position Fit Notes
+                                  </div>
+                                  {primarySuggestion && (
+                                    <span className="text-[10px] font-black text-ink-2 bg-surface-2 border border-line rounded px-1.5 py-0.5">
+                                      Best fit: {primarySuggestion.position}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-ink-3 mb-2 leading-snug">
+                                  Mark positions to consider on the Depth Chart;
+                                  use the best-fit hint for primary-position
+                                  decisions.
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                  {SUGGESTED_POSITIONS.map((pos) => {
+                                    const active = (
+                                      grades.suggestedPositions || []
+                                    ).includes(pos);
+                                    return (
+                                      <button
+                                        key={pos}
+                                        type="button"
+                                        onClick={() =>
+                                          toggleSuggestedPosition(
+                                            player.id,
+                                            pos,
+                                          )
+                                        }
+                                        className="px-1.5 py-0.5 text-[10px] font-black rounded border transition-all"
+                                        style={
+                                          active
+                                            ? {
+                                                backgroundColor:
+                                                  "var(--team-primary)",
+                                                color: "var(--team-tertiary)",
+                                                borderColor:
+                                                  "var(--team-primary)",
+                                              }
+                                            : {
+                                                backgroundColor:
+                                                  "var(--surface)",
+                                                color: "var(--ink-2)",
+                                                borderColor: "var(--line)",
+                                              }
+                                        }
+                                      >
+                                        {pos}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <textarea
+                                value={grades.notes || ""}
+                                onChange={(e) =>
+                                  setNotes(player.id, e.target.value)
+                                }
+                                placeholder="Notes"
+                                rows={1}
+                                className="w-full text-xs font-medium border border-line bg-surface text-ink px-2 py-1.5 outline-none rounded-md focus:ring-2 focus:ring-[var(--team-primary)] resize-y"
+                              />
+                              <PlayerAssistantEvals
+                                player={player}
+                                playerCats={playerCats}
+                                assistantRounds={assistantRounds}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setEvalTrendPlayerId(player.id)}
+                                className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+                              >
+                                View trend →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </aside>
-          )}
-        </div>{/* end right rail */}
+            </div>
+            {/* end cards wrapper */}
+          </div>
+          {/* end middle column */}
 
-        </div>{/* end 3-column workspace grid */}
-
+          {/* Right rail: live Complete Ranking */}
+          <div className="lg:col-span-3">
+            {players.length > 0 && (
+              <aside className="lg:sticky lg:top-24 bg-surface border border-line rounded-xl p-3 space-y-3">
+                <div>
+                  <div className="t-eyebrow text-ink-3">Complete Ranking</div>
+                  <p className="text-[10px] text-ink-3 mt-1 leading-snug">
+                    Ranked by Total Score from the current grades. Best-fit
+                    positions are hints, not automatic assignments.
+                  </p>
+                </div>
+                <div className="space-y-1.5 max-h-[70vh] overflow-auto pr-1">
+                  {rankingRows.map((row: any) => (
+                    <button
+                      key={`rank-${row.player.id}`}
+                      type="button"
+                      onClick={() => {
+                        setExpandedPlayerIds((prev) =>
+                          new Set(prev).add(row.player.id),
+                        );
+                      }}
+                      className="w-full grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-line bg-surface-1 px-2 py-1.5 text-left hover:bg-surface-2 transition-colors"
+                      title="Open this player's evaluation card"
+                    >
+                      <span className="text-xs font-black tabular-nums text-ink-2">
+                        #{row.rank}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-xs font-black uppercase text-ink truncate">
+                          {row.player.name}
+                        </span>
+                        <span className="block text-[10px] font-bold text-ink-3 truncate">
+                          {row.primarySuggestion?.position
+                            ? `Fit: ${row.primarySuggestion.position}`
+                            : "Fit: review"}
+                        </span>
+                      </span>
+                      <span
+                        className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md"
+                        style={{
+                          backgroundColor: "var(--team-primary)",
+                          color: "var(--team-tertiary)",
+                        }}
+                      >
+                        {row.totalScore}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </aside>
+            )}
+          </div>
+          {/* end right rail */}
+        </div>
+        {/* end 3-column workspace grid */}
       </div>
 
       {/* Roster Decisions panel — advisory recommendations based on
@@ -2284,8 +2387,8 @@ export const EvaluationTab = memo(() => {
                   Your Saved Rounds
                 </h3>
                 <p className="text-[12px] text-ink-3 font-medium mt-1">
-                  Select a round to review or edit, or delete one saved
-                  by mistake.
+                  Select a round to review or edit, or delete one saved by
+                  mistake.
                 </p>
               </div>
               <button
@@ -2402,7 +2505,8 @@ export const EvalTrendModal = memo(
     // Collect this user's head-coach evals, oldest first
     const myEvals = (evaluationEvents || [])
       .filter(
-        (e: any) => e.coachRole === "Head" && (!userUid || e.evaluatorId === userUid)
+        (e: any) =>
+          e.coachRole === "Head" && (!userUid || e.evaluatorId === userUid),
       )
       .sort((a: any, b: any) => evalRoundRecency(b, a));
 
@@ -2429,11 +2533,15 @@ export const EvalTrendModal = memo(
     for (const ev of myEvals) {
       // Only include this eval if at least one category has a value
       const hasAny = EVAL_CATEGORIES.some((cat) =>
-        Number.isFinite(ev.grades?.[player.id]?.[cat.id])
+        Number.isFinite(ev.grades?.[player.id]?.[cat.id]),
       );
       if (hasAny && !seenIds.has(ev.id)) {
         seenIds.add(ev.id);
-        xLabels.push({ id: ev.id, label: ev.label || `(${ev.date})`, date: ev.date });
+        xLabels.push({
+          id: ev.id,
+          label: ev.label || `(${ev.date})`,
+          date: ev.date,
+        });
       }
     }
     const evalCount = xLabels.length;
@@ -2502,8 +2610,8 @@ export const EvalTrendModal = memo(
                 {evalCount === 0
                   ? "No eval data yet."
                   : evalCount === 1
-                  ? "1 eval recorded — add more to see trends."
-                  : `${evalCount} evals over time`}
+                    ? "1 eval recorded — add more to see trends."
+                    : `${evalCount} evals over time`}
               </p>
             </div>
             <button
@@ -2522,7 +2630,8 @@ export const EvalTrendModal = memo(
                   No Evals Recorded
                 </p>
                 <p className="text-xs text-ink-3 font-medium">
-                  Save an eval round to start tracking this player&apos;s trends.
+                  Save an eval round to start tracking this player&apos;s
+                  trends.
                 </p>
               </div>
             ) : evalCount === 1 ? (
@@ -2661,12 +2770,18 @@ export const EvalTrendModal = memo(
                                 trend.change > 0
                                   ? "text-win"
                                   : trend.change < 0
-                                  ? "text-loss"
-                                  : "text-ink-3"
+                                    ? "text-loss"
+                                    : "text-ink-3"
                               }`}
                             >
-                              {trend.change > 0 ? "↑" : trend.change < 0 ? "↓" : "—"}
-                              {trend.change !== 0 ? ` ${Math.abs(trend.change)}` : " flat"}
+                              {trend.change > 0
+                                ? "↑"
+                                : trend.change < 0
+                                  ? "↓"
+                                  : "—"}
+                              {trend.change !== 0
+                                ? ` ${Math.abs(trend.change)}`
+                                : " flat"}
                             </div>
                           )}
                         </div>
@@ -2680,6 +2795,5 @@ export const EvalTrendModal = memo(
         </A11yDialog>
       </div>
     );
-  }
+  },
 );
-

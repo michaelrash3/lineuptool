@@ -38,7 +38,7 @@ const setupScheduleImport = () => {
       updateTeam,
       activeTeamId: "t1",
       toast,
-    } as any)
+    } as any),
   );
   const run = (csv: string) => {
     const file = new File([csv], "schedule.csv", { type: "text/csv" });
@@ -58,7 +58,7 @@ describe("uploadScheduleCsv", () => {
         "05/08/2026,Cubs\n" +
         "someday,Sharks\n" + // unparseable date -> skipped + surfaced
         ",NoDateRow\n" + // blank date -> ignored silently
-        "\n" // trailing blank line -> ignored
+        "\n", // trailing blank line -> ignored
     );
     await waitFor(() => expect(updateTeam).toHaveBeenCalled());
     const games = updateTeam.mock.calls[0][0].games;
@@ -69,7 +69,7 @@ describe("uploadScheduleCsv", () => {
         kind: "success",
         title: "Imported 2 games",
         message: "Skipped 1 row with an unrecognized date.",
-      })
+      }),
     );
   });
 
@@ -78,7 +78,7 @@ describe("uploadScheduleCsv", () => {
     run("Date,Opponent\n2026-05-01,Rays\n");
     await waitFor(() => expect(updateTeam).toHaveBeenCalled());
     expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Imported 1 game", message: undefined })
+      expect.objectContaining({ title: "Imported 1 game", message: undefined }),
     );
   });
 
@@ -90,8 +90,8 @@ describe("uploadScheduleCsv", () => {
         expect.objectContaining({
           kind: "error",
           title: "Schedule import failed",
-        })
-      )
+        }),
+      ),
     );
     expect(updateTeam).not.toHaveBeenCalled();
   });
@@ -118,7 +118,7 @@ describe("uploadGameStatsCsv (per-game import)", () => {
         updateTeam,
         activeTeamId: "t1",
         toast,
-      } as any)
+      } as any),
     );
     const run = (csv: string) => {
       const file = new File([csv], "game.csv", { type: "text/csv" });
@@ -155,7 +155,7 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     run(csv);
     await waitFor(() => expect(updateTeam).toHaveBeenCalled());
     const g1 = updateTeam.mock.calls[0][0].games.find(
-      (g: any) => g.id === "g1"
+      (g: any) => g.id === "g1",
     );
     expect(g1.playerStats.p1.ab).toBe(3);
     expect(g1.playerStats.p1.ip).toBeUndefined();
@@ -167,8 +167,8 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     run("First,Last,AB,H\nNo,Match,3,1\n");
     await waitFor(() =>
       expect(toast.push).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: "error" })
-      )
+        expect.objectContaining({ kind: "error" }),
+      ),
     );
     expect(updateTeam).not.toHaveBeenCalled();
   });
@@ -187,7 +187,7 @@ describe("importBackup (restore)", () => {
         activeTeamId: "t1",
         toast,
         confirm,
-      } as any)
+      } as any),
     );
     const run = (text: string) => {
       const file = new File([text], "backup.json", {
@@ -207,7 +207,7 @@ describe("importBackup (restore)", () => {
     expect(updateTeam.mock.calls[0][0].players).toHaveLength(1);
     expect(updateTeam.mock.calls[0][1]).toEqual({ allowEmptyPlayers: true });
     expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "success", title: "Backup restored" })
+      expect.objectContaining({ kind: "success", title: "Backup restored" }),
     );
   });
 
@@ -219,8 +219,8 @@ describe("importBackup (restore)", () => {
         expect.objectContaining({
           kind: "error",
           title: "Could not parse backup",
-        })
-      )
+        }),
+      ),
     );
     expect(updateTeam).not.toHaveBeenCalled();
   });

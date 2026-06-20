@@ -28,17 +28,14 @@ export const useTeam = (): TeamContextValue => {
 export const ConfirmContext = createContext<ConfirmContextValue>({
   confirm: async (opts) =>
     typeof window !== "undefined"
-      ? window.confirm(
-          [opts.title, opts.message].filter(Boolean).join("\n\n")
-        )
+      ? window.confirm([opts.title, opts.message].filter(Boolean).join("\n\n"))
       : false,
   promptText: async (opts) =>
     typeof window !== "undefined"
       ? window.prompt(opts.title, opts.defaultValue || "")
       : null,
 });
-export const useConfirm = (): ConfirmContextValue =>
-  useContext(ConfirmContext);
+export const useConfirm = (): ConfirmContextValue => useContext(ConfirmContext);
 
 export const UIContext = createContext<UIContextValue | null>(null);
 export const useUI = (): UIContextValue => {

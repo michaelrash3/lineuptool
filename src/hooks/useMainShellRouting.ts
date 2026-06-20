@@ -47,17 +47,58 @@ export const useMainShellRouting = ({
     () =>
       isAssistant
         ? tryoutsOpen
-          ? ["home", "roster", "schedule", "practices", "stats", "depthChart", "tryouts", "evaluation"]
-          : ["home", "roster", "schedule", "practices", "stats", "depthChart", "evaluation"]
+          ? [
+              "home",
+              "roster",
+              "schedule",
+              "practices",
+              "stats",
+              "depthChart",
+              "tryouts",
+              "evaluation",
+            ]
+          : [
+              "home",
+              "roster",
+              "schedule",
+              "practices",
+              "stats",
+              "depthChart",
+              "evaluation",
+            ]
         : tryoutsOpen
-        ? ["home", "roster", "schedule", "practices", "stats", "depthChart", "tryouts", "interest", "evaluation", "finances", "settings"]
-        : ["home", "roster", "schedule", "practices", "stats", "depthChart", "interest", "evaluation", "finances", "settings"],
-    [isAssistant, tryoutsOpen]
+          ? [
+              "home",
+              "roster",
+              "schedule",
+              "practices",
+              "stats",
+              "depthChart",
+              "tryouts",
+              "interest",
+              "evaluation",
+              "finances",
+              "settings",
+            ]
+          : [
+              "home",
+              "roster",
+              "schedule",
+              "practices",
+              "stats",
+              "depthChart",
+              "interest",
+              "evaluation",
+              "finances",
+              "settings",
+            ],
+    [isAssistant, tryoutsOpen],
   );
 
   useEffect(() => {
     if (!isAssistant) return;
-    if (activeTab === "settings" || activeTab === "finances") setActiveTab("home");
+    if (activeTab === "settings" || activeTab === "finances")
+      setActiveTab("home");
   }, [isAssistant, activeTab, setActiveTab]);
 
   useEffect(() => {

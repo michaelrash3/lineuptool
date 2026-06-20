@@ -26,7 +26,10 @@ interface UseEvaluationCrudArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
-  user: { uid: string; displayName?: string; email?: string } | null | undefined;
+  user:
+    | { uid: string; displayName?: string; email?: string }
+    | null
+    | undefined;
   uiBridge: { current: any };
 }
 
@@ -47,7 +50,7 @@ export const useEvaluationCrud = ({
       // Editing an existing round — update its grades, keep its
       // label/date/id/evaluatorName intact.
       const next = teamData.evaluationEvents.map((e: any) =>
-        e.id === selectedRoundId ? { ...e, grades } : e
+        e.id === selectedRoundId ? { ...e, grades } : e,
       );
       updateTeam({ evaluationEvents: next });
       toast.push({ kind: "success", title: "Eval updated" });
@@ -69,7 +72,7 @@ export const useEvaluationCrud = ({
     const dateTaken = (d: string) =>
       (teamData.evaluationEvents || []).some(
         (e: any) =>
-          e.coachRole === "Head" && e.evaluatorId === user.uid && e.date === d
+          e.coachRole === "Head" && e.evaluatorId === user.uid && e.date === d,
       );
     const roundDate = dateTaken(snapped) ? today : snapped;
     const evaluatorName = lastNameOfUser(user);
@@ -108,12 +111,12 @@ export const useEvaluationCrud = ({
         (e: any) =>
           e.coachRole === "Assistant" &&
           e.evaluatorId === user.uid &&
-          e.date === roundDate
+          e.date === roundDate,
       );
       let nextEvents;
       if (existing) {
         nextEvents = teamData.evaluationEvents.map((e: any) =>
-          e.id === existing.id ? { ...e, grades } : e
+          e.id === existing.id ? { ...e, grades } : e,
         );
       } else {
         const newEvent = {
@@ -133,7 +136,7 @@ export const useEvaluationCrud = ({
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, updateTeam, toast]
+    [user, teamData.evaluationEvents, updateTeam, toast],
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach
@@ -143,7 +146,7 @@ export const useEvaluationCrud = ({
     (roundId: any) => {
       if (!roundId) return;
       const next = (teamData.evaluationEvents || []).filter(
-        (e: any) => e.id !== roundId
+        (e: any) => e.id !== roundId,
       );
       updateTeam({ evaluationEvents: next });
       toast.push({
@@ -151,7 +154,7 @@ export const useEvaluationCrud = ({
         title: "Eval round deleted",
       });
     },
-    [teamData.evaluationEvents, updateTeam, toast]
+    [teamData.evaluationEvents, updateTeam, toast],
   );
 
   return {

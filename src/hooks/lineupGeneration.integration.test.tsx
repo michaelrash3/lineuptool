@@ -97,7 +97,7 @@ const setup = () => {
       toast,
       uiBridge,
       previousLineupRef,
-    })
+    }),
   );
   return { result, ui, updateGame, toast };
 };
@@ -134,7 +134,7 @@ describe("lineup generation integration (real engine through the bridge)", () =>
       expect.objectContaining({
         lineup: ui.lineup,
         battingLineup: ui.battingLineup,
-      })
+      }),
     );
     expect(ui.saved).toBe(true);
   });

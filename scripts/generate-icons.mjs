@@ -15,7 +15,9 @@ const root = resolve(import.meta.dirname, "..");
 const publicDir = resolve(root, "public");
 
 const anySvg = await readFile(resolve(publicDir, "icon-source.svg"));
-const maskableSvg = await readFile(resolve(publicDir, "icon-maskable-source.svg"));
+const maskableSvg = await readFile(
+  resolve(publicDir, "icon-maskable-source.svg"),
+);
 
 const targets = [
   { src: anySvg, size: 192, out: "icon-192.png" },

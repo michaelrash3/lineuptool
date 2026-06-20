@@ -23,13 +23,35 @@ export const formatStat = (val: unknown): string => {
 // or 4/27/26), ISO with time (2026-04-27T...). Returns "" if unparseable.
 // All date-only parsing is done from numeric parts instead of `new Date(raw)`
 // so imports are deterministic and do not shift a day across time zones.
-const padDatePart = (value: string | number): string => String(value).padStart(2, "0");
+const padDatePart = (value: string | number): string =>
+  String(value).padStart(2, "0");
 
-const isValidDateParts = (year: number, month: number, day: number): boolean => {
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
-  if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) return false;
+const isValidDateParts = (
+  year: number,
+  month: number,
+  day: number,
+): boolean => {
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(day)
+  )
+    return false;
+  if (
+    year < 1900 ||
+    year > 2100 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  )
+    return false;
   const utc = new Date(Date.UTC(year, month - 1, day));
-  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day;
+  return (
+    utc.getUTCFullYear() === year &&
+    utc.getUTCMonth() === month - 1 &&
+    utc.getUTCDate() === day
+  );
 };
 
 const toIsoDate = (year: number, month: number, day: number): string =>
@@ -44,7 +66,11 @@ export const normalizeDateToIso = (dateString: unknown): string => {
 
   const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
   if (isoMatch) {
-    return toIsoDate(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+    return toIsoDate(
+      Number(isoMatch[1]),
+      Number(isoMatch[2]),
+      Number(isoMatch[3]),
+    );
   }
 
   const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
@@ -64,7 +90,9 @@ export const normalizeDateToIso = (dateString: unknown): string => {
   return "";
 };
 
-export const formatGameDateDisplay = (dateString: string | null | undefined): string => {
+export const formatGameDateDisplay = (
+  dateString: string | null | undefined,
+): string => {
   if (!dateString) return "";
   const iso = normalizeDateToIso(dateString);
   if (!iso) return dateString;
@@ -84,12 +112,16 @@ export const formatGameDateDisplay = (dateString: string | null | undefined): st
 const slimPlayer = (p: Partial<Player> | null | undefined): SlimPlayer =>
   p && p.id ? { id: p.id, name: p.name || "", number: p.number } : null;
 
-const slimInning = (inning: Inning | null | undefined): Inning | null | undefined => {
+const slimInning = (
+  inning: Inning | null | undefined,
+): Inning | null | undefined => {
   if (!inning || typeof inning !== "object") return inning;
   const out: Inning = {};
   for (const pos in inning) {
     if (pos === "BENCH") {
-      out.BENCH = (inning.BENCH || []).map((p) => slimPlayer(p as Partial<Player>)).filter(Boolean) as SlimPlayer[];
+      out.BENCH = (inning.BENCH || [])
+        .map((p) => slimPlayer(p as Partial<Player>))
+        .filter(Boolean) as SlimPlayer[];
     } else {
       out[pos] = slimPlayer(inning[pos] as Partial<Player> | null | undefined);
     }
@@ -97,7 +129,9 @@ const slimInning = (inning: Inning | null | undefined): Inning | null | undefine
   return out;
 };
 
-export const slimGame = <T extends Partial<Game>>(g: T | null | undefined): T | null | undefined => {
+export const slimGame = <T extends Partial<Game>>(
+  g: T | null | undefined,
+): T | null | undefined => {
   if (!g) return g;
   let next: T = g;
   if (Array.isArray(g.lineup)) {
@@ -106,7 +140,9 @@ export const slimGame = <T extends Partial<Game>>(g: T | null | undefined): T | 
   if (Array.isArray(g.battingLineup)) {
     next = {
       ...next,
-      battingLineup: g.battingLineup.map((p) => slimPlayer(p as Partial<Player>)).filter(Boolean),
+      battingLineup: g.battingLineup
+        .map((p) => slimPlayer(p as Partial<Player>))
+        .filter(Boolean),
     } as T;
   }
   if (Array.isArray(g.originalLineup)) {
@@ -171,7 +207,7 @@ export interface PublicTeamMirror {
 // recover the intended date by matching a configured date that appears in the
 // slug, falling back to the first configured date. Pure.
 export const normalizeTryoutDateLinks = (
-  team: Record<string, any> | null | undefined
+  team: Record<string, any> | null | undefined,
 ): TryoutDateLink[] => {
   const seen = new Set<string>();
   const out: TryoutDateLink[] = [];
@@ -193,7 +229,9 @@ export const normalizeTryoutDateLinks = (
   const legacySlug = String(team?.tryoutDateSlug || "").trim();
   if (legacySlug && !seen.has(legacySlug)) {
     const configured = Array.isArray(team?.tryoutDates)
-      ? (team!.tryoutDates as unknown[]).map((d) => String(d).trim()).filter(Boolean)
+      ? (team!.tryoutDates as unknown[])
+          .map((d) => String(d).trim())
+          .filter(Boolean)
       : [];
     const embedded = configured.find((d) => legacySlug.includes(d));
     push(legacySlug, embedded || configured[0] || "");
@@ -207,7 +245,7 @@ export const normalizeTryoutDateLinks = (
 // first configured date. Returns "" when nothing resolves. Pure.
 export const resolveTryoutDateForSlug = (
   source: Record<string, any> | null | undefined,
-  slug: string | null | undefined
+  slug: string | null | undefined,
 ): string => {
   const s = String(slug || "").trim();
   if (!s) return "";
@@ -219,14 +257,16 @@ export const resolveTryoutDateForSlug = (
     if (link.slug === s) return link.date;
   }
   const configured = Array.isArray(source?.tryoutDates)
-    ? (source!.tryoutDates as unknown[]).map((d) => String(d).trim()).filter(Boolean)
+    ? (source!.tryoutDates as unknown[])
+        .map((d) => String(d).trim())
+        .filter(Boolean)
     : [];
   // Last-ditch legacy: a configured date embedded in the slug, else the first.
   return configured.find((d) => s.includes(d)) || configured[0] || "";
 };
 
 export const buildPublicMirror = (
-  team: Record<string, any> | null | undefined
+  team: Record<string, any> | null | undefined,
 ): PublicTeamMirror => {
   const links = normalizeTryoutDateLinks(team);
   const tryoutDateBySlug: Record<string, string> = {};
@@ -265,7 +305,7 @@ export const buildPublicMirror = (
 export const revertOptimisticUpdate = <T extends Record<string, any>>(
   current: T,
   attempted: Record<string, unknown>,
-  prevValues: Record<string, unknown>
+  prevValues: Record<string, unknown>,
 ): T => {
   const next: Record<string, any> = { ...current };
   let changed = false;
@@ -311,7 +351,7 @@ export interface BenchImbalanceEntry {
 export const buildSeasonBenchImbalance = (
   games: Game[] | null | undefined,
   currentGameId: string,
-  players?: Array<{ id?: string; name?: string }> | null
+  players?: Array<{ id?: string; name?: string }> | null,
 ): Map<PlayerId, BenchImbalanceEntry> => {
   const out = new Map<PlayerId, BenchImbalanceEntry>();
 
@@ -327,11 +367,14 @@ export const buildSeasonBenchImbalance = (
   // NOT on the current roster.
   const roster = players || [];
   const livePlayerIds = new Set(
-    roster.map((p) => p.id).filter((id): id is string => !!id)
+    roster.map((p) => p.id).filter((id): id is string => !!id),
   );
-  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const norm = (s: unknown) =>
+    String(s ?? "")
+      .trim()
+      .toLowerCase();
   const resolveSlotId = (
-    slot: { id?: string; name?: string } | null | undefined
+    slot: { id?: string; name?: string } | null | undefined,
   ): string | undefined => {
     if (!slot || !slot.id) return slot?.id;
     if (livePlayerIds.has(slot.id)) return slot.id;
@@ -375,9 +418,10 @@ export const buildSeasonBenchImbalance = (
 
     const benchSlotsPerInning = (g.lineup[0]?.BENCH || []).length;
     const innings = g.lineup.length;
-    const fieldersPerInning = innings > 0
-      ? Object.keys(g.lineup[0] || {}).filter((k) => k !== "BENCH").length
-      : 0;
+    const fieldersPerInning =
+      innings > 0
+        ? Object.keys(g.lineup[0] || {}).filter((k) => k !== "BENCH").length
+        : 0;
     const totalBenchSlots = benchSlotsPerInning * innings;
     const minBenchPerPlayer = Math.floor(totalBenchSlots / playerCount);
     const totalDefenseSlots = fieldersPerInning * innings;
@@ -397,14 +441,13 @@ export const buildSeasonBenchImbalance = (
     }
 
     for (const [pid, count] of benchCount) {
-      const cur =
-        out.get(pid) || {
-          extraSits: 0,
-          totalBench: 0,
-          totalDefense: 0,
-          expectedDefense: 0,
-          gamesAttended: 0,
-        };
+      const cur = out.get(pid) || {
+        extraSits: 0,
+        totalBench: 0,
+        totalDefense: 0,
+        expectedDefense: 0,
+        gamesAttended: 0,
+      };
       cur.extraSits += Math.max(0, count - minBenchPerPlayer);
       cur.totalBench += count;
       cur.totalDefense += innings - count;
@@ -441,16 +484,19 @@ export interface PositionVarietyEntry {
 
 export const buildSeasonPositionVariety = (
   games: Game[] | null | undefined,
-  players?: Array<{ id?: string; name?: string }> | null
+  players?: Array<{ id?: string; name?: string }> | null,
 ): Map<PlayerId, PositionVarietyEntry> => {
   const out = new Map<PlayerId, PositionVarietyEntry>();
   const roster = players || [];
   const livePlayerIds = new Set(
-    roster.map((p) => p.id).filter((id): id is string => !!id)
+    roster.map((p) => p.id).filter((id): id is string => !!id),
   );
-  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const norm = (s: unknown) =>
+    String(s ?? "")
+      .trim()
+      .toLowerCase();
   const resolveSlotId = (
-    slot: { id?: string; name?: string } | null | undefined
+    slot: { id?: string; name?: string } | null | undefined,
   ): string | undefined => {
     if (!slot || !slot.id) return slot?.id;
     if (livePlayerIds.has(slot.id)) return slot.id;
@@ -526,7 +572,7 @@ export interface TeamRecordLike {
 // half a win and half a loss. That means 8-2-3 (.731) correctly ranks above
 // 10-4 (.714), even though 10-4 has more total wins.
 export const recordWinningPercentage = (
-  record: TeamRecordLike | null | undefined
+  record: TeamRecordLike | null | undefined,
 ): number => {
   const wins = Number(record?.wins) || 0;
   const losses = Number(record?.losses) || 0;
@@ -538,7 +584,7 @@ export const recordWinningPercentage = (
 
 export const compareRecordsByWinningPercentage = (
   a: TeamRecordLike | null | undefined,
-  b: TeamRecordLike | null | undefined
+  b: TeamRecordLike | null | undefined,
 ): number => {
   const pctDiff = recordWinningPercentage(b) - recordWinningPercentage(a);
   if (pctDiff !== 0) return pctDiff;
@@ -569,7 +615,7 @@ export interface SeasonSummary {
 }
 
 export const buildSeasonSummary = (
-  games: Game[] | null | undefined
+  games: Game[] | null | undefined,
 ): SeasonSummary => {
   const finalized = (games || [])
     .filter((g) => countsTowardStats(g))
@@ -640,12 +686,15 @@ export const buildSeasonSummary = (
 // yet on the active roster still answer Yes here; this helper answers
 // the season-advance question, not "is this kid currently rostered".
 export const isReturning = (
-  player: { returning?: boolean; playerStatus?: string } | null | undefined
+  player: { returning?: boolean; playerStatus?: string } | null | undefined,
 ): boolean => {
   if (!player) return false;
   if (player.returning === false) return false;
   if (player.returning === true) return true;
-  if (player.playerStatus === "released" || player.playerStatus === "declined") {
+  if (
+    player.playerStatus === "released" ||
+    player.playerStatus === "declined"
+  ) {
     return false;
   }
   return true;
@@ -657,12 +706,15 @@ export const isReturning = (
 export type ReturningDecision = "yes" | "no" | "unknown";
 
 export const getReturningDecision = (
-  player: { returning?: boolean; playerStatus?: string } | null | undefined
+  player: { returning?: boolean; playerStatus?: string } | null | undefined,
 ): ReturningDecision => {
   if (!player) return "unknown";
   if (player.returning === true) return "yes";
   if (player.returning === false) return "no";
-  if (player.playerStatus === "released" || player.playerStatus === "declined") {
+  if (
+    player.playerStatus === "released" ||
+    player.playerStatus === "declined"
+  ) {
     return "no";
   }
   return "unknown";
@@ -704,7 +756,7 @@ export const isGameFinalized = (
         opponentScore?: number | string | null;
       }
     | null
-    | undefined
+    | undefined,
 ): boolean => {
   if (!game) return false;
   if (game.status === "final" || game.status === "completed") return true;
@@ -729,7 +781,7 @@ export const countsTowardStats = (
         isScrimmage?: boolean;
       }
     | null
-    | undefined
+    | undefined,
 ): boolean => isGameFinalized(game) && !game?.isScrimmage;
 
 // The canonical set of positions a player can be marked comfortable with / be
@@ -755,7 +807,9 @@ export const canonicalizeOutfield = (pos: string): string =>
 
 // Normalize a player's accepted-position list to the canonical model: center
 // variants collapse to CF, de-duplicated, order preserved.
-export const canonicalizePositionList = (list: string[] | null | undefined): string[] => {
+export const canonicalizePositionList = (
+  list: string[] | null | undefined,
+): string[] => {
   if (!Array.isArray(list)) return [];
   const out: string[] = [];
   for (const p of list) {
@@ -768,7 +822,7 @@ export const canonicalizePositionList = (list: string[] | null | undefined): str
 export const lineupSlotMatchesPlayer = (
   slot: { id?: string; name?: string } | null | undefined,
   player: { id?: string; name?: string } | null | undefined,
-  livePlayerIds: Set<string>
+  livePlayerIds: Set<string>,
 ): boolean => {
   if (!slot || !player) return false;
   if (slot.id && player.id && slot.id === player.id) return true;
@@ -776,7 +830,10 @@ export const lineupSlotMatchesPlayer = (
   // orphan (no longer on the roster). This prevents accidental
   // collisions when two live players happen to share a name.
   if (slot.id && livePlayerIds.has(slot.id)) return false;
-  const norm = (s: unknown) => String(s ?? "").trim().toLowerCase();
+  const norm = (s: unknown) =>
+    String(s ?? "")
+      .trim()
+      .toLowerCase();
   const slotName = norm(slot.name);
   const playerName = norm(player.name);
   if (!slotName || !playerName) return false;
@@ -785,7 +842,7 @@ export const lineupSlotMatchesPlayer = (
 
 export const calculateBaseballAge = (
   dob: string | null | undefined,
-  currentSeasonStr: string | null | undefined
+  currentSeasonStr: string | null | undefined,
 ): number | null => {
   if (!dob) return null;
   const parts = (currentSeasonStr || "").split(" ");
@@ -985,7 +1042,7 @@ const ADV_PCT_KEYS = new Set<string>([
 export const extractAdvancedStats = (
   labelRow: string[] | undefined,
   headerRow: string[],
-  cols: string[]
+  cols: string[],
 ): PlayerStats => {
   if (!labelRow) return {};
   const pitchStart = labelRow.indexOf("pitching");
@@ -1034,7 +1091,7 @@ export const buildStatsPatchFromCsvRow = (
   idx: CsvHeaderIndex,
   labelRow: string[] | undefined,
   rawHeaders: string[],
-  cols: string[]
+  cols: string[],
 ): Record<string, number> => {
   const patch: Record<string, number> = {};
   const setNum = (key: string, colIdx: number) => {
@@ -1093,7 +1150,7 @@ export const buildStatsPatchFromCsvRow = (
 // skips Totals/Glossary footer rows. Returns an error string for files that
 // aren't a GameChanger stats export.
 export const parseGameChangerStatsCsv = (
-  text: string
+  text: string,
 ):
   | { rows: Array<{ name: string; patch: Record<string, number> }> }
   | { error: string } => {
@@ -1105,7 +1162,7 @@ export const parseGameChangerStatsCsv = (
   const firstRow = rows[0].map((h) => h.toLowerCase().trim());
   const filledFirstRow = firstRow.filter(Boolean).length;
   const hasSectionLabels = firstRow.some((h) =>
-    ["batting", "pitching", "fielding"].includes(h)
+    ["batting", "pitching", "fielding"].includes(h),
   );
   if (hasSectionLabels && filledFirstRow < firstRow.length / 3) {
     headerRowIndex = 1;
@@ -1149,7 +1206,7 @@ export const parseGameChangerStatsCsv = (
 // pitching numbers: only Kid Pitch game lines ever carry pitching keys.
 export const stripPitchingStatsForFormat = (
   patch: Record<string, number>,
-  pitchingFormat: string | undefined
+  pitchingFormat: string | undefined,
 ): Record<string, number> => {
   if (!/machine|coach/i.test(pitchingFormat || "")) return patch;
   const out: Record<string, number> = {};
@@ -1163,10 +1220,28 @@ export const stripPitchingStatsForFormat = (
 
 // Stat keys that SUM across game lines (true counting stats).
 const SUMMABLE_KEYS = [
-  "ab", "h", "doubles", "triples", "hr", "rbi", "sb", "k",
-  "tc", "a", "po", "totalPitches",
-  "ip", "pIp", "pBf",
-  "fErrors", "fTc", "fAssists", "fPutouts", "fPb", "fSbAllowed", "fSbAtt",
+  "ab",
+  "h",
+  "doubles",
+  "triples",
+  "hr",
+  "rbi",
+  "sb",
+  "k",
+  "tc",
+  "a",
+  "po",
+  "totalPitches",
+  "ip",
+  "pIp",
+  "pBf",
+  "fErrors",
+  "fTc",
+  "fAssists",
+  "fPutouts",
+  "fPb",
+  "fSbAllowed",
+  "fSbAtt",
 ];
 // Rate keys that can't be summed: weighted-average them across lines using the
 // given weight key (sample size). An approximation for OBP/OPS (PA vs AB), but
@@ -1204,7 +1279,7 @@ const WEIGHTED_KEYS: Array<{ key: string; weightBy: string }> = [
 // pTopMph/pFbMph take the max. Used for both the derived SEASON totals (all
 // lines) and the Recent Form view (last N lines). Pure.
 export const aggregateGameLines = (
-  lines: Array<Record<string, number | undefined>>
+  lines: Array<Record<string, number | undefined>>,
 ): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const k of SUMMABLE_KEYS) {
@@ -1256,17 +1331,14 @@ export const teamStatAverages = (
   players:
     | Array<{ stats?: Record<string, number | undefined> | null }>
     | null
-    | undefined
+    | undefined,
 ): Record<string, number> => {
   const lines = (players || [])
     .map((p) => p?.stats)
-    .filter(
-      (s): s is Record<string, number> => !!s && typeof s === "object"
-    );
+    .filter((s): s is Record<string, number> => !!s && typeof s === "object");
   if (lines.length === 0) return {};
   return aggregateGameLines(lines);
 };
-
 
 // line. Pitching keys only exist on Kid Pitch lines (stripped at import), so
 // the summed season pitching is kid-pitch-only by construction — exactly the
@@ -1274,7 +1346,7 @@ export const teamStatAverages = (
 // player has no per-game lines (callers then leave season-CSV stats untouched).
 export const deriveSeasonFromGameLines = (
   games: Array<{ playerStats?: Record<string, any> }> | null | undefined,
-  playerId: string
+  playerId: string,
 ): Record<string, number> | null => {
   const lines: Array<Record<string, number>> = [];
   for (const g of games || []) {
@@ -1291,7 +1363,7 @@ export const deriveSeasonFromGameLines = (
 // coach can still toggle them back if plans change.
 export const isPlayerScheduledOut = (
   player: { absences?: string[] } | null | undefined,
-  dateIso: string | null | undefined
+  dateIso: string | null | undefined,
 ): boolean => {
   if (!dateIso) return false;
   return (player?.absences || []).includes(String(dateIso).slice(0, 10));
@@ -1313,7 +1385,7 @@ const ABSENCE_RANGE_CAP_DAYS = 60;
 export const addAbsenceDateRange = (
   absences: string[] | null | undefined,
   fromIso: string,
-  toIso?: string | null
+  toIso?: string | null,
 ): string[] => {
   const startMs = isoToUtcMs(fromIso);
   // Blank "to" = a single-day absence.
@@ -1322,7 +1394,7 @@ export const addAbsenceDateRange = (
   const lo = Math.min(startMs, endMs);
   const hi = Math.min(
     Math.max(startMs, endMs),
-    lo + (ABSENCE_RANGE_CAP_DAYS - 1) * DAY_MS
+    lo + (ABSENCE_RANGE_CAP_DAYS - 1) * DAY_MS,
   );
   const out = new Set(absences || []);
   for (let ms = lo; ms <= hi; ms += DAY_MS) {
@@ -1333,7 +1405,7 @@ export const addAbsenceDateRange = (
 
 export const removeAbsenceDates = (
   absences: string[] | null | undefined,
-  dates: string[]
+  dates: string[],
 ): string[] => {
   const drop = new Set(dates);
   return (absences || []).filter((d) => !drop.has(d));
@@ -1343,7 +1415,7 @@ export const removeAbsenceDates = (
 // days collapse into one { from, to } chip; `dates` carries the exact days a
 // chip's remove button should delete.
 export const foldAbsenceRanges = (
-  absences: string[] | null | undefined
+  absences: string[] | null | undefined,
 ): Array<{ from: string; to: string; dates: string[] }> => {
   const sorted = [...new Set(absences || [])]
     .filter((d) => isoToUtcMs(d) != null)
@@ -1368,10 +1440,14 @@ export const foldAbsenceRanges = (
 // Null when the player has fewer than two game lines — no before/after.
 export const latestGameLineMovement = (
   games:
-    | Array<{ date?: string; opponent?: string; playerStats?: Record<string, any> }>
+    | Array<{
+        date?: string;
+        opponent?: string;
+        playerStats?: Record<string, any>;
+      }>
     | null
     | undefined,
-  playerId: string
+  playerId: string,
 ): {
   prior: Record<string, number>;
   current: Record<string, number>;
@@ -1398,7 +1474,7 @@ export const seasonSeriesFromGameLines = (
     | Array<{ date?: string; playerStats?: Record<string, any> }>
     | null
     | undefined,
-  playerId: string
+  playerId: string,
 ): Array<Record<string, number>> => {
   const lines = (games || [])
     .filter((g) => g?.playerStats?.[playerId])
@@ -1411,12 +1487,20 @@ export const seasonSeriesFromGameLines = (
 // Stats tab's Recent Form (hot/cold) view.
 export const recentGameLines = (
   games:
-    | Array<{ date?: string; opponent?: string; playerStats?: Record<string, any> }>
+    | Array<{
+        date?: string;
+        opponent?: string;
+        playerStats?: Record<string, any>;
+      }>
     | null
     | undefined,
   playerId: string,
-  n = 3
-): Array<{ date?: string; opponent?: string; line: Record<string, number> }> => {
+  n = 3,
+): Array<{
+  date?: string;
+  opponent?: string;
+  line: Record<string, number>;
+}> => {
   return (games || [])
     .filter((g) => g?.playerStats?.[playerId])
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
@@ -1435,11 +1519,13 @@ export const recentGameLines = (
 export const evalStatHint = (
   catId: string,
   stats: PlayerStats | null | undefined,
-  pitching?: { topMph?: number } | null
+  pitching?: { topMph?: number } | null,
 ): string | null => {
   const s: any = stats || {};
   const pct = (v: any) =>
-    typeof v === "number" && Number.isFinite(v) ? `${Math.round(v * 100)}%` : null;
+    typeof v === "number" && Number.isFinite(v)
+      ? `${Math.round(v * 100)}%`
+      : null;
   const avg3 = (v: any) =>
     typeof v === "number" && Number.isFinite(v)
       ? v.toFixed(3).replace(/^0(?=\.)/, "")
@@ -1448,7 +1534,11 @@ export const evalStatHint = (
     case "contact":
       return s.avg != null ? `AVG ${avg3(s.avg)}` : null;
     case "power":
-      return s.hard != null ? `Hard ${pct(s.hard)}` : s.hr != null ? `${s.hr} HR` : null;
+      return s.hard != null
+        ? `Hard ${pct(s.hard)}`
+        : s.hr != null
+          ? `${s.hr} HR`
+          : null;
     case "approach":
     case "plateDiscipline":
       return s.qab != null ? `QAB ${pct(s.qab)}` : null;
@@ -1468,14 +1558,14 @@ export const evalStatHint = (
       return s.pStrikePct != null
         ? `S% ${pct(s.pStrikePct)}`
         : s.pBbPerInn != null
-        ? `${s.pBbPerInn} BB/inn`
-        : null;
+          ? `${s.pBbPerInn} BB/inn`
+          : null;
     case "velocity":
       return pitching?.topMph
         ? `Top ${pitching.topMph} mph`
         : s.pTopMph != null
-        ? `Top ${s.pTopMph} mph`
-        : null;
+          ? `Top ${s.pTopMph} mph`
+          : null;
     case "throwing":
       return s.fCsPct != null ? `CS% ${pct(s.fCsPct)}` : null;
     case "blocking":
@@ -1497,14 +1587,17 @@ export interface TournamentGroup {
 // games — a lone Tournament game isn't a "tournament." Pure + derived (no stored
 // state); scrimmages and Rec games are excluded.
 export const deriveTournaments = (
-  games: Array<{
-    id: string;
-    date?: string;
-    leagueRuleSet?: string;
-    location?: string;
-    isScrimmage?: boolean;
-  }> | null | undefined,
-  teamLeagueRuleSet?: string
+  games:
+    | Array<{
+        id: string;
+        date?: string;
+        leagueRuleSet?: string;
+        location?: string;
+        isScrimmage?: boolean;
+      }>
+    | null
+    | undefined,
+  teamLeagueRuleSet?: string,
 ): TournamentGroup[] => {
   const isoToDays = (d: string): number =>
     Math.floor(Date.parse(`${d}T00:00:00Z`) / 86_400_000);
@@ -1514,7 +1607,7 @@ export const deriveTournaments = (
         g &&
         g.date &&
         !g.isScrimmage &&
-        (g.leagueRuleSet || teamLeagueRuleSet) === "USSSA"
+        (g.leagueRuleSet || teamLeagueRuleSet) === "USSSA",
     )
     .slice()
     .sort((a, b) => (a.date as string).localeCompare(b.date as string));
@@ -1527,7 +1620,8 @@ export const deriveTournaments = (
       continue;
     }
     const gap =
-      isoToDays(g.date as string) - isoToDays(cur[cur.length - 1].date as string);
+      isoToDays(g.date as string) -
+      isoToDays(cur[cur.length - 1].date as string);
     if (gap <= 2) cur.push(g);
     else {
       if (cur.length >= 2) clusters.push(cur);
@@ -1540,7 +1634,7 @@ export const deriveTournaments = (
     const [y, m, day] = d.split("-");
     return new Date(Number(y), Number(m) - 1, Number(day)).toLocaleDateString(
       undefined,
-      { month: "short", day: "numeric" }
+      { month: "short", day: "numeric" },
     );
   };
   return clusters.map((gs) => {
@@ -1559,22 +1653,23 @@ const parsePercent = (val: unknown): number => {
 };
 
 // Parse a GameChanger past-season CSV. Returns { rows, error }.
-export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => {
+export const parseGameChangerPastSeasonCsv = (
+  text: string,
+): CsvImportResult => {
   const csvRows = parseCsvRecords(text);
-  if (csvRows.length < 2) return { error: "File appears to be empty.", rows: [] };
+  if (csvRows.length < 2)
+    return { error: "File appears to be empty.", rows: [] };
 
   let headerRowIndex = 0;
   const firstRow = csvRows[0].map((h) => h.toLowerCase().trim());
   const filledFirstRow = firstRow.filter(Boolean).length;
   const hasSectionLabels = firstRow.some((h) =>
-    ["batting", "pitching", "fielding"].includes(h)
+    ["batting", "pitching", "fielding"].includes(h),
   );
   if (hasSectionLabels && filledFirstRow < firstRow.length / 3)
     headerRowIndex = 1;
 
-  const rawHeaders = csvRows[headerRowIndex].map((h) =>
-    h.toLowerCase().trim()
-  );
+  const rawHeaders = csvRows[headerRowIndex].map((h) => h.toLowerCase().trim());
   // Section label row (when present) delimits Batting/Pitching/Fielding so the
   // advanced-stat extractor can read pitching/fielding columns without colliding
   // with the same-named Batting columns.
@@ -1679,7 +1774,7 @@ export const parseGameChangerPastSeasonCsv = (text: string): CsvImportResult => 
 // Suggest a likely match between a CSV row name and existing players.
 export const suggestPlayerMatch = (
   csvName: string,
-  players: Player[]
+  players: Player[],
 ): PlayerId | null => {
   const norm = (s: string | null | undefined): string =>
     (s || "").toLowerCase().replace(/[^a-z]/g, "");
@@ -1832,7 +1927,7 @@ export const evalPromptStatus = (
   team: { currentSeason?: string; evaluationEvents?: any[] } | null | undefined,
   userUid: string | null | undefined,
   coachRole: "Head" | "Assistant",
-  now: Date = new Date()
+  now: Date = new Date(),
 ): EvalPromptStatus => {
   if (!team || !userUid) {
     return {
@@ -1849,10 +1944,7 @@ export const evalPromptStatus = (
   // and old submissions (way before any current due date) naturally
   // fall outside the alreadyHit window.
   const mine = (team.evaluationEvents || [])
-    .filter(
-      (e) =>
-        e.coachRole === coachRole && e.evaluatorId === userUid
-    )
+    .filter((e) => e.coachRole === coachRole && e.evaluatorId === userUid)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const lastSubmittedDate = mine[0]?.date || null;
 
@@ -1867,9 +1959,7 @@ export const evalPromptStatus = (
   let activeDue: Date | null = null;
   let upcomingDue: Date | null = null;
   for (const due of candidates) {
-    const deltaDays = Math.floor(
-      (now.getTime() - due.getTime()) / MS_PER_DAY
-    );
+    const deltaDays = Math.floor((now.getTime() - due.getTime()) / MS_PER_DAY);
     // Window is [due - WINDOW, due + WINDOW]. The prompt is fulfilled once the
     // coach files an eval anywhere inside that window — including the days
     // *before* the due date — so the reminder clears as soon as they catch up
@@ -1879,7 +1969,7 @@ export const evalPromptStatus = (
       lastSubmittedDate &&
       Math.round(
         (isoToLocalDate(lastSubmittedDate).getTime() - due.getTime()) /
-          MS_PER_DAY
+          MS_PER_DAY,
       ) >= -EVAL_WINDOW_DAYS;
     if (
       !alreadyHit &&
@@ -1897,8 +1987,7 @@ export const evalPromptStatus = (
   if (activeDue) {
     // Preseason vs biweekly: Feb 1 is the preseason kickoff; everything
     // else carries the "biweekly" label so existing copy doesn't break.
-    const isPreseason =
-      activeDue.getMonth() === 1 && activeDue.getDate() === 1;
+    const isPreseason = activeDue.getMonth() === 1 && activeDue.getDate() === 1;
     return {
       active: true,
       kind: isPreseason ? "preseason" : "biweekly",
@@ -1920,9 +2009,7 @@ export const evalPromptStatus = (
   // sub-day timestamps the right way.
   const daysUntilDue = sameLocalDay(now, upcomingDue)
     ? 0
-    : Math.ceil(
-        (upcomingDue.getTime() - now.getTime()) / MS_PER_DAY
-      );
+    : Math.ceil((upcomingDue.getTime() - now.getTime()) / MS_PER_DAY);
   return {
     active: false,
     kind: null,
@@ -1970,9 +2057,9 @@ export const restampEvalDueDates = <
     coachRole?: string;
     evaluatorId?: string;
     tryoutSignupId?: string;
-  }
+  },
 >(
-  events: T[] | null | undefined
+  events: T[] | null | undefined,
 ): T[] => {
   if (!Array.isArray(events)) return [];
   // Resolve collisions by original recency: decide winners newest-first,
@@ -2016,16 +2103,15 @@ export const restampEvalDueDates = <
 // never surfaced. Rounds without createdAt (pre-stamp data) sort as 0.
 export const evalRoundRecency = (
   a: { date?: string; createdAt?: number } | null | undefined,
-  b: { date?: string; createdAt?: number } | null | undefined
+  b: { date?: string; createdAt?: number } | null | undefined,
 ): number => {
-  const d =
-    new Date(b?.date || 0).getTime() - new Date(a?.date || 0).getTime();
+  const d = new Date(b?.date || 0).getTime() - new Date(a?.date || 0).getTime();
   if (d !== 0) return d;
   return (b?.createdAt || 0) - (a?.createdAt || 0);
 };
 
-
-const tryoutSessionIdForDate = (date: string) => `tryout-${String(date || "undated").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+const tryoutSessionIdForDate = (date: string) =>
+  `tryout-${String(date || "undated").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
 export const normalizeTryoutSessions = (team: any): any[] => {
   const sessions = Array.isArray(team?.tryoutSessions)
@@ -2038,7 +2124,9 @@ export const normalizeTryoutSessions = (team: any): any[] => {
   const byId = new Map(sessions.map((session: any) => [session.id, session]));
   for (const e of team?.evaluationEvents || []) {
     if (!e?.tryoutSignupId || !e?.evaluatorId || !e?.grades?.signup) continue;
-    const signup = (team?.tryoutSignups || []).find((s: any) => s.id === e.tryoutSignupId);
+    const signup = (team?.tryoutSignups || []).find(
+      (s: any) => s.id === e.tryoutSignupId,
+    );
     const date = signup?.tryoutDate || e.date || "undated";
     const id = tryoutSessionIdForDate(date);
     const session: any = byId.get(id) || {
@@ -2057,10 +2145,14 @@ export const normalizeTryoutSessions = (team: any): any[] => {
       evaluatorName: e.evaluatorName,
       grades: {},
     };
-    evaluator.grades = { ...(evaluator.grades || {}), [e.tryoutSignupId]: { ...e.grades.signup } };
+    evaluator.grades = {
+      ...(evaluator.grades || {}),
+      [e.tryoutSignupId]: { ...e.grades.signup },
+    };
     evaluator.updatedAt = e.createdAt || Date.now();
     session.gradesByEvaluator[evaluatorKey] = evaluator;
-    if (!session.signupIds.includes(e.tryoutSignupId)) session.signupIds.push(e.tryoutSignupId);
+    if (!session.signupIds.includes(e.tryoutSignupId))
+      session.signupIds.push(e.tryoutSignupId);
     byId.set(id, session);
   }
   return [...byId.values()];
@@ -2069,13 +2161,19 @@ export const normalizeTryoutSessions = (team: any): any[] => {
 export const combinedTryoutGradeForSignup = (
   sessions: any[] | null | undefined,
   signupId: string | null | undefined,
-  date?: string
+  date?: string,
 ): any | null => {
   if (!signupId) return null;
-  const matches = (sessions || []).filter((s: any) =>
-    (!date || s.date === date) && Object.values(s.gradesByEvaluator || {}).some((eg: any) => eg?.grades?.[signupId])
+  const matches = (sessions || []).filter(
+    (s: any) =>
+      (!date || s.date === date) &&
+      Object.values(s.gradesByEvaluator || {}).some(
+        (eg: any) => eg?.grades?.[signupId],
+      ),
   );
-  const session = matches.sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))[0];
+  const session = matches.sort(
+    (a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0),
+  )[0];
   if (!session) return null;
   const headGrades: any[] = [];
   const assistantGrades: any[] = [];
@@ -2096,8 +2194,11 @@ export const combinedTryoutGradeForSignup = (
         if (latest) out[key] = latest[key];
         continue;
       }
-      const vals = grades.map((g) => g?.[key]).filter((v) => typeof v === "number");
-      if (vals.length) out[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+      const vals = grades
+        .map((g) => g?.[key])
+        .filter((v) => typeof v === "number");
+      if (vals.length)
+        out[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
     }
     return out;
   };
@@ -2107,11 +2208,13 @@ export const combinedTryoutGradeForSignup = (
     const out: Record<string, any> = {};
     const keys = new Set([...Object.keys(head), ...Object.keys(assistants)]);
     for (const key of keys) {
-      if (key === "notes" || key === "suggestedPositions") out[key] = head[key] ?? assistants[key];
+      if (key === "notes" || key === "suggestedPositions")
+        out[key] = head[key] ?? assistants[key];
       else {
         const hv = head[key];
         const av = assistants[key];
-        if (typeof hv === "number" && typeof av === "number") out[key] = Math.round((hv + av) / 2);
+        if (typeof hv === "number" && typeof av === "number")
+          out[key] = Math.round((hv + av) / 2);
         else out[key] = hv ?? av;
       }
     }
@@ -2124,7 +2227,7 @@ export const evaluatorTryoutGradeForSignup = (
   sessions: any[] | null | undefined,
   signupId: string | null | undefined,
   evaluatorId: string | null | undefined,
-  date?: string
+  date?: string,
 ): any | null => {
   if (!signupId || !evaluatorId) return null;
   const session = (sessions || [])
@@ -2150,7 +2253,7 @@ export const buildPreseasonSeedRound = (
   endingEvents: any[],
   returningPlayers: any[],
   promotedPlayers: any[],
-  meta: { date: string; evaluatorId?: string; tryoutSessions?: any[] }
+  meta: { date: string; evaluatorId?: string; tryoutSessions?: any[] },
 ): any | null => {
   const grades: Record<string, any> = {};
 
@@ -2170,7 +2273,9 @@ export const buildPreseasonSeedRound = (
     }
   }
 
-  const tryoutSessions = meta.tryoutSessions || normalizeTryoutSessions({ evaluationEvents: endingEvents });
+  const tryoutSessions =
+    meta.tryoutSessions ||
+    normalizeTryoutSessions({ evaluationEvents: endingEvents });
   for (const p of promotedPlayers || []) {
     const sid = p?.tryoutSignupId;
     if (!sid || !p?.id) continue;
@@ -2236,7 +2341,7 @@ export const emailPromptStatus = (
       }
     | null
     | undefined,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): EmailPromptStatus => {
   if (!team) {
     return {
@@ -2376,7 +2481,7 @@ export const gamesDueForReminder = (
     | null
     | undefined,
   leadTime: ReminderLeadTime,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): DueGameReminder[] => {
   if (!Array.isArray(games) || games.length === 0) return [];
   const leadDays = LEAD_DAYS[leadTime] ?? 0;
@@ -2390,7 +2495,7 @@ export const gamesDueForReminder = (
     const iso = normalizeDateToIso(game.date);
     if (!iso) continue;
     const daysUntil = Math.round(
-      (isoToLocalDate(iso).getTime() - todayLocal.getTime()) / MS_PER_DAY
+      (isoToLocalDate(iso).getTime() - todayLocal.getTime()) / MS_PER_DAY,
     );
     if (daysUntil < 0 || daysUntil > leadDays) continue;
     due.push({
@@ -2436,16 +2541,16 @@ const icsNextDay = (iso: string): string => {
   dt.setUTCDate(dt.getUTCDate() + 1);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(
-    dt.getUTCDate()
+    dt.getUTCDate(),
   )}`;
 };
 
 const icsStamp = (now: Date): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(
-    now.getUTCDate()
+    now.getUTCDate(),
   )}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(
-    now.getUTCSeconds()
+    now.getUTCSeconds(),
   )}Z`;
 };
 
@@ -2466,7 +2571,7 @@ export const buildScheduleIcs = (
     | null
     | undefined,
   teamName: string | null | undefined,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): string => {
   const stamp = icsStamp(now);
   const team = (teamName || "").trim() || "Team";
@@ -2496,7 +2601,7 @@ export const buildScheduleIcs = (
       `DTSTART;VALUE=DATE:${icsCompactDate(iso)}`,
       `DTEND;VALUE=DATE:${icsNextDay(iso)}`,
       `SUMMARY:${icsEscapeText(summary)}`,
-      "END:VEVENT"
+      "END:VEVENT",
     );
   }
   lines.push("END:VCALENDAR");
@@ -2557,7 +2662,7 @@ export const recordPitchingOuting = (
   pitching: Record<string, any> | null | undefined,
   date: string,
   pitches: number,
-  gameId?: string
+  gameId?: string,
 ): Record<string, any> => {
   const base = pitching || {};
   const all: PitchingOuting[] = Array.isArray(base.log) ? base.log : [];
@@ -2576,7 +2681,7 @@ export const recordPitchingOuting = (
     .sort(
       (a, b) =>
         b.date.localeCompare(a.date) ||
-        String(b.gameId || "").localeCompare(String(a.gameId || ""))
+        String(b.gameId || "").localeCompare(String(a.gameId || "")),
     )
     .slice(0, PITCHING_LOG_CAP);
   return { ...base, recentPitches: pitches, lastPitchDate: date, log };
@@ -2593,7 +2698,7 @@ export interface PitchingWorkload {
 // Safe for pitchers with no log (returns zeros). Used to surface at-a-glance
 // workload alongside the per-outing history.
 export const summarizePitchingWorkload = (
-  pitching: { log?: PitchingOuting[] } | null | undefined
+  pitching: { log?: PitchingOuting[] } | null | undefined,
 ): PitchingWorkload => {
   const log = Array.isArray(pitching?.log) ? pitching!.log! : [];
   let totalPitches = 0;
@@ -2622,7 +2727,7 @@ export const recordCatchingOuting = (
   catching: Record<string, any> | null | undefined,
   date: string,
   innings: number,
-  gameId?: string
+  gameId?: string,
 ): Record<string, any> => {
   const base = catching || {};
   const all: CatchingOuting[] = Array.isArray(base.log) ? base.log : [];
@@ -2638,7 +2743,7 @@ export const recordCatchingOuting = (
     .sort(
       (a, b) =>
         b.date.localeCompare(a.date) ||
-        String(b.gameId || "").localeCompare(String(a.gameId || ""))
+        String(b.gameId || "").localeCompare(String(a.gameId || "")),
     )
     .slice(0, CATCHING_LOG_CAP);
   return { ...base, lastCatchDate: date, log };
@@ -2657,7 +2762,7 @@ export const sameDayRoleSets = (
     | null
     | undefined,
   date: string | undefined,
-  excludeGameId?: string
+  excludeGameId?: string,
 ): { pitched: Set<string>; caught: Set<string> } => {
   const pitched = new Set<string>();
   const caught = new Set<string>();
@@ -2669,7 +2774,7 @@ export const sameDayRoleSets = (
         (o) =>
           o?.date === date &&
           (Number(o?.pitches) || 0) > 0 &&
-          o.gameId !== excludeGameId
+          o.gameId !== excludeGameId,
       )
     )
       pitched.add(p.id);
@@ -2679,7 +2784,7 @@ export const sameDayRoleSets = (
         (o) =>
           o?.date === date &&
           (Number(o?.innings) || 0) > 0 &&
-          o.gameId !== excludeGameId
+          o.gameId !== excludeGameId,
       )
     )
       caught.add(p.id);
@@ -2729,7 +2834,10 @@ export const isSafeCssColor = (value: unknown): boolean => {
 // inline image data URLs; rejects everything else (javascript:, other data:).
 export const isSafeImageUrl = (value: unknown): boolean => {
   const v = String(value ?? "").trim();
-  return /^https:\/\//i.test(v) || /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(v);
+  return (
+    /^https:\/\//i.test(v) ||
+    /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);/i.test(v)
+  );
 };
 
 // ---------- Team finances (money math) ----------
@@ -2767,7 +2875,7 @@ export const budgetItemAmount = (
       }
     | null
     | undefined,
-  salesTaxPct?: number
+  salesTaxPct?: number,
 ): number => {
   if (!item) return 0;
   const base =
@@ -2779,10 +2887,12 @@ export const budgetItemAmount = (
   return base * (1 + pct / 100);
 };
 
-export const budgetTotal = (finances: TeamFinances | null | undefined): number =>
+export const budgetTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
   (finances?.budgetItems || []).reduce(
     (sum, item) => sum + budgetItemAmount(item, finances?.salesTaxPct),
-    0
+    0,
   );
 
 // Round up to the next multiple of `increment` (the fee buffer: incidentals
@@ -2797,14 +2907,16 @@ export const roundUpToIncrement = (n: number, increment?: number): number => {
 
 // Sponsorships / fundraising / donations — everything received that isn't a
 // family's club-fee payment.
-export const incomeTotal = (finances: TeamFinances | null | undefined): number =>
+export const incomeTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
 // THIS season's ledger income flagged as fundraising — the slice of income
 // that reduces each family's dues. Split into money attributed to a specific
 // child (credits that kid's fee first) and unattributed money (splits evenly).
 const fundraisingBreakdown = (
-  finances: TeamFinances | null | undefined
+  finances: TeamFinances | null | undefined,
 ): { byPlayer: Record<string, number>; unattributed: number } => {
   const byPlayer: Record<string, number> = {};
   let unattributed = 0;
@@ -2821,7 +2933,7 @@ const fundraisingBreakdown = (
 // Sponsorships pledged toward NEXT season's budget (Budget Planner entries
 // with a sponsor name) — the only money that offsets the suggested fee.
 export const sponsorshipTotal = (
-  finances: TeamFinances | null | undefined
+  finances: TeamFinances | null | undefined,
 ): number =>
   (finances?.sponsorships || []).reduce((sum, s) => sum + money(s?.amount), 0);
 
@@ -2836,7 +2948,7 @@ export const sponsorshipTotal = (
 // split (no budget or no paying players).
 export const suggestedFeePerPlayer = (
   finances: TeamFinances | null | undefined,
-  players: Array<{ id: string }> | null | undefined
+  players: Array<{ id: string }> | null | undefined,
 ): number | null => {
   const total = budgetTotal(finances);
   if (total <= 0) return null;
@@ -2852,7 +2964,7 @@ export const suggestedFeePerPlayer = (
 // size for next season when set, otherwise this season's paying players.
 export const plannedPayerCount = (
   finances: TeamFinances | null | undefined,
-  players: Array<{ id: string }> | null | undefined
+  players: Array<{ id: string }> | null | undefined,
 ): number => {
   const planned = Math.round(money(finances?.plannedPlayerCount));
   if (planned > 0) return planned;
@@ -2867,7 +2979,7 @@ export const plannedPayerCount = (
 // to learn from. Ids are freshly generated so the proposal never collides
 // with existing items.
 export const estimateBudgetFromSeason = (
-  finances: TeamFinances | null | undefined
+  finances: TeamFinances | null | undefined,
 ): { items: BudgetItem[]; total: number } | null => {
   const actuals = budgetActuals(finances);
   const items: BudgetItem[] = [];
@@ -2923,7 +3035,7 @@ export interface FinanceSummary {
 // collected/balance (money is money) but add nothing to stillOwed.
 export const financeSummary = (
   finances: TeamFinances | null | undefined,
-  players: Array<{ id: string }> | null | undefined
+  players: Array<{ id: string }> | null | undefined,
 ): FinanceSummary => {
   const fee = Math.max(0, money(finances?.clubFee));
   const paidByPlayer: Record<string, number> = {};
@@ -2945,7 +3057,8 @@ export const financeSummary = (
   // income), so it only shrinks what's still owed. Money attributed to a child
   // credits that kid's fee first (capped at the fee); the unattributed money
   // and any per-child surplus pool into an even split across all families.
-  const { byPlayer: rawAttributed, unattributed } = fundraisingBreakdown(finances);
+  const { byPlayer: rawAttributed, unattributed } =
+    fundraisingBreakdown(finances);
   const attributedCredit: Record<string, number> = {};
   let evenPool = unattributed;
   for (const [pid, rawAmt] of Object.entries(rawAttributed)) {
@@ -3006,7 +3119,7 @@ export interface TeamFeesStatus {
 
 export const teamFeesStatus = (
   finances: TeamFinances | null | undefined,
-  players: Array<{ id: string }> | null | undefined
+  players: Array<{ id: string }> | null | undefined,
 ): TeamFeesStatus => {
   const s = financeSummary(finances, players);
   const exempt = new Set(finances?.feeExemptIds || []);
@@ -3070,7 +3183,7 @@ export interface LedgerRow {
 // payment rows to kid names for display.
 export const transactionLedger = (
   finances: TeamFinances | null | undefined,
-  players?: Array<{ id: string; name?: string }> | null
+  players?: Array<{ id: string; name?: string }> | null,
 ): LedgerRow[] => {
   const nameOf = (pid: string): string => {
     const p = (players || []).find((x) => x?.id === pid);
@@ -3117,10 +3230,7 @@ export const transactionLedger = (
   // Stable sort: date order; ties keep push order (in-rows precede out-rows).
   const sorted = rows
     .map((r, i) => ({ r, i }))
-    .sort(
-      (a, b) =>
-        a.r.date.localeCompare(b.r.date) || a.i - b.i
-    )
+    .sort((a, b) => a.r.date.localeCompare(b.r.date) || a.i - b.i)
     .map((x) => x.r);
   let running = 0;
   return sorted.map((r) => {
@@ -3146,7 +3256,7 @@ export const transactionLedger = (
 // Planner category (expenses linked via budgetItemId), plus the unplanned
 // bucket for everything spent outside the plan.
 export const budgetActuals = (
-  finances: TeamFinances | null | undefined
+  finances: TeamFinances | null | undefined,
 ): { byItem: Record<string, number>; unplanned: number } => {
   const ids = new Set((finances?.budgetItems || []).map((b) => b.id));
   const byItem: Record<string, number> = {};
@@ -3171,7 +3281,7 @@ export interface YearComparisonRow {
 // advance) plus the current year so far.
 export const yearComparison = (
   finances: TeamFinances | null | undefined,
-  players: Array<{ id: string }> | null | undefined
+  players: Array<{ id: string }> | null | undefined,
 ): YearComparisonRow[] => {
   const rows: YearComparisonRow[] = (finances?.pastSeasons || []).map((ps) => ({
     label: String(ps?.season || ""),
@@ -3199,7 +3309,20 @@ export interface CashflowMonth {
   balanceEnd: number;
 }
 
-const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTH_LABELS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 // Monthly money in / money out / end-of-month balance, derived from the
 // dated transaction ledger (already sorted with a running balance). Months
@@ -3207,10 +3330,10 @@ const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct
 // has a continuous axis.
 export const monthlyCashflow = (
   finances: TeamFinances | null | undefined,
-  players?: Array<{ id: string; name?: string }> | null
+  players?: Array<{ id: string; name?: string }> | null,
 ): CashflowMonth[] => {
   const rows = transactionLedger(finances, players).filter((r) =>
-    /^\d{4}-\d{2}/.test(r.date)
+    /^\d{4}-\d{2}/.test(r.date),
   );
   if (rows.length === 0) return [];
   const byMonth = new Map<string, CashflowMonth>();
@@ -3239,11 +3362,20 @@ export const monthlyCashflow = (
       out.push(m);
       carry = m.balanceEnd;
     } else {
-      out.push({ month: key, label: MONTH_LABELS[mo - 1], in: 0, out: 0, balanceEnd: carry });
+      out.push({
+        month: key,
+        label: MONTH_LABELS[mo - 1],
+        in: 0,
+        out: 0,
+        balanceEnd: carry,
+      });
     }
     if (key === last) break;
     mo += 1;
-    if (mo > 12) { mo = 1; y += 1; }
+    if (mo > 12) {
+      mo = 1;
+      y += 1;
+    }
     if (out.length > 36) break; // safety: never build an unbounded axis
   }
   return out;
@@ -3254,7 +3386,7 @@ export const monthlyCashflow = (
 export const owesReminderText = (
   finances: TeamFinances | null | undefined,
   players: Array<{ id: string; name?: string }> | null | undefined,
-  season?: string
+  season?: string,
 ): string => {
   const s = financeSummary(finances, players);
   const exempt = new Set(finances?.feeExemptIds || []);
@@ -3269,7 +3401,7 @@ export const owesReminderText = (
   }
   if (lines.length === 0) return "All team fees are paid in full. 🎉";
   const header = `Team fee reminder${season ? ` — ${season}` : ""} (fee ${formatCurrency(
-    s.effectiveFeePerPlayer
+    s.effectiveFeePerPlayer,
   )}${
     s.duesCreditPerPlayer > 0
       ? ` after ${formatCurrency(s.duesCreditPerPlayer)} fundraising credit`
@@ -3285,7 +3417,7 @@ export const owesReminderText = (
 // Full ledger as a spreadsheet for records/treasurer handoff.
 export const ledgerCsv = (
   finances: TeamFinances | null | undefined,
-  players?: Array<{ id: string; name?: string }> | null
+  players?: Array<{ id: string; name?: string }> | null,
 ): string => {
   const esc = (val: unknown): string => {
     const str = String(val ?? "");
@@ -3298,7 +3430,7 @@ export const ledgerCsv = (
       r.direction === "in" ? r.amount.toFixed(2) : "",
       r.direction === "out" ? r.amount.toFixed(2) : "",
       r.balanceAfter.toFixed(2),
-    ].join(",")
+    ].join(","),
   );
   return ["Date,Entry,In,Out,Balance", ...rows].join("\n");
 };
@@ -3306,7 +3438,7 @@ export const ledgerCsv = (
 export const rollFinancesForNewSeason = (
   finances: TeamFinances | null | undefined,
   archivedSeason: string,
-  dateIso: string
+  dateIso: string,
 ): TeamFinances | null | undefined => {
   const hadActivity =
     (finances?.payments || []).length > 0 ||
@@ -3315,7 +3447,8 @@ export const rollFinancesForNewSeason = (
   const hasPlannedFee = finances?.nextClubFee != null;
   const hasPlannedDeposit =
     finances?.nextDepositAmount != null || !!finances?.nextDepositDueDate;
-  if (!finances || (!hadActivity && !hasPlannedFee && !hasPlannedDeposit)) return finances;
+  if (!finances || (!hadActivity && !hasPlannedFee && !hasPlannedDeposit))
+    return finances;
   const date = String(dateIso || "").slice(0, 10);
   // Sponsorship pledges planned for the incoming year become real income
   // entries in the new year's ledger, named after the sponsor.
@@ -3342,7 +3475,8 @@ export const rollFinancesForNewSeason = (
     return {
       ...rest,
       clubFee: promoted != null ? promoted : finances.clubFee,
-      depositAmount: promotedDeposit != null ? promotedDeposit : finances.depositAmount,
+      depositAmount:
+        promotedDeposit != null ? promotedDeposit : finances.depositAmount,
       depositDueDate: promotedDepositDueDate || finances.depositDueDate,
       payments: [],
       incomes: pledgedIncomes,
@@ -3457,9 +3591,10 @@ export const mergeTeamEntries = (
 export const blockedRosterWipeReason = (
   updates: { players?: unknown },
   currentPlayers: unknown,
-  teamLoaded: boolean
+  teamLoaded: boolean,
 ): string | null => {
-  if (!Array.isArray(updates.players) || updates.players.length > 0) return null;
+  if (!Array.isArray(updates.players) || updates.players.length > 0)
+    return null;
   if (!teamLoaded)
     return "this team's data hasn't finished loading on this device yet";
   const prev = Array.isArray(currentPlayers) ? currentPlayers : [];

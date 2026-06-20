@@ -137,7 +137,11 @@ export const GameChangerImportModal: React.FC<Props> = ({
           <h3 className="text-lg font-black text-ink uppercase tracking-wider flex items-center gap-2">
             <Icons.Calendar className="w-5 h-5" /> Import from GameChanger
           </h3>
-          <button onClick={onClose} aria-label="Close" className="text-ink-3 hover:text-ink">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-ink-3 hover:text-ink"
+          >
             <Icons.X className="w-5 h-5" />
           </button>
         </div>
@@ -148,9 +152,9 @@ export const GameChangerImportModal: React.FC<Props> = ({
               Calendar feed URL
             </label>
             <p className="text-xs text-ink-3 mt-1 mb-2">
-              In GameChanger: Schedule → Schedule Sync → Sync to Your Calendar, then copy
-              the subscription link (starts with <code>webcal://</code> or{" "}
-              <code>https://</code>).
+              In GameChanger: Schedule → Schedule Sync → Sync to Your Calendar,
+              then copy the subscription link (starts with{" "}
+              <code>webcal://</code> or <code>https://</code>).
             </p>
             <textarea
               value={url}
@@ -178,13 +182,18 @@ export const GameChangerImportModal: React.FC<Props> = ({
           {candidates && (
             <div className="space-y-2">
               <div className="text-[11px] font-black uppercase tracking-widest text-ink-3">
-                {candidates.length} game{candidates.length === 1 ? "" : "s"} · {newCount} new ·{" "}
-                {dupCount} already imported
+                {candidates.length} game{candidates.length === 1 ? "" : "s"} ·{" "}
+                {newCount} new · {dupCount} already imported
               </div>
               <div className="border border-line rounded-xl divide-y divide-line max-h-64 overflow-y-auto">
                 {candidates.map((c) => (
-                  <div key={c.event.uid || c.event.summary} className="flex items-center gap-3 p-2.5 text-sm">
-                    <span className="tabular-nums text-ink-3 w-24 shrink-0">{c.date}</span>
+                  <div
+                    key={c.event.uid || c.event.summary}
+                    className="flex items-center gap-3 p-2.5 text-sm"
+                  >
+                    <span className="tabular-nums text-ink-3 w-24 shrink-0">
+                      {c.date}
+                    </span>
                     <span
                       className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0 ${
                         c.event.isHome === false
@@ -192,7 +201,11 @@ export const GameChangerImportModal: React.FC<Props> = ({
                           : "bg-emerald-50 border-emerald-200 text-emerald-700"
                       }`}
                     >
-                      {c.event.isHome === false ? "@ Away" : c.event.isHome ? "vs Home" : "—"}
+                      {c.event.isHome === false
+                        ? "@ Away"
+                        : c.event.isHome
+                          ? "vs Home"
+                          : "—"}
                     </span>
                     <span className="font-bold text-ink flex-1 min-w-0 truncate">
                       {c.event.opponent}
@@ -221,7 +234,8 @@ export const GameChangerImportModal: React.FC<Props> = ({
               onClick={doImport}
               className="py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl bg-[var(--team-primary)] text-white hover:-translate-y-0.5 transition-transform"
             >
-              Import {candidates.length} game{candidates.length === 1 ? "" : "s"}
+              Import {candidates.length} game
+              {candidates.length === 1 ? "" : "s"}
             </button>
           </div>
         )}

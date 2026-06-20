@@ -34,8 +34,7 @@ export const LineupGrid = memo(
       if (swapSelection.innIdx !== innIdx) return false;
       if (pos === "BENCH") {
         return (
-          swapSelection.pos === "BENCH" &&
-          swapSelection.player?.id === playerId
+          swapSelection.pos === "BENCH" && swapSelection.player?.id === playerId
         );
       }
       return swapSelection.pos === pos;
@@ -114,8 +113,8 @@ export const LineupGrid = memo(
                       sel
                         ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md"
                         : pAtPos
-                        ? "bg-surface border-line text-ink active:bg-app"
-                        : "bg-surface border-dashed border-line-strong text-ink-3 active:bg-surface"
+                          ? "bg-surface border-line text-ink active:bg-app"
+                          : "bg-surface border-dashed border-line-strong text-ink-3 active:bg-surface"
                     }`}
                   >
                     <span
@@ -227,8 +226,8 @@ export const LineupGrid = memo(
                             isSelected
                               ? "ring-2 ring-warnfg bg-warn-bg text-warnfg border-warnfg shadow-md scale-105 z-20 relative"
                               : pAtPos
-                              ? "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
-                              : "bg-surface border-dashed border-line-strong text-ink-3 hover:bg-surface"
+                                ? "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
+                                : "bg-surface border-dashed border-line-strong text-ink-3 hover:bg-surface"
                           }`}
                         >
                           {pAtPos ? (
@@ -284,5 +283,5 @@ export const LineupGrid = memo(
         </div>
       </>
     );
-  }
+  },
 );

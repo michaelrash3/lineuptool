@@ -38,34 +38,83 @@ export interface EvalCategory {
 
 export const EVAL_CATEGORIES: EvalCategory[] = [
   // Hitting
-  { id: "approach", label: "Approach", group: "Hitting", weight: 2.5,
-    description: "Pitch selection, two-strike battles, situational hitting." },
+  {
+    id: "approach",
+    label: "Approach",
+    group: "Hitting",
+    weight: 2.5,
+    description: "Pitch selection, two-strike battles, situational hitting.",
+  },
   // Athleticism — Speed and Base Running are graded SEPARATELY: raw foot speed
   // is a different tool than reads/instincts on the bases.
-  { id: "speed", label: "Speed", group: "Baserunning", weight: 1.0,
-    description: "Raw foot speed and first-step quickness." },
-  { id: "baserunning", label: "Base Running", group: "Baserunning", weight: 1.5,
-    description: "Reads, instincts, and smart aggression on the bases." },
+  {
+    id: "speed",
+    label: "Speed",
+    group: "Baserunning",
+    weight: 1.0,
+    description: "Raw foot speed and first-step quickness.",
+  },
+  {
+    id: "baserunning",
+    label: "Base Running",
+    group: "Baserunning",
+    weight: 1.5,
+    description: "Reads, instincts, and smart aggression on the bases.",
+  },
   // Intangibles
-  { id: "baseballIQ", label: "Baseball IQ", group: "Intangibles", weight: 2.0,
-    description: "Knows where the ball goes; situational awareness." },
-  { id: "coachability", label: "Coachability", group: "Intangibles", weight: 3.0,
-    description: "Listens, adjusts, effort & attitude. Weighted heavily." },
+  {
+    id: "baseballIQ",
+    label: "Baseball IQ",
+    group: "Intangibles",
+    weight: 2.0,
+    description: "Knows where the ball goes; situational awareness.",
+  },
+  {
+    id: "coachability",
+    label: "Coachability",
+    group: "Intangibles",
+    weight: 3.0,
+    description: "Listens, adjusts, effort & attitude. Weighted heavily.",
+  },
   // Composure is a universal intangible — every player is graded on it now,
   // not just kid-pitch pitchers.
-  { id: "composure", label: "Composure", group: "Intangibles", weight: 2.0,
-    description: "Stays calm under pressure; bounces back." },
+  {
+    id: "composure",
+    label: "Composure",
+    group: "Intangibles",
+    weight: 2.0,
+    description: "Stays calm under pressure; bounces back.",
+  },
   // Kid-Pitch add-on: Pitching (pitchers only). Optional radar reading in mph,
   // scored against the age group's average (see AGE_VELOCITY_BENCHMARKS).
-  { id: "pitchVelo", label: "Pitch Velocity", group: "Pitching", weight: 0,
-    addOn: "kidPitch", inputKind: "mph",
-    description: "Top fastball in mph. Optional — scored vs your age group's average." },
+  {
+    id: "pitchVelo",
+    label: "Pitch Velocity",
+    group: "Pitching",
+    weight: 0,
+    addOn: "kidPitch",
+    inputKind: "mph",
+    description:
+      "Top fastball in mph. Optional — scored vs your age group's average.",
+  },
   // Kid-Pitch add-ons: Catching. Game Calling isn't a thing at young ages —
   // grade the tangible catching skills instead.
-  { id: "blocking", label: "Blocking", group: "Catching", weight: 1.5, addOn: "kidPitch",
-    description: "Keeps balls in front; smothers pitches in the dirt." },
-  { id: "receiving", label: "Receiving", group: "Catching", weight: 1.0, addOn: "kidPitch",
-    description: "Soft hands, clean glove work, presents a steady target." },
+  {
+    id: "blocking",
+    label: "Blocking",
+    group: "Catching",
+    weight: 1.5,
+    addOn: "kidPitch",
+    description: "Keeps balls in front; smothers pitches in the dirt.",
+  },
+  {
+    id: "receiving",
+    label: "Receiving",
+    group: "Catching",
+    weight: 1.0,
+    addOn: "kidPitch",
+    description: "Soft hands, clean glove work, presents a steady target.",
+  },
 ];
 
 // Youth pitch-velocity benchmarks by age (mph), based on the coach-provided
@@ -106,12 +155,17 @@ export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Intangibles",
 ];
 
-export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = ["Pitching", "Catching"];
+export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = [
+  "Pitching",
+  "Catching",
+];
 
 export const isKidPitchFormat = (pitchingFormat?: string): boolean =>
   (pitchingFormat || "").toLowerCase().includes("kid");
 
-export const getEvalCategoriesForTeam = (pitchingFormat?: string): EvalCategory[] => {
+export const getEvalCategoriesForTeam = (
+  pitchingFormat?: string,
+): EvalCategory[] => {
   const includeAddOns = isKidPitchFormat(pitchingFormat);
   return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
 };
@@ -136,7 +190,7 @@ export const playerIsCatcher = (player?: {
 // that actually apply to them (no penalty for missing the others).
 export const getEvalCategoriesForPlayer = (
   pitchingFormat: string | undefined,
-  player: { comfortablePositions?: string[] } | undefined
+  player: { comfortablePositions?: string[] } | undefined,
 ): EvalCategory[] => {
   const kidPitch = isKidPitchFormat(pitchingFormat);
   return EVAL_CATEGORIES.filter((c) => {
@@ -191,13 +245,19 @@ export const EVAL_SCALE_LABELS = [
 export const EVAL_SCALE_MAX = 5;
 export const EVAL_SCALE_DEFAULT = 3;
 
-export const velocityGradeFromMph = (mph: number | null | undefined, teamAge?: string): number | null => {
+export const velocityGradeFromMph = (
+  mph: number | null | undefined,
+  teamAge?: string,
+): number | null => {
   if (typeof mph !== "number" || !Number.isFinite(mph) || mph <= 0) return null;
   const b = velocityBenchmarkForAge(teamAge);
   const span = b.elite - b.avgLow;
   if (span <= 0) return null;
   const quality = Math.min(1, Math.max(0, (mph - b.avgLow) / span));
-  return Math.max(1, Math.min(EVAL_SCALE_MAX, Math.round(1 + quality * (EVAL_SCALE_MAX - 1))));
+  return Math.max(
+    1,
+    Math.min(EVAL_SCALE_MAX, Math.round(1 + quality * (EVAL_SCALE_MAX - 1))),
+  );
 };
 
 // Roster-decision premium for pitching well. Pure: takes a player's
@@ -208,8 +268,13 @@ export const velocityGradeFromMph = (mph: number | null | undefined, teamAge?: s
 export const PITCHER_ROSTER_PREMIUM_MAX = 15;
 export const LEFT_HANDED_PITCHER_ROSTER_PREMIUM = 4;
 
-export const isLeftHandedThrower = (player?: { throws?: string | null }): boolean =>
-  String(player?.throws || "").trim().toUpperCase().startsWith("L");
+export const isLeftHandedThrower = (player?: {
+  throws?: string | null;
+}): boolean =>
+  String(player?.throws || "")
+    .trim()
+    .toUpperCase()
+    .startsWith("L");
 
 export const leftHandedPitcherRosterPremium = (player?: {
   comfortablePositions?: string[];
@@ -221,7 +286,7 @@ export const leftHandedPitcherRosterPremium = (player?: {
 
 export const pitcherRosterPremium = (
   pitcherScore: number,
-  weightSum: number
+  weightSum: number,
 ): number => {
   const neutral = weightSum * EVAL_SCALE_DEFAULT;
   const span = weightSum * (EVAL_SCALE_MAX - EVAL_SCALE_DEFAULT);
@@ -263,7 +328,9 @@ export interface NextSeason {
 }
 
 // Compute the "next" season label and whether the age tier should bump.
-export const computeNextSeason = (currentSeasonStr: string): NextSeason | null => {
+export const computeNextSeason = (
+  currentSeasonStr: string,
+): NextSeason | null => {
   const parts = (currentSeasonStr || "").split(" ");
   if (parts.length < 2) return null;
   const season = parts[0].toLowerCase();

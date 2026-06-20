@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import React from "react";
 import { screen } from "@testing-library/react";
 import { HomeTab } from "./HomeTab";
@@ -17,6 +18,19 @@ const emptyTeam = {
 };
 
 describe("HomeTab", () => {
+  // HomeTab derives "today" from `new Date()` internally, and the dashboard's
+  // "This Week" section only surfaces games/practices in the next 7 days. Pin
+  // the clock so fixtures dated 2026-06-18/19 stay in-window regardless of when
+  // the suite runs — otherwise the test silently rots once the real date passes
+  // them. Fake only Date (not timers) so RTL/animation scheduling stays real.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the dashboard without crashing for an empty team", () => {
     renderWithProviders(<HomeTab />, {
       team: {
@@ -34,9 +48,7 @@ describe("HomeTab", () => {
     });
     // With an empty roster the dashboard shows a "get a roster in place"
     // prompt — a stable anchor proving the screen mounted without crashing.
-    expect(
-      screen.getByText(/add players to the roster/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/add players to the roster/i)).toBeInTheDocument();
   });
 
   it("shows the Kid Pitch / Machine record split when the team played both", () => {
@@ -72,7 +84,15 @@ describe("HomeTab", () => {
             {
               id: "p1",
               name: "Ava Rivera",
-              stats: { ab: 10, h: 4, avg: 0.4, obp: 0.45, ops: 0.9, hr: 1, rbi: 5 },
+              stats: {
+                ab: 10,
+                h: 4,
+                avg: 0.4,
+                obp: 0.45,
+                ops: 0.9,
+                hr: 1,
+                rbi: 5,
+              },
             },
           ],
           games: [
@@ -93,7 +113,9 @@ describe("HomeTab", () => {
               time: "10:00",
             },
           ],
-          practices: [{ id: "pr1", date: "2026-06-18", attendance: { p1: false } }],
+          practices: [
+            { id: "pr1", date: "2026-06-18", attendance: { p1: false } },
+          ],
         },
         teams: [{ id: "t1", name: "Hawks" }],
         activeTeamId: "t1",

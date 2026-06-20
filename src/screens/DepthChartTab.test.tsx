@@ -129,7 +129,7 @@ describe("DepthChartTab", () => {
     const bortz = items.find((el) => el.textContent?.includes("Bortz"))!;
     // Apple (primary SS) appears before Bortz in document order within the SS card.
     expect(
-      apple.compareDocumentPosition(bortz) & Node.DOCUMENT_POSITION_FOLLOWING
+      apple.compareDocumentPosition(bortz) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 

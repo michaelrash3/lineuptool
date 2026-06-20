@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import { isGameFinalized } from "../utils/helpers";
@@ -116,7 +122,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
         sublabel: "Games",
         searchKey: "schedule games",
         action: () => setActiveTab("schedule"),
-      }
+      },
     );
     if (!isAssistant) {
       items.push(
@@ -146,7 +152,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
             setActiveTab("roster");
             setIsAddingPlayer(true);
           },
-        }
+        },
       );
     } else {
       items.push({
@@ -174,7 +180,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     if (!query.trim()) {
       // No query: show navigation + actions first, then a sampling of players.
       const navAndActions = allItems.filter(
-        (i) => i.kind === "nav" || i.kind === "action"
+        (i) => i.kind === "nav" || i.kind === "action",
       );
       const players = allItems.filter((i) => i.kind === "player").slice(0, 8);
       const games = allItems.filter((i) => i.kind === "game").slice(0, 4);
@@ -196,9 +202,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
 
   // Scroll the active row into view.
   useEffect(() => {
-    const el = listRef.current?.querySelector(
-      `[data-cp-row="${activeIdx}"]`
-    );
+    const el = listRef.current?.querySelector(`[data-cp-row="${activeIdx}"]`);
     if (el && typeof el.scrollIntoView === "function") {
       el.scrollIntoView({ block: "nearest" });
     }
@@ -291,10 +295,10 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
                     {item.kind === "player"
                       ? "Player"
                       : item.kind === "game"
-                      ? "Game"
-                      : item.kind === "nav"
-                      ? "Tab"
-                      : "Action"}
+                        ? "Game"
+                        : item.kind === "nav"
+                          ? "Tab"
+                          : "Action"}
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block t-body-bold truncate text-ink">

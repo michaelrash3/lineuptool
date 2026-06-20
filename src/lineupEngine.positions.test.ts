@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { isPositionBlocked } from "./lineupEngine";
-import { canonicalizeOutfield, canonicalizePositionList } from "./utils/helpers";
+import {
+  canonicalizeOutfield,
+  canonicalizePositionList,
+} from "./utils/helpers";
 
 describe("outfield canonicalization", () => {
   it("collapses center variants to CF, leaves corners distinct", () => {

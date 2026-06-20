@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<
 
     const isChunkError =
       /loading chunk|dynamically imported module|failed to fetch/i.test(
-        error.message || ""
+        error.message || "",
       );
 
     return (

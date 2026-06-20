@@ -98,7 +98,11 @@ export const StaggerItem = ({
     className={className}
     variants={{
       hidden: { opacity: 0, y: 10 },
-      show: { opacity: 1, y: 0, transition: { duration: 0.22, ease: "easeOut" } },
+      show: {
+        opacity: 1,
+        y: 0,
+        transition: { duration: 0.22, ease: "easeOut" },
+      },
     }}
     {...rest}
   >
@@ -124,7 +128,7 @@ export const AnimatedNumber = ({
     spring.set(value);
   }, [spring, value]);
   const text = useTransform(spring, (v) =>
-    format ? format(v) : Math.round(v).toLocaleString()
+    format ? format(v) : Math.round(v).toLocaleString(),
   );
   return <m.span className={className}>{text}</m.span>;
 };

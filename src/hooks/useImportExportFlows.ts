@@ -26,7 +26,7 @@ interface UseImportExportFlowsArgs {
   teamData: any;
   updateTeam: (
     patch: Record<string, unknown>,
-    opts?: { allowEmptyPlayers?: boolean }
+    opts?: { allowEmptyPlayers?: boolean },
   ) => void;
   activeTeamId: string;
   toast: ToastContextValue;
@@ -53,12 +53,10 @@ export const useImportExportFlows = ({
           const text = fileText(ev);
           const rows = parseCsvRecords(text);
           if (rows.length < 2) throw new Error("File appears to be empty.");
-          const headers = rows[0].map((h) =>
-            h.toLowerCase().trim()
-          );
+          const headers = rows[0].map((h) => h.toLowerCase().trim());
           const dateIdx = headers.findIndex((h) => h.includes("date"));
           const oppIdx = headers.findIndex(
-            (h) => h.includes("opponent") || h.includes("home/away")
+            (h) => h.includes("opponent") || h.includes("home/away"),
           );
           if (dateIdx === -1) throw new Error("Could not find a date column.");
           const newGames: any[] = [];
@@ -118,7 +116,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast]
+    [teamData, updateTeam, toast],
   );
 
   const uploadStatsCsv = useCallback(
@@ -137,18 +135,16 @@ export const useImportExportFlows = ({
           // "Batting", "Pitching", "Fielding" section labels with most cells empty.
           // The second row has the real column names.
           let headerRowIndex = 0;
-          const firstRow = rows[0].map((h) =>
-            h.toLowerCase().trim()
-          );
+          const firstRow = rows[0].map((h) => h.toLowerCase().trim());
           const filledFirstRow = firstRow.filter(Boolean).length;
           const hasSectionLabels = firstRow.some((h) =>
-            ["batting", "pitching", "fielding"].includes(h)
+            ["batting", "pitching", "fielding"].includes(h),
           );
           if (hasSectionLabels && filledFirstRow < firstRow.length / 3) {
             headerRowIndex = 1;
           }
           const rawHeaders = rows[headerRowIndex].map((h) =>
-            h.toLowerCase().trim()
+            h.toLowerCase().trim(),
           );
           // Label row (when present) bounds the Batting/Pitching/Fielding
           // sections for the advanced-stat extractor (see extractAdvancedStats).
@@ -167,7 +163,7 @@ export const useImportExportFlows = ({
 
           if (!isTeamSnap && !isGameChanger) {
             throw new Error(
-              "Unrecognized CSV format. Expected TeamSnap members export or GameChanger stats export."
+              "Unrecognized CSV format. Expected TeamSnap members export or GameChanger stats export.",
             );
           }
 
@@ -216,12 +212,11 @@ export const useImportExportFlows = ({
                 if (coachEmail) {
                   const lower = coachEmail.toLowerCase();
                   const exists = nextCoachContacts.some(
-                    (c) => (c.email || "").toLowerCase() === lower
+                    (c) => (c.email || "").toLowerCase() === lower,
                   );
                   if (!exists) {
                     nextCoachContacts.push({
-                      id:
-                        "cc-" + Math.random().toString(36).substring(2, 10),
+                      id: "cc-" + Math.random().toString(36).substring(2, 10),
                       name,
                       email: coachEmail,
                       sourceRole: cols[idx.position],
@@ -235,7 +230,7 @@ export const useImportExportFlows = ({
             }
 
             const existingIndex = next.findIndex(
-              (p) => p.name.toLowerCase() === name.toLowerCase()
+              (p) => p.name.toLowerCase() === name.toLowerCase(),
             );
 
             if (isTeamSnap) {
@@ -286,7 +281,7 @@ export const useImportExportFlows = ({
               idx,
               labelRow,
               rawHeaders,
-              cols
+              cols,
             );
 
             if (Object.keys(statsPatch).length === 0) continue;
@@ -297,10 +292,9 @@ export const useImportExportFlows = ({
               // matches the existing stats — same CSV re-uploaded, no movement
               // to record. Cap history at 20 entries to stay under Firestore's
               // 1 MB doc limit (~50 numeric stats × 8 bytes × 20 = ~8 KB).
-              const priorStats =
-                next[existingIndex].stats || blankStats();
+              const priorStats = next[existingIndex].stats || blankStats();
               const changedFields = Object.keys(statsPatch).filter(
-                (k) => Number(priorStats[k]) !== Number(statsPatch[k])
+                (k) => Number(priorStats[k]) !== Number(statsPatch[k]),
               );
               let nextHistory = next[existingIndex].statsHistory || [];
               if (changedFields.length > 0) {
@@ -376,7 +370,10 @@ export const useImportExportFlows = ({
                 next[pi] = {
                   ...newPlayer,
                   pitching: {
-                    ...(newPlayer.pitching || { recentPitches: 0, lastPitchDate: null }),
+                    ...(newPlayer.pitching || {
+                      recentPitches: 0,
+                      lastPitchDate: null,
+                    }),
                     csvTotalPitches: newTp,
                   },
                 };
@@ -402,7 +399,10 @@ export const useImportExportFlows = ({
               next[pi] = {
                 ...newPlayer,
                 pitching: {
-                  ...(newPlayer.pitching || { recentPitches: 0, lastPitchDate: null }),
+                  ...(newPlayer.pitching || {
+                    recentPitches: 0,
+                    lastPitchDate: null,
+                  }),
                   csvTotalPitches: newTp,
                 },
               };
@@ -449,7 +449,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast]
+    [teamData, updateTeam, toast],
   );
 
   // Per-game stat import: the coach exports the SAME GameChanger stats CSV
@@ -469,9 +469,7 @@ export const useImportExportFlows = ({
       const reader = new FileReader();
       reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
-          const game = (teamData.games || []).find(
-            (g: any) => g.id === gameId
-          );
+          const game = (teamData.games || []).find((g: any) => g.id === gameId);
           if (!game) throw new Error("Game not found.");
           const parsed = parseGameChangerStatsCsv(fileText(ev));
           if ("error" in parsed) throw new Error(parsed.error);
@@ -479,9 +477,11 @@ export const useImportExportFlows = ({
           const fmt = game.pitchingFormat || teamData.pitchingFormat || "";
           const byName = new Map(
             (teamData.players || []).map((p: any) => [
-              String(p.name || "").trim().toLowerCase(),
+              String(p.name || "")
+                .trim()
+                .toLowerCase(),
               p.id,
-            ])
+            ]),
           );
           const playerStats: Record<string, Record<string, number>> = {
             ...(game.playerStats || {}),
@@ -503,7 +503,7 @@ export const useImportExportFlows = ({
           }
           if (matched === 0)
             throw new Error(
-              "No rows matched your roster — check the player names in the CSV."
+              "No rows matched your roster — check the player names in the CSV.",
             );
 
           const nextGames = (teamData.games || []).map((g: any) =>
@@ -513,7 +513,7 @@ export const useImportExportFlows = ({
                   playerStats,
                   statsImportedAt: new Date().toISOString(),
                 }
-              : g
+              : g,
           );
           // Re-derive season totals from ALL game lines for the players this
           // import touched. Derived fields overwrite; anything not derivable
@@ -527,7 +527,7 @@ export const useImportExportFlows = ({
             if (!derived) return p;
             const priorStats = p.stats || blankStats();
             const changed = Object.keys(derived).some(
-              (k) => Number(priorStats[k]) !== Number(derived[k])
+              (k) => Number(priorStats[k]) !== Number(derived[k]),
             );
             const statsHistory = changed
               ? [
@@ -572,7 +572,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast]
+    [teamData, updateTeam, toast],
   );
 
   const exportBackup = useCallback(() => {
@@ -612,7 +612,8 @@ export const useImportExportFlows = ({
     ];
     const rows = (players || []).map((p) => {
       const parts = (p.name || "").trim().split(/\s+/);
-      const first = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] || "";
+      const first =
+        parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] || "";
       const last = parts.length > 1 ? parts[parts.length - 1] : "";
       return [
         csvEscape(first),
@@ -642,30 +643,24 @@ export const useImportExportFlows = ({
 
   const exportRosterCsv = useCallback(() => {
     const csv = playersToCsv(teamData.players || []);
-    downloadCsv(
-      `roster-${activeTeamId}-${getLocalDateString()}.csv`,
-      csv
-    );
+    downloadCsv(`roster-${activeTeamId}-${getLocalDateString()}.csv`, csv);
     toast.push({ kind: "success", title: "Roster CSV downloaded" });
   }, [teamData.players, activeTeamId, toast, playersToCsv]);
 
   const exportNewPlayersCsv = useCallback(() => {
     const incoming = (teamData.players || []).filter(
-      (p: any) => p.playerStatus === "accepted"
+      (p: any) => p.playerStatus === "accepted",
     );
     if (incoming.length === 0) {
       toast.push({
         kind: "info",
         title: "No new players to export",
-        message: "Players join via tryout accept; status === \"accepted\".",
+        message: 'Players join via tryout accept; status === "accepted".',
       });
       return;
     }
     const csv = playersToCsv(incoming);
-    downloadCsv(
-      `new-players-${activeTeamId}-${getLocalDateString()}.csv`,
-      csv
-    );
+    downloadCsv(`new-players-${activeTeamId}-${getLocalDateString()}.csv`, csv);
     toast.push({
       kind: "success",
       title: `Downloaded ${incoming.length} new player${
@@ -681,11 +676,11 @@ export const useImportExportFlows = ({
   const setPlayerStatus = useCallback(
     (playerId: string, status: string) => {
       const next = (teamData.players || []).map((p: any) =>
-        p.id === playerId ? { ...p, playerStatus: status } : p
+        p.id === playerId ? { ...p, playerStatus: status } : p,
       );
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   // Explicit Returning Y/N writer used by AdvanceSeasonModal. Writes
@@ -704,7 +699,7 @@ export const useImportExportFlows = ({
       });
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   const importBackup = useCallback(
@@ -740,9 +735,7 @@ export const useImportExportFlows = ({
             !Array.isArray(data) &&
             Array.isArray((data as any).players);
           if (!looksLikeBackup) {
-            throw new Error(
-              "This file doesn't look like a LineupTool backup."
-            );
+            throw new Error("This file doesn't look like a LineupTool backup.");
           }
           // allowEmptyPlayers: restoring a backup is an explicitly-confirmed
           // full replace, so the persistTeam roster-wipe guard must defer to
@@ -760,9 +753,8 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       input.value = "";
     },
-    [updateTeam, toast, confirm]
+    [updateTeam, toast, confirm],
   );
-
 
   return {
     uploadScheduleCsv,

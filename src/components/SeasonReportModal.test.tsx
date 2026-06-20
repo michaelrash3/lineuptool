@@ -9,7 +9,11 @@ const team = {
   teamAge: "10U",
   pitchingFormat: "Kid Pitch",
   players: [
-    { id: "p1", name: "Ava Rivera", stats: { ab: 20, ops: 0.95, hr: 3, rbi: 12 } },
+    {
+      id: "p1",
+      name: "Ava Rivera",
+      stats: { ab: 20, ops: 0.95, hr: 3, rbi: 12 },
+    },
     { id: "p2", name: "Mia Stone", stats: { ab: 18, ops: 0.7, hr: 1, rbi: 5 } },
   ],
   games: [
@@ -32,15 +36,25 @@ const team = {
   ],
   practices: [],
   evaluationEvents: [
-    { id: "r1", date: "2026-02-01", createdAt: 1, grades: { p1: { approach: 2, coachability: 2 } } },
-    { id: "r2", date: "2026-05-01", createdAt: 2, grades: { p1: { approach: 4, coachability: 4 } } },
+    {
+      id: "r1",
+      date: "2026-02-01",
+      createdAt: 1,
+      grades: { p1: { approach: 2, coachability: 2 } },
+    },
+    {
+      id: "r2",
+      date: "2026-05-01",
+      createdAt: 2,
+      grades: { p1: { approach: 4, coachability: 4 } },
+    },
   ],
 };
 
 describe("SeasonReportModal", () => {
   it("renders record, top performers, and most improved", () => {
     renderWithProviders(
-      <SeasonReportModal open onClose={() => {}} team={team} />
+      <SeasonReportModal open onClose={() => {}} team={team} />,
     );
     expect(screen.getByText("Top Performers")).toBeInTheDocument();
     // Ava leads OPS/HR/RBI.

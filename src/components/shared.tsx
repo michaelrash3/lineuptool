@@ -124,7 +124,7 @@ export const LeaderboardCard = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 /* Empty-state card for blank surfaces (no roster, no games, no stats…).
@@ -157,7 +157,7 @@ export const EmptyState = memo(
         </button>
       )}
     </div>
-  )
+  ),
 );
 
 /* Compact W-L record. `variant`: "compact" (header) | "full" (home/schedule). */
@@ -205,7 +205,7 @@ export const RecordBadge = memo(
         ))}
       </div>
     );
-  }
+  },
 );
 
 /* ============================================================================
@@ -302,7 +302,7 @@ export const PlayerAvatar = memo(
         {numberBadge}
       </span>
     );
-  }
+  },
 );
 
 // Cache the one-time WebP-encode capability check.
@@ -313,7 +313,9 @@ const canvasSupportsWebp = (): boolean => {
     const c = document.createElement("canvas");
     c.width = 1;
     c.height = 1;
-    _webpEncodeSupport = c.toDataURL("image/webp").startsWith("data:image/webp");
+    _webpEncodeSupport = c
+      .toDataURL("image/webp")
+      .startsWith("data:image/webp");
   } catch {
     _webpEncodeSupport = false;
   }
@@ -337,7 +339,7 @@ export const downscaleImageToDataURL = (
   {
     maxDim = 512,
     targetBytes = 200_000,
-  }: { maxDim?: number; targetBytes?: number } = {}
+  }: { maxDim?: number; targetBytes?: number } = {},
 ): Promise<string> =>
   new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
@@ -421,7 +423,7 @@ const rgbToHex = (r: number, g: number, b: number) =>
 
 export const extractLogoPalette = (
   src: string | File,
-  count = 6
+  count = 6,
 ): Promise<string[]> =>
   new Promise((resolve) => {
     const run = (dataUrl: string) => {
@@ -459,7 +461,7 @@ export const extractLogoPalette = (
             if (a < 125) continue; // skip transparent logo backgrounds
             if (r > 240 && g > 240 && b > 240) continue; // skip near-white bg
             const key = `${Math.round(r / STEP)}-${Math.round(
-              g / STEP
+              g / STEP,
             )}-${Math.round(b / STEP)}`;
             const cur = buckets.get(key);
             if (cur) {
@@ -478,8 +480,8 @@ export const extractLogoPalette = (
               rgbToHex(
                 Math.round(bk.r / bk.count),
                 Math.round(bk.g / bk.count),
-                Math.round(bk.b / bk.count)
-              )
+                Math.round(bk.b / bk.count),
+              ),
             );
 
           // Drop colors that are perceptually too close to one already
@@ -521,7 +523,9 @@ export const extractLogoPalette = (
   });
 
 export const StatTile = ({ label, value, className = "" }: any) => (
-  <div className={`cc-card cc-sheen px-6 py-5 text-center rounded-2xl ${className}`}>
+  <div
+    className={`cc-card cc-sheen px-6 py-5 text-center rounded-2xl ${className}`}
+  >
     <span className="block mb-1.5 t-eyebrow">{label}</span>
     <span className="block t-stat-num t-gradient">{value}</span>
   </div>
@@ -529,16 +533,48 @@ export const StatTile = ({ label, value, className = "" }: any) => (
 
 // Semantic-lane tokens (theme-aware); borders are a translucent mix of the
 // lane color so they tint correctly on both light and dark surfaces.
-const CHIP_VARIANTS: Record<string, { bg: string; color: string; border: string }> = {
-  primary: { bg: "var(--team-primary)", color: "var(--team-tertiary)", border: "transparent" },
-  success: { bg: "var(--win-bg)", color: "var(--win)", border: "color-mix(in srgb, var(--win) 30%, transparent)" },
-  danger: { bg: "var(--loss-bg)", color: "var(--loss)", border: "color-mix(in srgb, var(--loss) 30%, transparent)" },
-  warn: { bg: "var(--warn-bg)", color: "var(--warn-fg)", border: "color-mix(in srgb, var(--warn-fg) 30%, transparent)" },
-  info: { bg: "var(--info-bg)", color: "var(--info-fg)", border: "color-mix(in srgb, var(--info-fg) 30%, transparent)" },
-  slate: { bg: "var(--surface-2)", color: "var(--ink-2)", border: "var(--line)" },
+const CHIP_VARIANTS: Record<
+  string,
+  { bg: string; color: string; border: string }
+> = {
+  primary: {
+    bg: "var(--team-primary)",
+    color: "var(--team-tertiary)",
+    border: "transparent",
+  },
+  success: {
+    bg: "var(--win-bg)",
+    color: "var(--win)",
+    border: "color-mix(in srgb, var(--win) 30%, transparent)",
+  },
+  danger: {
+    bg: "var(--loss-bg)",
+    color: "var(--loss)",
+    border: "color-mix(in srgb, var(--loss) 30%, transparent)",
+  },
+  warn: {
+    bg: "var(--warn-bg)",
+    color: "var(--warn-fg)",
+    border: "color-mix(in srgb, var(--warn-fg) 30%, transparent)",
+  },
+  info: {
+    bg: "var(--info-bg)",
+    color: "var(--info-fg)",
+    border: "color-mix(in srgb, var(--info-fg) 30%, transparent)",
+  },
+  slate: {
+    bg: "var(--surface-2)",
+    color: "var(--ink-2)",
+    border: "var(--line)",
+  },
 };
 
-export const Chip = ({ variant = "slate", className = "", children, ...rest }: any) => {
+export const Chip = ({
+  variant = "slate",
+  className = "",
+  children,
+  ...rest
+}: any) => {
   const v = CHIP_VARIANTS[variant] || CHIP_VARIANTS.slate;
   return (
     <span
@@ -557,7 +593,10 @@ const BUTTON_SIZE: Record<string, string> = {
   lg: "px-6 py-3 text-xs",
 };
 
-const BUTTON_VARIANTS: Record<string, { className: string; style: React.CSSProperties }> = {
+const BUTTON_VARIANTS: Record<
+  string,
+  { className: string; style: React.CSSProperties }
+> = {
   primary: {
     className: "btn-premium hover:-translate-y-0.5",
     style: { color: "var(--team-tertiary)" },
@@ -572,11 +611,13 @@ const BUTTON_VARIANTS: Record<string, { className: string; style: React.CSSPrope
     style: {},
   },
   success: {
-    className: "bg-emerald-600 text-white shadow-md hover:bg-emerald-700 hover:-translate-y-0.5",
+    className:
+      "bg-emerald-600 text-white shadow-md hover:bg-emerald-700 hover:-translate-y-0.5",
     style: {},
   },
   danger: {
-    className: "bg-rose-600 text-white shadow-md hover:bg-rose-700 hover:-translate-y-0.5",
+    className:
+      "bg-rose-600 text-white shadow-md hover:bg-rose-700 hover:-translate-y-0.5",
     style: {},
   },
 };
@@ -643,7 +684,9 @@ export const A11yDialog = ({
 export const FORM_INPUT_CLASS =
   "w-full px-3 py-2.5 text-sm bg-surface border border-line rounded-xl outline-none transition-shadow focus:ring-2 focus:border-transparent placeholder:text-ink-3 disabled:opacity-60 disabled:cursor-not-allowed";
 
-export const FORM_INPUT_RING_STYLE = { "--tw-ring-color": "var(--team-primary)" } as React.CSSProperties;
+export const FORM_INPUT_RING_STYLE = {
+  "--tw-ring-color": "var(--team-primary)",
+} as React.CSSProperties;
 
 // Drop-in <Modal> shell. Standardizes backdrop, panel chrome, optional
 // accent strip, and the close-on-backdrop / Escape behaviors so new modals

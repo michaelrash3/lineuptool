@@ -16,8 +16,8 @@ export const StorageUsagePanel = ({ team }: any) => {
     pct >= 90
       ? "Critical — saves may fail soon"
       : pct >= 70
-      ? "Watch — getting close to the limit"
-      : "Healthy";
+        ? "Watch — getting close to the limit"
+        : "Healthy";
 
   return (
     <div className="pt-6 border-t border-line/50">
@@ -28,20 +28,30 @@ export const StorageUsagePanel = ({ team }: any) => {
         </span>
       </div>
       <div className="w-full h-2 bg-line rounded-full overflow-hidden">
-        <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full ${color} transition-all`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <p className="text-xs text-ink-3 mt-1.5 font-medium">
-        {label} ({pct.toFixed(0)}%). Saves are limited to 1 MB per team. Data resets at season rollover.
+        {label} ({pct.toFixed(0)}%). Saves are limited to 1 MB per team. Data
+        resets at season rollover.
       </p>
     </div>
   );
 };
 
-export const TeamManagementPanel = ({ teams, leaveTeamCmd, deleteTeamCmd }: any) => (
+export const TeamManagementPanel = ({
+  teams,
+  leaveTeamCmd,
+  deleteTeamCmd,
+}: any) => (
   <div className="pt-6 border-t border-line/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div>
       <h4 className="font-bold text-ink text-sm">Team Management</h4>
-      <p className="text-xs text-ink-3 mt-1 font-medium">Leave this team or permanently delete it.</p>
+      <p className="text-xs text-ink-3 mt-1 font-medium">
+        Leave this team or permanently delete it.
+      </p>
     </div>
     <div className="flex gap-3">
       <button

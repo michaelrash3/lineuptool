@@ -42,10 +42,13 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
   const { updateTeam } = useTeam();
   const players: any[] = useMemo(() => team?.players || [], [team?.players]);
   const games: any[] = useMemo(() => team?.games || [], [team?.games]);
-  const practices: any[] = useMemo(() => team?.practices || [], [team?.practices]);
+  const practices: any[] = useMemo(
+    () => team?.practices || [],
+    [team?.practices],
+  );
   const evaluationEvents: any[] = useMemo(
     () => team?.evaluationEvents || [],
-    [team?.evaluationEvents]
+    [team?.evaluationEvents],
   );
   const isKidPitch =
     typeof team?.pitchingFormat === "string" &&
@@ -66,7 +69,9 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
       const vals = categories
         .map((c) => num(g?.[c.id]))
         .filter((v): v is number => v !== undefined);
-      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : undefined;
+      return vals.length
+        ? vals.reduce((s, v) => s + v, 0) / vals.length
+        : undefined;
     };
     let best: any = null;
     let bestDelta = 0;
@@ -77,7 +82,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
         .sort(
           (a: any, b: any) =>
             (a.date || "").localeCompare(b.date || "") ||
-            (a.createdAt || 0) - (b.createdAt || 0)
+            (a.createdAt || 0) - (b.createdAt || 0),
         );
       if (rounds.length < 2) continue;
       const f = overallOf(rounds[0].grades[p.id]);
@@ -89,7 +94,9 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
         best = p;
       }
     }
-    return best ? { playerId: best.id, value: `+${bestDelta.toFixed(1)}` } : null;
+    return best
+      ? { playerId: best.id, value: `+${bestDelta.toFixed(1)}` }
+      : null;
   }, [players, evaluationEvents, team?.pitchingFormat]);
 
   const ironman = useMemo(() => {
@@ -112,12 +119,18 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
     let best: string | null = null;
     let bestMarked = 0;
     for (const [pid, c] of Object.entries(by)) {
-      if (c.marked >= Math.min(3, maps.length) && c.present === c.marked && c.marked > bestMarked) {
+      if (
+        c.marked >= Math.min(3, maps.length) &&
+        c.present === c.marked &&
+        c.marked > bestMarked
+      ) {
         best = pid;
         bestMarked = c.marked;
       }
     }
-    return best ? { playerId: best, value: `${bestMarked}/${bestMarked}` } : null;
+    return best
+      ? { playerId: best, value: `${bestMarked}/${bestMarked}` }
+      : null;
   }, [games, practices]);
 
   interface Award {
@@ -130,7 +143,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
     get: (s: any) => number | undefined,
     hi: boolean,
     kind: Kind,
-    needsIp?: boolean
+    needsIp?: boolean,
   ) => {
     let best: any = null;
     let bestVal: number | undefined;
@@ -148,11 +161,31 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
 
   const awards: Award[] = useMemo(() => {
     const list: Award[] = [
-      { id: "topHitter", label: "Top Hitter (OPS)", auto: leaderBy((s) => read(s, "ops"), true, "dec3") },
-      { id: "rbiLeader", label: "RBI Leader", auto: leaderBy((s) => read(s, "rbi"), true, "int") },
-      { id: "speedster", label: "Speedster (SB)", auto: leaderBy((s) => read(s, "sb"), true, "int") },
-      { id: "hustle", label: "Hustle (QAB%)", auto: leaderBy((s) => read(s, "qab"), true, "pct") },
-      { id: "ironGlove", label: "Iron Glove (FPCT)", auto: leaderBy((s) => read(s, "fFpct", "fpct"), true, "dec3") },
+      {
+        id: "topHitter",
+        label: "Top Hitter (OPS)",
+        auto: leaderBy((s) => read(s, "ops"), true, "dec3"),
+      },
+      {
+        id: "rbiLeader",
+        label: "RBI Leader",
+        auto: leaderBy((s) => read(s, "rbi"), true, "int"),
+      },
+      {
+        id: "speedster",
+        label: "Speedster (SB)",
+        auto: leaderBy((s) => read(s, "sb"), true, "int"),
+      },
+      {
+        id: "hustle",
+        label: "Hustle (QAB%)",
+        auto: leaderBy((s) => read(s, "qab"), true, "pct"),
+      },
+      {
+        id: "ironGlove",
+        label: "Iron Glove (FPCT)",
+        auto: leaderBy((s) => read(s, "fFpct", "fpct"), true, "dec3"),
+      },
       { id: "mostImproved", label: "Most Improved", auto: improver },
       { id: "ironman", label: "Iron Man (Attendance)", auto: ironman },
     ];
@@ -179,7 +212,8 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
 
   const setOverride = (awardId: string, value: string) => {
     const next = { ...(team?.seasonAwards || {}) };
-    if (value === "") delete next[awardId]; // back to auto
+    if (value === "")
+      delete next[awardId]; // back to auto
     else next[awardId] = value;
     updateTeam?.({ seasonAwards: next });
   };
@@ -238,7 +272,9 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
                 className="border-2 rounded-xl p-5 text-center"
                 style={{ borderColor: "var(--team-primary)" }}
               >
-                <div className="t-eyebrow text-ink-3">Certificate of Achievement</div>
+                <div className="t-eyebrow text-ink-3">
+                  Certificate of Achievement
+                </div>
                 <div
                   className="text-lg font-black uppercase tracking-tight mt-1"
                   style={{ color: "var(--team-primary)" }}
@@ -291,7 +327,10 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
                 aria-label={`Winner for ${a.label}`}
               >
                 <option value="">
-                  Auto{a.auto ? ` (${nameById[a.auto.playerId] || "—"})` : " (none)"}
+                  Auto
+                  {a.auto
+                    ? ` (${nameById[a.auto.playerId] || "—"})`
+                    : " (none)"}
                 </option>
                 {players.map((p) => (
                   <option key={p.id} value={p.id}>

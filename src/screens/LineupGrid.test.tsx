@@ -15,7 +15,14 @@ const positions = ["P", "C"];
 
 describe("LineupGrid", () => {
   it("renders the inning strip as a tablist with one selected tab per inning", () => {
-    render(<LineupGrid lineup={lineup} positions={positions} swapSelection={null} onCellClick={jest.fn()} />);
+    render(
+      <LineupGrid
+        lineup={lineup}
+        positions={positions}
+        swapSelection={null}
+        onCellClick={jest.fn()}
+      />,
+    );
     const tablist = screen.getByRole("tablist", { name: /select inning/i });
     const tabs = within(tablist).getAllByRole("tab");
     expect(tabs).toHaveLength(2);
@@ -24,7 +31,14 @@ describe("LineupGrid", () => {
   });
 
   it("switches the selected inning tab on click", () => {
-    render(<LineupGrid lineup={lineup} positions={positions} swapSelection={null} onCellClick={jest.fn()} />);
+    render(
+      <LineupGrid
+        lineup={lineup}
+        positions={positions}
+        swapSelection={null}
+        onCellClick={jest.fn()}
+      />,
+    );
     const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
     fireEvent.click(tabs[1]);
     expect(tabs[1]).toHaveAttribute("aria-selected", "true");
@@ -33,7 +47,14 @@ describe("LineupGrid", () => {
 
   it("calls onCellClick with (inning, position, player) when a cell is tapped", () => {
     const onCellClick = jest.fn();
-    render(<LineupGrid lineup={lineup} positions={positions} swapSelection={null} onCellClick={onCellClick} />);
+    render(
+      <LineupGrid
+        lineup={lineup}
+        positions={positions}
+        swapSelection={null}
+        onCellClick={onCellClick}
+      />,
+    );
     // Both layouts render this label; either fires the same handler.
     fireEvent.click(screen.getAllByLabelText(/Inning 1, P: Ava/i)[0]);
     expect(onCellClick).toHaveBeenCalledWith(0, "P", { id: "p1", name: "Ava" });
@@ -46,17 +67,21 @@ describe("LineupGrid", () => {
         positions={positions}
         swapSelection={{ innIdx: 0, pos: "C" }}
         onCellClick={jest.fn()}
-      />
+      />,
     );
     // The C cell in inning 1 is the armed selection → aria-pressed=true.
     const armed = screen.getAllByLabelText(/Inning 1, C: Mia/i);
-    expect(armed.some((el) => el.getAttribute("aria-pressed") === "true")).toBe(true);
+    expect(armed.some((el) => el.getAttribute("aria-pressed") === "true")).toBe(
+      true,
+    );
   });
 
   it("is inert (no throw) when onCellClick is omitted", () => {
-    render(<LineupGrid lineup={lineup} positions={positions} swapSelection={null} />);
+    render(
+      <LineupGrid lineup={lineup} positions={positions} swapSelection={null} />,
+    );
     expect(() =>
-      fireEvent.click(screen.getAllByLabelText(/Inning 1, P: Ava/i)[0])
+      fireEvent.click(screen.getAllByLabelText(/Inning 1, P: Ava/i)[0]),
     ).not.toThrow();
   });
 });

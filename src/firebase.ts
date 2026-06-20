@@ -1,5 +1,9 @@
 import { initializeApp, FirebaseOptions } from "firebase/app";
-import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
+import {
+  browserLocalPersistence,
+  getAuth,
+  setPersistence,
+} from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
@@ -29,9 +33,14 @@ const _hostFirebaseConfig =
 let parsedHostFirebaseConfig: FirebaseOptions | null = null;
 if (_hostFirebaseConfig) {
   try {
-    parsedHostFirebaseConfig = JSON.parse(_hostFirebaseConfig) as FirebaseOptions;
+    parsedHostFirebaseConfig = JSON.parse(
+      _hostFirebaseConfig,
+    ) as FirebaseOptions;
   } catch (err) {
-    console.warn("Invalid host-injected Firebase config; falling back to local config.", err);
+    console.warn(
+      "Invalid host-injected Firebase config; falling back to local config.",
+      err,
+    );
   }
 }
 

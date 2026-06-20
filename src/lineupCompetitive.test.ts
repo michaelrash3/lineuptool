@@ -47,8 +47,9 @@ const baseInput = (over: any = {}) => ({
 });
 
 const benchCount = (lineup: any[] | undefined, id: string) =>
-  (lineup || []).filter((inn) => (inn.BENCH || []).some((b: any) => b?.id === id))
-    .length;
+  (lineup || []).filter((inn) =>
+    (inn.BENCH || []).some((b: any) => b?.id === id),
+  ).length;
 
 describe("buildCompetitiveLineup — minimum-play floor", () => {
   const res = buildCompetitiveLineup(baseInput());
@@ -72,7 +73,7 @@ describe("buildCompetitiveLineup — minimum-play floor", () => {
     expect(benchCount(res.lineup, "p9")).toBe(0);
     expect(benchCount(res.lineup, "p0")).toBe(3); // weakest, at the cap
     expect(benchCount(res.lineup, "p0")).toBeGreaterThan(
-      benchCount(res.lineup, "p10")
+      benchCount(res.lineup, "p10"),
     );
   });
 
@@ -80,7 +81,11 @@ describe("buildCompetitiveLineup — minimum-play floor", () => {
     // Innings 0-2 were already played with p5 at SS; p5 is then removed
     // (injury) and the engine redrafts innings 3-5 without them.
     const fielders = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
-    const slim = (i: number) => ({ id: `p${i}`, name: `P${i}`, number: String(i) });
+    const slim = (i: number) => ({
+      id: `p${i}`,
+      name: `P${i}`,
+      number: String(i),
+    });
     const playedInning = () => {
       const inn: Record<string, any> = {
         BENCH: [slim(9), slim(10)],
@@ -99,7 +104,7 @@ describe("buildCompetitiveLineup — minimum-play floor", () => {
         fromInning: 3,
         currentLineup: played,
         depthChart: { SS: ["p10"] },
-      })
+      }),
     );
     expect(res.error).toBeUndefined();
     expect(res.lineup).toHaveLength(6);
@@ -134,7 +139,9 @@ describe("buildCompetitiveLineup — minimum-play floor", () => {
       teamScore: 5,
       opponentScore: 2,
       leagueRuleSet: "USSSA",
-      lineup: Array.from({ length: 6 }, () => ({ BENCH: [{ id: "p0", name: "P0" }] })),
+      lineup: Array.from({ length: 6 }, () => ({
+        BENCH: [{ id: "p0", name: "P0" }],
+      })),
     }));
     const withHistory = buildCompetitiveLineup(baseInput({ games: past }));
     expect(withHistory.error).toBeUndefined();

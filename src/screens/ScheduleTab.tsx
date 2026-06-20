@@ -26,7 +26,8 @@ export const ScoreEditor = memo(
     const [os, setOs] = useState(game.opponentScore ?? "");
     // Innings played defaults to the current lineup length (or 6 if there's no
     // lineup yet). User can dial this down if the game ended early.
-    const lineupMaxInnings = (game.originalLineup?.length || game.lineup?.length || 6);
+    const lineupMaxInnings =
+      game.originalLineup?.length || game.lineup?.length || 6;
     const initialInningsPlayed = game.lineup?.length || lineupMaxInnings;
     const [inningsPlayed, setInningsPlayed] = useState(initialInningsPlayed);
 
@@ -43,8 +44,8 @@ export const ScoreEditor = memo(
       ? tsNum > osNum
         ? "win"
         : tsNum < osNum
-        ? "loss"
-        : "tie"
+          ? "loss"
+          : "tie"
       : null;
 
     return (
@@ -97,10 +98,15 @@ export const ScoreEditor = memo(
                 <select
                   id={`score-innings-${game.id}`}
                   value={inningsPlayed}
-                  onChange={(e) => setInningsPlayed(parseInt(e.target.value, 10))}
+                  onChange={(e) =>
+                    setInningsPlayed(parseInt(e.target.value, 10))
+                  }
                   className="w-full p-2.5 bg-surface border border-line text-base font-black rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm tabular-nums text-center cursor-pointer"
                 >
-                  {Array.from({ length: lineupMaxInnings }, (_, i) => i + 1).map((n) => (
+                  {Array.from(
+                    { length: lineupMaxInnings },
+                    (_, i) => i + 1,
+                  ).map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
@@ -119,8 +125,8 @@ export const ScoreEditor = memo(
                   result === "win"
                     ? "bg-win-bg text-win border border-line"
                     : result === "loss"
-                    ? "bg-loss-bg text-loss border border-line"
-                    : "bg-warn-bg text-warnfg border border-line"
+                      ? "bg-loss-bg text-loss border border-line"
+                      : "bg-warn-bg text-warnfg border border-line"
                 }`}
               >
                 {result === "win" ? "Win" : result === "loss" ? "Loss" : "Tie"}
@@ -155,14 +161,15 @@ export const ScoreEditor = memo(
             </div>
           </div>
           <p className="text-[10px] text-ink-3 mt-3 font-medium">
-            Saving marks this game Final — its innings will count toward future lineup fairness. Trimmed innings are saved separately and can be restored from the game editor.
+            Saving marks this game Final — its innings will count toward future
+            lineup fairness. Trimmed innings are saved separately and can be
+            restored from the game editor.
           </p>
         </div>
       </div>
     );
-  }
+  },
 );
-
 
 // Per-session, per-team throttle for the auto-sync-on-open: opening the
 // Schedule tab repeatedly within this window won't refetch the feed. Module
@@ -248,7 +255,9 @@ export const ScheduleTab = memo(() => {
   // banner anchored under the templates dropdown.
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [saveTemplateName, setSaveTemplateName] = useState("");
-  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<string | null>(null);
+  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<
+    string | null
+  >(null);
   const [gcImportOpen, setGcImportOpen] = useState(false);
   // Desktop master-detail: tracks which game is previewed in the right rail.
   // Separate from selectedGameId (which opens the full-screen editor).
@@ -266,7 +275,8 @@ export const ScheduleTab = memo(() => {
   useEffect(() => {
     if (!canEdit || !gcFeedUrl || !activeTeamId) return;
     const now = Date.now();
-    if (now - (gcAutoSyncedAt.get(activeTeamId) || 0) < GC_AUTOSYNC_INTERVAL_MS) return;
+    if (now - (gcAutoSyncedAt.get(activeTeamId) || 0) < GC_AUTOSYNC_INTERVAL_MS)
+      return;
     gcAutoSyncedAt.set(activeTeamId, now);
     let cancelled = false;
     (async () => {
@@ -274,13 +284,17 @@ export const ScheduleTab = memo(() => {
         const events = await fetchGcEvents(gcFeedUrl);
         if (cancelled || events.length === 0) return;
         const current = team?.games || [];
-        const { games, added, updated } = mergeGcEventsIntoGames(current, events, {
-          leagueRuleSet: team.leagueRuleSet,
-          pitchingFormat: team.pitchingFormat,
-          defenseSize: team.defenseSize,
-          battingSize: team.battingSize,
-          positionLock: team.positionLock,
-        });
+        const { games, added, updated } = mergeGcEventsIntoGames(
+          current,
+          events,
+          {
+            leagueRuleSet: team.leagueRuleSet,
+            pitchingFormat: team.pitchingFormat,
+            defenseSize: team.defenseSize,
+            battingSize: team.battingSize,
+            positionLock: team.positionLock,
+          },
+        );
         if (cancelled || (added === 0 && updated === 0)) return;
         updateTeam({ games });
         toast.push({
@@ -317,7 +331,7 @@ export const ScheduleTab = memo(() => {
         if (aFinal !== bFinal) return aFinal - bFinal;
         return (a.date || "").localeCompare(b.date || "");
       }),
-    [games]
+    [games],
   );
 
   // Auto-detected tournaments (pool + bracket games on the same weekend), keyed
@@ -342,8 +356,7 @@ export const ScheduleTab = memo(() => {
     // Default ON: apply season-cumulative bench fairness when generating.
     // Coach can flip this OFF for a specific game (e.g. tough opponent / playoff)
     // to ignore accumulated debt and just balance THIS game cleanly.
-    const applySeasonalFairness =
-      currentGame.applySeasonalFairness !== false;
+    const applySeasonalFairness = currentGame.applySeasonalFairness !== false;
     // Big Game flag: when true, also weights strong players to premium
     // defensive positions (P/SS/3B/C/1B for kid-pitch ages, C/1B/SS for 8U).
     // Implies seasonal fairness is off.
@@ -359,7 +372,7 @@ export const ScheduleTab = memo(() => {
       (currentGame.leagueRuleSet || leagueRuleSet) === "USSSA";
 
     const presentPlayers = players.filter(
-      (p: any) => currentGameAttendance[p.id] !== false
+      (p: any) => currentGameAttendance[p.id] !== false,
     );
     const editableLineup =
       isTournamentGame && lineup?.length ? lineup.slice(0, 1) : lineup;
@@ -490,14 +503,20 @@ export const ScheduleTab = memo(() => {
                         <option value="">Templates…</option>
                         <optgroup label="Apply">
                           {(team.lineupTemplates || []).map((tpl: any) => (
-                            <option key={`a-${tpl.id}`} value={`apply:${tpl.id}`}>
+                            <option
+                              key={`a-${tpl.id}`}
+                              value={`apply:${tpl.id}`}
+                            >
                               {tpl.name}
                             </option>
                           ))}
                         </optgroup>
                         <optgroup label="Delete">
                           {(team.lineupTemplates || []).map((tpl: any) => (
-                            <option key={`d-${tpl.id}`} value={`delete:${tpl.id}`}>
+                            <option
+                              key={`d-${tpl.id}`}
+                              value={`delete:${tpl.id}`}
+                            >
                               ✕ {tpl.name}
                             </option>
                           ))}
@@ -526,373 +545,388 @@ export const ScheduleTab = memo(() => {
             </div>
           </div>
 
-          
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-line">
-              <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={normalizeDateToIso(currentGame.date) || ""}
-                  onChange={(e) =>
-                    updateGame(selectedGameId, { date: e.target.value })
-                  }
-                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
-                />
-              </div>
-              <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Game Rules
-                </label>
-                <select
-                  value={gameLeague}
-                  onChange={(e) => {
-                    const newLeague = e.target.value;
-                    let newFormat = gamePitching;
-                    if (
-                      newLeague === "NKB" &&
-                      ["6U", "7U", "8U"].includes(teamAge)
-                    )
-                      newFormat = "Machine Pitch";
-                    if (
-                      newLeague === "USSSA" &&
-                      teamAge === "8U" &&
-                      newFormat === "Machine Pitch"
-                    )
-                      newFormat = "Kid Pitch";
-                    // Pool/Bracket is a subset of Tournament. Rec games are
-                    // always League; switching to Tournament defaults to Pool
-                    // play (keeps an existing Bracket pick), and back to Rec
-                    // resets to League.
-                    const newGameType =
-                      newLeague === "USSSA"
-                        ? gameType === "bracket"
-                          ? "bracket"
-                          : "pool"
-                        : "league";
-                    updateGame(selectedGameId, {
-                      leagueRuleSet: newLeague,
-                      pitchingFormat: newFormat,
-                      gameType: newGameType,
-                    });
-                  }}
-                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                >
-                  <option value="USSSA">Tournament</option>
-                  <option value="NKB">Rec</option>
-                </select>
-              </div>
-              {/* Pool / Bracket — a subset of Tournament (Rec is always League),
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-6 bg-transparent border-b border-line">
+            <div className="w-full col-span-2 md:col-span-1">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Date
+              </label>
+              <input
+                type="date"
+                value={normalizeDateToIso(currentGame.date) || ""}
+                onChange={(e) =>
+                  updateGame(selectedGameId, { date: e.target.value })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Game Rules
+              </label>
+              <select
+                value={gameLeague}
+                onChange={(e) => {
+                  const newLeague = e.target.value;
+                  let newFormat = gamePitching;
+                  if (
+                    newLeague === "NKB" &&
+                    ["6U", "7U", "8U"].includes(teamAge)
+                  )
+                    newFormat = "Machine Pitch";
+                  if (
+                    newLeague === "USSSA" &&
+                    teamAge === "8U" &&
+                    newFormat === "Machine Pitch"
+                  )
+                    newFormat = "Kid Pitch";
+                  // Pool/Bracket is a subset of Tournament. Rec games are
+                  // always League; switching to Tournament defaults to Pool
+                  // play (keeps an existing Bracket pick), and back to Rec
+                  // resets to League.
+                  const newGameType =
+                    newLeague === "USSSA"
+                      ? gameType === "bracket"
+                        ? "bracket"
+                        : "pool"
+                      : "league";
+                  updateGame(selectedGameId, {
+                    leagueRuleSet: newLeague,
+                    pitchingFormat: newFormat,
+                    gameType: newGameType,
+                  });
+                }}
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                <option value="USSSA">Tournament</option>
+                <option value="NKB">Rec</option>
+              </select>
+            </div>
+            {/* Pool / Bracket — a subset of Tournament (Rec is always League),
                   treated like the Fielders setting. Drives the engine's pitcher
                   pool: Pool spreads across the staff (top 5) so aces rest for
                   bracket; Bracket narrows to your aces (top 3). */}
-              {isTournamentGame && (
-                <div className="w-full">
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Tournament
-                  </label>
-                  <select
-                    value={gameType === "bracket" ? "bracket" : "pool"}
-                    onChange={(e) =>
-                      updateGame(selectedGameId, { gameType: e.target.value })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                  >
-                    <option value="pool">Pool Play</option>
-                    <option value="bracket">Bracket</option>
-                  </select>
-                </div>
-              )}
+            {isTournamentGame && (
               <div className="w-full">
                 <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Pitching
+                  Tournament
                 </label>
                 <select
-                  value={gamePitching}
+                  value={gameType === "bracket" ? "bracket" : "pool"}
                   onChange={(e) =>
-                    updateGame(selectedGameId, {
-                      pitchingFormat: e.target.value,
-                    })
+                    updateGame(selectedGameId, { gameType: e.target.value })
                   }
                   className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
                 >
-                  {gameLeague === "NKB" &&
-                  ["6U", "7U", "8U"].includes(teamAge) ? (
+                  <option value="pool">Pool Play</option>
+                  <option value="bracket">Bracket</option>
+                </select>
+              </div>
+            )}
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Pitching
+              </label>
+              <select
+                value={gamePitching}
+                onChange={(e) =>
+                  updateGame(selectedGameId, {
+                    pitchingFormat: e.target.value,
+                  })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                {gameLeague === "NKB" &&
+                ["6U", "7U", "8U"].includes(teamAge) ? (
+                  <option value="Machine Pitch">Machine Pitch</option>
+                ) : gameLeague === "USSSA" && teamAge === "8U" ? (
+                  <>
+                    <option value="Kid Pitch">Kid Pitch</option>
+                    <option value="Coach Pitch">Coach Pitch</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="Kid Pitch">Kid Pitch</option>
+                    <option value="Coach Pitch">Coach Pitch</option>
                     <option value="Machine Pitch">Machine Pitch</option>
-                  ) : gameLeague === "USSSA" && teamAge === "8U" ? (
-                    <>
-                      <option value="Kid Pitch">Kid Pitch</option>
-                      <option value="Coach Pitch">Coach Pitch</option>
-                    </>
-                  ) : (
-                    <>
-                      <option value="Kid Pitch">Kid Pitch</option>
-                      <option value="Coach Pitch">Coach Pitch</option>
-                      <option value="Machine Pitch">Machine Pitch</option>
-                    </>
-                  )}
-                </select>
-              </div>
-              <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Fielders
-                </label>
-                <select
-                  value={gameDefenseSize}
-                  onChange={(e) =>
-                    updateGame(selectedGameId, { defenseSize: e.target.value })
-                  }
-                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                >
-                  <option value="9">9 Fielders</option>
-                  <option value="10">10 Fielders</option>
-                </select>
-              </div>
-              <div className="w-full">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Rotation
-                </label>
-                <select
-                  value={gamePositionLock}
-                  onChange={(e) =>
-                    updateGame(selectedGameId, { positionLock: e.target.value })
-                  }
-                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                >
-                  <option value="1">1 Inn</option>
-                  <option value="2">2 Inn</option>
-                  <option value="3">3 Inn</option>
-                  <option value="full">Full Game</option>
-                </select>
-              </div>
-              <div className="w-full col-span-2 md:col-span-1">
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                  Batters
-                </label>
-                <select
-                  value={gameBattingSize}
-                  onChange={(e) =>
-                    updateGame(selectedGameId, { battingSize: e.target.value })
-                  }
-                  className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                >
-                  <option value="roster">Roster</option>
-                  <option value="9">9</option>
-                  <option value="10">10</option>
-                  <option value="11">11</option>
-                </select>
-              </div>
+                  </>
+                )}
+              </select>
             </div>
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Fielders
+              </label>
+              <select
+                value={gameDefenseSize}
+                onChange={(e) =>
+                  updateGame(selectedGameId, { defenseSize: e.target.value })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                <option value="9">9 Fielders</option>
+                <option value="10">10 Fielders</option>
+              </select>
+            </div>
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Rotation
+              </label>
+              <select
+                value={gamePositionLock}
+                onChange={(e) =>
+                  updateGame(selectedGameId, { positionLock: e.target.value })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                <option value="1">1 Inn</option>
+                <option value="2">2 Inn</option>
+                <option value="3">3 Inn</option>
+                <option value="full">Full Game</option>
+              </select>
+            </div>
+            <div className="w-full col-span-2 md:col-span-1">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Batters
+              </label>
+              <select
+                value={gameBattingSize}
+                onChange={(e) =>
+                  updateGame(selectedGameId, { battingSize: e.target.value })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                <option value="roster">Roster</option>
+                <option value="9">9</option>
+                <option value="10">10</option>
+                <option value="11">11</option>
+              </select>
+            </div>
+          </div>
 
-            {canEdit && (
+          {canEdit && (
             <>
-            {/* Scrimmage toggle — when ON, the game stays on the schedule and is
+              {/* Scrimmage toggle — when ON, the game stays on the schedule and is
                 fully playable, but counts toward NOTHING: record, stats,
                 defensive innings, bench equity, and engine seasonal fairness all
                 ignore it. */}
-            <div className="bg-surface border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  updateGame(selectedGameId, { isScrimmage: !isScrimmage })
-                }
-                className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                  isScrimmage ? "bg-[var(--team-primary)]" : "bg-line"
-                }`}
-                aria-label="Toggle scrimmage"
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
-                    isScrimmage ? "left-5" : "left-0.5"
+              <div className="bg-surface border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateGame(selectedGameId, { isScrimmage: !isScrimmage })
+                  }
+                  className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                    isScrimmage ? "bg-[var(--team-primary)]" : "bg-line"
                   }`}
-                />
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-widest text-ink">
-                  Scrimmage {isScrimmage ? "ON" : "OFF"}
-                </div>
-                <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
-                  {isScrimmage
-                    ? "Doesn't count toward record, stats, innings, or bench equity."
-                    : "Off — this is a regular game that counts."}
+                  aria-label="Toggle scrimmage"
+                >
+                  <span
+                    className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                      isScrimmage ? "left-5" : "left-0.5"
+                    }`}
+                  />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-ink">
+                    Scrimmage {isScrimmage ? "ON" : "OFF"}
+                  </div>
+                  <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
+                    {isScrimmage
+                      ? "Doesn't count toward record, stats, innings, or bench equity."
+                      : "Off — this is a regular game that counts."}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {!isTournamentGame && (
-            <>
-            {/* Big Game toggle — when ON, the engine builds the strongest
+              {!isTournamentGame && (
+                <>
+                  {/* Big Game toggle — when ON, the engine builds the strongest
                 possible defense (premium positions get strong players) and
                 automatically ignores seasonal fairness. */}
-            <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  updateGame(selectedGameId, {
-                    isBigGame: !isBigGame,
-                  })
-                }
-                className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                  isBigGame ? "bg-warnfg" : "bg-line"
-                }`}
-                aria-label="Toggle big game"
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
-                    isBigGame ? "left-5" : "left-0.5"
-                  }`}
-                />
-              </button>
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-black uppercase tracking-widest text-ink flex items-center gap-1.5">
-                  <span aria-hidden>⭐</span>
-                  Big Game {isBigGame ? "ON" : "OFF"}
-                </div>
-                <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
-                  {isBigGame
-                    ? "Play your strongest for this game. Fairness is paused now, but the bench time still counts and gets made up in later Rec games."
-                    : "Off — engine builds a normal lineup."}
-                </div>
-              </div>
-            </div>
+                  <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateGame(selectedGameId, {
+                          isBigGame: !isBigGame,
+                        })
+                      }
+                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                        isBigGame ? "bg-warnfg" : "bg-line"
+                      }`}
+                      aria-label="Toggle big game"
+                    >
+                      <span
+                        className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                          isBigGame ? "left-5" : "left-0.5"
+                        }`}
+                      />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-ink flex items-center gap-1.5">
+                        <span aria-hidden>⭐</span>
+                        Big Game {isBigGame ? "ON" : "OFF"}
+                      </div>
+                      <div className="text-[10px] text-ink-2 font-medium leading-tight mt-0.5">
+                        {isBigGame
+                          ? "Play your strongest for this game. Fairness is paused now, but the bench time still counts and gets made up in later Rec games."
+                          : "Off — engine builds a normal lineup."}
+                      </div>
+                    </div>
+                  </div>
 
-            {/* Seasonal fairness toggle — controls whether the engine applies
+                  {/* Seasonal fairness toggle — controls whether the engine applies
                 cumulative bench debt when generating this game's lineup. Default ON. */}
-            <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  updateGame(selectedGameId, {
-                    applySeasonalFairness: !applySeasonalFairness,
-                  })
-                }
-                disabled={isBigGame}
-                className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                  isBigGame
-                    ? "bg-line cursor-not-allowed"
-                    : applySeasonalFairness
-                    ? "bg-win"
-                    : "bg-line"
-                }`}
-                aria-label="Toggle even out playing time"
-              >
-                <span
-                  className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
-                    isBigGame || !applySeasonalFairness ? "left-0.5" : "left-5"
-                  }`}
-                />
-              </button>
-              <div className="flex-1 min-w-0">
-                <div
-                  className={`text-[11px] font-black uppercase tracking-widest ${
-                    isBigGame ? "text-ink-3" : "text-ink"
-                  }`}
-                >
-                  Even Out Playing Time{" "}
-                  {isBigGame ? "(off — Big Game)" : applySeasonalFairness ? "ON" : "OFF"}
-                </div>
-                <div
-                  className={`text-[10px] font-medium leading-tight mt-0.5 ${
-                    isBigGame ? "text-ink-3" : "text-ink-3"
-                  }`}
-                >
-                  {isBigGame
-                    ? "Big Game mode is on — fairness is off automatically."
-                    : applySeasonalFairness
-                    ? "Kids with more bench time in past games will play more today."
-                    : "Treat this game on its own — past games don't carry over."}
-                </div>
-              </div>
-            </div>
+                  <div className="bg-warn-bg border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateGame(selectedGameId, {
+                          applySeasonalFairness: !applySeasonalFairness,
+                        })
+                      }
+                      disabled={isBigGame}
+                      className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
+                        isBigGame
+                          ? "bg-line cursor-not-allowed"
+                          : applySeasonalFairness
+                            ? "bg-win"
+                            : "bg-line"
+                      }`}
+                      aria-label="Toggle even out playing time"
+                    >
+                      <span
+                        className={`absolute top-0.5 w-5 h-5 bg-surface rounded-full shadow-sm transition-all ${
+                          isBigGame || !applySeasonalFairness
+                            ? "left-0.5"
+                            : "left-5"
+                        }`}
+                      />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className={`text-[11px] font-black uppercase tracking-widest ${
+                          isBigGame ? "text-ink-3" : "text-ink"
+                        }`}
+                      >
+                        Even Out Playing Time{" "}
+                        {isBigGame
+                          ? "(off — Big Game)"
+                          : applySeasonalFairness
+                            ? "ON"
+                            : "OFF"}
+                      </div>
+                      <div
+                        className={`text-[10px] font-medium leading-tight mt-0.5 ${
+                          isBigGame ? "text-ink-3" : "text-ink-3"
+                        }`}
+                      >
+                        {isBigGame
+                          ? "Big Game mode is on — fairness is off automatically."
+                          : applySeasonalFairness
+                            ? "Kids with more bench time in past games will play more today."
+                            : "Treat this game on its own — past games don't carry over."}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </>
-            )}
-            </>
-            )}
+          )}
 
-            {/* Season Defense Balance — attendance-aware. For each present
+          {/* Season Defense Balance — attendance-aware. For each present
                 player, compares their actual defensive innings to the fair-
                 share expected across the games they actually attended.
                 Positive (red) = played more than fair, Negative (green) =
                 played less. Absences are correctly excluded. */}
-            {(() => {
-              const imbalance = buildSeasonBenchImbalance(games, currentGame.id, players);
-              const rows = presentPlayers
-                .map((p: any) => {
-                  const data = imbalance.get(p.id) || {
-                    totalDefense: 0,
-                    expectedDefense: 0,
-                    gamesAttended: 0,
-                  };
-                  return {
-                    player: p,
-                    delta: data.totalDefense - data.expectedDefense,
-                    gamesAttended: data.gamesAttended,
-                  };
-                })
-                .sort((a: any, b: any) => b.delta - a.delta);
-              // Hide if everyone is within 1 inning of their fair share
-              const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
-              if (!anyImbalance) return null;
-              return (
-                <div className="bg-surface border border-line rounded-xl p-3 mt-3">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
-                    <Icons.Users className="w-3.5 h-3.5" />
-                    Innings Played This Season
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
-                    {rows.map((r: any) => {
-                      const rounded = Math.round(r.delta);
-                      const isOver = rounded > 0;
-                      const isUnder = rounded < 0;
-                      return (
-                        <div
-                          key={r.player.id}
-                          className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-[11px] border ${
-                            isOver
-                              ? "bg-loss-bg border-line"
-                              : isUnder
+          {(() => {
+            const imbalance = buildSeasonBenchImbalance(
+              games,
+              currentGame.id,
+              players,
+            );
+            const rows = presentPlayers
+              .map((p: any) => {
+                const data = imbalance.get(p.id) || {
+                  totalDefense: 0,
+                  expectedDefense: 0,
+                  gamesAttended: 0,
+                };
+                return {
+                  player: p,
+                  delta: data.totalDefense - data.expectedDefense,
+                  gamesAttended: data.gamesAttended,
+                };
+              })
+              .sort((a: any, b: any) => b.delta - a.delta);
+            // Hide if everyone is within 1 inning of their fair share
+            const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
+            if (!anyImbalance) return null;
+            return (
+              <div className="bg-surface border border-line rounded-xl p-3 mt-3">
+                <div className="text-[10px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
+                  <Icons.Users className="w-3.5 h-3.5" />
+                  Innings Played This Season
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-1.5">
+                  {rows.map((r: any) => {
+                    const rounded = Math.round(r.delta);
+                    const isOver = rounded > 0;
+                    const isUnder = rounded < 0;
+                    return (
+                      <div
+                        key={r.player.id}
+                        className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-[11px] border ${
+                          isOver
+                            ? "bg-loss-bg border-line"
+                            : isUnder
                               ? "bg-win-bg border-line"
                               : "bg-surface border-line"
-                          }`}
-                        >
-                          <span className="font-bold text-ink truncate">
-                            {r.player.name.split(" ")[0]}
-                          </span>
-                          <span
-                            className={`font-black tabular-nums shrink-0 ${
-                              isOver
-                                ? "text-loss"
-                                : isUnder
+                        }`}
+                      >
+                        <span className="font-bold text-ink truncate">
+                          {r.player.name.split(" ")[0]}
+                        </span>
+                        <span
+                          className={`font-black tabular-nums shrink-0 ${
+                            isOver
+                              ? "text-loss"
+                              : isUnder
                                 ? "text-win"
                                 : "text-ink-3"
-                            }`}
-                          >
-                            {isOver ? `+${rounded}` : rounded === 0 ? "0" : rounded}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="text-[10px] text-ink-3 italic font-medium mt-2">
-                    Red = played more than the team average. Green = played
-                    less. With the toggle on, green kids get more time today.
-                    Missed games don&apos;t count against anyone.
-                  </div>
+                          }`}
+                        >
+                          {isOver
+                            ? `+${rounded}`
+                            : rounded === 0
+                              ? "0"
+                              : rounded}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })()}
-
+                <div className="text-[10px] text-ink-3 italic font-medium mt-2">
+                  Red = played more than the team average. Green = played less.
+                  With the toggle on, green kids get more time today. Missed
+                  games don&apos;t count against anyone.
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Innings Played editor — only shown for Final games. Lets the
               coach trim down (e.g., game ended in 4 innings) or restore (if
               they trimmed too aggressively). Restore is only possible up to
               the longest version of the lineup the engine has produced. */}
-          {canEdit && currentGame.status === "final" &&
-            currentGame.lineup?.length > 0 && (() => {
-              const longest = currentGame.originalLineup?.length > currentGame.lineup.length
-                ? currentGame.originalLineup
-                : currentGame.lineup;
+          {canEdit &&
+            currentGame.status === "final" &&
+            currentGame.lineup?.length > 0 &&
+            (() => {
+              const longest =
+                currentGame.originalLineup?.length > currentGame.lineup.length
+                  ? currentGame.originalLineup
+                  : currentGame.lineup;
               const maxInnings = longest.length;
               const currentInningsPlayed = currentGame.lineup.length;
               return (
@@ -923,7 +957,10 @@ export const ScheduleTab = memo(() => {
                           currentGame.originalLineup &&
                           currentGame.originalLineup.length >= target
                         ) {
-                          updates.lineup = currentGame.originalLineup.slice(0, target);
+                          updates.lineup = currentGame.originalLineup.slice(
+                            0,
+                            target,
+                          );
                         } else {
                           return; // can't restore beyond what we have
                         }
@@ -931,101 +968,114 @@ export const ScheduleTab = memo(() => {
                       }}
                       className="text-[11px] font-bold p-1.5 bg-surface border border-amber-300 rounded-md outline-none focus:ring-2 focus:ring-amber-500 shadow-sm cursor-pointer tabular-nums"
                     >
-                      {Array.from({ length: maxInnings }, (_, i) => i + 1).map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
+                      {Array.from({ length: maxInnings }, (_, i) => i + 1).map(
+                        (n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ),
+                      )}
                     </select>
                   </label>
                   {currentGame.originalLineup &&
-                    currentGame.originalLineup.length > currentGame.lineup.length && (
+                    currentGame.originalLineup.length >
+                      currentGame.lineup.length && (
                       <span className="text-[10px] font-bold text-warnfg uppercase tracking-widest">
-                        ({currentGame.originalLineup.length - currentGame.lineup.length} inning{currentGame.originalLineup.length - currentGame.lineup.length === 1 ? "" : "s"} trimmed — restorable)
+                        (
+                        {currentGame.originalLineup.length -
+                          currentGame.lineup.length}{" "}
+                        inning
+                        {currentGame.originalLineup.length -
+                          currentGame.lineup.length ===
+                        1
+                          ? ""
+                          : "s"}{" "}
+                        trimmed — restorable)
                       </span>
                     )}
                 </div>
               );
             })()}
 
-          
-            <div className={`grid grid-cols-1 ${canEdit && !isTournamentGame ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-line bg-transparent`}>
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="p-1.5 rounded bg-surface border border-line shadow-sm">
-                    <Icons.Users className="w-4 h-4 text-team-primary" />
-                  </div>
-                  <h3 className="font-black text-ink uppercase tracking-widest text-sm">
-                    Game Day Attendance
-                  </h3>
+          <div
+            className={`grid grid-cols-1 ${canEdit && !isTournamentGame ? "lg:grid-cols-2" : ""} divide-y lg:divide-y-0 lg:divide-x divide-line bg-transparent`}
+          >
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-1.5 rounded bg-surface border border-line shadow-sm">
+                  <Icons.Users className="w-4 h-4 text-team-primary" />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                  {/* Inactive roster players don't take attendance — reactivate
+                <h3 className="font-black text-ink uppercase tracking-widest text-sm">
+                  Game Day Attendance
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                {/* Inactive roster players don't take attendance — reactivate
                       them from the Roster tab to list them again. */}
-                  {players
-                    .filter((p: any) => p.present !== false)
-                    .map((p: any) => {
+                {players
+                  .filter((p: any) => p.present !== false)
+                  .map((p: any) => {
                     const scheduledOut = isPlayerScheduledOut(
                       p,
-                      currentGame.date
+                      currentGame.date,
                     );
                     return (
-                    <button
-                      key={p.id}
-                      onClick={() =>
-                        setCurrentGameAttendance({
-                          ...currentGameAttendance,
-                          [p.id]:
-                            currentGameAttendance[p.id] === false
-                              ? true
-                              : false,
-                        })
-                      }
-                      className={`text-left p-3 text-xs font-extrabold uppercase tracking-wider border rounded-xl transition-all flex justify-between items-center ${
-                        currentGameAttendance[p.id] !== false
-                          ? "bg-surface border-line text-ink shadow-sm hover:bg-surface-2"
-                          : "bg-surface border-line/50 text-ink-3 grayscale opacity-60"
-                      }`}
-                    >
-                      <span className="truncate mr-2">
-                        {p.number ? `#${p.number} ` : ""}
-                        {p.name}
-                        {scheduledOut && (
-                          <span className="block text-[9px] font-bold text-warnfg normal-case tracking-normal">
-                            Scheduled out this date
-                          </span>
+                      <button
+                        key={p.id}
+                        onClick={() =>
+                          setCurrentGameAttendance({
+                            ...currentGameAttendance,
+                            [p.id]:
+                              currentGameAttendance[p.id] === false
+                                ? true
+                                : false,
+                          })
+                        }
+                        className={`text-left p-3 text-xs font-extrabold uppercase tracking-wider border rounded-xl transition-all flex justify-between items-center ${
+                          currentGameAttendance[p.id] !== false
+                            ? "bg-surface border-line text-ink shadow-sm hover:bg-surface-2"
+                            : "bg-surface border-line/50 text-ink-3 grayscale opacity-60"
+                        }`}
+                      >
+                        <span className="truncate mr-2">
+                          {p.number ? `#${p.number} ` : ""}
+                          {p.name}
+                          {scheduledOut && (
+                            <span className="block text-[9px] font-bold text-warnfg normal-case tracking-normal">
+                              Scheduled out this date
+                            </span>
+                          )}
+                        </span>
+                        {currentGameAttendance[p.id] !== false ? (
+                          <Icons.Check className="w-4 h-4 text-win shrink-0" />
+                        ) : (
+                          <Icons.X className="w-4 h-4 shrink-0 opacity-50" />
                         )}
-                      </span>
-                      {currentGameAttendance[p.id] !== false ? (
-                        <Icons.Check className="w-4 h-4 text-win shrink-0" />
-                      ) : (
-                        <Icons.X className="w-4 h-4 shrink-0 opacity-50" />
-                      )}
-                    </button>
+                      </button>
                     );
                   })}
-                </div>
-                {players.some((p: any) => p.present === false) && (
-                  <p className="mt-2 text-[10px] font-bold text-ink-3">
-                    {players.filter((p: any) => p.present === false).length}{" "}
-                    inactive player
-                    {players.filter((p: any) => p.present === false).length === 1
-                      ? ""
-                      : "s"}{" "}
-                    not listed — reactivate from the Roster tab.
-                  </p>
-                )}
-                {canEdit && (
-                  <button
-                    onClick={saveAttendance}
-                    className="mt-4 w-full text-xs px-4 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
-                    title="Save who's present now — plan the lineup later"
-                  >
-                    <Icons.Check className="w-4 h-4" /> Save Attendance
-                  </button>
-                )}
               </div>
-              {canEdit && !isTournamentGame && (
+              {players.some((p: any) => p.present === false) && (
+                <p className="mt-2 text-[10px] font-bold text-ink-3">
+                  {players.filter((p: any) => p.present === false).length}{" "}
+                  inactive player
+                  {players.filter((p: any) => p.present === false).length === 1
+                    ? ""
+                    : "s"}{" "}
+                  not listed — reactivate from the Roster tab.
+                </p>
+              )}
+              {canEdit && (
+                <button
+                  onClick={saveAttendance}
+                  className="mt-4 w-full text-xs px-4 py-3 bg-surface text-ink border border-line font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-surface-2 transition-colors rounded-xl shadow-sm"
+                  title="Save who's present now — plan the lineup later"
+                >
+                  <Icons.Check className="w-4 h-4" /> Save Attendance
+                </button>
+              )}
+            </div>
+            {canEdit && !isTournamentGame && (
               <div className="p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-3">
@@ -1084,7 +1134,7 @@ export const ScheduleTab = memo(() => {
                             <option value="">Auto Assign</option>
                             {presentPlayers.map((p: any) => {
                               const isAssignedElsewhere = Object.entries(
-                                firstInningLineup
+                                firstInningLineup,
                               ).some(([pP, pI]) => pI === p.id && pP !== pos);
                               const isRestricted =
                                 p.restrictions && p.restrictions.includes(pos);
@@ -1098,27 +1148,26 @@ export const ScheduleTab = memo(() => {
                                   {isRestricted
                                     ? "(RES)"
                                     : isAssignedElsewhere
-                                    ? "(ASG)"
-                                    : ""}
+                                      ? "(ASG)"
+                                      : ""}
                                 </option>
                               );
                             })}
                           </select>
                         </div>
-                      )
+                      ),
                     )}
                   </div>
                 )}
               </div>
-              )}
-            </div>
-
-            {canEdit && (
-              <div className="px-6 pb-2">
-                <StartingPitcherPicker game={currentGame} />
-              </div>
             )}
+          </div>
 
+          {canEdit && (
+            <div className="px-6 pb-2">
+              <StartingPitcherPicker game={currentGame} />
+            </div>
+          )}
         </div>
 
         {editableLineup && (
@@ -1224,40 +1273,42 @@ export const ScheduleTab = memo(() => {
             {/* Relief options the tournament generator surfaced (pitch-count
                 checked). The scripted starters/subs plan was removed — the
                 editable lineup grid above is the source of truth. */}
-            {tournamentPlan && (tournamentPlan.reliefOptions || []).length > 0 && (
-              <div className="p-6 border-t border-line/80 bg-transparent space-y-4">
-                {(tournamentPlan.reliefOptions || []).length > 0 && (
-                  <div className="max-w-2xl">
-                    <div className="t-eyebrow text-ink-3 mb-1.5">
-                      Relief options (pitch-count checked)
-                    </div>
-                    <ul className="flex flex-wrap gap-2">
-                      {tournamentPlan.reliefOptions.map((r: any) => (
-                        <li
-                          key={r.id}
-                          className="bg-surface border border-line rounded-full px-3 py-1.5 text-xs font-bold text-ink flex items-center gap-2"
-                        >
-                          {r.name}
-                          <span
-                            className={`font-black uppercase tracking-widest text-[10px] ${
-                              r.status === "ready"
-                                ? "text-win"
-                                : r.status === "maxed"
-                                ? "text-loss"
-                                : "text-ink-3"
-                            }`}
+            {tournamentPlan &&
+              (tournamentPlan.reliefOptions || []).length > 0 && (
+                <div className="p-6 border-t border-line/80 bg-transparent space-y-4">
+                  {(tournamentPlan.reliefOptions || []).length > 0 && (
+                    <div className="max-w-2xl">
+                      <div className="t-eyebrow text-ink-3 mb-1.5">
+                        Relief options (pitch-count checked)
+                      </div>
+                      <ul className="flex flex-wrap gap-2">
+                        {tournamentPlan.reliefOptions.map((r: any) => (
+                          <li
+                            key={r.id}
+                            className="bg-surface border border-line rounded-full px-3 py-1.5 text-xs font-bold text-ink flex items-center gap-2"
                           >
-                            {r.status === "resting" && r.daysUntilReady != null
-                              ? `rests ${r.daysUntilReady}d`
-                              : r.status}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
+                            {r.name}
+                            <span
+                              className={`font-black uppercase tracking-widest text-[10px] ${
+                                r.status === "ready"
+                                  ? "text-win"
+                                  : r.status === "maxed"
+                                    ? "text-loss"
+                                    : "text-ink-3"
+                              }`}
+                            >
+                              {r.status === "resting" &&
+                              r.daysUntilReady != null
+                                ? `rests ${r.daysUntilReady}d`
+                                : r.status}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
 
             {battingLineup && (
               <div className="p-6 border-t border-line/80 print:hidden bg-transparent">
@@ -1276,7 +1327,6 @@ export const ScheduleTab = memo(() => {
                       className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
                     >
                       <div className="flex items-center gap-4">
-                      
                         <div className="flex flex-col items-center gap-1 text-ink-3 border-r border-line/50 pr-3 mr-1">
                           <button
                             onClick={() => moveBatter(idx, -1)}
@@ -1293,51 +1343,51 @@ export const ScheduleTab = memo(() => {
                             <Icons.ChevronDown className="w-4 h-4" />
                           </button>
                         </div>
-                      
-                      <div
-                        className="w-10 h-10 shrink-0 flex items-center justify-center font-black text-sm rounded-lg shadow-inner"
-                        style={{
-                          backgroundColor: `${primaryColor}15`,
-                          color: primaryColor,
-                        }}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pl-1 pr-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openPlayerProfile && openPlayerProfile(p.id)
-                          }
-                          className="flex-1 text-sm font-black text-ink text-left hover:text-team-primary transition-colors cursor-pointer truncate"
+
+                        <div
+                          className="w-10 h-10 shrink-0 flex items-center justify-center font-black text-sm rounded-lg shadow-inner"
+                          style={{
+                            backgroundColor: `${primaryColor}15`,
+                            color: primaryColor,
+                          }}
                         >
-                          {p.name}
-                        </button>
-                        {(p.stats?.ab > 0 ||
-                          p.stats?.ops > 0 ||
-                          p.stats?.avg > 0 ||
-                          p.stats?.contact > 0) && (
-                          <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex items-center gap-3 bg-surface px-3 py-1.5 border border-line rounded-lg">
-                            <span>
-                              {p.stats.h || 0}/{p.stats.ab || 0}
-                            </span>
-                            <span className="text-ink-3">|</span>
-                            <span>
-                              AVG:{" "}
-                              <span className="text-ink">
-                                {formatStat(p.stats.avg)}
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pl-1 pr-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openPlayerProfile && openPlayerProfile(p.id)
+                            }
+                            className="flex-1 text-sm font-black text-ink text-left hover:text-team-primary transition-colors cursor-pointer truncate"
+                          >
+                            {p.name}
+                          </button>
+                          {(p.stats?.ab > 0 ||
+                            p.stats?.ops > 0 ||
+                            p.stats?.avg > 0 ||
+                            p.stats?.contact > 0) && (
+                            <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex items-center gap-3 bg-surface px-3 py-1.5 border border-line rounded-lg">
+                              <span>
+                                {p.stats.h || 0}/{p.stats.ab || 0}
                               </span>
-                            </span>
-                            <span className="text-ink-3">|</span>
-                            <span>
-                              OPS:{" "}
-                              <span className="text-ink">
-                                {formatStat(p.stats.ops)}
+                              <span className="text-ink-3">|</span>
+                              <span>
+                                AVG:{" "}
+                                <span className="text-ink">
+                                  {formatStat(p.stats.avg)}
+                                </span>
                               </span>
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                              <span className="text-ink-3">|</span>
+                              <span>
+                                OPS:{" "}
+                                <span className="text-ink">
+                                  {formatStat(p.stats.ops)}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1469,7 +1519,10 @@ export const ScheduleTab = memo(() => {
               type="checkbox"
               checked={newGameForm.isScrimmage}
               onChange={(e) =>
-                setNewGameForm({ ...newGameForm, isScrimmage: e.target.checked })
+                setNewGameForm({
+                  ...newGameForm,
+                  isScrimmage: e.target.checked,
+                })
               }
               className="w-4 h-4 accent-[var(--team-primary)]"
             />
@@ -1496,30 +1549,33 @@ export const ScheduleTab = memo(() => {
       {/* Desktop control-panel: game list left + season-summary rail right.
           On lg+ the list is flex-1 and the rail is a fixed-width sidebar. */}
       <div className="lg:flex lg:items-start lg:gap-6 mt-4">
-      <div className="lg:flex-1 lg:min-w-0 p-0 border border-line rounded-2xl overflow-hidden">
-        {games.length === 0 ? (
-          <div className="text-center py-20 bg-transparent">
-            {logoUrl ? (
-              <img
-                src={logoUrl}
-                alt="Team Logo"
-                className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-              />
-            ) : (
-              <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
-                📅
-              </div>
-            )}
-            <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
-              No Games Scheduled
-            </h3>
-            <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
-              Add a game manually or head to Settings to import your schedule.
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {sortedGames.map((game) => {
+        <div className="lg:flex-1 lg:min-w-0 p-0 border border-line rounded-2xl overflow-hidden">
+          {games.length === 0 ? (
+            <div className="text-center py-20 bg-transparent">
+              {logoUrl ? (
+                <img
+                  src={logoUrl}
+                  alt="Team Logo"
+                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+                />
+              ) : (
+                <div
+                  className="text-5xl leading-none mb-4 opacity-80"
+                  aria-hidden
+                >
+                  📅
+                </div>
+              )}
+              <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
+                No Games Scheduled
+              </h3>
+              <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
+                Add a game manually or head to Settings to import your schedule.
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col">
+              {sortedGames.map((game) => {
                 const status = game.status || "scheduled";
                 const isFinal = isGameFinalized(game);
                 const isPostponed = status === "postponed";
@@ -1529,13 +1585,13 @@ export const ScheduleTab = memo(() => {
                   ? teamScoreNum > oppScoreNum
                     ? "win"
                     : teamScoreNum < oppScoreNum
-                    ? "loss"
-                    : "tie"
+                      ? "loss"
+                      : "tie"
                   : null;
                 const isEnteringScore = scoringGameId === game.id;
                 const today = new Date();
                 today.setMinutes(
-                  today.getMinutes() - today.getTimezoneOffset()
+                  today.getMinutes() - today.getTimezoneOffset(),
                 );
                 const todayStr = today.toISOString().split("T")[0];
                 const isToday = game.date === todayStr;
@@ -1567,8 +1623,8 @@ export const ScheduleTab = memo(() => {
                         backgroundColor: isToday
                           ? "var(--team-primary)"
                           : isDesktopPreview
-                          ? "var(--color-line-strong)"
-                          : "transparent",
+                            ? "var(--color-line-strong)"
+                            : "transparent",
                       }}
                     />
                     {/* Invisible desktop click target over the info area to set the preview panel. */}
@@ -1598,101 +1654,103 @@ export const ScheduleTab = memo(() => {
                           </div>
                         </div>
                         <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                          {isToday && !isFinal && !isPostponed && (
-                            <span
-                              className="t-chip px-2 py-1 rounded-md text-white"
-                              style={{
-                                backgroundColor: "var(--team-primary)",
-                                color: "var(--team-tertiary)",
-                              }}
-                            >
-                              Today
-                            </span>
-                          )}
-                          <h3 className="text-base sm:text-lg font-black uppercase tracking-tight leading-tight text-ink">
-                            {game.isHome === false ? "@ " : "VS. "}
-                            {game.opponent}
-                          </h3>
-                          {game.isScrimmage && (
-                            <span className="t-chip bg-surface-2 text-ink-2 px-2 py-1 rounded-md border border-line-strong">
-                              Scrimmage
-                            </span>
-                          )}
-                          {isFinal ? (
-                            <span
-                              className={`t-chip px-2.5 py-1 rounded-md border tabular-nums ${
-                                result === "win"
-                                  ? "bg-win-bg text-win border-line"
+                          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            {isToday && !isFinal && !isPostponed && (
+                              <span
+                                className="t-chip px-2 py-1 rounded-md text-white"
+                                style={{
+                                  backgroundColor: "var(--team-primary)",
+                                  color: "var(--team-tertiary)",
+                                }}
+                              >
+                                Today
+                              </span>
+                            )}
+                            <h3 className="text-base sm:text-lg font-black uppercase tracking-tight leading-tight text-ink">
+                              {game.isHome === false ? "@ " : "VS. "}
+                              {game.opponent}
+                            </h3>
+                            {game.isScrimmage && (
+                              <span className="t-chip bg-surface-2 text-ink-2 px-2 py-1 rounded-md border border-line-strong">
+                                Scrimmage
+                              </span>
+                            )}
+                            {isFinal ? (
+                              <span
+                                className={`t-chip px-2.5 py-1 rounded-md border tabular-nums ${
+                                  result === "win"
+                                    ? "bg-win-bg text-win border-line"
+                                    : result === "loss"
+                                      ? "bg-loss-bg text-loss border-line"
+                                      : "bg-warn-bg text-warnfg border-line"
+                                }`}
+                              >
+                                {result === "win"
+                                  ? "W"
                                   : result === "loss"
-                                  ? "bg-loss-bg text-loss border-line"
-                                  : "bg-warn-bg text-warnfg border-line"
-                              }`}
-                            >
-                              {result === "win"
-                                ? "W"
-                                : result === "loss"
-                                ? "L"
-                                : "T"}{" "}
-                              {game.teamScore}-{game.opponentScore}
-                            </span>
-                          ) : isPostponed ? (
-                            <span className="t-chip bg-surface-2 text-ink px-2.5 py-1 rounded-md border border-line-strong">
-                              Postponed
-                            </span>
-                          ) : game.lineup ? (
-                            <>
-                              <span className="t-chip bg-win-bg text-win px-2 py-1 rounded-md border border-line">
-                                Lineup Ready
+                                    ? "L"
+                                    : "T"}{" "}
+                                {game.teamScore}-{game.opponentScore}
                               </span>
-                            </>
-                          ) : (
-                            <span className="t-chip bg-warn-bg text-warnfg px-2 py-1 rounded-md border border-line">
-                              Lineup Needed
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <Icons.Clock className="w-3.5 h-3.5 shrink-0" />{" "}
-                          <span className="whitespace-nowrap">
-                            {formatGameDateDisplay(game.date)}
-                          </span>{" "}
-                          {isoInstantToLocalTime(game.startUtc) && (
-                            <>
-                              <span className="text-ink-3">·</span>{" "}
-                              <span className="whitespace-nowrap">
-                                {isoInstantToLocalTime(game.startUtc)}
-                              </span>{" "}
-                            </>
-                          )}
-                          <span className="text-ink-3">|</span>{" "}
-                          <span className="whitespace-nowrap">
-                            {leagueRuleSetLabel(game.leagueRuleSet || leagueRuleSet)}{" "}
-                            {game.pitchingFormat || pitchingFormat}
-                          </span>
-                          {game.location && (
-                            <>
-                              <span className="text-ink-3">|</span>{" "}
-                              <span className="normal-case tracking-normal">
-                                {String(game.location).split("\n")[0]}
+                            ) : isPostponed ? (
+                              <span className="t-chip bg-surface-2 text-ink px-2.5 py-1 rounded-md border border-line-strong">
+                                Postponed
                               </span>
-                            </>
-                          )}
-                          {tournamentByGameId.has(game.id) && (
-                            <span
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded normal-case tracking-normal text-[10px] font-black"
-                              style={{
-                                backgroundColor: "var(--team-primary-15)",
-                                color: "var(--team-primary)",
-                              }}
-                              title="Part of a tournament (pool + bracket on the same weekend)"
-                            >
-                              <Icons.Pitch className="w-3 h-3" />
-                              {tournamentByGameId.get(game.id)}
+                            ) : game.lineup ? (
+                              <>
+                                <span className="t-chip bg-win-bg text-win px-2 py-1 rounded-md border border-line">
+                                  Lineup Ready
+                                </span>
+                              </>
+                            ) : (
+                              <span className="t-chip bg-warn-bg text-warnfg px-2 py-1 rounded-md border border-line">
+                                Lineup Needed
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <Icons.Clock className="w-3.5 h-3.5 shrink-0" />{" "}
+                            <span className="whitespace-nowrap">
+                              {formatGameDateDisplay(game.date)}
+                            </span>{" "}
+                            {isoInstantToLocalTime(game.startUtc) && (
+                              <>
+                                <span className="text-ink-3">·</span>{" "}
+                                <span className="whitespace-nowrap">
+                                  {isoInstantToLocalTime(game.startUtc)}
+                                </span>{" "}
+                              </>
+                            )}
+                            <span className="text-ink-3">|</span>{" "}
+                            <span className="whitespace-nowrap">
+                              {leagueRuleSetLabel(
+                                game.leagueRuleSet || leagueRuleSet,
+                              )}{" "}
+                              {game.pitchingFormat || pitchingFormat}
                             </span>
-                          )}
-                        </p>
-                        
+                            {game.location && (
+                              <>
+                                <span className="text-ink-3">|</span>{" "}
+                                <span className="normal-case tracking-normal">
+                                  {String(game.location).split("\n")[0]}
+                                </span>
+                              </>
+                            )}
+                            {tournamentByGameId.has(game.id) && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded normal-case tracking-normal text-[10px] font-black"
+                                style={{
+                                  backgroundColor: "var(--team-primary-15)",
+                                  color: "var(--team-primary)",
+                                }}
+                                title="Part of a tournament (pool + bracket on the same weekend)"
+                              >
+                                <Icons.Pitch className="w-3 h-3" />
+                                {tournamentByGameId.get(game.id)}
+                              </span>
+                            )}
+                          </p>
+
                           <div className="mt-2 flex flex-wrap items-center gap-3">
                             <label className="inline-flex items-center gap-2 cursor-pointer select-none">
                               <input
@@ -1738,7 +1796,6 @@ export const ScheduleTab = memo(() => {
                               </label>
                             )}
                           </div>
-
                         </div>
                       </div>
                       <div className="flex items-stretch gap-2 sm:gap-3 w-full sm:w-auto flex-wrap justify-end">
@@ -1763,8 +1820,8 @@ export const ScheduleTab = memo(() => {
                             {!canEdit
                               ? "Gameplan"
                               : game.lineup
-                              ? "Edit Game"
-                              : "Plan Game"}
+                                ? "Edit Game"
+                                : "Plan Game"}
                           </button>
                         )}
                         {canStartInGame && (
@@ -1815,7 +1872,9 @@ export const ScheduleTab = memo(() => {
                               onChange={(e) => uploadGameStatsCsv(game.id, e)}
                             />
                             <Icons.Upload className="w-4 h-4" />{" "}
-                            {game.playerStats ? "Re-Import Stats" : "Import Stats"}
+                            {game.playerStats
+                              ? "Re-Import Stats"
+                              : "Import Stats"}
                           </label>
                         )}
                         {canEdit && (
@@ -1852,325 +1911,397 @@ export const ScheduleTab = memo(() => {
                   </div>
                 );
               })}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </div>
 
-      {/* Desktop season-summary rail — hidden on mobile/tablet */}
-      {(() => {
-        const today = new Date();
-        today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
-        const todayStr = today.toISOString().split("T")[0];
-        const finalGames = sortedGames.filter((g: any) => isGameFinalized(g));
-        const upcomingGames = sortedGames.filter(
-          (g: any) => !isGameFinalized(g) && (g.status || "scheduled") !== "postponed"
-        );
-        const nextGame = upcomingGames[0] ?? null;
-        const lineupReadyCount = upcomingGames.filter((g: any) => !!g.lineup).length;
-        const lineupNeededCount = upcomingGames.filter((g: any) => !g.lineup).length;
-        const postponedCount = sortedGames.filter(
-          (g: any) => (g.status || "scheduled") === "postponed"
-        ).length;
+        {/* Desktop season-summary rail — hidden on mobile/tablet */}
+        {(() => {
+          const today = new Date();
+          today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+          const todayStr = today.toISOString().split("T")[0];
+          const finalGames = sortedGames.filter((g: any) => isGameFinalized(g));
+          const upcomingGames = sortedGames.filter(
+            (g: any) =>
+              !isGameFinalized(g) && (g.status || "scheduled") !== "postponed",
+          );
+          const nextGame = upcomingGames[0] ?? null;
+          const lineupReadyCount = upcomingGames.filter(
+            (g: any) => !!g.lineup,
+          ).length;
+          const lineupNeededCount = upcomingGames.filter(
+            (g: any) => !g.lineup,
+          ).length;
+          const postponedCount = sortedGames.filter(
+            (g: any) => (g.status || "scheduled") === "postponed",
+          ).length;
 
-        const previewGame = desktopPreviewId
-          ? sortedGames.find((g: any) => g.id === desktopPreviewId) ?? null
-          : null;
+          const previewGame = desktopPreviewId
+            ? (sortedGames.find((g: any) => g.id === desktopPreviewId) ?? null)
+            : null;
 
-        return (
-          <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:shrink-0 gap-4">
-            {previewGame ? (
-              /* ── Game detail panel ── */
-              (() => {
-                const pg = previewGame;
-                const pgStatus = pg.status || "scheduled";
-                const pgFinal = isGameFinalized(pg);
-                const pgPostponed = pgStatus === "postponed";
-                const pgIsToday = pg.date === todayStr;
-                const pgResult = pgFinal
-                  ? Number(pg.teamScore) > Number(pg.opponentScore)
-                    ? "win"
-                    : Number(pg.teamScore) < Number(pg.opponentScore)
-                    ? "loss"
-                    : "tie"
-                  : null;
-                const pgCanStartInGame =
-                  pgIsToday && !pgPostponed && !pgFinal && pg.lineup;
-                return (
-                  <>
-                    {/* Header with close */}
-                    <div className="border border-line rounded-2xl bg-surface p-5">
-                      <div className="flex items-start justify-between gap-2 mb-4">
-                        <div>
-                          <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
-                            Game Detail
-                          </p>
-                          <h3 className="text-lg font-black text-ink uppercase tracking-tight leading-tight">
-                            {pg.isHome === false ? "@ " : "vs. "}{pg.opponent}
-                          </h3>
-                        </div>
-                        <button
-                          onClick={() => setDesktopPreviewId(null)}
-                          className="shrink-0 p-1.5 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-ink transition-colors"
-                          aria-label="Close preview"
-                        >
-                          <Icons.X className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Status chip row */}
-                      <div className="flex flex-wrap gap-2 mb-4">
-                        {pgIsToday && !pgFinal && !pgPostponed && (
-                          <span
-                            className="t-chip px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider"
-                            style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-                          >
-                            Today
-                          </span>
-                        )}
-                        {pgFinal && pgResult && (
-                          <span
-                            className={`t-chip px-2.5 py-1 rounded-md border text-[10px] font-black uppercase tracking-wider tabular-nums ${
-                              pgResult === "win"
-                                ? "bg-win-bg text-win border-line"
-                                : pgResult === "loss"
-                                ? "bg-loss-bg text-loss border-line"
-                                : "bg-warn-bg text-warnfg border-line"
-                            }`}
-                          >
-                            {pgResult === "win" ? "W" : pgResult === "loss" ? "L" : "T"}{" "}
-                            {pg.teamScore}-{pg.opponentScore}
-                          </span>
-                        )}
-                        {pgPostponed && (
-                          <span className="t-chip bg-surface-2 text-ink px-2.5 py-1 rounded-md border border-line-strong text-[10px] font-black uppercase tracking-wider">
-                            Postponed
-                          </span>
-                        )}
-                        {!pgFinal && !pgPostponed && (
-                          pg.lineup ? (
-                            <span className="t-chip bg-win-bg text-win px-2.5 py-1 rounded-md border border-line text-[10px] font-black uppercase tracking-wider">
-                              Lineup Ready
-                            </span>
-                          ) : (
-                            <span className="t-chip bg-warn-bg text-warnfg px-2.5 py-1 rounded-md border border-line text-[10px] font-black uppercase tracking-wider">
-                              Lineup Needed
-                            </span>
-                          )
-                        )}
-                        {pg.isScrimmage && (
-                          <span className="t-chip bg-surface-2 text-ink-2 px-2.5 py-1 rounded-md border border-line-strong text-[10px] font-black uppercase tracking-wider">
-                            Scrimmage
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Detail rows */}
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center gap-2 text-ink-2">
-                          <Icons.Clock className="w-3.5 h-3.5 shrink-0 text-ink-3" />
-                          <span className="font-bold">
-                            {formatGameDateDisplay(pg.date)}
-                            {isoInstantToLocalTime(pg.startUtc) && (
-                              <> · {isoInstantToLocalTime(pg.startUtc)}</>
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-ink-2">
-                          <Icons.FileText className="w-3.5 h-3.5 shrink-0 text-ink-3" />
-                          <span className="font-bold">
-                            {leagueRuleSetLabel(pg.leagueRuleSet || leagueRuleSet)}{" · "}
-                            {pg.pitchingFormat || pitchingFormat}
-                          </span>
-                        </div>
-                        {pg.location && (
-                          <div className="flex items-start gap-2 text-ink-2">
-                            <Icons.Pitch className="w-3.5 h-3.5 shrink-0 text-ink-3 mt-0.5" />
-                            <span className="font-bold">{String(pg.location).split("\n")[0]}</span>
-                          </div>
-                        )}
-                        {pg.lineup && (
-                          <div className="flex items-center gap-2 text-ink-2">
-                            <Icons.Users className="w-3.5 h-3.5 shrink-0 text-ink-3" />
-                            <span className="font-bold">
-                              {pg.lineup.length} inning{pg.lineup.length !== 1 ? "s" : ""} planned
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Action buttons */}
-                    <div className="flex flex-col gap-2">
-                      {(canEdit || pg.lineup) && (
-                        <button
-                          onClick={() => {
-                            setSelectedGameId(pg.id);
-                            setOpponentName(pg.opponent);
-                            setLineup(pg.lineup || null);
-                            setBattingLineup(pg.battingLineup || null);
-                            setCurrentGameAttendance(pg.attendance || {});
-                          }}
-                          className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-                        >
-                          {!canEdit ? (
-                            <Icons.Clipboard className="w-4 h-4" />
-                          ) : pg.lineup ? (
-                            <Icons.Edit className="w-4 h-4" />
-                          ) : (
-                            <Icons.Clipboard className="w-4 h-4" />
-                          )}
-                          {!canEdit ? "Gameplan" : pg.lineup ? "Edit Game" : "Plan Game"}
-                        </button>
-                      )}
-                      {pgCanStartInGame && (
-                        <button
-                          onClick={() => {
-                            setInGameId(pg.id);
-                            setInGameInning(0);
-                            setInGameSelection(null);
-                            setInGameUndoStack([]);
-                          }}
-                          className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-md bg-green-600 hover:bg-green-700 text-white transition-transform hover:-translate-y-0.5 whitespace-nowrap"
-                        >
-                          <Icons.Refresh className="w-4 h-4" /> In-Game
-                        </button>
-                      )}
-                      {!pgPostponed && canEdit && (
-                        <button
-                          onClick={() => setScoringGameId(scoringGameId === pg.id ? null : pg.id)}
-                          className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border transition-colors whitespace-nowrap ${
-                            pgFinal
-                              ? "bg-surface text-ink border-line hover:bg-surface-2"
-                              : "border-transparent text-white"
-                          }`}
-                          style={!pgFinal ? { backgroundColor: primaryColor, color: tertiaryColor } : {}}
-                        >
-                          <Icons.FileText className="w-4 h-4" />
-                          {pgFinal ? "Edit Score" : "Final Score"}
-                        </button>
-                      )}
-                    </div>
-                  </>
-                );
-              })()
-            ) : (
-              /* ── Season summary panels (default) ── */
-              <>
-                {/* Season record panel */}
-                <div className="border border-line rounded-2xl bg-surface p-5">
-                  <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
-                    Season Record
-                  </p>
-                  {record.wins > 0 || record.losses > 0 || record.ties > 0 ? (
+          return (
+            <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:shrink-0 gap-4">
+              {previewGame ? (
+                /* ── Game detail panel ── */
+                (() => {
+                  const pg = previewGame;
+                  const pgStatus = pg.status || "scheduled";
+                  const pgFinal = isGameFinalized(pg);
+                  const pgPostponed = pgStatus === "postponed";
+                  const pgIsToday = pg.date === todayStr;
+                  const pgResult = pgFinal
+                    ? Number(pg.teamScore) > Number(pg.opponentScore)
+                      ? "win"
+                      : Number(pg.teamScore) < Number(pg.opponentScore)
+                        ? "loss"
+                        : "tie"
+                    : null;
+                  const pgCanStartInGame =
+                    pgIsToday && !pgPostponed && !pgFinal && pg.lineup;
+                  return (
                     <>
-                      <div className="flex items-end gap-1 mb-4">
-                        <span className="text-4xl font-black text-ink tabular-nums leading-none">
-                          {record.wins}
-                        </span>
-                        <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
-                        <span className="text-4xl font-black text-ink tabular-nums leading-none">
-                          {record.losses}
-                        </span>
-                        {record.ties > 0 && (
-                          <>
-                            <span className="text-xl font-black text-ink-3 mb-0.5">-</span>
-                            <span className="text-4xl font-black text-ink tabular-nums leading-none">
-                              {record.ties}
+                      {/* Header with close */}
+                      <div className="border border-line rounded-2xl bg-surface p-5">
+                        <div className="flex items-start justify-between gap-2 mb-4">
+                          <div>
+                            <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
+                              Game Detail
+                            </p>
+                            <h3 className="text-lg font-black text-ink uppercase tracking-tight leading-tight">
+                              {pg.isHome === false ? "@ " : "vs. "}
+                              {pg.opponent}
+                            </h3>
+                          </div>
+                          <button
+                            onClick={() => setDesktopPreviewId(null)}
+                            className="shrink-0 p-1.5 rounded-lg hover:bg-surface-2 text-ink-3 hover:text-ink transition-colors"
+                            aria-label="Close preview"
+                          >
+                            <Icons.X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Status chip row */}
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {pgIsToday && !pgFinal && !pgPostponed && (
+                            <span
+                              className="t-chip px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider"
+                              style={{
+                                backgroundColor: primaryColor,
+                                color: tertiaryColor,
+                              }}
+                            >
+                              Today
                             </span>
-                          </>
-                        )}
+                          )}
+                          {pgFinal && pgResult && (
+                            <span
+                              className={`t-chip px-2.5 py-1 rounded-md border text-[10px] font-black uppercase tracking-wider tabular-nums ${
+                                pgResult === "win"
+                                  ? "bg-win-bg text-win border-line"
+                                  : pgResult === "loss"
+                                    ? "bg-loss-bg text-loss border-line"
+                                    : "bg-warn-bg text-warnfg border-line"
+                              }`}
+                            >
+                              {pgResult === "win"
+                                ? "W"
+                                : pgResult === "loss"
+                                  ? "L"
+                                  : "T"}{" "}
+                              {pg.teamScore}-{pg.opponentScore}
+                            </span>
+                          )}
+                          {pgPostponed && (
+                            <span className="t-chip bg-surface-2 text-ink px-2.5 py-1 rounded-md border border-line-strong text-[10px] font-black uppercase tracking-wider">
+                              Postponed
+                            </span>
+                          )}
+                          {!pgFinal &&
+                            !pgPostponed &&
+                            (pg.lineup ? (
+                              <span className="t-chip bg-win-bg text-win px-2.5 py-1 rounded-md border border-line text-[10px] font-black uppercase tracking-wider">
+                                Lineup Ready
+                              </span>
+                            ) : (
+                              <span className="t-chip bg-warn-bg text-warnfg px-2.5 py-1 rounded-md border border-line text-[10px] font-black uppercase tracking-wider">
+                                Lineup Needed
+                              </span>
+                            ))}
+                          {pg.isScrimmage && (
+                            <span className="t-chip bg-surface-2 text-ink-2 px-2.5 py-1 rounded-md border border-line-strong text-[10px] font-black uppercase tracking-wider">
+                              Scrimmage
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Detail rows */}
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center gap-2 text-ink-2">
+                            <Icons.Clock className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+                            <span className="font-bold">
+                              {formatGameDateDisplay(pg.date)}
+                              {isoInstantToLocalTime(pg.startUtc) && (
+                                <> · {isoInstantToLocalTime(pg.startUtc)}</>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-ink-2">
+                            <Icons.FileText className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+                            <span className="font-bold">
+                              {leagueRuleSetLabel(
+                                pg.leagueRuleSet || leagueRuleSet,
+                              )}
+                              {" · "}
+                              {pg.pitchingFormat || pitchingFormat}
+                            </span>
+                          </div>
+                          {pg.location && (
+                            <div className="flex items-start gap-2 text-ink-2">
+                              <Icons.Pitch className="w-3.5 h-3.5 shrink-0 text-ink-3 mt-0.5" />
+                              <span className="font-bold">
+                                {String(pg.location).split("\n")[0]}
+                              </span>
+                            </div>
+                          )}
+                          {pg.lineup && (
+                            <div className="flex items-center gap-2 text-ink-2">
+                              <Icons.Users className="w-3.5 h-3.5 shrink-0 text-ink-3" />
+                              <span className="font-bold">
+                                {pg.lineup.length} inning
+                                {pg.lineup.length !== 1 ? "s" : ""} planned
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line">
-                        <div className="text-center">
-                          <div className="text-lg font-black text-win tabular-nums">{record.wins}</div>
-                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Wins</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-black text-loss tabular-nums">{record.losses}</div>
-                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Losses</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-lg font-black text-ink tabular-nums">{finalGames.length}</div>
-                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">Played</div>
-                        </div>
+
+                      {/* Action buttons */}
+                      <div className="flex flex-col gap-2">
+                        {(canEdit || pg.lineup) && (
+                          <button
+                            onClick={() => {
+                              setSelectedGameId(pg.id);
+                              setOpponentName(pg.opponent);
+                              setLineup(pg.lineup || null);
+                              setBattingLineup(pg.battingLineup || null);
+                              setCurrentGameAttendance(pg.attendance || {});
+                            }}
+                            className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border border-line bg-surface text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
+                          >
+                            {!canEdit ? (
+                              <Icons.Clipboard className="w-4 h-4" />
+                            ) : pg.lineup ? (
+                              <Icons.Edit className="w-4 h-4" />
+                            ) : (
+                              <Icons.Clipboard className="w-4 h-4" />
+                            )}
+                            {!canEdit
+                              ? "Gameplan"
+                              : pg.lineup
+                                ? "Edit Game"
+                                : "Plan Game"}
+                          </button>
+                        )}
+                        {pgCanStartInGame && (
+                          <button
+                            onClick={() => {
+                              setInGameId(pg.id);
+                              setInGameInning(0);
+                              setInGameSelection(null);
+                              setInGameUndoStack([]);
+                            }}
+                            className="w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-md bg-green-600 hover:bg-green-700 text-white transition-transform hover:-translate-y-0.5 whitespace-nowrap"
+                          >
+                            <Icons.Refresh className="w-4 h-4" /> In-Game
+                          </button>
+                        )}
+                        {!pgPostponed && canEdit && (
+                          <button
+                            onClick={() =>
+                              setScoringGameId(
+                                scoringGameId === pg.id ? null : pg.id,
+                              )
+                            }
+                            className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider rounded-xl shadow-sm border transition-colors whitespace-nowrap ${
+                              pgFinal
+                                ? "bg-surface text-ink border-line hover:bg-surface-2"
+                                : "border-transparent text-white"
+                            }`}
+                            style={
+                              !pgFinal
+                                ? {
+                                    backgroundColor: primaryColor,
+                                    color: tertiaryColor,
+                                  }
+                                : {}
+                            }
+                          >
+                            <Icons.FileText className="w-4 h-4" />
+                            {pgFinal ? "Edit Score" : "Final Score"}
+                          </button>
+                        )}
                       </div>
                     </>
-                  ) : (
-                    <p className="text-xs font-semibold text-ink-3">No results yet</p>
-                  )}
-                </div>
-
-                {/* Upcoming panel */}
-                <div className="border border-line rounded-2xl bg-surface p-5">
-                  <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
-                    Upcoming
-                  </p>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-ink-2">Remaining</span>
-                      <span className="text-sm font-black text-ink tabular-nums">{upcomingGames.length}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-ink-2">Lineup Ready</span>
-                      <span className="text-sm font-black text-win tabular-nums">{lineupReadyCount}</span>
-                    </div>
-                    {lineupNeededCount > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-ink-2">Lineup Needed</span>
-                        <span className="text-sm font-black text-warnfg tabular-nums">{lineupNeededCount}</span>
-                      </div>
-                    )}
-                    {postponedCount > 0 && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-ink-2">Postponed</span>
-                        <span className="text-sm font-black text-ink-3 tabular-nums">{postponedCount}</span>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-[10px] font-semibold text-ink-3 mt-4 pt-3 border-t border-line">
-                    Click a game to see details
-                  </p>
-                </div>
-
-                {/* Next game spotlight */}
-                {nextGame && (
+                  );
+                })()
+              ) : (
+                /* ── Season summary panels (default) ── */
+                <>
+                  {/* Season record panel */}
                   <div className="border border-line rounded-2xl bg-surface p-5">
                     <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
-                      Next Game
+                      Season Record
                     </p>
-                    <p className="text-base font-black text-ink uppercase tracking-tight mb-1">
-                      {nextGame.isHome === false ? "@ " : "vs. "}{nextGame.opponent}
-                    </p>
-                    <p className="text-xs font-bold text-ink-3 mb-3">
-                      {formatGameDateDisplay(nextGame.date)}
-                      {isoInstantToLocalTime(nextGame.startUtc) && (
-                        <> · {isoInstantToLocalTime(nextGame.startUtc)}</>
-                      )}
-                    </p>
-                    {nextGame.lineup ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-win-bg text-win text-[10px] font-black uppercase tracking-wider">
-                        <Icons.Check className="w-3 h-3" /> Lineup Ready
-                      </span>
+                    {record.wins > 0 || record.losses > 0 || record.ties > 0 ? (
+                      <>
+                        <div className="flex items-end gap-1 mb-4">
+                          <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                            {record.wins}
+                          </span>
+                          <span className="text-xl font-black text-ink-3 mb-0.5">
+                            -
+                          </span>
+                          <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                            {record.losses}
+                          </span>
+                          {record.ties > 0 && (
+                            <>
+                              <span className="text-xl font-black text-ink-3 mb-0.5">
+                                -
+                              </span>
+                              <span className="text-4xl font-black text-ink tabular-nums leading-none">
+                                {record.ties}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-line">
+                          <div className="text-center">
+                            <div className="text-lg font-black text-win tabular-nums">
+                              {record.wins}
+                            </div>
+                            <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                              Wins
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-black text-loss tabular-nums">
+                              {record.losses}
+                            </div>
+                            <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                              Losses
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-black text-ink tabular-nums">
+                              {finalGames.length}
+                            </div>
+                            <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                              Played
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warn-bg text-warnfg text-[10px] font-black uppercase tracking-wider">
-                        <Icons.Clock className="w-3 h-3" /> Lineup Needed
-                      </span>
-                    )}
-                    {nextGame.date === todayStr && (
-                      <div
-                        className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ml-2"
-                        style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-                      >
-                        Today
-                      </div>
+                      <p className="text-xs font-semibold text-ink-3">
+                        No results yet
+                      </p>
                     )}
                   </div>
-                )}
-              </>
-            )}
-          </aside>
-        );
-      })()}
+
+                  {/* Upcoming panel */}
+                  <div className="border border-line rounded-2xl bg-surface p-5">
+                    <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                      Upcoming
+                    </p>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-ink-2">
+                          Remaining
+                        </span>
+                        <span className="text-sm font-black text-ink tabular-nums">
+                          {upcomingGames.length}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-ink-2">
+                          Lineup Ready
+                        </span>
+                        <span className="text-sm font-black text-win tabular-nums">
+                          {lineupReadyCount}
+                        </span>
+                      </div>
+                      {lineupNeededCount > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-ink-2">
+                            Lineup Needed
+                          </span>
+                          <span className="text-sm font-black text-warnfg tabular-nums">
+                            {lineupNeededCount}
+                          </span>
+                        </div>
+                      )}
+                      {postponedCount > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-ink-2">
+                            Postponed
+                          </span>
+                          <span className="text-sm font-black text-ink-3 tabular-nums">
+                            {postponedCount}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-semibold text-ink-3 mt-4 pt-3 border-t border-line">
+                      Click a game to see details
+                    </p>
+                  </div>
+
+                  {/* Next game spotlight */}
+                  {nextGame && (
+                    <div className="border border-line rounded-2xl bg-surface p-5">
+                      <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-3">
+                        Next Game
+                      </p>
+                      <p className="text-base font-black text-ink uppercase tracking-tight mb-1">
+                        {nextGame.isHome === false ? "@ " : "vs. "}
+                        {nextGame.opponent}
+                      </p>
+                      <p className="text-xs font-bold text-ink-3 mb-3">
+                        {formatGameDateDisplay(nextGame.date)}
+                        {isoInstantToLocalTime(nextGame.startUtc) && (
+                          <> · {isoInstantToLocalTime(nextGame.startUtc)}</>
+                        )}
+                      </p>
+                      {nextGame.lineup ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-win-bg text-win text-[10px] font-black uppercase tracking-wider">
+                          <Icons.Check className="w-3 h-3" /> Lineup Ready
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-warn-bg text-warnfg text-[10px] font-black uppercase tracking-wider">
+                          <Icons.Clock className="w-3 h-3" /> Lineup Needed
+                        </span>
+                      )}
+                      {nextGame.date === todayStr && (
+                        <div
+                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ml-2"
+                          style={{
+                            backgroundColor: primaryColor,
+                            color: tertiaryColor,
+                          }}
+                        >
+                          Today
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </aside>
+          );
+        })()}
       </div>
 
       {saveTemplateOpen && (
@@ -2189,8 +2320,8 @@ export const ScheduleTab = memo(() => {
                 Save Lineup Template
               </h3>
               <p className="text-xs text-ink-3 font-medium mb-4">
-                Reusable batting order + defensive plan. Apply it to any
-                future game.
+                Reusable batting order + defensive plan. Apply it to any future
+                game.
               </p>
               <label className="block text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
                 Name
@@ -2238,54 +2369,58 @@ export const ScheduleTab = memo(() => {
         </div>
       )}
 
-      {pendingDeleteTemplateId && (() => {
-        const tpl = (team.lineupTemplates || []).find(
-          (t: any) => t.id === pendingDeleteTemplateId
-        );
-        const name = tpl?.name || "this template";
-        return (
-          <div
-            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-            onClick={() => setPendingDeleteTemplateId(null)}
-          >
-            <A11yDialog
-              label="Delete template?"
-              onClose={() => setPendingDeleteTemplateId(null)}
-              className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+      {pendingDeleteTemplateId &&
+        (() => {
+          const tpl = (team.lineupTemplates || []).find(
+            (t: any) => t.id === pendingDeleteTemplateId,
+          );
+          const name = tpl?.name || "this template";
+          return (
+            <div
+              className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+              onClick={() => setPendingDeleteTemplateId(null)}
             >
-              <div className="p-1.5" style={{ backgroundColor: "var(--loss)" }} />
-              <div className="p-5 sm:p-6">
-                <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
-                  Delete Template?
-                </h3>
-                <p className="text-sm text-ink font-medium mb-5">
-                  "{name}" will be removed from your saved templates.
-                  Games using this template aren't affected.
-                </p>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPendingDeleteTemplateId(null)}
-                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      deleteLineupTemplate?.(pendingDeleteTemplateId);
-                      setPendingDeleteTemplateId(null);
-                    }}
-                    className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-colors"
-                  >
-                    Delete
-                  </button>
+              <A11yDialog
+                label="Delete template?"
+                onClose={() => setPendingDeleteTemplateId(null)}
+                className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+              >
+                <div
+                  className="p-1.5"
+                  style={{ backgroundColor: "var(--loss)" }}
+                />
+                <div className="p-5 sm:p-6">
+                  <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
+                    Delete Template?
+                  </h3>
+                  <p className="text-sm text-ink font-medium mb-5">
+                    "{name}" will be removed from your saved templates. Games
+                    using this template aren't affected.
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteTemplateId(null)}
+                      className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        deleteLineupTemplate?.(pendingDeleteTemplateId);
+                        setPendingDeleteTemplateId(null);
+                      }}
+                      className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </A11yDialog>
-          </div>
-        );
-      })()}
+              </A11yDialog>
+            </div>
+          );
+        })()}
     </div>
   );
 });

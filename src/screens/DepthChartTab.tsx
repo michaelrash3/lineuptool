@@ -45,7 +45,7 @@ const scoreForPlayer = (
   player: any,
   grades: Record<string, any>,
   kidPitch: boolean,
-  teamAge?: string
+  teamAge?: string,
 ): number => {
   if (pos === "P")
     return kidPitch
@@ -58,7 +58,10 @@ const scoreForPlayer = (
     return kidPitch
       ? calcCatcherScore(grades, player?.stats)
       : calcDefensiveScore(grades, player?.stats);
-  return fieldFitScore(pos, grades) * 100 || calcDefensiveScore(grades, player?.stats);
+  return (
+    fieldFitScore(pos, grades) * 100 ||
+    calcDefensiveScore(grades, player?.stats)
+  );
 };
 
 // Does a position match a player's (canonical) primary? CF collapses onto the
@@ -75,11 +78,14 @@ const samePos = (a?: string, b?: string): boolean =>
 const primaryTier = (
   pos: string,
   player: any,
-  suggestedById: Map<string, string | null>
+  suggestedById: Map<string, string | null>,
 ): number => {
   if (pos === "P") return 0;
   if (samePos(player.primaryPosition, pos)) return 0;
-  if (!player.primaryPosition && samePos(suggestedById.get(player.id) || undefined, pos))
+  if (
+    !player.primaryPosition &&
+    samePos(suggestedById.get(player.id) || undefined, pos)
+  )
     return 1;
   return 2;
 };
@@ -95,7 +101,7 @@ const orderForPosition = (
   kidPitch: boolean,
   manual: string[] | null,
   suggestedById: Map<string, string | null>,
-  teamAge?: string
+  teamAge?: string,
 ): any[] => {
   const eligible = players.filter((p) => comfortableAt(p, pos));
   const auto = [...eligible].sort((a, b) => {
@@ -105,7 +111,9 @@ const orderForPosition = (
     const d =
       scoreForPlayer(pos, b, grades[b.id] || {}, kidPitch, teamAge) -
       scoreForPlayer(pos, a, grades[a.id] || {}, kidPitch, teamAge);
-    return d !== 0 ? d : String(a.name || "").localeCompare(String(b.name || ""));
+    return d !== 0
+      ? d
+      : String(a.name || "").localeCompare(String(b.name || ""));
   });
   if (!manual || manual.length === 0) return auto;
   const byId = new Map(eligible.map((p) => [p.id, p]));
@@ -269,7 +277,7 @@ const PositionCard = memo(
         )}
       </div>
     );
-  }
+  },
 );
 
 export const DepthChartTab = memo(() => {
@@ -280,11 +288,11 @@ export const DepthChartTab = memo(() => {
   const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const evaluationEvents: any[] = useMemo(
     () => (team as any).evaluationEvents || [],
-    [team]
+    [team],
   );
   const depthChart: Record<string, string[]> = useMemo(
     () => (team as any).depthChart || {},
-    [team]
+    [team],
   );
   const { defenseSize, pitchingFormat, teamAge } = team as any;
   const canEdit = currentRole === "head";
@@ -296,7 +304,7 @@ export const DepthChartTab = memo(() => {
         teamAge,
         games: (team as any).games || [],
       }),
-    [evaluationEvents, players, teamAge, team]
+    [evaluationEvents, players, teamAge, team],
   );
 
   // Eval-suggested primary per player — used only as the fallback ordering
@@ -304,7 +312,10 @@ export const DepthChartTab = memo(() => {
   const suggestedById = useMemo(() => {
     const m = new Map<string, string | null>();
     for (const p of players) {
-      const s = suggestPrimaryPosition(p, combinedGrades[p.id], { kidPitch, teamAge });
+      const s = suggestPrimaryPosition(p, combinedGrades[p.id], {
+        kidPitch,
+        teamAge,
+      });
       m.set(p.id, s?.position || null);
     }
     return m;
@@ -323,12 +334,20 @@ export const DepthChartTab = memo(() => {
             kidPitch,
             manual,
             suggestedById,
-            teamAge
+            teamAge,
           ),
           customized: !!manual,
         };
       }),
-    [defenseSize, players, combinedGrades, kidPitch, depthChart, suggestedById, teamAge]
+    [
+      defenseSize,
+      players,
+      combinedGrades,
+      kidPitch,
+      depthChart,
+      suggestedById,
+      teamAge,
+    ],
   );
 
   // Swap a player with its neighbor and persist the full new order. We write the
@@ -346,7 +365,7 @@ export const DepthChartTab = memo(() => {
     pos: string,
     ids: string[],
     playerId: string,
-    toIndex: number
+    toIndex: number,
   ) => {
     const fromIndex = ids.indexOf(playerId);
     if (fromIndex < 0) return;
@@ -378,7 +397,8 @@ export const DepthChartTab = memo(() => {
           <div>
             <h1 className="t-h1">Depth Chart</h1>
             <p className="t-body text-xs mt-0.5">
-              Drag players into order, or use the arrow buttons for precise moves.
+              Drag players into order, or use the arrow buttons for precise
+              moves.
             </p>
           </div>
         </div>

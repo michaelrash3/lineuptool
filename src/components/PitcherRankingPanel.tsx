@@ -20,7 +20,7 @@ const ageNumOf = (age: string | undefined): number => {
 const daysUntilEligible = (
   player: any,
   teamAge: string,
-  ruleSet?: PitchRuleSet
+  ruleSet?: PitchRuleSet,
 ): number | null => {
   const pitching = player.pitching || {};
   const last = pitching.lastPitchDate;
@@ -62,38 +62,45 @@ export const PitcherRankingPanel = memo(() => {
             games: (team as any).games || [],
           })
         : null,
-    [eligible, evaluationEvents, players, teamAge, team]
+    [eligible, evaluationEvents, players, teamAge, team],
   );
 
   const pitchRules = useMemo(() => resolvePitchRuleSet(team), [team]);
   const ranked = useMemo(() => {
     if (!eligible || !combinedGrades) return [];
     const todayStr = new Date().toISOString().slice(0, 10);
-    return ((players || []) as any[])
-      .map((p) => {
-        const g = combinedGrades[p.id] || {};
-        const score = calcPitcherScore(g, p.stats, {
-          topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
-          teamAge,
-        });
-        const eligibleToday = checkPitchEligibility(p, todayStr, teamAge, pitchRules);
-        const daysUntil = eligibleToday
-          ? 0
-          : daysUntilEligible(p, teamAge, pitchRules);
-        return {
-          p,
-          score,
-          eligibleToday,
-          daysUntil,
-          lastPitchDate: p.pitching?.lastPitchDate,
-          recentPitches: p.pitching?.recentPitches || 0,
-          topMph: p.stats?.pTopMph ?? p.pitching?.topMph ?? null,
-        };
-      })
-      // Drop players who have never been graded for pitching at all — no
-      // point listing kids the coach hasn't evaluated as pitchers.
-      .filter((row) => row.score > 0)
-      .sort((a, b) => b.score - a.score);
+    return (
+      ((players || []) as any[])
+        .map((p) => {
+          const g = combinedGrades[p.id] || {};
+          const score = calcPitcherScore(g, p.stats, {
+            topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
+            teamAge,
+          });
+          const eligibleToday = checkPitchEligibility(
+            p,
+            todayStr,
+            teamAge,
+            pitchRules,
+          );
+          const daysUntil = eligibleToday
+            ? 0
+            : daysUntilEligible(p, teamAge, pitchRules);
+          return {
+            p,
+            score,
+            eligibleToday,
+            daysUntil,
+            lastPitchDate: p.pitching?.lastPitchDate,
+            recentPitches: p.pitching?.recentPitches || 0,
+            topMph: p.stats?.pTopMph ?? p.pitching?.topMph ?? null,
+          };
+        })
+        // Drop players who have never been graded for pitching at all — no
+        // point listing kids the coach hasn't evaluated as pitchers.
+        .filter((row) => row.score > 0)
+        .sort((a, b) => b.score - a.score)
+    );
   }, [eligible, combinedGrades, players, teamAge, pitchRules]);
 
   if (!eligible) return null;
@@ -130,9 +137,15 @@ export const PitcherRankingPanel = memo(() => {
               <th className="px-3 py-2 w-8">#</th>
               <th className="px-3 py-2">Pitcher</th>
               <th className="px-3 py-2 text-right">Score</th>
-              <th className="px-3 py-2 text-right hidden lg:table-cell">Top mph</th>
-              <th className="px-3 py-2 text-right hidden sm:table-cell">Last Pitched</th>
-              <th className="px-3 py-2 text-right hidden md:table-cell">Recent Pitches</th>
+              <th className="px-3 py-2 text-right hidden lg:table-cell">
+                Top mph
+              </th>
+              <th className="px-3 py-2 text-right hidden sm:table-cell">
+                Last Pitched
+              </th>
+              <th className="px-3 py-2 text-right hidden md:table-cell">
+                Recent Pitches
+              </th>
               <th className="px-3 py-2 text-right">Eligible</th>
             </tr>
           </thead>

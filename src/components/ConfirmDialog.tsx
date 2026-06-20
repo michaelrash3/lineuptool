@@ -36,7 +36,7 @@ const DialogShell = ({
 }) => {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [value, setValue] = useState(
-    request.kind === "prompt" ? request.opts.defaultValue || "" : ""
+    request.kind === "prompt" ? request.opts.defaultValue || "" : "",
   );
   const [inputError, setInputError] = useState("");
 
@@ -165,7 +165,11 @@ const DialogShell = ({
   );
 };
 
-export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => {
+export const ConfirmProvider = ({
+  children,
+}: {
+  children: React.ReactNode;
+}) => {
   // Requests queue FIFO; only the head renders. In practice dialogs are
   // one-at-a-time, but a queue means a second request fired while one is
   // open waits instead of silently replacing it.
@@ -181,7 +185,7 @@ export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => 
           { id: counter.current, kind: "confirm", opts, resolve },
         ]);
       }),
-    []
+    [],
   );
 
   const promptText = useCallback(
@@ -193,7 +197,7 @@ export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => 
           { id: counter.current, kind: "prompt", opts, resolve },
         ]);
       }),
-    []
+    [],
   );
 
   const onDone = useCallback(() => {
@@ -202,7 +206,7 @@ export const ConfirmProvider = ({ children }: { children: React.ReactNode }) => 
 
   const value = useMemo<ConfirmContextValue>(
     () => ({ confirm, promptText }),
-    [confirm, promptText]
+    [confirm, promptText],
   );
 
   const active = queue[0];

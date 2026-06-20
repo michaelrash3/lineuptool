@@ -8,27 +8,28 @@ import type { OfferLetterContext } from "../constants/offerLetters";
 export const makeOfferLetterContext = (
   team: any,
   user: any,
-  recipientName: string
+  recipientName: string,
 ): OfferLetterContext => {
   const finances = team?.finances || {};
   const fee =
     finances.nextClubFee != null
       ? Number(finances.nextClubFee)
       : finances.clubFee != null
-      ? Number(finances.clubFee)
-      : null;
+        ? Number(finances.clubFee)
+        : null;
   const deposit =
     finances.nextDepositAmount != null
       ? Number(finances.nextDepositAmount)
       : finances.depositAmount != null
-      ? Number(finances.depositAmount)
-      : null;
+        ? Number(finances.depositAmount)
+        : null;
   return {
     playerName: recipientName || "[Player Name]",
     teamName: team?.name || "our team",
     teamFees: fee != null && fee > 0 ? formatCurrency(fee) : "",
     deposit: deposit != null && deposit > 0 ? formatCurrency(deposit) : "",
-    depositDueDate: finances.nextDepositDueDate || finances.depositDueDate || "",
+    depositDueDate:
+      finances.nextDepositDueDate || finances.depositDueDate || "",
     coachName: user?.displayName || "Your coach",
     coachEmail: user?.email || "",
     coachPhone: (team?.headCoachPhone as string) || "",

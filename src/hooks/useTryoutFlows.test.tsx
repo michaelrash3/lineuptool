@@ -14,7 +14,13 @@ const setup = (teamOver: any = {}, user: any = { uid: "u1" }) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useTryoutFlows({ teamData, updateTeam, toast, user, activeTeamId: "team-1" })
+    useTryoutFlows({
+      teamData,
+      updateTeam,
+      toast,
+      user,
+      activeTeamId: "team-1",
+    }),
   );
   return { result, updateTeam, toast };
 };
@@ -23,23 +29,36 @@ describe("useTryoutFlows", () => {
   it("generateTryoutShareId opens tryouts and returns an id", () => {
     const { result, updateTeam } = setup();
     let id = "";
-    act(() => { id = result.current.generateTryoutShareId(); });
+    act(() => {
+      id = result.current.generateTryoutShareId();
+    });
     expect(id).toBeTruthy();
     expect(updateTeam).toHaveBeenCalledWith(
-      expect.objectContaining({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" })
+      expect.objectContaining({
+        tryoutShareId: id,
+        tryoutsOpen: true,
+        tryoutsPhase: "open",
+      }),
     );
   });
 
   it("generateTryoutDateLink pins each generated slug to its own date", () => {
     // First date.
-    const { result, updateTeam } = setup({ tryoutDates: [], tryoutDateLinks: [] });
+    const { result, updateTeam } = setup({
+      tryoutDates: [],
+      tryoutDateLinks: [],
+    });
     let slugA = "";
-    act(() => { slugA = result.current.generateTryoutDateLink("2026-04-10")!; });
+    act(() => {
+      slugA = result.current.generateTryoutDateLink("2026-04-10")!;
+    });
     const patchA = updateTeam.mock.calls[0][0];
     expect(slugA).toContain("2026-04-10");
     expect(patchA.tryoutDateSlug).toBe(slugA);
     expect(patchA.tryoutDates).toEqual(["2026-04-10"]);
-    expect(patchA.tryoutDateLinks).toEqual([{ slug: slugA, date: "2026-04-10" }]);
+    expect(patchA.tryoutDateLinks).toEqual([
+      { slug: slugA, date: "2026-04-10" },
+    ]);
 
     // Second date on a team that already carries the first link — the mapping
     // must ACCUMULATE so the first slug keeps resolving to its original date.
@@ -48,7 +67,9 @@ describe("useTryoutFlows", () => {
       tryoutDateLinks: [{ slug: slugA, date: "2026-04-10" }],
     });
     let slugB = "";
-    act(() => { slugB = r2.current.generateTryoutDateLink("2026-05-22")!; });
+    act(() => {
+      slugB = r2.current.generateTryoutDateLink("2026-05-22")!;
+    });
     const patchB = u2.mock.calls[0][0];
     expect(slugB).not.toBe(slugA);
     expect(patchB.tryoutDates).toEqual(["2026-04-10", "2026-05-22"]);
@@ -61,56 +82,90 @@ describe("useTryoutFlows", () => {
   it("setTryoutsOpen / completeTryouts toggle phase", () => {
     const { result, updateTeam } = setup();
     act(() => result.current.setTryoutsOpen(false));
-    expect(updateTeam).toHaveBeenCalledWith({ tryoutsOpen: false, tryoutsPhase: "intake_closed" });
+    expect(updateTeam).toHaveBeenCalledWith({
+      tryoutsOpen: false,
+      tryoutsPhase: "intake_closed",
+    });
     act(() => result.current.completeTryouts());
-    expect(updateTeam).toHaveBeenLastCalledWith({ tryoutsOpen: false, tryoutsPhase: "completed" });
+    expect(updateTeam).toHaveBeenLastCalledWith({
+      tryoutsOpen: false,
+      tryoutsPhase: "completed",
+    });
   });
 
   it("updateTryoutSignup patches the matching signup", () => {
-    const { result, updateTeam } = setup({ tryoutSignups: [{ id: "s1", status: "tryout" }] });
+    const { result, updateTeam } = setup({
+      tryoutSignups: [{ id: "s1", status: "tryout" }],
+    });
     act(() => result.current.updateTryoutSignup("s1", { status: "reviewed" }));
-    expect(updateTeam.mock.calls[0][0].tryoutSignups[0]).toMatchObject({ id: "s1", status: "reviewed" });
+    expect(updateTeam.mock.calls[0][0].tryoutSignups[0]).toMatchObject({
+      id: "s1",
+      status: "reviewed",
+    });
   });
 
   it("acceptTryout (default) holds the signup for next season without adding a player", () => {
     const { result, updateTeam, toast } = setup({
-      tryoutSignups: [{ id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true }],
+      tryoutSignups: [
+        { id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true },
+      ],
     });
     act(() => result.current.acceptTryout("s1"));
     const patch = updateTeam.mock.calls[0][0];
     expect(patch.tryoutSignups[0].status).toBe("accepted");
     // No current-season player is created — they join on Advance Season.
     expect(patch.players).toBeUndefined();
-    expect(toast.push).toHaveBeenCalledWith(expect.objectContaining({ kind: "success" }));
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success" }),
+    );
   });
 
   it("acceptTryout('current') pulls the player onto the current roster and consumes the signup", () => {
     const { result, updateTeam } = setup({
-      tryoutSignups: [{ id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true }],
+      tryoutSignups: [
+        { id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true },
+      ],
       players: [],
     });
     act(() => result.current.acceptTryout("s1", "current"));
     const patch = updateTeam.mock.calls[0][0];
     // Signup is removed (they're a roster player now, not a tryout).
     expect(patch.tryoutSignups).toEqual([]);
-    expect(patch.players[0]).toMatchObject({ name: "Ava Rivera", playerStatus: "returning" });
+    expect(patch.players[0]).toMatchObject({
+      name: "Ava Rivera",
+      playerStatus: "returning",
+    });
     expect(patch.players[0].comfortablePositions).toContain("C");
   });
 
   it("saveTryoutEvaluation records a date-grouped tryout session", () => {
     const { result, updateTeam } = setup({
-      tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }, { id: "s2", tryoutDate: "2026-06-18" }],
+      tryoutSignups: [
+        { id: "s1", tryoutDate: "2026-06-18" },
+        { id: "s2", tryoutDate: "2026-06-18" },
+      ],
     });
-    act(() => result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"));
+    act(() =>
+      result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"),
+    );
     const session = updateTeam.mock.calls[0][0].tryoutSessions[0];
-    expect(session).toMatchObject({ id: "tryout-2026-06-18", date: "2026-06-18" });
-    expect(session.gradesByEvaluator.u1).toMatchObject({ evaluatorId: "u1", coachRole: "Head" });
+    expect(session).toMatchObject({
+      id: "tryout-2026-06-18",
+      date: "2026-06-18",
+    });
+    expect(session.gradesByEvaluator.u1).toMatchObject({
+      evaluatorId: "u1",
+      coachRole: "Head",
+    });
     expect(session.gradesByEvaluator.u1.grades.s1).toEqual({ fielding: 4 });
   });
 
   it("saveTryoutEvaluations saves multiple kids into one date session in one write", () => {
     const { result, updateTeam } = setup({
-      tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }, { id: "s2", tryoutDate: "2026-06-18" }],
+      tryoutSignups: [
+        { id: "s1", tryoutDate: "2026-06-18" },
+        { id: "s2", tryoutDate: "2026-06-18" },
+      ],
     });
     act(() =>
       result.current.saveTryoutEvaluations(
@@ -118,8 +173,8 @@ describe("useTryoutFlows", () => {
           { signupId: "s1", date: "2026-06-18", grades: { fielding: 4 } },
           { signupId: "s2", date: "2026-06-18", grades: { fielding: 5 } },
         ],
-        "Head"
-      )
+        "Head",
+      ),
     );
     expect(updateTeam).toHaveBeenCalledTimes(1);
     const session = updateTeam.mock.calls[0][0].tryoutSessions[0];
@@ -137,7 +192,10 @@ describe("useTryoutFlows", () => {
     act(() => result.current.convertInterestToTryout("i1"));
     const patch = updateTeam.mock.calls[0][0];
     expect(patch.interestSignups).toEqual([]);
-    expect(patch.tryoutSignups[0]).toMatchObject({ firstName: "Mia", lastName: "Stone" });
+    expect(patch.tryoutSignups[0]).toMatchObject({
+      firstName: "Mia",
+      lastName: "Stone",
+    });
   });
 
   it("deleteTryoutSignup removes a single signup", () => {

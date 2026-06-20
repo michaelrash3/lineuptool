@@ -40,7 +40,7 @@ export const OptimalLineupPanel = memo(() => {
   // Present = roster's own present/absent marking (what the coach toggles here).
   const present = useMemo(
     () => (players || []).filter((p: any) => p.present !== false),
-    [players]
+    [players],
   );
 
   const result = useMemo(() => {
@@ -93,13 +93,17 @@ export const OptimalLineupPanel = memo(() => {
           className="p-2 rounded-full"
           style={{ backgroundColor: "var(--team-primary-15)" }}
         >
-          <Icons.Bat className="w-5 h-5" style={{ color: "var(--team-primary)" }} />
+          <Icons.Bat
+            className="w-5 h-5"
+            style={{ color: "var(--team-primary)" }}
+          />
         </div>
         <div className="min-w-0">
           <h2 className="t-h2">Optimal Lineup — Next Game</h2>
           <p className="t-eyebrow text-ink-3 mt-0.5 truncate">
             {nextGame.opponent ? `vs ${nextGame.opponent} · ` : ""}
-            {formatGameDateDisplay(nextGame.date)} · {ruleLabel} · {present.length} present
+            {formatGameDateDisplay(nextGame.date)} · {ruleLabel} ·{" "}
+            {present.length} present
           </p>
         </div>
       </div>
@@ -133,8 +137,8 @@ export const OptimalLineupPanel = memo(() => {
                       pos === "Bench"
                         ? "bg-surface-2 border-line text-ink-3"
                         : isPitcher
-                        ? "bg-win-bg border-line text-win"
-                        : "bg-surface border-line-strong text-ink"
+                          ? "bg-win-bg border-line text-win"
+                          : "bg-surface border-line-strong text-ink"
                     }`}
                   >
                     {pos}

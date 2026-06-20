@@ -16,7 +16,7 @@ const Harness = ({ onResult }: { onResult: (v: any) => void }) => {
               message: "Gone forever.",
               confirmLabel: "Delete",
               danger: true,
-            })
+            }),
           )
         }
       >
@@ -30,7 +30,7 @@ const Harness = ({ onResult }: { onResult: (v: any) => void }) => {
               label: "Email",
               inputType: "email",
               confirmLabel: "Send",
-            })
+            }),
           )
         }
       >
@@ -45,7 +45,7 @@ const setup = () => {
   render(
     <ConfirmProvider>
       <Harness onResult={onResult} />
-    </ConfirmProvider>
+    </ConfirmProvider>,
   );
   return { onResult };
 };
@@ -55,7 +55,7 @@ describe("ConfirmProvider", () => {
     const { onResult } = setup();
     fireEvent.click(screen.getByText("ask-confirm"));
     expect(
-      screen.getByRole("dialog", { name: /delete thing\?/i })
+      screen.getByRole("dialog", { name: /delete thing\?/i }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
@@ -88,7 +88,7 @@ describe("ConfirmProvider", () => {
     fireEvent.change(input, { target: { value: "  coach@example.com  " } });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() =>
-      expect(onResult).toHaveBeenCalledWith("coach@example.com")
+      expect(onResult).toHaveBeenCalledWith("coach@example.com"),
     );
   });
 
@@ -109,7 +109,7 @@ describe("ConfirmProvider", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
     // The queued prompt now renders.
     expect(
-      screen.getByRole("dialog", { name: /your email/i })
+      screen.getByRole("dialog", { name: /your email/i }),
     ).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(null));

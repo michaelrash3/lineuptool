@@ -28,13 +28,15 @@ const setup = (overrides: any = {}) => {
       onSettings={onSettings}
       themeToggle={<button>Theme</button>}
       onSignOut={onSignOut}
-    />
+    />,
   );
   return { setActiveTab, onSettings, onSignOut };
 };
 
 const openDrawer = () =>
-  fireEvent.click(screen.getByRole("button", { name: /open navigation menu/i }));
+  fireEvent.click(
+    screen.getByRole("button", { name: /open navigation menu/i }),
+  );
 
 describe("NavDrawer", () => {
   it("hides the navigation until the hamburger is tapped", () => {
@@ -43,7 +45,7 @@ describe("NavDrawer", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     openDrawer();
     expect(
-      screen.getByRole("menu", { name: /primary navigation/i })
+      screen.getByRole("menu", { name: /primary navigation/i }),
     ).toBeInTheDocument();
   });
 
@@ -51,7 +53,9 @@ describe("NavDrawer", () => {
     setup();
     openDrawer();
     NAV.forEach((b) =>
-      expect(screen.getByRole("menuitem", { name: b.label })).toBeInTheDocument()
+      expect(
+        screen.getByRole("menuitem", { name: b.label }),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -88,11 +92,11 @@ describe("NavDrawer", () => {
     setup({ showSettings: false });
     openDrawer();
     expect(
-      screen.queryByRole("menuitem", { name: /settings/i })
+      screen.queryByRole("menuitem", { name: /settings/i }),
     ).not.toBeInTheDocument();
     // Sign Out remains reachable for everyone.
     expect(
-      screen.getByRole("button", { name: /sign out/i })
+      screen.getByRole("button", { name: /sign out/i }),
     ).toBeInTheDocument();
   });
 });

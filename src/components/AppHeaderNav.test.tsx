@@ -51,19 +51,19 @@ const renderHeader = () =>
           <AppHeader navButtons={NAV} />
         </UIContext.Provider>
       </TeamContext.Provider>
-    </ToastContext.Provider>
+    </ToastContext.Provider>,
   );
 
 describe("AppHeader → NavDrawer integration", () => {
   it("renders the passed navButtons inside the drawer for a head coach", () => {
     renderHeader();
     fireEvent.click(
-      screen.getByRole("button", { name: /open navigation menu/i })
+      screen.getByRole("button", { name: /open navigation menu/i }),
     );
     NAV.forEach((b) =>
       expect(
-        screen.getByRole("menuitem", { name: b.label })
-      ).toBeInTheDocument()
+        screen.getByRole("menuitem", { name: b.label }),
+      ).toBeInTheDocument(),
     );
   });
 
@@ -74,7 +74,7 @@ describe("AppHeader → NavDrawer integration", () => {
     // must be portaled to <body> so it stays pinned to the full viewport.
     const { container } = renderHeader();
     fireEvent.click(
-      screen.getByRole("button", { name: /open navigation menu/i })
+      screen.getByRole("button", { name: /open navigation menu/i }),
     );
     const menu = screen.getByRole("menu", { name: /primary navigation/i });
     // Not a descendant of the <header> (it was portaled to document.body).

@@ -60,7 +60,7 @@ const loadImage = (url: string): Promise<HTMLImageElement | null> =>
 // Map<playerId, HTMLImageElement> for use inside buildLineupCanvas.
 const preloadPhotos = async (
   game: Game,
-  team?: Team | null
+  team?: Team | null,
 ): Promise<Map<string, HTMLImageElement>> => {
   const ids = new Set<string>();
   for (const inn of game.lineup || []) {
@@ -90,7 +90,7 @@ const preloadPhotos = async (
       if (!url) return;
       const img = await loadImage(url);
       if (img) out.set(id, img);
-    })
+    }),
   );
   return out;
 };
@@ -104,7 +104,7 @@ const drawAvatar = (
   radius: number,
   player: SlimPlayer | { id?: string; name?: string } | undefined,
   photo: HTMLImageElement | undefined,
-  fillColor: string
+  fillColor: string,
 ) => {
   ctx.save();
   ctx.beginPath();
@@ -115,7 +115,7 @@ const drawAvatar = (
     // Cover fit
     const ratio = Math.max(
       (radius * 2) / photo.width,
-      (radius * 2) / photo.height
+      (radius * 2) / photo.height,
     );
     const w = photo.width * ratio;
     const h = photo.height * ratio;
@@ -157,14 +157,28 @@ const buildLineupCanvasInternal = ({
 
   // This file only ever indexes lineups by position string (never by BENCH),
   // so retype to a simple Record for cleaner narrowing through the function.
-  const lineup = (game.lineup || []) as Array<Record<string, SlimPlayer | undefined>>;
+  const lineup = (game.lineup || []) as Array<
+    Record<string, SlimPlayer | undefined>
+  >;
   const battingLineup = game.battingLineup || [];
   const totalInnings = lineup.length;
 
   // Determine which positions are present in this game (skip ones never used).
-  const allPositions = ["P", "C", "1B", "2B", "3B", "SS", "LF", "LCF", "CF", "RCF", "RF"];
+  const allPositions = [
+    "P",
+    "C",
+    "1B",
+    "2B",
+    "3B",
+    "SS",
+    "LF",
+    "LCF",
+    "CF",
+    "RCF",
+    "RF",
+  ];
   const presentPositions = allPositions.filter((pos) =>
-    lineup.some((inn) => inn && inn[pos])
+    lineup.some((inn) => inn && inn[pos]),
   );
 
   // ---- Compute width based on longest name in any cell ----
@@ -196,7 +210,10 @@ const buildLineupCanvasInternal = ({
   // Any batter with a `battingReason` adds a second 11px line under the
   // primary name row. Pre-detect so we can size the section correctly.
   const hasAnyReason = battingLineup.some(
-    (p) => p && (p as SlimPlayer & { battingReason?: { role?: string; note?: string } }).battingReason
+    (p) =>
+      p &&
+      (p as SlimPlayer & { battingReason?: { role?: string; note?: string } })
+        .battingReason,
   );
 
   // Pitcher footer: list each pitcher used in the game with their inning
@@ -213,7 +230,10 @@ const buildLineupCanvasInternal = ({
   if (isKidPitch) {
     const ageGroup = (typeof team?.teamAge === "string" && team.teamAge) || "";
     const limit = maxPitchesForAge(ageGroup, resolvePitchRuleSet(team));
-    const byId = new Map<string, { player: NonNullable<SlimPlayer>; innings: number[] }>();
+    const byId = new Map<
+      string,
+      { player: NonNullable<SlimPlayer>; innings: number[] }
+    >();
     lineup.forEach((inn, idx) => {
       const p = inn?.P;
       if (p && !Array.isArray(p)) {
@@ -223,9 +243,9 @@ const buildLineupCanvasInternal = ({
       }
     });
     for (const entry of byId.values()) {
-      const rosterP = (team?.players || []).find((rp) => rp.id === entry.player.id) as
-        | { pitching?: { recentPitches?: number } }
-        | undefined;
+      const rosterP = (team?.players || []).find(
+        (rp) => rp.id === entry.player.id,
+      ) as { pitching?: { recentPitches?: number } } | undefined;
       pitcherEntries.push({
         player: entry.player,
         innings: entry.innings,
@@ -313,13 +333,17 @@ const buildLineupCanvasInternal = ({
     ctx.fillText(text, W - PAD - tw, y);
   };
   const season = String(team?.currentSeason || "").toUpperCase();
-  rightLine(season, 20, "600 12px system-ui, -apple-system, Segoe UI, sans-serif");
+  rightLine(
+    season,
+    20,
+    "600 12px system-ui, -apple-system, Segoe UI, sans-serif",
+  );
   const record = computeRecord(team);
   if (record) {
     rightLine(
       `RECORD ${record}`,
       42,
-      "800 15px system-ui, -apple-system, Segoe UI, sans-serif"
+      "800 15px system-ui, -apple-system, Segoe UI, sans-serif",
     );
   }
   const dateStr = game.date ? formatDate(game.date) : "";
@@ -328,7 +352,7 @@ const buildLineupCanvasInternal = ({
   rightLine(
     dateTime,
     record ? 68 : 46,
-    "600 12px system-ui, -apple-system, Segoe UI, sans-serif"
+    "600 12px system-ui, -apple-system, Segoe UI, sans-serif",
   );
 
   // ---- Defense section ----
@@ -370,7 +394,10 @@ const buildLineupCanvasInternal = ({
         if (parts.length >= 2) {
           drawText = `${parts[0]} ${parts[parts.length - 1].charAt(0)}.`;
         }
-        while (drawText.length > 1 && ctx.measureText(drawText + "…").width > maxCellW) {
+        while (
+          drawText.length > 1 &&
+          ctx.measureText(drawText + "…").width > maxCellW
+        ) {
           drawText = drawText.slice(0, -1);
         }
         if (ctx.measureText(drawText).width > maxCellW) {
@@ -410,7 +437,12 @@ const buildLineupCanvasInternal = ({
       // Remaining pitch budget (limit minus recent).
       const remaining = Math.max(0, pe.limit - pe.recent);
       const budgetText = `${remaining}/${pe.limit} avail`;
-      ctx.fillStyle = remaining > pe.limit * 0.5 ? "#047857" : remaining > 0 ? "#b45309" : "#b91c1c";
+      ctx.fillStyle =
+        remaining > pe.limit * 0.5
+          ? "#047857"
+          : remaining > 0
+            ? "#b45309"
+            : "#b91c1c";
       ctx.font = "800 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
       ctx.textAlign = "right";
       ctx.fillText(budgetText, W - PAD - 8, y + pitcherRowH / 2 + 4);
@@ -452,7 +484,7 @@ const buildLineupCanvasInternal = ({
         photoR,
         player,
         photos.get(player.id),
-        primary
+        primary,
       );
     }
     ctx.fillStyle = "#0f172a";
@@ -471,7 +503,8 @@ const buildLineupCanvasInternal = ({
       const reason = player?.battingReason;
       if (reason && (reason.role || reason.note)) {
         ctx.fillStyle = "#64748b";
-        ctx.font = "italic 600 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
+        ctx.font =
+          "italic 600 10.5px system-ui, -apple-system, Segoe UI, sans-serif";
         ctx.textAlign = "left";
         const why = [reason.role, reason.note].filter(Boolean).join(" — ");
         const maxW = W - PAD - nameStartX - 60; // leave room for jersey number
@@ -519,7 +552,11 @@ const buildLineupCanvas = async ({
 };
 
 // PNG blob wrapper — canonical "render" for image-share flows.
-const renderLineupCard = async ({ game, team, formatDate }: RenderArgs): Promise<Blob | null> => {
+const renderLineupCard = async ({
+  game,
+  team,
+  formatDate,
+}: RenderArgs): Promise<Blob | null> => {
   const canvas = await buildLineupCanvas({ game, team, formatDate });
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png");
@@ -530,7 +567,11 @@ const renderLineupCard = async ({ game, team, formatDate }: RenderArgs): Promise
 // canvas dimensions (in points), so the document renders identically across
 // devices and email clients without browser print quirks. jspdf is loaded
 // lazily so it only enters the bundle when a coach actually downloads a PDF.
-const renderLineupPdf = async ({ game, team, formatDate }: RenderArgs): Promise<Blob> => {
+const renderLineupPdf = async ({
+  game,
+  team,
+  formatDate,
+}: RenderArgs): Promise<Blob> => {
   const { jsPDF } = await import("jspdf");
   const canvas = await buildLineupCanvas({ game, team, formatDate });
   const wPt = parseFloat(canvas.style.width) || canvas.width;
@@ -541,20 +582,39 @@ const renderLineupPdf = async ({ game, team, formatDate }: RenderArgs): Promise<
     orientation: hPt >= wPt ? "portrait" : "landscape",
     compress: true,
   });
-  pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, wPt, hPt, undefined, "FAST");
+  pdf.addImage(
+    canvas.toDataURL("image/png"),
+    "PNG",
+    0,
+    0,
+    wPt,
+    hPt,
+    undefined,
+    "FAST",
+  );
   return pdf.output("blob");
 };
 
-export const downloadLineupPdf = async ({ game, team, formatDate, toast }: DownloadArgs): Promise<void> => {
+export const downloadLineupPdf = async ({
+  game,
+  team,
+  formatDate,
+  toast,
+}: DownloadArgs): Promise<void> => {
   try {
     const blob = await renderLineupPdf({ game, team, formatDate });
-    const filename = `lineup-${game.opponent || "game"}-${game.date || "card"}.pdf`
-      .replace(/\s+/g, "-")
-      .toLowerCase();
+    const filename =
+      `lineup-${game.opponent || "game"}-${game.date || "card"}.pdf`
+        .replace(/\s+/g, "-")
+        .toLowerCase();
     const file = new File([blob], filename, { type: "application/pdf" });
 
     const nav = navigator as unknown as {
-      share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+      share?: (data: {
+        files: File[];
+        title?: string;
+        text?: string;
+      }) => Promise<void>;
       canShare?: (data: { files: File[] }) => boolean;
     };
     if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
@@ -599,17 +659,27 @@ export const downloadLineupPdf = async ({ game, team, formatDate, toast }: Downl
 
 // Tries Web Share API first (so the user's iOS/Android share sheet appears),
 // falls back to a download link.
-export const shareLineupCard = async ({ game, team, formatDate, toast }: DownloadArgs): Promise<void> => {
+export const shareLineupCard = async ({
+  game,
+  team,
+  formatDate,
+  toast,
+}: DownloadArgs): Promise<void> => {
   try {
     const blob = await renderLineupCard({ game, team, formatDate });
     if (!blob) throw new Error("Image generation failed");
-    const filename = `lineup-${game.opponent || "game"}-${game.date || "card"}.png`
-      .replace(/\s+/g, "-")
-      .toLowerCase();
+    const filename =
+      `lineup-${game.opponent || "game"}-${game.date || "card"}.png`
+        .replace(/\s+/g, "-")
+        .toLowerCase();
     const file = new File([blob], filename, { type: "image/png" });
 
     const nav = navigator as unknown as {
-      share?: (data: { files: File[]; title?: string; text?: string }) => Promise<void>;
+      share?: (data: {
+        files: File[];
+        title?: string;
+        text?: string;
+      }) => Promise<void>;
       canShare?: (data: { files: File[] }) => boolean;
     };
     if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {

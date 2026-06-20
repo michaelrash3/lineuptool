@@ -12,7 +12,9 @@ import {
 // comfortable positions, else (legacy) not restricted from P, else allow —
 // so an ungraded/unconfigured roster still surfaces options to pick from.
 const canPitch = (p: any): boolean => {
-  const list = Array.isArray(p?.comfortablePositions) ? p.comfortablePositions : null;
+  const list = Array.isArray(p?.comfortablePositions)
+    ? p.comfortablePositions
+    : null;
   if (list && list.length > 0) return list.includes("P");
   const restr = Array.isArray(p?.restrictions) ? p.restrictions : [];
   if (restr.length > 0) return !restr.includes("P");
@@ -21,23 +23,24 @@ const canPitch = (p: any): boolean => {
 
 // Strategy copy per game type. Pool/League spread the staff so the aces stay
 // rested for bracket weekends; bracket is win-now.
-const CONTEXT: Record<string, { label: string; tip: string; spread: boolean }> = {
-  bracket: {
-    label: "Bracket play",
-    tip: "Win-now — start your best available arm.",
-    spread: false,
-  },
-  pool: {
-    label: "Pool play",
-    tip: "Spread the staff — save your aces for bracket.",
-    spread: true,
-  },
-  league: {
-    label: "Rec / League",
-    tip: "Spread innings — work through the staff.",
-    spread: true,
-  },
-};
+const CONTEXT: Record<string, { label: string; tip: string; spread: boolean }> =
+  {
+    bracket: {
+      label: "Bracket play",
+      tip: "Win-now — start your best available arm.",
+      spread: false,
+    },
+    pool: {
+      label: "Pool play",
+      tip: "Spread the staff — save your aces for bracket.",
+      spread: true,
+    },
+    league: {
+      label: "Rec / League",
+      tip: "Spread innings — work through the staff.",
+      spread: true,
+    },
+  };
 
 // Kid-Pitch-only "select your starting pitcher" step. Shows the present roster's
 // eligible pitchers ranked by the same eval-weighted score as the Pitcher
@@ -66,7 +69,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
             games: team.games || [],
           })
         : null,
-    [isKidPitch, evaluationEvents, players, teamAge, team]
+    [isKidPitch, evaluationEvents, players, teamAge, team],
   );
 
   const ranked = useMemo(() => {
@@ -74,7 +77,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     const dateStr = game.date;
     const att = currentGameAttendance || {};
     const present = ((players || []) as any[]).filter(
-      (p) => p && p.present !== false && att[p.id] !== false
+      (p) => p && p.present !== false && att[p.id] !== false,
     );
     // Pitching candidates among present players; if nobody is marked as a
     // pitcher, fall back to everyone present so the coach is never stuck.
@@ -95,7 +98,15 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
         };
       })
       .sort((a, b) => b.score - a.score);
-  }, [isKidPitch, combinedGrades, players, currentGameAttendance, game, teamAge, pitchRules]);
+  }, [
+    isKidPitch,
+    combinedGrades,
+    players,
+    currentGameAttendance,
+    game,
+    teamAge,
+    pitchRules,
+  ]);
 
   if (!isKidPitch || !game || ranked.length === 0) return null;
 
@@ -146,7 +157,9 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
               onClick={() => pick(r.p.id)}
               aria-pressed={isSel}
               className={`flex items-center gap-3 px-2 py-2.5 border-b border-line text-left transition-colors ${
-                r.eligible ? "hover:bg-surface-2 cursor-pointer" : "opacity-50 cursor-not-allowed"
+                r.eligible
+                  ? "hover:bg-surface-2 cursor-pointer"
+                  : "opacity-50 cursor-not-allowed"
               } ${isSel ? "bg-surface-2" : ""}`}
               style={
                 isSel

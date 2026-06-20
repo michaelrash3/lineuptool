@@ -7,11 +7,11 @@ import { useTeamMembership } from "./useTeamMembership";
 
 const setup = (
   teamData: Record<string, unknown> = {},
-  user: { uid: string } | null = { uid: "u1" }
+  user: { uid: string } | null = { uid: "u1" },
 ) => {
   const updateTeam = jest.fn();
   const { result } = renderHook(() =>
-    useTeamMembership({ teamData: teamData as any, updateTeam, user })
+    useTeamMembership({ teamData: teamData as any, updateTeam, user }),
   );
   return { updateTeam, result };
 };

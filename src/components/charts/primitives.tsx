@@ -7,7 +7,10 @@ import { ResponsiveContainer } from "recharts";
 // useId can contain ":" which breaks url(#…) references in some engines.
 export const useChartId = () => {
   const raw = React.useId();
-  return React.useMemo(() => `chart-${raw.replace(/[^a-zA-Z0-9_-]/g, "")}`, [raw]);
+  return React.useMemo(
+    () => `chart-${raw.replace(/[^a-zA-Z0-9_-]/g, "")}`,
+    [raw],
+  );
 };
 
 // Vertical fade gradient for area/bar fills. CSS variables are valid SVG
