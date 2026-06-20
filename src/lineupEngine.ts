@@ -217,23 +217,29 @@ const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
 // (Glove/Range ← Fielding, Arm Strength/Accuracy ← Arm, Plate Discipline ←
 // Approach, Baserunning ← Speed & Baserunning) and finally older aliases, so
 // the engine's position scoring keeps working off the simplified coach grades.
-const gloveOf = (g: any): number => g?.glove ?? g?.fielding ?? 3;
-const rangeOf = (g: any): number => g?.range ?? g?.fielding ?? 3;
-const armStrengthOf = (g: any): number => g?.armStrength ?? g?.arm ?? 3;
-const armAccuracyOf = (g: any): number => g?.armAccuracy ?? g?.arm ?? 3;
+// Grade readers accept any GradeMap-shaped record (or null/undefined for
+// players with no grades yet). GradeMap is string-indexed numbers, so the
+// legacy/merged fallback keys (fielding, arm, speedBaserunning, speedAgility)
+// read through the same index without needing `any`.
+type GradesInput = GradeMap | null | undefined;
+const gloveOf = (g: GradesInput): number => g?.glove ?? g?.fielding ?? 3;
+const rangeOf = (g: GradesInput): number => g?.range ?? g?.fielding ?? 3;
+const armStrengthOf = (g: GradesInput): number => g?.armStrength ?? g?.arm ?? 3;
+const armAccuracyOf = (g: GradesInput): number => g?.armAccuracy ?? g?.arm ?? 3;
 // Speed and Base Running are graded separately (v8); both fall back to the
 // legacy merged "Speed & Baserunning" grade so older rounds still read.
-const speedOf = (g: any): number =>
+const speedOf = (g: GradesInput): number =>
   g?.speed ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
-const baserunningOf = (g: any): number =>
+const baserunningOf = (g: GradesInput): number =>
   g?.baserunning ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
 // Combined athleticism input used by the value/defense scorers, so the split
 // is score-neutral for legacy data (where speed === baserunning) and blends the
 // two once a coach grades them apart.
-const speedBaseOf = (g: any): number => (speedOf(g) + baserunningOf(g)) / 2;
-const contactOf = (g: any): number => g?.contact ?? 3;
-const approachOf = (g: any): number => g?.approach ?? 3;
-const powerOf = (g: any): number => g?.power ?? 3;
+const speedBaseOf = (g: GradesInput): number =>
+  (speedOf(g) + baserunningOf(g)) / 2;
+const contactOf = (g: GradesInput): number => g?.contact ?? 3;
+const approachOf = (g: GradesInput): number => g?.approach ?? 3;
+const powerOf = (g: GradesInput): number => g?.power ?? 3;
 
 // ---------- Public helpers (re exported for the UI) ----------
 
@@ -295,9 +301,9 @@ export function getCombinedGrades(
 
     // Grade reader with legacy-field fallbacks, so rounds saved before the
     // current schema still feed the kept categories sensibly.
-    const readCat = (g: any, catId: string): number | null => {
+    const readCat = (g: GradesInput, catId: string): number | null => {
       if (!g) return null;
-      if (g[catId] != null) return g[catId];
+      if (g[catId] != null) return g[catId] ?? null;
       // Speed + Base Running both seed from the legacy merged grade.
       if (catId === "speed" || catId === "baserunning")
         return g.speedBaserunning ?? g.speedAgility ?? null;
@@ -880,13 +886,22 @@ const DEFAULT_PITCH_RULE_SET = PITCH_RULE_SETS.littleLeague;
 // daily max for the team's age group) plus optional team.customRestTiers;
 // any named preset is looked up; anything unknown/absent falls back to Little
 // League — so existing teams keep today's behavior.
-export function resolvePitchRuleSet(team: any): PitchRuleSet {
+export function resolvePitchRuleSet(
+  team:
+    | {
+        pitchRuleSet?: string;
+        customPitchLimit?: number | string;
+        customRestTiers?: { min: number; days: number }[];
+      }
+    | null
+    | undefined,
+): PitchRuleSet {
   const id = team?.pitchRuleSet;
   if (id === "custom") {
     const lim = Number(team?.customPitchLimit);
     const tiers =
       Array.isArray(team?.customRestTiers) && team.customRestTiers.length
-        ? [...team.customRestTiers].sort((a: any, b: any) => b.min - a.min)
+        ? [...team.customRestTiers].sort((a, b) => b.min - a.min)
         : LITTLE_LEAGUE_REST;
     return {
       id: "custom",
@@ -896,7 +911,7 @@ export function resolvePitchRuleSet(team: any): PitchRuleSet {
       restTiers: tiers,
     };
   }
-  return PITCH_RULE_SETS[id] || DEFAULT_PITCH_RULE_SET;
+  return (id ? PITCH_RULE_SETS[id] : undefined) || DEFAULT_PITCH_RULE_SET;
 }
 
 export function maxPitchesForAge(
@@ -1499,7 +1514,7 @@ const POSITION_DEMAND_BONUS: Record<string, number> = {
   RF: 0.015,
 };
 
-const FIT_READERS: Record<string, (g: any) => number> = {
+const FIT_READERS: Record<string, (g: GradesInput) => number> = {
   glove: gloveOf,
   range: rangeOf,
   armStrength: armStrengthOf,
@@ -1785,7 +1800,7 @@ function buildPlayerProfile(
 // writer, or one with both scores entered but no status flip to "final",
 // STILL counts. The old strict `status === "final"` check silently dropped
 // those, starving the fairness model of history.
-function isFinalizedGame(g: any): boolean {
+function isFinalizedGame(g: Game | null | undefined): boolean {
   if (!g) return false;
   // Scrimmages never feed seasonal fairness/rotation history — they don't
   // count toward bench, defensive innings, or position distribution.
@@ -1808,10 +1823,10 @@ function isFinalizedGame(g: any): boolean {
 // live players who share a name are left un-coalesced — we only remap when the
 // snapshot id is no longer on the roster AND the name is unambiguous.
 function buildSlotIdResolver(
-  roster: any[],
+  roster: { id?: string; name?: string }[],
 ): (id?: string, name?: string) => string | undefined {
   const live = new Set((roster || []).map((p) => p && p.id).filter(Boolean));
-  const norm = (s: any) =>
+  const norm = (s: unknown) =>
     String(s ?? "")
       .trim()
       .toLowerCase();
