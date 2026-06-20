@@ -37,19 +37,34 @@ afterEach(() => {
 
 describe("reminder preferences", () => {
   it("defaults to disabled / morning_of when nothing is stored", () => {
-    expect(getReminderPrefs()).toEqual({ enabled: false, leadTime: "morning_of" });
+    expect(getReminderPrefs()).toEqual({
+      enabled: false,
+      leadTime: "morning_of",
+    });
   });
 
   it("round-trips through setReminderPrefs", () => {
     setReminderPrefs({ enabled: true, leadTime: "day_before" });
-    expect(getReminderPrefs()).toEqual({ enabled: true, leadTime: "day_before" });
+    expect(getReminderPrefs()).toEqual({
+      enabled: true,
+      leadTime: "day_before",
+    });
   });
 
   it("coerces unknown leadTime values and survives malformed JSON", () => {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ enabled: 1, leadTime: "weekly" }));
-    expect(getReminderPrefs()).toEqual({ enabled: true, leadTime: "morning_of" });
+    localStorage.setItem(
+      PREFS_KEY,
+      JSON.stringify({ enabled: 1, leadTime: "weekly" }),
+    );
+    expect(getReminderPrefs()).toEqual({
+      enabled: true,
+      leadTime: "morning_of",
+    });
     localStorage.setItem(PREFS_KEY, "{not json");
-    expect(getReminderPrefs()).toEqual({ enabled: false, leadTime: "morning_of" });
+    expect(getReminderPrefs()).toEqual({
+      enabled: false,
+      leadTime: "morning_of",
+    });
   });
 
   it("reports support + permission from the Notification API", () => {
@@ -69,7 +84,9 @@ describe("useScheduleReminders", () => {
   it("fires one notification for a game today, then doesn't repeat", () => {
     setReminderPrefs({ enabled: true, leadTime: "morning_of" });
     const today = localIso(new Date());
-    const wrapper = wrapperFor([{ id: "g-today", date: today, opponent: "Rays" }]);
+    const wrapper = wrapperFor([
+      { id: "g-today", date: today, opponent: "Rays" },
+    ]);
 
     const { rerender } = renderHook(() => useScheduleReminders(), { wrapper });
     // The mount tick fires synchronously.

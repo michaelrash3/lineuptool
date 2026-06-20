@@ -48,7 +48,7 @@ export const PitchingPlanPanel = memo(() => {
         game: g,
         plan: buildPitchingPlan(players || [], g.date, teamAge, pitchRules),
       })),
-    [upcoming, players, teamAge, pitchRules]
+    [upcoming, players, teamAge, pitchRules],
   );
 
   if (!eligible || rotation.length === 0 || rotation[0].plan.length === 0)

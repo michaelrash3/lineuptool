@@ -122,8 +122,18 @@ describe("ScheduleTab", () => {
         team: {
           ...baseTeam,
           games: [
-            { id: "g1", date: "2026-05-01", opponent: "Rays", status: "scheduled" },
-            { id: "g2", date: "2026-05-08", opponent: "Cubs", status: "scheduled" },
+            {
+              id: "g1",
+              date: "2026-05-01",
+              opponent: "Rays",
+              status: "scheduled",
+            },
+            {
+              id: "g2",
+              date: "2026-05-08",
+              opponent: "Cubs",
+              status: "scheduled",
+            },
           ],
         },
         record: { wins: 0, losses: 0, ties: 0 },
@@ -165,7 +175,14 @@ describe("ScheduleTab", () => {
       team: {
         team: {
           ...baseTeam,
-          games: [{ id: "g1", date: "2026-05-01", opponent: "Rays", status: "scheduled" }],
+          games: [
+            {
+              id: "g1",
+              date: "2026-05-01",
+              opponent: "Rays",
+              status: "scheduled",
+            },
+          ],
         },
         record: { wins: 0, losses: 0, ties: 0 },
         currentRole: "head",
@@ -199,13 +216,13 @@ describe("ScheduleTab", () => {
     const { uiValue } = renderGameEditor("USSSA");
 
     await userEvent.click(
-      screen.getAllByRole("button", { name: "Inning 1, P: Pitcher" })[0]
+      screen.getAllByRole("button", { name: "Inning 1, P: Pitcher" })[0],
     );
 
     expect(uiValue.handleCellClick).toHaveBeenCalledWith(
       0,
       "P",
-      expect.objectContaining({ id: "p1", name: "Pitcher" })
+      expect.objectContaining({ id: "p1", name: "Pitcher" }),
     );
   });
 

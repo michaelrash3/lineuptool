@@ -61,7 +61,10 @@ const BUDGET_PRESETS: Array<{
 const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
   <section>
     <div className="pb-3 mb-1 border-b border-line-strong flex items-center gap-3">
-      <Icon className="w-5 h-5 shrink-0" style={{ color: "var(--team-primary)" }} />
+      <Icon
+        className="w-5 h-5 shrink-0"
+        style={{ color: "var(--team-primary)" }}
+      />
       <div className="min-w-0">
         <h2 className="t-h2">{title}</h2>
         {subtitle && <p className="t-eyebrow text-ink-3 mt-0.5">{subtitle}</p>}
@@ -79,7 +82,20 @@ const parseAmount = (raw: string): number | null => {
 };
 
 // "2026-03" → "March 2026" for the ledger month group headers.
-const MONTH_FULL = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTH_FULL = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 const monthLabel = (key: string): string => {
   const mi = parseInt(key.slice(5, 7), 10) - 1;
   return mi >= 0 && mi <= 11 ? `${MONTH_FULL[mi]} ${key.slice(0, 4)}` : key;
@@ -126,13 +142,10 @@ type BudgetSortKey = "label" | "qty" | "planned" | "spent";
 export const FinancesTab = memo(() => {
   const { team, updateTeam } = useTeam();
   const { openPlayerProfile } = useUI();
-  const players: any[] = useMemo(
-    () => (team as any).players || [],
-    [team]
-  );
+  const players: any[] = useMemo(() => (team as any).players || [], [team]);
   const finances: TeamFinances = useMemo(
     () => ((team as any).finances || {}) as TeamFinances,
-    [team]
+    [team],
   );
 
   const writeFinances = (patch: Partial<TeamFinances>) =>
@@ -140,20 +153,20 @@ export const FinancesTab = memo(() => {
 
   const summary = useMemo(
     () => financeSummary(finances, players),
-    [finances, players]
+    [finances, players],
   );
   const ledger = useMemo(
     () => transactionLedger(finances, players),
-    [finances, players]
+    [finances, players],
   );
   const months = useMemo(
     () => monthlyCashflow(finances, players),
-    [finances, players]
+    [finances, players],
   );
   const actuals = useMemo(() => budgetActuals(finances), [finances]);
   const years = useMemo(
     () => yearComparison(finances, players),
-    [finances, players]
+    [finances, players],
   );
   const toast = useToast();
   const budget = budgetTotal(finances);
@@ -171,7 +184,7 @@ export const FinancesTab = memo(() => {
       : null;
   const exemptIds = useMemo(
     () => new Set(finances.feeExemptIds || []),
-    [finances]
+    [finances],
   );
   const payerCount = players.filter((p: any) => !exemptIds.has(p.id)).length;
   const bufferInc = Math.max(0, Number(finances.feeBufferIncrement) || 0);
@@ -182,7 +195,7 @@ export const FinancesTab = memo(() => {
     summary.effectiveFeeByPlayer[pid] ?? effectiveFee;
   const totalEffectiveFees = players.reduce(
     (sum: number, p: any) => (exemptIds.has(p.id) ? sum : sum + feeFor(p.id)),
-    0
+    0,
   );
 
   // Sales tax % — committed on blur/Enter so partial typing never writes.
@@ -199,7 +212,7 @@ export const FinancesTab = memo(() => {
   const toggleItemTax = (id: string) =>
     writeFinances({
       budgetItems: (finances.budgetItems || []).map((b) =>
-        b.id === id ? { ...b, taxable: !b.taxable } : b
+        b.id === id ? { ...b, taxable: !b.taxable } : b,
       ),
     });
 
@@ -253,11 +266,11 @@ export const FinancesTab = memo(() => {
     setLedgerSort((cur) =>
       cur.key === key
         ? { key, asc: !cur.asc }
-        : { key, asc: key === "date" || key === "label" }
+        : { key, asc: key === "date" || key === "label" },
     );
   const toggleBudgetSort = (key: BudgetSortKey) =>
     setBudgetSort((cur) =>
-      cur?.key === key ? { key, asc: !cur.asc } : { key, asc: key === "label" }
+      cur?.key === key ? { key, asc: !cur.asc } : { key, asc: key === "label" },
     );
 
   const sortedLedger = useMemo(() => {
@@ -338,7 +351,7 @@ export const FinancesTab = memo(() => {
     }
     writeFinances({
       budgetItems: (finances.budgetItems || []).map((b) =>
-        b.id === itemEdit.id ? { ...b, ...patch } : b
+        b.id === itemEdit.id ? { ...b, ...patch } : b,
       ),
     });
     setItemEdit(null);
@@ -350,7 +363,7 @@ export const FinancesTab = memo(() => {
     if (plannedInput == null) return;
     const raw = plannedInput.trim();
     // Blank clears the override back to "current paying roster".
-    const n = raw === "" ? 0 : parseCount(raw) ?? -1;
+    const n = raw === "" ? 0 : (parseCount(raw) ?? -1);
     if (n >= 0) writeFinances({ plannedPlayerCount: n });
     setPlannedInput(null);
   };
@@ -359,7 +372,7 @@ export const FinancesTab = memo(() => {
   // Rough next-season starting point learned from this season's money.
   const budgetEstimate = useMemo(
     () => estimateBudgetFromSeason(finances),
-    [finances]
+    [finances],
   );
 
   // ---- Surplus carried over from last season, not yet applied to dues.
@@ -374,16 +387,16 @@ export const FinancesTab = memo(() => {
     () =>
       (finances.incomes || []).filter((i) => isCarryover(i) && !i.fundraising),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [finances.incomes]
+    [finances.incomes],
   );
   const carryoverPendingTotal = carryoverPending.reduce(
     (sum, i) => sum + (Number(i.amount) || 0),
-    0
+    0,
   );
   const applyCarryoverDiscount = () => {
     writeFinances({
       incomes: (finances.incomes || []).map((i) =>
-        isCarryover(i) && !i.fundraising ? { ...i, fundraising: true } : i
+        isCarryover(i) && !i.fundraising ? { ...i, fundraising: true } : i,
       ),
     });
     toast.push({
@@ -398,7 +411,7 @@ export const FinancesTab = memo(() => {
     setQtyMode(true);
     setUnitNoun(preset.unitNoun || "per unit");
     setBudgetQty(
-      preset.qtyFromRoster && players.length > 0 ? String(players.length) : ""
+      preset.qtyFromRoster && players.length > 0 ? String(players.length) : "",
     );
   };
 
@@ -526,7 +539,7 @@ export const FinancesTab = memo(() => {
 
   const removeLedgerRow = (
     source: "income" | "expense" | "payment",
-    id: string
+    id: string,
   ) => {
     if (source === "income") {
       writeFinances({
@@ -594,7 +607,7 @@ export const FinancesTab = memo(() => {
         payments: (finances.payments || []).map((p) =>
           p.id === id
             ? { ...p, date, amount: Math.round(amount * 100) / 100 }
-            : p
+            : p,
         ),
       });
     } else {
@@ -616,7 +629,7 @@ export const FinancesTab = memo(() => {
                       ? editDraft.playerId
                       : undefined,
                 }
-              : x
+              : x,
           ),
         });
       } else {
@@ -628,7 +641,7 @@ export const FinancesTab = memo(() => {
                   ...patch,
                   budgetItemId: editDraft.budgetItemId || undefined,
                 }
-              : x
+              : x,
           ),
         });
       }
@@ -681,772 +694,803 @@ export const FinancesTab = memo(() => {
           Right (5/12): Cash Flow charts — visual summaries.
           On mobile/tablet the columns stack in natural document order. */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
-
         {/* Left column: Collections + Ledger */}
         <div className="lg:col-span-7 space-y-6">
-
-      {/* Collections */}
-      <SectionCard
-        icon={Icons.Users}
-        title="Collections — this season"
-      >
-        <div className="py-3 border-b border-line space-y-2">
-          {carryoverPendingTotal > 0 && payerCount > 0 && (
-            <div className="flex flex-wrap items-center gap-3 py-2 pl-3 border-l-2 border-line-strong">
-              <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
-                Last season left{" "}
-                <span className="font-black text-ink tabular-nums">
-                  {formatCurrency(carryoverPendingTotal)}
-                </span>{" "}
-                in the bank. Apply it as a team-fee discount — about{" "}
-                <span className="font-black text-win tabular-nums">
-                  {formatCurrency(carryoverPendingTotal / payerCount)} off per
-                  family
-                </span>
-                ?
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Apply carryover as team-fee discount"
-                onClick={applyCarryoverDiscount}
-              >
-                <Icons.Check className="w-4 h-4" /> Apply as team-fee discount
-              </Button>
-            </div>
-          )}
-          {clubFee > 0 && payerCount > 0 && (
-            <div className="flex items-center gap-3">
-              <MoneyMeter
-                value={summary.collected}
-                max={totalEffectiveFees}
-                className="flex-1 max-w-xs"
-              />
-              <span className="t-meta text-ink-3 tabular-nums">
-                {formatCurrency(summary.collected)} of{" "}
-                {formatCurrency(totalEffectiveFees)} ·{" "}
-                {
-                  players.filter(
-                    (p: any) =>
-                      !exemptIds.has(p.id) &&
-                      feeFor(p.id) - (summary.paidByPlayer[p.id] || 0) <= 0
-                  ).length
-                }{" "}
-                of {payerCount} paid
-              </span>
-              {summary.stillOwed > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  aria-label="Copy team-fees reminder"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(
-                        owesReminderText(
-                          finances,
-                          players,
-                          (team as any).currentSeason
-                        )
-                      );
-                      toast.push({
-                        kind: "success",
-                        title: "Reminder copied",
-                        message: "Paste it into your team chat or email.",
-                      });
-                    } catch {
-                      toast.push({
-                        kind: "warn",
-                        title: "Couldn't access clipboard",
-                      });
-                    }
-                  }}
-                >
-                  Copy reminder
-                </Button>
+          {/* Collections */}
+          <SectionCard icon={Icons.Users} title="Collections — this season">
+            <div className="py-3 border-b border-line space-y-2">
+              {carryoverPendingTotal > 0 && payerCount > 0 && (
+                <div className="flex flex-wrap items-center gap-3 py-2 pl-3 border-l-2 border-line-strong">
+                  <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
+                    Last season left{" "}
+                    <span className="font-black text-ink tabular-nums">
+                      {formatCurrency(carryoverPendingTotal)}
+                    </span>{" "}
+                    in the bank. Apply it as a team-fee discount — about{" "}
+                    <span className="font-black text-win tabular-nums">
+                      {formatCurrency(carryoverPendingTotal / payerCount)} off
+                      per family
+                    </span>
+                    ?
+                  </p>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    aria-label="Apply carryover as team-fee discount"
+                    onClick={applyCarryoverDiscount}
+                  >
+                    <Icons.Check className="w-4 h-4" /> Apply as team-fee
+                    discount
+                  </Button>
+                </div>
               )}
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-          <span className="t-eyebrow text-ink-3">Team fee per player</span>
-          {feeInput == null ? (
-            <button
-              type="button"
-              onClick={() => setFeeInput(String(clubFee || ""))}
-              className="font-black tabular-nums text-ink hover:text-team-primary"
-              aria-label="Edit team fee"
-            >
-              {formatCurrency(clubFee)}
-            </button>
-          ) : (
-            <input
-              type="text"
-              inputMode="decimal"
-              autoFocus
-              value={feeInput}
-              onChange={(e) => setFeeInput(e.target.value)}
-              onBlur={commitClubFee}
-              onKeyDown={(e) => e.key === "Enter" && commitClubFee()}
-              aria-label="Team fee per player"
-              className={`${FORM_INPUT_CLASS} w-28 tabular-nums`}
-              style={FORM_INPUT_RING_STYLE}
-            />
-          )}
-          {summary.duesCreditPerPlayer > 0 && (
-            <span className="t-meta text-ink-3 tabular-nums">
-              − {formatCurrency(summary.duesCreditPerPlayer)} fundraising
-              credit →{" "}
-              <span className="font-black text-win">
-                {formatCurrency(effectiveFee)} each
-              </span>
-            </span>
-          )}
-          </div>
-          {summary.duesCreditPerPlayer > 0 && (
-            <p className="t-meta text-ink-3">
-              Fundraising entries split evenly across the {payerCount} paying
-              famil{payerCount === 1 ? "y" : "ies"} and come off each one&apos;s
-              team fees — unless an entry is credited to a specific child, in
-              which case it comes off that child&apos;s fees first.
-            </p>
-          )}
+              {clubFee > 0 && payerCount > 0 && (
+                <div className="flex items-center gap-3">
+                  <MoneyMeter
+                    value={summary.collected}
+                    max={totalEffectiveFees}
+                    className="flex-1 max-w-xs"
+                  />
+                  <span className="t-meta text-ink-3 tabular-nums">
+                    {formatCurrency(summary.collected)} of{" "}
+                    {formatCurrency(totalEffectiveFees)} ·{" "}
+                    {
+                      players.filter(
+                        (p: any) =>
+                          !exemptIds.has(p.id) &&
+                          feeFor(p.id) - (summary.paidByPlayer[p.id] || 0) <= 0,
+                      ).length
+                    }{" "}
+                    of {payerCount} paid
+                  </span>
+                  {summary.stillOwed > 0 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      aria-label="Copy team-fees reminder"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(
+                            owesReminderText(
+                              finances,
+                              players,
+                              (team as any).currentSeason,
+                            ),
+                          );
+                          toast.push({
+                            kind: "success",
+                            title: "Reminder copied",
+                            message: "Paste it into your team chat or email.",
+                          });
+                        } catch {
+                          toast.push({
+                            kind: "warn",
+                            title: "Couldn't access clipboard",
+                          });
+                        }
+                      }}
+                    >
+                      Copy reminder
+                    </Button>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="t-eyebrow text-ink-3">
+                  Team fee per player
+                </span>
+                {feeInput == null ? (
+                  <button
+                    type="button"
+                    onClick={() => setFeeInput(String(clubFee || ""))}
+                    className="font-black tabular-nums text-ink hover:text-team-primary"
+                    aria-label="Edit team fee"
+                  >
+                    {formatCurrency(clubFee)}
+                  </button>
+                ) : (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    autoFocus
+                    value={feeInput}
+                    onChange={(e) => setFeeInput(e.target.value)}
+                    onBlur={commitClubFee}
+                    onKeyDown={(e) => e.key === "Enter" && commitClubFee()}
+                    aria-label="Team fee per player"
+                    className={`${FORM_INPUT_CLASS} w-28 tabular-nums`}
+                    style={FORM_INPUT_RING_STYLE}
+                  />
+                )}
+                {summary.duesCreditPerPlayer > 0 && (
+                  <span className="t-meta text-ink-3 tabular-nums">
+                    − {formatCurrency(summary.duesCreditPerPlayer)} fundraising
+                    credit →{" "}
+                    <span className="font-black text-win">
+                      {formatCurrency(effectiveFee)} each
+                    </span>
+                  </span>
+                )}
+              </div>
+              {summary.duesCreditPerPlayer > 0 && (
+                <p className="t-meta text-ink-3">
+                  Fundraising entries split evenly across the {payerCount}{" "}
+                  paying famil{payerCount === 1 ? "y" : "ies"} and come off each
+                  one&apos;s team fees — unless an entry is credited to a
+                  specific child, in which case it comes off that child&apos;s
+                  fees first.
+                </p>
+              )}
 
-          {/* Team Fee schedule — optional up-front deposit + due dates. The
+              {/* Team Fee schedule — optional up-front deposit + due dates. The
               deposit is the first slice a family is expected to cover by its
               date; payments still count toward the single fee total. */}
-          <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="t-eyebrow text-ink-3">Deposit per player</span>
-              {depositInput == null ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setDepositInput(String(finances.depositAmount || ""))
-                  }
-                  className="text-left font-black tabular-nums text-ink hover:text-team-primary"
-                  aria-label="Edit deposit amount"
+              <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="flex flex-col gap-1">
+                  <span className="t-eyebrow text-ink-3">
+                    Deposit per player
+                  </span>
+                  {depositInput == null ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDepositInput(String(finances.depositAmount || ""))
+                      }
+                      className="text-left font-black tabular-nums text-ink hover:text-team-primary"
+                      aria-label="Edit deposit amount"
+                    >
+                      {finances.depositAmount
+                        ? formatCurrency(finances.depositAmount)
+                        : "—"}
+                    </button>
+                  ) : (
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      autoFocus
+                      value={depositInput}
+                      onChange={(e) => setDepositInput(e.target.value)}
+                      onBlur={commitDeposit}
+                      onKeyDown={(e) => e.key === "Enter" && commitDeposit()}
+                      aria-label="Deposit per player"
+                      className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                      style={FORM_INPUT_RING_STYLE}
+                    />
+                  )}
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="t-eyebrow text-ink-3">Deposit due</span>
+                  <input
+                    type="date"
+                    value={finances.depositDueDate || ""}
+                    onChange={(e) =>
+                      writeFinances({ depositDueDate: e.target.value })
+                    }
+                    aria-label="Deposit due date"
+                    className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                    style={FORM_INPUT_RING_STYLE}
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="t-eyebrow text-ink-3">All fees due</span>
+                  <input
+                    type="date"
+                    value={finances.feeDueDate || ""}
+                    onChange={(e) =>
+                      writeFinances({ feeDueDate: e.target.value })
+                    }
+                    aria-label="All fees due date"
+                    className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                    style={FORM_INPUT_RING_STYLE}
+                  />
+                </label>
+              </div>
+            </div>
+            {players.length === 0 ? (
+              <div className="p-6 text-center text-ink-3 font-medium">
+                <div
+                  className="text-4xl leading-none mb-3 opacity-80"
+                  aria-hidden
                 >
-                  {finances.depositAmount
-                    ? formatCurrency(finances.depositAmount)
-                    : "—"}
-                </button>
-              ) : (
+                  📊
+                </div>
+                Add players on the Roster tab to track who owes the team fee.
+              </div>
+            ) : (
+              <ul className="divide-y divide-line">
+                {players.map((p: any) => {
+                  const waived = exemptIds.has(p.id);
+                  const paid = summary.paidByPlayer[p.id] || 0;
+                  // Per-child effective fee (fundraising credited to this kid lowers
+                  // it); waived families owe nothing.
+                  const playerFee = waived ? 0 : feeFor(p.id);
+                  const owed = Math.max(0, playerFee - paid);
+                  const settled = playerFee > 0 && owed === 0;
+                  return (
+                    <li
+                      key={p.id}
+                      className="py-2.5 flex flex-wrap items-center gap-2"
+                    >
+                      <PlayerAvatar player={p} size={32} />
+                      <button
+                        type="button"
+                        onClick={() => openPlayerProfile(p.id)}
+                        className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex-1 min-w-[8rem]"
+                      >
+                        {p.name}
+                        {!waived && playerFee > 0 && (
+                          <MoneyMeter
+                            value={paid}
+                            max={playerFee}
+                            className="mt-1 max-w-[10rem]"
+                          />
+                        )}
+                      </button>
+                      <span className="tabular-nums text-sm font-bold text-ink-2">
+                        {formatCurrency(paid)} paid
+                      </span>
+                      {waived ? (
+                        <>
+                          <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                            Fee waived
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Reinstate fee for ${p.name}`}
+                            onClick={() => toggleFeeWaiver(p.id)}
+                            className="text-xs font-bold underline text-ink-3 hover:text-ink"
+                          >
+                            Undo
+                          </button>
+                        </>
+                      ) : settled ? (
+                        <span className="text-xs font-black uppercase tracking-widest text-win">
+                          Paid full ✓
+                        </span>
+                      ) : (
+                        <>
+                          <span className="tabular-nums text-sm font-bold text-loss">
+                            {formatCurrency(owed)} owed
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={payInputs[p.id] || ""}
+                            onChange={(e) =>
+                              setPayInputs((cur) => ({
+                                ...cur,
+                                [p.id]: e.target.value,
+                              }))
+                            }
+                            placeholder="$"
+                            aria-label={`Payment amount for ${p.name}`}
+                            className={`${FORM_INPUT_CLASS} w-20 tabular-nums !py-1.5`}
+                            style={FORM_INPUT_RING_STYLE}
+                          />
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            aria-label={`Record payment for ${p.name}`}
+                            onClick={() => {
+                              const amt = parseAmount(payInputs[p.id] || "");
+                              if (amt != null) recordPayment(p.id, amt);
+                            }}
+                          >
+                            <Icons.Plus className="w-3.5 h-3.5" /> Payment
+                          </Button>
+                          {owed > 0 && (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              aria-label={`Mark ${p.name} paid in full`}
+                              onClick={() => recordPayment(p.id, owed)}
+                            >
+                              Paid full
+                            </Button>
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`Waive fee for ${p.name}`}
+                            onClick={() => toggleFeeWaiver(p.id)}
+                            className="text-xs font-bold underline text-ink-3 hover:text-ink"
+                          >
+                            Waive
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </SectionCard>
+
+          {/* Ledger — money in & money out */}
+          <SectionCard icon={Icons.Wallet} title="Ledger">
+            <div className="pt-4 space-y-3">
+              <form
+                onSubmit={addTransaction}
+                className="flex flex-col sm:flex-row gap-2"
+              >
+                <div
+                  className="flex rounded-xl overflow-hidden border border-line self-start sm:self-auto"
+                  role="group"
+                  aria-label="Money direction"
+                >
+                  {(
+                    [
+                      { v: "in", label: "Money in" },
+                      { v: "out", label: "Money out" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => setTxnDir(opt.v)}
+                      aria-pressed={txnDir === opt.v}
+                      className={`px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
+                        txnDir === opt.v
+                          ? opt.v === "in"
+                            ? "bg-win/15 text-win"
+                            : "bg-loss/15 text-loss"
+                          : "bg-surface-2 text-ink-3 hover:bg-line"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="date"
+                  value={txnDate}
+                  onChange={(e) => setTxnDate(e.target.value)}
+                  aria-label="Transaction date"
+                  className={`${FORM_INPUT_CLASS} sm:w-40`}
+                  style={FORM_INPUT_RING_STYLE}
+                />
+                <input
+                  type="text"
+                  value={txnLabel}
+                  onChange={(e) => setTxnLabel(e.target.value)}
+                  placeholder={
+                    txnDir === "in"
+                      ? "Sponsorship, fundraiser, donation…"
+                      : "What was it for?"
+                  }
+                  aria-label="Transaction description"
+                  className={`${FORM_INPUT_CLASS} flex-1`}
+                  style={FORM_INPUT_RING_STYLE}
+                />
+                {txnDir === "out" &&
+                  (finances.budgetItems || []).length > 0 && (
+                    <select
+                      value={txnCategory}
+                      onChange={(e) => setTxnCategory(e.target.value)}
+                      aria-label="Budget category"
+                      className={`${FORM_INPUT_CLASS} sm:w-44`}
+                      style={FORM_INPUT_RING_STYLE}
+                    >
+                      <option value="">Category: unplanned</option>
+                      {(finances.budgetItems || []).map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                {txnDir === "in" && (
+                  <label
+                    className="flex items-center gap-1.5 self-center text-xs font-bold text-ink-2 whitespace-nowrap cursor-pointer"
+                    title="Splits evenly across paying players and reduces each family's team fees"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={txnFundraising}
+                      onChange={(e) => setTxnFundraising(e.target.checked)}
+                      aria-label="Fundraising — reduces player team fees"
+                      className="accent-[var(--team-primary)]"
+                    />
+                    Fundraising · reduces team fees
+                  </label>
+                )}
+                {txnDir === "in" && txnFundraising && players.length > 0 && (
+                  <select
+                    value={txnCreditPlayerId}
+                    onChange={(e) => setTxnCreditPlayerId(e.target.value)}
+                    aria-label="Credit fundraising to a specific player"
+                    title="Credit this money to one child's fees (blank = split evenly)"
+                    className={`${FORM_INPUT_CLASS} sm:w-44`}
+                    style={FORM_INPUT_RING_STYLE}
+                  >
+                    <option value="">Credit: split evenly</option>
+                    {players.map((p: any) => (
+                      <option key={p.id} value={p.id}>
+                        Credit: {p.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <input
                   type="text"
                   inputMode="decimal"
-                  autoFocus
-                  value={depositInput}
-                  onChange={(e) => setDepositInput(e.target.value)}
-                  onBlur={commitDeposit}
-                  onKeyDown={(e) => e.key === "Enter" && commitDeposit()}
-                  aria-label="Deposit per player"
-                  className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
+                  value={txnAmount}
+                  onChange={(e) => setTxnAmount(e.target.value)}
+                  placeholder="$ amount"
+                  aria-label="Transaction amount"
+                  className={`${FORM_INPUT_CLASS} sm:w-32 tabular-nums`}
                   style={FORM_INPUT_RING_STYLE}
                 />
-              )}
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="t-eyebrow text-ink-3">Deposit due</span>
-              <input
-                type="date"
-                value={finances.depositDueDate || ""}
-                onChange={(e) =>
-                  writeFinances({ depositDueDate: e.target.value })
-                }
-                aria-label="Deposit due date"
-                className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
-                style={FORM_INPUT_RING_STYLE}
-              />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="t-eyebrow text-ink-3">All fees due</span>
-              <input
-                type="date"
-                value={finances.feeDueDate || ""}
-                onChange={(e) => writeFinances({ feeDueDate: e.target.value })}
-                aria-label="All fees due date"
-                className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
-                style={FORM_INPUT_RING_STYLE}
-              />
-            </label>
-          </div>
-        </div>
-        {players.length === 0 ? (
-          <div className="p-6 text-center text-ink-3 font-medium">
-            <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
-              📊
-            </div>
-            Add players on the Roster tab to track who owes the team fee.
-          </div>
-        ) : (
-          <ul className="divide-y divide-line">
-            {players.map((p: any) => {
-              const waived = exemptIds.has(p.id);
-              const paid = summary.paidByPlayer[p.id] || 0;
-              // Per-child effective fee (fundraising credited to this kid lowers
-              // it); waived families owe nothing.
-              const playerFee = waived ? 0 : feeFor(p.id);
-              const owed = Math.max(0, playerFee - paid);
-              const settled = playerFee > 0 && owed === 0;
-              return (
-                <li
-                  key={p.id}
-                  className="py-2.5 flex flex-wrap items-center gap-2"
-                >
-                  <PlayerAvatar player={p} size={32} />
+                <Button type="submit" variant="secondary" size="md">
+                  <Icons.Plus className="w-4 h-4" /> Add
+                </Button>
+              </form>
+              {ledger.length > 0 && (
+                <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => openPlayerProfile(p.id)}
-                    className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex-1 min-w-[8rem]"
+                    aria-label="Export ledger CSV"
+                    onClick={() => {
+                      const blob = new Blob([ledgerCsv(finances, players)], {
+                        type: "text/csv;charset=utf-8",
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = "club-ledger.csv";
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      toast.push({
+                        kind: "success",
+                        title: "Ledger CSV downloaded",
+                      });
+                    }}
+                    className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
                   >
-                    {p.name}
-                    {!waived && playerFee > 0 && (
-                      <MoneyMeter
-                        value={paid}
-                        max={playerFee}
-                        className="mt-1 max-w-[10rem]"
-                      />
-                    )}
+                    Export CSV
                   </button>
-                  <span className="tabular-nums text-sm font-bold text-ink-2">
-                    {formatCurrency(paid)} paid
-                  </span>
-                  {waived ? (
-                    <>
-                      <span className="text-xs font-black uppercase tracking-widest text-ink-3">
-                        Fee waived
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Reinstate fee for ${p.name}`}
-                        onClick={() => toggleFeeWaiver(p.id)}
-                        className="text-xs font-bold underline text-ink-3 hover:text-ink"
-                      >
-                        Undo
-                      </button>
-                    </>
-                  ) : settled ? (
-                    <span className="text-xs font-black uppercase tracking-widest text-win">
-                      Paid full ✓
-                    </span>
-                  ) : (
-                    <>
-                      <span className="tabular-nums text-sm font-bold text-loss">
-                        {formatCurrency(owed)} owed
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={payInputs[p.id] || ""}
-                        onChange={(e) =>
-                          setPayInputs((cur) => ({
-                            ...cur,
-                            [p.id]: e.target.value,
-                          }))
-                        }
-                        placeholder="$"
-                        aria-label={`Payment amount for ${p.name}`}
-                        className={`${FORM_INPUT_CLASS} w-20 tabular-nums !py-1.5`}
-                        style={FORM_INPUT_RING_STYLE}
-                      />
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        aria-label={`Record payment for ${p.name}`}
-                        onClick={() => {
-                          const amt = parseAmount(payInputs[p.id] || "");
-                          if (amt != null) recordPayment(p.id, amt);
-                        }}
-                      >
-                        <Icons.Plus className="w-3.5 h-3.5" /> Payment
-                      </Button>
-                      {owed > 0 && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          aria-label={`Mark ${p.name} paid in full`}
-                          onClick={() => recordPayment(p.id, owed)}
-                        >
-                          Paid full
-                        </Button>
-                      )}
-                      <button
-                        type="button"
-                        aria-label={`Waive fee for ${p.name}`}
-                        onClick={() => toggleFeeWaiver(p.id)}
-                        className="text-xs font-bold underline text-ink-3 hover:text-ink"
-                      >
-                        Waive
-                      </button>
-                    </>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </SectionCard>
-
-      {/* Ledger — money in & money out */}
-      <SectionCard
-        icon={Icons.Wallet}
-        title="Ledger"
-      >
-        <div className="pt-4 space-y-3">
-          <form onSubmit={addTransaction} className="flex flex-col sm:flex-row gap-2">
-            <div
-              className="flex rounded-xl overflow-hidden border border-line self-start sm:self-auto"
-              role="group"
-              aria-label="Money direction"
-            >
-              {(
-                [
-                  { v: "in", label: "Money in" },
-                  { v: "out", label: "Money out" },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.v}
-                  type="button"
-                  onClick={() => setTxnDir(opt.v)}
-                  aria-pressed={txnDir === opt.v}
-                  className={`px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
-                    txnDir === opt.v
-                      ? opt.v === "in"
-                        ? "bg-win/15 text-win"
-                        : "bg-loss/15 text-loss"
-                      : "bg-surface-2 text-ink-3 hover:bg-line"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <input
-              type="date"
-              value={txnDate}
-              onChange={(e) => setTxnDate(e.target.value)}
-              aria-label="Transaction date"
-              className={`${FORM_INPUT_CLASS} sm:w-40`}
-              style={FORM_INPUT_RING_STYLE}
-            />
-            <input
-              type="text"
-              value={txnLabel}
-              onChange={(e) => setTxnLabel(e.target.value)}
-              placeholder={
-                txnDir === "in"
-                  ? "Sponsorship, fundraiser, donation…"
-                  : "What was it for?"
-              }
-              aria-label="Transaction description"
-              className={`${FORM_INPUT_CLASS} flex-1`}
-              style={FORM_INPUT_RING_STYLE}
-            />
-            {txnDir === "out" && (finances.budgetItems || []).length > 0 && (
-              <select
-                value={txnCategory}
-                onChange={(e) => setTxnCategory(e.target.value)}
-                aria-label="Budget category"
-                className={`${FORM_INPUT_CLASS} sm:w-44`}
-                style={FORM_INPUT_RING_STYLE}
-              >
-                <option value="">Category: unplanned</option>
-                {(finances.budgetItems || []).map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.label}
-                  </option>
-                ))}
-              </select>
-            )}
-            {txnDir === "in" && (
-              <label
-                className="flex items-center gap-1.5 self-center text-xs font-bold text-ink-2 whitespace-nowrap cursor-pointer"
-                title="Splits evenly across paying players and reduces each family's team fees"
-              >
-                <input
-                  type="checkbox"
-                  checked={txnFundraising}
-                  onChange={(e) => setTxnFundraising(e.target.checked)}
-                  aria-label="Fundraising — reduces player team fees"
-                  className="accent-[var(--team-primary)]"
-                />
-                Fundraising · reduces team fees
-              </label>
-            )}
-            {txnDir === "in" && txnFundraising && players.length > 0 && (
-              <select
-                value={txnCreditPlayerId}
-                onChange={(e) => setTxnCreditPlayerId(e.target.value)}
-                aria-label="Credit fundraising to a specific player"
-                title="Credit this money to one child's fees (blank = split evenly)"
-                className={`${FORM_INPUT_CLASS} sm:w-44`}
-                style={FORM_INPUT_RING_STYLE}
-              >
-                <option value="">Credit: split evenly</option>
-                {players.map((p: any) => (
-                  <option key={p.id} value={p.id}>
-                    Credit: {p.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <input
-              type="text"
-              inputMode="decimal"
-              value={txnAmount}
-              onChange={(e) => setTxnAmount(e.target.value)}
-              placeholder="$ amount"
-              aria-label="Transaction amount"
-              className={`${FORM_INPUT_CLASS} sm:w-32 tabular-nums`}
-              style={FORM_INPUT_RING_STYLE}
-            />
-            <Button type="submit" variant="secondary" size="md">
-              <Icons.Plus className="w-4 h-4" /> Add
-            </Button>
-          </form>
-          {ledger.length > 0 && (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                aria-label="Export ledger CSV"
-                onClick={() => {
-                  const blob = new Blob([ledgerCsv(finances, players)], {
-                    type: "text/csv;charset=utf-8",
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "club-ledger.csv";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  toast.push({ kind: "success", title: "Ledger CSV downloaded" });
-                }}
-                className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
-              >
-                Export CSV
-              </button>
-            </div>
-          )}
-          {ledger.length === 0 ? (
-            <div className="p-4 text-center text-ink-3 font-medium">
-              Nothing logged yet. Club-fee payments land here automatically;
-              add sponsorships and expenses above.
-            </div>
-          ) : (
-            <div className="overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-                <thead className="bg-app">
-                  <tr>
-                    {(
-                      [
-                        { key: "date", label: "Date", right: false },
-                        { key: "label", label: "Entry", right: false },
-                        { key: "in", label: "In", right: true },
-                        { key: "out", label: "Out", right: true },
-                        { key: "balance", label: "Balance", right: true },
-                      ] as Array<{
-                        key: LedgerSortKey;
-                        label: string;
-                        right: boolean;
-                      }>
-                    ).map((col) => (
-                      <th
-                        key={col.key}
-                        className={`p-2.5 ${col.right ? "text-right" : "text-left"}`}
-                      >
-                        <SortHeader
-                          label={col.label}
-                          active={ledgerSort.key === col.key}
-                          asc={ledgerSort.asc}
-                          onClick={() => toggleLedgerSort(col.key)}
-                        />
-                      </th>
-                    ))}
-                    <th className="p-2.5" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-line">
-                  {sortedLedger.map((row, idx) => {
-                    const monthKey = row.date.slice(0, 7);
-                    // Month group headers only make sense in date order.
-                    const newMonth =
-                      ledgerSort.key === "date" &&
-                      (idx === 0 ||
-                        sortedLedger[idx - 1].date.slice(0, 7) !== monthKey);
-                    const monthHeader = newMonth ? (
-                      <tr key={`m-${monthKey}`} className="bg-app">
-                        <td
-                          colSpan={6}
-                          className="px-2 py-1 t-eyebrow text-ink-3"
-                        >
-                          {monthLabel(monthKey)}
-                        </td>
+                </div>
+              )}
+              {ledger.length === 0 ? (
+                <div className="p-4 text-center text-ink-3 font-medium">
+                  Nothing logged yet. Club-fee payments land here automatically;
+                  add sponsorships and expenses above.
+                </div>
+              ) : (
+                <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                    <thead className="bg-app">
+                      <tr>
+                        {(
+                          [
+                            { key: "date", label: "Date", right: false },
+                            { key: "label", label: "Entry", right: false },
+                            { key: "in", label: "In", right: true },
+                            { key: "out", label: "Out", right: true },
+                            { key: "balance", label: "Balance", right: true },
+                          ] as Array<{
+                            key: LedgerSortKey;
+                            label: string;
+                            right: boolean;
+                          }>
+                        ).map((col) => (
+                          <th
+                            key={col.key}
+                            className={`p-2.5 ${col.right ? "text-right" : "text-left"}`}
+                          >
+                            <SortHeader
+                              label={col.label}
+                              active={ledgerSort.key === col.key}
+                              asc={ledgerSort.asc}
+                              onClick={() => toggleLedgerSort(col.key)}
+                            />
+                          </th>
+                        ))}
+                        <th className="p-2.5" />
                       </tr>
-                    ) : null;
-                    const isEditing =
-                      editRow != null &&
-                      editRow.source === row.source &&
-                      editRow.id === row.id;
-                    if (isEditing) {
-                      // Team-fee payment rows keep their label (player name)
-                      // fixed but allow date + amount edits; income/expense
-                      // rows edit fully.
-                      const dateOnly = row.source === "payment";
-                      return (
-                        <React.Fragment key={`${row.source}-${row.id}`}>
-                        {monthHeader}
-                        <tr className="bg-surface-2">
-                          <td className="p-2">
-                            <input
-                              type="date"
-                              value={editDraft.date}
-                              onChange={(e) =>
-                                setEditDraft((d) => ({ ...d, date: e.target.value }))
-                              }
-                              aria-label={`Edit date for ${row.label}`}
-                              className={`${FORM_INPUT_CLASS} w-36 !py-1`}
-                              style={FORM_INPUT_RING_STYLE}
-                            />
-                          </td>
-                          <td className="p-2">
-                            {dateOnly ? (
-                              <span className="t-body-bold text-ink">{row.label}</span>
-                            ) : (
-                              <span className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={editDraft.label}
-                                  onChange={(e) =>
-                                    setEditDraft((d) => ({ ...d, label: e.target.value }))
-                                  }
-                                  aria-label={`Edit description for ${row.label}`}
-                                  className={`${FORM_INPUT_CLASS} w-full !py-1`}
-                                  style={FORM_INPUT_RING_STYLE}
-                                />
-                                {row.source === "expense" &&
-                                  (finances.budgetItems || []).length > 0 && (
-                                    <select
-                                      value={editDraft.budgetItemId}
-                                      onChange={(e) =>
-                                        setEditDraft((d) => ({
-                                          ...d,
-                                          budgetItemId: e.target.value,
-                                        }))
-                                      }
-                                      aria-label={`Edit category for ${row.label}`}
-                                      className={`${FORM_INPUT_CLASS} w-36 !py-1`}
-                                      style={FORM_INPUT_RING_STYLE}
-                                    >
-                                      <option value="">Unplanned</option>
-                                      {(finances.budgetItems || []).map((b) => (
-                                        <option key={b.id} value={b.id}>
-                                          {b.label}
-                                        </option>
-                                      ))}
-                                    </select>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {sortedLedger.map((row, idx) => {
+                        const monthKey = row.date.slice(0, 7);
+                        // Month group headers only make sense in date order.
+                        const newMonth =
+                          ledgerSort.key === "date" &&
+                          (idx === 0 ||
+                            sortedLedger[idx - 1].date.slice(0, 7) !==
+                              monthKey);
+                        const monthHeader = newMonth ? (
+                          <tr key={`m-${monthKey}`} className="bg-app">
+                            <td
+                              colSpan={6}
+                              className="px-2 py-1 t-eyebrow text-ink-3"
+                            >
+                              {monthLabel(monthKey)}
+                            </td>
+                          </tr>
+                        ) : null;
+                        const isEditing =
+                          editRow != null &&
+                          editRow.source === row.source &&
+                          editRow.id === row.id;
+                        if (isEditing) {
+                          // Team-fee payment rows keep their label (player name)
+                          // fixed but allow date + amount edits; income/expense
+                          // rows edit fully.
+                          const dateOnly = row.source === "payment";
+                          return (
+                            <React.Fragment key={`${row.source}-${row.id}`}>
+                              {monthHeader}
+                              <tr className="bg-surface-2">
+                                <td className="p-2">
+                                  <input
+                                    type="date"
+                                    value={editDraft.date}
+                                    onChange={(e) =>
+                                      setEditDraft((d) => ({
+                                        ...d,
+                                        date: e.target.value,
+                                      }))
+                                    }
+                                    aria-label={`Edit date for ${row.label}`}
+                                    className={`${FORM_INPUT_CLASS} w-36 !py-1`}
+                                    style={FORM_INPUT_RING_STYLE}
+                                  />
+                                </td>
+                                <td className="p-2">
+                                  {dateOnly ? (
+                                    <span className="t-body-bold text-ink">
+                                      {row.label}
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-2">
+                                      <input
+                                        type="text"
+                                        value={editDraft.label}
+                                        onChange={(e) =>
+                                          setEditDraft((d) => ({
+                                            ...d,
+                                            label: e.target.value,
+                                          }))
+                                        }
+                                        aria-label={`Edit description for ${row.label}`}
+                                        className={`${FORM_INPUT_CLASS} w-full !py-1`}
+                                        style={FORM_INPUT_RING_STYLE}
+                                      />
+                                      {row.source === "expense" &&
+                                        (finances.budgetItems || []).length >
+                                          0 && (
+                                          <select
+                                            value={editDraft.budgetItemId}
+                                            onChange={(e) =>
+                                              setEditDraft((d) => ({
+                                                ...d,
+                                                budgetItemId: e.target.value,
+                                              }))
+                                            }
+                                            aria-label={`Edit category for ${row.label}`}
+                                            className={`${FORM_INPUT_CLASS} w-36 !py-1`}
+                                            style={FORM_INPUT_RING_STYLE}
+                                          >
+                                            <option value="">Unplanned</option>
+                                            {(finances.budgetItems || []).map(
+                                              (b) => (
+                                                <option key={b.id} value={b.id}>
+                                                  {b.label}
+                                                </option>
+                                              ),
+                                            )}
+                                          </select>
+                                        )}
+                                      {row.source === "income" && (
+                                        <label className="flex items-center gap-1 text-[10px] font-bold text-ink-2 whitespace-nowrap cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={editDraft.fundraising}
+                                            onChange={(e) =>
+                                              setEditDraft((d) => ({
+                                                ...d,
+                                                fundraising: e.target.checked,
+                                              }))
+                                            }
+                                            aria-label={`Edit fundraising flag for ${row.label}`}
+                                            className="accent-[var(--team-primary)]"
+                                          />
+                                          Fundraising
+                                        </label>
+                                      )}
+                                      {row.source === "income" &&
+                                        editDraft.fundraising &&
+                                        players.length > 0 && (
+                                          <select
+                                            value={editDraft.playerId}
+                                            onChange={(e) =>
+                                              setEditDraft((d) => ({
+                                                ...d,
+                                                playerId: e.target.value,
+                                              }))
+                                            }
+                                            aria-label={`Credit fundraising to a player for ${row.label}`}
+                                            className={`${FORM_INPUT_CLASS} w-36 !py-1`}
+                                            style={FORM_INPUT_RING_STYLE}
+                                          >
+                                            <option value="">
+                                              Split evenly
+                                            </option>
+                                            {players.map((p: any) => (
+                                              <option key={p.id} value={p.id}>
+                                                {p.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        )}
+                                    </span>
                                   )}
-                                {row.source === "income" && (
-                                  <label className="flex items-center gap-1 text-[10px] font-bold text-ink-2 whitespace-nowrap cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={editDraft.fundraising}
-                                      onChange={(e) =>
-                                        setEditDraft((d) => ({
-                                          ...d,
-                                          fundraising: e.target.checked,
-                                        }))
-                                      }
-                                      aria-label={`Edit fundraising flag for ${row.label}`}
-                                      className="accent-[var(--team-primary)]"
-                                    />
-                                    Fundraising
-                                  </label>
+                                </td>
+                                <td className="p-2 text-right" colSpan={2}>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={editDraft.amount}
+                                    onChange={(e) =>
+                                      setEditDraft((d) => ({
+                                        ...d,
+                                        amount: e.target.value,
+                                      }))
+                                    }
+                                    aria-label={`Edit amount for ${row.label}`}
+                                    className={`${FORM_INPUT_CLASS} w-24 !py-1 tabular-nums text-right`}
+                                    style={FORM_INPUT_RING_STYLE}
+                                  />
+                                </td>
+                                <td className="p-2 text-right" colSpan={2}>
+                                  <span className="inline-flex items-center gap-2">
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      aria-label={`Save entry ${row.label}`}
+                                      onClick={saveLedgerEdit}
+                                    >
+                                      <Icons.Check className="w-3.5 h-3.5" />{" "}
+                                      Save
+                                    </Button>
+                                    <button
+                                      type="button"
+                                      aria-label="Cancel edit"
+                                      onClick={() => setEditRow(null)}
+                                      className="text-ink-3 hover:text-ink text-xs font-bold underline"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </span>
+                                </td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        }
+                        return (
+                          <React.Fragment key={`${row.source}-${row.id}`}>
+                            {monthHeader}
+                            <tr className="hover:bg-surface-2">
+                              <td className="p-2 tabular-nums font-bold text-ink-2">
+                                {row.date}
+                              </td>
+                              <td className="p-2 t-body-bold text-ink">
+                                <span
+                                  className={`inline-flex items-center justify-center w-4 h-4 rounded-full mr-1.5 text-[9px] font-black ${
+                                    row.direction === "in"
+                                      ? "bg-win/10 text-win"
+                                      : "bg-loss/10 text-loss"
+                                  }`}
+                                >
+                                  {row.direction === "in" ? "↑" : "↓"}
+                                </span>
+                                {row.label}
+                                {row.fundraising && (
+                                  <span
+                                    className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win align-middle"
+                                    title={
+                                      row.creditedTo
+                                        ? `Credited to ${row.creditedTo}'s team fees`
+                                        : "Splits across paying players and reduces each family's team fees"
+                                    }
+                                  >
+                                    {row.creditedTo
+                                      ? `credit → ${row.creditedTo}`
+                                      : "team-fee credit"}
+                                  </span>
                                 )}
-                                {row.source === "income" &&
-                                  editDraft.fundraising &&
-                                  players.length > 0 && (
-                                    <select
-                                      value={editDraft.playerId}
-                                      onChange={(e) =>
-                                        setEditDraft((d) => ({
-                                          ...d,
-                                          playerId: e.target.value,
-                                        }))
-                                      }
-                                      aria-label={`Credit fundraising to a player for ${row.label}`}
-                                      className={`${FORM_INPUT_CLASS} w-36 !py-1`}
-                                      style={FORM_INPUT_RING_STYLE}
-                                    >
-                                      <option value="">Split evenly</option>
-                                      {players.map((p: any) => (
-                                        <option key={p.id} value={p.id}>
-                                          {p.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  )}
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2 text-right" colSpan={2}>
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={editDraft.amount}
-                              onChange={(e) =>
-                                setEditDraft((d) => ({ ...d, amount: e.target.value }))
-                              }
-                              aria-label={`Edit amount for ${row.label}`}
-                              className={`${FORM_INPUT_CLASS} w-24 !py-1 tabular-nums text-right`}
-                              style={FORM_INPUT_RING_STYLE}
-                            />
-                          </td>
-                          <td className="p-2 text-right" colSpan={2}>
-                            <span className="inline-flex items-center gap-2">
-                              <Button
-                                variant="primary"
-                                size="sm"
-                                aria-label={`Save entry ${row.label}`}
-                                onClick={saveLedgerEdit}
+                              </td>
+                              <td className="p-2 text-right tabular-nums font-bold text-win">
+                                {row.direction === "in"
+                                  ? formatCurrency(row.amount)
+                                  : ""}
+                              </td>
+                              <td className="p-2 text-right tabular-nums font-bold text-loss">
+                                {row.direction === "out"
+                                  ? formatCurrency(row.amount)
+                                  : ""}
+                              </td>
+                              <td
+                                className={`p-2 text-right tabular-nums font-black ${
+                                  row.balanceAfter < 0
+                                    ? "text-loss"
+                                    : "text-ink"
+                                }`}
                               >
-                                <Icons.Check className="w-3.5 h-3.5" /> Save
-                              </Button>
-                              <button
-                                type="button"
-                                aria-label="Cancel edit"
-                                onClick={() => setEditRow(null)}
-                                className="text-ink-3 hover:text-ink text-xs font-bold underline"
-                              >
-                                Cancel
-                              </button>
-                            </span>
-                          </td>
-                        </tr>
-                        </React.Fragment>
-                      );
-                    }
-                    return (
-                    <React.Fragment key={`${row.source}-${row.id}`}>
-                    {monthHeader}
-                    <tr className="hover:bg-surface-2">
-                      <td className="p-2 tabular-nums font-bold text-ink-2">
-                        {row.date}
-                      </td>
-                      <td className="p-2 t-body-bold text-ink">
-                        <span
-                          className={`inline-flex items-center justify-center w-4 h-4 rounded-full mr-1.5 text-[9px] font-black ${
-                            row.direction === "in"
-                              ? "bg-win/10 text-win"
-                              : "bg-loss/10 text-loss"
-                          }`}
-                        >
-                          {row.direction === "in" ? "↑" : "↓"}
-                        </span>
-                        {row.label}
-                        {row.fundraising && (
+                                {formatCurrency(row.balanceAfter)}
+                              </td>
+                              <td className="p-2 text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  aria-label={`Edit entry ${row.label}`}
+                                  onClick={() => startLedgerEdit(row)}
+                                  className="text-ink-3 hover:text-ink transition-colors mr-2"
+                                >
+                                  <Icons.Edit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label={`Delete entry ${row.label}`}
+                                  onClick={() =>
+                                    removeLedgerRow(row.source, row.id)
+                                  }
+                                  className="text-ink-3 hover:text-loss transition-colors"
+                                >
+                                  <Icons.X className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {(finances.pastSeasons || []).length > 0 && (
+                <div className="pt-3 border-t border-line">
+                  <div className="t-eyebrow text-ink-3 mb-2">
+                    Year over year — money in vs out, closing balance under each
+                  </div>
+                  <div className="max-w-xl">
+                    <YearComparisonChart rows={years} />
+                  </div>
+                  <div className="t-eyebrow text-ink-3 mb-2 mt-3">
+                    Past years
+                  </div>
+                  <ul className="space-y-1">
+                    {(finances.pastSeasons || []).map((ps) => (
+                      <li
+                        key={ps.season}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold text-ink-2 tabular-nums"
+                      >
+                        <span className="text-ink">{ps.season}</span>
+                        <span>
+                          in {formatCurrency(ps.collected + ps.otherIncome)} ·
+                          out {formatCurrency(ps.spent)} · ended{" "}
                           <span
-                            className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win align-middle"
-                            title={
-                              row.creditedTo
-                                ? `Credited to ${row.creditedTo}'s team fees`
-                                : "Splits across paying players and reduces each family's team fees"
+                            className={
+                              ps.closingBalance < 0
+                                ? "text-loss font-black"
+                                : "text-ink font-black"
                             }
                           >
-                            {row.creditedTo
-                              ? `credit → ${row.creditedTo}`
-                              : "team-fee credit"}
+                            {formatCurrency(ps.closingBalance)}
                           </span>
-                        )}
-                      </td>
-                      <td className="p-2 text-right tabular-nums font-bold text-win">
-                        {row.direction === "in"
-                          ? formatCurrency(row.amount)
-                          : ""}
-                      </td>
-                      <td className="p-2 text-right tabular-nums font-bold text-loss">
-                        {row.direction === "out"
-                          ? formatCurrency(row.amount)
-                          : ""}
-                      </td>
-                      <td
-                        className={`p-2 text-right tabular-nums font-black ${
-                          row.balanceAfter < 0 ? "text-loss" : "text-ink"
-                        }`}
-                      >
-                        {formatCurrency(row.balanceAfter)}
-                      </td>
-                      <td className="p-2 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          aria-label={`Edit entry ${row.label}`}
-                          onClick={() => startLedgerEdit(row)}
-                          className="text-ink-3 hover:text-ink transition-colors mr-2"
-                        >
-                          <Icons.Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Delete entry ${row.label}`}
-                          onClick={() => removeLedgerRow(row.source, row.id)}
-                          className="text-ink-3 hover:text-loss transition-colors"
-                        >
-                          <Icons.X className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                    </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          )}
-          {(finances.pastSeasons || []).length > 0 && (
-            <div className="pt-3 border-t border-line">
-              <div className="t-eyebrow text-ink-3 mb-2">
-                Year over year — money in vs out, closing balance under each
-              </div>
-              <div className="max-w-xl">
-                <YearComparisonChart rows={years} />
-              </div>
-              <div className="t-eyebrow text-ink-3 mb-2 mt-3">Past years</div>
-              <ul className="space-y-1">
-                {(finances.pastSeasons || []).map((ps) => (
-                  <li
-                    key={ps.season}
-                    className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold text-ink-2 tabular-nums"
-                  >
-                    <span className="text-ink">{ps.season}</span>
-                    <span>
-                      in {formatCurrency(ps.collected + ps.otherIncome)} · out{" "}
-                      {formatCurrency(ps.spent)} · ended{" "}
-                      <span
-                        className={
-                          ps.closingBalance < 0
-                            ? "text-loss font-black"
-                            : "text-ink font-black"
-                        }
-                      >
-                        {formatCurrency(ps.closingBalance)}
-                      </span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          </SectionCard>
         </div>
-      </SectionCard>
-
-        </div>{/* end left col */}
+        {/* end left col */}
 
         {/* Right column: Cash Flow charts */}
         <div className="lg:col-span-5 space-y-6">
           {ledger.length > 0 && (
-            <SectionCard
-              icon={Icons.Clipboard}
-              title="Cash Flow"
-            >
+            <SectionCard icon={Icons.Clipboard} title="Cash Flow">
               <div className="pt-4 space-y-6">
                 <CashflowChart months={months} />
                 <SpendingDonut
@@ -1461,15 +1505,13 @@ export const FinancesTab = memo(() => {
               </div>
             </SectionCard>
           )}
-        </div>{/* end right col */}
-
-      </div>{/* end desktop grid */}
+        </div>
+        {/* end right col */}
+      </div>
+      {/* end desktop grid */}
 
       {/* Budget Planner */}
-      <SectionCard
-        icon={Icons.Clipboard}
-        title="Budget Planner — next season"
-      >
+      <SectionCard icon={Icons.Clipboard} title="Budget Planner — next season">
         <div className="p-4 sm:p-5 space-y-3">
           {/* Rough estimate learned from this season's money. Empty planner →
               one-tap seed; otherwise a reference line beside the plan. */}
@@ -1544,7 +1586,7 @@ export const FinancesTab = memo(() => {
                             value={itemEdit.label}
                             onChange={(e) =>
                               setItemEdit((d) =>
-                                d ? { ...d, label: e.target.value } : d
+                                d ? { ...d, label: e.target.value } : d,
                               )
                             }
                             aria-label={`Edit label for ${item.label}`}
@@ -1559,7 +1601,7 @@ export const FinancesTab = memo(() => {
                                 value={itemEdit.qty}
                                 onChange={(e) =>
                                   setItemEdit((d) =>
-                                    d ? { ...d, qty: e.target.value } : d
+                                    d ? { ...d, qty: e.target.value } : d,
                                   )
                                 }
                                 aria-label={`Edit count for ${item.label}`}
@@ -1577,7 +1619,7 @@ export const FinancesTab = memo(() => {
                                   setItemEdit((d) =>
                                     d
                                       ? { ...d, unitAmount: e.target.value }
-                                      : d
+                                      : d,
                                   )
                                 }
                                 aria-label={`Edit cost per unit for ${item.label}`}
@@ -1592,7 +1634,7 @@ export const FinancesTab = memo(() => {
                               value={itemEdit.amount}
                               onChange={(e) =>
                                 setItemEdit((d) =>
-                                  d ? { ...d, amount: e.target.value } : d
+                                  d ? { ...d, amount: e.target.value } : d,
                                 )
                               }
                               aria-label={`Edit amount for ${item.label}`}
@@ -1622,85 +1664,85 @@ export const FinancesTab = memo(() => {
                   }
                   return (
                     <li key={item.id} className="py-2">
-                    <div className="flex items-center gap-3">
-                      <span className="t-body-bold text-ink flex-1 truncate">
-                        {item.label}
-                      </span>
-                      {isQty && (
-                        <span className="flex items-center gap-1.5 tabular-nums text-sm font-bold text-ink-2">
-                          <button
-                            type="button"
-                            aria-label={`Fewer ${item.label}`}
-                            onClick={() => stepBudgetQty(item.id, -1)}
-                            className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
-                          >
-                            <Icons.Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="min-w-[1.5rem] text-center font-black text-ink">
-                            {item.qty}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={`More ${item.label}`}
-                            onClick={() => stepBudgetQty(item.id, 1)}
-                            className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
-                          >
-                            <Icons.Plus className="w-3.5 h-3.5" />
-                          </button>
-                          <span>× {formatCurrency(item.unitAmount)}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="t-body-bold text-ink flex-1 truncate">
+                          {item.label}
                         </span>
-                      )}
-                      <button
-                        type="button"
-                        aria-label={`Toggle sales tax on ${item.label}`}
-                        onClick={() => toggleItemTax(item.id)}
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                          item.taxable
-                            ? "text-win bg-win/10"
-                            : "text-ink-3 bg-surface-2 hover:bg-line"
-                        }`}
-                      >
-                        +tax
-                      </button>
-                      <span className="tabular-nums font-black text-ink">
-                        {formatCurrency(planned)}
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Edit ${item.label}`}
-                        onClick={() => startItemEdit(item)}
-                        className="text-ink-3 hover:text-ink transition-colors"
-                      >
-                        <Icons.Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${item.label}`}
-                        onClick={() => removeBudgetItem(item.id)}
-                        className="text-ink-3 hover:text-loss transition-colors"
-                      >
-                        <Icons.X className="w-4 h-4" />
-                      </button>
-                    </div>
-                    {/* Budget vs actual: linked spending against the plan */}
-                    {spentSoFar > 0 && (
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <MoneyMeter
-                          value={spentSoFar}
-                          max={planned}
-                          className="flex-1"
-                        />
-                        <span
-                          className={`t-meta tabular-nums whitespace-nowrap ${
-                            spentSoFar > planned ? "text-loss" : "text-ink-3"
+                        {isQty && (
+                          <span className="flex items-center gap-1.5 tabular-nums text-sm font-bold text-ink-2">
+                            <button
+                              type="button"
+                              aria-label={`Fewer ${item.label}`}
+                              onClick={() => stepBudgetQty(item.id, -1)}
+                              className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
+                            >
+                              <Icons.Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="min-w-[1.5rem] text-center font-black text-ink">
+                              {item.qty}
+                            </span>
+                            <button
+                              type="button"
+                              aria-label={`More ${item.label}`}
+                              onClick={() => stepBudgetQty(item.id, 1)}
+                              className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
+                            >
+                              <Icons.Plus className="w-3.5 h-3.5" />
+                            </button>
+                            <span>× {formatCurrency(item.unitAmount)}</span>
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`Toggle sales tax on ${item.label}`}
+                          onClick={() => toggleItemTax(item.id)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
+                            item.taxable
+                              ? "text-win bg-win/10"
+                              : "text-ink-3 bg-surface-2 hover:bg-line"
                           }`}
                         >
-                          spent {formatCurrency(spentSoFar)} of{" "}
+                          +tax
+                        </button>
+                        <span className="tabular-nums font-black text-ink">
                           {formatCurrency(planned)}
-                          {spentSoFar > planned && " — over budget"}
                         </span>
+                        <button
+                          type="button"
+                          aria-label={`Edit ${item.label}`}
+                          onClick={() => startItemEdit(item)}
+                          className="text-ink-3 hover:text-ink transition-colors"
+                        >
+                          <Icons.Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Remove ${item.label}`}
+                          onClick={() => removeBudgetItem(item.id)}
+                          className="text-ink-3 hover:text-loss transition-colors"
+                        >
+                          <Icons.X className="w-4 h-4" />
+                        </button>
                       </div>
-                    )}
+                      {/* Budget vs actual: linked spending against the plan */}
+                      {spentSoFar > 0 && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <MoneyMeter
+                            value={spentSoFar}
+                            max={planned}
+                            className="flex-1"
+                          />
+                          <span
+                            className={`t-meta tabular-nums whitespace-nowrap ${
+                              spentSoFar > planned ? "text-loss" : "text-ink-3"
+                            }`}
+                          >
+                            spent {formatCurrency(spentSoFar)} of{" "}
+                            {formatCurrency(planned)}
+                            {spentSoFar > planned && " — over budget"}
+                          </span>
+                        </div>
+                      )}
                     </li>
                   );
                 })}
@@ -1739,7 +1781,10 @@ export const FinancesTab = memo(() => {
               × count
             </button>
           </div>
-          <form onSubmit={addBudgetItem} className="flex flex-col sm:flex-row gap-2">
+          <form
+            onSubmit={addBudgetItem}
+            className="flex flex-col sm:flex-row gap-2"
+          >
             <input
               type="text"
               value={budgetLabel}
@@ -1867,9 +1912,7 @@ export const FinancesTab = memo(() => {
                   type="button"
                   aria-label={`Fee buffer ${opt.label}`}
                   aria-pressed={bufferInc === opt.inc}
-                  onClick={() =>
-                    writeFinances({ feeBufferIncrement: opt.inc })
-                  }
+                  onClick={() => writeFinances({ feeBufferIncrement: opt.inc })}
                   className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
                     bufferInc === opt.inc
                       ? "text-win bg-win/10"
@@ -1915,7 +1958,9 @@ export const FinancesTab = memo(() => {
                 <button
                   type="button"
                   onClick={() =>
-                    setNextDepositInput(String(finances.nextDepositAmount || ""))
+                    setNextDepositInput(
+                      String(finances.nextDepositAmount || ""),
+                    )
                   }
                   className="text-left font-black tabular-nums text-ink hover:text-team-primary"
                   aria-label="Edit next season deposit amount"
@@ -1940,7 +1985,9 @@ export const FinancesTab = memo(() => {
               )}
             </label>
             <label className="flex flex-col gap-1">
-              <span className="t-eyebrow text-ink-3">Next season deposit due</span>
+              <span className="t-eyebrow text-ink-3">
+                Next season deposit due
+              </span>
               <input
                 type="date"
                 value={finances.nextDepositDueDate || ""}
@@ -1964,10 +2011,7 @@ export const FinancesTab = memo(() => {
                 {formatCurrency(budget)}
               </span>
               {sponsored > 0 && (
-                <>
-                  {" "}
-                  − sponsorships {formatCurrency(sponsored)}
-                </>
+                <> − sponsorships {formatCurrency(sponsored)}</>
               )}
               {suggested != null && (
                 <>
@@ -1999,19 +2043,19 @@ export const FinancesTab = memo(() => {
                   Fall.
                 </div>
               )}
-
-              {finances.nextDepositAmount != null && finances.nextDepositAmount > 0 && (
-                <div className="t-meta text-ink-3 mt-1">
-                  Next season's deposit is set to{" "}
-                  <span className="font-black tabular-nums">
-                    {formatCurrency(finances.nextDepositAmount)}
-                  </span>
-                  {finances.nextDepositDueDate && (
-                    <> due {finances.nextDepositDueDate}</>
-                  )}
-                  .
-                </div>
-              )}
+              {finances.nextDepositAmount != null &&
+                finances.nextDepositAmount > 0 && (
+                  <div className="t-meta text-ink-3 mt-1">
+                    Next season's deposit is set to{" "}
+                    <span className="font-black tabular-nums">
+                      {formatCurrency(finances.nextDepositAmount)}
+                    </span>
+                    {finances.nextDepositDueDate && (
+                      <> due {finances.nextDepositDueDate}</>
+                    )}
+                    .
+                  </div>
+                )}
             </div>
             {suggested != null && suggested !== nextFee && (
               <Button
@@ -2025,7 +2069,6 @@ export const FinancesTab = memo(() => {
           </div>
         </div>
       </SectionCard>
-
     </div>
   );
 });

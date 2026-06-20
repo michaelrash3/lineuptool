@@ -26,7 +26,7 @@ export const useTeamMembership = ({
       const next = { ...(teamData.coachRoles || {}), [uid]: role };
       updateTeam({ coachRoles: next });
     },
-    [teamData.coachRoles, teamData.ownerId, updateTeam]
+    [teamData.coachRoles, teamData.ownerId, updateTeam],
   );
 
   const addCurrentUserToMembers = useCallback(() => {

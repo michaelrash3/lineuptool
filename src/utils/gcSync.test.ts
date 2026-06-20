@@ -24,7 +24,11 @@ const ev = (over: Partial<GcEvent> & { uid: string }): GcEvent => ({
 
 describe("mergeGcEventsIntoGames", () => {
   it("adds new games stamped with gcUid + defaults", () => {
-    const { games, added, updated } = mergeGcEventsIntoGames([], [ev({ uid: "a" })], defaults);
+    const { games, added, updated } = mergeGcEventsIntoGames(
+      [],
+      [ev({ uid: "a" })],
+      defaults,
+    );
     expect(added).toBe(1);
     expect(updated).toBe(0);
     expect(games).toHaveLength(1);
@@ -37,7 +41,11 @@ describe("mergeGcEventsIntoGames", () => {
 
   it("de-dupes by gcUid — re-syncing the same feed adds nothing", () => {
     const first = mergeGcEventsIntoGames([], [ev({ uid: "a" })], defaults);
-    const second = mergeGcEventsIntoGames(first.games, [ev({ uid: "a" })], defaults);
+    const second = mergeGcEventsIntoGames(
+      first.games,
+      [ev({ uid: "a" })],
+      defaults,
+    );
     expect(second.added).toBe(0);
     expect(second.updated).toBe(0);
     expect(second.games).toHaveLength(1);
@@ -86,7 +94,7 @@ describe("mergeGcEventsIntoGames", () => {
           startDate: "2026-06-07",
         }),
       ],
-      defaults
+      defaults,
     );
     expect(added).toBe(0);
     expect(updated).toBe(1);
@@ -101,7 +109,11 @@ describe("mergeGcEventsIntoGames", () => {
 
   it("leaves manually-added (non-gcUid) games alone", () => {
     const existing = [{ id: "m1", opponent: "Manual", date: "2026-05-01" }];
-    const { games, added } = mergeGcEventsIntoGames(existing, [ev({ uid: "a" })], defaults);
+    const { games, added } = mergeGcEventsIntoGames(
+      existing,
+      [ev({ uid: "a" })],
+      defaults,
+    );
     expect(added).toBe(1);
     expect(games).toHaveLength(2);
     expect(games.find((g) => g.id === "m1")).toBeTruthy();
@@ -111,7 +123,7 @@ describe("mergeGcEventsIntoGames", () => {
     const { games } = mergeGcEventsIntoGames(
       [],
       [ev({ uid: "t", allDay: true, startUtc: null, startDate: "2026-06-20" })],
-      defaults
+      defaults,
     );
     // No UTC-midnight shift: the game lands on June 20, not June 19 local.
     expect(games[0].date).toBe("2026-06-20");
@@ -134,7 +146,7 @@ describe("mergeGcEventsIntoGames", () => {
     const { games, updated } = mergeGcEventsIntoGames(
       existing,
       [ev({ uid: "t", allDay: true, startUtc: null, startDate: "2026-06-20" })],
-      defaults
+      defaults,
     );
     expect(updated).toBe(1);
     expect(games[0].date).toBe("2026-06-20");
@@ -156,7 +168,7 @@ describe("mergeGcEventsIntoGames", () => {
     const res = mergeGcEventsIntoGames(
       existing,
       [ev({ uid: "t", allDay: true, startUtc: null, startDate: "2026-06-20" })],
-      defaults
+      defaults,
     );
     expect(res.updated).toBe(0);
     expect(res.games).toBe(existing); // reference-equal

@@ -9,13 +9,29 @@ const team = {
       id: "a",
       name: "Apex",
       number: "1",
-      stats: { ab: 20, ops: 1.2, avg: 0.4, hr: 3, pEra: 2.5, pWhip: 1.1, pGoAo: 2.1 },
+      stats: {
+        ab: 20,
+        ops: 1.2,
+        avg: 0.4,
+        hr: 3,
+        pEra: 2.5,
+        pWhip: 1.1,
+        pGoAo: 2.1,
+      },
     },
     {
       id: "b",
       name: "Bolt",
       number: "2",
-      stats: { ab: 18, ops: 0.6, avg: 0.25, hr: 0, pEra: 6.0, pWhip: 1.9, pGoAo: 0.8 },
+      stats: {
+        ab: 18,
+        ops: 0.6,
+        avg: 0.25,
+        hr: 0,
+        pEra: 6.0,
+        pWhip: 1.9,
+        pGoAo: 0.8,
+      },
     },
   ],
   games: [],
@@ -26,9 +42,11 @@ const team = {
 
 describe("StatsTab", () => {
   it("shows an empty state when there are no players (no header card)", () => {
-    renderWithProviders(<StatsTab />, { team: { team: { players: [], games: [] } } });
+    renderWithProviders(<StatsTab />, {
+      team: { team: { players: [], games: [] } },
+    });
     expect(
-      screen.getByText(/Add players and import stats/i)
+      screen.getByText(/Add players and import stats/i),
     ).toBeInTheDocument();
     // The "Stats & Dashboard" title card was removed — content leads the tab.
     expect(screen.queryByText("Stats & Dashboard")).toBeNull();
@@ -39,8 +57,12 @@ describe("StatsTab", () => {
     expect(screen.getByRole("button", { name: /OPS/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Overall/ })).toBeInTheDocument();
     // Player appears at least in the table (and possibly leader cards).
-    expect(screen.getAllByRole("button", { name: /Apex/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Bolt/ }).length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: /Apex/ }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: /Bolt/ }).length,
+    ).toBeGreaterThan(0);
     // Pitching-only columns are not shown in the batting view.
     expect(screen.queryByRole("button", { name: /WHIP/ })).toBeNull();
   });

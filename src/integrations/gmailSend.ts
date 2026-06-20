@@ -16,16 +16,13 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import type { User, Auth } from "firebase/auth";
 
 const SCOPE = "https://www.googleapis.com/auth/gmail.send";
-const SEND_URL =
-  "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
+const SEND_URL = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
 
 let cachedToken: string | null = null;
 
 const isGoogleUser = (user: User | null): boolean => {
   if (!user) return false;
-  return (user.providerData || []).some(
-    (p) => p.providerId === "google.com"
-  );
+  return (user.providerData || []).some((p) => p.providerId === "google.com");
 };
 
 // Prompt the user with the Gmail scope. Resolves to the new access token
@@ -65,10 +62,7 @@ const b64urlEncode = (s: string): string => {
   // btoa() only handles latin-1; encode UTF-8 first to be safe with
   // non-ASCII names in subjects/bodies.
   const utf8 = unescape(encodeURIComponent(s));
-  return btoa(utf8)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return btoa(utf8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 
 interface SendOpts {
@@ -146,7 +140,7 @@ export const sendGmailMessage = async (opts: SendOpts): Promise<void> => {
 export const buildMailtoUrl = (
   to: string,
   subject: string,
-  body: string
+  body: string,
 ): string => {
   // mailto: clients expect RFC 3986 percent-encoding for the query
   // string. URLSearchParams uses application/x-www-form-urlencoded
@@ -155,6 +149,6 @@ export const buildMailtoUrl = (
   // encodeURIComponent emits %20 for spaces, which mailto handlers
   // decode correctly.
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(
-    subject
+    subject,
   )}&body=${encodeURIComponent(body)}`;
 };

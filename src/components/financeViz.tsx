@@ -139,8 +139,18 @@ export const CashflowChart = ({ months }: { months: CashflowMonth[] }) => {
         barGap={2}
       >
         <defs>
-          <FadeGradient id={`${id}-in`} color="var(--win)" from={0.9} to={0.35} />
-          <FadeGradient id={`${id}-out`} color="var(--loss)" from={0.9} to={0.35} />
+          <FadeGradient
+            id={`${id}-in`}
+            color="var(--win)"
+            from={0.9}
+            to={0.35}
+          />
+          <FadeGradient
+            id={`${id}-out`}
+            color="var(--loss)"
+            from={0.9}
+            to={0.35}
+          />
         </defs>
         <CartesianGrid
           strokeDasharray="3 3"
@@ -322,7 +332,11 @@ const YearTick = ({
 
 // Year-over-year grouped bars (money in vs out per season year) with the
 // closing balance printed under each pair.
-export const YearComparisonChart = ({ rows }: { rows: YearComparisonRow[] }) => {
+export const YearComparisonChart = ({
+  rows,
+}: {
+  rows: YearComparisonRow[];
+}) => {
   const id = useChartId();
   if (rows.length === 0) return null;
   return (
@@ -333,8 +347,18 @@ export const YearComparisonChart = ({ rows }: { rows: YearComparisonRow[] }) => 
         barGap={4}
       >
         <defs>
-          <FadeGradient id={`${id}-in`} color="var(--win)" from={0.9} to={0.35} />
-          <FadeGradient id={`${id}-out`} color="var(--loss)" from={0.9} to={0.35} />
+          <FadeGradient
+            id={`${id}-in`}
+            color="var(--win)"
+            from={0.9}
+            to={0.35}
+          />
+          <FadeGradient
+            id={`${id}-out`}
+            color="var(--loss)"
+            from={0.9}
+            to={0.35}
+          />
         </defs>
         <CartesianGrid
           strokeDasharray="3 3"

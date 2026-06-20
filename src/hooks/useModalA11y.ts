@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 // filtering is deliberately skipped — jsdom reports offsetParent as null for
 // everything, and our dialogs don't render hidden focusable controls.
 const FOCUSABLE =
-  'a[href], button:not([disabled]), textarea:not([disabled]), ' +
+  "a[href], button:not([disabled]), textarea:not([disabled]), " +
   'input:not([disabled]):not([type="hidden"]), select:not([disabled]), ' +
   '[tabindex]:not([tabindex="-1"])';
 
@@ -27,10 +27,7 @@ const openDialogs: symbol[] = [];
  */
 export function useModalA11y(
   ref: React.RefObject<HTMLElement | null>,
-  {
-    onClose,
-    enabled = true,
-  }: { onClose?: () => void; enabled?: boolean } = {}
+  { onClose, enabled = true }: { onClose?: () => void; enabled?: boolean } = {},
 ) {
   // Keep the latest onClose without re-running the effect (callers often
   // pass inline closures).
@@ -64,7 +61,7 @@ export function useModalA11y(
       }
       if (e.key !== "Tab") return;
       const focusables = Array.from(
-        node.querySelectorAll<HTMLElement>(FOCUSABLE)
+        node.querySelectorAll<HTMLElement>(FOCUSABLE),
       );
       if (focusables.length === 0) {
         e.preventDefault();

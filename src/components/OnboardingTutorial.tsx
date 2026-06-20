@@ -169,7 +169,13 @@ const attachStepNumbers = (steps: any[]) => {
   });
 };
 
-export const OnboardingTutorial = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+export const OnboardingTutorial = ({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) => {
   const { team } = useTeam();
   const ui = useUI();
   const [step, setStep] = useState(0);
@@ -193,7 +199,8 @@ export const OnboardingTutorial = ({ open, onClose }: { open: boolean; onClose: 
       hasPlayers: players.length > 0,
       hasGames: games.length > 0,
       hasGameToday: games.some(
-        (g: any) => g.date === today && g.status !== "final" && g.status !== "postponed"
+        (g: any) =>
+          g.date === today && g.status !== "final" && g.status !== "postponed",
       ),
       setActiveTab: ui.setActiveTab,
       setIsAddingPlayer: ui.setIsAddingPlayer,
@@ -244,7 +251,10 @@ export const OnboardingTutorial = ({ open, onClose }: { open: boolean; onClose: 
               className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
               style={{ backgroundColor: "var(--team-primary-15)" }}
             >
-              <Icon className="w-7 h-7" style={{ color: "var(--team-primary)" }} />
+              <Icon
+                className="w-7 h-7"
+                style={{ color: "var(--team-primary)" }}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <Eyebrow>{current.eyebrow}</Eyebrow>
@@ -275,7 +285,7 @@ export const OnboardingTutorial = ({ open, onClose }: { open: boolean; onClose: 
                   >
                     {c.label}
                   </Button>
-                )
+                ),
               )}
             </div>
           )}

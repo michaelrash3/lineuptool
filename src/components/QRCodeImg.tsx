@@ -63,7 +63,7 @@ export const QRCodeImg = ({
           margin: 1,
           errorCorrectionLevel: "M",
           color: { dark: "#0f172a", light: "#ffffff" },
-        })
+        }),
       )
       .then((url) => {
         if (!cancelled) setDataUrl(url);
@@ -89,10 +89,7 @@ export const QRCodeImg = ({
         errorCorrectionLevel: "M",
         color: { dark: "#0f172a", light: "#ffffff" },
       });
-      const name = (filename || defaultFilename(value)).replace(
-        /\.png$/i,
-        ""
-      );
+      const name = (filename || defaultFilename(value)).replace(/\.png$/i, "");
       const a = document.createElement("a");
       a.href = hiResUrl;
       a.download = `${name}.png`;

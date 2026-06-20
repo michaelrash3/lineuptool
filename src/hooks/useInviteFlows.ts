@@ -59,8 +59,11 @@ export const useInviteFlows = ({
   const regenerateJoinCode = useCallback(() => {
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
-    for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
-    const prevCode = String(teamData.joinCode || "").trim().toUpperCase();
+    for (let i = 0; i < 6; i++)
+      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    const prevCode = String(teamData.joinCode || "")
+      .trim()
+      .toUpperCase();
     updateTeam({ joinCode: code });
     // Best-effort invite-doc maintenance: a failure here never blocks the code
     // change (the legacy on-team-doc code still works), but we surface it so a
@@ -97,7 +100,11 @@ export const useInviteFlows = ({
       const code = String(rawCode).trim().toUpperCase();
       const codeRe = /^[A-HJ-NP-Z2-9]{6}$/;
       if (!codeRe.test(code)) {
-        toast.push({ kind: "error", title: "Invalid code", message: "Team codes are 6 characters using A-Z and 2-9." });
+        toast.push({
+          kind: "error",
+          title: "Invalid code",
+          message: "Team codes are 6 characters using A-Z and 2-9.",
+        });
         return { ok: false, retryable: false };
       }
       try {
@@ -108,7 +115,10 @@ export const useInviteFlows = ({
           const sd = snap.exists() ? (snap.data() as any) : null;
           if (sd && String(sd.joinCode || "").toUpperCase() === code) {
             switchTeam(t.id);
-            toast.push({ kind: "success", title: `Already a member of ${sd.name || "this team"}` });
+            toast.push({
+              kind: "success",
+              title: `Already a member of ${sd.name || "this team"}`,
+            });
             return { ok: true };
           }
         }
@@ -142,21 +152,40 @@ export const useInviteFlows = ({
         // team. Merge with the server's CURRENT list, never just local state:
         // writing `[...teams, entry]` while the local list was transiently
         // empty overwrote the settings doc and orphaned existing teams.
-        const userRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
+        const userRef = doc(
+          db,
+          "artifacts",
+          appId,
+          "users",
+          user.uid,
+          "settings",
+          "teams",
+        );
         const nextEntry = { id: teamId, name: teamName };
         let serverTeams: TeamEntry[] | null = null;
         try {
           const settingsSnap = await getDoc(userRef);
-          const data = settingsSnap.exists() ? (settingsSnap.data() as any) : null;
+          const data = settingsSnap.exists()
+            ? (settingsSnap.data() as any)
+            : null;
           serverTeams = Array.isArray(data?.teams) ? data.teams : null;
         } catch {
           // Settings read failed — fall back to merging with local state only.
         }
         const nextTeams = mergeTeamEntries(serverTeams, teams, [nextEntry]);
-        await setDoc(userRef, { teams: nextTeams, activeTeamId: teamId }, { merge: true });
+        await setDoc(
+          userRef,
+          { teams: nextTeams, activeTeamId: teamId },
+          { merge: true },
+        );
 
         switchTeam(teamId);
-        toast.push({ kind: "success", title: `Joined ${teamName}`, message: "You're set as an assistant coach. The head can promote you from Settings." });
+        toast.push({
+          kind: "success",
+          title: `Joined ${teamName}`,
+          message:
+            "You're set as an assistant coach. The head can promote you from Settings.",
+        });
         return { ok: true };
       } catch (err: any) {
         // Log the underlying error so a coach reporting "I can't join" can
@@ -178,7 +207,7 @@ export const useInviteFlows = ({
         return { ok: false, retryable: !isPermission };
       }
     },
-    [user, teams, toast, switchTeam]
+    [user, teams, toast, switchTeam],
   );
 
   return {

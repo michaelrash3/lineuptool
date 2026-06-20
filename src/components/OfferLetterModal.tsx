@@ -52,13 +52,17 @@ export const OfferLetterModal = memo(
 
     const saveNextSeasonMoney = () => {
       const n = Number(String(depositInput).replace(/[$,\s]/g, ""));
-      const patch: { nextDepositAmount?: number; nextDepositDueDate?: string } = {};
+      const patch: { nextDepositAmount?: number; nextDepositDueDate?: string } =
+        {};
       if (Number.isFinite(n) && n > 0) {
         patch.nextDepositAmount = Math.round(n * 100) / 100;
       }
       if (dueDateInput) patch.nextDepositDueDate = dueDateInput;
       if (Object.keys(patch).length === 0) {
-        toast.push({ kind: "error", title: "Enter a deposit amount or due date first" });
+        toast.push({
+          kind: "error",
+          title: "Enter a deposit amount or due date first",
+        });
         return;
       }
       onSaveNextSeasonMoney?.(patch);
@@ -71,7 +75,10 @@ export const OfferLetterModal = memo(
         toast.push({ kind: "success", title: "Draft copied" });
         onDelivered?.();
       } catch {
-        toast.push({ kind: "error", title: "Couldn't copy — select & copy manually" });
+        toast.push({
+          kind: "error",
+          title: "Couldn't copy — select & copy manually",
+        });
       }
     };
 
@@ -79,7 +86,7 @@ export const OfferLetterModal = memo(
       if (!recipientEmail) return;
       window.open(
         buildMailtoUrl(recipientEmail, draft.subject, draft.body),
-        "_blank"
+        "_blank",
       );
       onDelivered?.();
     };
@@ -117,45 +124,50 @@ export const OfferLetterModal = memo(
           {missingMoney && (
             <div className="space-y-2 text-xs font-bold text-warnfg bg-warn-bg border border-line rounded-lg px-3 py-2">
               <p>
-                Set next season&apos;s team fee, deposit, and deposit due date in
-                the Budget Planner so the offer fills in automatically.
+                Set next season&apos;s team fee, deposit, and deposit due date
+                in the Budget Planner so the offer fills in automatically.
               </p>
-              {onSaveNextSeasonMoney && (!ctx.deposit || !ctx.depositDueDate) && (
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                  {!ctx.deposit && (
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[10px] uppercase tracking-widest">Deposit</span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={depositInput}
-                        onChange={(e) => setDepositInput(e.target.value)}
-                        aria-label="Next season deposit amount"
-                        className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-                      />
-                    </label>
-                  )}
-                  {!ctx.depositDueDate && (
-                    <label className="flex flex-col gap-1">
-                      <span className="text-[10px] uppercase tracking-widest">Due date</span>
-                      <input
-                        type="date"
-                        value={dueDateInput}
-                        onChange={(e) => setDueDateInput(e.target.value)}
-                        aria-label="Next season deposit due date"
-                        className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-                      />
-                    </label>
-                  )}
-                  <button
-                    type="button"
-                    onClick={saveNextSeasonMoney}
-                    className="px-3 py-2 rounded-lg text-white bg-ink font-black uppercase tracking-widest text-[10px]"
-                  >
-                    Save
-                  </button>
-                </div>
-              )}
+              {onSaveNextSeasonMoney &&
+                (!ctx.deposit || !ctx.depositDueDate) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                    {!ctx.deposit && (
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase tracking-widest">
+                          Deposit
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={depositInput}
+                          onChange={(e) => setDepositInput(e.target.value)}
+                          aria-label="Next season deposit amount"
+                          className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                        />
+                      </label>
+                    )}
+                    {!ctx.depositDueDate && (
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[10px] uppercase tracking-widest">
+                          Due date
+                        </span>
+                        <input
+                          type="date"
+                          value={dueDateInput}
+                          onChange={(e) => setDueDateInput(e.target.value)}
+                          aria-label="Next season deposit due date"
+                          className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                        />
+                      </label>
+                    )}
+                    <button
+                      type="button"
+                      onClick={saveNextSeasonMoney}
+                      className="px-3 py-2 rounded-lg text-white bg-ink font-black uppercase tracking-widest text-[10px]"
+                    >
+                      Save
+                    </button>
+                  </div>
+                )}
             </div>
           )}
           <div>
@@ -182,5 +194,5 @@ export const OfferLetterModal = memo(
         </div>
       </Modal>
     );
-  }
+  },
 );

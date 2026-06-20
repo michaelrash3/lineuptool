@@ -200,5 +200,4 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     const lead = mockUpdateDoc.mock.calls[0][1].interestSignups.__arrayUnion;
     expect(lead.tryoutDate).toBe("2099-05-22");
   });
-
 });

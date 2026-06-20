@@ -340,7 +340,9 @@ export const TryoutsPortal = () => {
         };
         const selectedDate = selectedTryoutDate || "";
         const isDatedTryoutSignup = selectedDate && team?.tryoutsOpen === true;
-        const destination = isDatedTryoutSignup ? "tryoutSignups" : "interestSignups";
+        const destination = isDatedTryoutSignup
+          ? "tryoutSignups"
+          : "interestSignups";
         const submission = isDatedTryoutSignup
           ? {
               ...lead,
@@ -410,8 +412,8 @@ export const TryoutsPortal = () => {
               {selectedTryoutDate && team?.tryoutsOpen === true
                 ? `is signed up for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
                 : selectedTryoutDate
-                ? `is on ${team?.name || "the team"}'s interest list for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
-                : `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch.`}{" "}
+                  ? `is on ${team?.name || "the team"}'s interest list for the ${selectedTryoutDate} tryout. The head coach will reach out with next steps.`
+                  : `is on ${team?.name || "the team"}'s interest list. The head coach will be in touch.`}{" "}
               Contact at <strong className="text-ink">{form.email}</strong> ·{" "}
               <strong className="text-ink">{form.phone}</strong>.
             </p>

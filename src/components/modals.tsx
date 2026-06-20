@@ -35,12 +35,12 @@ import { makeOfferLetterContext } from "../utils/offerContext";
 const StatTrendModal = React.lazy(() =>
   import("./modals/statTrendViz").then((mod) => ({
     default: mod.StatTrendModal,
-  }))
+  })),
 );
 const RecentMovementPanel = React.lazy(() =>
   import("./modals/statTrendViz").then((mod) => ({
     default: mod.RecentMovementPanel,
-  }))
+  })),
 );
 
 // Scheduled Absences — dates the family already knows the kid is out
@@ -53,7 +53,8 @@ const ABSENCE_DATE_INPUT_CLASS =
 
 const rosterStatusOf = (player: any) => {
   if (player?.rosterStatus === "departed") return "departed";
-  if (player?.present === false || player?.rosterStatus === "inactive") return "inactive";
+  if (player?.present === false || player?.rosterStatus === "inactive")
+    return "inactive";
   return "active";
 };
 
@@ -149,7 +150,10 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           aria-label={`Add absence for ${player.name}`}
           onClick={addRange}
           className="px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
-          style={{ backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)" }}
+          style={{
+            backgroundColor: "var(--team-primary)",
+            color: "var(--team-tertiary)",
+          }}
         >
           Add
         </button>
@@ -186,10 +190,10 @@ export const PastSeasonImportModal = memo(() => {
 
   // Counts
   const assignedCount = Object.values(assignments).filter(
-    (v) => v && v !== "skip"
+    (v) => v && v !== "skip",
   ).length;
   const skipCount = Object.values(assignments).filter(
-    (v) => v === "skip"
+    (v) => v === "skip",
   ).length;
 
   const canCommit =
@@ -401,11 +405,18 @@ export const PastSeasonImportModal = memo(() => {
 
 /* PastSeasonForm — used inline for Add and Edit of a single past-season entry. */
 const PastSeasonForm = memo(
-  ({ initial, primaryColor, tertiaryColor, onSave, onCancel, onDelete }: any) => {
+  ({
+    initial,
+    primaryColor,
+    tertiaryColor,
+    onSave,
+    onCancel,
+    onDelete,
+  }: any) => {
     const [season, setSeason] = useState(initial?.season || "");
     const [ageGroup, setAgeGroup] = useState(initial?.ageGroup || "");
     const [pitchingFormat, setPitchingFormat] = useState(
-      initial?.pitchingFormat || "Kid Pitch"
+      initial?.pitchingFormat || "Kid Pitch",
     );
     const [stats, setStats] = useState(() => ({
       ...blankStats(),
@@ -522,7 +533,7 @@ const PastSeasonForm = memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 /* StatTrendModal — overlays the player profile when a stat is tapped.
@@ -573,7 +584,7 @@ export const PlayerProfileModal = memo(() => {
     const container = scrollContainerRef.current;
     if (!container) return undefined;
     const sections = Array.from(
-      container.querySelectorAll("[data-profile-section]")
+      container.querySelectorAll("[data-profile-section]"),
     );
     if (sections.length === 0) return undefined;
     const observer = new IntersectionObserver(
@@ -581,10 +592,7 @@ export const PlayerProfileModal = memo(() => {
         // Pick the entry closest to the top of the container that's intersecting.
         const visible = entries
           .filter((e) => e.isIntersecting)
-          .sort(
-            (a, b) =>
-              a.boundingClientRect.top - b.boundingClientRect.top
-          );
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]) {
           const id = visible[0].target.getAttribute("data-profile-section");
           if (id) setActiveSection(id);
@@ -594,7 +602,7 @@ export const PlayerProfileModal = memo(() => {
         root: container,
         rootMargin: "0px 0px -65% 0px",
         threshold: [0, 0.25, 0.5],
-      }
+      },
     );
     sections.forEach((s) => observer.observe(s));
     return () => observer.disconnect();
@@ -607,7 +615,9 @@ export const PlayerProfileModal = memo(() => {
   const [showTimeline, setShowTimeline] = useState(false);
   const [trendStatKey, setTrendStatKey] = useState<string | null>(null); // key of stat whose year-over-year chart is open
   const [addingPastSeason, setAddingPastSeason] = useState(false);
-  const [editingPastSeasonId, setEditingPastSeasonId] = useState<string | null>(null);
+  const [editingPastSeasonId, setEditingPastSeasonId] = useState<string | null>(
+    null,
+  );
 
   // Aggregate fielding history across FINAL games only (matches engine fairness logic).
   // Returns { byPosition: {P: 4, C: 2, ...}, bench, firstInningBench, totalDefensive,
@@ -636,7 +646,9 @@ export const PlayerProfileModal = memo(() => {
     const currentPlayer = (players || []).find((p: any) => p.id === pid) || {
       id: pid,
     };
-    const livePlayerIds = new Set<string>((players || []).map((p: any) => p.id));
+    const livePlayerIds = new Set<string>(
+      (players || []).map((p: any) => p.id),
+    );
     const matches = (slot: any) =>
       lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
 
@@ -703,7 +715,9 @@ export const PlayerProfileModal = memo(() => {
     const currentPlayer = (players || []).find((p: any) => p.id === pid) || {
       id: pid,
     };
-    const livePlayerIds = new Set<string>((players || []).map((p: any) => p.id));
+    const livePlayerIds = new Set<string>(
+      (players || []).map((p: any) => p.id),
+    );
     const matches = (slot: any) =>
       lineupSlotMatchesPlayer(slot, currentPlayer, livePlayerIds);
     // Same predicate as the aggregation above — see isGameFinalized().
@@ -849,7 +863,10 @@ export const PlayerProfileModal = memo(() => {
               {canEdit && (
                 <span
                   className="text-[11px] font-extrabold py-1.5 px-3 rounded-lg"
-                  style={{ backgroundColor: secondaryColor, color: primaryColor }}
+                  style={{
+                    backgroundColor: secondaryColor,
+                    color: primaryColor,
+                  }}
                 >
                   P: {player.primaryPosition || "N/A"}
                 </span>
@@ -875,14 +892,14 @@ export const PlayerProfileModal = memo(() => {
         <div className="bg-surface border-b border-line flex-shrink-0">
           <div className="flex overflow-x-auto px-6 sm:px-7 scrollbar-hide">
             {PROFILE_SECTIONS.filter(
-              (t) => canEdit || (t.id !== "general" && t.id !== "contact")
+              (t) => canEdit || (t.id !== "general" && t.id !== "contact"),
             ).map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => {
                   const el = scrollContainerRef.current?.querySelector(
-                    `[data-profile-section="${t.id}"]`
+                    `[data-profile-section="${t.id}"]`,
                   );
                   if (el) {
                     el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -914,566 +931,596 @@ export const PlayerProfileModal = memo(() => {
             className={`p-6 sm:p-7 space-y-6 ${canEdit ? "" : "hidden"}`}
           >
             <h3 className="t-h3">General Info</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Number
-                  </label>
-                  <input
-                    type="text"
-                    value={player.number || ""}
-                    onChange={(e) =>
-                      updatePlayer(player.id, { number: e.target.value })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Bats
-                  </label>
-                  <select
-                    value={player.bats || "R"}
-                    onChange={(e) =>
-                      updatePlayer(player.id, { bats: e.target.value })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
-                  >
-                    <option value="R">R</option>
-                    <option value="L">L</option>
-                    <option value="S">S</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Throws
-                  </label>
-                  <select
-                    value={player.throws || "R"}
-                    onChange={(e) =>
-                      updatePlayer(player.id, { throws: e.target.value })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
-                  >
-                    <option value="R">R</option>
-                    <option value="L">L</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Primary Pos
-                  </label>
-                  <select
-                    value={player.primaryPosition || ""}
-                    onChange={(e) =>
-                      updatePlayer(player.id, {
-                        primaryPosition: e.target.value,
-                      })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
-                  >
-                    <option value="">N/A</option>
-                    {positions.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                  {canEdit &&
-                    suggestedPrimary &&
-                    suggestedPrimary.position !== (player.primaryPosition || "") && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updatePlayer(player.id, {
-                            primaryPosition: suggestedPrimary.position,
-                          })
-                        }
-                        className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-team-primary hover:underline"
-                        title="Suggested from this player's evaluations"
-                      >
-                        <Icons.Sparkles className="w-3 h-3" />
-                        Eval suggests {suggestedPrimary.position} · Use
-                      </button>
-                    )}
-                </div>
-                <div className="col-span-2 sm:col-span-2">
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    Date of Birth
-                  </label>
-                  <input
-                    type="date"
-                    value={player.dob || ""}
-                    onChange={(e) =>
-                      updatePlayer(player.id, { dob: e.target.value })
-                    }
-                    className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
-                  />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                  Comfortable Positions
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Number
                 </label>
-                <p className="text-[11px] text-ink-3 font-medium mb-3">
-                  Tap positions you&apos;re comfortable with this player playing.
-                  Leave empty to let the engine consider them anywhere except
-                  catcher — <strong className="text-ink">C is opt-in</strong>,
-                  so a player is only ever seated at catcher when you select it
-                  here.
-                </p>
-                {/* Quick group set/clear by positional grouping — a kid who
-                    plays anywhere in a group is one tap. Toggles the group. */}
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {[
-                    { name: "Corner IF", group: ["1B", "3B"] },
-                    { name: "Middle IF", group: ["2B", "SS"] },
-                    { name: "Outfield", group: ["LF", "CF", "RF"] },
-                  ].map(({ name, group }) => {
-                    const list = canonicalizePositionList(
-                      player.comfortablePositions
-                    );
-                    const allOn = group.every((p) => list.includes(p));
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => {
-                          const next = allOn
-                            ? list.filter((p: string) => !group.includes(p))
-                            : Array.from(new Set([...list, ...group]));
-                          updatePlayer(player.id, {
-                            comfortablePositions: next,
-                          });
-                        }}
-                        className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-md border transition-all ${
-                          allOn
-                            ? "bg-win-bg border-line text-win"
-                            : "bg-surface border-line-strong text-ink hover:bg-surface-2"
-                        }`}
-                      >
-                        {allOn ? `Clear ${name}` : `All ${name}`}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
-                  {positions.map((pos) => {
-                    // Canonicalize so legacy LCF/RCF data lights up the CF chip,
-                    // and every toggle re-saves the clean canonical list.
-                    const list = canonicalizePositionList(
-                      player.comfortablePositions
-                    );
-                    const active = list.includes(pos);
-                    const isCatcher = pos === "C";
-                    return (
-                      <button
-                        key={pos}
-                        onClick={() => {
-                          const next = active
-                            ? list.filter((p: any) => p !== pos)
-                            : [...list, pos];
-                          updatePlayer(player.id, {
-                            comfortablePositions: next,
-                          });
-                        }}
-                        title={
-                          isCatcher
-                            ? "Catcher — only selected players are ever used at C"
-                            : undefined
-                        }
-                        className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
-                          active
-                            ? "bg-win-bg border-line text-win shadow-sm"
-                            : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
-                        }`}
-                      >
-                        {pos}
-                      </button>
-                    );
-                  })}
-                </div>
+                <input
+                  type="text"
+                  value={player.number || ""}
+                  onChange={(e) =>
+                    updatePlayer(player.id, { number: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
+                />
               </div>
-
-              <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
-                <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
-                  <Icons.Users className="w-4 h-4" /> Roster Status
-                </h4>
-                <p className="text-[11px] text-ink-3 font-medium mb-3 leading-snug">
-                  Use <strong className="text-ink">Departed</strong> when a player is no longer with the team before the season ends. They stay in history and reports, but stop appearing in game-day attendance.
-                </p>
+              <div>
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Bats
+                </label>
                 <select
-                  value={rosterStatusOf(player)}
-                  onChange={(e) => {
-                    const rosterStatus = e.target.value;
-                    updatePlayer(player.id, {
-                      rosterStatus,
-                      present: rosterStatus === "active",
-                    });
-                  }}
-                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
+                  value={player.bats || "R"}
+                  onChange={(e) =>
+                    updatePlayer(player.id, { bats: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
                 >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive / temporarily away</option>
-                  <option value="departed">Departed / no longer with team</option>
+                  <option value="R">R</option>
+                  <option value="L">L</option>
+                  <option value="S">S</option>
                 </select>
-                <p className="mt-2 text-[11px] text-ink-3 font-medium">
-                  {ROSTER_STATUS_COPY[rosterStatusOf(player)]?.help}
-                </p>
               </div>
-
-              <ScheduledAbsencesCard
-                player={player}
-                updatePlayer={updatePlayer}
-              />
-
-              {pitchingFormat === "Kid Pitch" && (
-                <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
-                  <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
-                    <Icons.Pitch className="w-4 h-4" /> Recent Pitching
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Pitches Last Game
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={player.pitching?.recentPitches || 0}
-                        onChange={(e) =>
-                          updatePlayerNested(player.id, "pitching", {
-                            recentPitches: parseInt(e.target.value, 10) || 0,
-                          })
-                        }
-                        className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Last Date Pitched
-                      </label>
-                      <input
-                        type="date"
-                        value={player.pitching?.lastPitchDate || ""}
-                        onChange={(e) =>
-                          updatePlayerNested(player.id, "pitching", {
-                            lastPitchDate: e.target.value,
-                          })
-                        }
-                        className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Top Fastball (mph)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="120"
-                        placeholder="—"
-                        value={player.pitching?.topMph || ""}
-                        onChange={(e) =>
-                          updatePlayerNested(player.id, "pitching", {
-                            topMph: parseInt(e.target.value, 10) || 0,
-                          })
-                        }
-                        className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
-                      />
-                      <p className="text-[10px] text-ink-3 font-medium mt-1 leading-tight">
-                        Radar reading (optional). Scored vs. your age group, so it
-                        helps the pitcher ranking.
-                      </p>
-                    </div>
-                  </div>
-                  {Array.isArray(player.pitching?.log) &&
-                    player.pitching.log.length > 0 && (
-                      <div className="mt-4">
-                        {(() => {
-                          const w = summarizePitchingWorkload(player.pitching);
-                          return (
-                            <div className="text-[11px] font-bold text-ink-2 mb-2">
-                              Season workload:{" "}
-                              <span className="tabular-nums">{w.totalPitches}</span> pitches
-                              over <span className="tabular-nums">{w.outings}</span>{" "}
-                              outing{w.outings === 1 ? "" : "s"} (high{" "}
-                              <span className="tabular-nums">{w.maxPitches}</span>)
-                            </div>
-                          );
-                        })()}
-                        <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                          Outing History
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {player.pitching.log.map((o: any, i: number) => (
-                            <span
-                              key={o.gameId || `${o.date}-${i}`}
-                              className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink tabular-nums"
-                              title={`${o.pitches} pitches`}
-                            >
-                              {formatGameDateDisplay(o.date)} · {o.pitches}P
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                </div>
-              )}
+              <div>
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Throws
+                </label>
+                <select
+                  value={player.throws || "R"}
+                  onChange={(e) =>
+                    updatePlayer(player.id, { throws: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
+                >
+                  <option value="R">R</option>
+                  <option value="L">L</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Primary Pos
+                </label>
+                <select
+                  value={player.primaryPosition || ""}
+                  onChange={(e) =>
+                    updatePlayer(player.id, {
+                      primaryPosition: e.target.value,
+                    })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-sm"
+                >
+                  <option value="">N/A</option>
+                  {positions.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                {canEdit &&
+                  suggestedPrimary &&
+                  suggestedPrimary.position !==
+                    (player.primaryPosition || "") && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updatePlayer(player.id, {
+                          primaryPosition: suggestedPrimary.position,
+                        })
+                      }
+                      className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-team-primary hover:underline"
+                      title="Suggested from this player's evaluations"
+                    >
+                      <Icons.Sparkles className="w-3 h-3" />
+                      Eval suggests {suggestedPrimary.position} · Use
+                    </button>
+                  )}
+              </div>
+              <div className="col-span-2 sm:col-span-2">
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  value={player.dob || ""}
+                  onChange={(e) =>
+                    updatePlayer(player.id, { dob: e.target.value })
+                  }
+                  className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
+                />
+              </div>
             </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                Comfortable Positions
+              </label>
+              <p className="text-[11px] text-ink-3 font-medium mb-3">
+                Tap positions you&apos;re comfortable with this player playing.
+                Leave empty to let the engine consider them anywhere except
+                catcher — <strong className="text-ink">C is opt-in</strong>, so
+                a player is only ever seated at catcher when you select it here.
+              </p>
+              {/* Quick group set/clear by positional grouping — a kid who
+                    plays anywhere in a group is one tap. Toggles the group. */}
+              <div className="flex flex-wrap gap-2 mb-2">
+                {[
+                  { name: "Corner IF", group: ["1B", "3B"] },
+                  { name: "Middle IF", group: ["2B", "SS"] },
+                  { name: "Outfield", group: ["LF", "CF", "RF"] },
+                ].map(({ name, group }) => {
+                  const list = canonicalizePositionList(
+                    player.comfortablePositions,
+                  );
+                  const allOn = group.every((p) => list.includes(p));
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => {
+                        const next = allOn
+                          ? list.filter((p: string) => !group.includes(p))
+                          : Array.from(new Set([...list, ...group]));
+                        updatePlayer(player.id, {
+                          comfortablePositions: next,
+                        });
+                      }}
+                      className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-md border transition-all ${
+                        allOn
+                          ? "bg-win-bg border-line text-win"
+                          : "bg-surface border-line-strong text-ink hover:bg-surface-2"
+                      }`}
+                    >
+                      {allOn ? `Clear ${name}` : `All ${name}`}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
+                {positions.map((pos) => {
+                  // Canonicalize so legacy LCF/RCF data lights up the CF chip,
+                  // and every toggle re-saves the clean canonical list.
+                  const list = canonicalizePositionList(
+                    player.comfortablePositions,
+                  );
+                  const active = list.includes(pos);
+                  const isCatcher = pos === "C";
+                  return (
+                    <button
+                      key={pos}
+                      onClick={() => {
+                        const next = active
+                          ? list.filter((p: any) => p !== pos)
+                          : [...list, pos];
+                        updatePlayer(player.id, {
+                          comfortablePositions: next,
+                        });
+                      }}
+                      title={
+                        isCatcher
+                          ? "Catcher — only selected players are ever used at C"
+                          : undefined
+                      }
+                      className={`p-2 text-xs font-black uppercase rounded-lg transition-all border ${
+                        active
+                          ? "bg-win-bg border-line text-win shadow-sm"
+                          : "bg-surface border-line text-ink hover:bg-surface-2 hover:border-line-strong"
+                      }`}
+                    >
+                      {pos}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+              <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
+                <Icons.Users className="w-4 h-4" /> Roster Status
+              </h4>
+              <p className="text-[11px] text-ink-3 font-medium mb-3 leading-snug">
+                Use <strong className="text-ink">Departed</strong> when a player
+                is no longer with the team before the season ends. They stay in
+                history and reports, but stop appearing in game-day attendance.
+              </p>
+              <select
+                value={rosterStatusOf(player)}
+                onChange={(e) => {
+                  const rosterStatus = e.target.value;
+                  updatePlayer(player.id, {
+                    rosterStatus,
+                    present: rosterStatus === "active",
+                  });
+                }}
+                className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive / temporarily away</option>
+                <option value="departed">Departed / no longer with team</option>
+              </select>
+              <p className="mt-2 text-[11px] text-ink-3 font-medium">
+                {ROSTER_STATUS_COPY[rosterStatusOf(player)]?.help}
+              </p>
+            </div>
+
+            <ScheduledAbsencesCard
+              player={player}
+              updatePlayer={updatePlayer}
+            />
+
+            {pitchingFormat === "Kid Pitch" && (
+              <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+                <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
+                  <Icons.Pitch className="w-4 h-4" /> Recent Pitching
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Pitches Last Game
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={player.pitching?.recentPitches || 0}
+                      onChange={(e) =>
+                        updatePlayerNested(player.id, "pitching", {
+                          recentPitches: parseInt(e.target.value, 10) || 0,
+                        })
+                      }
+                      className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Last Date Pitched
+                    </label>
+                    <input
+                      type="date"
+                      value={player.pitching?.lastPitchDate || ""}
+                      onChange={(e) =>
+                        updatePlayerNested(player.id, "pitching", {
+                          lastPitchDate: e.target.value,
+                        })
+                      }
+                      className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Top Fastball (mph)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="120"
+                      placeholder="—"
+                      value={player.pitching?.topMph || ""}
+                      onChange={(e) =>
+                        updatePlayerNested(player.id, "pitching", {
+                          topMph: parseInt(e.target.value, 10) || 0,
+                        })
+                      }
+                      className="w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-surface-2 disabled:text-ink-3 shadow-inner"
+                    />
+                    <p className="text-[10px] text-ink-3 font-medium mt-1 leading-tight">
+                      Radar reading (optional). Scored vs. your age group, so it
+                      helps the pitcher ranking.
+                    </p>
+                  </div>
+                </div>
+                {Array.isArray(player.pitching?.log) &&
+                  player.pitching.log.length > 0 && (
+                    <div className="mt-4">
+                      {(() => {
+                        const w = summarizePitchingWorkload(player.pitching);
+                        return (
+                          <div className="text-[11px] font-bold text-ink-2 mb-2">
+                            Season workload:{" "}
+                            <span className="tabular-nums">
+                              {w.totalPitches}
+                            </span>{" "}
+                            pitches over{" "}
+                            <span className="tabular-nums">{w.outings}</span>{" "}
+                            outing{w.outings === 1 ? "" : "s"} (high{" "}
+                            <span className="tabular-nums">{w.maxPitches}</span>
+                            )
+                          </div>
+                        );
+                      })()}
+                      <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                        Outing History
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {player.pitching.log.map((o: any, i: number) => (
+                          <span
+                            key={o.gameId || `${o.date}-${i}`}
+                            className="t-chip px-2 py-1 rounded-md bg-surface-2 border border-line text-ink tabular-nums"
+                            title={`${o.pitches} pitches`}
+                          >
+                            {formatGameDateDisplay(o.date)} · {o.pitches}P
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+              </div>
+            )}
+          </div>
 
           <div
             data-profile-section="report"
             className="p-6 sm:p-7 space-y-6 border-t border-line"
           >
             <h3 className="t-h3">Season Report</h3>
-              {/* Current season summary */}
-              <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
-                    <Icons.Bat className="w-4 h-4" /> {currentSeason}
-                  </h4>
+            {/* Current season summary */}
+            <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
+                  <Icons.Bat className="w-4 h-4" /> {currentSeason}
+                </h4>
+              </div>
+
+              {/* Hitting */}
+              <div className="mb-5">
+                <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                  Hitting
                 </div>
-
-                {/* Hitting */}
-                <div className="mb-5">
-                  <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                    Hitting
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {[
-                      { label: "AVG", v: formatStat(player.stats?.avg) },
-                      { label: "OBP", v: formatStat(player.stats?.obp) },
-                      { label: "OPS", v: formatStat(player.stats?.ops) },
-                      { label: "H", v: player.stats?.h || 0 },
-                      { label: "HR", v: player.stats?.hr || 0 },
-                      { label: "RBI", v: player.stats?.rbi || 0 },
-                    ].map((s) => (
-                      <div
-                        key={s.label}
-                        className="bg-app rounded-lg p-2 text-center"
-                      >
-                        <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
-                          {s.label}
-                        </div>
-                        <div className="text-sm font-black tabular-nums text-ink">
-                          {s.v}
-                        </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {[
+                    { label: "AVG", v: formatStat(player.stats?.avg) },
+                    { label: "OBP", v: formatStat(player.stats?.obp) },
+                    { label: "OPS", v: formatStat(player.stats?.ops) },
+                    { label: "H", v: player.stats?.h || 0 },
+                    { label: "HR", v: player.stats?.hr || 0 },
+                    { label: "RBI", v: player.stats?.rbi || 0 },
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      className="bg-app rounded-lg p-2 text-center"
+                    >
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                        {s.label}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Pitching (only when team is Kid Pitch) */}
-                {pitchingFormat === "Kid Pitch" && (
-                  <div className="mb-5">
-                    <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                      Pitching
-                    </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                      {[
-                        { label: "IP", v: player.stats?.ip || 0 },
-                        { label: "ERA", v: formatStat(player.stats?.era) },
-                        { label: "TP", v: player.stats?.totalPitches || 0 },
-                      ].map((s) => (
-                        <div
-                          key={s.label}
-                          className="bg-app rounded-lg p-2 text-center"
-                        >
-                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
-                            {s.label}
-                          </div>
-                          <div className="text-sm font-black tabular-nums text-ink">
-                            {s.v}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Fielding */}
-                <div>
-                  <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
-                    Fielding
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {[
-                      { label: "FPCT", v: formatStat(player.stats?.fpct) },
-                      { label: "TC", v: player.stats?.tc || 0 },
-                      { label: "PO", v: player.stats?.po || 0 },
-                      { label: "A", v: player.stats?.a || 0 },
-                    ].map((s) => (
-                      <div
-                        key={s.label}
-                        className="bg-app rounded-lg p-2 text-center"
-                      >
-                        <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
-                          {s.label}
-                        </div>
-                        <div className="text-sm font-black tabular-nums text-ink">
-                          {s.v}
-                        </div>
+                      <div className="text-sm font-black tabular-nums text-ink">
+                        {s.v}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Position innings — reused from Innings Played tab logic */}
-              {inningsBreakdown.gamesAvailable > 0 &&
-                (() => {
-                  const entries = Object.entries(
-                    inningsBreakdown.byPosition
-                  ).sort((a, b) => b[1] - a[1]);
-                  const maxCount = entries[0]?.[1] || 1;
-                  return (
-                    <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
-                      <h4 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
-                        <Icons.Glove className="w-4 h-4" /> Innings by Position
-                      </h4>
-                      {entries.length === 0 ? (
-                        <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-3">
-                          All Innings on Bench
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {entries.map(([pos, count]) => {
-                            const pct = (count / maxCount) * 100;
-                            return (
-                              <div
-                                key={pos}
-                                className="flex items-center gap-3"
-                              >
-                                <div className="w-10 text-[11px] font-black uppercase tracking-widest text-ink shrink-0">
-                                  {pos}
-                                </div>
-                                <div className="flex-1 h-5 bg-surface-2 rounded-md overflow-hidden">
-                                  <div
-                                    className="h-full rounded-md transition-all"
-                                    style={{
-                                      width: `${pct}%`,
-                                      backgroundColor: primaryColor,
-                                      opacity: 0.85,
-                                    }}
-                                  />
-                                </div>
-                                <div className="w-8 text-right text-sm font-black tabular-nums text-ink shrink-0">
-                                  {count}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-              {/* Past Seasons */}
-              <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
-                    <Icons.Clock className="w-4 h-4" /> Past Seasons
-                  </h4>
-                  {!addingPastSeason && (
-                    <button
-                      type="button"
-                      onClick={() => setAddingPastSeason(true)}
-                      className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center gap-1.5"
-                    >
-                      <Icons.Plus className="w-3.5 h-3.5" /> Add
-                    </button>
-                  )}
-                </div>
-
-                {addingPastSeason && (
-                  <PastSeasonForm
-                    primaryColor={primaryColor}
-                    tertiaryColor={tertiaryColor}
-                    onCancel={() => setAddingPastSeason(false)}
-                    onSave={(entry: any) => {
-                      addPastSeason(player.id, entry);
-                      setAddingPastSeason(false);
-                    }}
-                  />
-                )}
-
-                {(player.pastSeasons || []).length === 0 &&
-                !addingPastSeason ? (
-                  <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-4">
-                    No Past Seasons On File
+              {/* Pitching (only when team is Kid Pitch) */}
+              {pitchingFormat === "Kid Pitch" && (
+                <div className="mb-5">
+                  <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                    Pitching
                   </div>
-                ) : (
-                  <div className="space-y-2 mt-3">
-                    {(player.pastSeasons || []).map((entry: any) => {
-                      const isEditing = editingPastSeasonId === entry.id;
-                      if (isEditing) {
-                        return (
-                          <PastSeasonForm
-                            key={entry.id}
-                            initial={entry}
-                            primaryColor={primaryColor}
-                            tertiaryColor={tertiaryColor}
-                            onCancel={() => setEditingPastSeasonId(null)}
-                            onSave={(patch: any) => {
-                              updatePastSeason(player.id, entry.id, patch);
-                              setEditingPastSeasonId(null);
-                            }}
-                            onDelete={() => {
-                              removePastSeason(player.id, entry.id);
-                              setEditingPastSeasonId(null);
-                            }}
-                          />
-                        );
-                      }
-                      const showPitching = entry.pitchingFormat === "Kid Pitch";
-                      return (
-                        <div
-                          key={entry.id}
-                          className="bg-app border border-line rounded-xl p-4"
-                        >
-                          <div className="flex items-center justify-between gap-3 mb-3">
-                            <div>
-                              <div className="text-sm font-black text-ink uppercase">
-                                {entry.season}
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {[
+                      { label: "IP", v: player.stats?.ip || 0 },
+                      { label: "ERA", v: formatStat(player.stats?.era) },
+                      { label: "TP", v: player.stats?.totalPitches || 0 },
+                    ].map((s) => (
+                      <div
+                        key={s.label}
+                        className="bg-app rounded-lg p-2 text-center"
+                      >
+                        <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                          {s.label}
+                        </div>
+                        <div className="text-sm font-black tabular-nums text-ink">
+                          {s.v}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fielding */}
+              <div>
+                <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-2">
+                  Fielding
+                </div>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {[
+                    { label: "FPCT", v: formatStat(player.stats?.fpct) },
+                    { label: "TC", v: player.stats?.tc || 0 },
+                    { label: "PO", v: player.stats?.po || 0 },
+                    { label: "A", v: player.stats?.a || 0 },
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      className="bg-app rounded-lg p-2 text-center"
+                    >
+                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                        {s.label}
+                      </div>
+                      <div className="text-sm font-black tabular-nums text-ink">
+                        {s.v}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Position innings — reused from Innings Played tab logic */}
+            {inningsBreakdown.gamesAvailable > 0 &&
+              (() => {
+                const entries = Object.entries(
+                  inningsBreakdown.byPosition,
+                ).sort((a, b) => b[1] - a[1]);
+                const maxCount = entries[0]?.[1] || 1;
+                return (
+                  <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                    <h4 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
+                      <Icons.Glove className="w-4 h-4" /> Innings by Position
+                    </h4>
+                    {entries.length === 0 ? (
+                      <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-3">
+                        All Innings on Bench
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {entries.map(([pos, count]) => {
+                          const pct = (count / maxCount) * 100;
+                          return (
+                            <div key={pos} className="flex items-center gap-3">
+                              <div className="w-10 text-[11px] font-black uppercase tracking-widest text-ink shrink-0">
+                                {pos}
                               </div>
-                              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
-                                {entry.ageGroup} · {entry.pitchingFormat}
-                                {entry.record &&
-                                entry.record.wins +
-                                  entry.record.losses +
-                                  entry.record.ties >
-                                  0
-                                  ? ` · Team ${entry.record.wins}-${
-                                      entry.record.losses
-                                    }${
-                                      entry.record.ties > 0
-                                        ? "-" + entry.record.ties
-                                        : ""
-                                    }`
-                                  : ""}
+                              <div className="flex-1 h-5 bg-surface-2 rounded-md overflow-hidden">
+                                <div
+                                  className="h-full rounded-md transition-all"
+                                  style={{
+                                    width: `${pct}%`,
+                                    backgroundColor: primaryColor,
+                                    opacity: 0.85,
+                                  }}
+                                />
+                              </div>
+                              <div className="w-8 text-right text-sm font-black tabular-nums text-ink shrink-0">
+                                {count}
                               </div>
                             </div>
-                            
-                              <button
-                                type="button"
-                                onClick={() => setEditingPastSeasonId(entry.id)}
-                                className="p-2 text-ink-3 hover:text-team-primary hover:bg-surface-2 rounded-lg transition-colors"
-                              >
-                                <Icons.Edit className="w-4 h-4" />
-                              </button>
-                            
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+            {/* Past Seasons */}
+            <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
+                  <Icons.Clock className="w-4 h-4" /> Past Seasons
+                </h4>
+                {!addingPastSeason && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingPastSeason(true)}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-surface border border-line text-ink hover:bg-surface-2 transition-colors shadow-sm flex items-center gap-1.5"
+                  >
+                    <Icons.Plus className="w-3.5 h-3.5" /> Add
+                  </button>
+                )}
+              </div>
+
+              {addingPastSeason && (
+                <PastSeasonForm
+                  primaryColor={primaryColor}
+                  tertiaryColor={tertiaryColor}
+                  onCancel={() => setAddingPastSeason(false)}
+                  onSave={(entry: any) => {
+                    addPastSeason(player.id, entry);
+                    setAddingPastSeason(false);
+                  }}
+                />
+              )}
+
+              {(player.pastSeasons || []).length === 0 && !addingPastSeason ? (
+                <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-4">
+                  No Past Seasons On File
+                </div>
+              ) : (
+                <div className="space-y-2 mt-3">
+                  {(player.pastSeasons || []).map((entry: any) => {
+                    const isEditing = editingPastSeasonId === entry.id;
+                    if (isEditing) {
+                      return (
+                        <PastSeasonForm
+                          key={entry.id}
+                          initial={entry}
+                          primaryColor={primaryColor}
+                          tertiaryColor={tertiaryColor}
+                          onCancel={() => setEditingPastSeasonId(null)}
+                          onSave={(patch: any) => {
+                            updatePastSeason(player.id, entry.id, patch);
+                            setEditingPastSeasonId(null);
+                          }}
+                          onDelete={() => {
+                            removePastSeason(player.id, entry.id);
+                            setEditingPastSeasonId(null);
+                          }}
+                        />
+                      );
+                    }
+                    const showPitching = entry.pitchingFormat === "Kid Pitch";
+                    return (
+                      <div
+                        key={entry.id}
+                        className="bg-app border border-line rounded-xl p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div>
+                            <div className="text-sm font-black text-ink uppercase">
+                              {entry.season}
+                            </div>
+                            <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
+                              {entry.ageGroup} · {entry.pitchingFormat}
+                              {entry.record &&
+                              entry.record.wins +
+                                entry.record.losses +
+                                entry.record.ties >
+                                0
+                                ? ` · Team ${entry.record.wins}-${
+                                    entry.record.losses
+                                  }${
+                                    entry.record.ties > 0
+                                      ? "-" + entry.record.ties
+                                      : ""
+                                  }`
+                                : ""}
+                            </div>
                           </div>
-                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+
+                          <button
+                            type="button"
+                            onClick={() => setEditingPastSeasonId(entry.id)}
+                            className="p-2 text-ink-3 hover:text-team-primary hover:bg-surface-2 rounded-lg transition-colors"
+                          >
+                            <Icons.Edit className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                          {[
+                            { label: "AVG", v: formatStat(entry.stats?.avg) },
+                            { label: "OBP", v: formatStat(entry.stats?.obp) },
+                            { label: "OPS", v: formatStat(entry.stats?.ops) },
+                            { label: "H", v: entry.stats?.h || 0 },
+                            { label: "HR", v: entry.stats?.hr || 0 },
+                            { label: "RBI", v: entry.stats?.rbi || 0 },
+                          ].map((s) => (
+                            <div
+                              key={s.label}
+                              className="bg-surface rounded-lg p-2 text-center border border-line"
+                            >
+                              <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
+                                {s.label}
+                              </div>
+                              <div className="text-sm font-black tabular-nums text-ink">
+                                {s.v}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {showPitching &&
+                        (entry.stats?.ip ||
+                          entry.stats?.era ||
+                          entry.stats?.totalPitches) ? (
+                          <div className="grid grid-cols-3 gap-2 mt-2">
                             {[
-                              { label: "AVG", v: formatStat(entry.stats?.avg) },
-                              { label: "OBP", v: formatStat(entry.stats?.obp) },
-                              { label: "OPS", v: formatStat(entry.stats?.ops) },
-                              { label: "H", v: entry.stats?.h || 0 },
-                              { label: "HR", v: entry.stats?.hr || 0 },
-                              { label: "RBI", v: entry.stats?.rbi || 0 },
+                              { label: "IP", v: entry.stats?.ip || 0 },
+                              {
+                                label: "ERA",
+                                v: formatStat(entry.stats?.era),
+                              },
+                              {
+                                label: "TP",
+                                v: entry.stats?.totalPitches || 0,
+                              },
                             ].map((s) => (
                               <div
                                 key={s.label}
@@ -1488,310 +1535,278 @@ export const PlayerProfileModal = memo(() => {
                               </div>
                             ))}
                           </div>
-                          {showPitching &&
-                          (entry.stats?.ip ||
-                            entry.stats?.era ||
-                            entry.stats?.totalPitches) ? (
-                            <div className="grid grid-cols-3 gap-2 mt-2">
-                              {[
-                                { label: "IP", v: entry.stats?.ip || 0 },
-                                {
-                                  label: "ERA",
-                                  v: formatStat(entry.stats?.era),
-                                },
-                                {
-                                  label: "TP",
-                                  v: entry.stats?.totalPitches || 0,
-                                },
-                              ].map((s) => (
-                                <div
-                                  key={s.label}
-                                  className="bg-surface rounded-lg p-2 text-center border border-line"
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Game-by-game timeline (collapsed by default) */}
+            <div className="bg-surface border border-line rounded-xl shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowTimeline((s) => !s)}
+                className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface-2 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Icons.Calendar className="w-4 h-4 text-ink" />
+                  <span className="font-black text-[11px] uppercase tracking-widest text-ink">
+                    Game by Game
+                  </span>
+                  <span className="text-[10px] font-bold text-ink-3">
+                    ({timeline.length})
+                  </span>
+                </div>
+                {showTimeline ? (
+                  <Icons.ChevronUp className="w-4 h-4 text-ink-3" />
+                ) : (
+                  <Icons.ChevronDown className="w-4 h-4 text-ink-3" />
+                )}
+              </button>
+              {showTimeline &&
+                (timeline.length === 0 ? (
+                  <div className="px-5 pb-5 text-xs font-bold text-ink-3 uppercase tracking-widest text-center">
+                    No Final Games On File
+                  </div>
+                ) : (
+                  <div className="border-t border-line divide-y divide-line max-h-72 overflow-y-auto custom-scrollbar">
+                    {timeline.map((g) => {
+                      const positions = Object.entries(
+                        (g.positions || {}) as Record<string, number>,
+                      )
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([p, c]) => `${p}×${c}`)
+                        .join(" ");
+                      return (
+                        <div
+                          key={g.id}
+                          className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-surface-2 transition-colors"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-xs font-black text-ink uppercase truncate">
+                                vs. {g.opponent}
+                              </span>
+                              {g.result && (
+                                <span
+                                  className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded tabular-nums border border-line ${
+                                    g.result === "W"
+                                      ? "bg-win-bg text-win"
+                                      : g.result === "L"
+                                        ? "bg-loss-bg text-loss"
+                                        : "bg-warn-bg text-warnfg"
+                                  }`}
                                 >
-                                  <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest">
-                                    {s.label}
-                                  </div>
-                                  <div className="text-sm font-black tabular-nums text-ink">
-                                    {s.v}
-                                  </div>
-                                </div>
-                              ))}
+                                  {g.result} {g.score}
+                                </span>
+                              )}
                             </div>
-                          ) : null}
+                            <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
+                              {formatGameDateDisplay(g.date)}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-[10px] font-bold text-ink tabular-nums">
+                              {positions || "Bench"}
+                            </div>
+                            <div className="text-[9px] font-bold text-ink-3 uppercase tracking-widest">
+                              {g.batOrder ? `Bat ${g.batOrder} · ` : ""}
+                              {g.benchInnings} bench
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                )}
-              </div>
-
-              {/* Game-by-game timeline (collapsed by default) */}
-              <div className="bg-surface border border-line rounded-xl shadow-sm overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowTimeline((s) => !s)}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface-2 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <Icons.Calendar className="w-4 h-4 text-ink" />
-                    <span className="font-black text-[11px] uppercase tracking-widest text-ink">
-                      Game by Game
-                    </span>
-                    <span className="text-[10px] font-bold text-ink-3">
-                      ({timeline.length})
-                    </span>
-                  </div>
-                  {showTimeline ? (
-                    <Icons.ChevronUp className="w-4 h-4 text-ink-3" />
-                  ) : (
-                    <Icons.ChevronDown className="w-4 h-4 text-ink-3" />
-                  )}
-                </button>
-                {showTimeline &&
-                  (timeline.length === 0 ? (
-                    <div className="px-5 pb-5 text-xs font-bold text-ink-3 uppercase tracking-widest text-center">
-                      No Final Games On File
-                    </div>
-                  ) : (
-                    <div className="border-t border-line divide-y divide-line max-h-72 overflow-y-auto custom-scrollbar">
-                      {timeline.map((g) => {
-                        const positions = Object.entries(
-                          (g.positions || {}) as Record<string, number>
-                        )
-                          .sort((a, b) => b[1] - a[1])
-                          .map(([p, c]) => `${p}×${c}`)
-                          .join(" ");
-                        return (
-                          <div
-                            key={g.id}
-                            className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-surface-2 transition-colors"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-xs font-black text-ink uppercase truncate">
-                                  vs. {g.opponent}
-                                </span>
-                                {g.result && (
-                                  <span
-                                    className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded tabular-nums border border-line ${
-                                      g.result === "W"
-                                        ? "bg-win-bg text-win"
-                                        : g.result === "L"
-                                        ? "bg-loss-bg text-loss"
-                                        : "bg-warn-bg text-warnfg"
-                                    }`}
-                                  >
-                                    {g.result} {g.score}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
-                                {formatGameDateDisplay(g.date)}
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <div className="text-[10px] font-bold text-ink tabular-nums">
-                                {positions || "Bench"}
-                              </div>
-                              <div className="text-[9px] font-bold text-ink-3 uppercase tracking-widest">
-                                {g.batOrder ? `Bat ${g.batOrder} · ` : ""}
-                                {g.benchInnings} bench
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-              </div>
+                ))}
             </div>
+          </div>
 
           <div
             data-profile-section="stats"
             className="p-6 sm:p-7 space-y-6 border-t border-line"
           >
             <h3 className="t-h3">Season Stats</h3>
-              <div className="flex items-center justify-between">
-                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
-                  <Icons.Bat className="w-4 h-4" /> Season Statistics
-                </h4>
-                <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
-                  Tap a stat for trend
-                </span>
-              </div>
+            <div className="flex items-center justify-between">
+              <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
+                <Icons.Bat className="w-4 h-4" /> Season Statistics
+              </h4>
+              <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
+                Tap a stat for trend
+              </span>
+            </div>
 
-              {["hitting", "pitching", "fielding"].map((category) => {
-                // Skip pitching section if team isn't running Kid Pitch
-                if (category === "pitching" && pitchingFormat !== "Kid Pitch")
-                  return null;
-                const keys = STATS_TAB_KEYS.filter(
-                  (k) => STAT_META[k]?.category === category
-                );
-                if (keys.length === 0) return null;
-                return (
-                  <div
-                    key={category}
-                    className="bg-surface border border-line rounded-xl p-5 shadow-sm"
-                  >
-                    <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-3 capitalize">
-                      {category}
-                    </h5>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-                      {keys.map((key) => {
-                        const value = player.stats?.[key];
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => setTrendStatKey(key)}
-                            className="group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
-                          >
-                            <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
-                              {STAT_META[key].label}
-                            </div>
-                            <div className="text-sm font-black tabular-nums text-ink group-hover:text-team-primary">
-                              {formatStatValue(key, value)}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
+            {["hitting", "pitching", "fielding"].map((category) => {
+              // Skip pitching section if team isn't running Kid Pitch
+              if (category === "pitching" && pitchingFormat !== "Kid Pitch")
+                return null;
+              const keys = STATS_TAB_KEYS.filter(
+                (k) => STAT_META[k]?.category === category,
+              );
+              if (keys.length === 0) return null;
+              return (
+                <div
+                  key={category}
+                  className="bg-surface border border-line rounded-xl p-5 shadow-sm"
+                >
+                  <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-3 capitalize">
+                    {category}
+                  </h5>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {keys.map((key) => {
+                      const value = player.stats?.[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setTrendStatKey(key)}
+                          className="group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
+                        >
+                          <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
+                            {STAT_META[key].label}
+                          </div>
+                          <div className="text-sm font-black tabular-nums text-ink group-hover:text-team-primary">
+                            {formatStatValue(key, value)}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
 
-              {/* Recent Movement — compact per-stat trend across the last
+            {/* Recent Movement — compact per-stat trend across the last
                   few CSV snapshots (or, for per-game importers with no
                   snapshots, the cumulative line after each imported game).
                   Each cell shows current value, net delta, and a tiny
                   inline sparkline. No per-import row; coaches who want the
                   per-snapshot trail can open the per-stat trend modal from
                   the Stats grid above. */}
-              <React.Suspense fallback={null}>
-                <RecentMovementPanel
-                  player={player}
-                  games={games}
-                  teamAverages={teamAverages}
-                />
-              </React.Suspense>
-            </div>
+            <React.Suspense fallback={null}>
+              <RecentMovementPanel
+                player={player}
+                games={games}
+                teamAverages={teamAverages}
+              />
+            </React.Suspense>
+          </div>
 
           <div
             data-profile-section="innings"
             className="p-6 sm:p-7 space-y-6 border-t border-line"
           >
             <h3 className="t-h3">Innings Played</h3>
-              <div className="flex items-center justify-between">
-                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
-                  <Icons.Glove className="w-4 h-4" /> Defensive Innings
-                </h4>
-                <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
-                  From Final games only
-                </span>
-              </div>
+            <div className="flex items-center justify-between">
+              <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
+                <Icons.Glove className="w-4 h-4" /> Defensive Innings
+              </h4>
+              <span className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
+                From Final games only
+              </span>
+            </div>
 
-              {inningsBreakdown.gamesAvailable === 0 ? (
-                <div className="bg-surface border border-line rounded-xl p-8 text-center shadow-sm">
-                  <Icons.Calendar className="w-10 h-10 text-ink-3 mx-auto mb-3" />
-                  <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
-                    No Game History Yet
-                  </p>
-                  <p className="text-xs text-ink-3 font-medium">
-                    Mark games as Final on the Schedule tab to start tracking
-                    innings here.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Games Played
-                      </div>
-                      <div className="text-2xl font-black text-ink tabular-nums">
-                        {inningsBreakdown.gamesPlayed}
-                        <span className="text-sm text-ink-3 font-bold">
-                          /{inningsBreakdown.gamesAvailable}
-                        </span>
-                      </div>
+            {inningsBreakdown.gamesAvailable === 0 ? (
+              <div className="bg-surface border border-line rounded-xl p-8 text-center shadow-sm">
+                <Icons.Calendar className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+                <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
+                  No Game History Yet
+                </p>
+                <p className="text-xs text-ink-3 font-medium">
+                  Mark games as Final on the Schedule tab to start tracking
+                  innings here.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                    <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Games Played
                     </div>
-                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Defensive Inn.
-                      </div>
-                      <div className="text-2xl font-black text-ink tabular-nums">
-                        {inningsBreakdown.totalDefensive}
-                      </div>
-                    </div>
-                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        Bench Inn.
-                      </div>
-                      <div className="text-2xl font-black text-ink tabular-nums">
-                        {inningsBreakdown.bench}
-                      </div>
-                    </div>
-                    <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
-                      <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                        1st Inn. Bench
-                      </div>
-                      <div className="text-2xl font-black text-ink tabular-nums">
-                        {inningsBreakdown.firstInningBench}
-                      </div>
+                    <div className="text-2xl font-black text-ink tabular-nums">
+                      {inningsBreakdown.gamesPlayed}
+                      <span className="text-sm text-ink-3 font-bold">
+                        /{inningsBreakdown.gamesAvailable}
+                      </span>
                     </div>
                   </div>
+                  <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                    <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Defensive Inn.
+                    </div>
+                    <div className="text-2xl font-black text-ink tabular-nums">
+                      {inningsBreakdown.totalDefensive}
+                    </div>
+                  </div>
+                  <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                    <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      Bench Inn.
+                    </div>
+                    <div className="text-2xl font-black text-ink tabular-nums">
+                      {inningsBreakdown.bench}
+                    </div>
+                  </div>
+                  <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                    <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                      1st Inn. Bench
+                    </div>
+                    <div className="text-2xl font-black text-ink tabular-nums">
+                      {inningsBreakdown.firstInningBench}
+                    </div>
+                  </div>
+                </div>
 
-                  <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
-                    <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4">
-                      By Position
-                    </h5>
-                    {(() => {
-                      const entries = Object.entries(
-                        inningsBreakdown.byPosition
-                      ).sort((a, b) => b[1] - a[1]);
-                      if (entries.length === 0) {
-                        return (
-                          <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-4">
-                            All Innings on Bench
-                          </div>
-                        );
-                      }
-                      const maxCount = entries[0][1];
+                <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                  <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4">
+                    By Position
+                  </h5>
+                  {(() => {
+                    const entries = Object.entries(
+                      inningsBreakdown.byPosition,
+                    ).sort((a, b) => b[1] - a[1]);
+                    if (entries.length === 0) {
                       return (
-                        <div className="space-y-2.5">
-                          {entries.map(([pos, count]) => {
-                            const pct = (count / maxCount) * 100;
-                            return (
-                              <div
-                                key={pos}
-                                className="flex items-center gap-3"
-                              >
-                                <div className="w-10 text-[11px] font-black uppercase tracking-widest text-ink shrink-0">
-                                  {pos}
-                                </div>
-                                <div className="flex-1 h-6 bg-surface-2 rounded-md overflow-hidden relative">
-                                  <div
-                                    className="h-full rounded-md transition-all"
-                                    style={{
-                                      width: `${pct}%`,
-                                      backgroundColor: primaryColor,
-                                      opacity: 0.85,
-                                    }}
-                                  />
-                                </div>
-                                <div className="w-10 text-right text-sm font-black tabular-nums text-ink shrink-0">
-                                  {count}
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <div className="text-xs font-bold text-ink-3 uppercase tracking-widest text-center py-4">
+                          All Innings on Bench
                         </div>
                       );
-                    })()}
-                  </div>
-                </>
-              )}
-            </div>
+                    }
+                    const maxCount = entries[0][1];
+                    return (
+                      <div className="space-y-2.5">
+                        {entries.map(([pos, count]) => {
+                          const pct = (count / maxCount) * 100;
+                          return (
+                            <div key={pos} className="flex items-center gap-3">
+                              <div className="w-10 text-[11px] font-black uppercase tracking-widest text-ink shrink-0">
+                                {pos}
+                              </div>
+                              <div className="flex-1 h-6 bg-surface-2 rounded-md overflow-hidden relative">
+                                <div
+                                  className="h-full rounded-md transition-all"
+                                  style={{
+                                    width: `${pct}%`,
+                                    backgroundColor: primaryColor,
+                                    opacity: 0.85,
+                                  }}
+                                />
+                              </div>
+                              <div className="w-10 text-right text-sm font-black tabular-nums text-ink shrink-0">
+                                {count}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            )}
+          </div>
 
           <div
             data-profile-section="contact"
@@ -1800,83 +1815,84 @@ export const PlayerProfileModal = memo(() => {
             }`}
           >
             <h3 className="t-h3">Contact</h3>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
-                  <Icons.User className="w-4 h-4" /> Family Contact
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowReturningOffer(true)}
-                    className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
-                  >
-                    <Icons.FileText className="w-3.5 h-3.5" /> Returning Offer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingContact(!editingContact)}
-                    className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
-                  >
-                    {editingContact ? "Done" : "Edit"}
-                  </button>
-                </div>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+              <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2">
+                <Icons.User className="w-4 h-4" /> Family Contact
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReturningOffer(true)}
+                  className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                >
+                  <Icons.FileText className="w-3.5 h-3.5" /> Returning Offer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingContact(!editingContact)}
+                  className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
+                >
+                  {editingContact ? "Done" : "Edit"}
+                </button>
               </div>
-              {[
-                { key: "parentName", label: "Parent / Guardian Name" },
-                { key: "phone", label: "Phone Number" },
-                { key: "email", label: "Email Address" },
-              ].map(({ key, label }) => (
-                <div key={key}>
-                  <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                    {label}
-                  </label>
-                  <input
-                    type="text"
-                    value={player[key] || ""}
-                    disabled={!editingContact}
-                    onChange={(e) =>
-                      updatePlayer(player.id, { [key]: e.target.value })
-                    }
-                    className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
-                  />
-                </div>
-              ))}
             </div>
+            {[
+              { key: "parentName", label: "Parent / Guardian Name" },
+              { key: "phone", label: "Phone Number" },
+              { key: "email", label: "Email Address" },
+            ].map(({ key, label }) => (
+              <div key={key}>
+                <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                  {label}
+                </label>
+                <input
+                  type="text"
+                  value={player[key] || ""}
+                  disabled={!editingContact}
+                  onChange={(e) =>
+                    updatePlayer(player.id, { [key]: e.target.value })
+                  }
+                  className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold disabled:bg-app disabled:text-ink-3 shadow-inner"
+                />
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
-          
-            <button
-              onClick={() =>
-                updatePlayer(player.id, {
-                  present: rosterStatusOf(player) !== "active",
-                  rosterStatus: rosterStatusOf(player) === "active" ? "inactive" : "active",
-                })
-              }
-              className={`text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line ${
-                rosterStatusOf(player) !== "active"
-                  ? "bg-win-bg hover:opacity-90 text-win"
-                  : "bg-warn-bg hover:opacity-90 text-warnfg"
-              }`}
-            >
-              {rosterStatusOf(player) !== "active" ? "MARK ACTIVE" : "MARK INACTIVE"}
-            </button>
-            <button
-              onClick={() => setShowReport(true)}
-              className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"
-            >
-              <Icons.FileText className="w-3.5 h-3.5" /> Report
-            </button>
-          
+          <button
+            onClick={() =>
+              updatePlayer(player.id, {
+                present: rosterStatusOf(player) !== "active",
+                rosterStatus:
+                  rosterStatusOf(player) === "active" ? "inactive" : "active",
+              })
+            }
+            className={`text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line ${
+              rosterStatusOf(player) !== "active"
+                ? "bg-win-bg hover:opacity-90 text-win"
+                : "bg-warn-bg hover:opacity-90 text-warnfg"
+            }`}
+          >
+            {rosterStatusOf(player) !== "active"
+              ? "MARK ACTIVE"
+              : "MARK INACTIVE"}
+          </button>
+          <button
+            onClick={() => setShowReport(true)}
+            className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"
+          >
+            <Icons.FileText className="w-3.5 h-3.5" /> Report
+          </button>
+
           <div className="flex gap-3 ml-auto">
-            
-              <button
-                onClick={() => removePlayer(player.id)}
-                className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line text-loss hover:opacity-90 px-4 py-2.5 rounded-xl shadow-sm transition-opacity flex items-center gap-2"
-              >
-                <Icons.Trash className="w-3.5 h-3.5" /> Delete
-              </button>
-            
+            <button
+              onClick={() => removePlayer(player.id)}
+              className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line text-loss hover:opacity-90 px-4 py-2.5 rounded-xl shadow-sm transition-opacity flex items-center gap-2"
+            >
+              <Icons.Trash className="w-3.5 h-3.5" /> Delete
+            </button>
+
             <button
               onClick={close}
               className="text-[10px] font-black uppercase tracking-widest text-white px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"

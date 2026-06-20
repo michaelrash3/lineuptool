@@ -55,6 +55,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Prettier is the pinned formatter (docs/CONTRIBUTING.md). --check fails
+      # the build on any unformatted file so style stays uniform without manual
+      # nitpicking; run `npm run format` locally to fix.
+      - name: Format check
+        run: npm run format:check
+
       # --bail=1 stops at the first failing test so a broken run goes red fast
       # (auto-merge gates on this job; no value in grinding through 800 more
       # tests once one has failed). Local `npm test` stays full-run for debugging.

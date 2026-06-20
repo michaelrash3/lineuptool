@@ -25,7 +25,7 @@ describe("buildPreseasonSeedRound", () => {
       endingEvents,
       [{ id: "p1" }],
       [],
-      meta
+      meta,
     );
     expect(round).not.toBeNull();
     expect(round.grades.p1).toEqual({ hitting: 5, fielding: 4 });
@@ -40,9 +40,18 @@ describe("buildPreseasonSeedRound", () => {
         id: "tryout-2026-06-18",
         date: "2026-06-18",
         gradesByEvaluator: {
-          head: { coachRole: "Head", grades: { s9: { hitting: 5, fielding: 3 } } },
-          a1: { coachRole: "Assistant", grades: { s9: { hitting: 3, fielding: 5 } } },
-          a2: { coachRole: "Assistant", grades: { s9: { hitting: 1, fielding: 3 } } },
+          head: {
+            coachRole: "Head",
+            grades: { s9: { hitting: 5, fielding: 3 } },
+          },
+          a1: {
+            coachRole: "Assistant",
+            grades: { s9: { hitting: 3, fielding: 5 } },
+          },
+          a2: {
+            coachRole: "Assistant",
+            grades: { s9: { hitting: 1, fielding: 3 } },
+          },
         },
       },
     ];
@@ -50,21 +59,35 @@ describe("buildPreseasonSeedRound", () => {
       [],
       [],
       [{ id: "pNew", tryoutSignupId: "s9" }],
-      { ...meta, tryoutSessions }
+      { ...meta, tryoutSessions },
     );
     expect(round.grades.pNew).toEqual({ hitting: 4, fielding: 4 });
   });
 
   it("can migrate legacy per-signup tryout evals into the preseason seed", () => {
     const endingEvents = [
-      { id: "t-asst", date: "2026-06-18", tryoutSignupId: "s9", evaluatorId: "a1", coachRole: "Assistant", grades: { signup: { hitting: 3 } } },
-      { id: "t-head", date: "2026-06-18", tryoutSignupId: "s9", evaluatorId: "h1", coachRole: "Head", grades: { signup: { hitting: 5 } } },
+      {
+        id: "t-asst",
+        date: "2026-06-18",
+        tryoutSignupId: "s9",
+        evaluatorId: "a1",
+        coachRole: "Assistant",
+        grades: { signup: { hitting: 3 } },
+      },
+      {
+        id: "t-head",
+        date: "2026-06-18",
+        tryoutSignupId: "s9",
+        evaluatorId: "h1",
+        coachRole: "Head",
+        grades: { signup: { hitting: 5 } },
+      },
     ];
     const round = buildPreseasonSeedRound(
       endingEvents,
       [],
       [{ id: "pNew", tryoutSignupId: "s9" }],
-      meta
+      meta,
     );
     expect(round.grades.pNew).toEqual({ hitting: 4 });
   });
@@ -77,8 +100,8 @@ describe("buildPreseasonSeedRound", () => {
         [{ id: "r1", grades: { other: { x: 1 } } }],
         [{ id: "p1" }],
         [{ id: "pNew", tryoutSignupId: "missing" }],
-        meta
-      )
+        meta,
+      ),
     ).toBeNull();
   });
 
@@ -92,7 +115,12 @@ describe("buildPreseasonSeedRound", () => {
       },
     ];
     // p1 here is a returning player id; the tryout round must NOT leak in.
-    const round = buildPreseasonSeedRound(endingEvents, [{ id: "p1" }], [], meta);
+    const round = buildPreseasonSeedRound(
+      endingEvents,
+      [{ id: "p1" }],
+      [],
+      meta,
+    );
     expect(round).toBeNull();
   });
 });

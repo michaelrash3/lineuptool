@@ -22,11 +22,18 @@ import {
 // nothing to fall back to.
 interface WelcomeChooserProps {
   open: boolean;
-  onCreate?: (name: string, leagueRuleSet?: "NKB" | "USSSA") => Promise<any> | any;
+  onCreate?: (
+    name: string,
+    leagueRuleSet?: "NKB" | "USSSA",
+  ) => Promise<any> | any;
   onJoin?: (code: string) => Promise<any> | any;
 }
 
-export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) => {
+export const WelcomeChooser = ({
+  open,
+  onCreate,
+  onJoin,
+}: WelcomeChooserProps) => {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
@@ -76,7 +83,7 @@ export const WelcomeChooser = ({ open, onCreate, onJoin }: WelcomeChooserProps) 
         setError(
           result?.retryable
             ? "We couldn't join that team. Check the code or your connection and try again."
-            : "Code not recognized. Double-check the 6 characters from your head coach."
+            : "Code not recognized. Double-check the 6 characters from your head coach.",
         );
       }
     } finally {

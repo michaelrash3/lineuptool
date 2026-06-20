@@ -12,23 +12,23 @@ The canonical team document. Every screen reads and writes through this single d
 
 Key fields:
 
-| Field | Type | Purpose |
-|---|---|---|
-| `name` | string | Display name |
-| `ownerId` | string (uid) | Head coach who created the team |
-| `members` | string[] | Sign-in uids permitted to read/write |
-| `coachRoles` | `{ [uid]: "head" \| "assistant" }` | Role assignments |
-| `joinCode` | string (6 chars, `[A-HJ-NP-Z2-9]`) | Self-join code |
-| `primaryColor` / `secondaryColor` / `tertiaryColor` | `#rrggbb` | User-customizable team palette (Settings → Team Colors). The active team's triplet is pushed to CSS custom properties at runtime, so every `--team-primary` consumer updates reactively. |
-| `logoUrl` | string | Team logo (data URL or Storage URL) |
-| `teamAge`, `leagueRuleSet`, `defenseSize`, `pitchingFormat` | enums | Engine inputs |
-| `players` | object[] | Roster — each entry carries `stats`, `pitching`, `comfortablePositions`, `restrictions`, `photoUrl`, `playerStatus` |
-| `games` | object[] | Schedule + lineups + final box scores. Slimmed before persistence (see `slimGame` in `src/utils/helpers.ts`) so embedded player objects don't push the doc near the 1 MB cap. |
-| `evaluationEvents` | object[] | Eval rounds, schema-versioned (see migration ladder below) |
-| `evalSchemaVersion` | number | Bumped when the schema changes; clients migrate on read |
-| `tryoutsOpen`, `tryoutsPhase`, `tryoutSignups`, `tryoutShareIds` | tryouts state | Drive the public portal |
-| `pastSeasons` | object[] | Stat history surviving `advanceSeason` |
-| `lineupTemplates` | object[] | Saved presets |
+| Field                                                            | Type                               | Purpose                                                                                                                                                                                  |
+| ---------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`                                                           | string                             | Display name                                                                                                                                                                             |
+| `ownerId`                                                        | string (uid)                       | Head coach who created the team                                                                                                                                                          |
+| `members`                                                        | string[]                           | Sign-in uids permitted to read/write                                                                                                                                                     |
+| `coachRoles`                                                     | `{ [uid]: "head" \| "assistant" }` | Role assignments                                                                                                                                                                         |
+| `joinCode`                                                       | string (6 chars, `[A-HJ-NP-Z2-9]`) | Self-join code                                                                                                                                                                           |
+| `primaryColor` / `secondaryColor` / `tertiaryColor`              | `#rrggbb`                          | User-customizable team palette (Settings → Team Colors). The active team's triplet is pushed to CSS custom properties at runtime, so every `--team-primary` consumer updates reactively. |
+| `logoUrl`                                                        | string                             | Team logo (data URL or Storage URL)                                                                                                                                                      |
+| `teamAge`, `leagueRuleSet`, `defenseSize`, `pitchingFormat`      | enums                              | Engine inputs                                                                                                                                                                            |
+| `players`                                                        | object[]                           | Roster — each entry carries `stats`, `pitching`, `comfortablePositions`, `restrictions`, `photoUrl`, `playerStatus`                                                                      |
+| `games`                                                          | object[]                           | Schedule + lineups + final box scores. Slimmed before persistence (see `slimGame` in `src/utils/helpers.ts`) so embedded player objects don't push the doc near the 1 MB cap.            |
+| `evaluationEvents`                                               | object[]                           | Eval rounds, schema-versioned (see migration ladder below)                                                                                                                               |
+| `evalSchemaVersion`                                              | number                             | Bumped when the schema changes; clients migrate on read                                                                                                                                  |
+| `tryoutsOpen`, `tryoutsPhase`, `tryoutSignups`, `tryoutShareIds` | tryouts state                      | Drive the public portal                                                                                                                                                                  |
+| `pastSeasons`                                                    | object[]                           | Stat history surviving `advanceSeason`                                                                                                                                                   |
+| `lineupTemplates`                                                | object[]                           | Saved presets                                                                                                                                                                            |
 
 ### `artifacts/{appId}/users/{uid}/settings/teams`
 
@@ -42,7 +42,7 @@ Per-user selector document: which teams this user belongs to and which one is ac
 
 A **sanitized public mirror** of the team, maintained by the coach client. The
 Tryouts Portal is an anonymous-auth surface, but Firestore rules grant read
-access per *document*, not per field — so letting the portal read the full team
+access per _document_, not per field — so letting the portal read the full team
 doc would expose evaluations, other families' contact info, member UIDs, and the
 join code. Instead the portal reads this mirror, which carries only branding +
 tryout config. The projection (the allowlist) is `buildPublicMirror` in
@@ -155,7 +155,7 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 1. **Owner/member**: full read/write (`allow read, write: if isMember(resource.data)`)
 2. **Bootstrap**: `allow create` when `ownerId` matches the caller — used by `createTeam` and the `bootstrapDefaultTeam` fallback
 3. **Join by code**: `allow update` when only `members` + `coachRoles` change and the team has a `joinCode` — used by `joinTeamByCode` in `src/hooks/useInviteFlows.ts`
-4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public *read* of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
+4. **Public tryouts**: `allow update` when only `tryoutSignups` changes and `tryoutsOpen == true` (and a sibling lane for `interestSignups`) — used by `TryoutsPortal.tsx` (anonymous-auth). There is deliberately **no** public _read_ of the team doc; the portal reads branding/config from the `teamPublic` mirror instead. The mirror has its own match block: `allow read` for any signed-in caller, `allow write` only for a member of the underlying team (verified via a `get()` on the real team doc).
 
 User settings docs are uid-scoped: `allow read, write: if request.auth.uid == uid`.
 
@@ -163,10 +163,10 @@ User settings docs are uid-scoped: `allow read, write: if request.auth.uid == ui
 
 The evaluation system has migrated three times. The migration runs on read in the active-team subscription (`App.tsx` around line 471):
 
-| From | To | Behavior |
-|---|---|---|
-| v1 (6-category) | v3 | Rounds are wiped — no clean mapping |
-| v2 (1–10, 11 categories) | v3 (1–5, 11 categories) | Halve every numeric grade, preserve notes |
+| From                             | To                                                     | Behavior                                                                                       |
+| -------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| v1 (6-category)                  | v3                                                     | Rounds are wiped — no clean mapping                                                            |
+| v2 (1–10, 11 categories)         | v3 (1–5, 11 categories)                                | Halve every numeric grade, preserve notes                                                      |
 | v3 (position via `restrictions`) | v4 (position via `comfortablePositions` + `isCatcher`) | Flip negative → positive model; engine still consults `restrictions` as a one-release fallback |
 
 `EVAL_SCHEMA_VERSION` lives in `src/constants/ui.ts`. After migration the new shape is written back to Firestore so subsequent reads skip the upgrade.

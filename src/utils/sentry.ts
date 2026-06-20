@@ -21,10 +21,7 @@ export const initSentry = async (): Promise<boolean> => {
       tracesSampleRate: 0,
     });
     setErrorSink((error, context) => {
-      Sentry.captureException(
-        error,
-        context ? { extra: context } : undefined
-      );
+      Sentry.captureException(error, context ? { extra: context } : undefined);
     });
     return true;
   } catch {

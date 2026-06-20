@@ -48,7 +48,7 @@ export const initErrorReporting = (): void => {
     "unhandledrejection",
     (event: PromiseRejectionEvent) => {
       reportError(event.reason, { source: "unhandledrejection" });
-    }
+    },
   );
 };
 

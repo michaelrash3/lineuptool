@@ -41,8 +41,12 @@ export const InGameView = memo(() => {
   // Two-tap confirm for mid-game removal: first tap arms the row,
   // second tap commits. Replaces a blocking window.confirm — keeps
   // the coach inside the modal context.
-  const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState<string | null>(null);
-  const [pendingRestorePlayerId, setPendingRestorePlayerId] = useState<string | null>(null);
+  const [pendingRemovePlayerId, setPendingRemovePlayerId] = useState<
+    string | null
+  >(null);
+  const [pendingRestorePlayerId, setPendingRestorePlayerId] = useState<
+    string | null
+  >(null);
 
   // ----- Coalesce in-game tap-swap writes -----
   // Each tap previously fired its own setDoc, so a flurry of swaps became
@@ -172,7 +176,10 @@ export const InGameView = memo(() => {
   // having to look at the screen. Android Chrome respects this; iOS Safari
   // ignores it as a graceful no-op.
   const tapHaptic = () => {
-    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    if (
+      typeof navigator !== "undefined" &&
+      typeof navigator.vibrate === "function"
+    ) {
       navigator.vibrate(15);
     }
   };
@@ -182,11 +189,12 @@ export const InGameView = memo(() => {
   // immediate persistence in case the page is closed mid-edit.
   const adjustScore = (which: any, delta: any) => {
     if (!canEdit) return;
-    const current = (which === "team" ? game.teamScore : game.opponentScore) ?? 0;
+    const current =
+      (which === "team" ? game.teamScore : game.opponentScore) ?? 0;
     const next = Math.max(0, current + delta);
     updateGame(
       game.id,
-      which === "team" ? { teamScore: next } : { opponentScore: next }
+      which === "team" ? { teamScore: next } : { opponentScore: next },
     );
   };
 
@@ -361,7 +369,7 @@ export const InGameView = memo(() => {
       BENCH: Array.isArray(inning.BENCH) ? [...inning.BENCH] : [],
     });
     const next = base.map((innState: any, idx: number) =>
-      idx < currentInning ? innState : cloneInning(changedInning)
+      idx < currentInning ? innState : cloneInning(changedInning),
     );
     const newPitcherName = (changedInning.P as any)?.name || "New pitcher";
 
@@ -401,7 +409,9 @@ export const InGameView = memo(() => {
       setInGameSelection(null);
       return;
     }
-    if (isCatcherBlocked(firstSel, secondSel, playerA, playerB, clearedToCatch)) {
+    if (
+      isCatcherBlocked(firstSel, secondSel, playerA, playerB, clearedToCatch)
+    ) {
       toast.push({
         kind: "error",
         title: "Not a catcher",
@@ -422,7 +432,10 @@ export const InGameView = memo(() => {
     // restore the prior inning state directly. applySwap is immutable, so
     // liveInning is untouched and safe to keep.)
     setInGameUndoStack(
-      [{ inning: currentInning, prevInning: liveInning }, ...inGameUndoStack].slice(0, 5)
+      [
+        { inning: currentInning, prevInning: liveInning },
+        ...inGameUndoStack,
+      ].slice(0, 5),
     );
     setInGameSelection(null);
     tapHaptic();
@@ -524,49 +537,51 @@ export const InGameView = memo(() => {
             );
           })()}
           <div className="flex items-center gap-1">
-            {canEdit && (() => {
-              const removedCount = Object.keys(game.midGameRemovals || {})
-                .length;
-              return (
-              <>
-                <button
-                  onClick={() => setShowRemoveModal(true)}
-                  className={`relative p-2 rounded-lg transition-colors ${
-                    removedCount > 0
-                      ? "text-loss bg-loss-bg hover:bg-loss-bg"
-                      : "text-ink-2 hover:bg-loss-bg hover:text-loss"
-                  }`}
-                  aria-label={
-                    removedCount > 0
-                      ? `${removedCount} player${
-                          removedCount === 1 ? "" : "s"
-                        } out — remove another`
-                      : "Remove a player (injured / ill / left)"
-                  }
-                  title={
-                    removedCount > 0
-                      ? `${removedCount} out of game — tap to manage`
-                      : "Mark a player out for the rest of the game"
-                  }
-                >
-                  <Icons.Alert className="w-5 h-5" />
-                  {removedCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-loss text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">
-                      {removedCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={undo}
-                  disabled={inGameUndoStack.length === 0}
-                  className="p-2 text-ink-2 hover:bg-surface-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  aria-label="Undo last swap"
-                >
-                  <Icons.Refresh className="w-5 h-5" />
-                </button>
-              </>
-              );
-            })()}
+            {canEdit &&
+              (() => {
+                const removedCount = Object.keys(
+                  game.midGameRemovals || {},
+                ).length;
+                return (
+                  <>
+                    <button
+                      onClick={() => setShowRemoveModal(true)}
+                      className={`relative p-2 rounded-lg transition-colors ${
+                        removedCount > 0
+                          ? "text-loss bg-loss-bg hover:bg-loss-bg"
+                          : "text-ink-2 hover:bg-loss-bg hover:text-loss"
+                      }`}
+                      aria-label={
+                        removedCount > 0
+                          ? `${removedCount} player${
+                              removedCount === 1 ? "" : "s"
+                            } out — remove another`
+                          : "Remove a player (injured / ill / left)"
+                      }
+                      title={
+                        removedCount > 0
+                          ? `${removedCount} out of game — tap to manage`
+                          : "Mark a player out for the rest of the game"
+                      }
+                    >
+                      <Icons.Alert className="w-5 h-5" />
+                      {removedCount > 0 && (
+                        <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-loss text-white text-[10px] font-black flex items-center justify-center leading-none tabular-nums">
+                          {removedCount}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={undo}
+                      disabled={inGameUndoStack.length === 0}
+                      className="p-2 text-ink-2 hover:bg-surface-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Undo last swap"
+                    >
+                      <Icons.Refresh className="w-5 h-5" />
+                    </button>
+                  </>
+                );
+              })()}
           </div>
         </div>
         {!canEdit && (
@@ -660,133 +675,135 @@ export const InGameView = memo(() => {
         {/* Available Pitchers — eligibility status + who's been used this game.
             Only shown for kid-pitch divisions (machine pitch has no pitch counts).
             Hidden for assistants — they don't manage the pitching staff. */}
-        {canEdit && (() => {
-          const fmt = game.pitchingFormat || team.pitchingFormat || "";
-          if (fmt.toLowerCase().includes("machine")) return null;
-          const ageGroup = game.teamAge || team.teamAge;
+        {canEdit &&
+          (() => {
+            const fmt = game.pitchingFormat || team.pitchingFormat || "";
+            if (fmt.toLowerCase().includes("machine")) return null;
+            const ageGroup = game.teamAge || team.teamAge;
 
-          // Pitchers used in this game so far (anyone at P through current inning)
-          const usedPitcherIds = new Set();
-          const usedPitcherList = [];
-          for (let i = 0; i <= currentInning; i++) {
-            const pitcher = liveLineup[i]?.P;
-            if (pitcher && !usedPitcherIds.has(pitcher.id)) {
-              usedPitcherIds.add(pitcher.id);
-              usedPitcherList.push({ player: pitcher, firstInning: i + 1 });
-            }
-          }
-          // Available pool: present players not yet used, eligible by rest rules
-          const targetDate = game.date || new Date().toISOString().slice(0, 10);
-          const presentPlayers = team.players.filter(
-            (p: any) =>
-              (game.attendance?.[p.id] !== false) && !usedPitcherIds.has(p.id)
-          );
-          // Eligibility (rest rules + age pitch limit) lives in the engine —
-          // use it directly so this view can't drift from the canonical rules.
-          const pitchRules = resolvePitchRuleSet(team);
-          const availablePitchers = presentPlayers.filter((p: any) =>
-            checkPitchEligibility(p, targetDate, ageGroup, pitchRules)
-          );
-
-          const pitchCounts = game.pitchCounts || {};
-          const pitchLimit = maxPitchesForAge(ageGroup, pitchRules);
-          const updatePitchCount = (playerId: any, val: any) => {
-            const next = { ...(game.pitchCounts || {}) };
-            const num = parseInt(val, 10);
-            if (Number.isFinite(num) && num >= 0) {
-              next[playerId] = num;
-              // Warn (don't block) when a count exceeds the age pitch limit —
-              // a safety guardrail the coach can still override for accuracy.
-              if (num > pitchLimit) {
-                const p = team.players.find((pl: any) => pl.id === playerId);
-                toast.push({
-                  kind: "warn",
-                  title: "Over pitch limit",
-                  message: `${p?.name || "Pitcher"} at ${num} exceeds the ${ageGroup} limit of ${pitchLimit}.`,
-                });
+            // Pitchers used in this game so far (anyone at P through current inning)
+            const usedPitcherIds = new Set();
+            const usedPitcherList = [];
+            for (let i = 0; i <= currentInning; i++) {
+              const pitcher = liveLineup[i]?.P;
+              if (pitcher && !usedPitcherIds.has(pitcher.id)) {
+                usedPitcherIds.add(pitcher.id);
+                usedPitcherList.push({ player: pitcher, firstInning: i + 1 });
               }
-            } else if (val === "") {
-              delete next[playerId];
             }
-            updateGame(game.id, { pitchCounts: next });
-          };
+            // Available pool: present players not yet used, eligible by rest rules
+            const targetDate =
+              game.date || new Date().toISOString().slice(0, 10);
+            const presentPlayers = team.players.filter(
+              (p: any) =>
+                game.attendance?.[p.id] !== false && !usedPitcherIds.has(p.id),
+            );
+            // Eligibility (rest rules + age pitch limit) lives in the engine —
+            // use it directly so this view can't drift from the canonical rules.
+            const pitchRules = resolvePitchRuleSet(team);
+            const availablePitchers = presentPlayers.filter((p: any) =>
+              checkPitchEligibility(p, targetDate, ageGroup, pitchRules),
+            );
 
-          return (
-            <div className="bg-warn-bg border border-line rounded-xl p-3 mb-3">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg mb-2 flex items-center gap-1.5">
-                <Icons.Pitch className="w-3.5 h-3.5" />
-                Pitchers
-              </div>
-              {usedPitcherList.length > 0 && (
-                <div className="mb-2">
-                  <div className="text-[9px] font-bold uppercase tracking-widest text-warnfg mb-1">
-                    Used This Game
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    {usedPitcherList.map(({ player, firstInning }) => (
-                      <div
-                        key={player.id}
-                        className="flex items-center gap-2 bg-surface border border-line rounded-md px-2 py-1.5"
-                      >
-                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-ink truncate">
-                            {player.name}
-                          </span>
-                          <span className="text-ink-3 text-[9px] font-medium shrink-0">
-                            (I{firstInning})
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <input
-                            type="number"
-                            min="0"
-                            max={pitchLimit}
-                            inputMode="numeric"
-                            value={pitchCounts[player.id] ?? ""}
-                            onChange={(e) =>
-                              updatePitchCount(player.id, e.target.value)
-                            }
-                            placeholder="0"
-                            className="w-14 p-1 text-xs font-black text-ink text-center bg-surface border border-line rounded outline-none focus:ring-1 focus:ring-[var(--team-primary)] tabular-nums"
-                          />
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-warnfg">
-                            P
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            const pitchCounts = game.pitchCounts || {};
+            const pitchLimit = maxPitchesForAge(ageGroup, pitchRules);
+            const updatePitchCount = (playerId: any, val: any) => {
+              const next = { ...(game.pitchCounts || {}) };
+              const num = parseInt(val, 10);
+              if (Number.isFinite(num) && num >= 0) {
+                next[playerId] = num;
+                // Warn (don't block) when a count exceeds the age pitch limit —
+                // a safety guardrail the coach can still override for accuracy.
+                if (num > pitchLimit) {
+                  const p = team.players.find((pl: any) => pl.id === playerId);
+                  toast.push({
+                    kind: "warn",
+                    title: "Over pitch limit",
+                    message: `${p?.name || "Pitcher"} at ${num} exceeds the ${ageGroup} limit of ${pitchLimit}.`,
+                  });
+                }
+              } else if (val === "") {
+                delete next[playerId];
+              }
+              updateGame(game.id, { pitchCounts: next });
+            };
+
+            return (
+              <div className="bg-warn-bg border border-line rounded-xl p-3 mb-3">
+                <div className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg mb-2 flex items-center gap-1.5">
+                  <Icons.Pitch className="w-3.5 h-3.5" />
+                  Pitchers
                 </div>
-              )}
-              <div>
-                <div className="text-[9px] font-bold uppercase tracking-widest text-warnfg mb-1">
-                  Available ({availablePitchers.length})
-                </div>
-                {availablePitchers.length === 0 ? (
-                  <div className="text-[11px] text-ink-3 italic font-medium">
-                    No eligible pitchers remaining
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {availablePitchers.map((player: any) => (
-                      <button
-                        key={player.id}
-                        type="button"
-                        onClick={() => assignPitcher(player.id)}
-                        title={`Make ${player.name} the pitcher for inning ${
-                          currentInning + 1
-                        }`}
-                        className="text-[11px] font-bold text-win bg-surface border border-line rounded-md px-2 py-1 hover:bg-win-bg hover:border-line-strong active:scale-[0.97] transition-all cursor-pointer"
-                      >
-                        {player.name}
-                      </button>
-                    ))}
+                {usedPitcherList.length > 0 && (
+                  <div className="mb-2">
+                    <div className="text-[9px] font-bold uppercase tracking-widest text-warnfg mb-1">
+                      Used This Game
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      {usedPitcherList.map(({ player, firstInning }) => (
+                        <div
+                          key={player.id}
+                          className="flex items-center gap-2 bg-surface border border-line rounded-md px-2 py-1.5"
+                        >
+                          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold text-ink truncate">
+                              {player.name}
+                            </span>
+                            <span className="text-ink-3 text-[9px] font-medium shrink-0">
+                              (I{firstInning})
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <input
+                              type="number"
+                              min="0"
+                              max={pitchLimit}
+                              inputMode="numeric"
+                              value={pitchCounts[player.id] ?? ""}
+                              onChange={(e) =>
+                                updatePitchCount(player.id, e.target.value)
+                              }
+                              placeholder="0"
+                              className="w-14 p-1 text-xs font-black text-ink text-center bg-surface border border-line rounded outline-none focus:ring-1 focus:ring-[var(--team-primary)] tabular-nums"
+                            />
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-warnfg">
+                              P
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-warnfg mb-1">
+                    Available ({availablePitchers.length})
+                  </div>
+                  {availablePitchers.length === 0 ? (
+                    <div className="text-[11px] text-ink-3 italic font-medium">
+                      No eligible pitchers remaining
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {availablePitchers.map((player: any) => (
+                        <button
+                          key={player.id}
+                          type="button"
+                          onClick={() => assignPitcher(player.id)}
+                          title={`Make ${player.name} the pitcher for inning ${
+                            currentInning + 1
+                          }`}
+                          className="text-[11px] font-bold text-win bg-surface border border-line rounded-md px-2 py-1 hover:bg-win-bg hover:border-line-strong active:scale-[0.97] transition-all cursor-pointer"
+                        >
+                          {player.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
         {/* End Game + Share row */}
         <div className="flex gap-2">
@@ -810,7 +827,8 @@ export const InGameView = memo(() => {
               className="flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
-              <Icons.FileText className="w-4 h-4" /> End Game / Enter Final Score
+              <Icons.FileText className="w-4 h-4" /> End Game / Enter Final
+              Score
             </button>
           )}
         </div>
@@ -818,8 +836,14 @@ export const InGameView = memo(() => {
 
       {/* Selection helper */}
       {inGameSelection && (
-        <div className="border-b border-line px-4 py-2.5 text-center" style={{ backgroundColor: "var(--info-bg)" }}>
-          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--info-fg)" }}>
+        <div
+          className="border-b border-line px-4 py-2.5 text-center"
+          style={{ backgroundColor: "var(--info-bg)" }}
+        >
+          <span
+            className="text-[11px] font-black uppercase tracking-widest"
+            style={{ color: "var(--info-fg)" }}
+          >
             {inGameSelection.type === "position"
               ? `${inGameSelection.pos} selected`
               : "Bench player selected"}
@@ -1077,7 +1101,9 @@ export const InGameView = memo(() => {
                     Remove a Player
                   </h3>
                   <p className="text-[12px] text-ink-2 font-medium mt-1">
-                    Mark a player out for the rest of the game (injury, illness, or had to leave). Innings they already played still count toward season totals.
+                    Mark a player out for the rest of the game (injury, illness,
+                    or had to leave). Innings they already played still count
+                    toward season totals.
                   </p>
                 </div>
                 <button
@@ -1091,7 +1117,8 @@ export const InGameView = memo(() => {
             </div>
             <div className="p-4 sm:p-5 overflow-y-auto flex-1">
               <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
-                Inning {currentInning + 1} of {totalInnings} — they'll be removed from this inning onward
+                Inning {currentInning + 1} of {totalInnings} — they'll be
+                removed from this inning onward
               </div>
               {eligibleForRemoval.length === 0 ? (
                 <div className="text-sm font-bold text-ink-3 italic text-center py-8">
@@ -1141,9 +1168,12 @@ export const InGameView = memo(() => {
                     Already removed
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    {Object.entries((game.midGameRemovals || {}) as Record<string, any>).map(([pid, info]: [string, any]) => {
-                      const player =
-                        team.players.find((q: any) => q.id === pid) || { name: "(unknown)" };
+                    {Object.entries(
+                      (game.midGameRemovals || {}) as Record<string, any>,
+                    ).map(([pid, info]: [string, any]) => {
+                      const player = team.players.find(
+                        (q: any) => q.id === pid,
+                      ) || { name: "(unknown)" };
                       const armed = pendingRestorePlayerId === pid;
                       return (
                         <div
@@ -1155,14 +1185,17 @@ export const InGameView = memo(() => {
                           }`}
                         >
                           <span className="truncate flex-1 min-w-0">
-                            {player.name} — out from inning {info.fromInning + 1}
+                            {player.name} — out from inning{" "}
+                            {info.fromInning + 1}
                             {info.reason ? ` (${info.reason})` : ""}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
                               if (armed) {
-                                const next = { ...(game.midGameRemovals || {}) };
+                                const next = {
+                                  ...(game.midGameRemovals || {}),
+                                };
                                 delete next[pid];
                                 updateGame(game.id, { midGameRemovals: next });
                                 setPendingRestorePlayerId(null);

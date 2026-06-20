@@ -45,7 +45,7 @@ describe("OptimalLineupPanel", () => {
     expect(screen.getByText(/vs Rays/)).toBeInTheDocument();
     // The success branch rendered a real lineup (this caption only shows then).
     expect(
-      screen.getByText(/Starting pitcher is chosen from arms rested/)
+      screen.getByText(/Starting pitcher is chosen from arms rested/),
     ).toBeInTheDocument();
   });
 
@@ -61,7 +61,13 @@ describe("OptimalLineupPanel", () => {
       team: {
         team: baseTeam({
           games: [
-            { id: "old", date: "2000-01-01", status: "final", teamScore: 1, opponentScore: 0 },
+            {
+              id: "old",
+              date: "2000-01-01",
+              status: "final",
+              teamScore: 1,
+              opponentScore: 0,
+            },
           ],
         }),
         currentRole: "head",

@@ -16,7 +16,10 @@ const collectFiles = (dir: string): string[] => {
     if (entry.isDirectory()) {
       if (entry.name === "node_modules") continue;
       out.push(...collectFiles(full));
-    } else if (/\.(t|j)sx?$/.test(entry.name) && !/\.test\.(t|j)sx?$/.test(entry.name)) {
+    } else if (
+      /\.(t|j)sx?$/.test(entry.name) &&
+      !/\.test\.(t|j)sx?$/.test(entry.name)
+    ) {
       out.push(full);
     }
   }

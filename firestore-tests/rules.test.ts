@@ -115,9 +115,9 @@ describe("private team doc reads", () => {
       getDocs(
         query(
           collection(db, "artifacts", APP_ID, "public", "data", "teams"),
-          where("members", "array-contains", ASSISTANT)
-        )
-      )
+          where("members", "array-contains", ASSISTANT),
+        ),
+      ),
     );
   });
 
@@ -127,9 +127,9 @@ describe("private team doc reads", () => {
       getDocs(
         query(
           collection(db, "artifacts", APP_ID, "public", "data", "teams"),
-          where("members", "array-contains", ASSISTANT)
-        )
-      )
+          where("members", "array-contains", ASSISTANT),
+        ),
+      ),
     );
   });
 });
@@ -139,7 +139,7 @@ describe("owner / assistant constraints", () => {
     await assertFails(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
         ownerId: ASSISTANT,
-      })
+      }),
     );
   });
 
@@ -147,7 +147,7 @@ describe("owner / assistant constraints", () => {
     await assertFails(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
         members: [ASSISTANT], // dropped the owner
-      })
+      }),
     );
   });
 
@@ -155,7 +155,7 @@ describe("owner / assistant constraints", () => {
     await assertSucceeds(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
         members: arrayRemove(ASSISTANT),
-      })
+      }),
     );
   });
 
@@ -178,7 +178,7 @@ describe("sanitized invite lookup + self-join", () => {
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion(JOINER),
         [`coachRoles.${JOINER}`]: "assistant",
-      })
+      }),
     );
   });
 
@@ -187,7 +187,7 @@ describe("sanitized invite lookup + self-join", () => {
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion(JOINER),
         [`coachRoles.${JOINER}`]: "superadmin",
-      })
+      }),
     );
   });
 
@@ -197,7 +197,7 @@ describe("sanitized invite lookup + self-join", () => {
         members: arrayUnion(JOINER),
         [`coachRoles.${JOINER}`]: "assistant",
         [`coachRoles.${ASSISTANT}`]: "head",
-      })
+      }),
     );
   });
 
@@ -206,7 +206,7 @@ describe("sanitized invite lookup + self-join", () => {
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion("someone-else"),
         ["coachRoles.someone-else"]: "assistant",
-      })
+      }),
     );
   });
 
@@ -216,7 +216,7 @@ describe("sanitized invite lookup + self-join", () => {
         teamId: "team-1",
         teamName: "Hawks",
         updatedAt: 2,
-      })
+      }),
     );
   });
 
@@ -226,7 +226,7 @@ describe("sanitized invite lookup + self-join", () => {
         teamId: "team-1",
         teamName: "Hawks",
         updatedAt: 2,
-      })
+      }),
     );
   });
 });
@@ -236,7 +236,7 @@ describe("public signup append constraints", () => {
     await assertSucceeds(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
-      })
+      }),
     );
   });
 
@@ -244,7 +244,7 @@ describe("public signup append constraints", () => {
     await assertSucceeds(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         interestSignups: arrayUnion({ id: "i2", firstName: "New" }),
-      })
+      }),
     );
   });
 
@@ -252,7 +252,7 @@ describe("public signup append constraints", () => {
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: [{ id: "s2", firstName: "Replaced" }],
-      })
+      }),
     );
   });
 
@@ -264,7 +264,7 @@ describe("public signup append constraints", () => {
           { id: "s2", firstName: "New" },
           { id: "s3", firstName: "Also new" },
         ],
-      })
+      }),
     );
   });
 
@@ -277,7 +277,7 @@ describe("public signup append constraints", () => {
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         tryoutSignups: arrayUnion({ id: "s2", firstName: "New" }),
-      })
+      }),
     );
   });
 
@@ -286,7 +286,7 @@ describe("public signup append constraints", () => {
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         name: "Hacked",
         tryoutSignups: arrayUnion({ id: "s2" }),
-      })
+      }),
     );
   });
 });
@@ -303,7 +303,7 @@ describe("public mirror", () => {
 
   it("denies a non-member writing the mirror", async () => {
     await assertFails(
-      setDoc(doc(dbFor(OUTSIDER), ...mirrorPath("team-1")), { name: "X" })
+      setDoc(doc(dbFor(OUTSIDER), ...mirrorPath("team-1")), { name: "X" }),
     );
   });
 
@@ -312,8 +312,8 @@ describe("public mirror", () => {
       setDoc(
         doc(dbFor(OWNER), ...mirrorPath("team-1")),
         { name: "Hawks 2" },
-        { merge: true }
-      )
+        { merge: true },
+      ),
     );
   });
 });

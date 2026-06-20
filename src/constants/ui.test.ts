@@ -25,11 +25,24 @@ describe("playerIsPitcher / playerIsCatcher", () => {
   });
 
   it("adds the scarcity premium only for left-handed pitchers", () => {
-    expect(leftHandedPitcherRosterPremium({ comfortablePositions: ["P"], throws: "L" })).toBe(
-      LEFT_HANDED_PITCHER_ROSTER_PREMIUM
-    );
-    expect(leftHandedPitcherRosterPremium({ comfortablePositions: ["P"], throws: "R" })).toBe(0);
-    expect(leftHandedPitcherRosterPremium({ comfortablePositions: ["1B"], throws: "L" })).toBe(0);
+    expect(
+      leftHandedPitcherRosterPremium({
+        comfortablePositions: ["P"],
+        throws: "L",
+      }),
+    ).toBe(LEFT_HANDED_PITCHER_ROSTER_PREMIUM);
+    expect(
+      leftHandedPitcherRosterPremium({
+        comfortablePositions: ["P"],
+        throws: "R",
+      }),
+    ).toBe(0);
+    expect(
+      leftHandedPitcherRosterPremium({
+        comfortablePositions: ["1B"],
+        throws: "L",
+      }),
+    ).toBe(0);
   });
 });
 
@@ -65,22 +78,22 @@ describe("getEvalCategoriesForPlayer", () => {
   it("grades Composure universally (every player, every format)", () => {
     // Composure is now a universal intangible — not gated to kid-pitch pitchers.
     expect(ids(getEvalCategoriesForPlayer("Machine Pitch", fielder))).toContain(
-      "composure"
+      "composure",
     );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", pitcher))).toContain(
-      "composure"
+      "composure",
     );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).toContain(
-      "composure"
+      "composure",
     );
   });
 
   it("shows Pitch Velocity only to pitchers on Kid Pitch", () => {
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", pitcher))).toContain(
-      "pitchVelo"
+      "pitchVelo",
     );
     expect(ids(getEvalCategoriesForPlayer("Kid Pitch", fielder))).not.toContain(
-      "pitchVelo"
+      "pitchVelo",
     );
   });
 
@@ -95,7 +108,7 @@ describe("getEvalCategoriesForPlayer", () => {
   it("a dual-threat gets both specialties; a plain fielder gets none", () => {
     const dual = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
     expect(dual).toEqual(
-      expect.arrayContaining(["pitchVelo", "blocking", "receiving"])
+      expect.arrayContaining(["pitchVelo", "blocking", "receiving"]),
     );
     const plain = ids(getEvalCategoriesForPlayer("Kid Pitch", fielder));
     expect(plain).not.toContain("pitchVelo");
@@ -112,16 +125,30 @@ describe("getEvalCategoriesForPlayer", () => {
     // Velocity/Strikes/Off-Speed/Throwing are still stats-derived; Pitch
     // Velocity (mph) is the one coach-entered pitching field.
     for (const dropped of [
-      "contact", "power", "fielding", "arm",
-      "velocity", "strikes", "offSpeed", "throwing", "gameCalling",
+      "contact",
+      "power",
+      "fielding",
+      "arm",
+      "velocity",
+      "strikes",
+      "offSpeed",
+      "throwing",
+      "gameCalling",
     ]) {
       expect(all).not.toContain(dropped);
     }
     expect(all).toEqual(
       expect.arrayContaining([
-        "approach", "speed", "baserunning", "baseballIQ", "coachability",
-        "composure", "pitchVelo", "blocking", "receiving",
-      ])
+        "approach",
+        "speed",
+        "baserunning",
+        "baseballIQ",
+        "coachability",
+        "composure",
+        "pitchVelo",
+        "blocking",
+        "receiving",
+      ]),
     );
   });
 });
@@ -143,7 +170,7 @@ describe("pitcherRosterPremium", () => {
     expect(pitcherRosterPremium(W * 5, W)).toBe(PITCHER_ROSTER_PREMIUM_MAX);
     // Halfway above neutral (grade 4 of the 3→5 span) ≈ half the premium.
     expect(pitcherRosterPremium(W * 4, W)).toBe(
-      Math.round(PITCHER_ROSTER_PREMIUM_MAX / 2)
+      Math.round(PITCHER_ROSTER_PREMIUM_MAX / 2),
     );
   });
 });

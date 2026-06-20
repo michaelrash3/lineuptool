@@ -2,17 +2,20 @@ import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { EvalGradeCard } from "../components/EvalGradeCard";
-import {
-  getActivePositionList,
-  getCombinedGrades,
-} from "../lineupEngine";
+import { getActivePositionList, getCombinedGrades } from "../lineupEngine";
 import {
   getEvalCategoriesForPlayer,
   EVAL_SCALE_DEFAULT,
   leftHandedPitcherRosterPremium,
   isLeftHandedThrower,
 } from "../constants/ui";
-import { calculateBaseballAge, getReturningDecision, normalizeTryoutSessions, combinedTryoutGradeForSignup, evaluatorTryoutGradeForSignup } from "../utils/helpers";
+import {
+  calculateBaseballAge,
+  getReturningDecision,
+  normalizeTryoutSessions,
+  combinedTryoutGradeForSignup,
+  evaluatorTryoutGradeForSignup,
+} from "../utils/helpers";
 import { A11yDialog } from "../components/shared";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
@@ -20,9 +23,15 @@ import type { OfferLetterKind } from "../constants/offerLetters";
 
 const STATUS_PILLS = {
   tryout: { label: "Tryout", className: "bg-surface-2 border-line text-ink" },
-  offered: { label: "Offered", className: "bg-warn-bg border-line text-warnfg" },
+  offered: {
+    label: "Offered",
+    className: "bg-warn-bg border-line text-warnfg",
+  },
   accepted: { label: "Accepted", className: "bg-win-bg border-line text-win" },
-  declined: { label: "Declined", className: "bg-loss-bg border-line text-loss" },
+  declined: {
+    label: "Declined",
+    className: "bg-loss-bg border-line text-loss",
+  },
 };
 
 const StatusPill = memo(({ status }: any) => {
@@ -110,21 +119,29 @@ const hasRosterEvaluation = (playerId: string, evaluationEvents: any[]) =>
   });
 
 const positionsForTryout = (grade: any, signup: any): string[] => {
-  if (Array.isArray(grade?.suggestedPositions) && grade.suggestedPositions.length) {
+  if (
+    Array.isArray(grade?.suggestedPositions) &&
+    grade.suggestedPositions.length
+  ) {
     return grade.suggestedPositions;
   }
-  return Array.isArray(signup?.comfortablePositions) ? signup.comfortablePositions : [];
+  return Array.isArray(signup?.comfortablePositions)
+    ? signup.comfortablePositions
+    : [];
 };
 
-const uniquePositions = (positions: any[]) =>
-  [...new Set((positions || []).map((p) => String(p || "").trim()).filter(Boolean))];
+const uniquePositions = (positions: any[]) => [
+  ...new Set(
+    (positions || []).map((p) => String(p || "").trim()).filter(Boolean),
+  ),
+];
 
 const LEFTY_LIMITED_INFIELD_POSITIONS = new Set(["2B", "3B", "SS"]);
 
 const fitBonusForPositions = (
   positions: string[],
   lockedPositions: Map<string, number>,
-  playerLike?: any
+  playerLike?: any,
 ) => {
   let fitBonus = leftHandedPitcherRosterPremium({
     comfortablePositions: positions,
@@ -157,33 +174,52 @@ export const computeRosterProjection = (
   team: any,
   tryoutSessions: any,
   tryoutSignups: any,
-  evaluationEvents: any[] = []
+  evaluationEvents: any[] = [],
 ): RosterProjection => {
   const rosterCap = Number(team?.rosterCap) || 12;
   const currentRoster = (team?.players || []).filter(
-    (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout"
+    (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
   );
-  const returningYes = currentRoster.filter((p: any) => getReturningDecision(p) === "yes");
-  const returningNo = currentRoster.filter((p: any) => getReturningDecision(p) === "no");
-  const returningUnknown = currentRoster.filter((p: any) => getReturningDecision(p) === "unknown");
-  const acceptedSignups = (tryoutSignups || []).filter((s: any) => s.status === "accepted");
+  const returningYes = currentRoster.filter(
+    (p: any) => getReturningDecision(p) === "yes",
+  );
+  const returningNo = currentRoster.filter(
+    (p: any) => getReturningDecision(p) === "no",
+  );
+  const returningUnknown = currentRoster.filter(
+    (p: any) => getReturningDecision(p) === "unknown",
+  );
+  const acceptedSignups = (tryoutSignups || []).filter(
+    (s: any) => s.status === "accepted",
+  );
   const lockedCount = returningYes.length + acceptedSignups.length;
   const slotsRemaining = Math.max(0, rosterCap - lockedCount);
 
   const lockedPositions = new Map<string, number>();
   const addLockedPositions = (positions: any[]) => {
-    for (const pos of uniquePositions(positions)) lockedPositions.set(pos, (lockedPositions.get(pos) || 0) + 1);
+    for (const pos of uniquePositions(positions))
+      lockedPositions.set(pos, (lockedPositions.get(pos) || 0) + 1);
   };
-  returningYes.forEach((p: any) => addLockedPositions(p.comfortablePositions || []));
+  returningYes.forEach((p: any) =>
+    addLockedPositions(p.comfortablePositions || []),
+  );
   acceptedSignups.forEach((s: any) => {
-    const grade = combinedTryoutGradeForSignup(tryoutSessions, s.id, s.tryoutDate);
+    const grade = combinedTryoutGradeForSignup(
+      tryoutSessions,
+      s.id,
+      s.tryoutDate,
+    );
     addLockedPositions(positionsForTryout(grade, s));
   });
 
-  const rosterGrades = getCombinedGrades(evaluationEvents || [], returningUnknown, {
-    teamAge: team?.teamAge,
-    games: team?.games || [],
-  });
+  const rosterGrades = getCombinedGrades(
+    evaluationEvents || [],
+    returningUnknown,
+    {
+      teamAge: team?.teamAge,
+      games: team?.games || [],
+    },
+  );
 
   const graded: RosterProjectionCandidate[] = [];
   const needsEvaluation: RosterProjectionCandidate[] = [];
@@ -193,7 +229,11 @@ export const computeRosterProjection = (
     const baseScore = hasRosterEvaluation(player.id, evaluationEvents || [])
       ? numericGradeScore(rosterGrades[player.id], categories)
       : null;
-    const { fitBonus, fitReasons } = fitBonusForPositions(player.comfortablePositions || [], lockedPositions, player);
+    const { fitBonus, fitReasons } = fitBonusForPositions(
+      player.comfortablePositions || [],
+      lockedPositions,
+      player,
+    );
     const candidate: RosterProjectionCandidate = {
       kind: "unknown",
       id: player.id,
@@ -215,12 +255,24 @@ export const computeRosterProjection = (
       tooOld.push(signup);
       continue;
     }
-    const grade = combinedTryoutGradeForSignup(tryoutSessions, signup.id, signup.tryoutDate);
+    const grade = combinedTryoutGradeForSignup(
+      tryoutSessions,
+      signup.id,
+      signup.tryoutDate,
+    );
     const positions = positionsForTryout(grade, signup);
-    const categories = getEvalCategoriesForPlayer(team?.pitchingFormat, { comfortablePositions: positions });
+    const categories = getEvalCategoriesForPlayer(team?.pitchingFormat, {
+      comfortablePositions: positions,
+    });
     const baseScore = numericGradeScore(grade, categories);
-    const { fitBonus, fitReasons } = fitBonusForPositions(positions, lockedPositions, signup);
-    const name = `${signup.firstName || ""} ${signup.lastName || ""}`.trim() || "Tryout candidate";
+    const { fitBonus, fitReasons } = fitBonusForPositions(
+      positions,
+      lockedPositions,
+      signup,
+    );
+    const name =
+      `${signup.firstName || ""} ${signup.lastName || ""}`.trim() ||
+      "Tryout candidate";
     const candidate: RosterProjectionCandidate = {
       kind: "tryout",
       id: signup.id,
@@ -235,11 +287,19 @@ export const computeRosterProjection = (
     else graded.push(candidate);
   }
 
-  graded.sort((a, b) => (b.score || 0) - (a.score || 0) || a.name.localeCompare(b.name));
-  const recommended = graded.slice(0, slotsRemaining).map((c) => ({ ...c, bucket: "recommended" as const }));
+  graded.sort(
+    (a, b) => (b.score || 0) - (a.score || 0) || a.name.localeCompare(b.name),
+  );
+  const recommended = graded
+    .slice(0, slotsRemaining)
+    .map((c) => ({ ...c, bucket: "recommended" as const }));
   const nextWindow = Math.max(slotsRemaining, 3);
-  const nextBest = graded.slice(slotsRemaining, slotsRemaining + nextWindow).map((c) => ({ ...c, bucket: "next" as const }));
-  const belowLine = graded.slice(slotsRemaining + nextWindow).map((c) => ({ ...c, bucket: "below" as const }));
+  const nextBest = graded
+    .slice(slotsRemaining, slotsRemaining + nextWindow)
+    .map((c) => ({ ...c, bucket: "next" as const }));
+  const belowLine = graded
+    .slice(slotsRemaining + nextWindow)
+    .map((c) => ({ ...c, bucket: "below" as const }));
 
   return {
     rosterCap,
@@ -260,13 +320,18 @@ export const computeRosterProjection = (
 // Bottom-N + positional-fit impact analysis. Returning roster is the
 // current team.players excluding any with status === "released" /
 // "declined" / "accepted" (accepted are the tryouts themselves).
-const computeImpact = (signup: any, team: any, evaluationEvents: any, tryoutSessions: any) => {
+const computeImpact = (
+  signup: any,
+  team: any,
+  evaluationEvents: any,
+  tryoutSessions: any,
+) => {
   const rosterCap = Number(team.rosterCap) || 12;
   const returners = (team.players || []).filter(
     (p: any) =>
       p.playerStatus !== "accepted" &&
       p.playerStatus !== "tryout" &&
-      getReturningDecision(p) === "yes"
+      getReturningDecision(p) === "yes",
   );
   // Combined grades cover ONLY current roster players via getCombinedGrades.
   // For each returner, sum the eval scores; sort descending.
@@ -279,7 +344,7 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any, tryoutSess
     if (!g) return 0;
     return Object.values(g).reduce(
       (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
-      0
+      0,
     );
   };
   const ranked = returners
@@ -292,11 +357,15 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any, tryoutSess
   // Tryout kid's eval score — only computed once a coach has graded them
   // in the date-grouped Tryouts session. Until grades exist we surface
   // "not graded yet".
-  const tryoutGrade = combinedTryoutGradeForSignup(tryoutSessions, signup.id, signup.tryoutDate);
+  const tryoutGrade = combinedTryoutGradeForSignup(
+    tryoutSessions,
+    signup.id,
+    signup.tryoutDate,
+  );
   const tryoutScore = tryoutGrade
     ? Object.values(tryoutGrade).reduce(
         (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
-        0
+        0,
       )
     : null;
 
@@ -306,13 +375,13 @@ const computeImpact = (signup: any, team: any, evaluationEvents: any, tryoutSess
   const positions = positionsForTryout(tryoutGrade, signup);
   for (const pos of positions) {
     const count = returners.filter((p: any) =>
-      (p.comfortablePositions || []).includes(pos)
+      (p.comfortablePositions || []).includes(pos),
     ).length;
     if (count < 3) positionalFit.push({ pos, returnerCount: count });
   }
   if (signup.isCatcher) {
     const catcherCount = returners.filter((p: any) =>
-      (p.comfortablePositions || []).includes("C")
+      (p.comfortablePositions || []).includes("C"),
     ).length;
     if (catcherCount < 2)
       positionalFit.push({ pos: "C (catcher)", returnerCount: catcherCount });
@@ -339,65 +408,87 @@ const rosterEvalScore = (player: any, evaluationEvents: any[], team: any) => {
   if (!g) return null;
   return Object.values(g).reduce(
     (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
-    0
+    0,
   );
 };
 
-const ReturningIntentPanel = memo(({ team, evaluationEvents, setPlayerReturning }: any) => {
-  const players = (team?.players || []).filter(
-    (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout"
-  );
-  if (players.length === 0) return null;
-  return (
-    <div className="glass-card p-4 sm:p-5 space-y-3">
-      <div>
-        <h3 className="t-h3 flex items-center gap-2">
-          <Icons.Clipboard className="w-4 h-4" /> Returning Intent
-        </h3>
-        <p className="text-xs text-ink-3 font-medium mt-1">
-          Head-coach planning assumptions only. Advance Season remains the final confirmation.
-        </p>
-      </div>
-      <div className="space-y-2">
-        {players.map((p: any) => {
-          const decision = getReturningDecision(p);
-          const score = rosterEvalScore(p, evaluationEvents || [], team);
-          return (
-            <div key={p.id} className="flex items-center gap-3 flex-wrap bg-surface border border-line rounded-xl p-3">
-              <div className="flex-1 min-w-[160px]">
-                <div className="text-sm font-black text-ink">{p.name}</div>
-                <div className="text-[11px] text-ink-3 font-bold">
-                  Latest eval: {score == null ? "—" : score.toFixed(0)}
+const ReturningIntentPanel = memo(
+  ({ team, evaluationEvents, setPlayerReturning }: any) => {
+    const players = (team?.players || []).filter(
+      (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
+    );
+    if (players.length === 0) return null;
+    return (
+      <div className="glass-card p-4 sm:p-5 space-y-3">
+        <div>
+          <h3 className="t-h3 flex items-center gap-2">
+            <Icons.Clipboard className="w-4 h-4" /> Returning Intent
+          </h3>
+          <p className="text-xs text-ink-3 font-medium mt-1">
+            Head-coach planning assumptions only. Advance Season remains the
+            final confirmation.
+          </p>
+        </div>
+        <div className="space-y-2">
+          {players.map((p: any) => {
+            const decision = getReturningDecision(p);
+            const score = rosterEvalScore(p, evaluationEvents || [], team);
+            return (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 flex-wrap bg-surface border border-line rounded-xl p-3"
+              >
+                <div className="flex-1 min-w-[160px]">
+                  <div className="text-sm font-black text-ink">{p.name}</div>
+                  <div className="text-[11px] text-ink-3 font-bold">
+                    Latest eval: {score == null ? "—" : score.toFixed(0)}
+                  </div>
+                </div>
+                <div
+                  className="flex items-center gap-1"
+                  aria-label={`${p.name} returning intent`}
+                >
+                  {[
+                    ["yes", "Yes"],
+                    ["no", "No"],
+                    ["unknown", "Unknown"],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() =>
+                        setPlayerReturning?.(
+                          p.id,
+                          value === "unknown" ? null : value === "yes",
+                        )
+                      }
+                      className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
+                        decision === value
+                          ? "bg-team-primary text-team-tertiary border-team-primary"
+                          : "bg-surface border-line text-ink-2 hover:bg-surface-2"
+                      }`}
+                      style={
+                        decision === value
+                          ? {
+                              backgroundColor: "var(--team-primary)",
+                              color: "var(--team-tertiary)",
+                              borderColor: "var(--team-primary)",
+                            }
+                          : undefined
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </div>
-              <div className="flex items-center gap-1" aria-label={`${p.name} returning intent`}>
-                {[["yes", "Yes"], ["no", "No"], ["unknown", "Unknown"]].map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setPlayerReturning?.(p.id, value === "unknown" ? null : value === "yes")}
-                    className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
-                      decision === value
-                        ? "bg-team-primary text-team-tertiary border-team-primary"
-                        : "bg-surface border-line text-ink-2 hover:bg-surface-2"
-                    }`}
-                    style={
-                      decision === value
-                        ? { backgroundColor: "var(--team-primary)", color: "var(--team-tertiary)", borderColor: "var(--team-primary)" }
-                        : undefined
-                    }
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 // Three-bucket projection of who's likely to make the team — modeled
 // after the RosterDecisionsPanel on the Evaluation tab. Reads the
@@ -430,7 +521,11 @@ const TeamImpactPanel = memo(({ roster }: any) => {
       items: roster.belowLine,
     },
   ];
-  const empty = roster.recommended.length + roster.nextBest.length + roster.belowLine.length === 0;
+  const empty =
+    roster.recommended.length +
+      roster.nextBest.length +
+      roster.belowLine.length ===
+    0;
   return (
     <div className="glass-card p-4 sm:p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -438,24 +533,32 @@ const TeamImpactPanel = memo(({ roster }: any) => {
           <Icons.Clipboard className="w-4 h-4" /> Roster Projection
         </h3>
         <span className="t-eyebrow text-ink-3">
-          {roster.returningYesCount} returning yes · {roster.returningNoCount} no · {roster.returningUnknownCount} unknown
-          {roster.acceptedCount > 0 ? ` · ${roster.acceptedCount} accepted tryout${roster.acceptedCount === 1 ? "" : "s"}` : ""}{" "}
+          {roster.returningYesCount} returning yes · {roster.returningNoCount}{" "}
+          no · {roster.returningUnknownCount} unknown
+          {roster.acceptedCount > 0
+            ? ` · ${roster.acceptedCount} accepted tryout${roster.acceptedCount === 1 ? "" : "s"}`
+            : ""}{" "}
           · {roster.slotsRemaining} open of {roster.rosterCap}
         </span>
       </div>
       {roster.returningUnknownCount > 0 && (
         <p className="text-xs text-warnfg font-bold bg-warn-bg border border-line rounded-lg px-3 py-2">
-          Confirmed Yes returners and accepted tryouts are locked. Unknown current players compete with eligible tryout candidates for the remaining spots.
+          Confirmed Yes returners and accepted tryouts are locked. Unknown
+          current players compete with eligible tryout candidates for the
+          remaining spots.
         </p>
       )}
       {roster.slotsRemaining === 0 && (
         <p className="text-xs text-ink-3 font-bold bg-surface-2 border border-line rounded-lg px-3 py-2">
-          No open competitive spots: confirmed returners plus accepted tryouts already fill the roster cap. The lists below show bubble or upgrade candidates only.
+          No open competitive spots: confirmed returners plus accepted tryouts
+          already fill the roster cap. The lists below show bubble or upgrade
+          candidates only.
         </p>
       )}
       {empty ? (
         <p className="text-xs text-ink-3 font-medium italic">
-          Grade {roster.needsEvaluation.length > 0
+          Grade{" "}
+          {roster.needsEvaluation.length > 0
             ? `the ${roster.needsEvaluation.length} candidate${roster.needsEvaluation.length === 1 ? "" : "s"} needing evaluation `
             : "candidates "}
           to see the roster projection.
@@ -463,15 +566,14 @@ const TeamImpactPanel = memo(({ roster }: any) => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {buckets.map((b) => (
-            <div
-              key={b.key}
-              className={`rounded-xl border p-3 ${b.tone}`}
-            >
+            <div key={b.key} className={`rounded-xl border p-3 ${b.tone}`}>
               <div className="flex items-baseline justify-between mb-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest">
                   {b.title}
                 </div>
-                <div className={`text-lg font-black tabular-nums ${b.countTone}`}>
+                <div
+                  className={`text-lg font-black tabular-nums ${b.countTone}`}
+                >
                   {b.items.length}
                 </div>
               </div>
@@ -488,10 +590,16 @@ const TeamImpactPanel = memo(({ roster }: any) => {
                       className="flex items-start justify-between gap-2 text-[11px]"
                     >
                       <span className="min-w-0">
-                        <span className="font-bold truncate block">{candidate.name}</span>
+                        <span className="font-bold truncate block">
+                          {candidate.name}
+                        </span>
                         <span className="text-[9px] font-black uppercase tracking-widest opacity-70">
-                          {candidate.kind === "unknown" ? "Current unknown" : "Tryout"}
-                          {candidate.fitReasons.length > 0 ? ` · ${candidate.fitReasons.join(", ")}` : ""}
+                          {candidate.kind === "unknown"
+                            ? "Current unknown"
+                            : "Tryout"}
+                          {candidate.fitReasons.length > 0
+                            ? ` · ${candidate.fitReasons.join(", ")}`
+                            : ""}
                         </span>
                       </span>
                       <span className="font-black tabular-nums opacity-80 shrink-0">
@@ -525,9 +633,18 @@ const TeamImpactPanel = memo(({ roster }: any) => {
 
 const BUCKET_BADGES = {
   make: { label: "Recommended", className: "bg-win-bg text-win border-line" },
-  bubble: { label: "Next Best", className: "bg-warn-bg text-warnfg border-line" },
-  cut: { label: "Below Line", className: "bg-surface-2 text-ink-2 border-line" },
-  ungraded: { label: "Ungraded", className: "bg-surface text-ink-3 border-line" },
+  bubble: {
+    label: "Next Best",
+    className: "bg-warn-bg text-warnfg border-line",
+  },
+  cut: {
+    label: "Below Line",
+    className: "bg-surface-2 text-ink-2 border-line",
+  },
+  ungraded: {
+    label: "Ungraded",
+    className: "bg-surface text-ink-3 border-line",
+  },
   tooOld: { label: "Too Old", className: "bg-warn-bg text-warnfg border-line" },
 };
 
@@ -555,10 +672,7 @@ export const TryoutsTab = memo(() => {
     teamAge,
   } = team;
 
-  const tryoutSessions = useMemo(
-    () => normalizeTryoutSessions(team),
-    [team]
-  );
+  const tryoutSessions = useMemo(() => normalizeTryoutSessions(team), [team]);
   const [openSignupIds, setOpenSignupIds] = useState(() => new Set());
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -582,14 +696,15 @@ export const TryoutsTab = memo(() => {
         (s: any) =>
           `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
           (s.email || "").toLowerCase().includes(q) ||
-          (s.parentName || "").toLowerCase().includes(q)
+          (s.parentName || "").toLowerCase().includes(q),
       );
     }
     return list
       .slice()
       .sort(
         (a: any, b: any) =>
-          new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime()
+          new Date(b.submittedAt || 0).getTime() -
+          new Date(a.submittedAt || 0).getTime(),
       );
   }, [tryoutSignups, statusFilter, search]);
 
@@ -600,49 +715,71 @@ export const TryoutsTab = memo(() => {
   const roster = useMemo(
     () =>
       isHead
-        ? computeRosterProjection(team, tryoutSessions, tryoutSignups, evaluationEvents || [])
+        ? computeRosterProjection(
+            team,
+            tryoutSessions,
+            tryoutSignups,
+            evaluationEvents || [],
+          )
         : null,
-    [isHead, team, tryoutSessions, tryoutSignups, evaluationEvents]
+    [isHead, team, tryoutSessions, tryoutSignups, evaluationEvents],
   );
   // Map signup.id → "make" | "bubble" | "cut" | "ungraded" | "tooOld"
   // for the per-row badge.
   const bucketBySignupId = useMemo(() => {
     const map = new Map();
     if (!roster) return map;
-    roster.recommended.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "make"); });
-    roster.nextBest.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "bubble"); });
-    roster.belowLine.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "cut"); });
-    roster.needsEvaluation.forEach((c: any) => { if (c.kind === "tryout") map.set(c.id, "ungraded"); });
+    roster.recommended.forEach((c: any) => {
+      if (c.kind === "tryout") map.set(c.id, "make");
+    });
+    roster.nextBest.forEach((c: any) => {
+      if (c.kind === "tryout") map.set(c.id, "bubble");
+    });
+    roster.belowLine.forEach((c: any) => {
+      if (c.kind === "tryout") map.set(c.id, "cut");
+    });
+    roster.needsEvaluation.forEach((c: any) => {
+      if (c.kind === "tryout") map.set(c.id, "ungraded");
+    });
     roster.tooOld.forEach((s: any) => map.set(s.id, "tooOld"));
     return map;
   }, [roster]);
   const noShowCount = useMemo(
-    () =>
-      (tryoutSignups || []).filter((s: any) => s.present === false).length,
-    [tryoutSignups]
+    () => (tryoutSignups || []).filter((s: any) => s.present === false).length,
+    [tryoutSignups],
   );
 
   const activePositions = useMemo(
     () => getActivePositionList(defenseSize),
-    [defenseSize]
+    [defenseSize],
   );
   const evalPlayerForSignup = (signup: any, grade: any = {}) => ({
-    comfortablePositions: Array.isArray(grade?.suggestedPositions) && grade.suggestedPositions.length
-      ? grade.suggestedPositions
-      : Array.isArray(signup?.comfortablePositions)
-      ? signup.comfortablePositions
-      : signup?.isCatcher
-      ? ["C"]
-      : [],
+    comfortablePositions:
+      Array.isArray(grade?.suggestedPositions) &&
+      grade.suggestedPositions.length
+        ? grade.suggestedPositions
+        : Array.isArray(signup?.comfortablePositions)
+          ? signup.comfortablePositions
+          : signup?.isCatcher
+            ? ["C"]
+            : [],
   });
   const activeCategoriesForSignup = (signup: any, grade: any = {}) =>
-    getEvalCategoriesForPlayer(pitchingFormat, evalPlayerForSignup(signup, grade));
+    getEvalCategoriesForPlayer(
+      pitchingFormat,
+      evalPlayerForSignup(signup, grade),
+    );
   const seedCategories = useMemo(
-    () => getEvalCategoriesForPlayer(pitchingFormat, { comfortablePositions: ["P", "C"] }),
-    [pitchingFormat]
+    () =>
+      getEvalCategoriesForPlayer(pitchingFormat, {
+        comfortablePositions: ["P", "C"],
+      }),
+    [pitchingFormat],
   );
 
-  const [localGradesBySignup, setLocalGradesBySignup] = useState<Record<string, any>>({});
+  const [localGradesBySignup, setLocalGradesBySignup] = useState<
+    Record<string, any>
+  >({});
   React.useEffect(() => {
     if (!user) {
       setLocalGradesBySignup({});
@@ -652,24 +789,36 @@ export const TryoutsTab = memo(() => {
       const next = { ...prev };
       for (const signup of tryoutSignups || []) {
         if (next[signup.id]) continue;
-        const seed: Record<string, any> = evaluatorTryoutGradeForSignup(
-          tryoutSessions,
-          signup.id,
-          user.uid,
-          signup.tryoutDate
-        ) ?? {};
+        const seed: Record<string, any> =
+          evaluatorTryoutGradeForSignup(
+            tryoutSessions,
+            signup.id,
+            user.uid,
+            signup.tryoutDate,
+          ) ?? {};
         const seeded: Record<string, any> = {};
-        for (const c of seedCategories) seeded[c.id] = c.inputKind === "mph" ? seed[c.id] : seed[c.id] ?? EVAL_SCALE_DEFAULT;
+        for (const c of seedCategories)
+          seeded[c.id] =
+            c.inputKind === "mph"
+              ? seed[c.id]
+              : (seed[c.id] ?? EVAL_SCALE_DEFAULT);
         if (seed.notes) seeded.notes = seed.notes;
-        if (Array.isArray(seed.suggestedPositions)) seeded.suggestedPositions = seed.suggestedPositions;
+        if (Array.isArray(seed.suggestedPositions))
+          seeded.suggestedPositions = seed.suggestedPositions;
         next[signup.id] = seeded;
       }
       return next;
     });
   }, [user, tryoutSignups, tryoutSessions, seedCategories]);
 
-  const updateLocalSignupGrades = (signupId: string, updater: (prev: any) => any) =>
-    setLocalGradesBySignup((prev) => ({ ...prev, [signupId]: updater(prev[signupId] || {}) }));
+  const updateLocalSignupGrades = (
+    signupId: string,
+    updater: (prev: any) => any,
+  ) =>
+    setLocalGradesBySignup((prev) => ({
+      ...prev,
+      [signupId]: updater(prev[signupId] || {}),
+    }));
 
   const setLocalGrade = (pid: any, catId: any, value: any) =>
     updateLocalSignupGrades(pid, (prev) => ({ ...prev, [catId]: value }));
@@ -677,10 +826,14 @@ export const TryoutsTab = memo(() => {
     updateLocalSignupGrades(pid, (prev) => ({ ...prev, notes }));
   const toggleLocalPos = (pid: any, pos: any) =>
     updateLocalSignupGrades(pid, (prev) => {
-      const list = Array.isArray(prev.suggestedPositions) ? prev.suggestedPositions : [];
+      const list = Array.isArray(prev.suggestedPositions)
+        ? prev.suggestedPositions
+        : [];
       return {
         ...prev,
-        suggestedPositions: list.includes(pos) ? list.filter((p: any) => p !== pos) : [...list, pos],
+        suggestedPositions: list.includes(pos)
+          ? list.filter((p: any) => p !== pos)
+          : [...list, pos],
       };
     });
 
@@ -690,7 +843,7 @@ export const TryoutsTab = memo(() => {
       signup.id,
       localGradesBySignup[signup.id] || {},
       isHead ? "Head" : "Assistant",
-      signup.tryoutDate
+      signup.tryoutDate,
     );
     toast.push({ kind: "success", title: "Tryout eval saved" });
   };
@@ -702,17 +855,21 @@ export const TryoutsTab = memo(() => {
         date: signup.tryoutDate,
         grades: localGradesBySignup[signup.id] || {},
       })),
-      isHead ? "Head" : "Assistant"
+      isHead ? "Head" : "Assistant",
     );
-    toast.push({ kind: "success", title: `${filtered.length} tryout eval${filtered.length === 1 ? "" : "s"} saved` });
+    toast.push({
+      kind: "success",
+      title: `${filtered.length} tryout eval${filtered.length === 1 ? "" : "s"} saved`,
+    });
   };
 
   // Recruiting letters are COPYABLE drafts (Gmail send is unreliable here), so
   // "Make an Offer" / "Decline" just open a pre-filled draft the coach hands to
   // the family. We only flip the signup status once they actually deliver it.
-  const [offerDraft, setOfferDraft] = useState<
-    { signup: any; kind: OfferLetterKind } | null
-  >(null);
+  const [offerDraft, setOfferDraft] = useState<{
+    signup: any;
+    kind: OfferLetterKind;
+  } | null>(null);
   // Accept-time routing choice: accepts default to NEXT season (held in
   // Tryouts, promoted on Advance Season); the coach can opt a kid onto the
   // CURRENT roster instead.
@@ -758,329 +915,352 @@ export const TryoutsTab = memo(() => {
           so the right rail only exists for head coaches; assistants get the
           list at full width. Mobile/tablet: single-column stack, unchanged. */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-4 lg:space-y-0">
-        <div className={`${isHead ? "lg:col-span-8" : "lg:col-span-12"} space-y-4`}>
-
-      <div className="glass-card p-3 flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name / email…"
-          className="flex-1 min-w-[180px] px-3 py-2 text-xs bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-        />
-        {["all", "tryout", "offered", "accepted", "declined"].map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => setStatusFilter(s)}
-            className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
-              statusFilter === s
-                ? "bg-team-primary text-team-tertiary border-team-primary"
-                : "bg-surface border-line text-ink-2 hover:bg-surface-2"
-            }`}
-            style={
-              statusFilter === s
-                ? {
-                    backgroundColor: "var(--team-primary)",
-                    color: "var(--team-tertiary)",
-                    borderColor: "var(--team-primary)",
-                  }
-                : undefined
-            }
-          >
-            {s}
-          </button>
-        ))}
-        {filtered.length > 0 && (
-          <button
-            type="button"
-            onClick={saveVisibleTryoutEvals}
-            className="ml-auto px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-lg shadow-sm"
-            style={{ backgroundColor: "var(--team-primary)" }}
-          >
-            Save Visible Evals
-          </button>
-        )}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="glass-card p-8 text-center text-ink-3 text-sm font-medium">
-          No tryout signups yet. Share the public form link from
-          Settings to start collecting.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((s: any) => {
-            const impact = isHead
-              ? computeImpact(s, team, evaluationEvents, tryoutSessions)
-              : null;
-            const expanded = openSignupIds.has(s.id);
-            const bucket = bucketBySignupId.get(s.id);
-            const bucketCfg = bucket ? (BUCKET_BADGES as any)[bucket] : null;
-            const presence = s.present; // true | false | undefined
-            return (
-              <div
-                key={s.id}
-                className={`bg-surface border rounded-xl overflow-hidden ${
-                  presence === false
-                    ? "border-line bg-loss-bg"
-                    : "border-line"
+        <div
+          className={`${isHead ? "lg:col-span-8" : "lg:col-span-12"} space-y-4`}
+        >
+          <div className="glass-card p-3 flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name / email…"
+              className="flex-1 min-w-[180px] px-3 py-2 text-xs bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+            />
+            {["all", "tryout", "offered", "accepted", "declined"].map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(s)}
+                className={`px-2.5 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md border ${
+                  statusFilter === s
+                    ? "bg-team-primary text-team-tertiary border-team-primary"
+                    : "bg-surface border-line text-ink-2 hover:bg-surface-2"
                 }`}
+                style={
+                  statusFilter === s
+                    ? {
+                        backgroundColor: "var(--team-primary)",
+                        color: "var(--team-tertiary)",
+                        borderColor: "var(--team-primary)",
+                      }
+                    : undefined
+                }
               >
-                <div className="p-3 flex items-center gap-3 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-black uppercase tracking-tight text-ink flex items-center gap-2 flex-wrap">
-                      <span className="truncate">
-                        {s.tryoutNumber && (
-                          <span className="text-ink-3 mr-1 tabular-nums">
-                            #{s.tryoutNumber}
-                          </span>
-                        )}
-                        {s.firstName} {s.lastName}
-                      </span>
-                      {bucketCfg && (
-                        <span
-                          className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border ${bucketCfg.className}`}
-                        >
-                          {bucketCfg.label}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-ink-3 font-medium">
-                      {isHead && (
-                        <>
-                          {s.email || "no email"} ·{" "}
-                        </>
-                      )}
-                      {new Date(s.submittedAt).toLocaleDateString()}
-                      {s.tryoutDate ? ` · Tryout date: ${s.tryoutDate}` : ""}
-                    </div>
-                  </div>
-                  {isHead && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={s.tryoutNumber || ""}
-                        onChange={(e) =>
-                          updateTryoutSignup?.(s.id, {
-                            tryoutNumber: e.target.value.replace(/\D/g, "").slice(0, 3),
-                          })
-                        }
-                        placeholder="#"
-                        title="Tryout number"
-                        className="w-12 text-center text-xs font-black tabular-nums px-1 py-1 bg-surface border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateTryoutSignup?.(s.id, {
-                            present: presence === true ? null : true,
-                          })
-                        }
-                        title="Mark present"
-                        aria-pressed={presence === true}
-                        className={`p-1.5 rounded-md border transition-colors ${
-                          presence === true
-                            ? "bg-win-bg border-line text-win"
-                            : "bg-surface border-line text-ink-3 hover:text-win"
-                        }`}
-                      >
-                        <Icons.Check className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateTryoutSignup?.(s.id, {
-                            present: presence === false ? null : false,
-                          })
-                        }
-                        title="Mark no-show"
-                        aria-pressed={presence === false}
-                        className={`p-1.5 rounded-md border transition-colors ${
-                          presence === false
-                            ? "bg-loss-bg border-line text-loss"
-                            : "bg-surface border-line text-ink-3 hover:text-loss"
-                        }`}
-                      >
-                        <Icons.X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  <StatusPill status={s.status} />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setOpenSignupIds((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(s.id)) next.delete(s.id);
-                        else next.add(s.id);
-                        return next;
-                      })
-                    }
-                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                {s}
+              </button>
+            ))}
+            {filtered.length > 0 && (
+              <button
+                type="button"
+                onClick={saveVisibleTryoutEvals}
+                className="ml-auto px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white rounded-lg shadow-sm"
+                style={{ backgroundColor: "var(--team-primary)" }}
+              >
+                Save Visible Evals
+              </button>
+            )}
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="glass-card p-8 text-center text-ink-3 text-sm font-medium">
+              No tryout signups yet. Share the public form link from Settings to
+              start collecting.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((s: any) => {
+                const impact = isHead
+                  ? computeImpact(s, team, evaluationEvents, tryoutSessions)
+                  : null;
+                const expanded = openSignupIds.has(s.id);
+                const bucket = bucketBySignupId.get(s.id);
+                const bucketCfg = bucket
+                  ? (BUCKET_BADGES as any)[bucket]
+                  : null;
+                const presence = s.present; // true | false | undefined
+                return (
+                  <div
+                    key={s.id}
+                    className={`bg-surface border rounded-xl overflow-hidden ${
+                      presence === false
+                        ? "border-line bg-loss-bg"
+                        : "border-line"
+                    }`}
                   >
-                    {expanded ? "Close" : "Open"}
-                  </button>
-                  {isHead && (() => {
-                    const armed = pendingDeleteSignupId === s.id;
-                    return (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          // Stop the click from also toggling the parent
-                          // row's expand/collapse handler.
-                          e.stopPropagation();
-                          if (armed) {
-                            deleteTryoutSignup?.(s.id);
-                            setPendingDeleteSignupId(null);
-                          } else {
-                            setPendingDeleteSignupId(s.id);
-                          }
-                        }}
-                        onBlur={() => {
-                          if (armed) setPendingDeleteSignupId(null);
-                        }}
-                        className={`flex items-center gap-1 rounded-md transition-colors ${
-                          armed
-                            ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-loss"
-                            : "p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg"
-                        }`}
-                        title={armed ? "Tap again to delete" : "Delete signup"}
-                        aria-label={armed ? "Confirm delete signup" : "Delete signup"}
-                      >
-                        <Icons.Trash className="w-3.5 h-3.5" />
-                        {armed && (
-                          <span className="text-[10px] font-black uppercase tracking-widest">
-                            Confirm
+                    <div className="p-3 flex items-center gap-3 flex-wrap">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-black uppercase tracking-tight text-ink flex items-center gap-2 flex-wrap">
+                          <span className="truncate">
+                            {s.tryoutNumber && (
+                              <span className="text-ink-3 mr-1 tabular-nums">
+                                #{s.tryoutNumber}
+                              </span>
+                            )}
+                            {s.firstName} {s.lastName}
                           </span>
-                        )}
-                      </button>
-                    );
-                  })()}
-                </div>
-                {expanded && (
-                  <div className="border-t border-line p-4 space-y-3 bg-app/50">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
-                      <div>
-                        <div className="t-eyebrow">DOB</div>
-                        <div className="font-bold text-ink">
-                          {s.dob || "—"}
+                          {bucketCfg && (
+                            <span
+                              className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border ${bucketCfg.className}`}
+                            >
+                              {bucketCfg.label}
+                            </span>
+                          )}
                         </div>
-                      </div>
-                      <div>
-                        <div className="t-eyebrow">Bats/Throws</div>
-                        <div className="font-bold text-ink">
-                          {s.bats || "R"}/{s.throws || "R"}
+                        <div className="text-[11px] text-ink-3 font-medium">
+                          {isHead && <>{s.email || "no email"} · </>}
+                          {new Date(s.submittedAt).toLocaleDateString()}
+                          {s.tryoutDate
+                            ? ` · Tryout date: ${s.tryoutDate}`
+                            : ""}
                         </div>
                       </div>
                       {isHead && (
-                        <>
-                          <div>
-                            <div className="t-eyebrow">Parent</div>
-                            <div className="font-bold text-ink truncate">
-                              {s.parentName || "—"}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="t-eyebrow">Phone</div>
-                            <div className="font-bold text-ink">
-                              {s.phone || "—"}
-                            </div>
-                          </div>
-                        </>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={s.tryoutNumber || ""}
+                            onChange={(e) =>
+                              updateTryoutSignup?.(s.id, {
+                                tryoutNumber: e.target.value
+                                  .replace(/\D/g, "")
+                                  .slice(0, 3),
+                              })
+                            }
+                            placeholder="#"
+                            title="Tryout number"
+                            className="w-12 text-center text-xs font-black tabular-nums px-1 py-1 bg-surface border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateTryoutSignup?.(s.id, {
+                                present: presence === true ? null : true,
+                              })
+                            }
+                            title="Mark present"
+                            aria-pressed={presence === true}
+                            className={`p-1.5 rounded-md border transition-colors ${
+                              presence === true
+                                ? "bg-win-bg border-line text-win"
+                                : "bg-surface border-line text-ink-3 hover:text-win"
+                            }`}
+                          >
+                            <Icons.Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateTryoutSignup?.(s.id, {
+                                present: presence === false ? null : false,
+                              })
+                            }
+                            title="Mark no-show"
+                            aria-pressed={presence === false}
+                            className={`p-1.5 rounded-md border transition-colors ${
+                              presence === false
+                                ? "bg-loss-bg border-line text-loss"
+                                : "bg-surface border-line text-ink-3 hover:text-loss"
+                            }`}
+                          >
+                            <Icons.X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
-                    </div>
-                    {s.notes && (
-                      <p className="text-[11px] text-ink italic bg-surface border border-line rounded-lg p-2">
-                        {s.notes}
-                      </p>
-                    )}
-
-                    {isHead && impact && impact.positionalFit.length > 0 && (
-                      <div className="bg-surface border border-line rounded-lg p-3 text-[11px]">
-                        <div className="font-black uppercase tracking-widest text-win text-[10px] mb-1.5">
-                          Position Fit
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {impact.positionalFit.map((f) => (
-                            <span
-                              key={f.pos}
-                              className="px-1.5 py-0.5 rounded border bg-win-bg border-line text-win font-black uppercase tracking-widest text-[9px]"
+                      <StatusPill status={s.status} />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenSignupIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(s.id)) next.delete(s.id);
+                            else next.add(s.id);
+                            return next;
+                          })
+                        }
+                        className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                      >
+                        {expanded ? "Close" : "Open"}
+                      </button>
+                      {isHead &&
+                        (() => {
+                          const armed = pendingDeleteSignupId === s.id;
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                // Stop the click from also toggling the parent
+                                // row's expand/collapse handler.
+                                e.stopPropagation();
+                                if (armed) {
+                                  deleteTryoutSignup?.(s.id);
+                                  setPendingDeleteSignupId(null);
+                                } else {
+                                  setPendingDeleteSignupId(s.id);
+                                }
+                              }}
+                              onBlur={() => {
+                                if (armed) setPendingDeleteSignupId(null);
+                              }}
+                              className={`flex items-center gap-1 rounded-md transition-colors ${
+                                armed
+                                  ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-loss"
+                                  : "p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg"
+                              }`}
+                              title={
+                                armed ? "Tap again to delete" : "Delete signup"
+                              }
+                              aria-label={
+                                armed
+                                  ? "Confirm delete signup"
+                                  : "Delete signup"
+                              }
                             >
-                              Fills {f.pos} ({f.returnerCount} returners)
-                            </span>
-                          ))}
+                              <Icons.Trash className="w-3.5 h-3.5" />
+                              {armed && (
+                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                  Confirm
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })()}
+                    </div>
+                    {expanded && (
+                      <div className="border-t border-line p-4 space-y-3 bg-app/50">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                          <div>
+                            <div className="t-eyebrow">DOB</div>
+                            <div className="font-bold text-ink">
+                              {s.dob || "—"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="t-eyebrow">Bats/Throws</div>
+                            <div className="font-bold text-ink">
+                              {s.bats || "R"}/{s.throws || "R"}
+                            </div>
+                          </div>
+                          {isHead && (
+                            <>
+                              <div>
+                                <div className="t-eyebrow">Parent</div>
+                                <div className="font-bold text-ink truncate">
+                                  {s.parentName || "—"}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="t-eyebrow">Phone</div>
+                                <div className="font-bold text-ink">
+                                  {s.phone || "—"}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        {s.notes && (
+                          <p className="text-[11px] text-ink italic bg-surface border border-line rounded-lg p-2">
+                            {s.notes}
+                          </p>
+                        )}
+
+                        {isHead &&
+                          impact &&
+                          impact.positionalFit.length > 0 && (
+                            <div className="bg-surface border border-line rounded-lg p-3 text-[11px]">
+                              <div className="font-black uppercase tracking-widest text-win text-[10px] mb-1.5">
+                                Position Fit
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {impact.positionalFit.map((f) => (
+                                  <span
+                                    key={f.pos}
+                                    className="px-1.5 py-0.5 rounded border bg-win-bg border-line text-win font-black uppercase tracking-widest text-[9px]"
+                                  >
+                                    Fills {f.pos} ({f.returnerCount} returners)
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                        <div>
+                          <EvalGradeCard
+                            player={{
+                              id: s.id,
+                              name: `${s.firstName} ${s.lastName}`,
+                              number: s.number,
+                            }}
+                            grades={localGradesBySignup[s.id] || {}}
+                            activeCategories={activeCategoriesForSignup(
+                              s,
+                              localGradesBySignup[s.id] || {},
+                            )}
+                            positions={activePositions}
+                            teamAge={teamAge}
+                            onGradeChange={setLocalGrade}
+                            onPositionToggle={toggleLocalPos}
+                            onNotesChange={setLocalNotes}
+                          />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button
+                              type="button"
+                              onClick={() => saveTryoutEval(s)}
+                              className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
+                              style={{ backgroundColor: "var(--team-primary)" }}
+                            >
+                              Save Eval
+                            </button>
+                            {isHead && s.status !== "accepted" && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOfferDraft({
+                                    signup: s,
+                                    kind: "newPlayer",
+                                  })
+                                }
+                                className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
+                              >
+                                Make an Offer
+                              </button>
+                            )}
+                            {isHead &&
+                              s.status !== "accepted" &&
+                              s.status !== "declined" && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setOfferDraft({
+                                      signup: s,
+                                      kind: "rejection",
+                                    })
+                                  }
+                                  className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
+                                >
+                                  Decline
+                                </button>
+                              )}
+                            {isHead && s.status === "offered" && (
+                              <button
+                                type="button"
+                                onClick={() => setAcceptChoice(s)}
+                                className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
+                              >
+                                Mark Accepted
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
-
-                    <div>
-                      <EvalGradeCard
-                        player={{
-                          id: s.id,
-                          name: `${s.firstName} ${s.lastName}`,
-                          number: s.number,
-                        }}
-                        grades={localGradesBySignup[s.id] || {}}
-                        activeCategories={activeCategoriesForSignup(s, localGradesBySignup[s.id] || {})}
-                        positions={activePositions}
-                        teamAge={teamAge}
-                        onGradeChange={setLocalGrade}
-                        onPositionToggle={toggleLocalPos}
-                        onNotesChange={setLocalNotes}
-                      />
-                      <div className="flex justify-end gap-2 mt-2">
-                        <button
-                          type="button"
-                          onClick={() => saveTryoutEval(s)}
-                          className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
-                          style={{ backgroundColor: "var(--team-primary)" }}
-                        >
-                          Save Eval
-                        </button>
-                        {isHead && s.status !== "accepted" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOfferDraft({ signup: s, kind: "newPlayer" })
-                            }
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
-                          >
-                            Make an Offer
-                          </button>
-                        )}
-                        {isHead && s.status !== "accepted" && s.status !== "declined" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOfferDraft({ signup: s, kind: "rejection" })
-                            }
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
-                          >
-                            Decline
-                          </button>
-                        )}
-                        {isHead && s.status === "offered" && (
-                          <button
-                            type="button"
-                            onClick={() => setAcceptChoice(s)}
-                            className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white bg-emerald-600 rounded-lg hover:bg-emerald-700"
-                          >
-                            Mark Accepted
-                          </button>
-                        )}
-                      </div>
-                    </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
-      )}
-
-        </div>{/* end main col */}
+        {/* end main col */}
 
         {/* Planning rail — head coaches only */}
         {isHead && (
@@ -1095,8 +1275,8 @@ export const TryoutsTab = memo(() => {
             )}
           </aside>
         )}
-
-      </div>{/* end desktop grid */}
+      </div>
+      {/* end desktop grid */}
 
       {endTryoutOpen && (
         <div
@@ -1115,10 +1295,9 @@ export const TryoutsTab = memo(() => {
               </h3>
               <p className="text-sm text-ink-2 font-medium mb-4">
                 {noShowCount} signup{noShowCount === 1 ? "" : "s"} marked
-                no-show will be permanently deleted. Their grades, if
-                any, are kept for historical reference but the signup
-                itself is removed. Anyone unmarked or marked present
-                stays.
+                no-show will be permanently deleted. Their grades, if any, are
+                kept for historical reference but the signup itself is removed.
+                Anyone unmarked or marked present stays.
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -1166,7 +1345,7 @@ export const TryoutsTab = memo(() => {
             user,
             [offerDraft.signup.firstName, offerDraft.signup.lastName]
               .filter(Boolean)
-              .join(" ")
+              .join(" "),
           )}
           onSaveNextSeasonMoney={(patch) =>
             updateTeam({ finances: { ...(team.finances || {}), ...patch } })

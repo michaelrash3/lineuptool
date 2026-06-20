@@ -23,7 +23,10 @@ const ROLES: { key: keyof RoleColors; label: string }[] = [
 
 // Pre-fill each role from the extracted palette, falling back to the team's
 // current value whenever the logo yielded fewer than three colors.
-const seedAssignments = (palette: string[], current: RoleColors): RoleColors => ({
+const seedAssignments = (
+  palette: string[],
+  current: RoleColors,
+): RoleColors => ({
   primaryColor: palette[0] || current.primaryColor,
   secondaryColor: palette[1] || current.secondaryColor,
   tertiaryColor: palette[2] || current.tertiaryColor,
@@ -46,7 +49,7 @@ export const LogoColorModal = memo(
     onApply: (colors: RoleColors) => void;
   }) => {
     const [assignments, setAssignments] = useState<RoleColors>(() =>
-      seedAssignments(palette, current)
+      seedAssignments(palette, current),
     );
 
     // Re-seed whenever the modal opens with a fresh palette (a new logo or a
@@ -83,7 +86,7 @@ export const LogoColorModal = memo(
             Close
           </Button>
         ),
-      [hasPalette, assignments, onApply, onClose]
+      [hasPalette, assignments, onApply, onClose],
     );
 
     return (
@@ -190,5 +193,5 @@ export const LogoColorModal = memo(
         )}
       </Modal>
     );
-  }
+  },
 );

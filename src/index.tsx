@@ -21,7 +21,7 @@ root.render(
     <BrowserRouter>
       <App />
     </BrowserRouter>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
 
 // Register the offline-shell service worker in production builds only.

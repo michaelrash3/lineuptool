@@ -42,7 +42,7 @@ describe("errorReporter", () => {
     initErrorReporting(); // idempotent — second call is a no-op
     const errorHandlers = addSpy.mock.calls.filter((c) => c[0] === "error");
     const rejectionHandlers = addSpy.mock.calls.filter(
-      (c) => c[0] === "unhandledrejection"
+      (c) => c[0] === "unhandledrejection",
     );
     expect(errorHandlers).toHaveLength(1);
     expect(rejectionHandlers).toHaveLength(1);

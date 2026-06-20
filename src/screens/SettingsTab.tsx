@@ -1994,9 +1994,16 @@ export const SettingsTab = memo(() => {
         setPlayerStatus={setPlayerStatus}
         setPlayerReturning={setPlayerReturning}
         onClose={() => setAdvanceSeasonOpen(false)}
-        onConfirm={({ tryoutsToPromote = [], tryoutDepositPayments = {} } = {}) => {
+        onConfirm={({
+          tryoutsToPromote = [],
+          tryoutDepositPayments = {},
+        } = {}) => {
           setAdvanceSeasonOpen(false);
-          advanceSeason({ skipConfirm: true, tryoutsToPromote, tryoutDepositPayments });
+          advanceSeason({
+            skipConfirm: true,
+            tryoutsToPromote,
+            tryoutDepositPayments,
+          });
         }}
       />
 

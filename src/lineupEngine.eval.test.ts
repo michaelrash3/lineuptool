@@ -46,10 +46,16 @@ describe("calculateTotalScore — v7 eval model", () => {
 
 describe("suggestPrimaryPosition — eval-derived primary", () => {
   it("suggests a premium infield spot for a strong arm + glove + range kid", () => {
-    const grades = { ...base, glove: 5, range: 5, armStrength: 5, armAccuracy: 5 };
+    const grades = {
+      ...base,
+      glove: 5,
+      range: 5,
+      armStrength: 5,
+      armAccuracy: 5,
+    };
     const s = suggestPrimaryPosition(
       { comfortablePositions: ["1B", "SS", "RF"] },
-      grades
+      grades,
     );
     expect(s?.position).toBe("SS");
   });
@@ -67,7 +73,10 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
       blocking: 5,
       throwing: 5,
     };
-    const s = suggestPrimaryPosition({ comfortablePositions: ["C", "RF"] }, grades);
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["C", "RF"] },
+      grades,
+    );
     expect(s?.position).toBe("C");
   });
 
@@ -76,17 +85,23 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
     const s = suggestPrimaryPosition(
       { comfortablePositions: ["P", "RF"] },
       grades,
-      { kidPitch: false }
+      { kidPitch: false },
     );
     expect(s?.position).not.toBe("P");
   });
 
   it("can suggest pitcher for Kid-Pitch teams with strong pitching grades", () => {
-    const grades = { ...base, velocity: 5, strikes: 5, offSpeed: 5, composure: 5 };
+    const grades = {
+      ...base,
+      velocity: 5,
+      strikes: 5,
+      offSpeed: 5,
+      composure: 5,
+    };
     const s = suggestPrimaryPosition(
       { comfortablePositions: ["P", "RF"] },
       grades,
-      { kidPitch: true }
+      { kidPitch: true },
     );
     expect(s?.position).toBe("P");
   });
@@ -105,20 +120,42 @@ describe("suggestPrimaryPosition — eval-derived primary", () => {
   });
 
   it("does not blindly pick first base when neutral comfortable positions are tied", () => {
-    const s = suggestPrimaryPosition({ comfortablePositions: ["1B", "2B", "3B"] }, base);
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["1B", "2B", "3B"] },
+      base,
+    );
     expect(s?.position).toBeNull();
     expect(s?.confidence).toBeLessThan(0.25);
   });
 
   it("can prefer first base when the profile has a real first-base signal", () => {
-    const grades = { ...base, glove: 5, armAccuracy: 5, baseballIQ: 5, range: 2, armStrength: 2 };
-    const s = suggestPrimaryPosition({ comfortablePositions: ["1B", "2B", "3B"] }, grades);
+    const grades = {
+      ...base,
+      glove: 5,
+      armAccuracy: 5,
+      baseballIQ: 5,
+      range: 2,
+      armStrength: 2,
+    };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["1B", "2B", "3B"] },
+      grades,
+    );
     expect(s?.position).toBe("1B");
   });
 
   it("uses arm strength to separate right field from left field", () => {
-    const grades = { ...base, glove: 4, range: 4, armStrength: 5, armAccuracy: 4 };
-    const s = suggestPrimaryPosition({ comfortablePositions: ["LF", "RF"] }, grades);
+    const grades = {
+      ...base,
+      glove: 4,
+      range: 4,
+      armStrength: 5,
+      armAccuracy: 4,
+    };
+    const s = suggestPrimaryPosition(
+      { comfortablePositions: ["LF", "RF"] },
+      grades,
+    );
     expect(s?.position).toBe("RF");
   });
 
@@ -136,7 +173,7 @@ describe("Speed / Base Running split (v8)", () => {
   it("seeds BOTH speed and baserunning from a legacy merged grade", () => {
     const merged = getCombinedGrades(
       round({ p1: { speedBaserunning: 5 } }) as any,
-      roster
+      roster,
     );
     expect(merged.p1.speed).toBe(5);
     expect(merged.p1.baserunning).toBe(5);
@@ -145,7 +182,7 @@ describe("Speed / Base Running split (v8)", () => {
   it("carries separate speed and baserunning grades through unchanged", () => {
     const merged = getCombinedGrades(
       round({ p1: { speed: 5, baserunning: 1 } }) as any,
-      roster
+      roster,
     );
     expect(merged.p1.speed).toBe(5);
     expect(merged.p1.baserunning).toBe(1);
@@ -182,13 +219,13 @@ describe("advanced stats carry more weight (D)", () => {
     // sample land Strikes/Off-Speed at 5 — well above the scale midpoint.
     const statGraded = calcPitcherScore(
       {},
-      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pSwingMiss: 0.25, pBf: 30 }
+      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pSwingMiss: 0.25, pBf: 30 },
     );
     expect(statGraded).toBeGreaterThan(16.25);
     // 30 BF is already a full sample (was 40).
     const at40 = calcPitcherScore(
       {},
-      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pSwingMiss: 0.25, pBf: 40 }
+      { pStrikePct: 0.65, pWhip: 1.0, pKbb: 3.0, pSwingMiss: 0.25, pBf: 40 },
     );
     expect(statGraded).toBeCloseTo(at40);
   });
@@ -215,7 +252,7 @@ describe("stat-derived tangible grades (v9)", () => {
     expect(statContactGrade({})).toBeNull();
     // Elite line + full sample -> top grade.
     expect(
-      statContactGrade({ avg: 0.45, qab: 0.6, ld: 0.3, ab: 30 })
+      statContactGrade({ avg: 0.45, qab: 0.6, ld: 0.3, ab: 30 }),
     ).toBeCloseTo(5);
     // Same line with a tiny sample stays near neutral.
     const tiny = statContactGrade({ avg: 0.45, qab: 0.6, ld: 0.3, ab: 3 });
@@ -252,14 +289,13 @@ describe("stat-derived tangible grades (v9)", () => {
   it("statArmGrade: velocity reading first, catcher CS% next, neutral otherwise", async () => {
     const { statArmGrade } = await import("./lineupEngine");
     expect(statArmGrade({})).toBeNull(); // infield arm isn't in youth stats
-    expect(
-      statArmGrade({}, { topMph: 58, teamAge: "10U" })
-    ).toBeCloseTo(5);
+    expect(statArmGrade({}, { topMph: 58, teamAge: "10U" })).toBeCloseTo(5);
     expect(statArmGrade({ fCsPct: 0.55, fSbAtt: 12 })).toBeCloseTo(5);
   });
 
   it("statBlockingGrade needs a games-caught denominator", async () => {
-    const { statBlockingGrade, countGamesCaught } = await import("./lineupEngine");
+    const { statBlockingGrade, countGamesCaught } =
+      await import("./lineupEngine");
     expect(statBlockingGrade({ fPb: 6 })).toBeNull(); // no denominator
     // 6 PB over 6 games caught = 1.0/game — middling.
     const mid = statBlockingGrade({ fPb: 6 }, 6);
@@ -346,10 +382,11 @@ describe("stat-derived tangible grades (v9)", () => {
   });
 
   it("carries coach-entered Pitch Velocity (mph) and grades it age-relative", async () => {
-    const { getCombinedGrades, calcPitcherScore } = await import(
-      "./lineupEngine"
-    );
-    const players: any[] = [{ id: "p1", name: "Ace", comfortablePositions: ["P"] }];
+    const { getCombinedGrades, calcPitcherScore } =
+      await import("./lineupEngine");
+    const players: any[] = [
+      { id: "p1", name: "Ace", comfortablePositions: ["P"] },
+    ];
     const events: any[] = [
       {
         id: "e1",
@@ -371,16 +408,32 @@ describe("stat-derived tangible grades (v9)", () => {
 
   it("uses the chart-based 8U 30-50 mph velocity scoring band", async () => {
     const { getCombinedGrades } = await import("./lineupEngine");
-    const players: any[] = [{ id: "p1", name: "Ace", comfortablePositions: ["P"] }];
+    const players: any[] = [
+      { id: "p1", name: "Ace", comfortablePositions: ["P"] },
+    ];
     const low = getCombinedGrades(
-      [{ id: "e1", date: "2026-04-01", coachRole: "Head", grades: { p1: { pitchVelo: 30 } } }],
+      [
+        {
+          id: "e1",
+          date: "2026-04-01",
+          coachRole: "Head",
+          grades: { p1: { pitchVelo: 30 } },
+        },
+      ],
       players,
-      { teamAge: "8U" }
+      { teamAge: "8U" },
     );
     const high = getCombinedGrades(
-      [{ id: "e2", date: "2026-04-02", coachRole: "Head", grades: { p1: { pitchVelo: 40 } } }],
+      [
+        {
+          id: "e2",
+          date: "2026-04-02",
+          coachRole: "Head",
+          grades: { p1: { pitchVelo: 40 } },
+        },
+      ],
       players,
-      { teamAge: "8U" }
+      { teamAge: "8U" },
     );
 
     expect(low.p1.velocity).toBe(1);
@@ -389,7 +442,9 @@ describe("stat-derived tangible grades (v9)", () => {
 
   it("ignores a blank Pitch Velocity (optional — no penalty)", async () => {
     const { getCombinedGrades } = await import("./lineupEngine");
-    const players: any[] = [{ id: "p1", name: "Ace", comfortablePositions: ["P"] }];
+    const players: any[] = [
+      { id: "p1", name: "Ace", comfortablePositions: ["P"] },
+    ];
     const events: any[] = [
       {
         id: "e1",
@@ -404,7 +459,13 @@ describe("stat-derived tangible grades (v9)", () => {
   });
 
   it("calculateTotalScore lifts a kid with an elite imported stat line over a statless one", () => {
-    const grades = { approach: 3, speed: 3, baserunning: 3, baseballIQ: 3, coachability: 3 };
+    const grades = {
+      approach: 3,
+      speed: 3,
+      baserunning: 3,
+      baseballIQ: 3,
+      coachability: 3,
+    };
     const noStats = calculateTotalScore(grades, {});
     const elite = calculateTotalScore(grades, {
       avg: 0.45,

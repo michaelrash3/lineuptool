@@ -21,7 +21,7 @@ export const ArmCarePanel = memo(() => {
       .filter(
         (p) =>
           Array.isArray(p.comfortablePositions) &&
-          p.comfortablePositions.includes("P")
+          p.comfortablePositions.includes("P"),
       )
       .map((p) => ({ p, w: analyzePitchingWorkload(p.pitching, ruleSet) }))
       .filter((r) => r.w.outings > 0)
@@ -85,8 +85,7 @@ export const ArmCarePanel = memo(() => {
             </button>
             <div className="text-[11px] font-bold text-ink-2 mt-0.5 tabular-nums">
               {w.totalPitches} pitches · {w.outings} outing
-              {w.outings === 1 ? "" : "s"} · high {w.maxDay} · last 7d{" "}
-              {w.last7}
+              {w.outings === 1 ? "" : "s"} · high {w.maxDay} · last 7d {w.last7}
             </div>
             {w.alerts.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-1.5">

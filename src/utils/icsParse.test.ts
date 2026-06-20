@@ -65,7 +65,9 @@ describe("parseGameChangerIcs", () => {
     expect(g.startUtc).toBe("2026-03-31T22:00:00.000Z");
     expect(g.endUtc).toBe("2026-04-01T00:00:00.000Z");
     // \\n and \\, unescaped to a real newline + commas.
-    expect(g.location).toBe("St. Henry Athletic Complex\nFlorence, KY, United States");
+    expect(g.location).toBe(
+      "St. Henry Athletic Complex\nFlorence, KY, United States",
+    );
   });
 
   it("parses an away game without a location", () => {
@@ -110,6 +112,8 @@ describe("parseGameChangerIcs", () => {
 describe("isoInstantToLocalDate", () => {
   it("formats a midday-UTC instant to its calendar day (stable across US zones)", () => {
     // 14:00Z stays June 6 in UTC and every US timezone — deterministic in CI.
-    expect(isoInstantToLocalDate("2026-06-06T14:00:00.000Z")).toBe("2026-06-06");
+    expect(isoInstantToLocalDate("2026-06-06T14:00:00.000Z")).toBe(
+      "2026-06-06",
+    );
   });
 });

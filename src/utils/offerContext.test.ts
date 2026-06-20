@@ -16,7 +16,7 @@ describe("makeOfferLetterContext", () => {
         },
       },
       { displayName: "Coach", email: "coach@example.com" },
-      "Ava"
+      "Ava",
     );
 
     expect(ctx.teamFees).toBe("$900");

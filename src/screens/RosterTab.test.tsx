@@ -75,15 +75,26 @@ describe("RosterTab", () => {
     expect(screen.queryByText("RBI", { selector: "div" })).toBeNull();
   });
 
-
   it("distinguishes temporarily inactive players from departed players", async () => {
     renderWithProviders(<RosterTab />, {
       team: {
         team: {
           players: [
             ...players,
-            { id: "p3", name: "Zoe Kim", number: "18", present: false, rosterStatus: "departed" },
-            { id: "p4", name: "Lily Chen", number: "22", present: false, rosterStatus: "inactive" },
+            {
+              id: "p3",
+              name: "Zoe Kim",
+              number: "18",
+              present: false,
+              rosterStatus: "departed",
+            },
+            {
+              id: "p4",
+              name: "Lily Chen",
+              number: "22",
+              present: false,
+              rosterStatus: "inactive",
+            },
           ],
           games: [],
         },
@@ -113,7 +124,7 @@ describe("RosterTab", () => {
     expect(screen.getByText("Team Leaders")).toBeInTheDocument();
     // Tapping the jersey (View stats) selects the player.
     await userEvent.click(
-      screen.getByRole("button", { name: /view ava rivera stats/i })
+      screen.getByRole("button", { name: /view ava rivera stats/i }),
     );
     expect(screen.getByText("Player stats")).toBeInTheDocument();
     expect(screen.getByText("Batting")).toBeInTheDocument();

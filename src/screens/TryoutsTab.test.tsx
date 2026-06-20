@@ -13,14 +13,20 @@ const grade = (n: number, suggestedPositions: string[] = []) => ({
   suggestedPositions,
 });
 
-const session = (signupId: string, grades: any, date = "2026-07-01") => ([{
-  id: `tryout-${date}`,
-  date,
-  updatedAt: 2,
-  gradesByEvaluator: {
-    head: { coachRole: "Head", evaluatorId: "head", grades: { [signupId]: grades } },
+const session = (signupId: string, grades: any, date = "2026-07-01") => [
+  {
+    id: `tryout-${date}`,
+    date,
+    updatedAt: 2,
+    gradesByEvaluator: {
+      head: {
+        coachRole: "Head",
+        evaluatorId: "head",
+        grades: { [signupId]: grades },
+      },
+    },
   },
-}]);
+];
 
 const baseTeam = (overrides: any = {}) => ({
   rosterCap: 3,
@@ -29,7 +35,12 @@ const baseTeam = (overrides: any = {}) => ({
   pitchingFormat: "Kid Pitch",
   games: [],
   players: [
-    { id: "yes-1", name: "Locked Returner", returning: true, comfortablePositions: ["P"] },
+    {
+      id: "yes-1",
+      name: "Locked Returner",
+      returning: true,
+      comfortablePositions: ["P"],
+    },
   ],
   ...overrides,
 });
@@ -61,36 +72,71 @@ describe("computeRosterProjection", () => {
     const team = baseTeam({
       rosterCap: 2,
       players: [
-        { id: "yes-1", name: "Locked Returner", returning: true, comfortablePositions: ["P"] },
+        {
+          id: "yes-1",
+          name: "Locked Returner",
+          returning: true,
+          comfortablePositions: ["P"],
+        },
         { id: "unk-1", name: "Bubble Returner", comfortablePositions: ["2B"] },
       ],
     });
     const projection = computeRosterProjection(
       team,
       session("try-1", grade(5, ["C"])),
-      [{ id: "try-1", firstName: "Top", lastName: "Tryout", status: "tryout", tryoutDate: "2026-07-01" }],
-      [{ coachRole: "Head", grades: { "unk-1": grade(2) }, createdAt: 1 }]
+      [
+        {
+          id: "try-1",
+          firstName: "Top",
+          lastName: "Tryout",
+          status: "tryout",
+          tryoutDate: "2026-07-01",
+        },
+      ],
+      [{ coachRole: "Head", grades: { "unk-1": grade(2) }, createdAt: 1 }],
     );
     expect(projection.recommended).toHaveLength(1);
-    expect(projection.recommended[0]).toMatchObject({ kind: "tryout", name: "Top Tryout" });
-    expect(projection.nextBest[0]).toMatchObject({ kind: "unknown", name: "Bubble Returner" });
+    expect(projection.recommended[0]).toMatchObject({
+      kind: "tryout",
+      name: "Top Tryout",
+    });
+    expect(projection.nextBest[0]).toMatchObject({
+      kind: "unknown",
+      name: "Bubble Returner",
+    });
   });
 
   it("ranks an unknown current player above a tryout when their fit score is higher", () => {
     const team = baseTeam({
       rosterCap: 2,
       players: [
-        { id: "yes-1", name: "Locked Returner", returning: true, comfortablePositions: ["P"] },
+        {
+          id: "yes-1",
+          name: "Locked Returner",
+          returning: true,
+          comfortablePositions: ["P"],
+        },
         { id: "unk-1", name: "Strong Returner", comfortablePositions: ["C"] },
       ],
     });
     const projection = computeRosterProjection(
       team,
       session("try-1", grade(2, ["2B"])),
-      [{ id: "try-1", firstName: "Lower", lastName: "Tryout", status: "tryout", tryoutDate: "2026-07-01" }],
-      [{ coachRole: "Head", grades: { "unk-1": grade(5) }, createdAt: 1 }]
+      [
+        {
+          id: "try-1",
+          firstName: "Lower",
+          lastName: "Tryout",
+          status: "tryout",
+          tryoutDate: "2026-07-01",
+        },
+      ],
+      [{ coachRole: "Head", grades: { "unk-1": grade(5) }, createdAt: 1 }],
     );
-    expect(projection.recommended[0]).toMatchObject({ kind: "unknown", name: "Strong Returner" });
+    expect(projection.recommended[0]).toMatchObject({
+      kind: "unknown",
+      name: "Strong Returner",
+    });
   });
 
   it("counts accepted tryouts as locked slots and excludes confirmed returners from competing", () => {
@@ -99,22 +145,42 @@ describe("computeRosterProjection", () => {
       team,
       session("try-1", grade(5, ["C"])),
       [
-        { id: "accepted-1", firstName: "Accepted", lastName: "Player", status: "accepted", tryoutDate: "2026-07-01" },
-        { id: "try-1", firstName: "Open", lastName: "Candidate", status: "tryout", tryoutDate: "2026-07-01" },
+        {
+          id: "accepted-1",
+          firstName: "Accepted",
+          lastName: "Player",
+          status: "accepted",
+          tryoutDate: "2026-07-01",
+        },
+        {
+          id: "try-1",
+          firstName: "Open",
+          lastName: "Candidate",
+          status: "tryout",
+          tryoutDate: "2026-07-01",
+        },
       ],
-      []
+      [],
     );
     expect(projection.acceptedCount).toBe(1);
     expect(projection.slotsRemaining).toBe(0);
     expect(projection.recommended).toHaveLength(0);
-    expect(projection.nextBest[0]).toMatchObject({ kind: "tryout", name: "Open Candidate" });
+    expect(projection.nextBest[0]).toMatchObject({
+      kind: "tryout",
+      name: "Open Candidate",
+    });
   });
 
   it("values left-handed pitchers without giving them middle-infield fit credit", () => {
     const team = baseTeam({
       rosterCap: 2,
       players: [
-        { id: "yes-1", name: "Locked Returner", returning: true, comfortablePositions: ["C"] },
+        {
+          id: "yes-1",
+          name: "Locked Returner",
+          returning: true,
+          comfortablePositions: ["C"],
+        },
       ],
     });
     const projection = computeRosterProjection(
@@ -130,7 +196,7 @@ describe("computeRosterProjection", () => {
           tryoutDate: "2026-07-01",
         },
       ],
-      []
+      [],
     );
 
     expect(projection.recommended[0].fitReasons).toEqual(["fills P"]);
@@ -140,17 +206,37 @@ describe("computeRosterProjection", () => {
   it("surfaces ungraded candidates as needing evaluation", () => {
     const team = baseTeam({
       players: [
-        { id: "yes-1", name: "Locked Returner", returning: true, comfortablePositions: ["P"] },
-        { id: "unk-1", name: "Ungraded Returner", comfortablePositions: ["SS"] },
+        {
+          id: "yes-1",
+          name: "Locked Returner",
+          returning: true,
+          comfortablePositions: ["P"],
+        },
+        {
+          id: "unk-1",
+          name: "Ungraded Returner",
+          comfortablePositions: ["SS"],
+        },
       ],
     });
     const projection = computeRosterProjection(
       team,
       [],
-      [{ id: "try-1", firstName: "Ungraded", lastName: "Tryout", status: "tryout", tryoutDate: "2026-07-01" }],
-      []
+      [
+        {
+          id: "try-1",
+          firstName: "Ungraded",
+          lastName: "Tryout",
+          status: "tryout",
+          tryoutDate: "2026-07-01",
+        },
+      ],
+      [],
     );
-    expect(projection.needsEvaluation.map((c) => c.name)).toEqual(["Ungraded Returner", "Ungraded Tryout"]);
+    expect(projection.needsEvaluation.map((c) => c.name)).toEqual([
+      "Ungraded Returner",
+      "Ungraded Tryout",
+    ]);
     expect(projection.recommended).toHaveLength(0);
   });
 
@@ -159,10 +245,23 @@ describe("computeRosterProjection", () => {
       baseTeam(),
       session("old-1", grade(5, ["C"])),
       [
-        { id: "declined-1", firstName: "Declined", lastName: "Kid", status: "declined", tryoutDate: "2026-07-01" },
-        { id: "old-1", firstName: "Old", lastName: "Kid", status: "tryout", dob: "2010-01-01", tryoutDate: "2026-07-01" },
+        {
+          id: "declined-1",
+          firstName: "Declined",
+          lastName: "Kid",
+          status: "declined",
+          tryoutDate: "2026-07-01",
+        },
+        {
+          id: "old-1",
+          firstName: "Old",
+          lastName: "Kid",
+          status: "tryout",
+          dob: "2010-01-01",
+          tryoutDate: "2026-07-01",
+        },
       ],
-      []
+      [],
     );
     expect(projection.recommended).toHaveLength(0);
     expect(projection.tooOld).toHaveLength(1);

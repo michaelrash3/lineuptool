@@ -41,7 +41,7 @@ export const usePastSeasonCrud = ({
       });
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   const updatePastSeason = useCallback(
@@ -63,7 +63,7 @@ export const usePastSeasonCrud = ({
       });
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
   const removePastSeason = useCallback(
@@ -79,12 +79,14 @@ export const usePastSeasonCrud = ({
         if (p.id !== playerId) return p;
         return {
           ...p,
-          pastSeasons: (p.pastSeasons || []).filter((e: any) => e.id !== entryId),
+          pastSeasons: (p.pastSeasons || []).filter(
+            (e: any) => e.id !== entryId,
+          ),
         };
       });
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam, confirm]
+    [teamData.players, updateTeam, confirm],
   );
 
   // Bulk add past-season entries from a CSV import. `assignments` is an array of
@@ -120,8 +122,13 @@ export const usePastSeasonCrud = ({
       });
       updateTeam({ players: next });
     },
-    [teamData.players, updateTeam]
+    [teamData.players, updateTeam],
   );
 
-  return { addPastSeason, updatePastSeason, removePastSeason, bulkAddPastSeasons };
+  return {
+    addPastSeason,
+    updatePastSeason,
+    removePastSeason,
+    bulkAddPastSeasons,
+  };
 };

@@ -37,16 +37,16 @@ export const AssistantEvalTab = memo(() => {
   const { players, pitchingFormat, evaluationEvents, defenseSize } = team;
   const activePositions = useMemo(
     () => getActivePositionList(defenseSize),
-    [defenseSize]
+    [defenseSize],
   );
 
   const activeCategories = useMemo(
     () => getEvalCategoriesForTeam(pitchingFormat),
-    [pitchingFormat]
+    [pitchingFormat],
   );
   const includeKidPitchAddons = useMemo(
     () => isKidPitchFormat(pitchingFormat),
-    [pitchingFormat]
+    [pitchingFormat],
   );
   const visibleGroups = useMemo(() => {
     const base = [...EVAL_GROUPS_UNIVERSAL];
@@ -66,9 +66,12 @@ export const AssistantEvalTab = memo(() => {
     const today = getLocalDateString();
     const mine = (evaluationEvents || [])
       .filter(
-        (e: any) => e.coachRole === "Assistant" && e.evaluatorId === user.uid
+        (e: any) => e.coachRole === "Assistant" && e.evaluatorId === user.uid,
       )
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
     const todayRound = mine.find((e: any) => e.date === today);
     const seed = todayRound?.grades || mine[0]?.grades || null;
     if (seed) {
@@ -93,9 +96,12 @@ export const AssistantEvalTab = memo(() => {
     if (!user) return [];
     return (evaluationEvents || [])
       .filter(
-        (e: any) => e.coachRole === "Assistant" && e.evaluatorId === user.uid
+        (e: any) => e.coachRole === "Assistant" && e.evaluatorId === user.uid,
       )
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
   }, [user, evaluationEvents]);
 
   const viewingPastRound = useMemo(() => {
@@ -103,12 +109,15 @@ export const AssistantEvalTab = memo(() => {
     return myRounds.find((r: any) => r.id === viewingPastRoundId) || null;
   }, [viewingPastRoundId, myRounds]);
 
-  const setPlayerGrade = useCallback((playerId: any, categoryId: any, value: any) => {
-    setGrades((prev) => ({
-      ...prev,
-      [playerId]: { ...(prev[playerId] || {}), [categoryId]: value },
-    }));
-  }, []);
+  const setPlayerGrade = useCallback(
+    (playerId: any, categoryId: any, value: any) => {
+      setGrades((prev) => ({
+        ...prev,
+        [playerId]: { ...(prev[playerId] || {}), [categoryId]: value },
+      }));
+    },
+    [],
+  );
 
   const setPlayerNotes = useCallback((playerId: any, notes: any) => {
     setGrades((prev) => ({
@@ -165,14 +174,16 @@ export const AssistantEvalTab = memo(() => {
   // so the same shared component works for both flows.
   const groupCats = useMemo(
     () => activeCategories.filter((c) => c.group === activeGroup),
-    [activeCategories, activeGroup]
+    [activeCategories, activeGroup],
   );
 
   // The Pitching / Catching groups only apply to pitchers / catchers, so only
   // those kids show up on those tabs (universal groups show everyone).
   const playersForGroup = useMemo(() => {
-    if (activeGroup === "Pitching") return orderedPlayers.filter(playerIsPitcher);
-    if (activeGroup === "Catching") return orderedPlayers.filter(playerIsCatcher);
+    if (activeGroup === "Pitching")
+      return orderedPlayers.filter(playerIsPitcher);
+    if (activeGroup === "Catching")
+      return orderedPlayers.filter(playerIsCatcher);
     return orderedPlayers;
   }, [orderedPlayers, activeGroup]);
 
@@ -295,8 +306,8 @@ export const AssistantEvalTab = memo(() => {
               {activeGroup === "Pitching"
                 ? "No pitchers on the roster. Mark a player comfortable at P to grade pitching."
                 : activeGroup === "Catching"
-                ? "No catchers on the roster. Mark a player as a catcher to grade catching."
-                : "No active players to evaluate."}
+                  ? "No catchers on the roster. Mark a player as a catcher to grade catching."
+                  : "No active players to evaluate."}
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -331,4 +342,3 @@ export const AssistantEvalTab = memo(() => {
     </div>
   );
 });
-

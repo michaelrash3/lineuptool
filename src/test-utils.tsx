@@ -15,7 +15,7 @@ import type {
 } from "./types";
 
 export const makeToast = (
-  overrides: Partial<ToastContextValue> = {}
+  overrides: Partial<ToastContextValue> = {},
 ): ToastContextValue => ({
   push: jest.fn(),
   dismiss: jest.fn(),
@@ -29,7 +29,7 @@ export const makeConfirm = (accept = true): jest.Mock =>
   jest.fn().mockResolvedValue(accept);
 
 export const makeTeam = (
-  overrides: Partial<TeamContextValue> = {}
+  overrides: Partial<TeamContextValue> = {},
 ): TeamContextValue =>
   ({
     currentRole: "head",
@@ -40,11 +40,9 @@ export const makeTeam = (
     team: { players: [], games: [] },
     teams: [],
     ...overrides,
-  } as TeamContextValue);
+  }) as TeamContextValue;
 
-const makeUI = (
-  overrides: Partial<UIContextValue> = {}
-): UIContextValue =>
+const makeUI = (overrides: Partial<UIContextValue> = {}): UIContextValue =>
   ({
     activeTab: "home",
     setActiveTab: jest.fn(),
@@ -52,7 +50,7 @@ const makeUI = (
     setSelectedGameId: jest.fn(),
     openPlayerProfile: jest.fn(),
     ...overrides,
-  } as UIContextValue);
+  }) as UIContextValue;
 
 interface ProvidersOptions extends Omit<RenderOptions, "wrapper"> {
   toast?: Partial<ToastContextValue>;
@@ -62,7 +60,7 @@ interface ProvidersOptions extends Omit<RenderOptions, "wrapper"> {
 
 export const renderWithProviders = (
   ui: ReactElement,
-  { toast, team, ui: uiOverrides, ...rest }: ProvidersOptions = {}
+  { toast, team, ui: uiOverrides, ...rest }: ProvidersOptions = {},
 ) => {
   const toastValue = makeToast(toast);
   const teamValue = makeTeam(team);

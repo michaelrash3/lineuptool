@@ -66,11 +66,7 @@ import {
 import { CommandPalette } from "./components/CommandPalette";
 import { WelcomeChooser } from "./components/WelcomeChooser";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import {
-  LoginScreen,
-  AppHeader,
-  OfflineBanner,
-} from "./components/Chrome";
+import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import {
   PlayerProfileModal,
   AddPlayerModal,
@@ -130,52 +126,52 @@ import {
 // React.lazy needs — every screen here exports its component as a named
 // const, not a default.
 const HomeTab = lazy(() =>
-  import("./screens/HomeTab").then((m) => ({ default: m.HomeTab }))
+  import("./screens/HomeTab").then((m) => ({ default: m.HomeTab })),
 );
 const RosterTab = lazy(() =>
-  import("./screens/RosterTab").then((m) => ({ default: m.RosterTab }))
+  import("./screens/RosterTab").then((m) => ({ default: m.RosterTab })),
 );
 const StatsTab = lazy(() =>
-  import("./screens/StatsTab").then((m) => ({ default: m.StatsTab }))
+  import("./screens/StatsTab").then((m) => ({ default: m.StatsTab })),
 );
 const DepthChartTab = lazy(() =>
-  import("./screens/DepthChartTab").then((m) => ({ default: m.DepthChartTab }))
+  import("./screens/DepthChartTab").then((m) => ({ default: m.DepthChartTab })),
 );
 const ScheduleTab = lazy(() =>
-  import("./screens/ScheduleTab").then((m) => ({ default: m.ScheduleTab }))
+  import("./screens/ScheduleTab").then((m) => ({ default: m.ScheduleTab })),
 );
 const EvaluationTab = lazy(() =>
   import("./screens/EvaluationTab").then((m) => ({
     default: m.EvaluationTab,
-  }))
+  })),
 );
 const SettingsTab = lazy(() =>
-  import("./screens/SettingsTab").then((m) => ({ default: m.SettingsTab }))
+  import("./screens/SettingsTab").then((m) => ({ default: m.SettingsTab })),
 );
 const AssistantEvalTab = lazy(() =>
   import("./screens/AssistantEvalTab").then((m) => ({
     default: m.AssistantEvalTab,
-  }))
+  })),
 );
 const TryoutsTab = lazy(() =>
-  import("./screens/TryoutsTab").then((m) => ({ default: m.TryoutsTab }))
+  import("./screens/TryoutsTab").then((m) => ({ default: m.TryoutsTab })),
 );
 const InterestTab = lazy(() =>
-  import("./screens/InterestTab").then((m) => ({ default: m.InterestTab }))
+  import("./screens/InterestTab").then((m) => ({ default: m.InterestTab })),
 );
 const FinancesTab = lazy(() =>
-  import("./screens/FinancesTab").then((m) => ({ default: m.FinancesTab }))
+  import("./screens/FinancesTab").then((m) => ({ default: m.FinancesTab })),
 );
 const TryoutsPortal = lazy(() =>
   import("./screens/TryoutsPortal").then((m) => ({
     default: m.TryoutsPortal,
-  }))
+  })),
 );
 const InGameView = lazy(() =>
-  import("./screens/InGameView").then((m) => ({ default: m.InGameView }))
+  import("./screens/InGameView").then((m) => ({ default: m.InGameView })),
 );
 const PracticesTab = lazy(() =>
-  import("./screens/PracticesTab").then((m) => ({ default: m.PracticesTab }))
+  import("./screens/PracticesTab").then((m) => ({ default: m.PracticesTab })),
 );
 
 // Screen labels used to build the dynamic browser-tab title
@@ -241,7 +237,7 @@ const ToastProvider = ({ children }: any) => {
       }
       return id;
     },
-    [dismiss]
+    [dismiss],
   );
 
   const value = useMemo(() => ({ push, dismiss }), [push, dismiss]);
@@ -299,69 +295,72 @@ const ToastContainer = memo(({ toasts, dismiss }: any) => {
   return (
     <div className="fixed top-4 right-4 z-[200] flex flex-col gap-2.5 max-w-sm w-[min(92vw,360px)] print:hidden pointer-events-none">
       <AnimatePresence>
-      {toasts.map((t: any) => {
-        const tone = (TOAST_TONES as any)[t.kind] || TOAST_TONES.info;
-        const Icon = toastIcon(t.kind);
-        return (
-          <m.div
-            key={t.id}
-            layout
-            initial={{ opacity: 0, x: 48 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3 pointer-events-auto"
-            role="status"
-          >
-            <span
-              className="absolute left-0 top-0 bottom-0 w-1"
-              style={{ backgroundColor: tone.accent }}
-            />
-            <span
-              className="shrink-0 w-9 h-9 rounded-[10px] grid place-items-center text-white"
-              style={{ background: tone.iconBg, boxShadow: tone.iconShadow }}
+        {toasts.map((t: any) => {
+          const tone = (TOAST_TONES as any)[t.kind] || TOAST_TONES.info;
+          const Icon = toastIcon(t.kind);
+          return (
+            <m.div
+              key={t.id}
+              layout
+              initial={{ opacity: 0, x: 48 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="relative bg-surface rounded-xl shadow-lg border border-slate-900/5 overflow-hidden flex items-center gap-3 pl-4 pr-3 py-3 pointer-events-auto"
+              role="status"
             >
-              <Icon className="w-[18px] h-[18px]" />
-            </span>
-            <div className="flex-1 min-w-0">
-              {t.title && (
-                <div className="t-button text-ink" style={{ fontSize: "12px" }}>
-                  {t.title}
-                </div>
+              <span
+                className="absolute left-0 top-0 bottom-0 w-1"
+                style={{ backgroundColor: tone.accent }}
+              />
+              <span
+                className="shrink-0 w-9 h-9 rounded-[10px] grid place-items-center text-white"
+                style={{ background: tone.iconBg, boxShadow: tone.iconShadow }}
+              >
+                <Icon className="w-[18px] h-[18px]" />
+              </span>
+              <div className="flex-1 min-w-0">
+                {t.title && (
+                  <div
+                    className="t-button text-ink"
+                    style={{ fontSize: "12px" }}
+                  >
+                    {t.title}
+                  </div>
+                )}
+                {t.message && (
+                  <div className="text-[11.5px] font-semibold text-ink-2 mt-0.5 leading-snug">
+                    {t.message}
+                  </div>
+                )}
+              </div>
+              {t.action && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    t.action.onClick();
+                    dismiss(t.id);
+                  }}
+                  className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
+                  style={{
+                    color: tone.actionColor,
+                    borderColor: tone.actionBorder,
+                  }}
+                >
+                  {t.action.label}
+                </button>
               )}
-              {t.message && (
-                <div className="text-[11.5px] font-semibold text-ink-2 mt-0.5 leading-snug">
-                  {t.message}
-                </div>
-              )}
-            </div>
-            {t.action && (
               <button
                 type="button"
-                onClick={() => {
-                  t.action.onClick();
-                  dismiss(t.id);
-                }}
-                className="shrink-0 t-button px-2.5 py-1.5 rounded-lg border bg-transparent hover:bg-surface-2"
-                style={{
-                  color: tone.actionColor,
-                  borderColor: tone.actionBorder,
-                }}
+                onClick={() => dismiss(t.id)}
+                aria-label="Dismiss"
+                className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
               >
-                {t.action.label}
+                <Icons.X className="w-3 h-3" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => dismiss(t.id)}
-              aria-label="Dismiss"
-              className="shrink-0 w-[22px] h-[22px] grid place-items-center text-ink-3 hover:text-ink rounded-md"
-            >
-              <Icons.X className="w-3 h-3" />
-            </button>
-          </m.div>
-        );
-      })}
+            </m.div>
+          );
+        })}
       </AnimatePresence>
     </div>
   );
@@ -430,7 +429,10 @@ const TeamProvider = ({ children }: any) => {
   // Bridge to UIProvider: lineup/eval screens publish their in-progress inputs
   // and receive generated results through this ref. Owned here (TeamProvider)
   // and passed to the lineup/eval action hooks + exposed on the context value.
-  const uiBridge = useRef<any>({ getInputs: () => null, applyResult: () => {} });
+  const uiBridge = useRef<any>({
+    getInputs: () => null,
+    applyResult: () => {},
+  });
   const persistTeamRef = useRef<any>(null);
   // Latest team data, readable from persistTeam without widening its deps —
   // used only to estimate the doc size for the storage-headroom guard.
@@ -444,7 +446,9 @@ const TeamProvider = ({ children }: any) => {
   // a generic "check your connection" line that hides whether the write was
   // rejected by rules (permission-denied), the size cap (resource-exhausted /
   // invalid-argument), or a real network drop (unavailable).
-  const lastPersistErrorRef = useRef<{ code: string; message: string } | null>(null);
+  const lastPersistErrorRef = useRef<{ code: string; message: string } | null>(
+    null,
+  );
   // The team id whose data is actually loaded into teamData. Stays null while
   // the app shows the DEFAULT_TEAM_DATA placeholder (before any team loads) and
   // during the brief window where activeTeamId is set but the team doc snapshot
@@ -479,13 +483,23 @@ const TeamProvider = ({ children }: any) => {
     if (!user) return null;
     if (bootstrapAttemptedRef.current) return null;
     bootstrapAttemptedRef.current = true;
-    const settingsRef = doc(db, "artifacts", appId, "users", user.uid, "settings", "teams");
+    const settingsRef = doc(
+      db,
+      "artifacts",
+      appId,
+      "users",
+      user.uid,
+      "settings",
+      "teams",
+    );
     try {
       // Never trust the local `teams` state here: if the settings doc already
       // lists teams (stale/raced snapshot), adopt them instead of creating a
       // parallel default team — and never overwrite that list.
       const existingSnap = await getDoc(settingsRef);
-      const existingData: any = existingSnap.exists() ? existingSnap.data() : null;
+      const existingData: any = existingSnap.exists()
+        ? existingSnap.data()
+        : null;
       const existingTeams = Array.isArray(existingData?.teams)
         ? existingData.teams
         : [];
@@ -495,7 +509,15 @@ const TeamProvider = ({ children }: any) => {
         return existingTeams[0].id;
       }
       const id = "team-" + Math.random().toString(36).substring(2, 10);
-      const teamRef = doc(db, "artifacts", appId, "public", "data", "teams", id);
+      const teamRef = doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "teams",
+        id,
+      );
       await setDoc(teamRef, {
         ...DEFAULT_TEAM_DATA,
         name: "My Team",
@@ -508,7 +530,7 @@ const TeamProvider = ({ children }: any) => {
       await setDoc(
         settingsRef,
         { teams: merged, activeTeamId: id },
-        { merge: true }
+        { merge: true },
       );
       setTeams(merged);
       setActiveTeamId(id);
@@ -529,7 +551,10 @@ const TeamProvider = ({ children }: any) => {
     let cancelled = false;
     (async () => {
       try {
-        const tokenFromHost = (typeof window !== "undefined" && (window as any).__initial_auth_token) || null;
+        const tokenFromHost =
+          (typeof window !== "undefined" &&
+            (window as any).__initial_auth_token) ||
+          null;
         if (tokenFromHost) {
           await signInWithCustomToken(auth, tokenFromHost);
         }
@@ -568,7 +593,7 @@ const TeamProvider = ({ children }: any) => {
       "users",
       user.uid,
       "settings",
-      "teams"
+      "teams",
     );
     let unsub = () => {};
     let retryTimeout: any = null;
@@ -599,7 +624,7 @@ const TeamProvider = ({ children }: any) => {
           try {
             const teamsQuery = query(
               collection(db, "artifacts", appId, "public", "data", "teams"),
-              where("members", "array-contains", user.uid)
+              where("members", "array-contains", user.uid),
             );
             const found = await getDocs(teamsQuery);
             const recovered = found.docs.map((d) => ({
@@ -611,7 +636,7 @@ const TeamProvider = ({ children }: any) => {
               await setDoc(
                 ref,
                 { teams: recovered, activeTeamId: recovered[0].id },
-                { merge: true }
+                { merge: true },
               );
               setTeams(recovered);
               setActiveTeamId(recovered[0].id);
@@ -695,7 +720,7 @@ const TeamProvider = ({ children }: any) => {
       "public",
       "data",
       "teams",
-      activeTeamId
+      activeTeamId,
     );
     let unsub = () => {};
     let retryTimeout: any = null;
@@ -705,257 +730,281 @@ const TeamProvider = ({ children }: any) => {
     const handleSnap = (snap: any) => {
       if (cancelled) return;
       if (snap.exists()) {
-          const raw = snap.data();
-          // Eval schema migration:
-          //   v1 (6-category) rounds get wiped — no straightforward mapping.
-          //   v2 (1–10 11-category) rounds convert to v3 (1–5) by halving
-          //   every numeric grade so prior trend history survives the scale
-          //   change.
-          const stored = raw.evalSchemaVersion ?? 1;
-          if (stored < EVAL_SCHEMA_VERSION) {
-            let migratedEvents = raw.evaluationEvents || [];
-            if (stored >= 2 && stored < 3) {
-              migratedEvents = migratedEvents.map((ev: any) => {
-                if (!ev?.grades) return ev;
-                const nextGrades: Record<string, any> = {};
-                for (const [pid, grade] of Object.entries(ev.grades)) {
-                  if (!grade || typeof grade !== "object") {
-                    nextGrades[pid] = grade;
-                    continue;
-                  }
-                  const out: Record<string, any> = {};
-                  for (const [k, v] of Object.entries(grade)) {
-                    if (typeof v === "number" && Number.isFinite(v)) {
-                      out[k] = Math.max(1, Math.min(5, Math.round(v / 2)));
-                    } else {
-                      out[k] = v; // notes + any non-numeric fields untouched
-                    }
-                  }
-                  nextGrades[pid] = out;
+        const raw = snap.data();
+        // Eval schema migration:
+        //   v1 (6-category) rounds get wiped — no straightforward mapping.
+        //   v2 (1–10 11-category) rounds convert to v3 (1–5) by halving
+        //   every numeric grade so prior trend history survives the scale
+        //   change.
+        const stored = raw.evalSchemaVersion ?? 1;
+        if (stored < EVAL_SCHEMA_VERSION) {
+          let migratedEvents = raw.evaluationEvents || [];
+          if (stored >= 2 && stored < 3) {
+            migratedEvents = migratedEvents.map((ev: any) => {
+              if (!ev?.grades) return ev;
+              const nextGrades: Record<string, any> = {};
+              for (const [pid, grade] of Object.entries(ev.grades)) {
+                if (!grade || typeof grade !== "object") {
+                  nextGrades[pid] = grade;
+                  continue;
                 }
-                return { ...ev, grades: nextGrades };
-              });
-            }
-            // v3 → v4: flip the position model from negative (restrictions)
-            // to positive (comfortablePositions) + dedicated isCatcher flag.
-            // The engine still consults `restrictions` as a fallback for
-            // one release so this is safe to run incrementally.
-            let migratedPlayers = raw.players || [];
-            if (stored < 4) {
-              const ALL_POS = [
-                "P", "C", "1B", "2B", "3B", "SS",
-                "LF", "LCF", "CF", "RCF", "RF",
-              ];
-              migratedPlayers = migratedPlayers.map((p: any) => {
-                if (!p) return p;
-                if (
-                  Array.isArray(p.comfortablePositions) &&
-                  typeof p.isCatcher === "boolean"
-                ) {
-                  return p; // already migrated (likely a fresh team)
+                const out: Record<string, any> = {};
+                for (const [k, v] of Object.entries(grade)) {
+                  if (typeof v === "number" && Number.isFinite(v)) {
+                    out[k] = Math.max(1, Math.min(5, Math.round(v / 2)));
+                  } else {
+                    out[k] = v; // notes + any non-numeric fields untouched
+                  }
                 }
-                const restrictions = Array.isArray(p.restrictions)
-                  ? p.restrictions
-                  : [];
-                const comfortable = ALL_POS.filter(
-                  (pos) => !restrictions.includes(pos)
-                );
-                return {
-                  ...p,
-                  comfortablePositions:
-                    Array.isArray(p.comfortablePositions)
-                      ? p.comfortablePositions
-                      : comfortable,
-                  isCatcher:
-                    typeof p.isCatcher === "boolean"
-                      ? p.isCatcher
-                      : !restrictions.includes("C"),
-                };
-              });
-            }
-            // v5 — catcher unification. Catcher is now just "C" in
-            // comfortablePositions; the separate isCatcher flag is gone. The
-            // v4 auto-fill had set comfortablePositions to every position a
-            // kid wasn't *restricted* from — which, for the common case of no
-            // restrictions, marked the ENTIRE roster as catcher-eligible. Undo
-            // that: a "C" already in the list came from that auto-fill (the UI
-            // never let a coach add C), so re-derive real catcher status from
-            // the legacy primaryPosition; otherwise honor the explicit
-            // isCatcher checkbox. Then encode the result as "C" in the list.
-            if (stored < 5) {
-              migratedPlayers = migratedPlayers.map((p: any) => {
-                if (!p) return p;
-                const comfort = Array.isArray(p.comfortablePositions)
-                  ? p.comfortablePositions
-                  : [];
-                const isCatcher = comfort.includes("C")
-                  ? p.primaryPosition === "C"
-                  : p.isCatcher === true;
-                const next = comfort.filter((pos: any) => pos !== "C");
-                if (isCatcher) next.push("C");
-                const { isCatcher: _dropped, ...rest } = p;
-                return { ...rest, comfortablePositions: next };
-              });
-            }
-            // v6 — re-stamp existing roster eval rounds onto the calendar due
-            // date they satisfy, matching how new saves are now dated. Tryout
-            // grades are left alone; same-round duplicates collapse to the
-            // freshest. Idempotent, so it's safe even if a doc lands here twice.
-            if (stored < 6) {
-              migratedEvents = restampEvalDueDates(migratedEvents);
-            }
-            // v7 — leaner eval categories. Remap each player's grades from the
-            // old fine-grained ids to the merged set: Plate Discipline folds
-            // into Approach, Glove+Range → Fielding, Arm Str+Acc → Arm,
-            // Baserunning → Speed & Baserunning, Control+Command → Strikes,
-            // Pop Time → Throwing. Merged pairs average their two old scores so
-            // prior history carries over; notes/non-numeric fields are kept.
-            if (stored < 7) {
-              const avgGrade = (a: any, b: any): number | undefined => {
-                const nums = [a, b].filter(
-                  (x) => typeof x === "number" && Number.isFinite(x)
-                );
-                if (nums.length === 0) return undefined;
-                return Math.max(
-                  1,
-                  Math.min(5, Math.round(nums.reduce((s, x) => s + x, 0) / nums.length))
-                );
-              };
-              const carry = [
-                "contact", "power", "baseballIQ", "coachability",
-                "velocity", "offSpeed", "composure",
-                "receiving", "blocking", "gameCalling",
-                // already-merged ids (idempotent if a round was partly migrated)
-                "approach", "fielding", "arm", "strikes", "speedBaserunning", "throwing",
-              ];
-              migratedEvents = migratedEvents.map((ev: any) => {
-                if (!ev?.grades) return ev;
-                const nextGrades: Record<string, any> = {};
-                for (const [pid, grade] of Object.entries(ev.grades)) {
-                  if (!grade || typeof grade !== "object") {
-                    nextGrades[pid] = grade;
-                    continue;
-                  }
-                  const g: any = grade;
-                  const out: Record<string, any> = {};
-                  for (const k of carry) {
-                    if (typeof g[k] === "number") out[k] = g[k];
-                  }
-                  const approach = avgGrade(g.approach, g.plateDiscipline);
-                  if (approach !== undefined) out.approach = approach;
-                  const fielding = avgGrade(g.glove, g.range);
-                  if (fielding !== undefined) out.fielding = fielding;
-                  const arm = avgGrade(g.armStrength, g.armAccuracy);
-                  if (arm !== undefined) out.arm = arm;
-                  const strikes = avgGrade(g.control, g.command);
-                  if (strikes !== undefined) out.strikes = strikes;
-                  if (typeof g.baserunning === "number")
-                    out.speedBaserunning = g.baserunning;
-                  if (typeof g.popTime === "number") out.throwing = g.popTime;
-                  // Preserve notes and any non-numeric fields.
-                  for (const [k, v] of Object.entries(g)) {
-                    if (typeof v !== "number") out[k] = v;
-                  }
-                  nextGrades[pid] = out;
-                }
-                return { ...ev, grades: nextGrades };
-              });
-            }
-            // v8 — split the merged "Speed & Baserunning" grade back into
-            // separate Speed + Base Running. The old value seeds BOTH so prior
-            // history carries over; the merged key is dropped. Idempotent.
-            if (stored < 8) {
-              migratedEvents = migratedEvents.map((ev: any) => {
-                if (!ev?.grades) return ev;
-                const nextGrades: Record<string, any> = {};
-                for (const [pid, grade] of Object.entries(ev.grades)) {
-                  if (!grade || typeof grade !== "object") {
-                    nextGrades[pid] = grade;
-                    continue;
-                  }
-                  const { speedBaserunning, ...rest } = grade as any;
-                  const out: Record<string, any> = { ...rest };
-                  if (typeof speedBaserunning === "number") {
-                    if (typeof out.speed !== "number") out.speed = speedBaserunning;
-                    if (typeof out.baserunning !== "number")
-                      out.baserunning = speedBaserunning;
-                  }
-                  nextGrades[pid] = out;
-                }
-                return { ...ev, grades: nextGrades };
-              });
-            }
-            // v9 — stats-graded tangibles. Coaches now grade only the
-            // intangibles; every tangible skill is derived from imported
-            // stats (see the stat-grade helpers in lineupEngine). Strip the
-            // dropped grade keys from saved rounds so they stop feeding
-            // combined grades; notes and any non-numeric fields are kept.
-            if (stored < 9) {
-              const KEPT_V9 = new Set([
-                "approach",
-                "speed",
-                "baserunning",
-                "baseballIQ",
-                "coachability",
-                "composure",
-                // Coach-graded catching skills (Game Calling was dropped in
-                // favor of these tangible, young-age-appropriate skills).
-                "blocking",
-                "receiving",
-                // Optional coach-entered radar reading (mph), not a 1–5 grade.
-                "pitchVelo",
-              ]);
-              migratedEvents = migratedEvents.map((ev: any) => {
-                if (!ev?.grades) return ev;
-                const nextGrades: Record<string, any> = {};
-                for (const [pid, grade] of Object.entries(ev.grades)) {
-                  if (!grade || typeof grade !== "object") {
-                    nextGrades[pid] = grade;
-                    continue;
-                  }
-                  const out: Record<string, any> = {};
-                  for (const [k, v] of Object.entries(grade)) {
-                    if (typeof v !== "number" || KEPT_V9.has(k)) out[k] = v;
-                  }
-                  nextGrades[pid] = out;
-                }
-                return { ...ev, grades: nextGrades };
-              });
-            }
-            persistTeamRef.current?.({
-              evaluationEvents: migratedEvents,
-              players: migratedPlayers,
-              evalSchemaVersion: EVAL_SCHEMA_VERSION,
-            });
-            setTeamData({
-              ...DEFAULT_TEAM_DATA,
-              ...raw,
-              // Coerce core collections to arrays: a malformed doc with
-              // players/games set to null would otherwise override the
-              // DEFAULT_TEAM_DATA [] and crash the many .map/.find call
-              // sites downstream.
-              games: Array.isArray(raw.games) ? raw.games : [],
-              evaluationEvents: migratedEvents,
-              players: migratedPlayers,
-              evalSchemaVersion: EVAL_SCHEMA_VERSION,
-            });
-          } else {
-            setTeamData({
-              ...DEFAULT_TEAM_DATA,
-              ...raw,
-              players: Array.isArray(raw.players) ? raw.players : [],
-              games: Array.isArray(raw.games) ? raw.games : [],
+                nextGrades[pid] = out;
+              }
+              return { ...ev, grades: nextGrades };
             });
           }
-          // Mark which team's data is now loaded so write-effects
-          // (auto-correct, photo-strip) and the roster-wipe guard can safely
-          // run against real data. Deliberately INSIDE the exists() branch: a
-          // missing doc means teamData is still the placeholder, and treating
-          // that as "loaded" would let derived writes target a team whose
-          // real data never arrived.
-          loadedTeamIdRef.current = activeTeamId;
+          // v3 → v4: flip the position model from negative (restrictions)
+          // to positive (comfortablePositions) + dedicated isCatcher flag.
+          // The engine still consults `restrictions` as a fallback for
+          // one release so this is safe to run incrementally.
+          let migratedPlayers = raw.players || [];
+          if (stored < 4) {
+            const ALL_POS = [
+              "P",
+              "C",
+              "1B",
+              "2B",
+              "3B",
+              "SS",
+              "LF",
+              "LCF",
+              "CF",
+              "RCF",
+              "RF",
+            ];
+            migratedPlayers = migratedPlayers.map((p: any) => {
+              if (!p) return p;
+              if (
+                Array.isArray(p.comfortablePositions) &&
+                typeof p.isCatcher === "boolean"
+              ) {
+                return p; // already migrated (likely a fresh team)
+              }
+              const restrictions = Array.isArray(p.restrictions)
+                ? p.restrictions
+                : [];
+              const comfortable = ALL_POS.filter(
+                (pos) => !restrictions.includes(pos),
+              );
+              return {
+                ...p,
+                comfortablePositions: Array.isArray(p.comfortablePositions)
+                  ? p.comfortablePositions
+                  : comfortable,
+                isCatcher:
+                  typeof p.isCatcher === "boolean"
+                    ? p.isCatcher
+                    : !restrictions.includes("C"),
+              };
+            });
+          }
+          // v5 — catcher unification. Catcher is now just "C" in
+          // comfortablePositions; the separate isCatcher flag is gone. The
+          // v4 auto-fill had set comfortablePositions to every position a
+          // kid wasn't *restricted* from — which, for the common case of no
+          // restrictions, marked the ENTIRE roster as catcher-eligible. Undo
+          // that: a "C" already in the list came from that auto-fill (the UI
+          // never let a coach add C), so re-derive real catcher status from
+          // the legacy primaryPosition; otherwise honor the explicit
+          // isCatcher checkbox. Then encode the result as "C" in the list.
+          if (stored < 5) {
+            migratedPlayers = migratedPlayers.map((p: any) => {
+              if (!p) return p;
+              const comfort = Array.isArray(p.comfortablePositions)
+                ? p.comfortablePositions
+                : [];
+              const isCatcher = comfort.includes("C")
+                ? p.primaryPosition === "C"
+                : p.isCatcher === true;
+              const next = comfort.filter((pos: any) => pos !== "C");
+              if (isCatcher) next.push("C");
+              const { isCatcher: _dropped, ...rest } = p;
+              return { ...rest, comfortablePositions: next };
+            });
+          }
+          // v6 — re-stamp existing roster eval rounds onto the calendar due
+          // date they satisfy, matching how new saves are now dated. Tryout
+          // grades are left alone; same-round duplicates collapse to the
+          // freshest. Idempotent, so it's safe even if a doc lands here twice.
+          if (stored < 6) {
+            migratedEvents = restampEvalDueDates(migratedEvents);
+          }
+          // v7 — leaner eval categories. Remap each player's grades from the
+          // old fine-grained ids to the merged set: Plate Discipline folds
+          // into Approach, Glove+Range → Fielding, Arm Str+Acc → Arm,
+          // Baserunning → Speed & Baserunning, Control+Command → Strikes,
+          // Pop Time → Throwing. Merged pairs average their two old scores so
+          // prior history carries over; notes/non-numeric fields are kept.
+          if (stored < 7) {
+            const avgGrade = (a: any, b: any): number | undefined => {
+              const nums = [a, b].filter(
+                (x) => typeof x === "number" && Number.isFinite(x),
+              );
+              if (nums.length === 0) return undefined;
+              return Math.max(
+                1,
+                Math.min(
+                  5,
+                  Math.round(nums.reduce((s, x) => s + x, 0) / nums.length),
+                ),
+              );
+            };
+            const carry = [
+              "contact",
+              "power",
+              "baseballIQ",
+              "coachability",
+              "velocity",
+              "offSpeed",
+              "composure",
+              "receiving",
+              "blocking",
+              "gameCalling",
+              // already-merged ids (idempotent if a round was partly migrated)
+              "approach",
+              "fielding",
+              "arm",
+              "strikes",
+              "speedBaserunning",
+              "throwing",
+            ];
+            migratedEvents = migratedEvents.map((ev: any) => {
+              if (!ev?.grades) return ev;
+              const nextGrades: Record<string, any> = {};
+              for (const [pid, grade] of Object.entries(ev.grades)) {
+                if (!grade || typeof grade !== "object") {
+                  nextGrades[pid] = grade;
+                  continue;
+                }
+                const g: any = grade;
+                const out: Record<string, any> = {};
+                for (const k of carry) {
+                  if (typeof g[k] === "number") out[k] = g[k];
+                }
+                const approach = avgGrade(g.approach, g.plateDiscipline);
+                if (approach !== undefined) out.approach = approach;
+                const fielding = avgGrade(g.glove, g.range);
+                if (fielding !== undefined) out.fielding = fielding;
+                const arm = avgGrade(g.armStrength, g.armAccuracy);
+                if (arm !== undefined) out.arm = arm;
+                const strikes = avgGrade(g.control, g.command);
+                if (strikes !== undefined) out.strikes = strikes;
+                if (typeof g.baserunning === "number")
+                  out.speedBaserunning = g.baserunning;
+                if (typeof g.popTime === "number") out.throwing = g.popTime;
+                // Preserve notes and any non-numeric fields.
+                for (const [k, v] of Object.entries(g)) {
+                  if (typeof v !== "number") out[k] = v;
+                }
+                nextGrades[pid] = out;
+              }
+              return { ...ev, grades: nextGrades };
+            });
+          }
+          // v8 — split the merged "Speed & Baserunning" grade back into
+          // separate Speed + Base Running. The old value seeds BOTH so prior
+          // history carries over; the merged key is dropped. Idempotent.
+          if (stored < 8) {
+            migratedEvents = migratedEvents.map((ev: any) => {
+              if (!ev?.grades) return ev;
+              const nextGrades: Record<string, any> = {};
+              for (const [pid, grade] of Object.entries(ev.grades)) {
+                if (!grade || typeof grade !== "object") {
+                  nextGrades[pid] = grade;
+                  continue;
+                }
+                const { speedBaserunning, ...rest } = grade as any;
+                const out: Record<string, any> = { ...rest };
+                if (typeof speedBaserunning === "number") {
+                  if (typeof out.speed !== "number")
+                    out.speed = speedBaserunning;
+                  if (typeof out.baserunning !== "number")
+                    out.baserunning = speedBaserunning;
+                }
+                nextGrades[pid] = out;
+              }
+              return { ...ev, grades: nextGrades };
+            });
+          }
+          // v9 — stats-graded tangibles. Coaches now grade only the
+          // intangibles; every tangible skill is derived from imported
+          // stats (see the stat-grade helpers in lineupEngine). Strip the
+          // dropped grade keys from saved rounds so they stop feeding
+          // combined grades; notes and any non-numeric fields are kept.
+          if (stored < 9) {
+            const KEPT_V9 = new Set([
+              "approach",
+              "speed",
+              "baserunning",
+              "baseballIQ",
+              "coachability",
+              "composure",
+              // Coach-graded catching skills (Game Calling was dropped in
+              // favor of these tangible, young-age-appropriate skills).
+              "blocking",
+              "receiving",
+              // Optional coach-entered radar reading (mph), not a 1–5 grade.
+              "pitchVelo",
+            ]);
+            migratedEvents = migratedEvents.map((ev: any) => {
+              if (!ev?.grades) return ev;
+              const nextGrades: Record<string, any> = {};
+              for (const [pid, grade] of Object.entries(ev.grades)) {
+                if (!grade || typeof grade !== "object") {
+                  nextGrades[pid] = grade;
+                  continue;
+                }
+                const out: Record<string, any> = {};
+                for (const [k, v] of Object.entries(grade)) {
+                  if (typeof v !== "number" || KEPT_V9.has(k)) out[k] = v;
+                }
+                nextGrades[pid] = out;
+              }
+              return { ...ev, grades: nextGrades };
+            });
+          }
+          persistTeamRef.current?.({
+            evaluationEvents: migratedEvents,
+            players: migratedPlayers,
+            evalSchemaVersion: EVAL_SCHEMA_VERSION,
+          });
+          setTeamData({
+            ...DEFAULT_TEAM_DATA,
+            ...raw,
+            // Coerce core collections to arrays: a malformed doc with
+            // players/games set to null would otherwise override the
+            // DEFAULT_TEAM_DATA [] and crash the many .map/.find call
+            // sites downstream.
+            games: Array.isArray(raw.games) ? raw.games : [],
+            evaluationEvents: migratedEvents,
+            players: migratedPlayers,
+            evalSchemaVersion: EVAL_SCHEMA_VERSION,
+          });
+        } else {
+          setTeamData({
+            ...DEFAULT_TEAM_DATA,
+            ...raw,
+            players: Array.isArray(raw.players) ? raw.players : [],
+            games: Array.isArray(raw.games) ? raw.games : [],
+          });
         }
-        setLoadingActive(false);
+        // Mark which team's data is now loaded so write-effects
+        // (auto-correct, photo-strip) and the roster-wipe guard can safely
+        // run against real data. Deliberately INSIDE the exists() branch: a
+        // missing doc means teamData is still the placeholder, and treating
+        // that as "loaded" would let derived writes target a team whose
+        // real data never arrived.
+        loadedTeamIdRef.current = activeTeamId;
+      }
+      setLoadingActive(false);
     };
 
     // Immediately after a join/invite write, the server may still reject
@@ -1000,7 +1049,7 @@ const TeamProvider = ({ children }: any) => {
   const persistTeam = useCallback(
     async (
       updates: any,
-      opts?: { silent?: boolean; allowEmptyPlayers?: boolean }
+      opts?: { silent?: boolean; allowEmptyPlayers?: boolean },
     ): Promise<boolean> => {
       if (!activeTeamId) return false;
       // HARD GUARD against roster wipes: refuse to save an empty players
@@ -1013,11 +1062,14 @@ const TeamProvider = ({ children }: any) => {
         const wipeReason = blockedRosterWipeReason(
           updates,
           teamDataRef.current?.players,
-          loadedTeamIdRef.current === activeTeamId
+          loadedTeamIdRef.current === activeTeamId,
         );
         if (wipeReason) {
           const message = `Refused to save an empty roster because ${wipeReason}.`;
-          lastPersistErrorRef.current = { code: "roster-wipe-blocked", message };
+          lastPersistErrorRef.current = {
+            code: "roster-wipe-blocked",
+            message,
+          };
           console.error("[persistTeam] roster wipe blocked:", message);
           if (!opts?.silent) {
             toast.push({ kind: "error", title: "Save blocked", message });
@@ -1056,8 +1108,8 @@ const TeamProvider = ({ children }: any) => {
         const mergedGames = Array.isArray(toPersist.games)
           ? toPersist.games
           : Array.isArray(prev.games)
-          ? prev.games.map(slimGame)
-          : [];
+            ? prev.games.map(slimGame)
+            : [];
         const estimated = estimateDocSizeBytes({
           ...prev,
           ...toPersist,
@@ -1069,7 +1121,7 @@ const TeamProvider = ({ children }: any) => {
             kind: "warn",
             title: "Team data is getting large",
             message: `Using ${Math.round(
-              estimated / 1024
+              estimated / 1024,
             )} KB of the ~1 MB limit. Consider archiving old seasons (Advance Season) to free space.`,
             duration: 0,
           });
@@ -1085,7 +1137,7 @@ const TeamProvider = ({ children }: any) => {
           "public",
           "data",
           "teams",
-          activeTeamId
+          activeTeamId,
         );
         await setDoc(ref, toPersist, { merge: true });
         setSyncStatus("Synced");
@@ -1110,7 +1162,7 @@ const TeamProvider = ({ children }: any) => {
         return false;
       }
     },
-    [activeTeamId, toast]
+    [activeTeamId, toast],
   );
 
   // Expose persistTeam to the onSnapshot above so the eval schema migration
@@ -1138,10 +1190,14 @@ const TeamProvider = ({ children }: any) => {
         "public",
         "data",
         "teamPublic",
-        activeTeamId
+        activeTeamId,
       );
       try {
-        await setDoc(ref, { ...mirror, updatedAt: Date.now() }, { merge: true });
+        await setDoc(
+          ref,
+          { ...mirror, updatedAt: Date.now() },
+          { merge: true },
+        );
         lastMirrorRef.current = key;
         setMirrorStale(false);
         return true;
@@ -1154,7 +1210,7 @@ const TeamProvider = ({ children }: any) => {
         return false;
       }
     },
-    [activeTeamId]
+    [activeTeamId],
   );
 
   // Manual repair path for a stale public mirror (wired into Settings →
@@ -1168,8 +1224,9 @@ const TeamProvider = ({ children }: any) => {
         : {
             kind: "error",
             title: "Resync failed",
-            message: "Couldn't update the public page. Check your connection and try again.",
-          }
+            message:
+              "Couldn't update the public page. Check your connection and try again.",
+          },
     );
     return ok;
   }, [writePublicMirror, toast]);
@@ -1204,7 +1261,9 @@ const TeamProvider = ({ children }: any) => {
   const lastInviteBackfillRef = useRef("");
   useEffect(() => {
     if (!activeTeamId || !user) return;
-    const code = String(teamData?.joinCode || "").trim().toUpperCase();
+    const code = String(teamData?.joinCode || "")
+      .trim()
+      .toUpperCase();
     if (!code) return;
     const key = `${activeTeamId}:${code}`;
     if (lastInviteBackfillRef.current === key) return;
@@ -1216,7 +1275,7 @@ const TeamProvider = ({ children }: any) => {
       "public",
       "data",
       "teamInvites",
-      code
+      code,
     );
     setDoc(ref, {
       teamId: activeTeamId,
@@ -1246,7 +1305,9 @@ const TeamProvider = ({ children }: any) => {
         // Persistence failed: revert the optimistic patch (but only for keys
         // the user hasn't since changed — see revertOptimisticUpdate) so the UI
         // never silently retains state Firestore rejected, and offer a retry.
-        setTeamData((cur: any) => revertOptimisticUpdate(cur, updates, prevValues));
+        setTeamData((cur: any) =>
+          revertOptimisticUpdate(cur, updates, prevValues),
+        );
         // Surface the real Firestore error so the failure is self-diagnosing
         // without a console: the code distinguishes a rules rejection
         // (permission-denied) from the size cap (resource-exhausted /
@@ -1267,7 +1328,7 @@ const TeamProvider = ({ children }: any) => {
         });
       });
     },
-    [persistTeam, toast]
+    [persistTeam, toast],
   );
 
   // One-time reclaim: player photos were removed from the app. Any team saved
@@ -1278,7 +1339,8 @@ const TeamProvider = ({ children }: any) => {
   // by a per-team ref so this fires at most once per team per load.
   const photoStripAttemptedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!activeTeamId || photoStripAttemptedRef.current.has(activeTeamId)) return;
+    if (!activeTeamId || photoStripAttemptedRef.current.has(activeTeamId))
+      return;
     // Never derive a roster write from anything but this team's loaded doc —
     // before the snapshot lands, teamData may still hold the placeholder or
     // the PREVIOUS team's players.
@@ -1346,15 +1408,27 @@ const TeamProvider = ({ children }: any) => {
     if (lastAutoCorrectRef.current === sig) return; // don't re-fire on revert
     lastAutoCorrectRef.current = sig;
     updateTeam(updates);
-  }, [_league, _teamAge, _defenseSize, _pitchingFormat, updateTeam, activeTeamId, loadingActive]);
+  }, [
+    _league,
+    _teamAge,
+    _defenseSize,
+    _pitchingFormat,
+    updateTeam,
+    activeTeamId,
+    loadingActive,
+  ]);
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
     usePlayerCrud({ teamData, updateTeam, toast, confirm });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
-  const { addPastSeason, updatePastSeason, removePastSeason, bulkAddPastSeasons } =
-    usePastSeasonCrud({ teamData, updateTeam, confirm });
+  const {
+    addPastSeason,
+    updatePastSeason,
+    removePastSeason,
+    bulkAddPastSeasons,
+  } = usePastSeasonCrud({ teamData, updateTeam, confirm });
 
   // ----- Coach actions -----
   const addCoach = useCallback(
@@ -1367,14 +1441,14 @@ const TeamProvider = ({ children }: any) => {
       };
       updateTeam({ coaches: [...teamData.coaches, newCoach] });
     },
-    [teamData.coaches, updateTeam]
+    [teamData.coaches, updateTeam],
   );
 
   const removeCoach = useCallback(
     (id: any) => {
       updateTeam({ coaches: teamData.coaches.filter((c: any) => c.id !== id) });
     },
-    [teamData.coaches, updateTeam]
+    [teamData.coaches, updateTeam],
   );
 
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
@@ -1402,7 +1476,15 @@ const TeamProvider = ({ children }: any) => {
     applyLineupTemplate,
     deleteLineupTemplate,
     removePlayerMidGame,
-  } = useLineupActions({ teamData, updateTeam, updateGame, persistTeam, toast, uiBridge, previousLineupRef });
+  } = useLineupActions({
+    teamData,
+    updateTeam,
+    updateGame,
+    persistTeam,
+    toast,
+    uiBridge,
+    previousLineupRef,
+  });
 
   // ----- Team management -----
   const switchTeam = useCallback(
@@ -1417,14 +1499,14 @@ const TeamProvider = ({ children }: any) => {
           "users",
           user.uid,
           "settings",
-          "teams"
+          "teams",
         );
         await setDoc(ref, { activeTeamId: id }, { merge: true });
       } catch (e: any) {
         /* non-fatal */
       }
     },
-    [user]
+    [user],
   );
 
   const createTeam = useCallback(
@@ -1440,7 +1522,7 @@ const TeamProvider = ({ children }: any) => {
           "public",
           "data",
           "teams",
-          id
+          id,
         );
         await setDoc(teamRef, {
           ...DEFAULT_TEAM_DATA,
@@ -1459,7 +1541,7 @@ const TeamProvider = ({ children }: any) => {
           "users",
           user.uid,
           "settings",
-          "teams"
+          "teams",
         );
         // Merge with the server's CURRENT team list, never just local state:
         // if this create was reached through a wrongly-shown WelcomeChooser
@@ -1482,7 +1564,7 @@ const TeamProvider = ({ children }: any) => {
             ]),
             activeTeamId: id,
           },
-          { merge: true }
+          { merge: true },
         );
         toast.push({ kind: "success", title: "Team created" });
         setSyncStatus("");
@@ -1497,279 +1579,295 @@ const TeamProvider = ({ children }: any) => {
         return false;
       }
     },
-    [user, teams, toast]
+    [user, teams, toast],
   );
 
-  const advanceSeason = useCallback(async (opts: any = {}) => {
-    const { skipConfirm = false, tryoutsToPromote = [] } = opts;
-    const computed = computeNextSeason(teamData.currentSeason);
-    if (!computed) {
-      toast.push({
-        kind: "warn",
-        title: "Cannot determine next season",
-        message: "Current season label needs to be like 'Spring 2026'.",
-      });
-      return;
-    }
-    const { nextSeason, shouldBump } = computed;
-    const newAgeGroup = shouldBump
-      ? bumpAgeTier(teamData.teamAge)
-      : teamData.teamAge;
-
-    // Compute team-level record from final games for the season being archived
-    let wins = 0,
-      losses = 0,
-      ties = 0,
-      runsScored = 0,
-      runsAllowed = 0;
-    for (const g of teamData.games) {
-      if (!countsTowardStats(g)) continue;
-      const ts = Number(g.teamScore);
-      const os = Number(g.opponentScore);
-      if (Number.isNaN(ts) || Number.isNaN(os)) continue;
-      runsScored += ts;
-      runsAllowed += os;
-      if (ts > os) wins++;
-      else if (ts < os) losses++;
-      else ties++;
-    }
-    const seasonRecord = { wins, losses, ties, runsScored, runsAllowed };
-    const archivedSeason = teamData.currentSeason;
-    const archivedAge = teamData.teamAge;
-    const archivedFormat = teamData.pitchingFormat;
-    const playerCount = teamData.players.length;
-
-    // Split current roster by the returning Y/N answer (with legacy
-    // playerStatus fallback via isReturning). Returners keep their
-    // slot; non-returners (explicit returning:false OR legacy
-    // released/declined) are archived but dropped from the next
-    // roster.
-    const isDropped = (p: any) => !isReturning(p);
-    const droppedCount = teamData.players.filter(isDropped).length;
-    // Tryout accepts ride on the same `team.players` array with
-    // playerStatus === "accepted" — they join the new roster directly.
-    const acceptedCount = teamData.players.filter(
-      (p: any) => p.playerStatus === "accepted"
-    ).length;
-
-    // The season YEAR runs Fall → Spring, so the money rolls only when the
-    // season advances INTO a new Fall (closing balance carries over, fee
-    // collections reset, the planned next-season fee is promoted, the year is
-    // archived). The mid-year Fall→Spring advance leaves the ledger and
-    // collections running — fall-only pickups just get their fee waived in
-    // Collections. No-op (and no confirm line) when the Finances tab was
-    // never used.
-    const hadFinanceActivity =
-      ((teamData.finances?.payments || []).length ||
-        (teamData.finances?.incomes || []).length ||
-        (teamData.finances?.expenses || []).length) > 0;
-    // A planned next-season fee must ALSO trigger the roll — a coach who only
-    // used the Budget Planner (no money recorded yet) was promised the fee
-    // takes effect when the new season starts.
-    const hasPlannedFee = teamData.finances?.nextClubFee != null;
-    const rollingIntoFall = nextSeason.toLowerCase().startsWith("fall");
-    const rollFinances = rollingIntoFall && (hadFinanceActivity || hasPlannedFee);
-    const closingBalance = rollFinances && hadFinanceActivity
-      ? financeSummary(teamData.finances, []).balanceNow
-      : 0;
-
-    // Confirmation
-    const confirmMsg =
-      `• ${playerCount} player${
-        playerCount === 1 ? "" : "s"
-      } will have stats archived to history\n` +
-      (droppedCount > 0
-        ? `• ${droppedCount} marked Released/Declined will be dropped\n`
-        : "") +
-      (acceptedCount > 0
-        ? `• ${acceptedCount} tryout accept${
-            acceptedCount === 1 ? "" : "s"
-          } will join the new roster\n`
-        : "") +
-      `• Record being archived: ${wins}-${losses}${
-        ties > 0 ? "-" + ties : ""
-      }` +
-      (wins + losses + ties === 0 ? " (no final games logged)" : "") +
-      `\n` +
-      `• Current stats and games will be cleared\n` +
-      (rollFinances && hadFinanceActivity
-        ? `• Club balance carried into the new season year: ${formatCurrency(
-            closingBalance
-          )} (fee collections reset)\n`
-        : rollFinances
-        ? `• The planned team fee (${formatCurrency(
-            teamData.finances?.nextClubFee
-          )}) takes effect for the new season\n`
-        : hadFinanceActivity
-        ? `• Finances keep running through the spring (fees cover the Fall–Spring year)\n`
-        : "") +
-      `• New season: ${nextSeason}` +
-      (shouldBump
-        ? ` (age advances ${archivedAge} → ${newAgeGroup})`
-        : ` (age stays ${archivedAge})`) +
-      `\n\n` +
-      `This cannot be undone.`;
-
-    // The AdvanceSeasonModal already walked the head through every
-    // marking and showed a full summary, so the confirm here is a
-    // duplicate gate when the call came from the wizard. Direct
-    // callers (anywhere besides the modal) still see the confirm
-    // dialog.
-    if (!skipConfirm) {
-      const ok = await confirm({
-        title: `Archive ${archivedSeason}?`,
-        message: `${archivedAge}, ${archivedFormat}\n\n${confirmMsg}`,
-        confirmLabel: "Advance Season",
-        danger: true,
-      });
-      if (!ok) return;
-    }
-
-    const nowIso = new Date().toISOString();
-
-    // Archive each player's current stats into pastSeasons[]; drop the
-    // ones marked Released/Declined; reset surviving statuses to
-    // "returning" so the next cycle starts clean.
-    const updatedPlayers = teamData.players
-      .filter((p: any) => !isDropped(p))
-      .map((p: any) => {
-        const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
-        // Only archive if there's something meaningful (skip totally-empty stat objects)
-        const stats = p.stats || blankStats();
-        const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
-        if (hasAnyData) {
-          past.push({
-            season: archivedSeason,
-            ageGroup: archivedAge,
-            pitchingFormat: archivedFormat,
-            record: seasonRecord,
-            stats: { ...stats },
-          });
-        }
-        return {
-          ...p,
-          pastSeasons: past,
-          stats: blankStats(),
-          pitching: { recentPitches: 0, lastPitchDate: null },
-          // After advance, every surviving player is treated as
-          // returning for the new season.
-          playerStatus: "returning",
-        };
-      });
-
-    // Tryout signups selected for promotion become full Player rows on
-    // the new roster. Mirrors acceptTryout's mapping but bulk and at
-    // advance-time. Every tryout signup is cleared from the team
-    // afterward — they don't carry over to the new season regardless of
-    // whether they were promoted (interest signups are untouched).
-    const promotionSet = new Set(tryoutsToPromote);
-    const promotedPairs = (teamData.tryoutSignups || [])
-      .filter((s: any) => promotionSet.has(s.id))
-      .map((s: any) => {
-        const player = {
-          id: "p-" + Math.random().toString(36).slice(2, 10),
-          name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
-          number: s.tryoutNumber || s.number || "",
-          dob: s.dob || "",
-          bats: s.bats || "R",
-          throws: s.throws || "R",
-          comfortablePositions: [
-            ...(Array.isArray(s.comfortablePositions) ? s.comfortablePositions : []).filter(
-              (p: any) => p !== "C"
-            ),
-            ...(s.isCatcher === true ? ["C"] : []),
-          ],
-          parentName: s.parentName || "",
-          email: s.email || "",
-          phone: s.phone || "",
-          present: true,
-          playerStatus: "returning",
-          pastSeasons: [],
-          stats: blankStats(),
-          pitching: { recentPitches: 0, lastPitchDate: null },
-          tryoutSignupId: s.id,
-        };
-        return { signup: s, player };
-      });
-    const promotedPlayers = promotedPairs.map(({ player }: any) => player);
-
-    // Seed the new season's Preseason eval round: returning players carry
-    // their most recent eval forward, promoted tryouts carry their tryout
-    // evaluation. Null when there's nothing to seed → start with no rounds.
-    const preseasonRound = buildPreseasonSeedRound(
-      teamData.evaluationEvents || [],
-      updatedPlayers,
-      promotedPlayers,
-      {
-        date: dateToIsoLocal(new Date()),
-        evaluatorId: user?.uid,
-        tryoutSessions: teamData.tryoutSessions || [],
+  const advanceSeason = useCallback(
+    async (opts: any = {}) => {
+      const { skipConfirm = false, tryoutsToPromote = [] } = opts;
+      const computed = computeNextSeason(teamData.currentSeason);
+      if (!computed) {
+        toast.push({
+          kind: "warn",
+          title: "Cannot determine next season",
+          message: "Current season label needs to be like 'Spring 2026'.",
+        });
+        return;
       }
-    );
+      const { nextSeason, shouldBump } = computed;
+      const newAgeGroup = shouldBump
+        ? bumpAgeTier(teamData.teamAge)
+        : teamData.teamAge;
 
-    const newSeasonFinances = rollFinances
-      ? rollFinancesForNewSeason(teamData.finances, archivedSeason, nowIso)
-      : teamData.finances;
-    const depositAmount = Math.max(0, Number((newSeasonFinances as any)?.depositAmount) || 0);
-    const tryoutDepositPayments = (opts?.tryoutDepositPayments || {}) as Record<string, string>;
-    const promotedDepositPayments = depositAmount > 0
-      ? promotedPairs
-          .filter(({ signup }: any) => tryoutDepositPayments[signup.id] != null)
-          .map(({ signup, player }: any) => ({
-            id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
-            playerId: player.id,
-            date: String(tryoutDepositPayments[signup.id] || nowIso).slice(0, 10),
-            amount: depositAmount,
-          }))
-      : [];
+      // Compute team-level record from final games for the season being archived
+      let wins = 0,
+        losses = 0,
+        ties = 0,
+        runsScored = 0,
+        runsAllowed = 0;
+      for (const g of teamData.games) {
+        if (!countsTowardStats(g)) continue;
+        const ts = Number(g.teamScore);
+        const os = Number(g.opponentScore);
+        if (Number.isNaN(ts) || Number.isNaN(os)) continue;
+        runsScored += ts;
+        runsAllowed += os;
+        if (ts > os) wins++;
+        else if (ts < os) losses++;
+        else ties++;
+      }
+      const seasonRecord = { wins, losses, ties, runsScored, runsAllowed };
+      const archivedSeason = teamData.currentSeason;
+      const archivedAge = teamData.teamAge;
+      const archivedFormat = teamData.pitchingFormat;
+      const playerCount = teamData.players.length;
 
-    const financesWithTryoutDeposits =
-      promotedDepositPayments.length > 0 || rollFinances
-        ? {
-            ...(newSeasonFinances || {}),
-            payments: [
-              ...(((newSeasonFinances as any)?.payments || []) as any[]),
-              ...promotedDepositPayments,
-            ],
-          }
-        : undefined;
+      // Split current roster by the returning Y/N answer (with legacy
+      // playerStatus fallback via isReturning). Returners keep their
+      // slot; non-returners (explicit returning:false OR legacy
+      // released/declined) are archived but dropped from the next
+      // roster.
+      const isDropped = (p: any) => !isReturning(p);
+      const droppedCount = teamData.players.filter(isDropped).length;
+      // Tryout accepts ride on the same `team.players` array with
+      // playerStatus === "accepted" — they join the new roster directly.
+      const acceptedCount = teamData.players.filter(
+        (p: any) => p.playerStatus === "accepted",
+      ).length;
 
-    // allowEmptyPlayers: a roster where nobody returns (and no tryout
-    // promotions) is legitimately empty after an explicitly-confirmed
-    // advance — the persistTeam wipe guard must not block it.
-    updateTeam(
-      {
-        currentSeason: nextSeason,
-        teamAge: newAgeGroup,
-        players: [...updatedPlayers, ...promotedPlayers],
-        games: [],
-        evaluationEvents: preseasonRound ? [preseasonRound] : [],
-        tryoutSessions: [],
-        tryoutSignups: [],
-        tryoutsOpen: false,
-        lastSeasonAdvanceAt: nowIso,
-        ...(financesWithTryoutDeposits
-          ? {
-              finances: financesWithTryoutDeposits,
-            }
-          : {}),
-      },
-      { allowEmptyPlayers: true }
-    );
-    toast.push({
-      kind: "success",
-      title: `Advanced to ${nextSeason}`,
-      message:
+      // The season YEAR runs Fall → Spring, so the money rolls only when the
+      // season advances INTO a new Fall (closing balance carries over, fee
+      // collections reset, the planned next-season fee is promoted, the year is
+      // archived). The mid-year Fall→Spring advance leaves the ledger and
+      // collections running — fall-only pickups just get their fee waived in
+      // Collections. No-op (and no confirm line) when the Finances tab was
+      // never used.
+      const hadFinanceActivity =
+        ((teamData.finances?.payments || []).length ||
+          (teamData.finances?.incomes || []).length ||
+          (teamData.finances?.expenses || []).length) > 0;
+      // A planned next-season fee must ALSO trigger the roll — a coach who only
+      // used the Budget Planner (no money recorded yet) was promised the fee
+      // takes effect when the new season starts.
+      const hasPlannedFee = teamData.finances?.nextClubFee != null;
+      const rollingIntoFall = nextSeason.toLowerCase().startsWith("fall");
+      const rollFinances =
+        rollingIntoFall && (hadFinanceActivity || hasPlannedFee);
+      const closingBalance =
+        rollFinances && hadFinanceActivity
+          ? financeSummary(teamData.finances, []).balanceNow
+          : 0;
+
+      // Confirmation
+      const confirmMsg =
+        `• ${playerCount} player${
+          playerCount === 1 ? "" : "s"
+        } will have stats archived to history\n` +
+        (droppedCount > 0
+          ? `• ${droppedCount} marked Released/Declined will be dropped\n`
+          : "") +
+        (acceptedCount > 0
+          ? `• ${acceptedCount} tryout accept${
+              acceptedCount === 1 ? "" : "s"
+            } will join the new roster\n`
+          : "") +
+        `• Record being archived: ${wins}-${losses}${
+          ties > 0 ? "-" + ties : ""
+        }` +
+        (wins + losses + ties === 0 ? " (no final games logged)" : "") +
+        `\n` +
+        `• Current stats and games will be cleared\n` +
+        (rollFinances && hadFinanceActivity
+          ? `• Club balance carried into the new season year: ${formatCurrency(
+              closingBalance,
+            )} (fee collections reset)\n`
+          : rollFinances
+            ? `• The planned team fee (${formatCurrency(
+                teamData.finances?.nextClubFee,
+              )}) takes effect for the new season\n`
+            : hadFinanceActivity
+              ? `• Finances keep running through the spring (fees cover the Fall–Spring year)\n`
+              : "") +
+        `• New season: ${nextSeason}` +
         (shouldBump
-          ? `Age group is now ${newAgeGroup}.`
-          : `Age group stays ${newAgeGroup}.`) +
-        (promotedPlayers.length > 0
-          ? ` ${promotedPlayers.length} tryout${
-              promotedPlayers.length === 1 ? "" : "s"
-            } promoted to roster.`
-          : ""),
-    });
-  }, [teamData, updateTeam, toast, confirm, user]);
+          ? ` (age advances ${archivedAge} → ${newAgeGroup})`
+          : ` (age stays ${archivedAge})`) +
+        `\n\n` +
+        `This cannot be undone.`;
+
+      // The AdvanceSeasonModal already walked the head through every
+      // marking and showed a full summary, so the confirm here is a
+      // duplicate gate when the call came from the wizard. Direct
+      // callers (anywhere besides the modal) still see the confirm
+      // dialog.
+      if (!skipConfirm) {
+        const ok = await confirm({
+          title: `Archive ${archivedSeason}?`,
+          message: `${archivedAge}, ${archivedFormat}\n\n${confirmMsg}`,
+          confirmLabel: "Advance Season",
+          danger: true,
+        });
+        if (!ok) return;
+      }
+
+      const nowIso = new Date().toISOString();
+
+      // Archive each player's current stats into pastSeasons[]; drop the
+      // ones marked Released/Declined; reset surviving statuses to
+      // "returning" so the next cycle starts clean.
+      const updatedPlayers = teamData.players
+        .filter((p: any) => !isDropped(p))
+        .map((p: any) => {
+          const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
+          // Only archive if there's something meaningful (skip totally-empty stat objects)
+          const stats = p.stats || blankStats();
+          const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
+          if (hasAnyData) {
+            past.push({
+              season: archivedSeason,
+              ageGroup: archivedAge,
+              pitchingFormat: archivedFormat,
+              record: seasonRecord,
+              stats: { ...stats },
+            });
+          }
+          return {
+            ...p,
+            pastSeasons: past,
+            stats: blankStats(),
+            pitching: { recentPitches: 0, lastPitchDate: null },
+            // After advance, every surviving player is treated as
+            // returning for the new season.
+            playerStatus: "returning",
+          };
+        });
+
+      // Tryout signups selected for promotion become full Player rows on
+      // the new roster. Mirrors acceptTryout's mapping but bulk and at
+      // advance-time. Every tryout signup is cleared from the team
+      // afterward — they don't carry over to the new season regardless of
+      // whether they were promoted (interest signups are untouched).
+      const promotionSet = new Set(tryoutsToPromote);
+      const promotedPairs = (teamData.tryoutSignups || [])
+        .filter((s: any) => promotionSet.has(s.id))
+        .map((s: any) => {
+          const player = {
+            id: "p-" + Math.random().toString(36).slice(2, 10),
+            name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
+            number: s.tryoutNumber || s.number || "",
+            dob: s.dob || "",
+            bats: s.bats || "R",
+            throws: s.throws || "R",
+            comfortablePositions: [
+              ...(Array.isArray(s.comfortablePositions)
+                ? s.comfortablePositions
+                : []
+              ).filter((p: any) => p !== "C"),
+              ...(s.isCatcher === true ? ["C"] : []),
+            ],
+            parentName: s.parentName || "",
+            email: s.email || "",
+            phone: s.phone || "",
+            present: true,
+            playerStatus: "returning",
+            pastSeasons: [],
+            stats: blankStats(),
+            pitching: { recentPitches: 0, lastPitchDate: null },
+            tryoutSignupId: s.id,
+          };
+          return { signup: s, player };
+        });
+      const promotedPlayers = promotedPairs.map(({ player }: any) => player);
+
+      // Seed the new season's Preseason eval round: returning players carry
+      // their most recent eval forward, promoted tryouts carry their tryout
+      // evaluation. Null when there's nothing to seed → start with no rounds.
+      const preseasonRound = buildPreseasonSeedRound(
+        teamData.evaluationEvents || [],
+        updatedPlayers,
+        promotedPlayers,
+        {
+          date: dateToIsoLocal(new Date()),
+          evaluatorId: user?.uid,
+          tryoutSessions: teamData.tryoutSessions || [],
+        },
+      );
+
+      const newSeasonFinances = rollFinances
+        ? rollFinancesForNewSeason(teamData.finances, archivedSeason, nowIso)
+        : teamData.finances;
+      const depositAmount = Math.max(
+        0,
+        Number((newSeasonFinances as any)?.depositAmount) || 0,
+      );
+      const tryoutDepositPayments = (opts?.tryoutDepositPayments ||
+        {}) as Record<string, string>;
+      const promotedDepositPayments =
+        depositAmount > 0
+          ? promotedPairs
+              .filter(
+                ({ signup }: any) => tryoutDepositPayments[signup.id] != null,
+              )
+              .map(({ signup, player }: any) => ({
+                id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
+                playerId: player.id,
+                date: String(tryoutDepositPayments[signup.id] || nowIso).slice(
+                  0,
+                  10,
+                ),
+                amount: depositAmount,
+              }))
+          : [];
+
+      const financesWithTryoutDeposits =
+        promotedDepositPayments.length > 0 || rollFinances
+          ? {
+              ...(newSeasonFinances || {}),
+              payments: [
+                ...(((newSeasonFinances as any)?.payments || []) as any[]),
+                ...promotedDepositPayments,
+              ],
+            }
+          : undefined;
+
+      // allowEmptyPlayers: a roster where nobody returns (and no tryout
+      // promotions) is legitimately empty after an explicitly-confirmed
+      // advance — the persistTeam wipe guard must not block it.
+      updateTeam(
+        {
+          currentSeason: nextSeason,
+          teamAge: newAgeGroup,
+          players: [...updatedPlayers, ...promotedPlayers],
+          games: [],
+          evaluationEvents: preseasonRound ? [preseasonRound] : [],
+          tryoutSessions: [],
+          tryoutSignups: [],
+          tryoutsOpen: false,
+          lastSeasonAdvanceAt: nowIso,
+          ...(financesWithTryoutDeposits
+            ? {
+                finances: financesWithTryoutDeposits,
+              }
+            : {}),
+        },
+        { allowEmptyPlayers: true },
+      );
+      toast.push({
+        kind: "success",
+        title: `Advanced to ${nextSeason}`,
+        message:
+          (shouldBump
+            ? `Age group is now ${newAgeGroup}.`
+            : `Age group stays ${newAgeGroup}.`) +
+          (promotedPlayers.length > 0
+            ? ` ${promotedPlayers.length} tryout${
+                promotedPlayers.length === 1 ? "" : "s"
+              } promoted to roster.`
+            : ""),
+      });
+    },
+    [teamData, updateTeam, toast, confirm, user],
+  );
 
   const uploadLogo = useCallback(
     (e: any) => {
@@ -1815,10 +1913,10 @@ const TeamProvider = ({ children }: any) => {
             kind: "error",
             title: "Could not process image",
             message: "That file didn't look like a valid image.",
-          })
+          }),
         );
     },
-    [teamData, updateTeam, toast]
+    [teamData, updateTeam, toast],
   );
 
   const {
@@ -1851,7 +1949,7 @@ const TeamProvider = ({ children }: any) => {
     if (!ok) return;
     try {
       await deleteDoc(
-        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId)
+        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId),
       );
       const remaining = teams.filter((t) => t.id !== activeTeamId);
       const userRef = doc(
@@ -1861,12 +1959,12 @@ const TeamProvider = ({ children }: any) => {
         "users",
         user.uid,
         "settings",
-        "teams"
+        "teams",
       );
       await setDoc(
         userRef,
         { teams: remaining, activeTeamId: remaining[0]?.id || null },
-        { merge: true }
+        { merge: true },
       );
       toast.push({ kind: "success", title: "Team deleted" });
     } catch (e: any) {
@@ -1891,7 +1989,7 @@ const TeamProvider = ({ children }: any) => {
         "public",
         "data",
         "teams",
-        activeTeamId
+        activeTeamId,
       );
       // Atomic self-removal: arrayRemove drops only this user without a
       // read-modify-write of the whole members array, so a concurrent join
@@ -1905,12 +2003,12 @@ const TeamProvider = ({ children }: any) => {
         "users",
         user.uid,
         "settings",
-        "teams"
+        "teams",
       );
       await setDoc(
         userRef,
         { teams: remaining, activeTeamId: remaining[0]?.id || null },
-        { merge: true }
+        { merge: true },
       );
       toast.push({ kind: "success", title: "Left team" });
     } catch (e: any) {
@@ -1923,11 +2021,8 @@ const TeamProvider = ({ children }: any) => {
   }, [user, teams, activeTeamId, toast, confirm]);
 
   // ----- Evaluation CRUD ----- (extracted to src/hooks/useEvaluationCrud.ts)
-  const {
-    saveTeamEvaluation,
-    saveAssistantEvaluation,
-    deleteEvaluation,
-  } = useEvaluationCrud({ teamData, updateTeam, toast, user, uiBridge });
+  const { saveTeamEvaluation, saveAssistantEvaluation, deleteEvaluation } =
+    useEvaluationCrud({ teamData, updateTeam, toast, user, uiBridge });
 
   // ─── Tryouts (PR M) ───────────────────────────────────────────────
   // Public sign-up flow lives at /tryouts/:shareId and writes to
@@ -1952,10 +2047,7 @@ const TeamProvider = ({ children }: any) => {
   } = useTryoutFlows({ teamData, updateTeam, toast, user, activeTeamId });
 
   const { setCoachRole } = useTeamMembership({ teamData, updateTeam, user });
-  const {
-    regenerateJoinCode,
-    joinTeamByCode,
-  } = useInviteFlows({
+  const { regenerateJoinCode, joinTeamByCode } = useInviteFlows({
     user,
     teams,
     activeTeamId,
@@ -2031,9 +2123,8 @@ const TeamProvider = ({ children }: any) => {
     if (!user) return false;
     return Boolean(
       teamData.ownerId ||
-        (teamData.coachRoles &&
-          Object.keys(teamData.coachRoles).length > 0) ||
-        (Array.isArray(teamData.members) && teamData.members.length > 0)
+      (teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0) ||
+      (Array.isArray(teamData.members) && teamData.members.length > 0),
     );
   }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
 
@@ -2146,7 +2237,7 @@ const TeamProvider = ({ children }: any) => {
           (cc.email &&
             (teamData.coachRoles || {})[uid] === "assistant" &&
             // best-effort match: same email between members + contacts
-            false)
+            false),
       );
       // Fallback path: any contact with sourceRole containing "assistant"
       // gets emailed if there's an assistant due. Imperfect but useful
@@ -2201,15 +2292,7 @@ const TeamProvider = ({ children }: any) => {
         });
       }
     })();
-  }, [
-    authReady,
-    user,
-    activeTeamId,
-    realRole,
-    teamData,
-    loadingActive,
-    toast,
-  ]);
+  }, [authReady, user, activeTeamId, realRole, teamData, loadingActive, toast]);
 
   // Capture ?join= param immediately on first load so iOS redirect
   // auth can round-trip without losing the tokenized URL.
@@ -2234,11 +2317,16 @@ const TeamProvider = ({ children }: any) => {
         } else if (isRedirectLikelyStuck()) {
           authDiag("redirect_result_stuck");
           clearRedirectPending();
-          setGenError("Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.");
+          setGenError(
+            "Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.",
+          );
         }
       } catch (e: any) {
         if (cancelled) return;
-        authDiag("redirect_result_error", { code: e?.code || null, message: e?.message || null });
+        authDiag("redirect_result_error", {
+          code: e?.code || null,
+          message: e?.message || null,
+        });
         clearRedirectPending();
         setGenError(e?.message || "Sign-in failed");
       }
@@ -2247,7 +2335,6 @@ const TeamProvider = ({ children }: any) => {
       cancelled = true;
     };
   }, []);
-
 
   useEffect(() => {
     let cancelled = false;
@@ -2264,15 +2351,18 @@ const TeamProvider = ({ children }: any) => {
           "continueUrl",
           "tenantId",
         ].forEach((k) => url.searchParams.delete(k));
-        window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+        window.history.replaceState(
+          {},
+          document.title,
+          `${url.pathname}${url.search}${url.hash}`,
+        );
       };
       const savedEmail = window.localStorage.getItem("emailForSignIn");
       const email =
         savedEmail ||
         (await promptText({
           title: "Complete sign-in",
-          message:
-            "Enter the email address this sign-in link was sent to.",
+          message: "Enter the email address this sign-in link was sent to.",
           label: "Email",
           inputType: "email",
           placeholder: "coach@example.com",
@@ -2289,8 +2379,14 @@ const TeamProvider = ({ children }: any) => {
         setGenError("");
       } catch (e: any) {
         if (cancelled) return;
-        authDiag("email_link_error", { code: e?.code || null, message: e?.message || null });
-        if (e?.code === "auth/invalid-action-code" || e?.code === "auth/expired-action-code") {
+        authDiag("email_link_error", {
+          code: e?.code || null,
+          message: e?.message || null,
+        });
+        if (
+          e?.code === "auth/invalid-action-code" ||
+          e?.code === "auth/expired-action-code"
+        ) {
           window.localStorage.removeItem("emailForSignIn");
           clearEmailLinkParams();
         }
@@ -2333,7 +2429,14 @@ const TeamProvider = ({ children }: any) => {
         }
       }
     });
-  }, [authReady, user, loadingTeams, joinTeamByCode, teams.length, bootstrapDefaultTeam]);
+  }, [
+    authReady,
+    user,
+    loadingTeams,
+    joinTeamByCode,
+    teams.length,
+    bootstrapDefaultTeam,
+  ]);
 
   // Win-loss record derived from final games only. `record` is the combined
   // (all non-scrimmage) record; `record.byFormat` splits it into Kid Pitch vs
@@ -2378,7 +2481,7 @@ const TeamProvider = ({ children }: any) => {
     typeof window !== "undefined" &&
     Boolean(
       sessionStorage.getItem("pendingJoin") ||
-        new URLSearchParams(window.location.search).get("join")
+      new URLSearchParams(window.location.search).get("join"),
     );
   const needsWelcomeChooser =
     !!user &&
@@ -2568,7 +2671,7 @@ const TeamProvider = ({ children }: any) => {
       setCoachRole,
       regenerateJoinCode,
       joinTeamByCode,
-    ]
+    ],
   );
 
   return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
@@ -2690,7 +2793,7 @@ const UIProvider = ({ children }: any) => {
     setLineup(game.lineup || null);
     setBattingLineup(game.battingLineup || null);
     setLineupQualityPenalty(
-      typeof game.qualityPenalty === "number" ? game.qualityPenalty : null
+      typeof game.qualityPenalty === "number" ? game.qualityPenalty : null,
     );
     setTournamentPlan(game.tournamentPlan || null);
     setCurrentGameAttendance(game.attendance || {});
@@ -2770,7 +2873,7 @@ const UIProvider = ({ children }: any) => {
   // still toggle them back in the Game Day Attendance grid.
   useEffect(() => {
     const gameDate = team.team.games.find(
-      (g: any) => g.id === selectedGameId
+      (g: any) => g.id === selectedGameId,
     )?.date;
     setCurrentGameAttendance((prev: any) => {
       const next = { ...prev };
@@ -2793,7 +2896,9 @@ const UIProvider = ({ children }: any) => {
   useEffect(() => {
     if (!team.user) return;
     const mine = team.team.evaluationEvents
-      .filter((e: any) => e.coachRole === "Head" && e.evaluatorId === team.user.uid)
+      .filter(
+        (e: any) => e.coachRole === "Head" && e.evaluatorId === team.user.uid,
+      )
       // createdAt-aware: rounds snapped to the same due date used to tie and
       // resolve to the OLDER one, pre-filling stale grades.
       .sort(evalRoundRecency);
@@ -2848,7 +2953,7 @@ const UIProvider = ({ children }: any) => {
       });
       setSwapSelection(null);
     },
-    [swapSelection]
+    [swapSelection],
   );
 
   const addInning = useCallback(() => {
@@ -2879,7 +2984,10 @@ const UIProvider = ({ children }: any) => {
     });
   }, []);
 
-  const openPlayerProfile = useCallback((id: any) => setViewingPlayerId(id), []);
+  const openPlayerProfile = useCallback(
+    (id: any) => setViewingPlayerId(id),
+    [],
+  );
 
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
   // owned by TeamProvider; mutating it during render would be a
@@ -2891,7 +2999,7 @@ const UIProvider = ({ children }: any) => {
     uiBridgeRef.current = {
       getInputs: () => {
         const currentGame = team.team.games.find(
-          (g: any) => g.id === selectedGameId
+          (g: any) => g.id === selectedGameId,
         );
         return {
           currentGame,
@@ -2916,7 +3024,7 @@ const UIProvider = ({ children }: any) => {
         setLineup(newLineup);
         setBattingLineup(newBatting);
         setLineupQualityPenalty(
-          typeof qualityPenalty === "number" ? qualityPenalty : null
+          typeof qualityPenalty === "number" ? qualityPenalty : null,
         );
         // A Rec result (no tournament field) clears any stale plan.
         setTournamentPlan(tournament || null);
@@ -3041,7 +3149,7 @@ const UIProvider = ({ children }: any) => {
       teamEvalGrades,
       selectedRoundId,
       evalTrendPlayerId,
-    ]
+    ],
   );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;
@@ -3056,7 +3164,6 @@ const UIProvider = ({ children }: any) => {
 ============================================================================ */
 // Tab order is computed below from team.tryoutsOpen so the Tryouts
 const MainShell = () => {
-  
   const {
     team,
     teams,
@@ -3214,7 +3321,6 @@ const MainShell = () => {
     }
   }, [team?.primaryColor, team?.secondaryColor, team?.tertiaryColor]);
 
-
   if (!authReady || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-app">
@@ -3243,11 +3349,14 @@ const MainShell = () => {
     );
   }
 
-
   const authEnv =
-    typeof navigator !== "undefined" && (() => {
+    typeof navigator !== "undefined" &&
+    (() => {
       const ua = navigator.userAgent || "";
-      const isInApp = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|GSA|wv\)|WebView|DuckDuckGo/i.test(ua);
+      const isInApp =
+        /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|GSA|wv\)|WebView|DuckDuckGo/i.test(
+          ua,
+        );
       return { isInApp };
     })();
 
@@ -3278,7 +3387,9 @@ const MainShell = () => {
             if ((authEnv as any)?.isInApp) {
               if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                 clearRedirectPending();
-                setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
+                setGenError(
+                  "Google sign-in loop detected. Open this app in Safari/Chrome and try again.",
+                );
                 setIsSigningIn(false);
                 return;
               }
@@ -3294,7 +3405,10 @@ const MainShell = () => {
             clearRedirectPending();
           } catch (e: any) {
             const code = e?.code || "";
-            if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+            if (
+              code === "auth/popup-closed-by-user" ||
+              code === "auth/cancelled-popup-request"
+            ) {
               authDiag("popup_dismissed", { code: code || null });
               popupDismissCountRef.current += 1;
               if (popupDismissCountRef.current >= 2) {
@@ -3303,7 +3417,7 @@ const MainShell = () => {
                 // rather than the user genuinely changing their mind. Surface
                 // the remediation tip instead of staying silent.
                 setGenError(
-                  "If the Google popup keeps closing right away, allow third-party cookies for lineupgenerator-79159.firebaseapp.com, or open this app directly in Safari/Chrome."
+                  "If the Google popup keeps closing right away, allow third-party cookies for lineupgenerator-79159.firebaseapp.com, or open this app directly in Safari/Chrome.",
                 );
               }
               setIsSigningIn(false);
@@ -3318,7 +3432,9 @@ const MainShell = () => {
                 provider.setCustomParameters({ prompt: "select_account" });
                 if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                   clearRedirectPending();
-                  setGenError("Google sign-in loop detected. Open this app in Safari/Chrome and try again.");
+                  setGenError(
+                    "Google sign-in loop detected. Open this app in Safari/Chrome and try again.",
+                  );
                   setIsSigningIn(false);
                   return;
                 }
@@ -3328,13 +3444,19 @@ const MainShell = () => {
                 await signInWithRedirect(auth, provider);
                 return;
               } catch (redirectError: any) {
-                authDiag("redirect_fallback_error", { code: redirectError?.code || null, message: redirectError?.message || null });
+                authDiag("redirect_fallback_error", {
+                  code: redirectError?.code || null,
+                  message: redirectError?.message || null,
+                });
                 setGenError(redirectError?.message || "Sign-in failed");
                 setIsSigningIn(false);
                 return;
               }
             }
-            authDiag("popup_error", { code: e?.code || null, message: e?.message || null });
+            authDiag("popup_error", {
+              code: e?.code || null,
+              message: e?.message || null,
+            });
             setGenError(e.message);
             setIsSigningIn(false);
           }
@@ -3360,9 +3482,14 @@ const MainShell = () => {
             });
             window.localStorage.setItem("emailForSignIn", email);
             authDiag("email_link_sent", { email });
-            setGenError("Email sign-in link sent. Check your inbox and open it on this device.");
+            setGenError(
+              "Email sign-in link sent. Check your inbox and open it on this device.",
+            );
           } catch (e: any) {
-            authDiag("email_link_send_error", { code: e?.code || null, message: e?.message || null });
+            authDiag("email_link_send_error", {
+              code: e?.code || null,
+              message: e?.message || null,
+            });
             setGenError(e?.message || "Could not send email sign-in link");
           }
         }}
@@ -3433,56 +3560,69 @@ const MainShell = () => {
           byte-identical. See the Desktop layout spec in docs/ARCHITECTURE.md. */}
       <main className="relative z-10 w-full lg:max-w-[1440px] lg:mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
         <Suspense fallback={<ScreenLoader />}>
-        <ErrorBoundary resetKey={location.pathname}>
-        {/* Keyed entrance-only transition: replays on navigation. Exit
+          <ErrorBoundary resetKey={location.pathname}>
+            {/* Keyed entrance-only transition: replays on navigation. Exit
             animations (AnimatePresence mode="wait") are flaky around
             Suspense/lazy chunks, so entrances only. */}
-        <FadeSlideIn key={location.pathname}>
-        <Routes>
-          <Route path="/" element={<HomeTab />} />
-          <Route path="/stats" element={<StatsTab />} />
-          <Route path="/roster" element={<RosterTab />} />
-          <Route path="/depth-chart" element={<DepthChartTab />} />
-          <Route path="/schedule" element={<ScheduleTab />} />
-          <Route path="/practices" element={<PracticesTab />} />
-          <Route path="/schedule/*" element={<ScheduleTab />} />
-          <Route
-            path="/evaluation"
-            element={
-              !roleResolved
-                ? <ScreenLoader />
-                : isAssistant
-                ? <AssistantEvalTab />
-                : <EvaluationTab />
-            }
-          />
-          <Route
-            path="/tryouts"
-            element={
-              tryoutsVisible ? <TryoutsTab /> : <Navigate to="/" replace />
-            }
-          />
-          <Route
-            path="/interest"
-            element={
-              isAssistant ? <Navigate to="/" replace /> : <InterestTab />
-            }
-          />
-          <Route
-            path="/finances"
-            element={isAssistant ? <Navigate to="/" replace /> : <FinancesTab />}
-          />
-          <Route
-            path="/settings"
-            element={isAssistant ? <Navigate to="/" replace /> : <SettingsTab />}
-          />
-          {/* In-Game renders standalone (no SharedModals scrim) below; the
+            <FadeSlideIn key={location.pathname}>
+              <Routes>
+                <Route path="/" element={<HomeTab />} />
+                <Route path="/stats" element={<StatsTab />} />
+                <Route path="/roster" element={<RosterTab />} />
+                <Route path="/depth-chart" element={<DepthChartTab />} />
+                <Route path="/schedule" element={<ScheduleTab />} />
+                <Route path="/practices" element={<PracticesTab />} />
+                <Route path="/schedule/*" element={<ScheduleTab />} />
+                <Route
+                  path="/evaluation"
+                  element={
+                    !roleResolved ? (
+                      <ScreenLoader />
+                    ) : isAssistant ? (
+                      <AssistantEvalTab />
+                    ) : (
+                      <EvaluationTab />
+                    )
+                  }
+                />
+                <Route
+                  path="/tryouts"
+                  element={
+                    tryoutsVisible ? (
+                      <TryoutsTab />
+                    ) : (
+                      <Navigate to="/" replace />
+                    )
+                  }
+                />
+                <Route
+                  path="/interest"
+                  element={
+                    isAssistant ? <Navigate to="/" replace /> : <InterestTab />
+                  }
+                />
+                <Route
+                  path="/finances"
+                  element={
+                    isAssistant ? <Navigate to="/" replace /> : <FinancesTab />
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    isAssistant ? <Navigate to="/" replace /> : <SettingsTab />
+                  }
+                />
+                {/* In-Game renders standalone (no SharedModals scrim) below; the
               route just hides the main tab content while In-Game is active. */}
-          <Route path="/in-game/:gameId" element={<div className="hidden" />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        </FadeSlideIn>
-        </ErrorBoundary>
+                <Route
+                  path="/in-game/:gameId"
+                  element={<div className="hidden" />}
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </FadeSlideIn>
+          </ErrorBoundary>
         </Suspense>
       </main>
       <SharedModals />
@@ -3540,7 +3680,10 @@ const App = () => {
           <Suspense fallback={<ScreenLoader />}>
             <ErrorBoundary>
               <Routes>
-                <Route path="/tryouts-portal/:slug" element={<TryoutsPortal />} />
+                <Route
+                  path="/tryouts-portal/:slug"
+                  element={<TryoutsPortal />}
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </ErrorBoundary>
@@ -3574,8 +3717,13 @@ const MAX_REDIRECT_ATTEMPTS = 2;
 
 const markRedirectPending = () => {
   if (typeof window === "undefined") return;
-  const priorAttempts = Number(sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0");
-  sessionStorage.setItem(REDIRECT_ATTEMPTS_KEY, String(Number.isFinite(priorAttempts) ? priorAttempts + 1 : 1));
+  const priorAttempts = Number(
+    sessionStorage.getItem(REDIRECT_ATTEMPTS_KEY) || "0",
+  );
+  sessionStorage.setItem(
+    REDIRECT_ATTEMPTS_KEY,
+    String(Number.isFinite(priorAttempts) ? priorAttempts + 1 : 1),
+  );
   sessionStorage.setItem(REDIRECT_FLAG_KEY, "1");
   sessionStorage.setItem(REDIRECT_STARTED_AT_KEY, String(Date.now()));
 };
@@ -3590,7 +3738,9 @@ const clearRedirectPending = () => {
 const isRedirectLikelyStuck = () => {
   if (typeof window === "undefined") return false;
   if (sessionStorage.getItem(REDIRECT_FLAG_KEY) !== "1") return false;
-  const started = Number(sessionStorage.getItem(REDIRECT_STARTED_AT_KEY) || "0");
+  const started = Number(
+    sessionStorage.getItem(REDIRECT_STARTED_AT_KEY) || "0",
+  );
   if (!Number.isFinite(started) || started <= 0) return true;
   return Date.now() - started > REDIRECT_GUARD_MS;
 };

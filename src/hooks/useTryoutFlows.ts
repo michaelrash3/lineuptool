@@ -212,8 +212,12 @@ export const useTryoutFlows = ({
   const saveTryoutEvaluation = useCallback(
     (signupId: any, grades: any, coachRole: any, rawDate?: any) => {
       if (!user || !signupId) return;
-      const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === signupId);
-      const date = String(rawDate || signup?.tryoutDate || new Date().toISOString().slice(0, 10));
+      const signup = (teamData.tryoutSignups || []).find(
+        (s: any) => s.id === signupId,
+      );
+      const date = String(
+        rawDate || signup?.tryoutDate || new Date().toISOString().slice(0, 10),
+      );
       const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
       const sessions = normalizeTryoutSessions(teamData);
       const existing = sessions.find((s: any) => s.id === sessionId);
@@ -234,7 +238,9 @@ export const useTryoutFlows = ({
       const nextSession = {
         ...session,
         updatedAt: now,
-        signupIds: Array.from(new Set([...(session.signupIds || []), signupId])),
+        signupIds: Array.from(
+          new Set([...(session.signupIds || []), signupId]),
+        ),
         gradesByEvaluator: {
           ...(session.gradesByEvaluator || {}),
           [user.uid]: {
@@ -258,12 +264,20 @@ export const useTryoutFlows = ({
     (entries: any[], coachRole: any) => {
       if (!user) return;
       const sessions = normalizeTryoutSessions(teamData);
-      const byId = new Map(sessions.map((session: any) => [session.id, session]));
+      const byId = new Map(
+        sessions.map((session: any) => [session.id, session]),
+      );
       const now = Date.now();
       for (const entry of entries || []) {
         if (!entry?.signupId) continue;
-        const signup = (teamData.tryoutSignups || []).find((s: any) => s.id === entry.signupId);
-        const date = String(entry.date || signup?.tryoutDate || new Date().toISOString().slice(0, 10));
+        const signup = (teamData.tryoutSignups || []).find(
+          (s: any) => s.id === entry.signupId,
+        );
+        const date = String(
+          entry.date ||
+            signup?.tryoutDate ||
+            new Date().toISOString().slice(0, 10),
+        );
         const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
         const session: any = byId.get(sessionId) || {
           id: sessionId,
@@ -281,7 +295,9 @@ export const useTryoutFlows = ({
         byId.set(sessionId, {
           ...session,
           updatedAt: now,
-          signupIds: Array.from(new Set([...(session.signupIds || []), entry.signupId])),
+          signupIds: Array.from(
+            new Set([...(session.signupIds || []), entry.signupId]),
+          ),
           gradesByEvaluator: {
             ...(session.gradesByEvaluator || {}),
             [user.uid]: {
@@ -289,7 +305,10 @@ export const useTryoutFlows = ({
               coachRole: coachRole || evaluator.coachRole || "Assistant",
               evaluatorId: user.uid,
               updatedAt: now,
-              grades: { ...(evaluator.grades || {}), [entry.signupId]: { ...(entry.grades || {}) } },
+              grades: {
+                ...(evaluator.grades || {}),
+                [entry.signupId]: { ...(entry.grades || {}) },
+              },
             },
           },
         });

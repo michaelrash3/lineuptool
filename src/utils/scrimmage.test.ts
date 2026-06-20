@@ -13,16 +13,27 @@ describe("countsTowardStats", () => {
   });
 
   it("excludes an unfinalized game", () => {
-    expect(countsTowardStats({ status: "scheduled", teamScore: null, opponentScore: null })).toBe(
-      false
-    );
+    expect(
+      countsTowardStats({
+        status: "scheduled",
+        teamScore: null,
+        opponentScore: null,
+      }),
+    ).toBe(false);
   });
 });
 
 describe("buildSeasonSummary excludes scrimmages from the record", () => {
   it("a scrimmage win does not add to W-L or runs", () => {
     const games = [
-      { id: "a", date: "2026-04-01", opponent: "A", status: "final", teamScore: 5, opponentScore: 2 },
+      {
+        id: "a",
+        date: "2026-04-01",
+        opponent: "A",
+        status: "final",
+        teamScore: 5,
+        opponentScore: 2,
+      },
       // Scrimmage blowout that must NOT count.
       {
         id: "b",

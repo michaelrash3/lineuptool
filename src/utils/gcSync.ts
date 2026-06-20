@@ -7,7 +7,9 @@ import { parseGameChangerIcs, type GcEvent } from "./icsParse";
 // Fetch a GameChanger .ics feed through our same-origin proxy and parse it.
 // Throws with a readable message (the proxy returns JSON errors) on failure.
 export const fetchGcEvents = async (feedUrl: string): Promise<GcEvent[]> => {
-  const res = await fetch(`/api/gc-schedule?url=${encodeURIComponent(feedUrl.trim())}`);
+  const res = await fetch(
+    `/api/gc-schedule?url=${encodeURIComponent(feedUrl.trim())}`,
+  );
   if (!res.ok) {
     let msg = `Feed request failed (${res.status})`;
     try {
@@ -50,7 +52,7 @@ export interface GcMergeResult {
 export const mergeGcEventsIntoGames = (
   existingGames: any[],
   events: GcEvent[],
-  defaults: GcMergeDefaults
+  defaults: GcMergeDefaults,
 ): GcMergeResult => {
   const base = Array.isArray(existingGames) ? existingGames : [];
   const next = [...base];
@@ -136,7 +138,7 @@ export interface GcPracticeMergeResult {
 // to the input so callers can skip the write.
 export const mergeGcEventsIntoPractices = (
   existingPractices: any[],
-  events: GcEvent[]
+  events: GcEvent[],
 ): GcPracticeMergeResult => {
   const base = Array.isArray(existingPractices) ? existingPractices : [];
   const next = [...base];

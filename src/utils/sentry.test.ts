@@ -35,20 +35,25 @@ describe("initSentry", () => {
     const ok = await initSentry();
     expect(ok).toBe(true);
     expect(init).toHaveBeenCalledWith(
-      expect.objectContaining({ dsn: env.VITE_SENTRY_DSN })
+      expect.objectContaining({ dsn: env.VITE_SENTRY_DSN }),
     );
 
     // The reporter now forwards to Sentry.
     vi.spyOn(console, "error").mockImplementation(() => {});
     const err = new Error("boom");
     reportError(err, { source: "test" });
-    expect(captureException).toHaveBeenCalledWith(err, { extra: { source: "test" } });
+    expect(captureException).toHaveBeenCalledWith(err, {
+      extra: { source: "test" },
+    });
   });
 
   it("is idempotent (second call is a no-op)", async () => {
     vi.resetModules();
     env.VITE_SENTRY_DSN = "https://example@o0.ingest.sentry.io/0";
-    vi.doMock("@sentry/react", () => ({ init: vi.fn(), captureException: vi.fn() }));
+    vi.doMock("@sentry/react", () => ({
+      init: vi.fn(),
+      captureException: vi.fn(),
+    }));
     const { initSentry } = await import("./sentry");
     expect(await initSentry()).toBe(true);
     expect(await initSentry()).toBe(false);

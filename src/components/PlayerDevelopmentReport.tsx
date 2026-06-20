@@ -73,30 +73,36 @@ const FIELDING: Def[] = [
 
 const getStat = (stats: any, d: Def) => read(stats, d.key, ...(d.alts || []));
 
-const StatGrid = memo(({ title, defs, stats }: { title: string; defs: Def[]; stats: any }) => (
-  <div>
-    <div className="t-eyebrow text-ink-3 mb-1.5">{title}</div>
-    <div className="grid grid-cols-4 gap-1.5">
-      {defs.map((d) => (
-        <div
-          key={d.key}
-          className="bg-surface-2 border border-line rounded-lg px-1.5 py-1.5 text-center"
-        >
-          <div className="text-[9px] font-black uppercase tracking-widest text-ink-3">
-            {d.label}
+const StatGrid = memo(
+  ({ title, defs, stats }: { title: string; defs: Def[]; stats: any }) => (
+    <div>
+      <div className="t-eyebrow text-ink-3 mb-1.5">{title}</div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {defs.map((d) => (
+          <div
+            key={d.key}
+            className="bg-surface-2 border border-line rounded-lg px-1.5 py-1.5 text-center"
+          >
+            <div className="text-[9px] font-black uppercase tracking-widest text-ink-3">
+              {d.label}
+            </div>
+            <div className="text-sm font-black tabular-nums text-ink mt-0.5">
+              {fmt(getStat(stats, d), d.kind)}
+            </div>
           </div>
-          <div className="text-sm font-black tabular-nums text-ink mt-0.5">
-            {fmt(getStat(stats, d), d.kind)}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
-  </div>
-));
+  ),
+);
 
 // Per-category latest grade (newest round that graded it) + overall within-season
 // trend (first round's overall average vs the latest round's).
-const useEvalTrend = (evaluationEvents: any[], playerId: string, categories: any[]) =>
+const useEvalTrend = (
+  evaluationEvents: any[],
+  playerId: string,
+  categories: any[],
+) =>
   useMemo(() => {
     const rounds = (evaluationEvents || [])
       .filter((e: any) => !e?.tryoutSignupId && e?.grades?.[playerId])
@@ -104,14 +110,16 @@ const useEvalTrend = (evaluationEvents: any[], playerId: string, categories: any
       .sort(
         (a: any, b: any) =>
           (a.date || "").localeCompare(b.date || "") ||
-          (a.createdAt || 0) - (b.createdAt || 0)
+          (a.createdAt || 0) - (b.createdAt || 0),
       );
     if (rounds.length === 0) return null;
     const overallOf = (g: any) => {
       const vals = categories
         .map((c) => num(g?.[c.id]))
         .filter((v): v is number => v !== undefined);
-      return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : undefined;
+      return vals.length
+        ? vals.reduce((s, v) => s + v, 0) / vals.length
+        : undefined;
     };
     const first = overallOf(rounds[0].grades[playerId]);
     const last = overallOf(rounds[rounds.length - 1].grades[playerId]);
@@ -130,7 +138,8 @@ const useEvalTrend = (evaluationEvents: any[], playerId: string, categories: any
       rounds: rounds.length,
       overallFirst: first,
       overallLast: last,
-      delta: first !== undefined && last !== undefined ? last - first : undefined,
+      delta:
+        first !== undefined && last !== undefined ? last - first : undefined,
       latestByCat,
     };
   }, [evaluationEvents, playerId, categories]);
@@ -151,7 +160,7 @@ export const PlayerDevelopmentReport = memo(
     const toast = useToast();
     const categories = useMemo(
       () => getEvalCategoriesForTeam(team?.pitchingFormat),
-      [team?.pitchingFormat]
+      [team?.pitchingFormat],
     );
     const evalTrend = useEvalTrend(evaluationEvents, player?.id, categories);
 
@@ -184,10 +193,20 @@ export const PlayerDevelopmentReport = memo(
     const growth = useMemo(() => {
       const past = Array.isArray(player?.pastSeasons) ? player.pastSeasons : [];
       const columns = [
-        ...past.map((s: any) => ({ label: s.season || "Past", stats: s.stats || {} })),
-        { label: team?.currentSeason || "Now", stats: player?.stats || {}, current: true },
+        ...past.map((s: any) => ({
+          label: s.season || "Past",
+          stats: s.stats || {},
+        })),
+        {
+          label: team?.currentSeason || "Now",
+          stats: player?.stats || {},
+          current: true,
+        },
       ];
-      const rows = [...BATTING.slice(0, 3), ...(pitched ? PITCHING.slice(1, 3) : [])];
+      const rows = [
+        ...BATTING.slice(0, 3),
+        ...(pitched ? PITCHING.slice(1, 3) : []),
+      ];
       const prev = past.length ? past[past.length - 1].stats || {} : null;
       return { columns, rows, prev };
     }, [player, team?.currentSeason, pitched]);
@@ -195,23 +214,25 @@ export const PlayerDevelopmentReport = memo(
     const reportText = useMemo(() => {
       if (!player) return "";
       const lines = [`${player.name} — Development Report`];
-      lines.push(`${team?.currentSeason || ""} · ${team?.teamAge || ""}`.trim());
+      lines.push(
+        `${team?.currentSeason || ""} · ${team?.teamAge || ""}`.trim(),
+      );
       lines.push("");
       lines.push(
         `Batting: AVG ${fmt(read(player.stats, "avg"), "dec3")} · OPS ${fmt(
           read(player.stats, "ops"),
-          "dec3"
+          "dec3",
         )} · HR ${fmt(read(player.stats, "hr"), "int")} · RBI ${fmt(
           read(player.stats, "rbi"),
-          "int"
-        )}`
+          "int",
+        )}`,
       );
       if (pitched) {
         lines.push(
           `Pitching: IP ${fmt(read(player.stats, "ip", "pIp"), "ip")} · ERA ${fmt(
             read(player.stats, "era", "pEra"),
-            "dec2"
-          )} · WHIP ${fmt(read(player.stats, "whip", "pWhip"), "dec2")}`
+            "dec2",
+          )} · WHIP ${fmt(read(player.stats, "whip", "pWhip"), "dec2")}`,
         );
       }
       if (evalTrend?.overallLast !== undefined) {
@@ -219,10 +240,10 @@ export const PlayerDevelopmentReport = memo(
           evalTrend.delta === undefined
             ? ""
             : evalTrend.delta > 0
-            ? ` (▲ +${evalTrend.delta.toFixed(1)})`
-            : evalTrend.delta < 0
-            ? ` (▼ ${evalTrend.delta.toFixed(1)})`
-            : " (→)";
+              ? ` (▲ +${evalTrend.delta.toFixed(1)})`
+              : evalTrend.delta < 0
+                ? ` (▼ ${evalTrend.delta.toFixed(1)})`
+                : " (→)";
         lines.push(`Eval: ${evalTrend.overallLast.toFixed(1)}/5${arrow}`);
       }
       if (growth.prev) {
@@ -232,8 +253,8 @@ export const PlayerDevelopmentReport = memo(
           (read(player.stats, "ops") || 0) - (read(growth.prev, "ops") || 0);
         lines.push(
           `Growth vs last season: AVG ${dAvg >= 0 ? "+" : ""}${dAvg.toFixed(
-            3
-          )} · OPS ${dOps >= 0 ? "+" : ""}${dOps.toFixed(3)}`
+            3,
+          )} · OPS ${dOps >= 0 ? "+" : ""}${dOps.toFixed(3)}`,
         );
       }
       if (attendance) {
@@ -256,7 +277,11 @@ export const PlayerDevelopmentReport = memo(
       }
     };
 
-    const deltaCell = (cur: number | undefined, prev: number | undefined, hi: boolean) => {
+    const deltaCell = (
+      cur: number | undefined,
+      prev: number | undefined,
+      hi: boolean,
+    ) => {
       if (cur === undefined || prev === undefined) return null;
       const d = cur - prev;
       if (Math.abs(d) < 1e-9) return <span className="text-ink-3"> →</span>;
@@ -299,7 +324,9 @@ export const PlayerDevelopmentReport = memo(
         <div className="space-y-4">
           {/* Header meta */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-ink-3">
-            {player.number ? <span className="tabular-nums">#{player.number}</span> : null}
+            {player.number ? (
+              <span className="tabular-nums">#{player.number}</span>
+            ) : null}
             {player.primaryPosition && <span>{player.primaryPosition}</span>}
             <span>
               {team?.currentSeason || ""} · {team?.teamAge || ""}
@@ -310,14 +337,18 @@ export const PlayerDevelopmentReport = memo(
           </div>
 
           <StatGrid title="Batting" defs={BATTING} stats={player.stats} />
-          {pitched && <StatGrid title="Pitching" defs={PITCHING} stats={player.stats} />}
+          {pitched && (
+            <StatGrid title="Pitching" defs={PITCHING} stats={player.stats} />
+          )}
           <StatGrid title="Fielding" defs={FIELDING} stats={player.stats} />
 
           {/* Evaluation */}
           <div>
             <div className="t-eyebrow text-ink-3 mb-1.5">Evaluation</div>
             {!evalTrend ? (
-              <p className="t-body text-ink-3 italic">No evaluations on file.</p>
+              <p className="t-body text-ink-3 italic">
+                No evaluations on file.
+              </p>
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
@@ -331,13 +362,20 @@ export const PlayerDevelopmentReport = memo(
                         evalTrend.delta > 0
                           ? "text-win"
                           : evalTrend.delta < 0
-                          ? "text-loss"
-                          : "text-ink-3"
+                            ? "text-loss"
+                            : "text-ink-3"
                       }`}
                     >
-                      {evalTrend.delta > 0 ? "▲ +" : evalTrend.delta < 0 ? "▼ " : "→ "}
+                      {evalTrend.delta > 0
+                        ? "▲ +"
+                        : evalTrend.delta < 0
+                          ? "▼ "
+                          : "→ "}
                       {evalTrend.delta !== 0 ? evalTrend.delta.toFixed(1) : ""}
-                      <span className="text-ink-3 font-bold"> over {evalTrend.rounds} rounds</span>
+                      <span className="text-ink-3 font-bold">
+                        {" "}
+                        over {evalTrend.rounds} rounds
+                      </span>
                     </span>
                   )}
                 </div>
@@ -365,14 +403,19 @@ export const PlayerDevelopmentReport = memo(
           {/* Season-over-season growth */}
           {growth.columns.length > 1 && (
             <div>
-              <div className="t-eyebrow text-ink-3 mb-1.5">Season-over-Season</div>
+              <div className="t-eyebrow text-ink-3 mb-1.5">
+                Season-over-Season
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="text-[10px] font-black uppercase tracking-widest text-ink-3">
                       <th className="text-left p-1.5">Stat</th>
                       {growth.columns.map((col: any, i: number) => (
-                        <th key={i} className="text-right p-1.5 whitespace-nowrap">
+                        <th
+                          key={i}
+                          className="text-right p-1.5 whitespace-nowrap"
+                        >
                           {col.label}
                         </th>
                       ))}
@@ -381,7 +424,9 @@ export const PlayerDevelopmentReport = memo(
                   <tbody>
                     {growth.rows.map((d) => (
                       <tr key={d.key} className="border-t border-line">
-                        <td className="p-1.5 font-bold text-ink-3">{d.label}</td>
+                        <td className="p-1.5 font-bold text-ink-3">
+                          {d.label}
+                        </td>
                         {growth.columns.map((col: any, i: number) => {
                           const v = getStat(col.stats, d);
                           return (
@@ -421,11 +466,13 @@ export const PlayerDevelopmentReport = memo(
           {player.notes && (
             <div>
               <div className="t-eyebrow text-ink-3 mb-1">Coach Notes</div>
-              <p className="t-body text-ink-2 whitespace-pre-wrap">{player.notes}</p>
+              <p className="t-body text-ink-2 whitespace-pre-wrap">
+                {player.notes}
+              </p>
             </div>
           )}
         </div>
       </Modal>
     );
-  }
+  },
 );

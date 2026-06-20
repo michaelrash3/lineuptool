@@ -46,7 +46,7 @@ export const usePracticeCrud = ({
       };
       updateTeam({ practices: [...(teamData.practices || []), newPractice] });
     },
-    [teamData.practices, updateTeam, toast]
+    [teamData.practices, updateTeam, toast],
   );
 
   const updatePractice = useCallback(
@@ -65,18 +65,19 @@ export const usePracticeCrud = ({
       }
       if (!safePatch || Object.keys(safePatch).length === 0) return;
       const next = (teamData.practices || []).map((p: any) =>
-        p.id === id ? { ...p, ...safePatch } : p
+        p.id === id ? { ...p, ...safePatch } : p,
       );
       updateTeam({ practices: next });
     },
-    [teamData.practices, updateTeam]
+    [teamData.practices, updateTeam],
   );
 
   const removePractice = useCallback(
     async (id: any) => {
       const ok = await confirm({
         title: "Delete this practice?",
-        message: "Its attendance and drill log go with it. You can undo right after.",
+        message:
+          "Its attendance and drill log go with it. You can undo right after.",
         confirmLabel: "Delete",
         danger: true,
       });
@@ -94,18 +95,23 @@ export const usePracticeCrud = ({
         },
       } as any);
     },
-    [teamData.practices, updateTeam, toast, confirm]
+    [teamData.practices, updateTeam, toast, confirm],
   );
 
   const savePracticeAttendance = useCallback(
     (id: any, attendanceMap: Record<string, any>) => {
       const next = (teamData.practices || []).map((p: any) =>
-        p.id === id ? { ...p, attendance: { ...attendanceMap } } : p
+        p.id === id ? { ...p, attendance: { ...attendanceMap } } : p,
       );
       updateTeam({ practices: next });
     },
-    [teamData.practices, updateTeam]
+    [teamData.practices, updateTeam],
   );
 
-  return { addPractice, updatePractice, removePractice, savePracticeAttendance };
+  return {
+    addPractice,
+    updatePractice,
+    removePractice,
+    savePracticeAttendance,
+  };
 };

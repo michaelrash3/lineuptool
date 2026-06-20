@@ -57,7 +57,11 @@ export function useTheme(): UseThemeResult {
 
   // When following the OS ("system"), live-update if the OS theme flips.
   useEffect(() => {
-    if (mode !== "system" || typeof window === "undefined" || !window.matchMedia)
+    if (
+      mode !== "system" ||
+      typeof window === "undefined" ||
+      !window.matchMedia
+    )
       return;
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => applyTheme("system");

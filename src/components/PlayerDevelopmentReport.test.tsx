@@ -12,7 +12,10 @@ const player = {
   throws: "R",
   stats: { ab: 20, h: 8, avg: 0.4, obp: 0.45, ops: 0.95, hr: 2, rbi: 10 },
   pastSeasons: [
-    { season: "Fall 2025", stats: { avg: 0.3, obp: 0.35, ops: 0.75, hr: 1, rbi: 6 } },
+    {
+      season: "Fall 2025",
+      stats: { avg: 0.3, obp: 0.35, ops: 0.75, hr: 1, rbi: 6 },
+    },
   ],
   notes: "Great hustle.",
 };
@@ -25,8 +28,18 @@ const team = {
 
 // Two rounds using real eval category ids so the within-season trend computes.
 const evaluationEvents = [
-  { id: "r1", date: "2026-02-01", createdAt: 1, grades: { p1: { approach: 3, coachability: 3 } } },
-  { id: "r2", date: "2026-05-01", createdAt: 2, grades: { p1: { approach: 4, coachability: 4 } } },
+  {
+    id: "r1",
+    date: "2026-02-01",
+    createdAt: 1,
+    grades: { p1: { approach: 3, coachability: 3 } },
+  },
+  {
+    id: "r2",
+    date: "2026-05-01",
+    createdAt: 2,
+    grades: { p1: { approach: 4, coachability: 4 } },
+  },
 ];
 
 describe("PlayerDevelopmentReport", () => {
@@ -40,7 +53,7 @@ describe("PlayerDevelopmentReport", () => {
         evaluationEvents={evaluationEvents}
         games={[]}
         practices={[]}
-      />
+      />,
     );
     expect(screen.getByText("Batting")).toBeInTheDocument();
     expect(screen.getByText("Evaluation")).toBeInTheDocument();

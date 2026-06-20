@@ -21,10 +21,17 @@ const baseTeam: any = {
       { id: "b2", label: "Uniform printing", amount: 100 },
     ],
     incomes: [
-      { id: "i1", date: "2026-02-01", label: "Hardware sponsorship", amount: 60 },
+      {
+        id: "i1",
+        date: "2026-02-01",
+        label: "Hardware sponsorship",
+        amount: 60,
+      },
     ],
     payments: [{ id: "p1", playerId: "kid1", date: "2026-03-01", amount: 100 }],
-    expenses: [{ id: "e1", date: "2026-03-05", label: "Baseballs", amount: 80 }],
+    expenses: [
+      { id: "e1", date: "2026-03-05", label: "Baseballs", amount: 80 },
+    ],
   },
 };
 
@@ -59,7 +66,13 @@ describe("FinancesTab", () => {
       finances: {
         ...baseTeam.finances,
         budgetItems: [
-          { id: "b1", label: "Tournaments", qty: 1, unitAmount: 100, amount: 100 },
+          {
+            id: "b1",
+            label: "Tournaments",
+            qty: 1,
+            unitAmount: 100,
+            amount: 100,
+          },
         ],
       },
     };
@@ -68,7 +81,10 @@ describe("FinancesTab", () => {
     });
     fireEvent.click(screen.getByLabelText("Fewer Tournaments"));
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
-    expect(patch.finances.budgetItems[0]).toMatchObject({ qty: 1, amount: 100 });
+    expect(patch.finances.budgetItems[0]).toMatchObject({
+      qty: 1,
+      amount: 100,
+    });
   });
 
   it("preset chip prefills a quantity-mode item and Add writes count × unit", () => {
@@ -76,7 +92,9 @@ describe("FinancesTab", () => {
       team: { team: baseTeam },
     });
     fireEvent.click(screen.getByRole("button", { name: "+ Tournaments" }));
-    fireEvent.change(screen.getByLabelText("Count"), { target: { value: "8" } });
+    fireEvent.change(screen.getByLabelText("Count"), {
+      target: { value: "8" },
+    });
     fireEvent.change(screen.getByLabelText("Cost per unit"), {
       target: { value: "450" },
     });
@@ -100,9 +118,7 @@ describe("FinancesTab", () => {
       ...baseTeam,
       finances: {
         ...baseTeam.finances,
-        sponsorships: [
-          { id: "s1", sponsor: "Smith Hardware", amount: 200 },
-        ],
+        sponsorships: [{ id: "s1", sponsor: "Smith Hardware", amount: 200 }],
       },
     };
     const { teamValue } = renderWithProviders(<FinancesTab />, {
@@ -111,7 +127,7 @@ describe("FinancesTab", () => {
     // (budget 500 − sponsorships 200) / 2 paying players = 150. This year's
     // ledger (payments/income/expenses in the fixture) must not change it.
     fireEvent.click(
-      screen.getByRole("button", { name: /Set as next season's fee/i })
+      screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
     expect(teamValue.updateTeam).toHaveBeenCalledWith({
       finances: expect.objectContaining({ nextClubFee: 150 }),
@@ -140,13 +156,16 @@ describe("FinancesTab", () => {
 
     const withSponsor: any = {
       ...baseTeam,
-      finances: { ...baseTeam.finances, sponsorships: patch.finances.sponsorships },
+      finances: {
+        ...baseTeam.finances,
+        sponsorships: patch.finances.sponsorships,
+      },
     };
     const second = renderWithProviders(<FinancesTab />, {
       team: { team: withSponsor },
     });
     fireEvent.click(
-      screen.getByLabelText("Remove sponsorship from Smith Hardware")
+      screen.getByLabelText("Remove sponsorship from Smith Hardware"),
     );
     const removePatch = (second.teamValue.updateTeam as jest.Mock).mock
       .calls[0][0];
@@ -170,7 +189,9 @@ describe("FinancesTab", () => {
     };
     renderWithProviders(<FinancesTab />, { team: { team: waivedTeam } });
     expect(screen.getByText("Fee waived")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Payment amount for Ben")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Payment amount for Ben"),
+    ).not.toBeInTheDocument();
     // Ben waived → nobody owes anything.
     expect(screen.getByText("Still owed")).toBeInTheDocument();
     expect(screen.queryByText("$100 owed")).not.toBeInTheDocument();
@@ -200,7 +221,7 @@ describe("FinancesTab", () => {
     });
     // Raw (500 − 180) / 2 = 160 → next $25 = 175.
     fireEvent.click(
-      screen.getByRole("button", { name: /Set as next season's fee/i })
+      screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
     expect(teamValue.updateTeam).toHaveBeenCalledWith({
       finances: expect.objectContaining({ nextClubFee: 175 }),
@@ -230,7 +251,14 @@ describe("FinancesTab", () => {
         ...baseTeam.finances,
         salesTaxPct: 10,
         budgetItems: [
-          { id: "b1", label: "Tournaments", qty: 4, unitAmount: 100, amount: 400, taxable: true },
+          {
+            id: "b1",
+            label: "Tournaments",
+            qty: 4,
+            unitAmount: 100,
+            amount: 400,
+            taxable: true,
+          },
           { id: "b2", label: "Uniform printing", amount: 100 },
         ],
       },
@@ -240,7 +268,7 @@ describe("FinancesTab", () => {
     });
     // Budget 440 + 100 = 540 → 540 / 2 = 270.
     fireEvent.click(
-      screen.getByRole("button", { name: /Set as next season's fee/i })
+      screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
     expect(teamValue.updateTeam).toHaveBeenCalledWith({
       finances: expect.objectContaining({ nextClubFee: 270 }),
@@ -295,9 +323,7 @@ describe("FinancesTab", () => {
     });
     fireEvent.click(screen.getByLabelText("Delete entry Team fee — Ava"));
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
-    expect(
-      patch.finances.payments.some((p: any) => p.id === "p1")
-    ).toBe(false);
+    expect(patch.finances.payments.some((p: any) => p.id === "p1")).toBe(false);
   });
 
   it("money-out entries can be linked to a budget category", () => {
@@ -330,7 +356,13 @@ describe("FinancesTab", () => {
       finances: {
         ...baseTeam.finances,
         expenses: [
-          { id: "e1", date: "2026-03-05", label: "Entry", amount: 450, budgetItemId: "b1" },
+          {
+            id: "e1",
+            date: "2026-03-05",
+            label: "Entry",
+            amount: 450,
+            budgetItemId: "b1",
+          },
         ],
       },
     };
@@ -379,13 +411,19 @@ describe("FinancesTab", () => {
       finances: {
         ...baseTeam.finances,
         pastSeasons: [
-          { season: "through Spring 2026", collected: 1200, otherIncome: 300, spent: 1100, closingBalance: 400 },
+          {
+            season: "through Spring 2026",
+            collected: 1200,
+            otherIncome: 300,
+            spent: 1100,
+            closingBalance: 400,
+          },
         ],
       },
     };
     renderWithProviders(<FinancesTab />, { team: { team: withHistory } });
     expect(
-      screen.getByRole("img", { name: "Year over year money in and out" })
+      screen.getByRole("img", { name: "Year over year money in and out" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Year over year/)).toBeInTheDocument();
   });
@@ -453,10 +491,10 @@ describe("FinancesTab", () => {
     // Every ledger row — including team-fee payments — can be deleted so a
     // mistaken entry can be cleaned up.
     expect(
-      screen.getByLabelText("Delete entry Team fee — Ava")
+      screen.getByLabelText("Delete entry Team fee — Ava"),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Delete entry Hardware sponsorship")
+      screen.getByLabelText("Delete entry Hardware sponsorship"),
     ).toBeInTheDocument();
   });
 
@@ -512,7 +550,7 @@ describe("FinancesTab", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Money in" }));
     fireEvent.click(
-      screen.getByLabelText("Fundraising — reduces player team fees")
+      screen.getByLabelText("Fundraising — reduces player team fees"),
     );
     fireEvent.change(screen.getByLabelText("Transaction description"), {
       target: { value: "Raffle night" },
@@ -568,7 +606,7 @@ describe("FinancesTab", () => {
     });
     fireEvent.change(
       screen.getByLabelText("Edit cost per unit for Tournaments"),
-      { target: { value: "500" } }
+      { target: { value: "500" } },
     );
     fireEvent.change(screen.getByLabelText("Edit label for Tournaments"), {
       target: { value: "Spring tournaments" },
@@ -643,7 +681,7 @@ describe("FinancesTab", () => {
     // $240 across 2 paying families ≈ $120 off each.
     expect(screen.getByText(/\$120 off per/)).toBeInTheDocument();
     fireEvent.click(
-      screen.getByLabelText("Apply carryover as team-fee discount")
+      screen.getByLabelText("Apply carryover as team-fee discount"),
     );
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
     expect(patch.finances.incomes[0]).toMatchObject({
@@ -680,14 +718,14 @@ describe("FinancesTab", () => {
     };
     renderWithProviders(<FinancesTab />, { team: { team: applied } });
     expect(
-      screen.queryByLabelText("Apply carryover as team-fee discount")
+      screen.queryByLabelText("Apply carryover as team-fee discount"),
     ).not.toBeInTheDocument();
     // Applied surplus shows as the fundraising credit: 240/2 = 120 off the
     // $100 fee → everyone fully covered ($0 each).
     expect(screen.getByText(/\$0 each/)).toBeInTheDocument();
     // The debt row stays visible in the ledger.
     expect(
-      screen.getByText("Debt carried over (through Spring 2026)")
+      screen.getByText("Debt carried over (through Spring 2026)"),
     ).toBeInTheDocument();
   });
 
@@ -696,7 +734,7 @@ describe("FinancesTab", () => {
       team: { team: { players: [], games: [] } },
     });
     expect(
-      screen.getByText(/Add players on the Roster tab/i)
+      screen.getByText(/Add players on the Roster tab/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Nothing logged yet/i)).toBeInTheDocument();
   });

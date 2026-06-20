@@ -25,18 +25,11 @@ import { STAT_META, formatStatValue } from "./statTrend";
 
 // X-axis tick: abbreviated season on the first line, age group beneath, with
 // the current season tinted in the team color.
-const SeasonTick = ({
-  x,
-  y,
-  index,
-  payload,
-  series,
-  primaryColor,
-}: any) => {
+const SeasonTick = ({ x, y, index, payload, series, primaryColor }: any) => {
   const s = index != null ? series[index] : undefined;
   const label = String(payload?.value ?? "").replace(
     /^(\w+)\s+(\d{4})$/,
-    (_: any, sn: string, yr: string) => `${sn.slice(0, 3)} '${yr.slice(2)}`
+    (_: any, sn: string, yr: string) => `${sn.slice(0, 3)} '${yr.slice(2)}`,
   );
   return (
     <g>
@@ -217,10 +210,10 @@ export const StatTrendModal = memo(
                   {meta.kind === "decimal" || meta.kind === "ip"
                     ? Math.abs(trend.change).toFixed(3)
                     : meta.kind === "percent"
-                    ? `${Math.abs(
-                        trend.change <= 1 ? trend.change * 100 : trend.change
-                      ).toFixed(1)}%`
-                    : Math.abs(Math.round(trend.change))}
+                      ? `${Math.abs(
+                          trend.change <= 1 ? trend.change * 100 : trend.change,
+                        ).toFixed(1)}%`
+                      : Math.abs(Math.round(trend.change))}
                   {trend.isImproving ? "Improving" : "Declining"}
                 </div>
               )}
@@ -313,9 +306,7 @@ export const StatTrendModal = memo(
                           <ChartTooltip
                             formatter={(v) => formatStatValue(statKey, v)}
                             labelFormatter={(label) => {
-                              const s = series.find(
-                                (r) => r.season === label
-                              );
+                              const s = series.find((r) => r.season === label);
                               return s?.ageGroup
                                 ? `${label} · ${s.ageGroup}`
                                 : String(label);
@@ -337,7 +328,7 @@ export const StatTrendModal = memo(
                           label={{
                             value: `Team avg ${formatStatValue(
                               statKey,
-                              baseline
+                              baseline,
                             )}`,
                             position: "insideTopRight",
                             fontSize: 10,
@@ -423,7 +414,7 @@ export const StatTrendModal = memo(
         </A11yDialog>
       </div>
     );
-  }
+  },
 );
 
 /* EvalTrendModal — see ./screens/EvaluationTab */
@@ -445,7 +436,9 @@ const RECENT_MOVEMENT_TRACKED = [
 
 const fmtTrendVal = (v: any, decimals: any) =>
   decimals > 0
-    ? Number(v || 0).toFixed(decimals).replace(/^0\./, ".")
+    ? Number(v || 0)
+        .toFixed(decimals)
+        .replace(/^0\./, ".")
     : String(Math.round(Number(v) || 0));
 
 const fmtTrendDelta = (delta: any, decimals: any) => {
@@ -456,91 +449,97 @@ const fmtTrendDelta = (delta: any, decimals: any) => {
     : `${sign}${Math.round(delta)}`;
 };
 
-export const RecentMovementPanel = memo(({ player, games, teamAverages }: any) => {
-  const history = Array.isArray(player.statsHistory) ? player.statsHistory : [];
-  // Series = past snapshots + live stats. Coaches who import stats per game
-  // have no snapshots, so fall back to the cumulative season line after each
-  // imported game — same trajectory, derived from the game lines themselves.
-  let series: Array<Record<string, any>>;
-  let unitLabel = "updates";
-  if (history.length > 0) {
-    series = [...history.map((h: any) => h.stats || {}), player.stats || {}];
-  } else {
-    series = seasonSeriesFromGameLines(games, player.id);
-    unitLabel = "games";
-  }
-  if (series.length < 2) {
+export const RecentMovementPanel = memo(
+  ({ player, games, teamAverages }: any) => {
+    const history = Array.isArray(player.statsHistory)
+      ? player.statsHistory
+      : [];
+    // Series = past snapshots + live stats. Coaches who import stats per game
+    // have no snapshots, so fall back to the cumulative season line after each
+    // imported game — same trajectory, derived from the game lines themselves.
+    let series: Array<Record<string, any>>;
+    let unitLabel = "updates";
+    if (history.length > 0) {
+      series = [...history.map((h: any) => h.stats || {}), player.stats || {}];
+    } else {
+      series = seasonSeriesFromGameLines(games, player.id);
+      unitLabel = "games";
+    }
+    if (series.length < 2) {
+      return (
+        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+          <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
+            <Icons.Forward className="w-4 h-4" /> Recent Movement
+          </h4>
+          <p className="text-[11px] text-ink-3 font-medium italic">
+            No trend data yet — import stats (season CSV or per game) to start
+            tracking.
+          </p>
+        </div>
+      );
+    }
+    // Sparkline uses the last WINDOW+1 values so it shows the full trajectory
+    // the delta covers.
+    const windowed = series.slice(
+      -Math.min(RECENT_MOVEMENT_WINDOW + 1, series.length),
+    );
+
     return (
       <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
         <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
           <Icons.Forward className="w-4 h-4" /> Recent Movement
+          <span className="ml-auto text-[9px] font-bold text-ink-3 normal-case tracking-normal">
+            Last {Math.min(RECENT_MOVEMENT_WINDOW, series.length - 1)}{" "}
+            {unitLabel}
+          </span>
         </h4>
-        <p className="text-[11px] text-ink-3 font-medium italic">
-          No trend data yet — import stats (season CSV or per game) to start
-          tracking.
-        </p>
+        <div className="grid grid-cols-2 gap-2.5">
+          {RECENT_MOVEMENT_TRACKED.map(({ key, label, decimals }) => {
+            const values = windowed.map((s) => Number(s?.[key]) || 0);
+            // Dashed team-avg baseline on rate stats only (decimals > 0).
+            const avg = Number(teamAverages?.[key]);
+            const baseline =
+              decimals > 0 && Number.isFinite(avg) ? avg : undefined;
+            const current = values[values.length - 1];
+            const prior = values[0];
+            const delta = current - prior;
+            const deltaTone =
+              delta > 0
+                ? "text-win bg-win-bg border-line"
+                : delta < 0
+                  ? "text-loss bg-loss-bg border-line"
+                  : "text-ink-3 bg-app border-line";
+            return (
+              <div
+                key={key}
+                className="rounded-lg border border-line bg-app/40 px-3 py-2.5 flex items-center gap-3"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                    {label}
+                  </div>
+                  <div className="text-base font-black tabular-nums text-ink leading-tight">
+                    {fmtTrendVal(current, decimals)}
+                  </div>
+                </div>
+                <Sparkline
+                  values={values}
+                  width={40}
+                  strokeWidth={1.5}
+                  baseline={baseline}
+                />
+                <span
+                  className={`text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded border ${deltaTone}`}
+                  title={`Net change over the last ${values.length - 1} ${unitLabel}`}
+                >
+                  {delta > 0 ? "↑" : delta < 0 ? "↓" : "—"}
+                  {fmtTrendDelta(delta, decimals)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
-  }
-  // Sparkline uses the last WINDOW+1 values so it shows the full trajectory
-  // the delta covers.
-  const windowed = series.slice(-Math.min(RECENT_MOVEMENT_WINDOW + 1, series.length));
-
-  return (
-    <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
-      <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
-        <Icons.Forward className="w-4 h-4" /> Recent Movement
-        <span className="ml-auto text-[9px] font-bold text-ink-3 normal-case tracking-normal">
-          Last {Math.min(RECENT_MOVEMENT_WINDOW, series.length - 1)} {unitLabel}
-        </span>
-      </h4>
-      <div className="grid grid-cols-2 gap-2.5">
-        {RECENT_MOVEMENT_TRACKED.map(({ key, label, decimals }) => {
-          const values = windowed.map((s) => Number(s?.[key]) || 0);
-          // Dashed team-avg baseline on rate stats only (decimals > 0).
-          const avg = Number(teamAverages?.[key]);
-          const baseline =
-            decimals > 0 && Number.isFinite(avg) ? avg : undefined;
-          const current = values[values.length - 1];
-          const prior = values[0];
-          const delta = current - prior;
-          const deltaTone =
-            delta > 0
-              ? "text-win bg-win-bg border-line"
-              : delta < 0
-              ? "text-loss bg-loss-bg border-line"
-              : "text-ink-3 bg-app border-line";
-          return (
-            <div
-              key={key}
-              className="rounded-lg border border-line bg-app/40 px-3 py-2.5 flex items-center gap-3"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
-                  {label}
-                </div>
-                <div className="text-base font-black tabular-nums text-ink leading-tight">
-                  {fmtTrendVal(current, decimals)}
-                </div>
-              </div>
-              <Sparkline
-                values={values}
-                width={40}
-                strokeWidth={1.5}
-                baseline={baseline}
-              />
-              <span
-                className={`text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded border ${deltaTone}`}
-                title={`Net change over the last ${values.length - 1} ${unitLabel}`}
-              >
-                {delta > 0 ? "↑" : delta < 0 ? "↓" : "—"}
-                {fmtTrendDelta(delta, decimals)}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
-
+  },
+);

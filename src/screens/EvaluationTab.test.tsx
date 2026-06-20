@@ -63,7 +63,9 @@ describe("EvaluationTab", () => {
     // inline per-player readout (the top roll-up panel renders notes unquoted).
     expect(screen.getByText("Assistant Evaluations (1)")).toBeInTheDocument();
     expect(screen.getByText("“Great swing”")).toBeInTheDocument();
-    expect(screen.getAllByText(/Assistant · Jones/).length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText(/Assistant · Jones/).length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("labels the save button 'Save as New Round' when creating a new round", () => {
@@ -86,7 +88,7 @@ describe("EvaluationTab", () => {
       },
     });
     expect(
-      screen.getByRole("button", { name: /Save as New Round/ })
+      screen.getByRole("button", { name: /Save as New Round/ }),
     ).toBeInTheDocument();
   });
 
@@ -127,7 +129,7 @@ describe("EvaluationTab", () => {
     fireEvent.click(btn);
     expect(saveTeamEvaluation).not.toHaveBeenCalled();
     expect(
-      screen.getByRole("button", { name: /Overwrite/ })
+      screen.getByRole("button", { name: /Overwrite/ }),
     ).toBeInTheDocument();
     // Second tap commits.
     fireEvent.click(screen.getByRole("button", { name: /Overwrite/ }));
@@ -168,7 +170,7 @@ describe("EvaluationTab", () => {
     // Both the standalone button and the dropdown option exist regardless of
     // whether a cadence window happens to be open today.
     expect(
-      screen.getByRole("button", { name: /Start New Round/ })
+      screen.getByRole("button", { name: /Start New Round/ }),
     ).toBeInTheDocument();
     expect(screen.getByText(/\+ Start a new Eval/)).toBeInTheDocument();
   });

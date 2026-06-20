@@ -26,20 +26,40 @@ const PLAN_SUGGESTIONS: Record<string, { name: string; minutes: number }[]> = {
   ],
 };
 
-const newId = (p: string) => p + "-" + Math.random().toString(36).substring(2, 9);
+const newId = (p: string) =>
+  p + "-" + Math.random().toString(36).substring(2, 9);
 
 // Attendance is tri-state: present / absent (a real miss) / excused (e.g. a
 // fall conflict with football, or winter basketball/wrestling — not held
 // against the player). Legacy values: true = present, false = absent.
 type AttStatus = "present" | "absent" | "excused";
 const statusOf = (v: any): AttStatus =>
-  v === false || v === "absent" ? "absent" : v === "excused" ? "excused" : "present";
+  v === false || v === "absent"
+    ? "absent"
+    : v === "excused"
+      ? "excused"
+      : "present";
 const nextStatus = (s: AttStatus): AttStatus =>
   s === "present" ? "absent" : s === "absent" ? "excused" : "present";
-const STATUS_META: Record<AttStatus, { label: string; dot: string; chip: string }> = {
-  present: { label: "Here", dot: "bg-win", chip: "bg-win-bg text-win border-line" },
-  absent: { label: "Out", dot: "bg-loss", chip: "bg-loss-bg text-loss border-line" },
-  excused: { label: "Excused", dot: "bg-warnfg", chip: "bg-warn-bg text-warnfg border-line" },
+const STATUS_META: Record<
+  AttStatus,
+  { label: string; dot: string; chip: string }
+> = {
+  present: {
+    label: "Here",
+    dot: "bg-win",
+    chip: "bg-win-bg text-win border-line",
+  },
+  absent: {
+    label: "Out",
+    dot: "bg-loss",
+    chip: "bg-loss-bg text-loss border-line",
+  },
+  excused: {
+    label: "Excused",
+    dot: "bg-warnfg",
+    chip: "bg-warn-bg text-warnfg border-line",
+  },
 };
 
 // Compact attendance toggle row — tap cycles Here → Out → Excused.
@@ -55,7 +75,9 @@ const AttendanceRow = ({ player, status, onCycle }: any) => {
         <span className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
         <span className="font-bold text-ink truncate">
           {player.number != null && player.number !== "" && (
-            <span className="text-ink-3 tabular-nums mr-1.5">#{player.number}</span>
+            <span className="text-ink-3 tabular-nums mr-1.5">
+              #{player.number}
+            </span>
           )}
           {player.name}
         </span>
@@ -69,18 +91,27 @@ const AttendanceRow = ({ player, status, onCycle }: any) => {
 
 // A single practice as an open, expandable row.
 const PracticeRow = memo(
-  ({ practice, players, isHead, updatePractice, removePractice, savePracticeAttendance }: any) => {
+  ({
+    practice,
+    players,
+    isHead,
+    updatePractice,
+    removePractice,
+    savePracticeAttendance,
+  }: any) => {
     const [open, setOpen] = useState(false);
     const [drillName, setDrillName] = useState("");
     const [drillMin, setDrillMin] = useState("");
 
     const att = practice.attendance || {};
     const presentCount = players.filter(
-      (p: any) => statusOf(att[p.id]) === "present"
+      (p: any) => statusOf(att[p.id]) === "present",
     ).length;
-    const outCount = players.filter((p: any) => statusOf(att[p.id]) === "absent").length;
+    const outCount = players.filter(
+      (p: any) => statusOf(att[p.id]) === "absent",
+    ).length;
     const excusedCount = players.filter(
-      (p: any) => statusOf(att[p.id]) === "excused"
+      (p: any) => statusOf(att[p.id]) === "excused",
     ).length;
     const drills = Array.isArray(practice.drills) ? practice.drills : [];
 
@@ -102,11 +133,16 @@ const PracticeRow = memo(
       const trimmed = name.trim();
       if (!trimmed) return;
       updatePractice(practice.id, {
-        drills: [...drills, { id: newId("d"), name: trimmed, minutes: minutes || undefined }],
+        drills: [
+          ...drills,
+          { id: newId("d"), name: trimmed, minutes: minutes || undefined },
+        ],
       });
     };
     const removeDrill = (id: string) =>
-      updatePractice(practice.id, { drills: drills.filter((d: any) => d.id !== id) });
+      updatePractice(practice.id, {
+        drills: drills.filter((d: any) => d.id !== id),
+      });
 
     return (
       <div className="relative border-b border-line">
@@ -140,7 +176,10 @@ const PracticeRow = memo(
                 }`}
                 style={
                   env === "indoor"
-                    ? { backgroundColor: "var(--info-bg)", color: "var(--info-fg)" }
+                    ? {
+                        backgroundColor: "var(--info-bg)",
+                        color: "var(--info-fg)",
+                      }
                     : undefined
                 }
               >
@@ -198,7 +237,9 @@ const PracticeRow = memo(
                     <select
                       value={env}
                       onChange={(e) =>
-                        updatePractice(practice.id, { environment: e.target.value })
+                        updatePractice(practice.id, {
+                          environment: e.target.value,
+                        })
                       }
                       className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line rounded-sm px-1.5 py-1 outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
                       title="Environment"
@@ -217,7 +258,9 @@ const PracticeRow = memo(
                 )}
               </div>
               {players.length === 0 ? (
-                <p className="t-body text-ink-3 italic">No players on the roster yet.</p>
+                <p className="t-body text-ink-3 italic">
+                  No players on the roster yet.
+                </p>
               ) : (
                 <div>
                   {players.map((p: any) => (
@@ -290,7 +333,9 @@ const PracticeRow = memo(
                     />
                     <input
                       value={drillMin}
-                      onChange={(e) => setDrillMin(e.target.value.replace(/[^0-9]/g, ""))}
+                      onChange={(e) =>
+                        setDrillMin(e.target.value.replace(/[^0-9]/g, ""))
+                      }
                       placeholder="min"
                       inputMode="numeric"
                       className="w-14 px-2 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)] placeholder:text-ink-3 tabular-nums"
@@ -309,25 +354,29 @@ const PracticeRow = memo(
                     {env === "indoor" ? "Indoor" : "Outdoor"} plan — tap to add
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {(PLAN_SUGGESTIONS[env] || PLAN_SUGGESTIONS.outdoor).map((s) => {
-                      const already = drills.some((d: any) => d.name === s.name);
-                      return (
-                        <button
-                          key={s.name}
-                          type="button"
-                          disabled={already}
-                          onClick={() => addDrill(s.name, s.minutes)}
-                          className={`t-chip px-2.5 py-1 rounded-sm border border-line transition-colors ${
-                            already
-                              ? "bg-surface-2 text-ink-3 opacity-60 cursor-default"
-                              : "bg-surface text-ink-2 hover:text-ink hover:border-ink-3"
-                          }`}
-                        >
-                          {already ? "✓ " : "+ "}
-                          {s.name}
-                        </button>
-                      );
-                    })}
+                    {(PLAN_SUGGESTIONS[env] || PLAN_SUGGESTIONS.outdoor).map(
+                      (s) => {
+                        const already = drills.some(
+                          (d: any) => d.name === s.name,
+                        );
+                        return (
+                          <button
+                            key={s.name}
+                            type="button"
+                            disabled={already}
+                            onClick={() => addDrill(s.name, s.minutes)}
+                            className={`t-chip px-2.5 py-1 rounded-sm border border-line transition-colors ${
+                              already
+                                ? "bg-surface-2 text-ink-3 opacity-60 cursor-default"
+                                : "bg-surface text-ink-2 hover:text-ink hover:border-ink-3"
+                            }`}
+                          >
+                            {already ? "✓ " : "+ "}
+                            {s.name}
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </>
               )}
@@ -336,7 +385,7 @@ const PracticeRow = memo(
         )}
       </div>
     );
-  }
+  },
 );
 
 const AddPracticeForm = ({ onAdd, onClose }: any) => {
@@ -436,15 +485,15 @@ export const PracticesTab = memo(() => {
 
   const players = useMemo(
     () => (team.players || []).filter((p: any) => p && p.inactive !== true),
-    [team.players]
+    [team.players],
   );
 
   const practices = useMemo(
     () =>
       [...(team.practices || [])].sort((a: any, b: any) =>
-        String(b.date).localeCompare(String(a.date))
+        String(b.date).localeCompare(String(a.date)),
       ),
-    [team.practices]
+    [team.practices],
   );
 
   // Season miss-tracker: across practices where attendance was actually taken,
@@ -455,13 +504,13 @@ export const PracticesTab = memo(() => {
       (p: any) =>
         p.status !== "cancelled" &&
         p.attendance &&
-        Object.keys(p.attendance).length > 0
+        Object.keys(p.attendance).length > 0,
     );
     if (taken.length === 0) return { total: 0, rows: [] as any[] };
     const rows = players
       .map((p: any) => {
         const missed = taken.filter(
-          (pr: any) => statusOf(pr.attendance[p.id]) === "absent"
+          (pr: any) => statusOf(pr.attendance[p.id]) === "absent",
         ).length;
         return { player: p, missed, attended: taken.length - missed };
       })
@@ -513,7 +562,9 @@ export const PracticesTab = memo(() => {
                 key={r.player.id}
                 className="inline-flex items-center gap-2 px-2.5 py-1 rounded-sm border border-line bg-surface-2"
               >
-                <span className="font-bold text-ink text-sm">{r.player.name}</span>
+                <span className="font-bold text-ink text-sm">
+                  {r.player.name}
+                </span>
                 <span className="t-chip px-1.5 py-0.5 rounded-sm bg-loss-bg text-loss border border-line tabular-nums">
                   {r.missed} missed
                 </span>

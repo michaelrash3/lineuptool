@@ -80,7 +80,7 @@ describe("regenerateJoinCode", () => {
     // Invite doc carries ONLY teamId/teamName/updatedAt — no private fields.
     const invitePath = `artifacts/lineup-app/public/data/teamInvites/${code}`;
     const inviteCall = mockSetDoc.mock.calls.find(
-      (c: any) => c[0]?.path === invitePath
+      (c: any) => c[0]?.path === invitePath,
     );
     expect(inviteCall).toBeTruthy();
     expect(Object.keys(inviteCall![1]).sort()).toEqual([
@@ -88,12 +88,15 @@ describe("regenerateJoinCode", () => {
       "teamName",
       "updatedAt",
     ]);
-    expect(inviteCall![1]).toMatchObject({ teamId: "team-1", teamName: "Hawks" });
+    expect(inviteCall![1]).toMatchObject({
+      teamId: "team-1",
+      teamName: "Hawks",
+    });
     // The stale code's lookup is deleted.
     expect(mockDeleteDoc).toHaveBeenCalledWith(
       expect.objectContaining({
         path: "artifacts/lineup-app/public/data/teamInvites/OLD222",
-      })
+      }),
     );
   });
 });
@@ -107,7 +110,7 @@ describe("joinTeamByCode", () => {
     });
     expect(res).toEqual({ ok: false, retryable: false });
     expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "error", title: "Invalid code" })
+      expect.objectContaining({ kind: "error", title: "Invalid code" }),
     );
     expect(mockGetDoc).not.toHaveBeenCalled();
   });
@@ -141,7 +144,7 @@ describe("joinTeamByCode", () => {
     expect(mockSetDoc).toHaveBeenCalledTimes(1);
     expect(switchTeam).toHaveBeenCalledWith("team-9");
     expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "success" })
+      expect.objectContaining({ kind: "success" }),
     );
   });
 
@@ -195,7 +198,7 @@ describe("joinTeamByCode", () => {
     });
     expect(res).toEqual({ ok: false, retryable: false });
     expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Code not recognized" })
+      expect.objectContaining({ title: "Code not recognized" }),
     );
     expect(mockUpdateDoc).not.toHaveBeenCalled();
     expect(mockSetDoc).not.toHaveBeenCalled();
@@ -211,7 +214,7 @@ describe("joinTeamByCode", () => {
     });
     expect(res).toEqual({ ok: false, retryable: false });
     expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "error", title: "Couldn't join" })
+      expect.objectContaining({ kind: "error", title: "Couldn't join" }),
     );
   });
 });

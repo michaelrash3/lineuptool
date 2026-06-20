@@ -1,0 +1,12 @@
+# Build output & dependencies
+dist/
+dev-dist/
+node_modules/
+coverage/
+
+# Generated / vendored assets
+public/
+*.min.js
+
+# Lockfiles & data
+package-lock.json

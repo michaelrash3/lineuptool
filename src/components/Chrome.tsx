@@ -39,9 +39,7 @@ export const LoginScreen = ({
   genError,
   isSigningIn = false,
 }: any) => (
-  <div
-    className="min-h-screen flex flex-col items-center justify-center p-6 bg-app relative overflow-hidden"
-  >
+  <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-app relative overflow-hidden">
     {logoUrl && (
       <div
         aria-hidden="true"
@@ -78,9 +76,7 @@ export const LoginScreen = ({
             />
           </div>
         </div>
-        <Eyebrow className="block mb-2 text-ink-3">
-          Sign In Required
-        </Eyebrow>
+        <Eyebrow className="block mb-2 text-ink-3">Sign In Required</Eyebrow>
         <h1 className="t-h1 mb-2">Coach's Card</h1>
         <p className="t-body mb-7">
           Lineups, in-game swaps, eval rounds, and season stats in one place.
@@ -132,7 +128,7 @@ export const LoginScreen = ({
 // service worker already serves the cached shell, so the app itself stays up.
 export const OfflineBanner = memo(() => {
   const [offline, setOffline] = useState(
-    typeof navigator !== "undefined" && navigator.onLine === false
+    typeof navigator !== "undefined" && navigator.onLine === false,
   );
   useEffect(() => {
     const goOnline = () => setOffline(false);
@@ -183,7 +179,9 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
   // New teams must explicitly pick a type (Rec vs Tournament) — no default.
-  const [newTeamType, setNewTeamType] = React.useState<"" | "NKB" | "USSSA">("");
+  const [newTeamType, setNewTeamType] = React.useState<"" | "NKB" | "USSSA">(
+    "",
+  );
   // In-app sign-out confirmation. Replaces window.confirm + window.alert
   // so an assistant on a demoted/locked-out team gets the same polished
   // dialog as the rest of the app, not a 1995 native chrome.
@@ -435,7 +433,10 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
           {syncStatus && (
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-ink-3">
               {syncStatus === "Saving" || syncStatus === "Creating" ? (
-                <Icons.Refresh className="w-3 h-3 animate-spin" style={{ color: "var(--info-fg)" }} />
+                <Icons.Refresh
+                  className="w-3 h-3 animate-spin"
+                  style={{ color: "var(--info-fg)" }}
+                />
               ) : (
                 <Icons.Cloud className="w-3 h-3 text-win" />
               )}
@@ -517,7 +518,13 @@ const activeTabStyle = {
 // the drawer auto-closes the instant one is picked. Account-level actions
 // (Settings, theme, Sign Out) sit pinned at the bottom, where they used to
 // live in the header's right rail.
-const NavRow = ({ icon: Icon, label, isActive, onClick, role = "menuitem" }: any) => (
+const NavRow = ({
+  icon: Icon,
+  label,
+  isActive,
+  onClick,
+  role = "menuitem",
+}: any) => (
   <button
     type="button"
     role={role}
@@ -590,94 +597,94 @@ export const NavDrawer = memo(
             // this position:fixed overlay and crush it down to the header's
             // height — squashing the nav list into a sliver. Rendering at the
             // document root keeps the drawer pinned to the full viewport.
-          <div className="fixed inset-0 z-[60] print:hidden">
-            {/* Dimmed, tap-away backdrop */}
-            <div
-              className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-              aria-hidden="true"
-              onClick={() => setOpen(false)}
-            />
-            <nav
-              role="menu"
-              aria-label="Primary navigation"
-              className="nav-drawer-panel absolute inset-y-0 left-0 w-[300px] max-w-[88vw] flex flex-col glass border-r border-line shadow-2xl"
-              style={{ animation: "drawerIn 0.2s ease-out" }}
-            >
-              {/* team-accent edge strip */}
+            <div className="fixed inset-0 z-[60] print:hidden">
+              {/* Dimmed, tap-away backdrop */}
               <div
-                className="absolute inset-y-0 left-0 w-[2px]"
-                style={{
-                  background:
-                    "linear-gradient(180deg, transparent, var(--team-primary) 18%, var(--team-primary) 82%, transparent)",
-                  boxShadow: "0 0 18px 1px var(--team-primary)",
-                  opacity: 0.7,
-                }}
+                className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
                 aria-hidden="true"
+                onClick={() => setOpen(false)}
               />
-              <div className="flex items-center gap-3 px-4 py-4 border-b border-line">
-                <div className="min-w-0">
-                  <div className="text-base font-black uppercase tracking-tight leading-none text-ink truncate">
-                    {teamName}
+              <nav
+                role="menu"
+                aria-label="Primary navigation"
+                className="nav-drawer-panel absolute inset-y-0 left-0 w-[300px] max-w-[88vw] flex flex-col glass border-r border-line shadow-2xl"
+                style={{ animation: "drawerIn 0.2s ease-out" }}
+              >
+                {/* team-accent edge strip */}
+                <div
+                  className="absolute inset-y-0 left-0 w-[2px]"
+                  style={{
+                    background:
+                      "linear-gradient(180deg, transparent, var(--team-primary) 18%, var(--team-primary) 82%, transparent)",
+                    boxShadow: "0 0 18px 1px var(--team-primary)",
+                    opacity: 0.7,
+                  }}
+                  aria-hidden="true"
+                />
+                <div className="flex items-center gap-3 px-4 py-4 border-b border-line">
+                  <div className="min-w-0">
+                    <div className="text-base font-black uppercase tracking-tight leading-none text-ink truncate">
+                      {teamName}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-widest font-extrabold mt-1.5 text-ink-3">
+                      {subtitle}
+                    </div>
                   </div>
-                  <div className="text-[10px] uppercase tracking-widest font-extrabold mt-1.5 text-ink-3">
-                    {subtitle}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  aria-label="Close navigation menu"
-                  className="ml-auto p-2 text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
-                >
-                  <Icons.X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto px-3 py-3">
-                <div className="flex flex-col gap-1">
-                  {navButtons.map((btn: any) => (
-                    <NavRow
-                      key={btn.id}
-                      icon={btn.icon}
-                      label={btn.label}
-                      isActive={activeTab === btn.id}
-                      onClick={() => pick(btn.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-line px-3 py-3 flex flex-col gap-2">
-                {showSettings && (
-                  <NavRow
-                    icon={Icons.Settings}
-                    label="Settings"
-                    isActive={activeTab === "settings"}
-                    onClick={() => {
-                      onSettings?.();
-                      setOpen(false);
-                    }}
-                  />
-                )}
-                <div className="flex items-center gap-2">
-                  {themeToggle}
                   <button
                     type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      onSignOut?.();
-                    }}
-                    className="flex-1 flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line transition-colors"
+                    onClick={() => setOpen(false)}
+                    aria-label="Close navigation menu"
+                    className="ml-auto p-2 text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
                   >
-                    <Icons.LogOut className="w-5 h-5 shrink-0" /> Sign Out
+                    <Icons.X className="w-5 h-5" />
                   </button>
                 </div>
-              </div>
-            </nav>
-          </div>,
-            document.body
+
+                <div className="flex-1 overflow-y-auto px-3 py-3">
+                  <div className="flex flex-col gap-1">
+                    {navButtons.map((btn: any) => (
+                      <NavRow
+                        key={btn.id}
+                        icon={btn.icon}
+                        label={btn.label}
+                        isActive={activeTab === btn.id}
+                        onClick={() => pick(btn.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-line px-3 py-3 flex flex-col gap-2">
+                  {showSettings && (
+                    <NavRow
+                      icon={Icons.Settings}
+                      label="Settings"
+                      isActive={activeTab === "settings"}
+                      onClick={() => {
+                        onSettings?.();
+                        setOpen(false);
+                      }}
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    {themeToggle}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        onSignOut?.();
+                      }}
+                      className="flex-1 flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line transition-colors"
+                    >
+                      <Icons.LogOut className="w-5 h-5 shrink-0" /> Sign Out
+                    </button>
+                  </div>
+                </div>
+              </nav>
+            </div>,
+            document.body,
           )}
       </>
     );
-  }
+  },
 );

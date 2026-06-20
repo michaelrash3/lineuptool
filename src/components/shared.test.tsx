@@ -49,7 +49,12 @@ describe("StatTile", () => {
 });
 
 describe("PlayerAvatar", () => {
-  const player = { id: "p1", name: "Sammy Sosa", number: "21", primaryPosition: "SS" };
+  const player = {
+    id: "p1",
+    name: "Sammy Sosa",
+    number: "21",
+    primaryPosition: "SS",
+  };
 
   it("shows the team logo (not a player photo) when a logo is set", () => {
     renderWithProviders(<PlayerAvatar player={player} />, {
@@ -68,9 +73,12 @@ describe("PlayerAvatar", () => {
   });
 
   it("overlays the number and primary position when asked", () => {
-    renderWithProviders(<PlayerAvatar player={player} showNumber showPosition />, {
-      team: { team: { logoUrl: "data:image/png;base64,LOGO" } },
-    });
+    renderWithProviders(
+      <PlayerAvatar player={player} showNumber showPosition />,
+      {
+        team: { team: { logoUrl: "data:image/png;base64,LOGO" } },
+      },
+    );
     expect(screen.getByText("21")).toBeInTheDocument();
     // "SS" here is the primary-position badge, not initials (logo is shown).
     expect(screen.getByText("SS")).toBeInTheDocument();
@@ -78,12 +86,14 @@ describe("PlayerAvatar", () => {
 
   it("ignores any legacy photoUrl still on the player record", () => {
     renderWithProviders(
-      <PlayerAvatar player={{ ...player, photoUrl: "data:image/jpeg;base64,OLD" }} />,
-      { team: { team: { logoUrl: "data:image/png;base64,LOGO" } } }
+      <PlayerAvatar
+        player={{ ...player, photoUrl: "data:image/jpeg;base64,OLD" }}
+      />,
+      { team: { team: { logoUrl: "data:image/png;base64,LOGO" } } },
     );
     expect(screen.getByRole("img")).toHaveAttribute(
       "src",
-      "data:image/png;base64,LOGO"
+      "data:image/png;base64,LOGO",
     );
   });
 });
@@ -154,7 +164,7 @@ describe("LeaderboardCard stripped variant", () => {
 describe("EmptyState", () => {
   it("renders the emoji watermark glyph, title, and body", () => {
     render(
-      <EmptyState glyph="🧢" title="No Players Yet" body="Add some players." />
+      <EmptyState glyph="🧢" title="No Players Yet" body="Add some players." />,
     );
     expect(screen.getByText("🧢")).toBeInTheDocument();
     expect(screen.getByText("No Players Yet")).toBeInTheDocument();
@@ -169,7 +179,7 @@ describe("EmptyState", () => {
         title="No Games Yet"
         action="Add Game"
         onAction={onAction}
-      />
+      />,
     );
     await userEvent.click(screen.getByRole("button", { name: "Add Game" }));
     expect(onAction).toHaveBeenCalledTimes(1);

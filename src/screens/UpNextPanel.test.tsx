@@ -58,7 +58,7 @@ const renderPanel = (overrides: any = {}) => {
           todayStr={TODAY}
         />
       </UIContext.Provider>
-    </TeamContext.Provider>
+    </TeamContext.Provider>,
   );
   return ui;
 };
@@ -66,13 +66,15 @@ const renderPanel = (overrides: any = {}) => {
 describe("UpNextPanel", () => {
   it("surfaces lineup, eval and team-fee actions for a head coach", () => {
     renderPanel();
-    expect(screen.getByText(/build the lineup vs thunder/i)).toBeInTheDocument();
-    expect(screen.getByText(/start this round's evaluations/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/build the lineup vs thunder/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/start this round's evaluations/i),
+    ).toBeInTheDocument();
     // k2 still owes the full fee and hasn't met the deposit.
     expect(screen.getByText(/team fees outstanding/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/owe the team-fee deposit/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/owe the team-fee deposit/i)).toBeInTheDocument();
   });
 
   it("deep-links the lineup action into the schedule editor", () => {
@@ -87,22 +89,28 @@ describe("UpNextPanel", () => {
 
   it("snoozes a row so it disappears from the list", () => {
     renderPanel();
-    expect(screen.getByText(/build the lineup vs thunder/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/build the lineup vs thunder/i),
+    ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: /snooze: build the lineup vs thunder/i })
+      screen.getByRole("button", {
+        name: /snooze: build the lineup vs thunder/i,
+      }),
     );
     expect(
-      screen.queryByText(/build the lineup vs thunder/i)
+      screen.queryByText(/build the lineup vs thunder/i),
     ).not.toBeInTheDocument();
   });
 
   it("shows only the eval nudge for assistants (no lineup or finances)", () => {
     renderPanel({ isHead: false });
     expect(
-      screen.getByText(/send your evaluations to the head coach/i)
+      screen.getByText(/send your evaluations to the head coach/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/build the lineup/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/team fees outstanding/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/team fees outstanding/i),
+    ).not.toBeInTheDocument();
   });
 
   it("renders nothing when there is nothing to do", () => {

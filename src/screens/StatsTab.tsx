@@ -107,7 +107,13 @@ const PITCHING_COLS: Col[] = [
 ];
 
 const FIELDING_COLS: Col[] = [
-  { key: "fpct", label: "FPCT", kind: "dec3", hi: true, get: fb("fFpct", "fpct") },
+  {
+    key: "fpct",
+    label: "FPCT",
+    kind: "dec3",
+    hi: true,
+    get: fb("fFpct", "fpct"),
+  },
   { key: "tc", label: "TC", kind: "int", hi: true, get: fb("fTc", "tc") },
   { key: "po", label: "PO", kind: "int", hi: true, get: fb("fPutouts", "po") },
   { key: "a", label: "A", kind: "int", hi: true, get: fb("fAssists", "a") },
@@ -128,7 +134,12 @@ const OVERALL_COL: Col = {
 const CATEGORIES = [
   { id: "batting", label: "Batting", cols: BATTING_COLS, defaultKey: "ops" },
   { id: "pitching", label: "Pitching", cols: PITCHING_COLS, defaultKey: "era" },
-  { id: "fielding", label: "Fielding", cols: FIELDING_COLS, defaultKey: "fpct" },
+  {
+    id: "fielding",
+    label: "Fielding",
+    cols: FIELDING_COLS,
+    defaultKey: "fpct",
+  },
 ] as const;
 
 // Tiny eval-trend sparkline: a player's average grade across their eval rounds,
@@ -143,8 +154,8 @@ const EvalSparkline = memo(({ values }: any) => {
     last > first
       ? "var(--team-primary)"
       : last < first
-      ? "var(--loss)"
-      : "var(--ink-3)";
+        ? "var(--loss)"
+        : "var(--ink-3)";
   return (
     <Sparkline
       values={values.map((v: number) => Math.max(1, Math.min(5, v)))}
@@ -163,7 +174,7 @@ const StatsTable = memo(
     const allCols: Col[] = useMemo(() => [OVERALL_COL, ...cols], [cols]);
     const initial = useMemo(
       () => allCols.find((c) => c.key === defaultKey) || allCols[0],
-      [allCols, defaultKey]
+      [allCols, defaultKey],
     );
     const [sortKey, setSortKey] = useState<string>(initial.key);
     const [asc, setAsc] = useState<boolean>(!initial.hi);
@@ -272,7 +283,7 @@ const StatsTable = memo(
         </table>
       </div>
     );
-  }
+  },
 );
 
 // Bench equity & attendance — who's sitting more (or less) than their fair share
@@ -358,18 +369,21 @@ export const StatsTab = memo(() => {
   const games: any[] = useMemo(() => (team as any).games || [], [team]);
   const evaluationEvents: any[] = useMemo(
     () => (team as any).evaluationEvents || [],
-    [team]
+    [team],
   );
 
   const [category, setCategory] = useState<string>("batting");
-  const [statFormat, setStatFormat] = useState<"all" | "machine" | "kid">("all");
-  const activeCat =
-    CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
+  const [statFormat, setStatFormat] = useState<"all" | "machine" | "kid">(
+    "all",
+  );
+  const activeCat = CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
 
   const filteredGames = useMemo(() => {
     if (statFormat === "all") return games;
     return games.filter((g: any) => {
-      const fmt = String(g.pitchingFormat || (team as any).pitchingFormat || "");
+      const fmt = String(
+        g.pitchingFormat || (team as any).pitchingFormat || "",
+      );
       const kid = isKidPitchFormat(fmt);
       return statFormat === "kid" ? kid : !kid;
     });
@@ -379,8 +393,8 @@ export const StatsTab = memo(() => {
     statFormat === "kid"
       ? "Kid Pitch"
       : statFormat === "machine"
-      ? "Machine/Coach Pitch"
-      : "All Formats";
+        ? "Machine/Coach Pitch"
+        : "All Formats";
 
   const scopedStatsForPlayer = useCallback(
     (p: any) => {
@@ -390,7 +404,7 @@ export const StatsTab = memo(() => {
         .filter((line: any) => line && typeof line === "object");
       return lines.length > 0 ? aggregateGameLines(lines) : {};
     },
-    [filteredGames, statFormat]
+    [filteredGames, statFormat],
   );
 
   // Eval Total Score per player, surfaced as the "Overall" column.
@@ -454,7 +468,7 @@ export const StatsTab = memo(() => {
       })
       .filter(Boolean)
       .sort(
-        (a: any, b: any) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity)
+        (a: any, b: any) => (b.delta ?? -Infinity) - (a.delta ?? -Infinity),
       );
   }, [filteredGames, players, scopedStatsForPlayer]);
 
@@ -465,7 +479,7 @@ export const StatsTab = memo(() => {
       .filter((e: any) => e.coachRole === "Head")
       .sort(
         (a: any, b: any) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime()
+          new Date(a.date).getTime() - new Date(b.date).getTime(),
       );
     const map = new Map<string, number[]>();
     for (const p of players) {
@@ -474,7 +488,7 @@ export const StatsTab = memo(() => {
         const g = ev.grades?.[p.id];
         if (!g) continue;
         const vals = Object.values(g).filter(
-          (v) => typeof v === "number" && Number.isFinite(v)
+          (v) => typeof v === "number" && Number.isFinite(v),
         ) as number[];
         if (vals.length)
           series.push(vals.reduce((s, v) => s + v, 0) / vals.length);
@@ -486,14 +500,22 @@ export const StatsTab = memo(() => {
 
   // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
   const armAlerts = useMemo(() => {
-    if (!(currentRole === "head" && isKidPitchFormat((team as any).pitchingFormat)))
+    if (
+      !(
+        currentRole === "head" && isKidPitchFormat((team as any).pitchingFormat)
+      )
+    )
       return [];
     const ruleSet = resolvePitchRuleSet(team);
     const out: Array<{ id: string; name: string; messages: string[] }> = [];
     for (const p of players) {
       const w = analyzePitchingWorkload(p.pitching, ruleSet);
       if (w.alerts && w.alerts.length)
-        out.push({ id: p.id, name: p.name, messages: w.alerts.map((a) => a.message) });
+        out.push({
+          id: p.id,
+          name: p.name,
+          messages: w.alerts.map((a) => a.message),
+        });
     }
     return out;
   }, [players, team, currentRole]);
@@ -551,169 +573,169 @@ export const StatsTab = memo(() => {
           Mobile/tablet: single-column stack, unchanged. */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-6 space-y-6 lg:space-y-0">
         <div className="lg:col-span-8 space-y-6">
+          {/* Recent form — who's hot / cold over their last imported game lines. */}
+          {recentForm.length > 0 && (
+            <SectionCard icon={Icons.Chart} title="Recent Form">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                  <thead className="bg-surface-2 text-ink-2">
+                    <tr>
+                      <th className="p-2.5 t-eyebrow text-left">Player</th>
+                      <th className="p-2.5 t-eyebrow text-center">Games</th>
+                      <th className="p-2.5 t-eyebrow text-center">AB</th>
+                      <th className="p-2.5 t-eyebrow text-center">H</th>
+                      <th className="p-2.5 t-eyebrow text-center">AVG</th>
+                      <th className="p-2.5 t-eyebrow text-center">QAB%</th>
+                      <th className="p-2.5 t-eyebrow text-center">Hard%</th>
+                      <th className="p-2.5 t-eyebrow text-center">Form</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {recentForm.map(
+                      ({ p, agg, games: n, delta, basis }: any) => (
+                        <tr key={p.id} className="hover:bg-surface-2">
+                          <td className="p-2">
+                            <button
+                              type="button"
+                              onClick={() => openPlayerProfile(p.id)}
+                              className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                            >
+                              {p.name}
+                            </button>
+                          </td>
+                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                            {n}
+                          </td>
+                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                            {fmt(numOf(agg.ab), "int")}
+                          </td>
+                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                            {fmt(numOf(agg.h), "int")}
+                          </td>
+                          <td className="p-2 text-center tabular-nums font-black text-ink">
+                            {fmt(numOf(agg.avg), "dec3")}
+                          </td>
+                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                            {fmt(numOf(agg.qab), "pct")}
+                          </td>
+                          <td className="p-2 text-center tabular-nums font-bold text-ink-2">
+                            {fmt(numOf(agg.hard), "pct")}
+                          </td>
+                          <td className="p-2 text-center">
+                            {delta == null ? (
+                              <span className="text-ink-3 font-bold">—</span>
+                            ) : delta > 0.02 ? (
+                              <span
+                                className="text-xs font-black uppercase tracking-widest text-win"
+                                title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
+                              >
+                                Hot ↑
+                              </span>
+                            ) : delta < -0.02 ? (
+                              <span
+                                className="text-xs font-black uppercase tracking-widest text-loss"
+                                title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
+                              >
+                                Cold ↓
+                              </span>
+                            ) : (
+                              <span className="text-xs font-black uppercase tracking-widest text-ink-3">
+                                Steady
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          )}
 
-      {/* Recent form — who's hot / cold over their last imported game lines. */}
-      {recentForm.length > 0 && (
-        <SectionCard
-          icon={Icons.Chart}
-          title="Recent Form"
-        >
-          <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-              <thead className="bg-surface-2 text-ink-2">
-                <tr>
-                  <th className="p-2.5 t-eyebrow text-left">Player</th>
-                  <th className="p-2.5 t-eyebrow text-center">Games</th>
-                  <th className="p-2.5 t-eyebrow text-center">AB</th>
-                  <th className="p-2.5 t-eyebrow text-center">H</th>
-                  <th className="p-2.5 t-eyebrow text-center">AVG</th>
-                  <th className="p-2.5 t-eyebrow text-center">QAB%</th>
-                  <th className="p-2.5 t-eyebrow text-center">Hard%</th>
-                  <th className="p-2.5 t-eyebrow text-center">Form</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {recentForm.map(({ p, agg, games: n, delta, basis }: any) => (
-                  <tr key={p.id} className="hover:bg-surface-2">
-                    <td className="p-2">
-                      <button
-                        type="button"
-                        onClick={() => openPlayerProfile(p.id)}
-                        className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
-                      >
-                        {p.name}
-                      </button>
-                    </td>
-                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                      {n}
-                    </td>
-                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                      {fmt(numOf(agg.ab), "int")}
-                    </td>
-                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                      {fmt(numOf(agg.h), "int")}
-                    </td>
-                    <td className="p-2 text-center tabular-nums font-black text-ink">
-                      {fmt(numOf(agg.avg), "dec3")}
-                    </td>
-                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                      {fmt(numOf(agg.qab), "pct")}
-                    </td>
-                    <td className="p-2 text-center tabular-nums font-bold text-ink-2">
-                      {fmt(numOf(agg.hard), "pct")}
-                    </td>
-                    <td className="p-2 text-center">
-                      {delta == null ? (
-                        <span className="text-ink-3 font-bold">—</span>
-                      ) : delta > 0.02 ? (
-                        <span
-                          className="text-xs font-black uppercase tracking-widest text-win"
-                          title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} above season`}
-                        >
-                          Hot ↑
-                        </span>
-                      ) : delta < -0.02 ? (
-                        <span
-                          className="text-xs font-black uppercase tracking-widest text-loss"
-                          title={`Recent ${basis === "qab" ? "QAB%" : "AVG"} below season`}
-                        >
-                          Cold ↓
-                        </span>
-                      ) : (
-                        <span className="text-xs font-black uppercase tracking-widest text-ink-3">
-                          Steady
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </SectionCard>
-      )}
-
-      {/* Per-player stats table with category toggle */}
-      <SectionCard
-        icon={Icons.Bat}
-        title="Player Stats"
-        subtitle={`Showing ${statScopeLabel} stats${statFormat === "all" ? "" : " from per-game imports"}`}
-      >
-        <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
-          <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => {
-            const on = c.id === category;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCategory(c.id)}
-                className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
-                style={
-                  on
-                    ? {
-                        backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
-                        borderColor: "var(--team-primary)",
+          {/* Per-player stats table with category toggle */}
+          <SectionCard
+            icon={Icons.Bat}
+            title="Player Stats"
+            subtitle={`Showing ${statScopeLabel} stats${statFormat === "all" ? "" : " from per-game imports"}`}
+          >
+            <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map((c) => {
+                  const on = c.id === category;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setCategory(c.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
+                      style={
+                        on
+                          ? {
+                              backgroundColor: "var(--team-primary)",
+                              color: "var(--team-tertiary)",
+                              borderColor: "var(--team-primary)",
+                            }
+                          : undefined
                       }
-                    : undefined
-                }
-              >
-                {c.label}
-              </button>
-            );
-          })}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              ["all", "All Formats"],
-              ["machine", "Machine/Coach"],
-              ["kid", "Kid Pitch"],
-            ].map(([id, label]) => {
-              const on = statFormat === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setStatFormat(id as "all" | "machine" | "kid")}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
-                    on ? "border-team-primary text-team-primary" : "border-line text-ink-2"
-                  }`}
-                  title="Filter stat lines by game pitching format"
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["all", "All Formats"],
+                  ["machine", "Machine/Coach"],
+                  ["kid", "Kid Pitch"],
+                ].map(([id, label]) => {
+                  const on = statFormat === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() =>
+                        setStatFormat(id as "all" | "machine" | "kid")
+                      }
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
+                        on
+                          ? "border-team-primary text-team-primary"
+                          : "border-line text-ink-2"
+                      }`}
+                      title="Filter stat lines by game pitching format"
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <StatsTable
+              key={activeCat.id}
+              rows={rows}
+              cols={activeCat.cols}
+              defaultKey={activeCat.defaultKey}
+              onOpen={openPlayerProfile}
+              seriesById={stripped ? null : seriesById}
+            />
+          </SectionCard>
         </div>
-        <StatsTable
-          key={activeCat.id}
-          rows={rows}
-          cols={activeCat.cols}
-          defaultKey={activeCat.defaultKey}
-          onOpen={openPlayerProfile}
-          seriesById={stripped ? null : seriesById}
-        />
-      </SectionCard>
-
-        </div>{/* end left col */}
+        {/* end left col */}
 
         {/* Right rail: Bench Equity + Position/Arm-Care panels */}
         <div className="lg:col-span-4 space-y-6">
           {benchRows.length > 0 && (
-            <SectionCard
-              icon={Icons.Clock}
-              title="Bench Equity & Attendance"
-            >
+            <SectionCard icon={Icons.Clock} title="Bench Equity & Attendance">
               <BenchEquityTable rows={benchRows} onOpen={openPlayerProfile} />
             </SectionCard>
           )}
           <PositionVarietyPanel />
           <ArmCarePanel />
-        </div>{/* end right col */}
-
-      </div>{/* end desktop grid */}
+        </div>
+        {/* end right col */}
+      </div>
+      {/* end desktop grid */}
     </div>
   );
 });

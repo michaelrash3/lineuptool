@@ -61,7 +61,11 @@ const baseballSvgProps: IconProps = {
 export const Icons: Record<string, IconComponent> = {
   HomePlate: (p: IconProps) => (
     <svg {...baseballSvgProps} {...p}>
-      <path d="M3.5 5h17v8l-8.5 6.5L3.5 13Z" fill="currentColor" fillOpacity="0.12" />
+      <path
+        d="M3.5 5h17v8l-8.5 6.5L3.5 13Z"
+        fill="currentColor"
+        fillOpacity="0.12"
+      />
     </svg>
   ),
   Jersey: (p: IconProps) => (

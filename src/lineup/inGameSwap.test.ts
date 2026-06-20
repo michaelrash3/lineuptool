@@ -12,45 +12,73 @@ const inning = () => ({
 describe("getPlayerAt", () => {
   it("resolves a position slot and a bench player", () => {
     const inn = inning();
-    expect(getPlayerAt(inn as any, { type: "position", pos: "P" })?.id).toBe("ava");
-    expect(getPlayerAt(inn as any, { type: "bench", playerId: "cor" })?.id).toBe("cor");
+    expect(getPlayerAt(inn as any, { type: "position", pos: "P" })?.id).toBe(
+      "ava",
+    );
+    expect(
+      getPlayerAt(inn as any, { type: "bench", playerId: "cor" })?.id,
+    ).toBe("cor");
   });
 
   it("returns undefined for an empty slot / unknown bench id", () => {
     const inn = { P: P("ava"), BENCH: [] };
-    expect(getPlayerAt(inn as any, { type: "position", pos: "C" })).toBeUndefined();
-    expect(getPlayerAt(inn as any, { type: "bench", playerId: "nope" })).toBeUndefined();
+    expect(
+      getPlayerAt(inn as any, { type: "position", pos: "C" }),
+    ).toBeUndefined();
+    expect(
+      getPlayerAt(inn as any, { type: "bench", playerId: "nope" }),
+    ).toBeUndefined();
   });
 });
 
 describe("applySwap", () => {
   it("swaps two field positions", () => {
-    const next = applySwap(inning() as any, { type: "position", pos: "P" }, { type: "position", pos: "1B" });
+    const next = applySwap(
+      inning() as any,
+      { type: "position", pos: "P" },
+      { type: "position", pos: "1B" },
+    );
     expect((next as any).P.id).toBe("zoe");
     expect((next as any)["1B"].id).toBe("ava");
     expect((next as any).C.id).toBe("mia"); // untouched
   });
 
   it("swaps a field position with a bench player", () => {
-    const next = applySwap(inning() as any, { type: "position", pos: "P" }, { type: "bench", playerId: "ben" });
+    const next = applySwap(
+      inning() as any,
+      { type: "position", pos: "P" },
+      { type: "bench", playerId: "ben" },
+    );
     expect((next as any).P.id).toBe("ben");
     expect((next as any).BENCH.map((p: any) => p.id)).toEqual(["ava", "cor"]);
   });
 
   it("swaps two bench players", () => {
-    const next = applySwap(inning() as any, { type: "bench", playerId: "ben" }, { type: "bench", playerId: "cor" });
+    const next = applySwap(
+      inning() as any,
+      { type: "bench", playerId: "ben" },
+      { type: "bench", playerId: "cor" },
+    );
     expect((next as any).BENCH.map((p: any) => p.id)).toEqual(["cor", "ben"]);
   });
 
   it("returns null when either cell is empty", () => {
-    const next = applySwap(inning() as any, { type: "position", pos: "P" }, { type: "position", pos: "SS" });
+    const next = applySwap(
+      inning() as any,
+      { type: "position", pos: "P" },
+      { type: "position", pos: "SS" },
+    );
     expect(next).toBeNull();
   });
 
   it("does not mutate the input inning or its BENCH array", () => {
     const inn = inning();
     const benchRef = inn.BENCH;
-    applySwap(inn as any, { type: "position", pos: "P" }, { type: "bench", playerId: "ben" });
+    applySwap(
+      inn as any,
+      { type: "position", pos: "P" },
+      { type: "bench", playerId: "ben" },
+    );
     expect(inn.P.id).toBe("ava"); // original unchanged
     expect(inn.BENCH).toBe(benchRef); // same array reference
     expect(inn.BENCH.map((p) => p.id)).toEqual(["ben", "cor"]);
@@ -82,7 +110,7 @@ describe("isCatcherBlocked", () => {
       { type: "position", pos: "P" },
       ava,
       mia,
-      clears(["ava"])
+      clears(["ava"]),
     );
     expect(blocked).toBe(true);
   });
@@ -93,7 +121,7 @@ describe("isCatcherBlocked", () => {
       { type: "position", pos: "P" },
       ava,
       mia,
-      clears(["mia"])
+      clears(["mia"]),
     );
     expect(blocked).toBe(false);
   });
@@ -104,7 +132,7 @@ describe("isCatcherBlocked", () => {
       { type: "bench", playerId: "ben" },
       ava,
       mia,
-      clears([])
+      clears([]),
     );
     expect(blocked).toBe(false);
   });

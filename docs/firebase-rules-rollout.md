@@ -106,6 +106,7 @@ Then verify each flow in the validation matrix below against the emulator before
 ## Validation matrix
 
 ### 1) Head coach (owner/member)
+
 Expected: full team read/write works.
 
 - Open app as team owner.
@@ -113,6 +114,7 @@ Expected: full team read/write works.
 - Confirm writes succeed.
 
 ### 2) Assistant coach (member)
+
 Expected: read/write allowed on team doc, but only app-allowed actions should be visible in UI.
 
 - Join via invite or team code.
@@ -120,6 +122,7 @@ Expected: read/write allowed on team doc, but only app-allowed actions should be
 - Confirm assistant cannot reach head-only settings routes in UI.
 
 ### 3) Join by team code
+
 Expected: signed-in caller resolves the code via the sanitized
 `teamInvites/{code}` lookup (only `teamId`/`teamName`/`updatedAt`), then adds
 self to `members` + own `coachRoles` entry only. A non-member can NOT read the
@@ -132,6 +135,7 @@ full team doc just because a code exists (that rule was removed).
   a bogus role, or edit arbitrary fields.
 
 ### 4) Public Tryouts Portal
+
 Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit `tryoutSignups` only while tryouts are open — but can NOT read the full team doc.
 
 - Open `/tryouts-portal/:slug`.
@@ -146,6 +150,7 @@ Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror 
 - Confirm unrelated field edits are denied.
 
 ### 5) Tryouts closed
+
 Expected: portal submission blocked once `tryoutsOpen` is false.
 
 - Toggle tryouts closed in Settings.
@@ -153,6 +158,7 @@ Expected: portal submission blocked once `tryoutsOpen` is false.
 - Confirm denial/error path is shown.
 
 ### 7) Public mirror isolation (added with the tryout-portal privacy fix)
+
 Expected: the `teamPublic` mirror is readable by any signed-in (incl. anonymous) caller, but writable only by a member of the underlying team.
 
 - As an anonymous portal user, read `artifacts/{appId}/public/data/teamPublic/{teamId}` — confirm success.
@@ -161,6 +167,7 @@ Expected: the `teamPublic` mirror is readable by any signed-in (incl. anonymous)
 - Confirm the mirror never contains `players`, `games`, `evaluationEvents`, `tryoutSignups`, `interestSignups`, `members`, `ownerId`, `coachRoles`, or `joinCode`.
 
 ### 6) Ownership protection (added with the takeover-race fix)
+
 Expected: non-owners cannot rewrite `ownerId` or remove other members. The current owner can. A team with no existing `ownerId` AND no other members can still be claimed by its sole member (legacy auto-claim).
 
 - As an assistant on a team with a different head coach, attempt a direct Firestore write that sets `ownerId` to the assistant's UID. Confirm the write is denied (`isCurrentOwner` / `isLegitimateAutoClaim` both fail).

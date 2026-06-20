@@ -60,7 +60,7 @@ export const useGameCrud = ({
       };
       updateTeam({ games: [...teamData.games, newGame] });
     },
-    [teamData, updateTeam, toast]
+    [teamData, updateTeam, toast],
   );
 
   const updateGame = useCallback(
@@ -82,11 +82,11 @@ export const useGameCrud = ({
       }
       if (Object.keys(safeUpdates).length === 0) return;
       const next = teamData.games.map((g: any) =>
-        g.id === gameId ? { ...g, ...safeUpdates } : g
+        g.id === gameId ? { ...g, ...safeUpdates } : g,
       );
       updateTeam({ games: next });
     },
-    [teamData.games, updateTeam]
+    [teamData.games, updateTeam],
   );
 
   // Helper: push the game's pitch counts to each pitcher's player record.
@@ -99,7 +99,7 @@ export const useGameCrud = ({
     (game: any) => {
       const pitchCounts = game?.pitchCounts || {};
       const pitchedPlayerIds = Object.keys(pitchCounts).filter(
-        (pid) => Number.isFinite(pitchCounts[pid]) && pitchCounts[pid] > 0
+        (pid) => Number.isFinite(pitchCounts[pid]) && pitchCounts[pid] > 0,
       );
       if (pitchedPlayerIds.length === 0 || !game.date) {
         return teamData.players;
@@ -111,11 +111,16 @@ export const useGameCrud = ({
           // Sets recentPitches/lastPitchDate (unchanged) and appends the outing
           // to the pitcher's rolling history log, keyed by game id so same-date
           // doubleheaders keep separate entries.
-          pitching: recordPitchingOuting(p.pitching, game.date, pitchCounts[p.id], game.id),
+          pitching: recordPitchingOuting(
+            p.pitching,
+            game.date,
+            pitchCounts[p.id],
+            game.id,
+          ),
         };
       });
     },
-    [teamData.players]
+    [teamData.players],
   );
 
   // Helper: log each player's catching innings for THIS game (from the played
@@ -140,13 +145,13 @@ export const useGameCrud = ({
                 p.catching,
                 date,
                 counts[p.id],
-                gameId
+                gameId,
               ),
             }
-          : p
+          : p,
       );
     },
-    []
+    [],
   );
 
   // Postpone a game: set status to "postponed", clear scores, AND commit any
@@ -166,7 +171,7 @@ export const useGameCrud = ({
               teamScore: null,
               opponentScore: null,
             }
-          : g
+          : g,
       );
       const playersChanged = nextPlayers !== teamData.players;
       if (playersChanged) {
@@ -175,7 +180,7 @@ export const useGameCrud = ({
         updateTeam({ games: nextGames });
       }
     },
-    [teamData.games, teamData.players, commitPitchCountsToPlayers, updateTeam]
+    [teamData.games, teamData.players, commitPitchCountsToPlayers, updateTeam],
   );
 
   // Finalize a game: set score, mark final, and trim/restore the lineup to
@@ -197,10 +202,15 @@ export const useGameCrud = ({
         opponentScore,
         status: "final",
       };
-      if (game.lineup?.length && Number.isFinite(inningsPlayed) && inningsPlayed > 0) {
-        const longest = game.originalLineup?.length > game.lineup.length
-          ? game.originalLineup
-          : game.lineup;
+      if (
+        game.lineup?.length &&
+        Number.isFinite(inningsPlayed) &&
+        inningsPlayed > 0
+      ) {
+        const longest =
+          game.originalLineup?.length > game.lineup.length
+            ? game.originalLineup
+            : game.lineup;
         const target = Math.min(inningsPlayed, longest.length);
         if (target < game.lineup.length) {
           // Trim. Stash longest version (only on first trim).
@@ -225,12 +235,12 @@ export const useGameCrud = ({
         effectiveLineup,
         game.date,
         game.id,
-        nextPlayers
+        nextPlayers,
       );
       const playersChanged = nextPlayers !== teamData.players;
       if (playersChanged) {
         const nextGames = teamData.games.map((g: any) =>
-          g.id === gameId ? { ...g, ...gameUpdates } : g
+          g.id === gameId ? { ...g, ...gameUpdates } : g,
         );
         updateTeam({ players: nextPlayers, games: nextGames });
       } else {
@@ -241,7 +251,7 @@ export const useGameCrud = ({
       // finalize paths (InGameView and the schedule's finalize dialog).
       if (Number(teamScore) > Number(opponentScore)) {
         void celebrateWin(
-          [teamData.primaryColor, teamData.secondaryColor].filter(Boolean)
+          [teamData.primaryColor, teamData.secondaryColor].filter(Boolean),
         );
       }
     },
@@ -254,7 +264,7 @@ export const useGameCrud = ({
       updateTeam,
       commitPitchCountsToPlayers,
       commitCatchingToPlayers,
-    ]
+    ],
   );
 
   const deleteSavedGame = useCallback(
@@ -282,7 +292,7 @@ export const useGameCrud = ({
         },
       } as any);
     },
-    [teamData.games, updateTeam, toast, confirm]
+    [teamData.games, updateTeam, toast, confirm],
   );
 
   return { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame };

@@ -15,27 +15,40 @@ export const PositionVarietyPanel = memo(() => {
 
   const rows = useMemo(() => {
     const variety = buildSeasonPositionVariety(games || [], players || []);
-    const byId = new Map<string, any>((players || []).map((p: any) => [p.id, p]));
-    return Array.from(variety.entries())
-      .map(([id, entry]) => ({ id, player: byId.get(id), entry }))
-      // Drop history for players no longer on the roster.
-      .filter((r) => r.player)
-      .sort(
-        (a, b) =>
-          a.entry.distinctPositions - b.entry.distinctPositions ||
-          b.entry.totalDefense - a.entry.totalDefense
-      );
+    const byId = new Map<string, any>(
+      (players || []).map((p: any) => [p.id, p]),
+    );
+    return (
+      Array.from(variety.entries())
+        .map(([id, entry]) => ({ id, player: byId.get(id), entry }))
+        // Drop history for players no longer on the roster.
+        .filter((r) => r.player)
+        .sort(
+          (a, b) =>
+            a.entry.distinctPositions - b.entry.distinctPositions ||
+            b.entry.totalDefense - a.entry.totalDefense,
+        )
+    );
   }, [games, players]);
 
   if (rows.length === 0) return null;
 
   const flagFor = (e: any): { label: string; cls: string } | null => {
     if (e.distinctPositions <= 1)
-      return { label: "1 position", cls: "bg-warn-bg border-warnfg text-warnfg" };
+      return {
+        label: "1 position",
+        cls: "bg-warn-bg border-warnfg text-warnfg",
+      };
     if (e.infieldInnings === 0)
-      return { label: "No infield", cls: "border-[color:var(--info-fg)] text-[color:var(--info-fg)] bg-[color:var(--info-bg)]" };
+      return {
+        label: "No infield",
+        cls: "border-[color:var(--info-fg)] text-[color:var(--info-fg)] bg-[color:var(--info-bg)]",
+      };
     if (e.outfieldInnings === 0)
-      return { label: "No outfield", cls: "border-[color:var(--info-fg)] text-[color:var(--info-fg)] bg-[color:var(--info-bg)]" };
+      return {
+        label: "No outfield",
+        cls: "border-[color:var(--info-fg)] text-[color:var(--info-fg)] bg-[color:var(--info-bg)]",
+      };
     return null;
   };
 
@@ -73,7 +86,7 @@ export const PositionVarietyPanel = memo(() => {
             {rows.map(({ id, player, entry }) => {
               const flag = flagFor(entry);
               const positions = Object.entries(entry.byPosition).sort(
-                (a, b) => (b[1] as number) - (a[1] as number)
+                (a, b) => (b[1] as number) - (a[1] as number),
               );
               return (
                 <tr key={id} className="border-t border-line/60">

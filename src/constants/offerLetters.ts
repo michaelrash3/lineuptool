@@ -34,15 +34,16 @@ export interface OfferLetterDraft {
 // matching the "[Coach Name] / [Coach Contact Information]" close in the drafts.
 const signature = (ctx: OfferLetterContext): string => {
   const contact = [ctx.coachEmail, ctx.coachPhone].filter(Boolean).join("\n");
-  return ["Sincerely,", "", ctx.coachName, contact].filter((l) => l !== undefined).join("\n");
+  return ["Sincerely,", "", ctx.coachName, contact]
+    .filter((l) => l !== undefined)
+    .join("\n");
 };
 
 const phoneClause = (ctx: OfferLetterContext): string =>
-  ctx.coachPhone
-    ? ` or call me at ${ctx.coachPhone}`
-    : "";
+  ctx.coachPhone ? ` or call me at ${ctx.coachPhone}` : "";
 
-const clubName = (ctx: OfferLetterContext): string => `${ctx.teamName || "our team"} Baseball Club`;
+const clubName = (ctx: OfferLetterContext): string =>
+  `${ctx.teamName || "our team"} Baseball Club`;
 
 const rosterOfferSubject = (ctx: OfferLetterContext): string =>
   `${ctx.teamName || "Our Team"} Baseball Roster Offer`;
@@ -85,7 +86,7 @@ export const OFFER_LETTER_LABELS: Record<OfferLetterKind, string> = {
 
 export const buildOfferLetter = (
   kind: OfferLetterKind,
-  ctx: OfferLetterContext
+  ctx: OfferLetterContext,
 ): OfferLetterDraft => {
   const team = ctx.teamName || "our team";
   const club = clubName(ctx);
@@ -106,7 +107,7 @@ export const buildOfferLetter = (
         `To secure your roster spot, a deposit of ${ctx.deposit} is required by ${dueDate}.`,
         "",
         `Please let us know your decision within 48 hours of receiving this offer. To accept, please reply directly to this message confirming your acceptance${phoneClause(
-          ctx
+          ctx,
         )}.`,
         "",
         `If you have any questions, please contact me directly.`,
@@ -129,7 +130,7 @@ export const buildOfferLetter = (
         `To officially accept this offer and secure your spot, a deposit of ${ctx.deposit} is required by ${dueDate}.`,
         "",
         `You have 48 hours to accept this offer. To accept, please reply to this message confirming your acceptance${phoneClause(
-          ctx
+          ctx,
         )}.`,
         "",
         `Welcome to the ${team}. If you or your parents have any questions, please reach out to me.`,
@@ -148,7 +149,7 @@ export const buildOfferLetter = (
         `Thank you for your interest in the ${team}! We're glad ${ctx.playerName} is considering playing with us for the upcoming season.`,
         "",
         `We'd love to see ${ctx.playerName} at our tryouts. Reply to this message and we'll get you the date, time, and location — and feel free to reach out${phoneClause(
-          ctx
+          ctx,
         )} with any questions in the meantime.`,
         "",
         `Looking forward to meeting you on the field!`,
