@@ -107,6 +107,7 @@ import {
   FIRESTORE_DOC_LIMIT_BYTES,
   DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
+import { applyLineupSwap } from "./utils/lineupSwap";
 import { sendGmailMessage } from "./integrations/gmailSend";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
 import { useTeamMembership } from "./hooks/useTeamMembership";
@@ -2974,36 +2975,22 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
       }
       setLineup((cur: Inning[] | null) => {
         if (!cur) return cur;
-        const next = cur.map((inn: Inning) => ({
-          ...inn,
-          BENCH: inn.BENCH ? [...inn.BENCH] : [],
-        })) as Inning[];
-        const slot = next[innIdx];
-        const a = swapSelection.player;
-        const b = player;
-        if (swapSelection.pos === "BENCH" && pos === "BENCH") return cur;
-        if (swapSelection.pos === "BENCH") {
-          // a is on bench, b is in pos (or pos empty)
-          slot.BENCH = slot.BENCH!.filter(
-            (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== a.id,
-          );
-          if (b) slot.BENCH.push(b);
-          slot[pos] = a;
-        } else if (pos === "BENCH") {
-          slot.BENCH = slot.BENCH!.filter(
-            (p): p is NonNullable<SlimPlayer> => p !== null && p.id !== b?.id,
-          );
-          slot.BENCH.push(a);
-          slot[swapSelection.pos] = null;
-        } else {
-          slot[swapSelection.pos] = b || null;
-          slot[pos] = a;
-        }
-        return next;
+        // Tournament starting-lineup edits carry to the rest of the game so the
+        // coach's hand-picked defense holds every inning — not just the 1st —
+        // while leaving the rule-capped catcher and the engine's scripted
+        // substitution windows alone. See applyLineupSwap for the full contract.
+        return applyLineupSwap(cur, {
+          innIdx,
+          sPos: swapSelection.pos,
+          sPlayer: swapSelection.player,
+          tPos: pos,
+          tPlayer: player,
+          propagateToStarterInnings: tournamentPlan != null,
+        });
       });
       setSwapSelection(null);
     },
-    [swapSelection],
+    [swapSelection, tournamentPlan],
   );
 
   const addInning = useCallback(() => {
