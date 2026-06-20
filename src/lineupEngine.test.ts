@@ -3337,41 +3337,54 @@ describe("generateTournamentLineup (scripted starters/subs plan)", () => {
     seed: 42,
     ...over,
   });
-  const fieldIds = (inn: any) =>
-    Object.entries(inn)
-      .filter(([k]) => k !== "BENCH")
-      .map(([k, v]: [string, any]) => `${k}:${v.id}`)
-      .sort()
-      .join("|");
+  const benchCountOf = (lineup: any[], id: string) =>
+    lineup.filter((inn) => (inn.BENCH || []).some((b: any) => b?.id === id))
+      .length;
 
-  it("starters hold 1-2 and 5-6; every sub enters inning 3 and exits after 4", () => {
+  it("best nine start, then the bench rotates fairly (everyone plays at least half)", () => {
     const res = generateTournamentLineup(input()) as any;
     expect(res.error).toBeUndefined();
     expect(res.lineup).toHaveLength(6);
-    // Innings 1,2,5,6 are the starting nine; 3,4 are the sub window.
-    expect(fieldIds(res.lineup[1])).toBe(fieldIds(res.lineup[0]));
-    expect(fieldIds(res.lineup[4])).toBe(fieldIds(res.lineup[0]));
-    expect(fieldIds(res.lineup[5])).toBe(fieldIds(res.lineup[0]));
-    expect(fieldIds(res.lineup[3])).toBe(fieldIds(res.lineup[2]));
-    expect(fieldIds(res.lineup[2])).not.toBe(fieldIds(res.lineup[0]));
-    // Both bench players take the field in inning 3.
-    const benchIds = res.lineup[0].BENCH.map((b: any) => b.id);
-    expect(benchIds).toHaveLength(2);
-    const inning3 = new Set(
-      Object.entries(res.lineup[2])
+
+    // Inning 1 fields the assigned starting nine; the two subs sit.
+    const starters = new Set(
+      Object.entries(res.lineup[0])
         .filter(([k]) => k !== "BENCH")
         .map(([, v]: [string, any]) => v.id),
     );
-    for (const id of benchIds) expect(inning3.has(id)).toBe(true);
-    // Plan metadata mirrors the grid and names who each sub replaces.
-    expect(res.tournament.substitutions).toHaveLength(2);
+    expect(starters.size).toBe(9);
+    expect(res.lineup[0].BENCH).toHaveLength(2);
+
+    // Minimum-play floor: nobody sits more than half the innings (6 -> <= 3).
+    const roster11 = Array.from({ length: 11 }, (_, i) => `t${i}`);
+    for (const id of roster11) {
+      expect(benchCountOf(res.lineup, id)).toBeLessThanOrEqual(3);
+    }
+
+    // The bench rotates across the WHOLE game now (not a fixed 3rd-4th window):
+    // each starting sub takes the field for real innings, not just two.
+    for (const sub of res.lineup[0].BENCH) {
+      const sat = benchCountOf(res.lineup, sub.id);
+      expect(sat).toBeLessThanOrEqual(3);
+      expect(sat).toBeGreaterThanOrEqual(2); // they DO sit some — fair share
+    }
+
+    // Nobody is benched two innings back-to-back.
+    for (const id of roster11) {
+      for (let i = 1; i < res.lineup.length; i++) {
+        const prev = (res.lineup[i - 1].BENCH || []).some(
+          (b: any) => b.id === id,
+        );
+        const now = (res.lineup[i].BENCH || []).some((b: any) => b.id === id);
+        expect(prev && now).toBe(false);
+      }
+    }
+
+    // Plan metadata records each sub that entered for a starter.
+    expect(res.tournament.substitutions.length).toBeGreaterThan(0);
     for (const sub of res.tournament.substitutions) {
-      expect(sub.inning).toBe(3);
-      expect(sub.returnInning).toBe(5);
       expect(sub.position).not.toBe("P");
-      expect(sub.position).not.toBe("C");
       expect(sub.in.id).not.toBe(sub.out.id);
-      expect(benchIds).toContain(sub.in.id);
     }
     expect(res.battingLineup.length).toBe(11); // roster bats
   });
