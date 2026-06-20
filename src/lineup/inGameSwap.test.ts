@@ -2,7 +2,7 @@ import {
   applySwap,
   getPlayerAt,
   isCatcherBlocked,
-  swapPlayersInInning,
+  fillVacatedSpot,
 } from "./inGameSwap";
 
 const P = (id: string, name = id) => ({ id, name });
@@ -103,51 +103,50 @@ describe("applySwap", () => {
   });
 });
 
-describe("swapPlayersInInning (carry a sub forward)", () => {
+describe("fillVacatedSpot (carry a sub forward, just the tapped spot)", () => {
   const always = () => true;
   const never = () => false;
 
-  it("swaps a field player and a bench player by identity", () => {
-    // ben (bench) came in for ava (P) in the current inning; carry that into a
-    // later inning where ava is still pitching and ben is still benched.
+  it("fills the tapped spot when the inning still matches (out at pos, sub on bench)", () => {
+    // ben (bench) came in for ava at SS in the current inning; carry that into a
+    // later inning where ava is still at SS and ben is still benched.
     const later = {
-      P: P("ava"),
+      P: P("liv"),
       C: P("mia"),
-      "1B": P("zoe"),
+      SS: P("ava"),
       BENCH: [P("ben"), P("cor")],
     };
-    const next = swapPlayersInInning(later as any, P("ava"), P("ben"), always);
-    expect((next as any).P.id).toBe("ben"); // sub now pitches
+    const next = fillVacatedSpot(later as any, "SS", "ava", P("ben"), always);
+    expect((next as any).SS.id).toBe("ben"); // sub now at SS
     expect((next as any).BENCH.map((p: any) => p.id)).toEqual(["ava", "cor"]); // ava sits
-    expect((next as any).C.id).toBe("mia"); // everyone else as-is
-    expect((next as any)["1B"].id).toBe("zoe");
+    expect((next as any).P.id).toBe("liv"); // everything else as-is
+    expect((next as any).C.id).toBe("mia");
   });
 
-  it("exchanges positions when both players are on the field in a later inning", () => {
-    const later = { P: P("ava"), "1B": P("ben"), BENCH: [P("cor")] };
-    const next = swapPlayersInInning(later as any, P("ava"), P("ben"), always);
-    expect((next as any).P.id).toBe("ben");
-    expect((next as any)["1B"].id).toBe("ava");
+  it("leaves the inning untouched when the rotation already moved the out player", () => {
+    // ava isn't at SS here (rotation put zoe there) — don't scramble it.
+    const later = { SS: P("zoe"), BENCH: [P("ben"), P("ava")] };
+    const next = fillVacatedSpot(later as any, "SS", "ava", P("ben"), always);
+    expect(next).toBe(later); // untouched
   });
 
-  it("leaves the inning untouched if it can't go in (no-op for absent ids)", () => {
-    const later = { P: P("ava"), BENCH: [P("cor")] };
-    const next = swapPlayersInInning(later as any, P("xxx"), P("yyy"), always);
-    expect(next).toEqual(later);
+  it("leaves the inning untouched when the sub isn't free (already on the field)", () => {
+    const later = { SS: P("ava"), "1B": P("ben"), BENCH: [P("cor")] };
+    const next = fillVacatedSpot(later as any, "SS", "ava", P("ben"), always);
+    expect(next).toBe(later); // ben is playing 1B — don't duplicate
   });
 
-  it("does not seat a non-catcher at C: leaves that inning unchanged", () => {
-    // Carrying ben in for mia would put ben behind the plate; ben can't catch.
-    const later = { C: P("mia"), "1B": P("zoe"), BENCH: [P("ben")] };
-    const next = swapPlayersInInning(later as any, P("mia"), P("ben"), never);
+  it("does not slide a non-catcher into C", () => {
+    const later = { C: P("mia"), BENCH: [P("ben")] };
+    const next = fillVacatedSpot(later as any, "C", "mia", P("ben"), never);
     expect(next).toBe(later); // untouched
   });
 
   it("does not mutate the input inning", () => {
-    const later = { P: P("ava"), BENCH: [P("ben")] };
+    const later = { SS: P("ava"), BENCH: [P("ben")] };
     const benchRef = later.BENCH;
-    swapPlayersInInning(later as any, P("ava"), P("ben"), always);
-    expect(later.P.id).toBe("ava");
+    fillVacatedSpot(later as any, "SS", "ava", P("ben"), always);
+    expect(later.SS.id).toBe("ava");
     expect(later.BENCH).toBe(benchRef);
   });
 });

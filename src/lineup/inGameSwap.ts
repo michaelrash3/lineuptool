@@ -75,32 +75,30 @@ export const applySwap = (
   return next;
 };
 
-// Carry an in-game substitution FORWARD to a later inning by identity: wherever
-// player `a` appears (field or bench) put `b`, and wherever `b` appears put `a`.
-// Every player occupies exactly one cell per inning, so this preserves the
-// roster and the bench size — it's the "fill only the vacated spot, keep the
-// rest of the inning as-is" rule applied to a future inning. Catcher stays
-// opt-in: if the swap would seat a player who isn't cleared at C, the inning is
-// left untouched (the sub simply doesn't propagate into that inning).
-export const swapPlayersInInning = (
+// Carry an in-game substitution FORWARD to a later inning by filling ONLY the
+// tapped spot — never the whole inning. It changes that one position if (and
+// only if) the inning still matches the tapped situation exactly: the player
+// who came out (`outId`) is still standing at `pos`, AND the player who came in
+// (`inPlayer`) is sitting on that inning's bench. Then they trade places there
+// too. Any inning whose rotation has already moved either player is left
+// completely untouched, so propagation can never scramble the rotation. Catcher
+// stays opt-in: a non-cleared player is never slid into C.
+export const fillVacatedSpot = (
   inning: Inning,
-  a: SlimPlayer,
-  b: SlimPlayer,
+  pos: string,
+  outId: string,
+  inPlayer: SlimPlayer,
   isClearedToCatch: (player: SlimPlayer | undefined) => boolean,
 ): Inning => {
-  if (!a || !b) return inning;
-  const catcherId = (inning.C as SlimPlayer | undefined)?.id;
-  if (catcherId === a.id && !isClearedToCatch(b)) return inning;
-  if (catcherId === b.id && !isClearedToCatch(a)) return inning;
-
-  const sub = (p: SlimPlayer | undefined): SlimPlayer | undefined =>
-    !p ? p : p.id === a.id ? b : p.id === b.id ? a : p;
+  if (!inPlayer) return inning;
+  const occupant = inning[pos] as SlimPlayer | undefined;
+  if (occupant?.id !== outId) return inning; // rotation already moved them
+  const onBench = bench(inning).some((p) => p?.id === inPlayer.id);
+  if (!onBench) return inning; // the sub isn't free this inning
+  if (pos === "C" && !isClearedToCatch(inPlayer)) return inning;
 
   const next: Inning = { ...inning };
-  for (const key of Object.keys(inning)) {
-    if (key === "BENCH") continue;
-    next[key] = sub(inning[key] as SlimPlayer | undefined);
-  }
-  next.BENCH = bench(inning).map((p) => sub(p) as SlimPlayer);
+  next[pos] = inPlayer;
+  next.BENCH = bench(inning).map((p) => (p?.id === inPlayer.id ? occupant : p));
   return next;
 };

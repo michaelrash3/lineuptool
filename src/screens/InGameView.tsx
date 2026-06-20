@@ -12,7 +12,7 @@ import {
   applySwap,
   getPlayerAt,
   isCatcherBlocked,
-  swapPlayersInInning,
+  fillVacatedSpot,
 } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
@@ -152,6 +152,30 @@ export const InGameView = memo(() => {
   const currentInning = Math.min(Math.max(0, inGameInning), totalInnings - 1);
   const inn = liveLineup[currentInning];
   const { primaryColor, tertiaryColor } = team;
+
+  // Dual-role arm-health rules, enforced live in game mode (the generator
+  // enforces them when building a lineup; manual in-game moves must too):
+  //   • a kid slated to CATCH in this game can't be put on the mound, and
+  //   • a kid who PITCHED in this game (or an earlier game the same day) can't
+  //     be slid behind the plate.
+  // Catchers/pitchers "this game" = anyone who appears at C / P in any inning;
+  // same-day roles come from other games on the same date.
+  const sameDayRoles = sameDayRoleSets(team.players, game.date, game.id);
+  const catchersThisGame = new Set<string>();
+  const pitchersThisGame = new Set<string>();
+  for (const innx of liveLineup) {
+    const cId = (innx?.C as any)?.id;
+    if (cId) catchersThisGame.add(cId);
+    const pId = (innx?.P as any)?.id;
+    if (pId) pitchersThisGame.add(pId);
+  }
+  // May this player take the mound? Not if they're catching this game or caught
+  // earlier today.
+  const canPitchDual = (id: string) =>
+    !catchersThisGame.has(id) && !sameDayRoles.caught.has(id);
+  // May this player catch? Not if they pitched this game or earlier today.
+  const canCatchDual = (id: string) =>
+    !pitchersThisGame.has(id) && !sameDayRoles.pitched.has(id);
 
   // Position order — display order (matches existing lineup grid)
   const positionOrder = [
@@ -367,16 +391,24 @@ export const InGameView = memo(() => {
       return;
     }
 
-    const changedInning = result.lineup?.[0];
-    if (!changedInning) return;
+    const rebuilt = result.lineup;
+    if (!rebuilt || !rebuilt[currentInning]) return;
     const cloneInning = (inning: any) => ({
       ...inning,
       BENCH: Array.isArray(inning.BENCH) ? [...inning.BENCH] : [],
     });
+    // Keep the innings already played; for the rest, take the corresponding
+    // inning from the rebuild so the fair rotation KEEPS rotating around the
+    // new pitcher (not a single inning frozen across the rest of the game).
     const next = base.map((innState: any, idx: number) =>
-      idx < currentInning ? innState : cloneInning(changedInning),
+      idx < currentInning
+        ? innState
+        : rebuilt[idx]
+          ? cloneInning(rebuilt[idx])
+          : innState,
     );
-    const newPitcherName = (changedInning.P as any)?.name || "New pitcher";
+    const newPitcherName =
+      (rebuilt[currentInning].P as any)?.name || "New pitcher";
 
     setPendingLineup(next);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
@@ -426,6 +458,41 @@ export const InGameView = memo(() => {
       setInGameSelection(null);
       return;
     }
+    // After the swap firstSel holds playerB and secondSel holds playerA, so the
+    // player ARRIVING at a position is the OTHER selection's player.
+    const arrivingAt = (pos: string) =>
+      firstSel.type === "position" && firstSel.pos === pos
+        ? playerB
+        : secondSel.type === "position" && secondSel.pos === pos
+          ? playerA
+          : null;
+    const incomingC = arrivingAt("C");
+    if (incomingC && !canCatchDual(incomingC.id)) {
+      toast.push({
+        kind: "error",
+        title: "Can't catch today",
+        message: `${incomingC.name} pitched ${
+          pitchersThisGame.has(incomingC.id) ? "this game" : "earlier today"
+        } — they can't catch the same day (arm care).`,
+      });
+      setInGameSelection(null);
+      return;
+    }
+    const incomingP = arrivingAt("P");
+    if (incomingP && !canPitchDual(incomingP.id)) {
+      toast.push({
+        kind: "error",
+        title: "Can't pitch today",
+        message: `${incomingP.name} is ${
+          catchersThisGame.has(incomingP.id)
+            ? "catching this game"
+            : "caught earlier today"
+        } — they can't pitch the same day (arm care).`,
+      });
+      setInGameSelection(null);
+      return;
+    }
+
     const next = applySwap(liveInning, firstSel, secondSel);
     if (!next) {
       setInGameSelection(null);
@@ -433,18 +500,33 @@ export const InGameView = memo(() => {
     }
 
     // A SUBSTITUTION (one cell is the bench: a player enters or leaves the
-    // field) carries forward to every remaining inning — drop the player who
-    // came out, slot the player who went in, and keep the rest of each inning
-    // as-is. A plain position↔position swap (both on the field) only changes
-    // the current inning, as before.
+    // field) carries forward to the remaining innings — but ONLY by filling the
+    // exact spot that was tapped, and only in innings that still match it (the
+    // subbed-out player still at that position with the sub free on the bench).
+    // Innings the rotation has already changed are left alone, so this never
+    // scrambles the rest of the game. A plain position↔position swap (both on
+    // the field) only changes the current inning.
     const isSubstitution =
       firstSel.type === "bench" || secondSel.type === "bench";
     if (isSubstitution && currentInning < liveLineup.length - 1) {
+      // The tapped field position, the player leaving it, and the sub entering.
+      const posSel = firstSel.type === "position" ? firstSel : secondSel;
+      const pos = posSel.pos;
+      const outPlayer = getPlayerAt(liveInning, posSel);
+      const inPlayer = firstSel.type === "bench" ? playerA : playerB;
       const base = pendingLineup ?? game.lineup;
       const newLineup = base.map((innState: any, idx: number) => {
         if (idx < currentInning) return innState;
         if (idx === currentInning) return next;
-        return swapPlayersInInning(innState, playerA, playerB, clearedToCatch);
+        return outPlayer
+          ? fillVacatedSpot(
+              innState,
+              pos,
+              outPlayer.id,
+              inPlayer,
+              clearedToCatch,
+            )
+          : innState;
       });
       setPendingLineup(newLineup);
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
@@ -740,9 +822,13 @@ export const InGameView = memo(() => {
             );
             // Eligibility (rest rules + age pitch limit) lives in the engine —
             // use it directly so this view can't drift from the canonical rules.
+            // Also drop kids who can't pitch today on dual-role grounds (slated
+            // to catch this game, or caught earlier the same day).
             const pitchRules = resolvePitchRuleSet(team);
-            const availablePitchers = presentPlayers.filter((p: any) =>
-              checkPitchEligibility(p, targetDate, ageGroup, pitchRules),
+            const availablePitchers = presentPlayers.filter(
+              (p: any) =>
+                checkPitchEligibility(p, targetDate, ageGroup, pitchRules) &&
+                canPitchDual(p.id),
             );
 
             const pitchCounts = game.pitchCounts || {};
