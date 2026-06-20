@@ -252,8 +252,9 @@ export const useTryoutFlows = ({
       put("grade", sub.grade);
       put("emergencyName", sub.emergencyName);
       put("emergencyPhone", sub.emergencyPhone);
-      // Parent/guardian contact only fills gaps — don't clobber what the coach
-      // may have already curated on the roster.
+      // DOB + parent/guardian contact only fill gaps — don't clobber what the
+      // coach may have already curated on the roster.
+      if (!player.dob) put("dob", sub.dob);
       if (!player.parentName) put("parentName", sub.parentName);
       if (!player.email) put("email", sub.email);
       if (!player.phone) put("phone", sub.phone);

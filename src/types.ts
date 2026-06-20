@@ -294,6 +294,9 @@ export interface PlayerInfoSubmission {
   submittedAt: string;
   firstName: string;
   lastName: string;
+  // ISO yyyy-mm-dd. Collected so the coach can disambiguate same-name kids
+  // when matching a submission to a roster player.
+  dob?: string;
   // Preferred jersey number.
   number?: string;
   // Uniform / equipment sizing.
