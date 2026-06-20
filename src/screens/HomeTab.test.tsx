@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import React from "react";
 import { screen } from "@testing-library/react";
 import { HomeTab } from "./HomeTab";
@@ -17,6 +18,19 @@ const emptyTeam = {
 };
 
 describe("HomeTab", () => {
+  // HomeTab derives "today" from `new Date()` internally, and the dashboard's
+  // "This Week" section only surfaces games/practices in the next 7 days. Pin
+  // the clock so fixtures dated 2026-06-18/19 stay in-window regardless of when
+  // the suite runs — otherwise the test silently rots once the real date passes
+  // them. Fake only Date (not timers) so RTL/animation scheduling stays real.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-18T12:00:00Z"));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders the dashboard without crashing for an empty team", () => {
     renderWithProviders(<HomeTab />, {
       team: {
