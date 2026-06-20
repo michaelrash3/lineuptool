@@ -206,6 +206,78 @@ export const useTryoutFlows = ({
     [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast],
   );
 
+  // Drop a parent-submitted player-info entry. Coach-only; the two-tap
+  // confirm lives in the PlayerInfoTab UI so there's no native prompt here.
+  const deletePlayerInfoSubmission = useCallback(
+    (id: any) => {
+      if (!id) return;
+      const next = (teamData.playerInfoSubmissions || []).filter(
+        (s: any) => s.id !== id,
+      );
+      updateTeam({ playerInfoSubmissions: next });
+    },
+    [teamData.playerInfoSubmissions, updateTeam],
+  );
+
+  // Apply a parent-submitted player-info entry onto a matching roster player.
+  // Writes the sizing + school + emergency-contact fields onto the chosen
+  // Player (only fields the parent actually filled in — never blanking
+  // existing roster data) and stamps the submission as handled in the same
+  // write so the inbox can show it as applied.
+  const applyPlayerInfoToPlayer = useCallback(
+    (submissionId: any, playerId: any) => {
+      if (!submissionId || !playerId) return;
+      const sub = (teamData.playerInfoSubmissions || []).find(
+        (s: any) => s.id === submissionId,
+      );
+      const player = (teamData.players || []).find(
+        (p: any) => p.id === playerId,
+      );
+      if (!sub || !player) return;
+
+      // Map submission fields → player fields, skipping blanks so applying a
+      // sparse submission never wipes data already on the roster record.
+      const patch: Record<string, unknown> = {};
+      const put = (key: string, value: unknown) => {
+        const v = String(value ?? "").trim();
+        if (v) patch[key] = v;
+      };
+      put("number", sub.number);
+      put("hatSize", sub.hatSize);
+      put("shirtSize", sub.shirtSize);
+      put("pantsSize", sub.pantsSize);
+      put("height", sub.height);
+      put("weight", sub.weight);
+      put("school", sub.school);
+      put("grade", sub.grade);
+      put("emergencyName", sub.emergencyName);
+      put("emergencyPhone", sub.emergencyPhone);
+      // Parent/guardian contact only fills gaps — don't clobber what the coach
+      // may have already curated on the roster.
+      if (!player.parentName) put("parentName", sub.parentName);
+      if (!player.email) put("email", sub.email);
+      if (!player.phone) put("phone", sub.phone);
+
+      const now = new Date().toISOString();
+      const nextPlayers = (teamData.players || []).map((p: any) =>
+        p.id === playerId ? { ...p, ...patch } : p,
+      );
+      const nextSubs = (teamData.playerInfoSubmissions || []).map((s: any) =>
+        s.id === submissionId
+          ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
+          : s,
+      );
+      updateTeam({ players: nextPlayers, playerInfoSubmissions: nextSubs });
+      toast.push({
+        kind: "success",
+        title: "Player info applied",
+        message:
+          `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || player.name,
+      });
+    },
+    [teamData.playerInfoSubmissions, teamData.players, updateTeam, toast],
+  );
+
   // Tryout grades live in date-grouped tryoutSessions, separate from the
   // roster evaluationEvents collection. Each date has one session; each
   // evaluator owns a grades map keyed by signup id inside that session.
@@ -398,6 +470,8 @@ export const useTryoutFlows = ({
     deleteTryoutSignups,
     deleteInterestSignup,
     convertInterestToTryout,
+    deletePlayerInfoSubmission,
+    applyPlayerInfoToPlayer,
     saveTryoutEvaluation,
     saveTryoutEvaluations,
     acceptTryout,

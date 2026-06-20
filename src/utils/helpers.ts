@@ -2806,6 +2806,9 @@ export const SIGNUP_LIMITS = {
   email: 254, // RFC 5321 max
   phone: 30,
   notes: 500,
+  // Short free-text/dropdown values on the Player Info form (sizes, height,
+  // weight, school, grade). Kept tight — these are labels, not prose.
+  size: 40,
 } as const;
 
 // Trim and hard-clamp a free-text field to a max length.
