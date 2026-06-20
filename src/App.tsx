@@ -44,6 +44,10 @@ import type {
   Inning,
   SlimPlayer,
   TournamentPlan,
+  GradeMap,
+  EvaluationEvent,
+  Player,
+  TryoutSignup,
 } from "./types";
 import { auth, db, appId } from "./firebase";
 import {
@@ -218,6 +222,18 @@ const ScreenLoader = () => (
 /* ============================================================================
    SECTION 4 · UI-only constants — see ./constants/ui.js
 ============================================================================ */
+
+// Narrow an unknown caught value to its Firebase-style { code, message }.
+// Catch clauses are `unknown` under strict mode; these readers pull the two
+// fields the toasts/logging use without an `any` cast at each site.
+const errCode = (e: unknown): string =>
+  e && typeof e === "object" && "code" in e
+    ? String((e as { code?: unknown }).code ?? "")
+    : "";
+const errMessage = (e: unknown): string =>
+  e && typeof e === "object" && "message" in e
+    ? String((e as { message?: unknown }).message ?? "")
+    : String(e);
 
 const authDiag = (event: string, details = {}) => {
   if (typeof console === "undefined") return;
@@ -451,7 +467,10 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const [syncStatus, setSyncStatus] = useState("");
   const [genError, setGenError] = useState(""); // login screen only
 
-  const previousLineupRef = useRef<any>(null);
+  const previousLineupRef = useRef<{
+    lineup: Inning[] | null;
+    battingLineup: SlimPlayer[] | null;
+  } | null>(null);
   // Bridge to UIProvider: lineup/eval screens publish their in-progress inputs
   // and receive generated results through this ref. Owned here (TeamProvider)
   // and passed to the lineup/eval action hooks + exposed on the context value.
@@ -459,7 +478,13 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     getInputs: () => null,
     applyResult: () => {},
   });
-  const persistTeamRef = useRef<any>(null);
+  const persistTeamRef = useRef<
+    | ((
+        updates: Partial<Team>,
+        opts?: { silent?: boolean; allowEmptyPlayers?: boolean },
+      ) => Promise<boolean>)
+    | null
+  >(null);
   // Latest team data, readable from persistTeam without widening its deps —
   // used only to estimate the doc size for the storage-headroom guard.
   const teamDataRef = useRef<any>(teamData);
@@ -529,9 +554,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         : [];
       if (existingTeams.length > 0) {
         setTeams(existingTeams);
-        setActiveTeamId(
-          (existingData as any)?.activeTeamId || existingTeams[0].id,
-        );
+        setActiveTeamId(existingData?.activeTeamId || existingTeams[0].id);
         return existingTeams[0].id;
       }
       const id = "team-" + Math.random().toString(36).substring(2, 10);
@@ -561,7 +584,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       setTeams(merged);
       setActiveTeamId(id);
       return id;
-    } catch (e: any) {
+    } catch {
       bootstrapAttemptedRef.current = false;
       toast.push({
         kind: "error",
@@ -579,12 +602,13 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const tokenFromHost =
           (typeof window !== "undefined" &&
-            (window as any).__initial_auth_token) ||
+            (window as Window & { __initial_auth_token?: string })
+              .__initial_auth_token) ||
           null;
         if (tokenFromHost) {
           await signInWithCustomToken(auth, tokenFromHost);
         }
-      } catch (e: any) {
+      } catch (e) {
         console.warn("Custom token sign-in failed", e);
       }
       const unsub = onAuthStateChanged(auth, async (u) => {
@@ -655,7 +679,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             const found = await getDocs(teamsQuery);
             const recovered = found.docs.map((d) => ({
               id: d.id,
-              name: String((d.data() as any)?.name || "") || "My Team",
+              name: String(d.data()?.name || "") || "My Team",
             }));
             if (cancelled) return;
             if (recovered.length > 0) {
@@ -766,15 +790,15 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         if (stored < EVAL_SCHEMA_VERSION) {
           let migratedEvents = raw.evaluationEvents || [];
           if (stored >= 2 && stored < 3) {
-            migratedEvents = migratedEvents.map((ev: any) => {
+            migratedEvents = migratedEvents.map((ev: EvaluationEvent) => {
               if (!ev?.grades) return ev;
-              const nextGrades: Record<string, any> = {};
+              const nextGrades: Record<string, unknown> = {};
               for (const [pid, grade] of Object.entries(ev.grades)) {
                 if (!grade || typeof grade !== "object") {
                   nextGrades[pid] = grade;
                   continue;
                 }
-                const out: Record<string, any> = {};
+                const out: Record<string, unknown> = {};
                 for (const [k, v] of Object.entries(grade)) {
                   if (typeof v === "number" && Number.isFinite(v)) {
                     out[k] = Math.max(1, Math.min(5, Math.round(v / 2)));
@@ -806,7 +830,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               "RCF",
               "RF",
             ];
-            migratedPlayers = migratedPlayers.map((p: any) => {
+            migratedPlayers = migratedPlayers.map((p: Player) => {
               if (!p) return p;
               if (
                 Array.isArray(p.comfortablePositions) &&
@@ -842,7 +866,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // the legacy primaryPosition; otherwise honor the explicit
           // isCatcher checkbox. Then encode the result as "C" in the list.
           if (stored < 5) {
-            migratedPlayers = migratedPlayers.map((p: any) => {
+            migratedPlayers = migratedPlayers.map((p: Player) => {
               if (!p) return p;
               const comfort = Array.isArray(p.comfortablePositions)
                 ? p.comfortablePositions
@@ -870,9 +894,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // Pop Time → Throwing. Merged pairs average their two old scores so
           // prior history carries over; notes/non-numeric fields are kept.
           if (stored < 7) {
-            const avgGrade = (a: any, b: any): number | undefined => {
+            const avgGrade = (a: unknown, b: unknown): number | undefined => {
               const nums = [a, b].filter(
-                (x) => typeof x === "number" && Number.isFinite(x),
+                (x): x is number => typeof x === "number" && Number.isFinite(x),
               );
               if (nums.length === 0) return undefined;
               return Math.max(
@@ -902,16 +926,16 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               "speedBaserunning",
               "throwing",
             ];
-            migratedEvents = migratedEvents.map((ev: any) => {
+            migratedEvents = migratedEvents.map((ev: EvaluationEvent) => {
               if (!ev?.grades) return ev;
-              const nextGrades: Record<string, any> = {};
+              const nextGrades: Record<string, unknown> = {};
               for (const [pid, grade] of Object.entries(ev.grades)) {
                 if (!grade || typeof grade !== "object") {
                   nextGrades[pid] = grade;
                   continue;
                 }
-                const g = grade as Record<string, any>;
-                const out: Record<string, any> = {};
+                const g = grade as Record<string, unknown>;
+                const out: Record<string, unknown> = {};
                 for (const k of carry) {
                   if (typeof g[k] === "number") out[k] = g[k];
                 }
@@ -939,16 +963,19 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // separate Speed + Base Running. The old value seeds BOTH so prior
           // history carries over; the merged key is dropped. Idempotent.
           if (stored < 8) {
-            migratedEvents = migratedEvents.map((ev: any) => {
+            migratedEvents = migratedEvents.map((ev: EvaluationEvent) => {
               if (!ev?.grades) return ev;
-              const nextGrades: Record<string, any> = {};
+              const nextGrades: Record<string, unknown> = {};
               for (const [pid, grade] of Object.entries(ev.grades)) {
                 if (!grade || typeof grade !== "object") {
                   nextGrades[pid] = grade;
                   continue;
                 }
-                const { speedBaserunning, ...rest } = grade as any;
-                const out: Record<string, any> = { ...rest };
+                const { speedBaserunning, ...rest } = grade as Record<
+                  string,
+                  unknown
+                >;
+                const out: Record<string, unknown> = { ...rest };
                 if (typeof speedBaserunning === "number") {
                   if (typeof out.speed !== "number")
                     out.speed = speedBaserunning;
@@ -980,15 +1007,15 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               // Optional coach-entered radar reading (mph), not a 1–5 grade.
               "pitchVelo",
             ]);
-            migratedEvents = migratedEvents.map((ev: any) => {
+            migratedEvents = migratedEvents.map((ev: EvaluationEvent) => {
               if (!ev?.grades) return ev;
-              const nextGrades: Record<string, any> = {};
+              const nextGrades: Record<string, unknown> = {};
               for (const [pid, grade] of Object.entries(ev.grades)) {
                 if (!grade || typeof grade !== "object") {
                   nextGrades[pid] = grade;
                   continue;
                 }
-                const out: Record<string, any> = {};
+                const out: Record<string, unknown> = {};
                 for (const [k, v] of Object.entries(grade)) {
                   if (typeof v !== "number" || KEPT_V9.has(k)) out[k] = v;
                 }
@@ -1175,10 +1202,10 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         setTimeout(() => setSyncStatus(""), 1500);
         lastPersistErrorRef.current = null;
         return true;
-      } catch (e: any) {
+      } catch (e) {
         setSyncStatus("");
-        const code = (e && e.code) || "";
-        const message = (e && e.message) || String(e);
+        const code = errCode(e);
+        const message = errMessage(e);
         lastPersistErrorRef.current = { code, message };
         // Always log the real Firestore error, even on the silent path — the
         // optimistic updateTeam caller replaces it with a generic revert toast.
@@ -1319,7 +1346,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   }, [activeTeamId, user, teamData?.joinCode, teamData?.name]);
 
   const updateTeam = useCallback(
-    (updates: any, opts?: { allowEmptyPlayers?: boolean }) => {
+    (updates: Partial<Team>, opts?: { allowEmptyPlayers?: boolean }) => {
       // Snapshot the prior value of every key we're about to optimistically
       // overwrite so a failed save can be rolled back. teamDataRef holds the
       // freshest committed state without widening this callback's deps.
@@ -1417,7 +1444,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const teamAge = _teamAge;
     const defenseSize = _defenseSize;
     const pitchingFormat = _pitchingFormat;
-    const updates: Record<string, any> = {};
+    const updates: Record<string, string> = {};
     if (leagueRuleSet === "NKB") {
       if (["6U", "7U", "8U"].includes(teamAge)) {
         if (defenseSize !== "10") updates.defenseSize = "10";
@@ -1535,7 +1562,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           "teams",
         );
         await setDoc(ref, { activeTeamId: id }, { merge: true });
-      } catch (e: any) {
+      } catch {
         /* non-fatal */
       }
     },
@@ -1604,12 +1631,12 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         toast.push({ kind: "success", title: "Team created" });
         setSyncStatus("");
         return true;
-      } catch (e: any) {
+      } catch (e) {
         setSyncStatus("");
         toast.push({
           kind: "error",
           title: "Could not create team",
-          message: e.message,
+          message: errMessage(e),
         });
         return false;
       }
@@ -1668,12 +1695,12 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // slot; non-returners (explicit returning:false OR legacy
       // released/declined) are archived but dropped from the next
       // roster.
-      const isDropped = (p: any) => !isReturning(p);
+      const isDropped = (p: Player) => !isReturning(p);
       const droppedCount = teamData.players.filter(isDropped).length;
       // Tryout accepts ride on the same `team.players` array with
       // playerStatus === "accepted" — they join the new roster directly.
       const acceptedCount = teamData.players.filter(
-        (p: any) => p.playerStatus === "accepted",
+        (p: Player) => p.playerStatus === "accepted",
       ).length;
 
       // The season YEAR runs Fall → Spring, so the money rolls only when the
@@ -1757,9 +1784,15 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // ones marked Released/Declined; reset surviving statuses to
       // "returning" so the next cycle starts clean.
       const updatedPlayers = teamData.players
-        .filter((p: any) => !isDropped(p))
-        .map((p: any) => {
-          const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
+        .filter((p: Player) => !isDropped(p))
+        .map((p: Player) => {
+          // pastSeasons entries carry richer fields (ageGroup/record) than the
+          // slim shared type, so widen locally before appending the archive row.
+          const past: Array<Record<string, unknown>> = Array.isArray(
+            p.pastSeasons,
+          )
+            ? [...(p.pastSeasons as Array<Record<string, unknown>>)]
+            : [];
           // Only archive if there's something meaningful (skip totally-empty stat objects)
           const stats = p.stats || blankStats();
           const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
@@ -1790,8 +1823,8 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // whether they were promoted (interest signups are untouched).
       const promotionSet = new Set(tryoutsToPromote);
       const promotedPairs = (teamData.tryoutSignups || [])
-        .filter((s: any) => promotionSet.has(s.id))
-        .map((s: any) => {
+        .filter((s: TryoutSignup) => promotionSet.has(s.id))
+        .map((s: TryoutSignup) => {
           const player = {
             id: "p-" + Math.random().toString(36).slice(2, 10),
             name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
@@ -1818,7 +1851,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           };
           return { signup: s, player };
         });
-      const promotedPlayers = promotedPairs.map(({ player }: any) => player);
+      const promotedPlayers = promotedPairs.map(
+        ({ player }: { signup: TryoutSignup; player: Player }) => player,
+      );
 
       // Seed the new season's Preseason eval round: returning players carry
       // their most recent eval forward, promoted tryouts carry their tryout
@@ -1847,17 +1882,25 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         depositAmount > 0
           ? promotedPairs
               .filter(
-                ({ signup }: any) => tryoutDepositPayments[signup.id] != null,
+                ({ signup }: { signup: TryoutSignup; player: Player }) =>
+                  tryoutDepositPayments[signup.id] != null,
               )
-              .map(({ signup, player }: any) => ({
-                id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
-                playerId: player.id,
-                date: String(tryoutDepositPayments[signup.id] || nowIso).slice(
-                  0,
-                  10,
-                ),
-                amount: depositAmount,
-              }))
+              .map(
+                ({
+                  signup,
+                  player,
+                }: {
+                  signup: TryoutSignup;
+                  player: Player;
+                }) => ({
+                  id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
+                  playerId: player.id,
+                  date: String(
+                    tryoutDepositPayments[signup.id] || nowIso,
+                  ).slice(0, 10),
+                  amount: depositAmount,
+                }),
+              )
           : [];
 
       const financesWithTryoutDeposits =
@@ -2008,8 +2051,12 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         { merge: true },
       );
       toast.push({ kind: "success", title: "Team deleted" });
-    } catch (e: any) {
-      toast.push({ kind: "error", title: "Delete failed", message: e.message });
+    } catch (e) {
+      toast.push({
+        kind: "error",
+        title: "Delete failed",
+        message: errMessage(e),
+      });
     }
   }, [user, teams, activeTeamId, toast, confirm]);
 
@@ -2052,11 +2099,11 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         { merge: true },
       );
       toast.push({ kind: "success", title: "Left team" });
-    } catch (e: any) {
+    } catch (e) {
       toast.push({
         kind: "error",
         title: "Could not leave",
-        message: e.message,
+        message: errMessage(e),
       });
     }
   }, [user, teams, activeTeamId, toast, confirm]);
@@ -2364,14 +2411,14 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             "Google sign-in redirect did not complete. Try opening this link in Safari/Chrome, then sign in again.",
           );
         }
-      } catch (e: any) {
+      } catch (e) {
         if (cancelled) return;
         authDiag("redirect_result_error", {
-          code: e?.code || null,
-          message: e?.message || null,
+          code: errCode(e) || null,
+          message: errMessage(e) || null,
         });
         clearRedirectPending();
-        setGenError(e?.message || "Sign-in failed");
+        setGenError(errMessage(e) || "Sign-in failed");
       }
     })();
     return () => {
@@ -2420,20 +2467,20 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         clearEmailLinkParams();
         authDiag("email_link_success");
         setGenError("");
-      } catch (e: any) {
+      } catch (e) {
         if (cancelled) return;
         authDiag("email_link_error", {
-          code: e?.code || null,
-          message: e?.message || null,
+          code: errCode(e) || null,
+          message: errMessage(e) || null,
         });
         if (
-          e?.code === "auth/invalid-action-code" ||
-          e?.code === "auth/expired-action-code"
+          errCode(e) === "auth/invalid-action-code" ||
+          errCode(e) === "auth/expired-action-code"
         ) {
           window.localStorage.removeItem("emailForSignIn");
           clearEmailLinkParams();
         }
-        setGenError(e?.message || "Email sign-in failed");
+        setGenError(errMessage(e) || "Email sign-in failed");
       }
     })();
     return () => {
@@ -2485,7 +2532,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // (all non-scrimmage) record; `record.byFormat` splits it into Kid Pitch vs
   // Machine/Coach pitch so the dashboard can show how the team does at each.
   // A game's format is its own `pitchingFormat` override, else the team's.
-  const teamPitchingFormat = (teamData as any).pitchingFormat;
+  const teamPitchingFormat = teamData.pitchingFormat;
   const teamGames = teamData.games;
   const record = useMemo(() => {
     const blank = () => ({
@@ -2750,12 +2797,27 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [scoringGameId, setScoringGameId] = useState<string | null>(null); // game whose score is being entered inline
   const [inGameId, setInGameId] = useState<string | null>(null); // game currently in In-Game mode
   const [inGameInning, setInGameInning] = useState(0); // current inning during in-game mode (0-indexed)
-  const [inGameSelection, setInGameSelection] = useState<any>(null); // { type: "position"|"bench", pos?, playerId } — first tap of a swap pair
-  const [inGameUndoStack, setInGameUndoStack] = useState<any[]>([]); // last swap undo data
+  const [inGameSelection, setInGameSelection] = useState<{
+    type: "position" | "bench";
+    pos?: string;
+    playerId?: string;
+  } | null>(null); // first tap of a swap pair
+  const [inGameUndoStack, setInGameUndoStack] = useState<unknown[]>([]); // last swap undo data
   const [activeTab, setActiveTab] = useState("home");
-  const [pastSeasonImport, setPastSeasonImport] = useState<any>(null); // null when closed; { rows, season, ageGroup, pitchingFormat, assignments } when open
-  const [currentGameAttendance, setCurrentGameAttendance] = useState<any>({});
-  const [firstInningLineup, setFirstInningLineup] = useState<any>({});
+  // null when closed; the in-progress past-season import wizard state when open.
+  const [pastSeasonImport, setPastSeasonImport] = useState<{
+    rows: unknown[];
+    season: string;
+    ageGroup: string;
+    pitchingFormat: string;
+    assignments: Record<string, string>;
+  } | null>(null);
+  const [currentGameAttendance, setCurrentGameAttendance] = useState<
+    Record<string, boolean>
+  >({});
+  const [firstInningLineup, setFirstInningLineup] = useState<
+    Record<string, string>
+  >({});
   const [lineup, setLineup] = useState<Inning[] | null>(null);
   const [battingLineup, setBattingLineup] = useState<SlimPlayer[] | null>(null);
   // Penalty score emitted by the engine for the current in-editor lineup
@@ -2768,7 +2830,11 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [tournamentPlan, setTournamentPlan] = useState<TournamentPlan | null>(
     null,
   );
-  const [swapSelection, setSwapSelection] = useState<any>(null);
+  const [swapSelection, setSwapSelection] = useState<{
+    innIdx: number;
+    pos: string;
+    player: SlimPlayer;
+  } | null>(null);
   const [gameSaved, setGameSaved] = useState(false);
   const [opponentName, setOpponentName] = useState("");
 
@@ -2789,12 +2855,16 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   // Eval state
-  const [teamEvalGrades, setTeamEvalGrades] = useState<any>({});
+  const [teamEvalGrades, setTeamEvalGrades] = useState<
+    Record<string, GradeMap>
+  >({});
   // Eval round selection: null = creating a new round, otherwise = id of an
   // existing eval event being viewed/edited.
-  const [selectedRoundId, setSelectedRoundId] = useState<any>(null);
+  const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
   // Player whose eval trend modal is currently open (null = closed)
-  const [evalTrendPlayerId, setEvalTrendPlayerId] = useState<any>(null);
+  const [evalTrendPlayerId, setEvalTrendPlayerId] = useState<string | null>(
+    null,
+  );
 
   // Sync attendance/firstInning/lineup with the selected game
   const gamesRef = useRef(team.team.games);
@@ -2822,14 +2892,18 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // against the live `team.team.games` reference — so we can tell whether
   // the *user* edited locally vs. whether a *remote* snapshot changed the
   // game underneath us.
-  const loadedGameRef = useRef<any>(null);
+  const loadedGameRef = useRef<{
+    id: string;
+    lineupJson: string;
+    battingJson: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!selectedGameId) {
       loadedGameRef.current = null;
       return;
     }
-    const game = gamesRef.current.find((g: any) => g.id === selectedGameId);
+    const game = gamesRef.current.find((g: Game) => g.id === selectedGameId);
     if (!game) return;
     loadedGameRef.current = {
       id: game.id,
@@ -2854,7 +2928,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!selectedGameId || !loadedGameRef.current) return;
     if (loadedGameRef.current.id !== selectedGameId) return;
-    const game = team.team.games.find((g: any) => g.id === selectedGameId);
+    const game = team.team.games.find((g: Game) => g.id === selectedGameId);
     if (!game) return;
 
     const remoteLineupJson = JSON.stringify(game.lineup || null);
@@ -2909,7 +2983,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // deleted (locally or via a remote snapshot). Without this, the UI would
   // try to render against a non-existent game until the next interaction.
   useEffect(() => {
-    const ids = new Set(team.team.games.map((g: any) => g.id));
+    const ids = new Set(team.team.games.map((g: Game) => g.id));
     if (selectedGameId && !ids.has(selectedGameId)) setSelectedGameId(null);
     if (scoringGameId && !ids.has(scoringGameId)) setScoringGameId(null);
     if (inGameId && !ids.has(inGameId)) setInGameId(null);
@@ -2920,9 +2994,9 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // still toggle them back in the Game Day Attendance grid.
   useEffect(() => {
     const gameDate = team.team.games.find(
-      (g: any) => g.id === selectedGameId,
+      (g: Game) => g.id === selectedGameId,
     )?.date;
-    setCurrentGameAttendance((prev: any) => {
+    setCurrentGameAttendance((prev) => {
       const next = { ...prev };
       let changed = false;
       for (const p of team.team.players) {
@@ -2944,13 +3018,16 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
     if (!team.user) return;
     const mine = team.team.evaluationEvents
       .filter(
-        (e: any) => e.coachRole === "Head" && e.evaluatorId === team.user.uid,
+        (e: EvaluationEvent) =>
+          e.coachRole === "Head" && e.evaluatorId === team.user.uid,
       )
       // createdAt-aware: rounds snapped to the same due date used to tie and
       // resolve to the OLDER one, pre-filling stale grades.
       .sort(evalRoundRecency);
     if (selectedRoundId) {
-      const target = mine.find((e: any) => e.id === selectedRoundId);
+      const target = mine.find(
+        (e: EvaluationEvent) => e.id === selectedRoundId,
+      );
       if (target?.grades) setTeamEvalGrades(target.grades);
     } else {
       // Pre-fill with the latest round's grades when starting a new round
@@ -2960,7 +3037,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Lineup edits (swap / add inning / remove inning / reorder batters)
   const handleCellClick = useCallback(
-    (innIdx: any, pos: any, player: any) => {
+    (innIdx: number, pos: string, player: SlimPlayer) => {
       if (!swapSelection) {
         if (player) setSwapSelection({ innIdx, pos, player });
         return;
@@ -2982,7 +3059,8 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
         return applyLineupSwap(cur, {
           innIdx,
           sPos: swapSelection.pos,
-          sPlayer: swapSelection.player,
+          // swapSelection is only seeded from a truthy player tap, so non-null.
+          sPlayer: swapSelection.player as NonNullable<SlimPlayer>,
           tPos: pos,
           tPlayer: player,
           propagateToStarterInnings: tournamentPlan != null,
@@ -3036,7 +3114,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
     uiBridgeRef.current = {
       getInputs: () => {
         const currentGame = team.team.games.find(
-          (g: any) => g.id === selectedGameId,
+          (g: Game) => g.id === selectedGameId,
         );
         return {
           currentGame,
@@ -3057,7 +3135,12 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
         battingLineup: newBatting,
         qualityPenalty,
         tournament,
-      }: any) => {
+      }: {
+        lineup: Inning[] | null;
+        battingLineup: SlimPlayer[] | null;
+        qualityPenalty?: number | null;
+        tournament?: TournamentPlan | null;
+      }) => {
         setLineup(newLineup);
         setBattingLineup(newBatting);
         setLineupQualityPenalty(
@@ -3068,7 +3151,12 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
         setSwapSelection(null);
         setGameSaved(false);
       },
-      applyTemplate: (tpl: any) => {
+      applyTemplate: (
+        tpl: {
+          lineup?: Inning[] | null;
+          battingLineup?: SlimPlayer[] | null;
+        } | null,
+      ) => {
         if (!tpl) return;
         setLineup(tpl.lineup || null);
         setBattingLineup(tpl.battingLineup || null);
@@ -3286,8 +3374,8 @@ const MainShell = () => {
   //   Esc  → close tutorial / does not handle modals here (each owns its own)
   useEffect(() => {
     if (!authReady || !user) return undefined;
-    const onKey = (e: any) => {
-      const target = e.target;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
       const inField =
         target &&
         (target.tagName === "INPUT" ||
@@ -3421,7 +3509,7 @@ const MainShell = () => {
           try {
             const provider = new GoogleAuthProvider();
             provider.setCustomParameters({ prompt: "select_account" });
-            if ((authEnv as any)?.isInApp) {
+            if (authEnv && authEnv.isInApp) {
               if (isRedirectLikelyStuck() || redirectAttemptsExceeded()) {
                 clearRedirectPending();
                 setGenError(
@@ -3440,8 +3528,8 @@ const MainShell = () => {
             authDiag("popup_success");
             popupDismissCountRef.current = 0;
             clearRedirectPending();
-          } catch (e: any) {
-            const code = e?.code || "";
+          } catch (e) {
+            const code = errCode(e);
             if (
               code === "auth/popup-closed-by-user" ||
               code === "auth/cancelled-popup-request"
@@ -3480,21 +3568,21 @@ const MainShell = () => {
                 popupDismissCountRef.current = 0;
                 await signInWithRedirect(auth, provider);
                 return;
-              } catch (redirectError: any) {
+              } catch (redirectError) {
                 authDiag("redirect_fallback_error", {
-                  code: redirectError?.code || null,
-                  message: redirectError?.message || null,
+                  code: errCode(redirectError) || null,
+                  message: errMessage(redirectError) || null,
                 });
-                setGenError(redirectError?.message || "Sign-in failed");
+                setGenError(errMessage(redirectError) || "Sign-in failed");
                 setIsSigningIn(false);
                 return;
               }
             }
             authDiag("popup_error", {
-              code: e?.code || null,
-              message: e?.message || null,
+              code: errCode(e) || null,
+              message: errMessage(e) || null,
             });
-            setGenError(e.message);
+            setGenError(errMessage(e));
             setIsSigningIn(false);
           }
         }}
@@ -3522,12 +3610,12 @@ const MainShell = () => {
             setGenError(
               "Email sign-in link sent. Check your inbox and open it on this device.",
             );
-          } catch (e: any) {
+          } catch (e) {
             authDiag("email_link_send_error", {
-              code: e?.code || null,
-              message: e?.message || null,
+              code: errCode(e) || null,
+              message: errMessage(e) || null,
             });
-            setGenError(e?.message || "Could not send email sign-in link");
+            setGenError(errMessage(e) || "Could not send email sign-in link");
           }
         }}
       />

@@ -1,4 +1,10 @@
-import React, { memo, useMemo, useState } from "react";
+import React, {
+  ComponentType,
+  CSSProperties,
+  memo,
+  useMemo,
+  useState,
+} from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI, useToast } from "../contexts";
 import {
@@ -32,7 +38,7 @@ import {
   dateToIsoLocal,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
-import type { BudgetItem, TeamFinances } from "../types";
+import type { BudgetItem, Player, Team, TeamFinances } from "../types";
 
 // Finances — head-coach-only money tracker for the club: what the season will
 // cost (Budget Planner with per-tournament / per-session quantity planning),
@@ -58,7 +64,17 @@ const BUDGET_PRESETS: Array<{
 ];
 
 // Same section chrome the Stats tab uses, kept local to the screen.
-const SectionCard = ({ icon: Icon, title, subtitle, children }: any) => (
+const SectionCard = ({
+  icon: Icon,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: ComponentType<{ className?: string; style?: CSSProperties }>;
+  title: string;
+  subtitle?: string;
+  children?: React.ReactNode;
+}) => (
   <section>
     <div className="pb-3 mb-1 border-b border-line-strong flex items-center gap-3">
       <Icon
@@ -140,13 +156,13 @@ type LedgerSortKey = "date" | "label" | "in" | "out" | "balance";
 type BudgetSortKey = "label" | "qty" | "planned" | "spent";
 
 export const FinancesTab = memo(() => {
-  const { team, updateTeam } = useTeam();
+  const { team: teamRaw, updateTeam } = useTeam();
   const { openPlayerProfile } = useUI();
-  const players: any[] = useMemo(() => (team as any).players || [], [team]);
-  const finances: TeamFinances = useMemo(
-    () => ((team as any).finances || {}) as TeamFinances,
-    [team],
-  );
+  // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
+  // the known Team shape for this screen.
+  const team = teamRaw as Team;
+  const players: Player[] = useMemo(() => team.players || [], [team]);
+  const finances: TeamFinances = useMemo(() => team.finances || {}, [team]);
 
   const writeFinances = (patch: Partial<TeamFinances>) =>
     updateTeam({ finances: { ...finances, ...patch } });
@@ -186,7 +202,7 @@ export const FinancesTab = memo(() => {
     () => new Set(finances.feeExemptIds || []),
     [finances],
   );
-  const payerCount = players.filter((p: any) => !exemptIds.has(p.id)).length;
+  const payerCount = players.filter((p) => !exemptIds.has(p.id)).length;
   const bufferInc = Math.max(0, Number(finances.feeBufferIncrement) || 0);
   // Per-child effective fee (varies when fundraising is credited to specific
   // kids); falls back to the baseline even-split fee. The Collections meter
@@ -194,7 +210,7 @@ export const FinancesTab = memo(() => {
   const feeFor = (pid: string) =>
     summary.effectiveFeeByPlayer[pid] ?? effectiveFee;
   const totalEffectiveFees = players.reduce(
-    (sum: number, p: any) => (exemptIds.has(p.id) ? sum : sum + feeFor(p.id)),
+    (sum: number, p) => (exemptIds.has(p.id) ? sum : sum + feeFor(p.id)),
     0,
   );
 
@@ -736,7 +752,7 @@ export const FinancesTab = memo(() => {
                     {formatCurrency(totalEffectiveFees)} ·{" "}
                     {
                       players.filter(
-                        (p: any) =>
+                        (p) =>
                           !exemptIds.has(p.id) &&
                           feeFor(p.id) - (summary.paidByPlayer[p.id] || 0) <= 0,
                       ).length
@@ -754,7 +770,7 @@ export const FinancesTab = memo(() => {
                             owesReminderText(
                               finances,
                               players,
-                              (team as any).currentSeason,
+                              team.currentSeason,
                             ),
                           );
                           toast.push({
@@ -898,7 +914,7 @@ export const FinancesTab = memo(() => {
               </div>
             ) : (
               <ul className="divide-y divide-line">
-                {players.map((p: any) => {
+                {players.map((p) => {
                   const waived = exemptIds.has(p.id);
                   const paid = summary.paidByPlayer[p.id] || 0;
                   // Per-child effective fee (fundraising credited to this kid lowers
@@ -1103,7 +1119,7 @@ export const FinancesTab = memo(() => {
                     style={FORM_INPUT_RING_STYLE}
                   >
                     <option value="">Credit: split evenly</option>
-                    {players.map((p: any) => (
+                    {players.map((p) => (
                       <option key={p.id} value={p.id}>
                         Credit: {p.name}
                       </option>
@@ -1315,7 +1331,7 @@ export const FinancesTab = memo(() => {
                                             <option value="">
                                               Split evenly
                                             </option>
-                                            {players.map((p: any) => (
+                                            {players.map((p) => (
                                               <option key={p.id} value={p.id}>
                                                 {p.name}
                                               </option>
