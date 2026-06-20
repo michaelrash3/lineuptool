@@ -56,6 +56,15 @@ export const useLineupActions = ({
       const relaxFairness =
         options.relaxFairness != null ? options.relaxFairness : gameSaysRelaxed;
 
+      // First-inning position locks (e.g. the Starting Pitcher picker's chosen
+      // P). Callers may pass the change DIRECTLY via options.firstInningOverrides
+      // so a re-run uses the new pick deterministically — without depending on a
+      // setFirstInningLineup state update landing before this read.
+      const firstInningOverridesById = {
+        ...(firstInningLineup || {}),
+        ...(options.firstInningOverrides || {}),
+      };
+
       const presentPlayers = teamData.players.filter(
         // Roster-inactive kids never play, even if a stale attendance map
         // still has them marked present from before they went inactive.
@@ -84,7 +93,7 @@ export const useLineupActions = ({
         games: teamData.games,
         evaluationEvents: teamData.evaluationEvents,
         currentGame,
-        firstInningOverridesById: firstInningLineup,
+        firstInningOverridesById,
         totalInnings:
           parseInt(currentGame.inningsCount || teamData.inningsCount, 10) || 6,
         leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
@@ -226,7 +235,7 @@ export const useLineupActions = ({
   );
 
   const generateLineup = useCallback(
-    () => _runGenerate(Date.now()),
+    (options: any = {}) => _runGenerate(Date.now(), options),
     [_runGenerate],
   );
   const regenerateLineup = useCallback(

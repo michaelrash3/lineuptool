@@ -122,9 +122,10 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
 
   const pick = (id: string) => {
     setFirstInningLineup({ ...(firstInningLineup || {}), P: id });
-    // Defer so the override is in state before the engine reads it, then roll
-    // the projected lineup for confirmation.
-    setTimeout(() => generateLineup(), 0);
+    // Pass the chosen pitcher straight into the re-run so the lineup is rolled
+    // around the new starter immediately — no dependency on the state update
+    // above landing first (which could otherwise drop the change).
+    generateLineup({ firstInningOverrides: { P: id } });
   };
 
   return (

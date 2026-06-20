@@ -2640,49 +2640,27 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     used.add(picked.id);
   }
 
-  // Scripted sub windows: every sub enters in the 3rd, starters return in the
-  // 5th. Short games degrade gracefully (no return stint under 5 innings; no
-  // sub stint under 3). P and C are never auto-subbed — pitching changes go
-  // through the relief list, and catcher continuity is deliberate.
-  const subEnterInning = totalInnings >= 3 ? 3 : null;
-  const subLastInning =
-    subEnterInning == null ? null : Math.min(4, totalInnings);
-  const starterReturnInning = totalInnings >= 5 ? 5 : null;
+  // ---------- Fair, rec-style rotation ----------
+  // Tournaments still field your best nine to start, but the bench now rotates
+  // across the WHOLE game instead of a single 3rd-4th window. Every present
+  // player sits at most floor(totalInnings/2) innings (so everyone plays at
+  // least half), the designated subs (players who didn't earn a starting spot)
+  // and then the weakest starters give up their innings first, and nobody is
+  // benched two innings back-to-back when it can be avoided. The pitcher is
+  // fixed for the game (manual relief changes re-run this generator) and the
+  // catcher follows the catcher policy below.
+  const fixedP = assigned.get("P");
   const benchPlayers = profiled
     .filter((p) => !used.has(p.id))
     .sort(
       (a, b) => (b.profile.overallScore || 0) - (a.profile.overallScore || 0),
     );
-  const replaceableSlots = [...assigned.entries()]
-    .filter(([pos]) => pos !== "P" && pos !== "C")
-    // Weakest starters give up their innings first.
-    .sort((a, b) => scoreFor(a[0], a[1]) - scoreFor(b[0], b[1]));
-  const substitutions: TournamentSubstitution[] = [];
-  if (subEnterInning != null) {
-    const takenSlots = new Set<string>();
-    for (const sub of benchPlayers) {
-      const slot = replaceableSlots.find(
-        ([pos]) =>
-          !takenSlots.has(pos) &&
-          (pos === "C" ? isCatcherEligible(sub) : !isPositionBlocked(sub, pos)),
-      );
-      if (!slot) continue; // stays available off the bench all game
-      takenSlots.add(slot[0]);
-      substitutions.push({
-        inning: subEnterInning,
-        returnInning: starterReturnInning,
-        position: slot[0],
-        in: slim(sub),
-        out: slim(slot[1]),
-      });
-    }
-  }
 
   // An EXPLICIT catcher cap (Settings → Catcher Innings, or the per-game
-  // override) applies in tournament games too: once the starting catcher
-  // hits the cap, the best catcher-eligible bench player takes over for the
-  // rest of the game. "auto"/"none" keep tournament catcher continuity
-  // (no scripted change). No handoff when nobody on the bench can catch.
+  // override) applies in tournament games too: once the starting catcher hits
+  // the cap, the best catcher-eligible bench player takes over for the rest of
+  // the game. "auto"/"none" keep tournament catcher continuity (one catcher all
+  // game). No handoff when nobody on the bench can catch.
   const catcherPolicy = resolveCatcherPolicy(
     catcherMaxInnings,
     catcherConsecutive,
@@ -2690,6 +2668,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     profiled.length,
   );
   const starterC = assigned.get("C");
+  const starterCId = starterC?.id ?? null;
   let catcherHandoff: TournamentSubstitution | null = null;
   if (
     starterC &&
@@ -2697,80 +2676,204 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     catcherPolicy.cap < totalInnings
   ) {
     const handoffInning = catcherPolicy.cap + 1;
-    const scriptedIn = new Set(substitutions.map((s) => s.in?.id));
-    const eligible = benchPlayers
-      .filter((p) => isCatcherEligible(p))
+    const reliefC = benchPlayers
+      .filter((p) => isCatcherEligible(p) && p.id !== starterC.id)
       .sort(
         (a, b) =>
           calcCatcherScore(b.profile.grades, b.stats) -
           calcCatcherScore(a.profile.grades, a.stats),
-      );
-    // Prefer a bench catcher with no scripted field stint; otherwise borrow
-    // a scripted sub — their field stint ends when they strap the gear on.
-    const pick =
-      eligible.find((p) => !scriptedIn.has(p.id)) || eligible[0] || null;
-    if (pick) {
+      )[0];
+    if (reliefC) {
       catcherHandoff = {
         inning: handoffInning,
         returnInning: null,
         position: "C",
-        in: slim(pick),
+        in: slim(reliefC),
         out: slim(starterC),
       };
-      const stintIdx = substitutions.findIndex((s) => s.in?.id === pick.id);
-      if (stintIdx >= 0) {
-        const stint = substitutions[stintIdx];
-        if (stint.inning >= handoffInning) {
-          // Their whole field stint falls after the handoff — they're catching
-          // instead, so the stint never happens.
-          substitutions.splice(stintIdx, 1);
-        } else if (
-          stint.returnInning == null ||
-          stint.returnInning > handoffInning
-        ) {
-          stint.returnInning = handoffInning;
-        }
-      }
-      substitutions.push(catcherHandoff);
     }
   }
 
-  // Materialize the innings grid so the existing lineup card, in-game view,
-  // and save flow work unchanged.
-  const subByPos = new Map(
-    substitutions.filter((s) => s.position !== "C").map((s) => [s.position, s]),
-  );
-  const reliefCatcherId = catcherHandoff?.in?.id ?? null;
-  const innings: Inning[] = [];
+  // Who catches each inning (1-indexed innings → 0-indexed array). Once the
+  // relief catcher takes over they catch the rest of the way.
+  const catcherByInning: (string | null)[] = [];
   for (let i = 1; i <= totalInnings; i++) {
-    const inSubWindow =
-      subEnterInning != null &&
-      i >= subEnterInning &&
-      i <= (subLastInning as number);
-    const catcherSwapped =
-      catcherHandoff != null && i >= (catcherHandoff.inning as number);
-    const inn: Inning = {};
-    const benched = new Set(benchPlayers.map((p) => p.id));
-    for (const [pos, starter] of assigned) {
-      if (pos === "C" && catcherSwapped && catcherHandoff?.in) {
-        inn.C = catcherHandoff.in;
-        benched.delete(catcherHandoff.in.id);
-        benched.add(starter.id);
-        continue;
+    catcherByInning.push(
+      catcherHandoff && i >= (catcherHandoff.inning as number)
+        ? (catcherHandoff.in?.id ?? starterCId)
+        : starterCId,
+    );
+  }
+
+  // Positions that rotate each inning — everything but the fixed P and the
+  // catcher (handled above).
+  const fieldPositions = positions.filter((p) => p !== "P" && p !== "C");
+  const benchPerInning = Math.max(0, profiled.length - positions.length);
+  const sitCap = Math.max(1, Math.floor(totalInnings / 2));
+
+  // A player's starting field position (if any) — used to keep starters at
+  // their home spot and to bench non-starters first.
+  const homePosOf = new Map<string, string>();
+  for (const pos of fieldPositions) {
+    const s = assigned.get(pos);
+    if (s) homePosOf.set(s.id, pos);
+  }
+
+  const fieldEligible = (pos: string, pid: string): boolean => {
+    const pl = byId.get(pid);
+    return !!pl && pos !== "C" && pos !== "P" && !isPositionBlocked(pl, pos);
+  };
+  const canCoverField = (players: ProfiledPlayer[]): boolean =>
+    maxPositionMatching(
+      fieldPositions,
+      players.map((p) => p.id),
+      fieldEligible,
+    ).size === fieldPositions.length;
+
+  const sits = new Map<string, number>(profiled.map((p) => [p.id, 0]));
+  const innings: Inning[] = [];
+  const substitutions: TournamentSubstitution[] = [];
+  const subEntered = new Set<string>(); // non-starter ids already recorded as subs
+  let prevBench = new Set<string>();
+
+  for (let i = 0; i < totalInnings; i++) {
+    const catcherId = catcherByInning[i];
+    // Rotation pool: everyone except the fixed pitcher and this inning's catcher.
+    const pool = profiled.filter(
+      (p) => p.id !== fixedP?.id && p.id !== catcherId,
+    );
+
+    // Bench priority (sit soonest first): non-starters before starters, then
+    // weakest score first, deterministic id tiebreak.
+    const benchOrder = [...pool].sort((a, b) => {
+      const aS = homePosOf.has(a.id) ? 1 : 0;
+      const bS = homePosOf.has(b.id) ? 1 : 0;
+      if (aS !== bS) return aS - bS;
+      const sa = a.profile.overallScore || 0;
+      const sb = b.profile.overallScore || 0;
+      if (sa !== sb) return sa - sb;
+      return a.id < b.id ? -1 : 1;
+    });
+
+    const pickBench = (relaxBackToBack: boolean): Set<string> => {
+      const bench = new Set<string>();
+      const consider = (capped: boolean) => {
+        for (const p of benchOrder) {
+          if (bench.size >= benchPerInning) break;
+          if (bench.has(p.id)) continue;
+          if (!capped && (sits.get(p.id) || 0) >= sitCap) continue;
+          if (!relaxBackToBack && prevBench.has(p.id)) continue;
+          bench.add(p.id);
+        }
+      };
+      consider(false);
+      // If the cap left us short (huge bench), allow over-cap to fill the inning.
+      if (bench.size < benchPerInning) consider(true);
+      return bench;
+    };
+    let bench = pickBench(false);
+    if (bench.size < benchPerInning) bench = pickBench(true);
+
+    // Feasibility: the players left on the field must cover every field
+    // position. If benching someone strands a hole, swap them back in for a
+    // stronger on-field player until a full defense is possible.
+    const onFieldOf = (b: Set<string>) => pool.filter((p) => !b.has(p.id));
+    let guard = 0;
+    while (!canCoverField(onFieldOf(bench)) && guard++ < pool.length + 2) {
+      const strongestFirst = [...onFieldOf(bench)].sort(
+        (a, b) => (b.profile.overallScore || 0) - (a.profile.overallScore || 0),
+      );
+      let fixed = false;
+      for (const bid of [...bench]) {
+        for (const victim of strongestFirst) {
+          if (victim.id === bid) continue;
+          const trial = new Set(bench);
+          trial.delete(bid);
+          trial.add(victim.id);
+          if (canCoverField(onFieldOf(trial))) {
+            bench = trial;
+            fixed = true;
+            break;
+          }
+        }
+        if (fixed) break;
       }
-      const s = inSubWindow ? subByPos.get(pos) : undefined;
-      // A bench kid can't hold a field stint and catch at once — once the
-      // catcher handoff starts, their field slot reverts to its starter.
-      if (s && s.in && !(catcherSwapped && s.in.id === reliefCatcherId)) {
-        inn[pos] = s.in;
-        benched.delete(s.in.id);
-        benched.add(starter.id);
+      if (!fixed) break;
+    }
+
+    for (const id of bench) sits.set(id, (sits.get(id) || 0) + 1);
+
+    // Seat the inning: P, C, starters at home, then fill the rest by matching.
+    const inn: Inning = {};
+    if (fixedP) inn.P = slim(fixedP);
+    if (catcherId) {
+      const c = byId.get(catcherId);
+      if (c) inn.C = slim(c);
+    }
+    const onField = onFieldOf(bench);
+    const onFieldIds = new Set(onField.map((p) => p.id));
+    const placed = new Set<string>();
+    const freePositions: string[] = [];
+    for (const pos of fieldPositions) {
+      const s = assigned.get(pos);
+      if (s && onFieldIds.has(s.id) && !placed.has(s.id)) {
+        inn[pos] = slim(s);
+        placed.add(s.id);
       } else {
-        inn[pos] = slim(starter);
+        freePositions.push(pos);
       }
     }
-    inn.BENCH = profiled.filter((p) => benched.has(p.id)).map(slim);
+    if (freePositions.length > 0) {
+      const freeIds = onField.filter((p) => !placed.has(p.id)).map((p) => p.id);
+      let match = maxPositionMatching(freePositions, freeIds, fieldEligible);
+      // Safety net: if keeping starters home boxed us in, rematch the whole
+      // field from scratch (feasibility was guaranteed above).
+      if (match.size < freePositions.length) {
+        for (const pos of fieldPositions) delete inn[pos];
+        match = maxPositionMatching(
+          fieldPositions,
+          [...onFieldIds],
+          fieldEligible,
+        );
+      }
+      for (const [pos, pid] of match) {
+        const pl = byId.get(pid);
+        if (pl) inn[pos] = slim(pl);
+      }
+    }
+
+    inn.BENCH = profiled.filter((p) => bench.has(p.id)).map(slim);
     innings.push(inn);
+
+    // Record substitution metadata — the first inning a non-starter takes over
+    // a starter's home spot. (Display/record only; the grid above is authoritative.)
+    for (const pos of fieldPositions) {
+      const occupantId = (inn[pos] as SlimPlayer | undefined)?.id;
+      const starter = assigned.get(pos);
+      if (
+        occupantId &&
+        starter &&
+        occupantId !== starter.id &&
+        !subEntered.has(occupantId)
+      ) {
+        const subP = byId.get(occupantId);
+        if (subP) {
+          substitutions.push({
+            inning: i + 1,
+            returnInning: null,
+            position: pos,
+            in: slim(subP),
+            out: slim(starter),
+          });
+          subEntered.add(occupantId);
+        }
+      }
+    }
+    if (catcherHandoff && i + 1 === catcherHandoff.inning) {
+      substitutions.push(catcherHandoff);
+    }
+
+    prevBench = bench;
   }
 
   const battingLineup = generateBattingOrder(profiled, battingSize, {

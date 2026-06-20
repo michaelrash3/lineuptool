@@ -1,4 +1,9 @@
-import { applySwap, getPlayerAt, isCatcherBlocked } from "./inGameSwap";
+import {
+  applySwap,
+  getPlayerAt,
+  isCatcherBlocked,
+  swapPlayersInInning,
+} from "./inGameSwap";
 
 const P = (id: string, name = id) => ({ id, name });
 
@@ -95,6 +100,55 @@ describe("applySwap", () => {
     const twice = applySwap(once, a, b)!;
     expect((twice as any).P.id).toBe("ava");
     expect((twice as any)["1B"].id).toBe("zoe");
+  });
+});
+
+describe("swapPlayersInInning (carry a sub forward)", () => {
+  const always = () => true;
+  const never = () => false;
+
+  it("swaps a field player and a bench player by identity", () => {
+    // ben (bench) came in for ava (P) in the current inning; carry that into a
+    // later inning where ava is still pitching and ben is still benched.
+    const later = {
+      P: P("ava"),
+      C: P("mia"),
+      "1B": P("zoe"),
+      BENCH: [P("ben"), P("cor")],
+    };
+    const next = swapPlayersInInning(later as any, P("ava"), P("ben"), always);
+    expect((next as any).P.id).toBe("ben"); // sub now pitches
+    expect((next as any).BENCH.map((p: any) => p.id)).toEqual(["ava", "cor"]); // ava sits
+    expect((next as any).C.id).toBe("mia"); // everyone else as-is
+    expect((next as any)["1B"].id).toBe("zoe");
+  });
+
+  it("exchanges positions when both players are on the field in a later inning", () => {
+    const later = { P: P("ava"), "1B": P("ben"), BENCH: [P("cor")] };
+    const next = swapPlayersInInning(later as any, P("ava"), P("ben"), always);
+    expect((next as any).P.id).toBe("ben");
+    expect((next as any)["1B"].id).toBe("ava");
+  });
+
+  it("leaves the inning untouched if it can't go in (no-op for absent ids)", () => {
+    const later = { P: P("ava"), BENCH: [P("cor")] };
+    const next = swapPlayersInInning(later as any, P("xxx"), P("yyy"), always);
+    expect(next).toEqual(later);
+  });
+
+  it("does not seat a non-catcher at C: leaves that inning unchanged", () => {
+    // Carrying ben in for mia would put ben behind the plate; ben can't catch.
+    const later = { C: P("mia"), "1B": P("zoe"), BENCH: [P("ben")] };
+    const next = swapPlayersInInning(later as any, P("mia"), P("ben"), never);
+    expect(next).toBe(later); // untouched
+  });
+
+  it("does not mutate the input inning", () => {
+    const later = { P: P("ava"), BENCH: [P("ben")] };
+    const benchRef = later.BENCH;
+    swapPlayersInInning(later as any, P("ava"), P("ben"), always);
+    expect(later.P.id).toBe("ava");
+    expect(later.BENCH).toBe(benchRef);
   });
 });
 
