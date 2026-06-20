@@ -146,6 +146,25 @@ describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
       extractAdvancedStats(noLabels, ["ops", "h", "bb"], ["1", "2", "3"]),
     ).toEqual({});
   });
+
+  it("reads per-position innings from the fielding block without batting collision", () => {
+    // Batting 2b/3b (doubles/triples) and SF must NOT bleed into the fielding
+    // position-innings columns of the same name. Each section is range-bounded.
+    const lbl = ["batting", "", "", "fielding", "", "", "", "", "", ""];
+    const hdr = ["2b", "3b", "sf", "fpct", "p", "1b", "2b", "3b", "ss", "total"];
+    const row = ["4", "1", "2", ".980", "5", "0", "1", "0", "6", "12"];
+    const s = extractAdvancedStats(lbl, hdr, row);
+    // Fielding-section innings:
+    expect(s.fInnP).toBe(5);
+    expect(s.fInn2B).toBe(1); // fielding 2B innings, not batting doubles (4)
+    expect(s.fInn3B).toBe(0);
+    expect(s.fInnSS).toBe(6);
+    expect(s.fInnTotal).toBe(12);
+    expect(s.fFpct).toBeCloseTo(0.98);
+    // Batting doubles (4)/triples (1)/SF (2) are outside FIELDING_COLS, so they
+    // never appear here.
+    expect(s).not.toHaveProperty("doubles");
+  });
 });
 
 describe("CSV helpers", () => {
@@ -609,67 +628,58 @@ describe("isGameFinalized", () => {
   });
 });
 
-describe("buildSeasonBenchImbalance orphan-id coalescing", () => {
-  // Two finalized 2-position (P/C), 1-bench, 2-inning games. "Sam"
-  // appears under id "old-sam" in game 1 (written before he was deleted
-  // from the roster) and under "new-sam" in game 2 (after re-add). The
-  // current roster only has "new-sam".
-  const game = (id: any, samId: any) => ({
-    id,
+describe("buildSeasonBenchImbalance (actual innings from imported box scores)", () => {
+  // A finalized 6-inning game whose stats have been imported. fInnTotal is the
+  // GameChanger fielding "Total" (defensive innings); game length is inferred
+  // as the max fInnTotal across the box-score lines. Bench = gameInnings − def.
+  const game = {
+    id: "g1",
     status: "final",
-    teamScore: 1,
-    opponentScore: 0,
-    lineup: [
-      {
-        P: { id: "A", name: "Alice" },
-        C: { id: samId, name: "Sam" },
-        BENCH: [{ id: "B", name: "Bob" }],
-      },
-      {
-        P: { id: "B", name: "Bob" },
-        C: { id: "A", name: "Alice" },
-        BENCH: [{ id: samId, name: "Sam" }],
-      },
-    ],
-  });
-  const games = [game("g1", "old-sam"), game("g2", "new-sam")];
-  const roster = [
-    { id: "A", name: "Alice" },
-    { id: "B", name: "Bob" },
-    { id: "new-sam", name: "Sam" },
-  ];
+    teamScore: 5,
+    opponentScore: 3,
+    playerStats: {
+      p1: { fInnTotal: 6 }, // played the whole game in the field
+      p2: { fInnTotal: 6 },
+      p3: { fInnTotal: 4 }, // sat 2
+      p4: { fInnTotal: 2 }, // sat 4
+    },
+  };
 
-  it("merges a re-added player's pre-deletion history into the current id", () => {
-    const out = buildSeasonBenchImbalance(games, "", roster);
-    const sam = out.get("new-sam");
-    expect(sam).toBeDefined();
-    // Sam fielded 1 inning in each game → 2 total across both games.
-    expect(sam!.totalDefense).toBe(2);
-    expect(sam!.gamesAttended).toBe(2);
-    expect(sam!.totalBench).toBe(2);
-    // The orphan key must not survive — its innings were coalesced.
-    expect(out.get("old-sam")).toBeUndefined();
+  it("apportions defense and bench from the fielding Total column", () => {
+    const out = buildSeasonBenchImbalance([game], "");
+    // gameInnings 6, playerCount 4, totalDefense 18 → expected 4.5 each,
+    // benchSlots 6*4-18 = 6 → minBench floor(6/4) = 1.
+    expect(out.get("p1")).toMatchObject({
+      totalDefense: 6,
+      totalBench: 0,
+      extraSits: 0,
+      expectedDefense: 4.5,
+      gamesAttended: 1,
+    });
+    expect(out.get("p4")).toMatchObject({
+      totalDefense: 2,
+      totalBench: 4,
+      extraSits: 3, // bench 4 − minBench 1
+      gamesAttended: 1,
+    });
   });
 
-  it("without a roster, keeps the legacy by-raw-id behaviour", () => {
-    const out = buildSeasonBenchImbalance(games, "");
-    // No coalescing: the two ids stay split, one game each.
-    expect(out.get("old-sam")?.gamesAttended).toBe(1);
-    expect(out.get("new-sam")?.gamesAttended).toBe(1);
+  it("skips games whose stats haven't been imported (actuals only)", () => {
+    const noStats = { id: "g2", status: "final", teamScore: 1, opponentScore: 0 };
+    const out = buildSeasonBenchImbalance([noStats], "");
+    expect(out.size).toBe(0);
   });
 
-  it("does not merge two distinct live players who share a name", () => {
-    // Both ids are on the current roster, so the name fallback must not
-    // fire — each "Sam" keeps their own innings.
-    const liveRoster = [
-      { id: "A", name: "Alice" },
-      { id: "B", name: "Bob" },
-      { id: "old-sam", name: "Sam" },
-      { id: "new-sam", name: "Sam" },
-    ];
-    const out = buildSeasonBenchImbalance(games, "", liveRoster);
-    expect(out.get("old-sam")?.gamesAttended).toBe(1);
-    expect(out.get("new-sam")?.gamesAttended).toBe(1);
+  it("excludes the current game and games with no fielded innings", () => {
+    const zero = {
+      id: "g3",
+      status: "final",
+      teamScore: 1,
+      opponentScore: 0,
+      playerStats: { p1: { ab: 3 } }, // batted only, no fielding Total
+    };
+    expect(buildSeasonBenchImbalance([game], "g1").size).toBe(0); // current game excluded
+    expect(buildSeasonBenchImbalance([zero], "").size).toBe(0); // gameInnings 0
   });
 });
 
@@ -1325,26 +1335,25 @@ describe("estimateDocSizeBytes", () => {
   });
 });
 
-describe("buildSeasonPositionVariety", () => {
-  const inning = (assign: any) => ({ ...assign, BENCH: [] });
-  // p1: SS both innings (infield only); p2: LF then CF (outfield only);
-  // p3: P then C (battery).
+describe("buildSeasonPositionVariety (per-position innings from imported box scores)", () => {
+  // Per-position innings come from the GameChanger fielding block. p1: SS only
+  // (infield); p2: LF + CF (outfield); p3: P + C (battery); p4: SF, which is
+  // right-center field → mapped to the RCF outfield label.
   const finalGame = {
     id: "g1",
     status: "final",
     teamScore: 5,
     opponentScore: 3,
-    lineup: [
-      inning({ SS: { id: "p1" }, LF: { id: "p2" }, P: { id: "p3" } }),
-      inning({ SS: { id: "p1" }, CF: { id: "p2" }, C: { id: "p3" } }),
-    ],
+    playerStats: {
+      p1: { fInnSS: 2, fInnTotal: 2 },
+      p2: { fInnLF: 1, fInnCF: 1, fInnTotal: 2 },
+      p3: { fInnP: 1, fInnC: 1, fInnTotal: 2 },
+      p4: { fInnSF: 3, fInnTotal: 3 },
+    },
   };
 
-  it("tallies innings per position across finalized games", () => {
-    const m = buildSeasonPositionVariety(
-      [finalGame],
-      [{ id: "p1" }, { id: "p2" }, { id: "p3" }],
-    );
+  it("tallies innings per position across imported games", () => {
+    const m = buildSeasonPositionVariety([finalGame]);
     expect(m.get("p1")!.byPosition).toEqual({ SS: 2 });
     expect(m.get("p1")!).toMatchObject({
       totalDefense: 2,
@@ -1361,33 +1370,14 @@ describe("buildSeasonPositionVariety", () => {
       batteryInnings: 2,
       distinctPositions: 2,
     });
+    // GameChanger "SF" lands under RCF and counts as outfield.
+    expect(m.get("p4")!.byPosition).toEqual({ RCF: 3 });
+    expect(m.get("p4")).toMatchObject({ outfieldInnings: 3 });
   });
 
-  it("ignores non-finalized games and bench slots", () => {
-    const scheduled = {
-      id: "g2",
-      status: "scheduled",
-      lineup: [inning({ SS: { id: "p1" } })],
-    };
-    const m = buildSeasonPositionVariety([scheduled], [{ id: "p1" }]);
-    expect(m.size).toBe(0);
-  });
-
-  it("coalesces a re-added player's history by name onto the live id", () => {
-    // Lineup baked an old id "old1"; live roster has the player under "p1".
-    const g = {
-      id: "g3",
-      status: "final",
-      teamScore: 1,
-      opponentScore: 0,
-      lineup: [inning({ SS: { id: "old1", name: "Ava Rivera" } })],
-    };
-    const m = buildSeasonPositionVariety(
-      [g],
-      [{ id: "p1", name: "Ava Rivera" }],
-    );
-    expect(m.get("p1")!.byPosition).toEqual({ SS: 1 });
-    expect(m.has("old1")).toBe(false);
+  it("ignores games without imported stats", () => {
+    const scheduled = { id: "g2", status: "scheduled" };
+    expect(buildSeasonPositionVariety([scheduled]).size).toBe(0);
   });
 });
 

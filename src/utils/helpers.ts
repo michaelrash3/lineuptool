@@ -351,96 +351,45 @@ export interface BenchImbalanceEntry {
 export const buildSeasonBenchImbalance = (
   games: Game[] | null | undefined,
   currentGameId: string,
-  players?: Array<{ id?: string; name?: string }> | null,
+  // Roster is unused now that defense/bench come from imported box-score lines
+  // (keyed by current player id), but the param is kept for call-site stability.
+  _players?: Array<{ id?: string; name?: string }> | null,
 ): Map<PlayerId, BenchImbalanceEntry> => {
   const out = new Map<PlayerId, BenchImbalanceEntry>();
 
-  // Resolve a lineup-snapshot slot's id to the CURRENT roster id. Past
-  // finalized games bake the id a player had at the time into their
-  // lineup; if that player was deleted and re-added they now carry a
-  // fresh id, so accumulating by the raw snapshot id strands all of
-  // their pre-deletion bench/defense history under an orphan key the
-  // tile's `imbalance.get(p.id)` lookup never matches. We coalesce by
-  // name (same id-with-name fallback as lineupSlotMatchesPlayer) so the
-  // re-added player's full season shows up. Two live players who share
-  // a name stay distinct: the name fallback only fires for ids that are
-  // NOT on the current roster.
-  const roster = players || [];
-  const livePlayerIds = new Set(
-    roster.map((p) => p.id).filter((id): id is string => !!id),
-  );
-  const norm = (s: unknown) =>
-    String(s ?? "")
-      .trim()
-      .toLowerCase();
-  const resolveSlotId = (
-    slot: { id?: string; name?: string } | null | undefined,
-  ): string | undefined => {
-    if (!slot || !slot.id) return slot?.id;
-    if (livePlayerIds.has(slot.id)) return slot.id;
-    const slotName = norm(slot.name);
-    if (slotName) {
-      const match = roster.find((p) => p.id && norm(p.name) === slotName);
-      if (match?.id) return match.id;
-    }
-    return slot.id;
-  };
-
   for (const g of games || []) {
     if (g.id === currentGameId) continue;
-    // Route through the shared isGameFinalized() so legacy games with
-    // status === "completed" (from earlier app builds) are counted —
-    // the previous `g.status && g.status !== "final"` filter silently
-    // skipped them and coaches saw the Bench Equity tile miss past
-    // finalized games.
     if (!countsTowardStats(g)) continue;
-    if (!g.lineup?.length) continue;
+    // Actuals only: a game contributes nothing until its stats are imported.
+    // playerStats is keyed by current roster id (matched by name at import).
+    const lines = g.playerStats;
+    if (!lines) continue;
 
-    const attending = new Set<PlayerId>();
-    for (const inning of g.lineup) {
-      for (const pos in inning) {
-        if (pos === "BENCH") continue;
-        const p = inning[pos] as SlimPlayer | undefined;
-        if (p) {
-          const rid = resolveSlotId(p);
-          if (rid) attending.add(rid);
-        }
-      }
-      for (const bp of inning.BENCH || []) {
-        if (!bp) continue;
-        if (g.attendance?.[bp.id] === false) continue;
-        const rid = resolveSlotId(bp);
-        if (rid) attending.add(rid);
-      }
+    // Attendance = players with a box-score line this game. Defensive innings
+    // come straight from the fielding "Total" column; players who only batted
+    // (full bench in the field) carry fInnTotal 0 and count as all-bench.
+    const defenseById = new Map<PlayerId, number>();
+    let gameInnings = 0;
+    for (const pid of Object.keys(lines)) {
+      const def = Number(lines[pid]?.fInnTotal) || 0;
+      defenseById.set(pid, def);
+      if (def > gameInnings) gameInnings = def;
     }
-    const playerCount = attending.size;
-    if (playerCount === 0) continue;
+    const playerCount = defenseById.size;
+    // Need at least one fielded inning to know the game length; otherwise this
+    // import has no fielding data to apportion.
+    if (playerCount === 0 || gameInnings <= 0) continue;
 
-    const benchSlotsPerInning = (g.lineup[0]?.BENCH || []).length;
-    const innings = g.lineup.length;
-    const fieldersPerInning =
-      innings > 0
-        ? Object.keys(g.lineup[0] || {}).filter((k) => k !== "BENCH").length
-        : 0;
-    const totalBenchSlots = benchSlotsPerInning * innings;
-    const minBenchPerPlayer = Math.floor(totalBenchSlots / playerCount);
-    const totalDefenseSlots = fieldersPerInning * innings;
+    let totalDefenseSlots = 0;
+    for (const def of defenseById.values()) totalDefenseSlots += def;
     const expectedDefensePerPlayer = totalDefenseSlots / playerCount;
+    const totalBenchSlots = gameInnings * playerCount - totalDefenseSlots;
+    const minBenchPerPlayer = Math.floor(
+      Math.max(0, totalBenchSlots) / playerCount,
+    );
 
-    const benchCount = new Map<PlayerId, number>();
-    for (const id of attending) benchCount.set(id, 0);
-    for (const inning of g.lineup) {
-      for (const bp of inning.BENCH || []) {
-        if (!bp) continue;
-        if (g.attendance?.[bp.id] === false) continue;
-        const rid = resolveSlotId(bp);
-        if (rid && benchCount.has(rid)) {
-          benchCount.set(rid, (benchCount.get(rid) || 0) + 1);
-        }
-      }
-    }
-
-    for (const [pid, count] of benchCount) {
+    for (const [pid, def] of defenseById) {
+      const bench = Math.max(0, gameInnings - def);
       const cur = out.get(pid) || {
         extraSits: 0,
         totalBench: 0,
@@ -448,9 +397,9 @@ export const buildSeasonBenchImbalance = (
         expectedDefense: 0,
         gamesAttended: 0,
       };
-      cur.extraSits += Math.max(0, count - minBenchPerPlayer);
-      cur.totalBench += count;
-      cur.totalDefense += innings - count;
+      cur.extraSits += Math.max(0, bench - minBenchPerPlayer);
+      cur.totalBench += bench;
+      cur.totalDefense += def;
       cur.expectedDefense += expectedDefensePerPlayer;
       cur.gamesAttended += 1;
       out.set(pid, cur);
@@ -461,11 +410,12 @@ export const buildSeasonBenchImbalance = (
 
 // ============================================================================
 // Season position variety — how many innings each player has logged at each
-// defensive position across finalized games. Many youth leagues expect (or
-// require) coaches to rotate kids through different spots; this surfaces who's
-// been stuck at one position and who's never seen the infield/outfield, so the
-// rotation can be evened out. Mirrors buildSeasonBenchImbalance's id-coalescing
-// so a deleted-and-re-added player's history isn't stranded under an orphan id.
+// defensive position. Sourced from imported GameChanger box scores (the fielding
+// per-position innings block), not the planned lineup, so it reflects what
+// actually happened. Many youth leagues expect (or require) coaches to rotate
+// kids through different spots; this surfaces who's been stuck at one position
+// and who's never seen the infield/outfield, so the rotation can be evened out.
+// Games without imported stats contribute nothing.
 // ============================================================================
 
 const INFIELD_POSITIONS = ["1B", "2B", "3B", "SS"];
@@ -482,63 +432,63 @@ export interface PositionVarietyEntry {
   batteryInnings: number;
 }
 
+// Maps each per-game fielding-innings field to its display position label.
+// GameChanger's "SF" column is right-center field, so fInnSF → RCF.
+const POSITION_INNINGS_FIELDS: Array<[keyof PlayerStats, string]> = [
+  ["fInnP", "P"],
+  ["fInnC", "C"],
+  ["fInn1B", "1B"],
+  ["fInn2B", "2B"],
+  ["fInn3B", "3B"],
+  ["fInnSS", "SS"],
+  ["fInnLF", "LF"],
+  ["fInnCF", "CF"],
+  ["fInnRF", "RF"],
+  ["fInnSF", "RCF"],
+];
+
 export const buildSeasonPositionVariety = (
   games: Game[] | null | undefined,
-  players?: Array<{ id?: string; name?: string }> | null,
+  // Roster is unused now that positions come from imported box-score lines
+  // (keyed by current player id); param kept for call-site stability.
+  _players?: Array<{ id?: string; name?: string }> | null,
 ): Map<PlayerId, PositionVarietyEntry> => {
   const out = new Map<PlayerId, PositionVarietyEntry>();
-  const roster = players || [];
-  const livePlayerIds = new Set(
-    roster.map((p) => p.id).filter((id): id is string => !!id),
-  );
-  const norm = (s: unknown) =>
-    String(s ?? "")
-      .trim()
-      .toLowerCase();
-  const resolveSlotId = (
-    slot: { id?: string; name?: string } | null | undefined,
-  ): string | undefined => {
-    if (!slot || !slot.id) return slot?.id;
-    if (livePlayerIds.has(slot.id)) return slot.id;
-    const slotName = norm(slot.name);
-    if (slotName) {
-      const match = roster.find((p) => p.id && norm(p.name) === slotName);
-      if (match?.id) return match.id;
-    }
-    return slot.id;
-  };
-
   const infield = new Set(INFIELD_POSITIONS);
   const outfield = new Set(OUTFIELD_POSITIONS);
   const battery = new Set(BATTERY_POSITIONS);
 
   for (const g of games || []) {
     if (!countsTowardStats(g)) continue;
-    if (!g.lineup?.length) continue;
-    for (const inning of g.lineup) {
-      for (const pos in inning) {
-        if (pos === "BENCH") continue;
-        const slot = inning[pos] as SlimPlayer | undefined;
-        if (!slot) continue;
-        const rid = resolveSlotId(slot);
-        if (!rid) continue;
-        let entry = out.get(rid);
+    // Actuals only: skip games whose stats haven't been imported.
+    const lines = g.playerStats;
+    if (!lines) continue;
+    for (const pid of Object.keys(lines)) {
+      const line = lines[pid] as PlayerStats | undefined;
+      if (!line) continue;
+      let entry: PositionVarietyEntry | undefined;
+      for (const [field, pos] of POSITION_INNINGS_FIELDS) {
+        const innings = Number(line[field]);
+        if (!Number.isFinite(innings) || innings <= 0) continue;
         if (!entry) {
-          entry = {
-            byPosition: {},
-            totalDefense: 0,
-            distinctPositions: 0,
-            infieldInnings: 0,
-            outfieldInnings: 0,
-            batteryInnings: 0,
-          };
-          out.set(rid, entry);
+          entry = out.get(pid);
+          if (!entry) {
+            entry = {
+              byPosition: {},
+              totalDefense: 0,
+              distinctPositions: 0,
+              infieldInnings: 0,
+              outfieldInnings: 0,
+              batteryInnings: 0,
+            };
+            out.set(pid, entry);
+          }
         }
-        entry.byPosition[pos] = (entry.byPosition[pos] || 0) + 1;
-        entry.totalDefense += 1;
-        if (infield.has(pos)) entry.infieldInnings += 1;
-        else if (outfield.has(pos)) entry.outfieldInnings += 1;
-        else if (battery.has(pos)) entry.batteryInnings += 1;
+        entry.byPosition[pos] = (entry.byPosition[pos] || 0) + innings;
+        entry.totalDefense += innings;
+        if (infield.has(pos)) entry.infieldInnings += innings;
+        else if (outfield.has(pos)) entry.outfieldInnings += innings;
+        else if (battery.has(pos)) entry.batteryInnings += innings;
       }
     }
   }
@@ -1024,6 +974,22 @@ const FIELDING_COLS: Record<string, keyof PlayerStats> = {
   pb: "fPb",
   sb: "fSbAllowed",
   sbatt: "fSbAtt",
+  // Per-position innings block at the end of the fielding section. Read ONLY
+  // within the fielding range (extractAdvancedStats bounds by the label row),
+  // so the duplicated "1b"/"2b"/"3b"/"sf"/"p" headers never collide with
+  // Batting (doubles/triples/sac-fly) or other sections. "c" = innings caught;
+  // "total" = total defensive innings; "sf" = short field (10-player rover).
+  c: "fInnC",
+  p: "fInnP",
+  "1b": "fInn1B",
+  "2b": "fInn2B",
+  "3b": "fInn3B",
+  ss: "fInnSS",
+  lf: "fInnLF",
+  cf: "fInnCF",
+  rf: "fInnRF",
+  sf: "fInnSF",
+  total: "fInnTotal",
 };
 // Stored as 0–1 fractions (parsePercent). FPCT is already a 0–1 decimal in the
 // CSV (e.g. ".952"), so it parses as a plain number.
@@ -1242,6 +1208,18 @@ const SUMMABLE_KEYS = [
   "fPb",
   "fSbAllowed",
   "fSbAtt",
+  // Defensive innings (per position + total) sum across game lines.
+  "fInnC",
+  "fInnP",
+  "fInn1B",
+  "fInn2B",
+  "fInn3B",
+  "fInnSS",
+  "fInnLF",
+  "fInnCF",
+  "fInnRF",
+  "fInnSF",
+  "fInnTotal",
 ];
 // Rate keys that can't be summed: weighted-average them across lines using the
 // given weight key (sample size). An approximation for OBP/OPS (PA vs AB), but

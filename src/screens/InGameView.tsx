@@ -4,7 +4,6 @@ import { formatGameDateDisplay, sameDayRoleSets } from "../utils/helpers";
 import {
   checkPitchEligibility,
   generateTournamentLineup,
-  maxPitchesForAge,
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import { shareLineupCard } from "../lineup/lineupCard";
@@ -831,29 +830,6 @@ export const InGameView = memo(() => {
                 canPitchDual(p.id),
             );
 
-            const pitchCounts = game.pitchCounts || {};
-            const pitchLimit = maxPitchesForAge(ageGroup, pitchRules);
-            const updatePitchCount = (playerId: any, val: any) => {
-              const next = { ...(game.pitchCounts || {}) };
-              const num = parseInt(val, 10);
-              if (Number.isFinite(num) && num >= 0) {
-                next[playerId] = num;
-                // Warn (don't block) when a count exceeds the age pitch limit —
-                // a safety guardrail the coach can still override for accuracy.
-                if (num > pitchLimit) {
-                  const p = team.players.find((pl: any) => pl.id === playerId);
-                  toast.push({
-                    kind: "warn",
-                    title: "Over pitch limit",
-                    message: `${p?.name || "Pitcher"} at ${num} exceeds the ${ageGroup} limit of ${pitchLimit}.`,
-                  });
-                }
-              } else if (val === "") {
-                delete next[playerId];
-              }
-              updateGame(game.id, { pitchCounts: next });
-            };
-
             return (
               <div className="bg-warn-bg border border-line rounded-xl p-3 mb-3">
                 <div className="text-[10px] font-extrabold uppercase tracking-widest text-warnfg mb-2 flex items-center gap-1.5">
@@ -877,23 +853,6 @@ export const InGameView = memo(() => {
                             </span>
                             <span className="text-ink-3 text-[9px] font-medium shrink-0">
                               (I{firstInning})
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <input
-                              type="number"
-                              min="0"
-                              max={pitchLimit}
-                              inputMode="numeric"
-                              value={pitchCounts[player.id] ?? ""}
-                              onChange={(e) =>
-                                updatePitchCount(player.id, e.target.value)
-                              }
-                              placeholder="0"
-                              className="w-14 p-1 text-xs font-black text-ink text-center bg-surface border border-line rounded outline-none focus:ring-1 focus:ring-[var(--team-primary)] tabular-nums"
-                            />
-                            <span className="text-[9px] font-bold uppercase tracking-widest text-warnfg">
-                              P
                             </span>
                           </div>
                         </div>
@@ -1125,66 +1084,8 @@ export const InGameView = memo(() => {
                 <Icons.X className="w-5 h-5" />
               </button>
             </div>
-            {/* Pitch counts at finalize — finalizeGame commits game.pitchCounts
-                to each pitcher's season record, so this is the last stop to
-                get them right. Kid-pitch only (machine pitch has no counts). */}
-            {!String(game.pitchingFormat || team.pitchingFormat || "")
-              .toLowerCase()
-              .includes("machine") &&
-              (() => {
-                const seen = new Set();
-                const used: any[] = [];
-                for (const innState of liveLineup) {
-                  const pitcher = innState?.P;
-                  if (pitcher && !seen.has(pitcher.id)) {
-                    seen.add(pitcher.id);
-                    used.push(pitcher);
-                  }
-                }
-                if (used.length === 0) return null;
-                const counts = game.pitchCounts || {};
-                return (
-                  <div className="px-5 sm:px-6 py-4 border-b border-line">
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
-                      Pitch counts — enter each kid's total before saving
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      {used.map((p: any) => (
-                        <div
-                          key={`final-pc-${p.id}`}
-                          className="flex items-center gap-2"
-                        >
-                          <span className="flex-1 text-sm font-bold text-ink truncate">
-                            {p.name}
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            inputMode="numeric"
-                            value={counts[p.id] ?? ""}
-                            onChange={(e) => {
-                              const next = { ...(game.pitchCounts || {}) };
-                              const num = parseInt(e.target.value, 10);
-                              if (Number.isFinite(num) && num >= 0) {
-                                next[p.id] = num;
-                              } else {
-                                delete next[p.id];
-                              }
-                              updateGame(game.id, { pitchCounts: next });
-                            }}
-                            placeholder="0"
-                            aria-label={`Pitch count for ${p.name}`}
-                            className="w-20 p-2 text-sm font-black text-ink text-center bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] tabular-nums"
-                          />
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
-                            pitches
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
+            {/* Pitch counts are no longer entered by hand — they're pulled from
+                the imported GameChanger box score after the game. */}
             <ScoreEditor
               game={game}
               primaryColor={primaryColor}

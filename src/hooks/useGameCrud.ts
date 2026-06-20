@@ -1,9 +1,5 @@
 import { useCallback } from "react";
-import {
-  normalizeDateToIso,
-  recordPitchingOuting,
-  recordCatchingOuting,
-} from "../utils/helpers";
+import { normalizeDateToIso } from "../utils/helpers";
 import { celebrateWin } from "../utils/celebrate";
 import type { ConfirmContextValue, ToastContextValue } from "../types";
 
@@ -89,80 +85,16 @@ export const useGameCrud = ({
     [teamData.games, updateTeam],
   );
 
-  // Helper: push the game's pitch counts to each pitcher's player record.
-  // Replaces (not accumulates) the pitcher's recentPitches/lastPitchDate, since
-  // the engine treats those as "most recent outing" for rest-day calculations.
-  // Returns the next players array (or the unchanged players array if there's
-  // nothing to commit). Caller is responsible for combining this with their
-  // own game updates and writing both via updateTeam.
-  const commitPitchCountsToPlayers = useCallback(
-    (game: any) => {
-      const pitchCounts = game?.pitchCounts || {};
-      const pitchedPlayerIds = Object.keys(pitchCounts).filter(
-        (pid) => Number.isFinite(pitchCounts[pid]) && pitchCounts[pid] > 0,
-      );
-      if (pitchedPlayerIds.length === 0 || !game.date) {
-        return teamData.players;
-      }
-      return teamData.players.map((p: any) => {
-        if (!pitchedPlayerIds.includes(p.id)) return p;
-        return {
-          ...p,
-          // Sets recentPitches/lastPitchDate (unchanged) and appends the outing
-          // to the pitcher's rolling history log, keyed by game id so same-date
-          // doubleheaders keep separate entries.
-          pitching: recordPitchingOuting(
-            p.pitching,
-            game.date,
-            pitchCounts[p.id],
-            game.id,
-          ),
-        };
-      });
-    },
-    [teamData.players],
-  );
+  // Pitching and catching arm-care logs are committed at stats-import time now
+  // (useImportExportFlows.uploadGameStatsCsv), sourced from the GameChanger box
+  // score rather than the planned lineup or hand-entered pitch counts. Finalize
+  // and postpone therefore no longer touch player pitching/catching records.
 
-  // Helper: log each player's catching innings for THIS game (from the played
-  // lineup) so the same-day catch<->pitch rule can see catching across games
-  // (doubleheaders). Keyed by game id; counts C appearances per inning. Returns
-  // the next players array (unchanged ref if no one caught).
-  const commitCatchingToPlayers = useCallback(
-    (lineup: any, date: any, gameId: any, basePlayers: any[]) => {
-      if (!date || !Array.isArray(lineup)) return basePlayers;
-      const counts: Record<string, number> = {};
-      for (const inn of lineup) {
-        const c = inn?.C;
-        if (c?.id) counts[c.id] = (counts[c.id] || 0) + 1;
-      }
-      const ids = Object.keys(counts);
-      if (ids.length === 0) return basePlayers;
-      return basePlayers.map((p: any) =>
-        ids.includes(p.id)
-          ? {
-              ...p,
-              catching: recordCatchingOuting(
-                p.catching,
-                date,
-                counts[p.id],
-                gameId,
-              ),
-            }
-          : p,
-      );
-    },
-    [],
-  );
-
-  // Postpone a game: set status to "postponed", clear scores, AND commit any
-  // pitch counts that were entered before the rain came. Pitchers still threw
-  // their warm-up tosses or innings before the call; their counts should
-  // count toward rest just like a finalized game.
+  // Postpone a game: set status to "postponed" and clear scores.
   const postponeGame = useCallback(
     (gameId: any) => {
       const game = teamData.games.find((g: any) => g.id === gameId);
       if (!game) return;
-      const nextPlayers = commitPitchCountsToPlayers(game);
       const nextGames = teamData.games.map((g: any) =>
         g.id === gameId
           ? {
@@ -173,14 +105,9 @@ export const useGameCrud = ({
             }
           : g,
       );
-      const playersChanged = nextPlayers !== teamData.players;
-      if (playersChanged) {
-        updateTeam({ players: nextPlayers, games: nextGames });
-      } else {
-        updateTeam({ games: nextGames });
-      }
+      updateTeam({ games: nextGames });
     },
-    [teamData.games, teamData.players, commitPitchCountsToPlayers, updateTeam],
+    [teamData.games, updateTeam],
   );
 
   // Finalize a game: set score, mark final, and trim/restore the lineup to
@@ -227,25 +154,10 @@ export const useGameCrud = ({
         }
       }
 
-      // Commit pitch counts AND catching innings (from the lineup that was
-      // actually played, after any trim) to the player records.
-      const effectiveLineup = gameUpdates.lineup || game.lineup;
-      let nextPlayers = commitPitchCountsToPlayers(game);
-      nextPlayers = commitCatchingToPlayers(
-        effectiveLineup,
-        game.date,
-        game.id,
-        nextPlayers,
-      );
-      const playersChanged = nextPlayers !== teamData.players;
-      if (playersChanged) {
-        const nextGames = teamData.games.map((g: any) =>
-          g.id === gameId ? { ...g, ...gameUpdates } : g,
-        );
-        updateTeam({ players: nextPlayers, games: nextGames });
-      } else {
-        updateGame(gameId, gameUpdates);
-      }
+      // Pitching/catching arm-care logs are no longer committed here — they're
+      // recorded from the imported box score (uploadGameStatsCsv). Finalize just
+      // persists the score and the trimmed/restored lineup.
+      updateGame(gameId, gameUpdates);
 
       // That's a W — confetti in team colors. Single choke point covers both
       // finalize paths (InGameView and the schedule's finalize dialog).
@@ -257,13 +169,9 @@ export const useGameCrud = ({
     },
     [
       teamData.games,
-      teamData.players,
       teamData.primaryColor,
       teamData.secondaryColor,
       updateGame,
-      updateTeam,
-      commitPitchCountsToPlayers,
-      commitCatchingToPlayers,
     ],
   );
 
