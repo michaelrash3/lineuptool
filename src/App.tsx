@@ -11,6 +11,7 @@ import React, {
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import {
   signInWithCustomToken,
+  type User,
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
@@ -432,10 +433,10 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const { confirm, promptText } = useConfirm();
 
   // Auth + team-list state
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [teams, setTeams] = useState<any[]>([]);
-  const [activeTeamId, setActiveTeamId] = useState<any>(null);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
   const [teamData, setTeamData] = useState<any>(DEFAULT_TEAM_DATA);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [loadingActive, setLoadingActive] = useState(false);
@@ -1454,7 +1455,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ----- Coach actions -----
   const addCoach = useCallback(
-    (form: any) => {
+    (form: { name: string; role: string }) => {
       if (!form.name.trim()) return;
       const newCoach = {
         id: "c-" + Math.random().toString(36).substring(2, 10),
@@ -1467,8 +1468,10 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const removeCoach = useCallback(
-    (id: any) => {
-      updateTeam({ coaches: teamData.coaches.filter((c: any) => c.id !== id) });
+    (id: string) => {
+      updateTeam({
+        coaches: teamData.coaches.filter((c: { id: string }) => c.id !== id),
+      });
     },
     [teamData.coaches, updateTeam],
   );
@@ -1971,7 +1974,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (!ok) return;
     try {
       await deleteDoc(
-        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId),
+        doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
       const remaining = teams.filter((t) => t.id !== activeTeamId);
       const userRef = doc(
@@ -2011,7 +2014,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         "public",
         "data",
         "teams",
-        activeTeamId,
+        activeTeamId!,
       );
       // Atomic self-removal: arrayRemove drops only this user without a
       // read-modify-write of the whole members array, so a concurrent join
@@ -2092,7 +2095,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       return null;
     }
   });
-  const setViewAsRole = useCallback((next: any) => {
+  const setViewAsRole = useCallback((next: string | null) => {
     setViewAsRoleState(next);
     try {
       if (next) window.sessionStorage.setItem("lineuptool.viewAsRole", next);
@@ -2128,7 +2131,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (explicit === "assistant") return "assistant";
     if (!teamData.ownerId) {
       const members = Array.isArray(teamData.members) ? teamData.members : [];
-      const others = members.filter((uid: any) => uid && uid !== user.uid);
+      const others = members.filter((uid: string) => uid && uid !== user?.uid);
       if (others.length === 0) return "head";
     }
     return "assistant";
@@ -2178,7 +2181,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (teamData.ownerId) return;
     if (migrationAttemptedRef.current.has(activeTeamId)) return;
     const members = Array.isArray(teamData.members) ? teamData.members : [];
-    const otherMembers = members.filter((uid: any) => uid && uid !== user.uid);
+    const otherMembers = members.filter(
+      (uid: string) => uid && uid !== user?.uid,
+    );
     const hasCoachRoles =
       teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0;
     if (otherMembers.length > 0 || hasCoachRoles) {
@@ -2232,7 +2237,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         ? `${window.location.origin}${window.location.pathname}#/evaluation`
         : "/evaluation";
     const subject = `[${teamName}] Eval round due`;
-    const buildBody = (recipientName: any) =>
+    const buildBody = (recipientName: string | null | undefined) =>
       [
         `Hi ${recipientName || "coach"},`,
         "",
@@ -2254,7 +2259,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // Fall back to skipping: we can't look up emails for legacy
       // members without a contact entry.
       const c = contacts.find(
-        (cc: any) =>
+        (cc: { uid?: string; email?: string; name?: string }) =>
           cc.uid === uid ||
           (cc.email &&
             (teamData.coachRoles || {})[uid] === "assistant" &&
@@ -2293,7 +2298,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             to: r.email,
             subject,
             body: buildBody(r.name),
-            fromEmail: user.email,
+            fromEmail: user.email ?? "",
             fromName,
           });
           sent++;
@@ -2717,7 +2722,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   // Schedule tab state
-  const [selectedGameId, setSelectedGameId] = useState<any>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [isAddingGame, setIsAddingGame] = useState(false);
   const [newGameForm, setNewGameForm] = useState({
     date: getLocalDateString(),
@@ -2726,8 +2731,8 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
     pitchingFormat: "Kid Pitch",
     isScrimmage: false,
   });
-  const [scoringGameId, setScoringGameId] = useState<any>(null); // game whose score is being entered inline
-  const [inGameId, setInGameId] = useState<any>(null); // game currently in In-Game mode
+  const [scoringGameId, setScoringGameId] = useState<string | null>(null); // game whose score is being entered inline
+  const [inGameId, setInGameId] = useState<string | null>(null); // game currently in In-Game mode
   const [inGameInning, setInGameInning] = useState(0); // current inning during in-game mode (0-indexed)
   const [inGameSelection, setInGameSelection] = useState<any>(null); // { type: "position"|"bench", pos?, playerId } — first tap of a swap pair
   const [inGameUndoStack, setInGameUndoStack] = useState<any[]>([]); // last swap undo data
@@ -2739,7 +2744,9 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [battingLineup, setBattingLineup] = useState<any>(null);
   // Penalty score emitted by the engine for the current in-editor lineup
   // (null when no generated lineup is in scope). Lower = better.
-  const [lineupQualityPenalty, setLineupQualityPenalty] = useState<any>(null);
+  const [lineupQualityPenalty, setLineupQualityPenalty] = useState<
+    number | null
+  >(null);
   // Tournament plan (starters / scripted subs / relief options) riding with
   // the current in-editor lineup. Null for Rec lineups.
   const [tournamentPlan, setTournamentPlan] = useState<any>(null);
@@ -2754,7 +2761,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Roster/profile state
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
-  const [viewingPlayerId, setViewingPlayerId] = useState<any>(null);
+  const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
 
   // Coach state
   const [isAddingCoach, setIsAddingCoach] = useState(false);
@@ -3007,7 +3014,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const openPlayerProfile = useCallback(
-    (id: any) => setViewingPlayerId(id),
+    (id: string) => setViewingPlayerId(id),
     [],
   );
 

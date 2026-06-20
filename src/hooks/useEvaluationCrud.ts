@@ -27,7 +27,7 @@ interface UseEvaluationCrudArgs {
   updateTeam: (patch: Record<string, unknown>) => void;
   toast: ToastContextValue;
   user:
-    | { uid: string; displayName?: string; email?: string }
+    | { uid: string; displayName?: string | null; email?: string | null }
     | null
     | undefined;
   uiBridge: { current: any };

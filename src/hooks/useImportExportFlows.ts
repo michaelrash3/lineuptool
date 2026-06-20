@@ -28,7 +28,7 @@ interface UseImportExportFlowsArgs {
     patch: Record<string, unknown>,
     opts?: { allowEmptyPlayers?: boolean },
   ) => void;
-  activeTeamId: string;
+  activeTeamId: string | null;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
