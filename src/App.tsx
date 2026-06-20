@@ -522,15 +522,15 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // lists teams (stale/raced snapshot), adopt them instead of creating a
       // parallel default team — and never overwrite that list.
       const existingSnap = await getDoc(settingsRef);
-      const existingData: any = existingSnap.exists()
-        ? existingSnap.data()
-        : null;
+      const existingData = existingSnap.exists() ? existingSnap.data() : null;
       const existingTeams = Array.isArray(existingData?.teams)
         ? existingData.teams
         : [];
       if (existingTeams.length > 0) {
         setTeams(existingTeams);
-        setActiveTeamId(existingData.activeTeamId || existingTeams[0].id);
+        setActiveTeamId(
+          (existingData as any)?.activeTeamId || existingTeams[0].id,
+        );
         return existingTeams[0].id;
       }
       const id = "team-" + Math.random().toString(36).substring(2, 10);
@@ -849,7 +849,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               const isCatcher = comfort.includes("C")
                 ? p.primaryPosition === "C"
                 : p.isCatcher === true;
-              const next = comfort.filter((pos: any) => pos !== "C");
+              const next = comfort.filter((pos: string) => pos !== "C");
               if (isCatcher) next.push("C");
               const { isCatcher: _dropped, ...rest } = p;
               return { ...rest, comfortablePositions: next };
@@ -909,7 +909,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
                   nextGrades[pid] = grade;
                   continue;
                 }
-                const g: any = grade;
+                const g = grade as Record<string, any>;
                 const out: Record<string, any> = {};
                 for (const k of carry) {
                   if (typeof g[k] === "number") out[k] = g[k];
@@ -1119,7 +1119,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       if (Array.isArray(toPersist.players)) {
         toPersist = {
           ...toPersist,
-          players: toPersist.players.map((p: any) => {
+          players: toPersist.players.map((p) => {
             if (!p || !("photoUrl" in p)) return p;
             const { photoUrl: _dropped, ...rest } = p;
             return rest;
@@ -1377,9 +1377,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (loadedTeamIdRef.current !== activeTeamId) return;
     const players = teamData.players;
     if (!Array.isArray(players) || players.length === 0) return;
-    if (!players.some((p: any) => p && p.photoUrl)) return;
+    if (!players.some((p) => p && p.photoUrl)) return;
     photoStripAttemptedRef.current.add(activeTeamId);
-    const stripped = players.map((p: any) => {
+    const stripped = players.map((p) => {
       if (!p || !("photoUrl" in p)) return p;
       const { photoUrl: _dropped, ...rest } = p;
       return rest;
@@ -1520,7 +1520,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ----- Team management -----
   const switchTeam = useCallback(
-    async (id: any) => {
+    async (id: string) => {
       setActiveTeamId(id);
       if (!user) return;
       try {
@@ -1542,7 +1542,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const createTeam = useCallback(
-    async (name: any, leagueRuleSet?: "NKB" | "USSSA") => {
+    async (name: string = "", leagueRuleSet?: "NKB" | "USSSA") => {
       if (!user || !name.trim()) return false;
       const id = "team-" + Math.random().toString(36).substring(2, 10);
       setSyncStatus("Creating");
@@ -1579,11 +1579,13 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // if this create was reached through a wrongly-shown WelcomeChooser
         // (teams state transiently empty), `[...teams, new]` would overwrite
         // the settings doc and orphan every existing team.
-        let serverTeams: any = null;
+        let serverTeams: { id: string; name: string }[] | null = null;
         try {
           const settingsSnap = await getDoc(userRef);
           serverTeams = settingsSnap.exists()
-            ? (settingsSnap.data() as any)?.teams
+            ? (((settingsSnap.data() as Record<string, unknown>)?.teams as
+                | { id: string; name: string }[]
+                | undefined) ?? null)
             : null;
         } catch {
           // Read failed — fall back to merging with local state only.
@@ -1615,7 +1617,13 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const advanceSeason = useCallback(
-    async (opts: any = {}) => {
+    async (
+      opts: {
+        skipConfirm?: boolean;
+        tryoutsToPromote?: string[];
+        tryoutDepositPayments?: Record<string, string>;
+      } = {},
+    ) => {
       const { skipConfirm = false, tryoutsToPromote = [] } = opts;
       const computed = computeNextSeason(teamData.currentSeason);
       if (!computed) {
@@ -1794,7 +1802,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               ...(Array.isArray(s.comfortablePositions)
                 ? s.comfortablePositions
                 : []
-              ).filter((p: any) => p !== "C"),
+              ).filter((p: string) => p !== "C"),
               ...(s.isCatcher === true ? ["C"] : []),
             ],
             parentName: s.parentName || "",
@@ -1830,7 +1838,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         : teamData.finances;
       const depositAmount = Math.max(
         0,
-        Number((newSeasonFinances as any)?.depositAmount) || 0,
+        Number(newSeasonFinances?.depositAmount) || 0,
       );
       const tryoutDepositPayments = (opts?.tryoutDepositPayments ||
         {}) as Record<string, string>;
@@ -1856,7 +1864,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           ? {
               ...(newSeasonFinances || {}),
               payments: [
-                ...(((newSeasonFinances as any)?.payments || []) as any[]),
+                ...(newSeasonFinances?.payments || []),
                 ...promotedDepositPayments,
               ],
             }
@@ -1902,7 +1910,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const uploadLogo = useCallback(
-    (e: any) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       // Instead of rejecting an oversized logo, auto-shrink it: downscale to a
@@ -2503,7 +2511,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         else r.ties++;
       };
       tally(combined);
-      if (isKidPitchFormat((g as any).pitchingFormat || teamFmt)) tally(kid);
+      if (isKidPitchFormat((g as Game)?.pitchingFormat || teamFmt)) tally(kid);
       else tally(machine);
     }
     return { ...combined, byFormat: { kidPitch: kid, machine } };
