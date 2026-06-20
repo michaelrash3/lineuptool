@@ -7,6 +7,8 @@ import {
   normalizeDateToIso,
   parseCsvRecords,
   parseGameChangerStatsCsv,
+  recordCatchingOuting,
+  recordPitchingOuting,
   stripPitchingStatsForFormat,
 } from "../utils/helpers";
 import { getLocalDateString } from "../constants/ui";
@@ -339,75 +341,12 @@ export const useImportExportFlows = ({
             }
           }
 
-          // ---- Pitch count sanity check (kid-pitch only) ----
-          // For each pitcher whose CSV totalPitches changed since the last
-          // import, compare the CSV delta against the sum of manual pitchCounts
-          // entered for games played since that previous import. Mismatches
-          // (>5 pitches off) raise a toast warning so the coach can investigate
-          // and fix manually if needed. We do NOT auto-override anything.
-          //
-          // Skip entirely for machine-pitch teams: the totalPitches field is
-          // still populated by GameChanger (scorers count pitches faced) but
-          // no kid actually pitched, so there's nothing to validate.
-          const teamFmt = (teamData.pitchingFormat || "").toLowerCase();
-          const isMachinePitchTeam = teamFmt.includes("machine");
-          const prevImportDate = teamData.lastCsvImportDate || "";
+          // Pitch counts now come from per-game stat imports (uploadGameStatsCsv
+          // logs each outing to the pitcher's arm-care log), so the old manual
+          // pitchCounts-vs-CSV sanity check has been retired along with manual
+          // pitch entry. The season importer still records totalPitches as a
+          // season aggregate stat; nothing to reconcile here.
           const todayIso = new Date().toISOString().slice(0, 10);
-          const sanityWarnings: Array<{
-            name: string;
-            csvDelta: number;
-            manualDelta: number;
-          }> = [];
-          if (!isMachinePitchTeam) {
-            for (let pi = 0; pi < next.length; pi++) {
-              const newPlayer = next[pi];
-              const newTp = newPlayer.stats?.totalPitches;
-              if (!Number.isFinite(newTp)) continue;
-              const prevTp = newPlayer.pitching?.csvTotalPitches ?? 0;
-              const csvDelta = newTp - prevTp;
-              if (csvDelta <= 0) {
-                // No new pitches this import; just update the stored TP and skip
-                next[pi] = {
-                  ...newPlayer,
-                  pitching: {
-                    ...(newPlayer.pitching || {
-                      recentPitches: 0,
-                      lastPitchDate: null,
-                    }),
-                    csvTotalPitches: newTp,
-                  },
-                };
-                continue;
-              }
-              // Sum manual pitchCounts across games on/after the previous import
-              let manualDelta = 0;
-              for (const g of teamData.games) {
-                if (!g.date) continue;
-                if (prevImportDate && g.date < prevImportDate) continue;
-                const cnt = g.pitchCounts?.[newPlayer.id];
-                if (Number.isFinite(cnt)) manualDelta += cnt;
-              }
-              const diff = Math.abs(csvDelta - manualDelta);
-              if (diff > 5) {
-                sanityWarnings.push({
-                  name: newPlayer.name,
-                  csvDelta,
-                  manualDelta,
-                });
-              }
-              // Update stored TP regardless of warning state
-              next[pi] = {
-                ...newPlayer,
-                pitching: {
-                  ...(newPlayer.pitching || {
-                    recentPitches: 0,
-                    lastPitchDate: null,
-                  }),
-                  csvTotalPitches: newTp,
-                },
-              };
-            }
-          }
 
           const patch: Record<string, any> = {
             players: next,
@@ -428,16 +367,6 @@ export const useImportExportFlows = ({
                 : ""
             }.)`;
           toast.push({ kind: "success", title: `${kind} imported`, message });
-          // Surface each pitch-count discrepancy as its own warning toast.
-          // duration: 0 = persistent (won't auto-dismiss). Coach taps the X to clear.
-          for (const w of sanityWarnings) {
-            toast.push({
-              kind: "warn",
-              duration: 0,
-              title: `Pitch count mismatch: ${w.name}`,
-              message: `CSV shows +${w.csvDelta} pitches since last import; you entered ${w.manualDelta}. Off by ${Math.abs(w.csvDelta - w.manualDelta)}.`,
-            });
-          }
         } catch (err: any) {
           toast.push({
             kind: "error",
@@ -539,10 +468,43 @@ export const useImportExportFlows = ({
                   },
                 ].slice(-20)
               : p.statsHistory || [];
+
+            // Log this game's pitching/catching outings from the imported
+            // line — the box score, not the planned lineup, now drives
+            // arm-care rest. Both logs dedupe by gameId, so re-importing the
+            // same game replaces (never double-counts) its outing. Pitching
+            // is already stripped for machine/coach games at import, so a
+            // non-kid game leaves totalPitches undefined and logs nothing.
+            const line = playerStats[p.id] || {};
+            let pitching = p.pitching;
+            let catching = p.catching;
+            if (game.date) {
+              const pitches = Number(line.totalPitches);
+              if (Number.isFinite(pitches) && pitches > 0) {
+                pitching = recordPitchingOuting(
+                  p.pitching,
+                  game.date,
+                  pitches,
+                  gameId,
+                );
+              }
+              const caught = Number(line.fInnC);
+              if (Number.isFinite(caught) && caught > 0) {
+                catching = recordCatchingOuting(
+                  p.catching,
+                  game.date,
+                  caught,
+                  gameId,
+                );
+              }
+            }
+
             return {
               ...p,
               stats: { ...priorStats, ...derived },
               statsHistory,
+              pitching,
+              catching,
             };
           });
           updateTeam({ games: nextGames, players: nextPlayers });

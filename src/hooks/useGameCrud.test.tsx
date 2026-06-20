@@ -82,7 +82,7 @@ describe("useGameCrud", () => {
     });
   });
 
-  it("finalizeGame commits entered pitch counts onto the pitcher record", () => {
+  it("finalizeGame no longer touches pitcher records (arm-care comes from imports)", () => {
     const { result, updateTeam } = setup({
       games: [
         { id: "g1", date: "2026-05-01", lineup: null, pitchCounts: { p1: 40 } },
@@ -96,15 +96,11 @@ describe("useGameCrud", () => {
       ],
     });
     act(() => result.current.finalizeGame("g1", 1, 0, 6));
+    // Finalize writes only the game (score/status); pitching is committed at
+    // stats-import time, so no players patch is produced here.
     const patch = updateTeam.mock.calls[0][0];
-    expect(patch.players[0].pitching).toMatchObject({
-      recentPitches: 40,
-      lastPitchDate: "2026-05-01",
-    });
-    // The outing is also recorded in the rolling history log, keyed by game id.
-    expect(patch.players[0].pitching.log).toEqual([
-      { date: "2026-05-01", pitches: 40, gameId: "g1" },
-    ]);
+    expect(patch.players).toBeUndefined();
+    expect(patch.games[0]).toMatchObject({ status: "final" });
   });
 
   it("postponeGame clears scores and marks postponed", () => {

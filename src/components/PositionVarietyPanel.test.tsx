@@ -4,16 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { PositionVarietyPanel } from "./PositionVarietyPanel";
 import { renderWithProviders } from "../test-utils";
 
-const inning = (assign: any) => ({ ...assign, BENCH: [] });
+// Per-position innings come from the imported GameChanger box score now.
+// Ava (p1): SS both innings. Mia (p2): LF then CF.
 const finalGame = {
   id: "g1",
   status: "final",
   teamScore: 5,
   opponentScore: 3,
-  lineup: [
-    inning({ SS: { id: "p1" }, LF: { id: "p2" } }),
-    inning({ SS: { id: "p1" }, CF: { id: "p2" } }),
-  ],
+  playerStats: {
+    p1: { fInnSS: 2, fInnTotal: 2 },
+    p2: { fInnLF: 1, fInnCF: 1, fInnTotal: 2 },
+  },
 };
 const players = [
   { id: "p1", name: "Ava Rivera", number: "7" },

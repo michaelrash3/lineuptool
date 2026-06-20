@@ -60,6 +60,23 @@ export interface PlayerStats {
   fPb?: number; // passed balls
   fSbAllowed?: number;
   fSbAtt?: number;
+  // Defensive innings played, per position, from the GameChanger fielding
+  // section's trailing innings block (C = innings caught; Total = total
+  // defensive innings). These are the actual-innings source for defensive
+  // innings, bench equity, and position variety — replacing the old
+  // lineup-inferred counts. GameChanger's "SF" column is right-center field
+  // (RCF) in coach parlance, so fInnSF maps to the RCF position label.
+  fInnC?: number;
+  fInnP?: number;
+  fInn1B?: number;
+  fInn2B?: number;
+  fInn3B?: number;
+  fInnSS?: number;
+  fInnLF?: number;
+  fInnCF?: number;
+  fInnRF?: number;
+  fInnSF?: number;
+  fInnTotal?: number;
   // Internal computed fields injected by the blending / power-grade helpers.
   // Never persisted; only live during an engine run.
   __slg?: number;

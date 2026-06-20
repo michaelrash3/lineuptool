@@ -162,6 +162,33 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     expect(g1.playerStats.p1.era).toBeUndefined();
   });
 
+  it("logs pitching (#P) and catching (fielding C) outings from the box score", async () => {
+    const { run, updateTeam } = setup();
+    // Two-row GameChanger header: #P in Pitching, C (innings caught) + Total in
+    // Fielding. Sammy pitched 42; Frank caught 6.
+    const gc =
+      "Batting,,,,,Pitching,,Fielding,,\n" +
+      "First,Last,AB,H,AVG,#P,IP,C,Total,FPCT\n" +
+      "Sammy,Sosa,3,2,.667,42,2,0,7,.950\n" +
+      "Frank,Thomas,2,1,.500,0,0,6,6,1.000\n";
+    run(gc);
+    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
+    const patch = updateTeam.mock.calls[0][0];
+    const p1 = patch.players.find((p: any) => p.id === "p1");
+    const p2 = patch.players.find((p: any) => p.id === "p2");
+    // Pitcher's arm-care log gets the outing, keyed by game id.
+    expect(p1.pitching.log).toEqual([
+      { date: "2026-05-01", pitches: 42, gameId: "g1" },
+    ]);
+    // Catcher's log gets the caught innings from the fielding "C" column.
+    expect(p2.catching.log).toEqual([
+      { date: "2026-05-01", innings: 6, gameId: "g1" },
+    ]);
+    // Per-game fielding innings are stored on the game line.
+    const g1 = patch.games.find((g: any) => g.id === "g1");
+    expect(g1.playerStats.p2).toMatchObject({ fInnC: 6, fInnTotal: 6 });
+  });
+
   it("errors clearly when no CSV row matches the roster", async () => {
     const { run, updateTeam, toast } = setup();
     run("First,Last,AB,H\nNo,Match,3,1\n");
