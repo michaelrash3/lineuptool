@@ -20,6 +20,14 @@ import { A11yDialog } from "../components/shared";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
 import type { OfferLetterKind } from "../constants/offerLetters";
+import type { EvalCategory } from "../constants/ui";
+import type {
+  Player,
+  Team,
+  TryoutSignup,
+  TryoutSession,
+  EvaluationEvent,
+} from "../types";
 
 const STATUS_PILLS = {
   tryout: { label: "Tryout", className: "bg-surface-2 border-line text-ink" },
@@ -34,8 +42,10 @@ const STATUS_PILLS = {
   },
 };
 
-const StatusPill = memo(({ status }: any) => {
-  const cfg = (STATUS_PILLS as any)[status || "tryout"] || STATUS_PILLS.tryout;
+const StatusPill = memo(({ status }: { status?: string }) => {
+  const cfg =
+    STATUS_PILLS[(status || "tryout") as keyof typeof STATUS_PILLS] ||
+    STATUS_PILLS.tryout;
   return (
     <span
       className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${cfg.className}`}
@@ -49,7 +59,7 @@ const StatusPill = memo(({ status }: any) => {
 // pull the LARGEST eligible age from it. If the signup's baseball age
 // exceeds that ceiling, flag them. Heads still see + can grade the kid
 // — this is a visual nudge, not a block.
-const teamAgeCeiling = (teamAgeStr: any) => {
+const teamAgeCeiling = (teamAgeStr: string | undefined | null) => {
   if (!teamAgeStr) return null;
   const nums = String(teamAgeStr)
     .match(/\d+/g)
@@ -59,13 +69,36 @@ const teamAgeCeiling = (teamAgeStr: any) => {
   return Math.max(...nums);
 };
 
-const tryoutIsTooOld = (signup: any, team: any) => {
+const tryoutIsTooOld = (signup: TryoutSignupInput, team: Team) => {
   const ceiling = teamAgeCeiling(team?.teamAge);
   if (ceiling == null) return false;
   const age = calculateBaseballAge(signup?.dob, team?.currentSeason);
   if (age == null) return false;
   return age > ceiling;
 };
+
+// Tryout grade maps carry the universal numeric categories (1–5, or null while
+// a coach is clearing a chip) plus two tryout-specific extras set in the eval
+// form: a suggested-position list and free-form notes. Numeric category values
+// are keyed dynamically by EvalCategory id, so the index signature carries them.
+type TryoutGrade = {
+  [categoryId: string]: number | null | string[] | string | undefined;
+  notes?: string;
+  suggestedPositions?: string[];
+};
+
+// computeRosterProjection is called both from the live tab (fully-formed team
+// data) and from unit tests that hand-roll minimal fixtures. These input
+// aliases describe the loose runtime contract the function actually reads — it
+// only forwards sessions to the `any[]`-typed grade helpers and reads optional
+// fields off events/signups — so both callers type-check without `any`.
+// Normalized sessions come from normalizeTryoutSessions (declared `any[]`).
+type TryoutSessionInput = { id?: string; [key: string]: unknown };
+type EvaluationEventInput = {
+  grades?: Record<string, TryoutGrade>;
+  [key: string]: unknown;
+};
+type TryoutSignupInput = Partial<TryoutSignup> & { id: string };
 
 type RosterProjectionCandidateKind = "unknown" | "tryout";
 type RosterProjectionBucket = "recommended" | "next" | "below";
@@ -74,8 +107,8 @@ export type RosterProjectionCandidate = {
   kind: RosterProjectionCandidateKind;
   id: string;
   name: string;
-  player?: any;
-  signup?: any;
+  player?: Player;
+  signup?: TryoutSignupInput;
   score: number | null;
   baseScore: number | null;
   fitBonus: number;
@@ -95,10 +128,13 @@ type RosterProjection = {
   nextBest: RosterProjectionCandidate[];
   belowLine: RosterProjectionCandidate[];
   needsEvaluation: RosterProjectionCandidate[];
-  tooOld: any[];
+  tooOld: TryoutSignupInput[];
 };
 
-const numericGradeScore = (grade: any, categories: any[]) => {
+const numericGradeScore = (
+  grade: TryoutGrade | null | undefined,
+  categories: EvalCategory[],
+) => {
   if (!grade) return null;
   let score = 0;
   let used = 0;
@@ -112,13 +148,19 @@ const numericGradeScore = (grade: any, categories: any[]) => {
   return used > 0 ? score : null;
 };
 
-const hasRosterEvaluation = (playerId: string, evaluationEvents: any[]) =>
-  (evaluationEvents || []).some((e: any) => {
+const hasRosterEvaluation = (
+  playerId: string,
+  evaluationEvents: EvaluationEventInput[],
+) =>
+  (evaluationEvents || []).some((e) => {
     if (e?.tryoutSignupId || e?.tryoutSessionId) return false;
     return !!e?.grades?.[playerId];
   });
 
-const positionsForTryout = (grade: any, signup: any): string[] => {
+const positionsForTryout = (
+  grade: TryoutGrade | null | undefined,
+  signup: TryoutSignupInput | null | undefined,
+): string[] => {
   if (
     Array.isArray(grade?.suggestedPositions) &&
     grade.suggestedPositions.length
@@ -130,7 +172,7 @@ const positionsForTryout = (grade: any, signup: any): string[] => {
     : [];
 };
 
-const uniquePositions = (positions: any[]) => [
+const uniquePositions = (positions: string[]) => [
   ...new Set(
     (positions || []).map((p) => String(p || "").trim()).filter(Boolean),
   ),
@@ -141,14 +183,17 @@ const LEFTY_LIMITED_INFIELD_POSITIONS = new Set(["2B", "3B", "SS"]);
 const fitBonusForPositions = (
   positions: string[],
   lockedPositions: Map<string, number>,
-  playerLike?: any,
+  playerLike?: Player | TryoutSignupInput,
 ) => {
+  // Player.throws resolves to `unknown` via the Team index signature; it is a
+  // hand string ("L"/"R") at runtime, so narrow it for the throws-aware helpers.
+  const throws = playerLike?.throws as string | undefined;
   let fitBonus = leftHandedPitcherRosterPremium({
     comfortablePositions: positions,
-    throws: playerLike?.throws,
+    throws,
   });
   const fitReasons: string[] = [];
-  const leftyThrower = isLeftHandedThrower(playerLike);
+  const leftyThrower = isLeftHandedThrower({ throws });
   for (const pos of uniquePositions(positions)) {
     if (leftyThrower && LEFTY_LIMITED_INFIELD_POSITIONS.has(pos)) continue;
     const count = lockedPositions.get(pos) || 0;
@@ -171,39 +216,37 @@ const fitBonusForPositions = (
 // graded tryouts compete together for the remaining slots on weighted eval
 // score plus an explainable positional-fit bonus.
 export const computeRosterProjection = (
-  team: any,
-  tryoutSessions: any,
-  tryoutSignups: any,
-  evaluationEvents: any[] = [],
+  team: Team,
+  tryoutSessions: TryoutSessionInput[],
+  tryoutSignups: TryoutSignupInput[] | undefined,
+  evaluationEvents: EvaluationEventInput[] = [],
 ): RosterProjection => {
   const rosterCap = Number(team?.rosterCap) || 12;
   const currentRoster = (team?.players || []).filter(
-    (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
+    (p) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
   );
   const returningYes = currentRoster.filter(
-    (p: any) => getReturningDecision(p) === "yes",
+    (p) => getReturningDecision(p) === "yes",
   );
   const returningNo = currentRoster.filter(
-    (p: any) => getReturningDecision(p) === "no",
+    (p) => getReturningDecision(p) === "no",
   );
   const returningUnknown = currentRoster.filter(
-    (p: any) => getReturningDecision(p) === "unknown",
+    (p) => getReturningDecision(p) === "unknown",
   );
   const acceptedSignups = (tryoutSignups || []).filter(
-    (s: any) => s.status === "accepted",
+    (s) => s.status === "accepted",
   );
   const lockedCount = returningYes.length + acceptedSignups.length;
   const slotsRemaining = Math.max(0, rosterCap - lockedCount);
 
   const lockedPositions = new Map<string, number>();
-  const addLockedPositions = (positions: any[]) => {
+  const addLockedPositions = (positions: string[]) => {
     for (const pos of uniquePositions(positions))
       lockedPositions.set(pos, (lockedPositions.get(pos) || 0) + 1);
   };
-  returningYes.forEach((p: any) =>
-    addLockedPositions(p.comfortablePositions || []),
-  );
-  acceptedSignups.forEach((s: any) => {
+  returningYes.forEach((p) => addLockedPositions(p.comfortablePositions || []));
+  acceptedSignups.forEach((s) => {
     const grade = combinedTryoutGradeForSignup(
       tryoutSessions,
       s.id,
@@ -213,7 +256,9 @@ export const computeRosterProjection = (
   });
 
   const rosterGrades = getCombinedGrades(
-    evaluationEvents || [],
+    // The input alias only relaxes optional metadata fields; the engine reads
+    // grades/date, present on the real (normalized) rounds at runtime.
+    (evaluationEvents || []) as EvaluationEvent[],
     returningUnknown,
     {
       teamAge: team?.teamAge,
@@ -248,7 +293,7 @@ export const computeRosterProjection = (
     else graded.push(candidate);
   }
 
-  const tooOld = [];
+  const tooOld: TryoutSignupInput[] = [];
   for (const signup of tryoutSignups || []) {
     if (signup.status === "declined" || signup.status === "accepted") continue;
     if (tryoutIsTooOld(signup, team)) {
@@ -321,14 +366,14 @@ export const computeRosterProjection = (
 // current team.players excluding any with status === "released" /
 // "declined" / "accepted" (accepted are the tryouts themselves).
 const computeImpact = (
-  signup: any,
-  team: any,
-  evaluationEvents: any,
-  tryoutSessions: any,
+  signup: TryoutSignup,
+  team: Team,
+  evaluationEvents: EvaluationEvent[],
+  tryoutSessions: TryoutSession[],
 ) => {
   const rosterCap = Number(team.rosterCap) || 12;
   const returners = (team.players || []).filter(
-    (p: any) =>
+    (p) =>
       p.playerStatus !== "accepted" &&
       p.playerStatus !== "tryout" &&
       getReturningDecision(p) === "yes",
@@ -339,17 +384,17 @@ const computeImpact = (
     teamAge: team.teamAge,
     games: team.games || [],
   });
-  const scoreOf = (p: any) => {
+  const scoreOf = (p: Player) => {
     const g = grades[p.id];
     if (!g) return 0;
     return Object.values(g).reduce(
-      (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
+      (sum: number, v) => sum + (typeof v === "number" ? v : 0),
       0,
     );
   };
   const ranked = returners
-    .map((p: any) => ({ p, score: scoreOf(p) }))
-    .sort((a: any, b: any) => b.score - a.score);
+    .map((p) => ({ p, score: scoreOf(p) }))
+    .sort((a, b) => b.score - a.score);
   const nth = ranked[rosterCap - 1];
   const cutoff = nth?.score ?? 0;
   const wouldBumpName = nth?.p?.name || null;
@@ -357,30 +402,30 @@ const computeImpact = (
   // Tryout kid's eval score — only computed once a coach has graded them
   // in the date-grouped Tryouts session. Until grades exist we surface
   // "not graded yet".
-  const tryoutGrade = combinedTryoutGradeForSignup(
+  const tryoutGrade: TryoutGrade | null = combinedTryoutGradeForSignup(
     tryoutSessions,
     signup.id,
     signup.tryoutDate,
   );
   const tryoutScore = tryoutGrade
     ? Object.values(tryoutGrade).reduce(
-        (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
+        (sum: number, v) => sum + (typeof v === "number" ? v : 0),
         0,
       )
     : null;
 
   // Positional fit. Count how thin the roster is at each position the
   // signup is comfortable with. < 3 returners = "fills X" callout.
-  const positionalFit = [];
+  const positionalFit: Array<{ pos: string; returnerCount: number }> = [];
   const positions = positionsForTryout(tryoutGrade, signup);
   for (const pos of positions) {
-    const count = returners.filter((p: any) =>
+    const count = returners.filter((p) =>
       (p.comfortablePositions || []).includes(pos),
     ).length;
     if (count < 3) positionalFit.push({ pos, returnerCount: count });
   }
   if (signup.isCatcher) {
-    const catcherCount = returners.filter((p: any) =>
+    const catcherCount = returners.filter((p) =>
       (p.comfortablePositions || []).includes("C"),
     ).length;
     if (catcherCount < 2)
@@ -399,7 +444,11 @@ const computeImpact = (
   return { verdict, tryoutScore, cutoff, positionalFit, rosterCap };
 };
 
-const rosterEvalScore = (player: any, evaluationEvents: any[], team: any) => {
+const rosterEvalScore = (
+  player: Player,
+  evaluationEvents: EvaluationEvent[],
+  team: Team,
+) => {
   const grades = getCombinedGrades(evaluationEvents || [], [player], {
     teamAge: team?.teamAge,
     games: team?.games || [],
@@ -407,15 +456,25 @@ const rosterEvalScore = (player: any, evaluationEvents: any[], team: any) => {
   const g = grades[player.id];
   if (!g) return null;
   return Object.values(g).reduce(
-    (sum: number, v: any) => sum + (typeof v === "number" ? v : 0),
+    (sum: number, v) => sum + (typeof v === "number" ? v : 0),
     0,
   );
 };
 
+interface ReturningIntentPanelProps {
+  team: Team;
+  evaluationEvents: EvaluationEvent[];
+  setPlayerReturning?: (playerId: string, returning: boolean | null) => void;
+}
+
 const ReturningIntentPanel = memo(
-  ({ team, evaluationEvents, setPlayerReturning }: any) => {
+  ({
+    team,
+    evaluationEvents,
+    setPlayerReturning,
+  }: ReturningIntentPanelProps) => {
     const players = (team?.players || []).filter(
-      (p: any) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
+      (p) => p.playerStatus !== "accepted" && p.playerStatus !== "tryout",
     );
     if (players.length === 0) return null;
     return (
@@ -430,7 +489,7 @@ const ReturningIntentPanel = memo(
           </p>
         </div>
         <div className="space-y-2">
-          {players.map((p: any) => {
+          {players.map((p) => {
             const decision = getReturningDecision(p);
             const score = rosterEvalScore(p, evaluationEvents || [], team);
             return (
@@ -494,7 +553,7 @@ const ReturningIntentPanel = memo(
 // after the RosterDecisionsPanel on the Evaluation tab. Reads the
 // roster object built by computeRosterBuckets above; render-only,
 // no internal state.
-const TeamImpactPanel = memo(({ roster }: any) => {
+const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
   const buckets = [
     {
       key: "make",
@@ -584,7 +643,7 @@ const TeamImpactPanel = memo(({ roster }: any) => {
                 <div className="text-[10px] italic opacity-70">—</div>
               ) : (
                 <ul className="space-y-0.5">
-                  {b.items.map((candidate: any) => (
+                  {b.items.map((candidate) => (
                     <li
                       key={candidate.id}
                       className="flex items-start justify-between gap-2 text-[11px]"
@@ -603,7 +662,9 @@ const TeamImpactPanel = memo(({ roster }: any) => {
                         </span>
                       </span>
                       <span className="font-black tabular-nums opacity-80 shrink-0">
-                        {candidate.score.toFixed(0)}
+                        {/* recommended/nextBest/belowLine only hold graded
+                            candidates, whose score is always non-null */}
+                        {candidate.score!.toFixed(0)}
                       </span>
                     </li>
                   ))}
@@ -673,27 +734,31 @@ export const TryoutsTab = memo(() => {
   } = team;
 
   const tryoutSessions = useMemo(() => normalizeTryoutSessions(team), [team]);
-  const [openSignupIds, setOpenSignupIds] = useState(() => new Set());
+  const [openSignupIds, setOpenSignupIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [statusFilter, setStatusFilter] = useState("all");
   const [search, setSearch] = useState("");
   // Two-tap confirm on signup delete — the trash icon previously fired
   // deleteTryoutSignup on first click with no guard, which was a real
   // footgun next to so many other small action buttons in the row.
-  const [pendingDeleteSignupId, setPendingDeleteSignupId] = useState(null);
+  const [pendingDeleteSignupId, setPendingDeleteSignupId] = useState<
+    string | null
+  >(null);
   // End-tryout modal: bulk-delete every signup marked present === false.
   // The HC's day-of cleanup pattern — assign numbers to who showed,
   // mark the rest absent, then tap End Tryout to wipe no-shows.
   const [endTryoutOpen, setEndTryoutOpen] = useState(false);
 
   const filtered = useMemo(() => {
-    let list = tryoutSignups || [];
+    let list: TryoutSignup[] = tryoutSignups || [];
     if (statusFilter !== "all") {
-      list = list.filter((s: any) => (s.status || "tryout") === statusFilter);
+      list = list.filter((s) => (s.status || "tryout") === statusFilter);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
-        (s: any) =>
+        (s) =>
           `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
           (s.email || "").toLowerCase().includes(q) ||
           (s.parentName || "").toLowerCase().includes(q),
@@ -702,7 +767,7 @@ export const TryoutsTab = memo(() => {
     return list
       .slice()
       .sort(
-        (a: any, b: any) =>
+        (a, b) =>
           new Date(b.submittedAt || 0).getTime() -
           new Date(a.submittedAt || 0).getTime(),
       );
@@ -727,25 +792,28 @@ export const TryoutsTab = memo(() => {
   // Map signup.id → "make" | "bubble" | "cut" | "ungraded" | "tooOld"
   // for the per-row badge.
   const bucketBySignupId = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, keyof typeof BUCKET_BADGES>();
     if (!roster) return map;
-    roster.recommended.forEach((c: any) => {
+    roster.recommended.forEach((c) => {
       if (c.kind === "tryout") map.set(c.id, "make");
     });
-    roster.nextBest.forEach((c: any) => {
+    roster.nextBest.forEach((c) => {
       if (c.kind === "tryout") map.set(c.id, "bubble");
     });
-    roster.belowLine.forEach((c: any) => {
+    roster.belowLine.forEach((c) => {
       if (c.kind === "tryout") map.set(c.id, "cut");
     });
-    roster.needsEvaluation.forEach((c: any) => {
+    roster.needsEvaluation.forEach((c) => {
       if (c.kind === "tryout") map.set(c.id, "ungraded");
     });
-    roster.tooOld.forEach((s: any) => map.set(s.id, "tooOld"));
+    roster.tooOld.forEach((s) => map.set(s.id, "tooOld"));
     return map;
   }, [roster]);
   const noShowCount = useMemo(
-    () => (tryoutSignups || []).filter((s: any) => s.present === false).length,
+    () =>
+      ((tryoutSignups || []) as TryoutSignup[]).filter(
+        (s) => s.present === false,
+      ).length,
     [tryoutSignups],
   );
 
@@ -753,7 +821,10 @@ export const TryoutsTab = memo(() => {
     () => getActivePositionList(defenseSize),
     [defenseSize],
   );
-  const evalPlayerForSignup = (signup: any, grade: any = {}) => ({
+  const evalPlayerForSignup = (
+    signup: TryoutSignup,
+    grade: TryoutGrade = {},
+  ) => ({
     comfortablePositions:
       Array.isArray(grade?.suggestedPositions) &&
       grade.suggestedPositions.length
@@ -764,7 +835,10 @@ export const TryoutsTab = memo(() => {
             ? ["C"]
             : [],
   });
-  const activeCategoriesForSignup = (signup: any, grade: any = {}) =>
+  const activeCategoriesForSignup = (
+    signup: TryoutSignup,
+    grade: TryoutGrade = {},
+  ) =>
     getEvalCategoriesForPlayer(
       pitchingFormat,
       evalPlayerForSignup(signup, grade),
@@ -778,7 +852,7 @@ export const TryoutsTab = memo(() => {
   );
 
   const [localGradesBySignup, setLocalGradesBySignup] = useState<
-    Record<string, any>
+    Record<string, TryoutGrade>
   >({});
   React.useEffect(() => {
     if (!user) {
@@ -787,16 +861,16 @@ export const TryoutsTab = memo(() => {
     }
     setLocalGradesBySignup((prev) => {
       const next = { ...prev };
-      for (const signup of tryoutSignups || []) {
+      for (const signup of (tryoutSignups || []) as TryoutSignup[]) {
         if (next[signup.id]) continue;
-        const seed: Record<string, any> =
+        const seed: TryoutGrade =
           evaluatorTryoutGradeForSignup(
             tryoutSessions,
             signup.id,
             user.uid,
             signup.tryoutDate,
           ) ?? {};
-        const seeded: Record<string, any> = {};
+        const seeded: TryoutGrade = {};
         for (const c of seedCategories)
           seeded[c.id] =
             c.inputKind === "mph"
@@ -813,18 +887,18 @@ export const TryoutsTab = memo(() => {
 
   const updateLocalSignupGrades = (
     signupId: string,
-    updater: (prev: any) => any,
+    updater: (prev: TryoutGrade) => TryoutGrade,
   ) =>
     setLocalGradesBySignup((prev) => ({
       ...prev,
       [signupId]: updater(prev[signupId] || {}),
     }));
 
-  const setLocalGrade = (pid: any, catId: any, value: any) =>
+  const setLocalGrade = (pid: string, catId: string, value: number | null) =>
     updateLocalSignupGrades(pid, (prev) => ({ ...prev, [catId]: value }));
-  const setLocalNotes = (pid: any, notes: any) =>
+  const setLocalNotes = (pid: string, notes: string) =>
     updateLocalSignupGrades(pid, (prev) => ({ ...prev, notes }));
-  const toggleLocalPos = (pid: any, pos: any) =>
+  const toggleLocalPos = (pid: string, pos: string) =>
     updateLocalSignupGrades(pid, (prev) => {
       const list = Array.isArray(prev.suggestedPositions)
         ? prev.suggestedPositions
@@ -832,12 +906,12 @@ export const TryoutsTab = memo(() => {
       return {
         ...prev,
         suggestedPositions: list.includes(pos)
-          ? list.filter((p: any) => p !== pos)
+          ? list.filter((p) => p !== pos)
           : [...list, pos],
       };
     });
 
-  const saveTryoutEval = (signup: any) => {
+  const saveTryoutEval = (signup: TryoutSignup) => {
     if (!signup) return;
     saveTryoutEvaluation?.(
       signup.id,
@@ -850,7 +924,7 @@ export const TryoutsTab = memo(() => {
 
   const saveVisibleTryoutEvals = () => {
     saveTryoutEvaluations?.(
-      filtered.map((signup: any) => ({
+      filtered.map((signup) => ({
         signupId: signup.id,
         date: signup.tryoutDate,
         grades: localGradesBySignup[signup.id] || {},
@@ -867,13 +941,13 @@ export const TryoutsTab = memo(() => {
   // "Make an Offer" / "Decline" just open a pre-filled draft the coach hands to
   // the family. We only flip the signup status once they actually deliver it.
   const [offerDraft, setOfferDraft] = useState<{
-    signup: any;
+    signup: TryoutSignup;
     kind: OfferLetterKind;
   } | null>(null);
   // Accept-time routing choice: accepts default to NEXT season (held in
   // Tryouts, promoted on Advance Season); the coach can opt a kid onto the
   // CURRENT roster instead.
-  const [acceptChoice, setAcceptChoice] = useState<any | null>(null);
+  const [acceptChoice, setAcceptChoice] = useState<TryoutSignup | null>(null);
 
   return (
     <div className="max-w-6xl mx-auto lg:max-w-none space-y-4">
@@ -968,15 +1042,13 @@ export const TryoutsTab = memo(() => {
             </div>
           ) : (
             <div className="space-y-2">
-              {filtered.map((s: any) => {
+              {filtered.map((s) => {
                 const impact = isHead
                   ? computeImpact(s, team, evaluationEvents, tryoutSessions)
                   : null;
                 const expanded = openSignupIds.has(s.id);
                 const bucket = bucketBySignupId.get(s.id);
-                const bucketCfg = bucket
-                  ? (BUCKET_BADGES as any)[bucket]
-                  : null;
+                const bucketCfg = bucket ? BUCKET_BADGES[bucket] : null;
                 const presence = s.present; // true | false | undefined
                 return (
                   <div
@@ -1310,9 +1382,9 @@ export const TryoutsTab = memo(() => {
                 <button
                   type="button"
                   onClick={() => {
-                    const noShowIds = (tryoutSignups || [])
-                      .filter((s: any) => s.present === false)
-                      .map((s: any) => s.id);
+                    const noShowIds = ((tryoutSignups || []) as TryoutSignup[])
+                      .filter((s) => s.present === false)
+                      .map((s) => s.id);
                     // Single bulk write — looping deleteTryoutSignup would only
                     // remove the last one (optimistic merge keeps last write).
                     const removed = deleteTryoutSignups?.(noShowIds) ?? 0;
