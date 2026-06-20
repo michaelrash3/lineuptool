@@ -7,7 +7,7 @@ End-to-end sequence walk-throughs for the major flows. Use this alongside `ARCHI
 ## First sign-in (the common case)
 
 ```
-User                    LoginScreen           App.jsx              Firestore
+User                    LoginScreen           App.tsx              Firestore
 ────                    ───────────           ───────              ─────────
 click Sign In ─────────→ Google popup
                          ├─ success ─→ onAuthStateChanged ──→ setUser(u)
@@ -65,12 +65,12 @@ The legacy `?invite=` token flow was retired (PR #117); only the durable 6-char 
 
 ```
 ?join=ABC234 in URL
-  └─ App.jsx puts ABC234 into sessionStorage("pendingJoin")
+  └─ App.tsx puts ABC234 into sessionStorage("pendingJoin")
      and bypasses the WelcomeChooser (needsWelcomeChooser=false)
   ↓
 sign in
   ↓
-auth ready effect at App.jsx ~2576:
+auth ready effect at App.tsx ~2576:
   ├─ joinTeamByCode(pendingJoin)
   ├─ if join fails (unknown code, denied lookup): bootstrapDefaultTeam()
   │    so the user lands somewhere useful instead of staring at an empty shell
@@ -81,7 +81,7 @@ auth ready effect at App.jsx ~2576:
 
 ## Public Tryouts Portal (anonymous parents)
 
-The Tryouts Portal is mounted on `/tryouts-portal/:slug` and renders **outside** `TeamProvider` (see `App.jsx` near the `App` component). It uses anonymous Firebase auth to satisfy the rule that the caller be signed in. The team rules permit a single field append:
+The Tryouts Portal is mounted on `/tryouts-portal/:slug` and renders **outside** `TeamProvider` (see `App.tsx` near the `App` component). It uses anonymous Firebase auth to satisfy the rule that the caller be signed in. The team rules permit a single field append:
 
 ```
 parent opens /tryouts-portal/<slug>
@@ -107,14 +107,14 @@ EvaluationTab → New Round
   ├─ pick category set (hitting / fielding / pitching)
   ├─ for each player, set 1–5 grade per dimension + optional notes
   └─ Save Round
-       ├─ saveTeamEvaluation in App.jsx
+       ├─ saveTeamEvaluation in App.tsx
        │    ├─ push event to teamData.evaluationEvents
        │    └─ persistTeam({ evaluationEvents: [...], evalSchemaVersion: 4 })
        └─ EvaluationTab leaderboards + sparklines recompute from the
           updated events list
 ```
 
-Assistant coaches use `AssistantEvalTab.jsx` instead — same shape, but the head reviews and finalizes before the event is committed to the canonical events array.
+Assistant coaches use `AssistantEvalTab.tsx` instead — same shape, but the head reviews and finalizes before the event is committed to the canonical events array.
 
 ---
 
@@ -142,6 +142,6 @@ A coach belonging to multiple teams uses the team dropdown in `AppHeader`. `swit
 
 1. Updates `users/{uid}/settings/teams.activeTeamId`
 2. Triggers the active-team subscription to unsubscribe + re-subscribe on the new id
-3. CSS variables `--team-primary` / `--team-secondary` / `--team-tertiary` snap to the new team's stored colors via the effect at `App.jsx:~3327`
+3. CSS variables `--team-primary` / `--team-secondary` / `--team-tertiary` snap to the new team's stored colors via the effect at `App.tsx:~3327`
 
 Every surface that consumes those variables (header accent strip, primary buttons, badges, modals, ChatBubbles) updates without rerender plumbing.
