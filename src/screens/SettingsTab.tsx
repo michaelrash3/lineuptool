@@ -255,9 +255,9 @@ const TryoutsSettingsPanel = memo(
                     </button>
                   </div>
                   <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    Send to parents to collect uniform/equipment sizing,
-                    school, and an emergency contact. Submissions land in the
-                    Player Info tab.
+                    Send to parents to collect uniform/equipment sizing, school,
+                    and an emergency contact. Submissions land in the Player
+                    Info tab.
                   </p>
                 </div>
               </div>
