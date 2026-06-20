@@ -2,6 +2,7 @@ import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import { StatsTab } from "./StatsTab";
 import { renderWithProviders } from "../test-utils";
+import type { Team } from "../types";
 
 const team = {
   players: [
@@ -38,7 +39,7 @@ const team = {
   evaluationEvents: [],
   primaryColor: "#1d4ed8",
   tertiaryColor: "#ffffff",
-};
+} as unknown as Team;
 
 describe("StatsTab", () => {
   it("shows an empty state when there are no players (no header card)", () => {
@@ -110,7 +111,7 @@ describe("StatsTab", () => {
       ],
     };
     const { container } = renderWithProviders(<StatsTab />, {
-      team: { team: withEvals },
+      team: { team: withEvals as unknown as Team },
     });
     // The sparkline is a fixed-size recharts AreaChart, which draws paths.
     expect(container.querySelector("svg .recharts-area-curve")).toBeTruthy();

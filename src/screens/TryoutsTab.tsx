@@ -1044,7 +1044,7 @@ export const TryoutsTab = memo(() => {
             <div className="space-y-2">
               {filtered.map((s) => {
                 const impact = isHead
-                  ? computeImpact(s, team, evaluationEvents, tryoutSessions)
+                  ? computeImpact(s, team, evaluationEvents ?? [], tryoutSessions)
                   : null;
                 const expanded = openSignupIds.has(s.id);
                 const bucket = bucketBySignupId.get(s.id);
@@ -1339,7 +1339,7 @@ export const TryoutsTab = memo(() => {
           <aside className="lg:col-span-4 space-y-4">
             <ReturningIntentPanel
               team={team}
-              evaluationEvents={evaluationEvents}
+              evaluationEvents={evaluationEvents ?? []}
               setPlayerReturning={setPlayerReturning}
             />
             {roster && (tryoutSignups || []).length > 0 && (

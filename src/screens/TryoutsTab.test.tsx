@@ -2,6 +2,7 @@ import React from "react";
 import { screen } from "@testing-library/react";
 import { TryoutsTab, computeRosterProjection } from "./TryoutsTab";
 import { renderWithProviders } from "../test-utils";
+import type { Team } from "../types";
 
 const grade = (n: number, suggestedPositions: string[] = []) => ({
   approach: n,
@@ -54,7 +55,7 @@ describe("TryoutsTab", () => {
           evaluationEvents: [],
           defenseSize: 9,
           pitchingFormat: "Kid Pitch",
-        },
+        } as unknown as Team,
         user: { uid: "u1" },
         currentRole: "head",
         updateTryoutSignup: jest.fn(),

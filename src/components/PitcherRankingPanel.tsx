@@ -80,12 +80,12 @@ export const PitcherRankingPanel = memo(() => {
           const eligibleToday = checkPitchEligibility(
             p,
             todayStr,
-            teamAge,
+            teamAge ?? "",
             pitchRules,
           );
           const daysUntil = eligibleToday
             ? 0
-            : daysUntilEligible(p, teamAge, pitchRules);
+            : daysUntilEligible(p, teamAge ?? "", pitchRules);
           return {
             p,
             score,

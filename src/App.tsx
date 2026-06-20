@@ -1446,7 +1446,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     const pitchingFormat = _pitchingFormat;
     const updates: Record<string, string> = {};
     if (leagueRuleSet === "NKB") {
-      if (["6U", "7U", "8U"].includes(teamAge)) {
+      if (["6U", "7U", "8U"].includes(teamAge ?? "")) {
         if (defenseSize !== "10") updates.defenseSize = "10";
         if (pitchingFormat !== "Machine Pitch")
           updates.pitchingFormat = "Machine Pitch";
@@ -1497,7 +1497,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         name: form.name.trim(),
         role: form.role,
       };
-      updateTeam({ coaches: [...teamData.coaches, newCoach] });
+      updateTeam({ coaches: [...(teamData.coaches ?? []), newCoach] });
     },
     [teamData.coaches, updateTeam],
   );
@@ -1505,7 +1505,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const removeCoach = useCallback(
     (id: string) => {
       updateTeam({
-        coaches: teamData.coaches.filter((c: { id: string }) => c.id !== id),
+        coaches: (teamData.coaches ?? []).filter((c: { id: string }) => c.id !== id),
       });
     },
     [teamData.coaches, updateTeam],
@@ -1653,7 +1653,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       } = {},
     ) => {
       const { skipConfirm = false, tryoutsToPromote = [] } = opts;
-      const computed = computeNextSeason(teamData.currentSeason);
+      const computed = computeNextSeason(teamData.currentSeason ?? "");
       if (!computed) {
         toast.push({
           kind: "warn",
@@ -1664,7 +1664,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
       const { nextSeason, shouldBump } = computed;
       const newAgeGroup = shouldBump
-        ? bumpAgeTier(teamData.teamAge)
+        ? bumpAgeTier(teamData.teamAge ?? "")
         : teamData.teamAge;
 
       // Compute team-level record from final games for the season being archived
@@ -1673,7 +1673,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         ties = 0,
         runsScored = 0,
         runsAllowed = 0;
-      for (const g of teamData.games) {
+      for (const g of teamData.games ?? []) {
         if (!countsTowardStats(g)) continue;
         const ts = Number(g.teamScore);
         const os = Number(g.opponentScore);
@@ -1688,7 +1688,8 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       const archivedSeason = teamData.currentSeason;
       const archivedAge = teamData.teamAge;
       const archivedFormat = teamData.pitchingFormat;
-      const playerCount = teamData.players.length;
+      const teamPlayers = teamData.players ?? [];
+      const playerCount = teamPlayers.length;
 
       // Split current roster by the returning Y/N answer (with legacy
       // playerStatus fallback via isReturning). Returners keep their
@@ -1696,10 +1697,10 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // released/declined) are archived but dropped from the next
       // roster.
       const isDropped = (p: Player) => !isReturning(p);
-      const droppedCount = teamData.players.filter(isDropped).length;
+      const droppedCount = teamPlayers.filter(isDropped).length;
       // Tryout accepts ride on the same `team.players` array with
       // playerStatus === "accepted" — they join the new roster directly.
-      const acceptedCount = teamData.players.filter(
+      const acceptedCount = teamPlayers.filter(
         (p: Player) => p.playerStatus === "accepted",
       ).length;
 
@@ -1783,7 +1784,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // Archive each player's current stats into pastSeasons[]; drop the
       // ones marked Released/Declined; reset surviving statuses to
       // "returning" so the next cycle starts clean.
-      const updatedPlayers = teamData.players
+      const updatedPlayers: Player[] = teamPlayers
         .filter((p: Player) => !isDropped(p))
         .map((p: Player) => {
           // pastSeasons entries carry richer fields (ageGroup/record) than the
@@ -1825,7 +1826,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       const promotedPairs = (teamData.tryoutSignups || [])
         .filter((s: TryoutSignup) => promotionSet.has(s.id))
         .map((s: TryoutSignup) => {
-          const player = {
+          const player: Player = {
             id: "p-" + Math.random().toString(36).slice(2, 10),
             name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
             number: s.tryoutNumber || s.number || "",
@@ -1851,9 +1852,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           };
           return { signup: s, player };
         });
-      const promotedPlayers = promotedPairs.map(
-        ({ player }: { signup: TryoutSignup; player: Player }) => player,
-      );
+      const promotedPlayers = promotedPairs.map(({ player }) => player);
 
       // Seed the new season's Preseason eval round: returning players carry
       // their most recent eval forward, promoted tryouts carry their tryout
@@ -1870,7 +1869,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       );
 
       const newSeasonFinances = rollFinances
-        ? rollFinancesForNewSeason(teamData.finances, archivedSeason, nowIso)
+        ? rollFinancesForNewSeason(teamData.finances, archivedSeason ?? "", nowIso)
         : teamData.finances;
       const depositAmount = Math.max(
         0,
@@ -2533,7 +2532,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // Machine/Coach pitch so the dashboard can show how the team does at each.
   // A game's format is its own `pitchingFormat` override, else the team's.
   const teamPitchingFormat = teamData.pitchingFormat;
-  const teamGames = teamData.games;
+  const teamGames = teamData.games ?? [];
   const record = useMemo(() => {
     const blank = () => ({
       wins: 0,
@@ -2903,7 +2902,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
       loadedGameRef.current = null;
       return;
     }
-    const game = gamesRef.current.find((g: Game) => g.id === selectedGameId);
+    const game = (gamesRef.current ?? []).find((g: Game) => g.id === selectedGameId);
     if (!game) return;
     loadedGameRef.current = {
       id: game.id,
@@ -2928,7 +2927,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!selectedGameId || !loadedGameRef.current) return;
     if (loadedGameRef.current.id !== selectedGameId) return;
-    const game = team.team.games.find((g: Game) => g.id === selectedGameId);
+    const game = (team.team.games ?? []).find((g: Game) => g.id === selectedGameId);
     if (!game) return;
 
     const remoteLineupJson = JSON.stringify(game.lineup || null);
@@ -2983,7 +2982,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // deleted (locally or via a remote snapshot). Without this, the UI would
   // try to render against a non-existent game until the next interaction.
   useEffect(() => {
-    const ids = new Set(team.team.games.map((g: Game) => g.id));
+    const ids = new Set((team.team.games ?? []).map((g: Game) => g.id));
     if (selectedGameId && !ids.has(selectedGameId)) setSelectedGameId(null);
     if (scoringGameId && !ids.has(scoringGameId)) setScoringGameId(null);
     if (inGameId && !ids.has(inGameId)) setInGameId(null);
@@ -2993,13 +2992,13 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // (absences entered ahead of time on the player profile) — the coach can
   // still toggle them back in the Game Day Attendance grid.
   useEffect(() => {
-    const gameDate = team.team.games.find(
+    const gameDate = (team.team.games ?? []).find(
       (g: Game) => g.id === selectedGameId,
     )?.date;
     setCurrentGameAttendance((prev) => {
       const next = { ...prev };
       let changed = false;
-      for (const p of team.team.players) {
+      for (const p of team.team.players ?? []) {
         if (next[p.id] === undefined) {
           next[p.id] =
             p.present !== false && !isPlayerScheduledOut(p, gameDate);
@@ -3016,7 +3015,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   //     starting baseline. Coach can then adjust and save as a new round.
   useEffect(() => {
     if (!team.user) return;
-    const mine = team.team.evaluationEvents
+    const mine = (team.team.evaluationEvents ?? [])
       .filter(
         (e: EvaluationEvent) =>
           e.coachRole === "Head" && e.evaluatorId === team.user.uid,
@@ -3113,7 +3112,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     uiBridgeRef.current = {
       getInputs: () => {
-        const currentGame = team.team.games.find(
+        const currentGame = (team.team.games ?? []).find(
           (g: Game) => g.id === selectedGameId,
         );
         return {

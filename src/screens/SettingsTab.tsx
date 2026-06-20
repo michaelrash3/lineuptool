@@ -969,8 +969,8 @@ export const SettingsTab = memo(() => {
     secondaryColor,
     tertiaryColor,
     logoUrl,
-    coaches,
-    players,
+    coaches = [],
+    players = [],
     currentSeason,
   } = team;
   const isDefenseLocked = !(leagueRuleSet === "NKB" && teamAge === "9U");
@@ -1014,7 +1014,7 @@ export const SettingsTab = memo(() => {
   // returns null when the current label can't be parsed (e.g. blank),
   // which the modal renders as "Next Season".
   const nextSeasonLabel = useMemo(() => {
-    const next = computeNextSeason(team?.currentSeason);
+    const next = computeNextSeason(team?.currentSeason ?? "");
     return next?.nextSeason || "Next Season";
   }, [team?.currentSeason]);
   const settingsMenuItems = [
@@ -1177,7 +1177,7 @@ export const SettingsTab = memo(() => {
                           className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
                         >
                           {leagueRuleSet === "NKB" &&
-                          ["6U", "7U", "8U"].includes(teamAge) ? (
+                          ["6U", "7U", "8U"].includes(teamAge ?? "") ? (
                             <option value="Machine Pitch">Machine Pitch</option>
                           ) : leagueRuleSet === "USSSA" && teamAge === "8U" ? (
                             <>
@@ -2013,7 +2013,7 @@ export const SettingsTab = memo(() => {
         onClose={() => setLogoColors((p) => ({ ...p, open: false }))}
         logoUrl={logoUrl}
         palette={logoColors.palette}
-        current={{ primaryColor, secondaryColor, tertiaryColor }}
+        current={{ primaryColor: primaryColor ?? "", secondaryColor: secondaryColor ?? "", tertiaryColor: tertiaryColor ?? "" }}
         onApply={(colors) => updateTeam(colors)}
       />
     </div>

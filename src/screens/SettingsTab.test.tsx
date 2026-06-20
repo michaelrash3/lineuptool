@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsTab } from "./SettingsTab";
 import { renderWithProviders } from "../test-utils";
+import type { Team } from "../types";
 
 const teamData = {
   leagueRuleSet: "USSSA",
@@ -21,7 +22,7 @@ const teamData = {
   coaches: [],
   players: [],
   currentSeason: "Spring 2026",
-};
+} as unknown as Team;
 
 describe("SettingsTab", () => {
   it("renders the settings shell on the default Team section", () => {

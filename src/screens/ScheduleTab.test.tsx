@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ScheduleTab } from "./ScheduleTab";
 import { renderWithProviders } from "../test-utils";
+import type { Team } from "../types";
 
 const baseTeam = {
   games: [],
@@ -16,7 +17,7 @@ const baseTeam = {
   primaryColor: "#1d4ed8",
   tertiaryColor: "#ffffff",
   logoUrl: "",
-};
+} as unknown as Team;
 
 const lineup = [
   {
@@ -73,8 +74,8 @@ const renderGameEditor = (leagueRuleSet: string) => {
             status: "scheduled",
             leagueRuleSet,
             pitchingFormat: "Kid Pitch",
-            defenseSize: 9,
-            battingSize: 9,
+            defenseSize: "9",
+            battingSize: "9",
             lineup,
             battingLineup: players,
           },

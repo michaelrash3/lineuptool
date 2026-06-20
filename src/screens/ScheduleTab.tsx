@@ -234,14 +234,14 @@ export const ScheduleTab = memo(() => {
   } = useUI();
 
   const {
-    games,
-    players,
-    leagueRuleSet,
-    pitchingFormat,
-    defenseSize,
-    positionLock,
-    battingSize,
-    teamAge,
+    games = [],
+    players = [],
+    leagueRuleSet = "",
+    pitchingFormat = "",
+    defenseSize = "",
+    positionLock = "",
+    battingSize = "",
+    teamAge = "",
     primaryColor,
     tertiaryColor,
     logoUrl,
@@ -921,14 +921,14 @@ export const ScheduleTab = memo(() => {
               the longest version of the lineup the engine has produced. */}
           {canEdit &&
             currentGame.status === "final" &&
-            currentGame.lineup?.length > 0 &&
+            (currentGame.lineup?.length ?? 0) > 0 &&
             (() => {
               const longest =
-                currentGame.originalLineup?.length > currentGame.lineup.length
+                (currentGame.originalLineup?.length ?? 0) > (currentGame.lineup?.length ?? 0)
                   ? currentGame.originalLineup
                   : currentGame.lineup;
-              const maxInnings = longest.length;
-              const currentInningsPlayed = currentGame.lineup.length;
+              const maxInnings = (longest ?? []).length;
+              const currentInningsPlayed = (currentGame.lineup ?? []).length;
               return (
                 <div className="px-6 py-4 bg-warn-bg border-b border-warn-bg flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-2">
@@ -952,7 +952,7 @@ export const ScheduleTab = memo(() => {
                           if (!currentGame.originalLineup) {
                             updates.originalLineup = currentGame.lineup;
                           }
-                          updates.lineup = currentGame.lineup.slice(0, target);
+                          updates.lineup = (currentGame.lineup ?? []).slice(0, target);
                         } else if (
                           currentGame.originalLineup &&
                           currentGame.originalLineup.length >= target
@@ -979,14 +979,14 @@ export const ScheduleTab = memo(() => {
                   </label>
                   {currentGame.originalLineup &&
                     currentGame.originalLineup.length >
-                      currentGame.lineup.length && (
+                      (currentGame.lineup?.length ?? 0) && (
                       <span className="text-[10px] font-bold text-warnfg uppercase tracking-widest">
                         (
                         {currentGame.originalLineup.length -
-                          currentGame.lineup.length}{" "}
+                          (currentGame.lineup?.length ?? 0)}{" "}
                         inning
                         {currentGame.originalLineup.length -
-                          currentGame.lineup.length ===
+                          (currentGame.lineup?.length ?? 0) ===
                         1
                           ? ""
                           : "s"}{" "}

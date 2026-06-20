@@ -92,10 +92,16 @@ export interface Player {
   // PlayerStats (pTopMph, pTopMphDate); this sub-object still appears on
   // older player docs and is read by the pitching-plan engine.
   pitching?: {
-    log?: Array<{ date?: string; pitches?: number }>;
+    log?: Array<{ date: string; pitches: number; gameId?: string }>;
     recentPitches?: number;
-    lastPitchDate?: string;
+    lastPitchDate?: string | null;
     topMph?: number;
+  };
+  // Catching log, parallel to pitching.log. Used for same-day role checks.
+  catching?: {
+    log?: Array<{ date: string; innings: number; gameId?: string }>;
+    recentInnings?: number;
+    lastCatchDate?: string;
   };
   // ISO yyyy-mm-dd dates the family already knows the kid is unavailable
   // (entered ahead of time on the profile). Games on these dates default
@@ -118,6 +124,17 @@ export interface Player {
     | "offered"
     | "accepted"
     | "declined";
+  // Batting / throwing hand
+  bats?: string;
+  throws?: string;
+  // Contact info (displayed in the coach card, never shown publicly)
+  parentName?: string;
+  email?: string;
+  phone?: string;
+  // Whether the player is actively on the roster (false = inactive / released)
+  present?: boolean;
+  // Foreign key back to the TryoutSignup that created this player row
+  tryoutSignupId?: string;
   [key: string]: unknown;
 }
 
@@ -174,6 +191,30 @@ export interface Game {
   // ISO instant of first pitch; drives the displayed time. null for all-day
   // feed events (no clock time shown).
   startUtc?: string | null;
+  // Scores (set during / after the game). Stored as number but may arrive
+  // as string from older Firestore documents, so keep the union.
+  teamScore?: number | string;
+  opponentScore?: number | string;
+  // Mid-game removals keyed by player id. fromInning is the first inning
+  // the player was out; reason is optional coach note.
+  midGameRemovals?: Record<string, { fromInning?: number; reason?: string }>;
+  // Per-game pitching log keyed by player id.
+  pitchCounts?: Record<PlayerId, number>;
+  // Per-game lineup-engine overrides (can override team-level defaults)
+  leagueRuleSet?: string;
+  teamAge?: string;
+  defenseSize?: string;
+  battingSize?: string;
+  positionLock?: string;
+  isBigGame?: boolean;
+  catcherMaxInnings?: string;
+  catcherConsecutive?: boolean;
+  applySeasonalFairness?: boolean;
+  qualityPenalty?: boolean;
+  // Tournament plan associated with this game
+  tournamentPlan?: TournamentPlan | null;
+  // Imported CSV name
+  csv?: string;
   [key: string]: unknown;
 }
 
@@ -265,6 +306,7 @@ export interface InterestSignup {
   comfortablePositions?: string[];
   canPitch?: boolean;
   canCatch?: boolean;
+  isCatcher?: boolean;
   notes?: string;
 }
 
@@ -320,7 +362,11 @@ export interface Team {
   pitchingFormat?: string;
   defenseSize?: string;
   battingSize?: string;
+  positionLock?: string;
   inningsCount?: string;
+  // Catcher playing-time policy (see EngineInput for semantics).
+  catcherMaxInnings?: string;
+  catcherConsecutive?: boolean;
   // Pitch-count rule set: a preset id ("littleLeague", …) or "custom". Custom
   // reads customPitchLimit (one daily max for the team's age) + optional
   // customRestTiers. Absent = Little League / Pitch Smart default.
@@ -350,6 +396,8 @@ export interface Team {
   members?: string[];
   coachRoles?: Record<string, string>;
   coachContacts?: Array<{ id?: string; name?: string; email?: string }>;
+  // Legacy coach list (predates coachContacts). Kept for back-compat.
+  coaches?: Array<{ id: string; name: string; role: string; [key: string]: unknown }>;
 
   // ----- Tryouts config -----
   tryoutDates?: string[];
@@ -367,6 +415,12 @@ export interface Team {
   // Season awards: per-award coach override of the auto-nominated winner.
   // awardId → playerId, or "__none__" for "no winner". Absent = use auto pick.
   seasonAwards?: Record<string, string>;
+
+  // Saved lineup templates (id, name, and the inning-0 slot map).
+  lineupTemplates?: Array<{ id: string; name: string; [key: string]: unknown }>;
+
+  // GameChanger calendar feed URL for auto-sync.
+  gcCalendarUrl?: string;
 
   // The long tail of dynamic/rarely-typed fields (templates, past seasons,
   // mid-game removals, catcher limits, etc.) stays permissive and is promoted
@@ -639,8 +693,10 @@ export type EvalCategoryId =
 
 // Grade record per player per round. Numeric 1–10 on every category, plus an
 // optional free-form notes string (added in the Phase 5a workflow PR).
-export type GradeMap = Partial<Record<EvalCategoryId | string, number>> & {
+export type GradeMap = {
   notes?: string;
+  suggestedPositions?: string[];
+  [key: string]: number | string | string[] | undefined;
 };
 
 // Eval round payload as persisted in team.evaluationEvents.

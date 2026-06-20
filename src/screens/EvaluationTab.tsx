@@ -264,9 +264,9 @@ export const RosterDecisionsPanel = memo(() => {
         counts[f] = 0;
       }
       for (const p of players) {
-        const s = p.stats || {};
+        const s = (p.stats || {}) as Record<string, number | undefined>;
         for (const f of fields) {
-          const v = +s[f];
+          const v = +(s[f] ?? 0);
           if (Number.isFinite(v) && v > 0) {
             sums[f] += v;
             counts[f] += 1;

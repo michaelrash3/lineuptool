@@ -232,7 +232,7 @@ const UpcomingGameCard = memo(
     if (dayDiff === 0) whenLabel = "Today";
     else if (dayDiff === 1) whenLabel = "Tomorrow";
     else if (dayDiff <= 6) {
-      const [y, m, d] = game.date.split("-");
+      const [y, m, d] = (game.date ?? "").split("-");
       const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
       whenLabel = dateObj.toLocaleDateString(undefined, { weekday: "long" });
     } else {
@@ -272,9 +272,9 @@ const UpcomingGameCard = memo(
     // takes the headline slot instead.
     const isGameDay = dayDiff === 0 && !isFinal;
     const result = isFinal
-      ? game.teamScore > game.opponentScore
+      ? Number(game.teamScore ?? 0) > Number(game.opponentScore ?? 0)
         ? "win"
-        : game.teamScore < game.opponentScore
+        : Number(game.teamScore ?? 0) < Number(game.opponentScore ?? 0)
           ? "loss"
           : "tie"
       : null;
@@ -735,7 +735,7 @@ interface EvalMomentumTileProps {
   players: Player[];
   evaluationEvents?: Array<{
     date?: string;
-    grades?: Record<string, Record<string, number | string | undefined>>;
+    grades?: Record<string, Record<string, number | string | string[] | undefined>>;
   }>;
   onOpenEval?: () => void;
 }
@@ -751,7 +751,7 @@ const EvalMomentumTile = memo(
       const latest = sorted[0];
       const prev = sorted[1];
       const avgUniversal = (
-        g: Record<string, number | string | undefined> | undefined | null,
+        g: Record<string, number | string | string[] | undefined> | undefined | null,
       ) => {
         if (!g) return null;
         const keys = [
@@ -1499,7 +1499,7 @@ export const UpNextPanel = memo(
             (a.date ?? "").localeCompare(b.date ?? ""),
           )[0];
         if (next) {
-          const dd = daysUntil(next.date) ?? 99;
+          const dd = daysUntil(next.date ?? null) ?? 99;
           const when =
             dd === 0 ? "today" : dd === 1 ? "tomorrow" : `in ${dd} days`;
           if (dd <= 7 && !next.lineup) {
@@ -1697,11 +1697,11 @@ export const HomeTab = memo(() => {
     [team, user, isHead],
   );
   const {
-    players,
+    players = [],
     coaches,
-    games,
-    practices,
-    evaluationEvents,
+    games = [],
+    practices = [],
+    evaluationEvents = [],
     leagueRuleSet,
     teamAge,
     currentSeason,

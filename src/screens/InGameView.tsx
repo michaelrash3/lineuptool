@@ -1,4 +1,5 @@
 import React, { memo, useState, useRef, useCallback, useEffect } from "react";
+import type { Inning, SlimPlayer } from "../types";
 import { Icons } from "../icons";
 import { formatGameDateDisplay, sameDayRoleSets } from "../utils/helpers";
 import {
@@ -58,13 +59,13 @@ export const InGameView = memo(() => {
   //
   // These hooks must live above the early returns below so React sees
   // the same hook order on every render — the rules-of-hooks invariant.
-  const [pendingLineup, setPendingLineup] = useState(null);
+  const [pendingLineup, setPendingLineup] = useState<Inning[] | null>(null);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Resolve the live game without an early return so downstream hooks
   // still execute on null-game renders. The actual null/missing-game
   // bailouts happen below the hook block.
-  const game = inGameId ? team.games.find((g: any) => g.id === inGameId) : null;
+  const game = inGameId ? (team.games ?? []).find((g: any) => g.id === inGameId) : null;
   const gameId = game?.id ?? null;
 
   const flush = useCallback(() => {
@@ -230,7 +231,7 @@ export const InGameView = memo(() => {
     // Include anyone currently in a position or on the bench this inning.
     for (const pos of Object.keys(inn || {})) {
       if (pos === "BENCH") continue;
-      const p = inn[pos];
+      const p = inn[pos] as SlimPlayer | null;
       if (p && !removed[p.id]) ids.add(p.id);
     }
     for (const bp of inn?.BENCH || []) {
@@ -241,7 +242,7 @@ export const InGameView = memo(() => {
     const byId = new Map();
     for (const pos of Object.keys(inn || {})) {
       if (pos === "BENCH") continue;
-      const p = inn[pos];
+      const p = inn[pos] as SlimPlayer | null;
       if (p) byId.set(p.id, p);
     }
     for (const bp of inn?.BENCH || []) if (bp) byId.set(bp.id, bp);
@@ -253,7 +254,7 @@ export const InGameView = memo(() => {
   // coalesce into one Firestore write.
   const patchInning = (idx: any, patch: any) => {
     setPendingLineup((cur) => {
-      const base = cur ?? game.lineup;
+      const base = cur ?? game.lineup ?? [];
       return base.map((existingInn: any, i: any) => {
         if (i !== idx) return existingInn;
         return { ...existingInn, ...patch };
@@ -281,7 +282,7 @@ export const InGameView = memo(() => {
     // Find which cell the chosen pitcher currently occupies this inning.
     let sourceSel = null;
     for (const pos of positionOrder) {
-      if (innNow[pos]?.id === playerId) {
+      if ((innNow[pos] as SlimPlayer | null)?.id === playerId) {
         sourceSel = { type: "position", pos };
         break;
       }
@@ -302,26 +303,26 @@ export const InGameView = memo(() => {
   // pulled pitcher into the reliever's old field/bench spot.
   const assignPitcherRestOfGame = (playerId: any) => {
     if (!canEdit) return;
-    const base = pendingLineup ?? game.lineup;
+    const base = pendingLineup ?? game.lineup ?? [];
     const current = base[currentInning];
     if (!current) return;
 
     const activeIds = new Set<string>();
     for (const pos of Object.keys(current || {})) {
       if (pos === "BENCH") continue;
-      const p = current[pos];
+      const p = current[pos] as SlimPlayer | null;
       if (p?.id) activeIds.add(p.id);
     }
     for (const p of current.BENCH || []) if (p?.id) activeIds.add(p.id);
 
-    const roster = team.players || [];
+    const roster = team.players ?? [];
     const byId = new Map<string, any>(roster.map((p: any) => [p.id, p]));
     const activePlayers = [...activeIds]
       .map((id) => byId.get(id))
       .filter(Boolean) as any[];
 
     if (!activeIds.has(playerId) || activePlayers.length === 0) return;
-    if (current.P?.id === playerId) return;
+    if ((current.P as SlimPlayer | null)?.id === playerId) return;
 
     const result = generateTournamentLineup({
       activePlayers,
@@ -368,10 +369,10 @@ export const InGameView = memo(() => {
       ...inning,
       BENCH: Array.isArray(inning.BENCH) ? [...inning.BENCH] : [],
     });
-    const next = base.map((innState: any, idx: number) =>
+    const next: Inning[] = base.map((innState: any, idx: number) =>
       idx < currentInning ? innState : cloneInning(changedInning),
     );
-    const newPitcherName = (changedInning.P as any)?.name || "New pitcher";
+    const newPitcherName = (changedInning.P as SlimPlayer | null)?.name || "New pitcher";
 
     setPendingLineup(next);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
@@ -607,7 +608,7 @@ export const InGameView = memo(() => {
                   <button
                     type="button"
                     onClick={() => adjustScore(which, -1)}
-                    disabled={value <= 0}
+                    disabled={Number(value) <= 0}
                     className="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-2 text-ink font-black text-lg hover:bg-line disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     aria-label={`Decrease ${label} score`}
                   >
@@ -679,13 +680,13 @@ export const InGameView = memo(() => {
           (() => {
             const fmt = game.pitchingFormat || team.pitchingFormat || "";
             if (fmt.toLowerCase().includes("machine")) return null;
-            const ageGroup = game.teamAge || team.teamAge;
+            const ageGroup = game.teamAge || team.teamAge || "";
 
             // Pitchers used in this game so far (anyone at P through current inning)
             const usedPitcherIds = new Set();
             const usedPitcherList = [];
             for (let i = 0; i <= currentInning; i++) {
-              const pitcher = liveLineup[i]?.P;
+              const pitcher = liveLineup[i]?.P as SlimPlayer | null | undefined;
               if (pitcher && !usedPitcherIds.has(pitcher.id)) {
                 usedPitcherIds.add(pitcher.id);
                 usedPitcherList.push({ player: pitcher, firstInning: i + 1 });
@@ -694,7 +695,7 @@ export const InGameView = memo(() => {
             // Available pool: present players not yet used, eligible by rest rules
             const targetDate =
               game.date || new Date().toISOString().slice(0, 10);
-            const presentPlayers = team.players.filter(
+            const presentPlayers = (team.players ?? []).filter(
               (p: any) =>
                 game.attendance?.[p.id] !== false && !usedPitcherIds.has(p.id),
             );
@@ -715,7 +716,7 @@ export const InGameView = memo(() => {
                 // Warn (don't block) when a count exceeds the age pitch limit —
                 // a safety guardrail the coach can still override for accuracy.
                 if (num > pitchLimit) {
-                  const p = team.players.find((pl: any) => pl.id === playerId);
+                  const p = (team.players ?? []).find((pl: any) => pl.id === playerId);
                   toast.push({
                     kind: "warn",
                     title: "Over pitch limit",
@@ -859,14 +860,14 @@ export const InGameView = memo(() => {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
           {presentPositions.map((pos) => {
-            const player = inn[pos];
+            const player = inn[pos] as SlimPlayer | null;
             const sel = { type: "position", pos };
             const selected = isCellSelected(sel);
             // Who's at this position next inning? If it's a different
             // player (or someone-then-nobody / nobody-then-someone)
             // surface them so the coach can plan one inning ahead.
             const nextInn = liveLineup[currentInning + 1];
-            const nextPlayer = nextInn ? nextInn[pos] : null;
+            const nextPlayer = nextInn ? (nextInn[pos] as SlimPlayer | null) : null;
             const showNext =
               nextInn && nextPlayer && nextPlayer.id !== player?.id;
             return (
@@ -1009,7 +1010,7 @@ export const InGameView = memo(() => {
                 const seen = new Set();
                 const used: any[] = [];
                 for (const innState of liveLineup) {
-                  const pitcher = innState?.P;
+                  const pitcher = innState?.P as SlimPlayer | null | undefined;
                   if (pitcher && !seen.has(pitcher.id)) {
                     seen.add(pitcher.id);
                     used.push(pitcher);
@@ -1171,7 +1172,7 @@ export const InGameView = memo(() => {
                     {Object.entries(
                       (game.midGameRemovals || {}) as Record<string, any>,
                     ).map(([pid, info]: [string, any]) => {
-                      const player = team.players.find(
+                      const player = (team.players ?? []).find(
                         (q: any) => q.id === pid,
                       ) || { name: "(unknown)" };
                       const armed = pendingRestorePlayerId === pid;

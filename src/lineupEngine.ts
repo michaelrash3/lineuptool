@@ -344,24 +344,28 @@ const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
 // legacy/merged fallback keys (fielding, arm, speedBaserunning, speedAgility)
 // read through the same index without needing `any`.
 type GradesInput = GradeMap | null | undefined;
-const gloveOf = (g: GradesInput): number => g?.glove ?? g?.fielding ?? 3;
-const rangeOf = (g: GradesInput): number => g?.range ?? g?.fielding ?? 3;
-const armStrengthOf = (g: GradesInput): number => g?.armStrength ?? g?.arm ?? 3;
-const armAccuracyOf = (g: GradesInput): number => g?.armAccuracy ?? g?.arm ?? 3;
+// GradeMap's index signature returns string|number|string[]|undefined to
+// accommodate `notes` and `suggestedPositions`; grade fields are always numeric.
+const n = (v: number | string | string[] | undefined, fallback = 3): number =>
+  typeof v === "number" ? v : fallback;
+const gloveOf = (g: GradesInput): number => n(g?.glove ?? g?.fielding);
+const rangeOf = (g: GradesInput): number => n(g?.range ?? g?.fielding);
+const armStrengthOf = (g: GradesInput): number => n(g?.armStrength ?? g?.arm);
+const armAccuracyOf = (g: GradesInput): number => n(g?.armAccuracy ?? g?.arm);
 // Speed and Base Running are graded separately (v8); both fall back to the
 // legacy merged "Speed & Baserunning" grade so older rounds still read.
 const speedOf = (g: GradesInput): number =>
-  g?.speed ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
+  n(g?.speed ?? g?.speedBaserunning ?? g?.speedAgility);
 const baserunningOf = (g: GradesInput): number =>
-  g?.baserunning ?? g?.speedBaserunning ?? g?.speedAgility ?? 3;
+  n(g?.baserunning ?? g?.speedBaserunning ?? g?.speedAgility);
 // Combined athleticism input used by the value/defense scorers, so the split
 // is score-neutral for legacy data (where speed === baserunning) and blends the
 // two once a coach grades them apart.
 const speedBaseOf = (g: GradesInput): number =>
   (speedOf(g) + baserunningOf(g)) / 2;
-const contactOf = (g: GradesInput): number => g?.contact ?? 3;
-const approachOf = (g: GradesInput): number => g?.approach ?? 3;
-const powerOf = (g: GradesInput): number => g?.power ?? 3;
+const contactOf = (g: GradesInput): number => n(g?.contact);
+const approachOf = (g: GradesInput): number => n(g?.approach);
+const powerOf = (g: GradesInput): number => n(g?.power);
 
 // ---------- Public helpers (re exported for the UI) ----------
 
@@ -425,10 +429,10 @@ export function getCombinedGrades(
     // current schema still feed the kept categories sensibly.
     const readCat = (g: GradesInput, catId: string): number | null => {
       if (!g) return null;
-      if (g[catId] != null) return g[catId] ?? null;
+      if (g[catId] != null) return (g[catId] as number) ?? null;
       // Speed + Base Running both seed from the legacy merged grade.
       if (catId === "speed" || catId === "baserunning")
-        return g.speedBaserunning ?? g.speedAgility ?? null;
+        return (g.speedBaserunning as number | undefined) ?? (g.speedAgility as number | undefined) ?? null;
       return null;
     };
 
@@ -943,8 +947,8 @@ export function calculateTotalScore(
     arm * 1.5 +
     arm * 1.5 +
     speedBaseOf(grades) * 1.5 +
-    (grades.baseballIQ || 3) * 2.0 +
-    (grades.coachability || 3) * 3.0 +
+    n(grades.baseballIQ) * 2.0 +
+    n(grades.coachability) * 3.0 +
     contact * 1.5 +
     power * 1.0 +
     // The old plateDiscipline slot folded into Approach (v7); Approach keeps
@@ -1055,9 +1059,9 @@ function requiredRestDays(
 export function mostRecentDayPitches(
   pitching:
     | {
-        log?: Array<{ date?: string; pitches?: number }>;
+        log?: Array<{ date?: string; pitches?: number; gameId?: string }>;
         recentPitches?: number;
-        lastPitchDate?: string;
+        lastPitchDate?: string | null;
       }
     | null
     | undefined,
@@ -1642,7 +1646,7 @@ const FIT_READERS: Record<string, (g: GradesInput) => number> = {
   armStrength: armStrengthOf,
   armAccuracy: armAccuracyOf,
   baserunning: baserunningOf,
-  baseballIQ: (g) => g?.baseballIQ ?? 3,
+  baseballIQ: (g) => n(g?.baseballIQ),
 };
 
 export function fieldFitScore(

@@ -290,7 +290,7 @@ export const RosterTab = memo(() => {
   const { team, currentRole } = useTeam();
   const canEdit = currentRole !== "assistant";
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
-  const { players, logoUrl, currentSeason } = team;
+  const { players = [], logoUrl, currentSeason } = team;
   const stripped = (team as any).statDisplay === "stripped";
 
   // Gameday filter state — per-session, intentionally not persisted.
@@ -314,8 +314,8 @@ export const RosterTab = memo(() => {
 
   const sortedRosterPlayers = useMemo(() => {
     return [...players].sort((a, b) => {
-      const numA = parseInt(a.number, 10);
-      const numB = parseInt(b.number, 10);
+      const numA = parseInt(String(a.number ?? ""), 10);
+      const numB = parseInt(String(b.number ?? ""), 10);
       if (isNaN(numA) && isNaN(numB)) return a.name.localeCompare(b.name);
       if (isNaN(numA)) return 1;
       if (isNaN(numB)) return -1;

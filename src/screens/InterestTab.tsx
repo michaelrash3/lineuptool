@@ -27,7 +27,7 @@ export const InterestTab = memo(() => {
         new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
     );
   }, [team?.interestSignups]);
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const visible = useMemo(() => {

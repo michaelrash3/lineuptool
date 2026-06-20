@@ -173,7 +173,7 @@ export const PastSeasonImportModal = memo(() => {
   if (!pastSeasonImport) return null;
   const { rows, season, ageGroup, pitchingFormat, assignments } =
     pastSeasonImport;
-  const { players, primaryColor, tertiaryColor } = team;
+  const { players = [], primaryColor, tertiaryColor } = team;
 
   const setField = (patch: any) =>
     setPastSeasonImport({ ...pastSeasonImport, ...patch });
@@ -561,15 +561,15 @@ export const PlayerProfileModal = memo(() => {
   const { viewingPlayerId, setViewingPlayerId } = useUI();
   const toast = useToast();
   const {
-    players,
-    games,
+    players = [],
+    games = [],
     primaryColor,
     secondaryColor,
     tertiaryColor,
     currentSeason,
     pitchingFormat,
     defenseSize,
-    evaluationEvents,
+    evaluationEvents = [],
     teamAge,
   } = team;
   const [activeSection, setActiveSection] = useState("general");
@@ -1847,7 +1847,7 @@ export const PlayerProfileModal = memo(() => {
                 </label>
                 <input
                   type="text"
-                  value={player[key] || ""}
+                  value={(player[key] as string | undefined) || ""}
                   disabled={!editingContact}
                   onChange={(e) =>
                     updatePlayer(player.id, { [key]: e.target.value })
