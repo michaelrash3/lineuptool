@@ -8,7 +8,12 @@ import {
   resolvePitchRuleSet,
 } from "../lineupEngine";
 import { shareLineupCard } from "../lineup/lineupCard";
-import { applySwap, getPlayerAt, isCatcherBlocked } from "../lineup/inGameSwap";
+import {
+  applySwap,
+  getPlayerAt,
+  isCatcherBlocked,
+  swapPlayersInInning,
+} from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { ScoreEditor } from "./ScheduleTab";
@@ -426,6 +431,41 @@ export const InGameView = memo(() => {
       setInGameSelection(null);
       return;
     }
+
+    // A SUBSTITUTION (one cell is the bench: a player enters or leaves the
+    // field) carries forward to every remaining inning — drop the player who
+    // came out, slot the player who went in, and keep the rest of each inning
+    // as-is. A plain position↔position swap (both on the field) only changes
+    // the current inning, as before.
+    const isSubstitution =
+      firstSel.type === "bench" || secondSel.type === "bench";
+    if (isSubstitution && currentInning < liveLineup.length - 1) {
+      const base = pendingLineup ?? game.lineup;
+      const newLineup = base.map((innState: any, idx: number) => {
+        if (idx < currentInning) return innState;
+        if (idx === currentInning) return next;
+        return swapPlayersInInning(innState, playerA, playerB, clearedToCatch);
+      });
+      setPendingLineup(newLineup);
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(flush, 500);
+      // Whole-lineup undo snapshot (the change touched several innings).
+      setInGameUndoStack([{ lineup: base }, ...inGameUndoStack].slice(0, 5));
+      setInGameSelection(null);
+      tapHaptic();
+      // Whoever came OFF the bench is the one entering the game.
+      const enter = firstSel.type === "bench" ? playerA : playerB;
+      const exit = firstSel.type === "bench" ? playerB : playerA;
+      toast.push({
+        kind: "success",
+        title: "Substitution",
+        message: `${(enter as any)?.name || "The sub"} in for ${
+          (exit as any)?.name || "the starter"
+        } from inning ${currentInning + 1} on.`,
+      });
+      return;
+    }
+
     patchInning(currentInning, next);
     // Snapshot the pre-swap inning for undo. (Replaying the swap to undo it
     // breaks for bench cells — the player's id moves off the bench — so we

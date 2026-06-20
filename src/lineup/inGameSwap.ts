@@ -74,3 +74,33 @@ export const applySwap = (
   }
   return next;
 };
+
+// Carry an in-game substitution FORWARD to a later inning by identity: wherever
+// player `a` appears (field or bench) put `b`, and wherever `b` appears put `a`.
+// Every player occupies exactly one cell per inning, so this preserves the
+// roster and the bench size — it's the "fill only the vacated spot, keep the
+// rest of the inning as-is" rule applied to a future inning. Catcher stays
+// opt-in: if the swap would seat a player who isn't cleared at C, the inning is
+// left untouched (the sub simply doesn't propagate into that inning).
+export const swapPlayersInInning = (
+  inning: Inning,
+  a: SlimPlayer,
+  b: SlimPlayer,
+  isClearedToCatch: (player: SlimPlayer | undefined) => boolean,
+): Inning => {
+  if (!a || !b) return inning;
+  const catcherId = (inning.C as SlimPlayer | undefined)?.id;
+  if (catcherId === a.id && !isClearedToCatch(b)) return inning;
+  if (catcherId === b.id && !isClearedToCatch(a)) return inning;
+
+  const sub = (p: SlimPlayer | undefined): SlimPlayer | undefined =>
+    !p ? p : p.id === a.id ? b : p.id === b.id ? a : p;
+
+  const next: Inning = { ...inning };
+  for (const key of Object.keys(inning)) {
+    if (key === "BENCH") continue;
+    next[key] = sub(inning[key] as SlimPlayer | undefined);
+  }
+  next.BENCH = bench(inning).map((p) => sub(p) as SlimPlayer);
+  return next;
+};
