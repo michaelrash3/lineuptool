@@ -151,7 +151,18 @@ describe("extractAdvancedStats (section-aware GameChanger stats)", () => {
     // Batting 2b/3b (doubles/triples) and SF must NOT bleed into the fielding
     // position-innings columns of the same name. Each section is range-bounded.
     const lbl = ["batting", "", "", "fielding", "", "", "", "", "", ""];
-    const hdr = ["2b", "3b", "sf", "fpct", "p", "1b", "2b", "3b", "ss", "total"];
+    const hdr = [
+      "2b",
+      "3b",
+      "sf",
+      "fpct",
+      "p",
+      "1b",
+      "2b",
+      "3b",
+      "ss",
+      "total",
+    ];
     const row = ["4", "1", "2", ".980", "5", "0", "1", "0", "6", "12"];
     const s = extractAdvancedStats(lbl, hdr, row);
     // Fielding-section innings:
@@ -665,7 +676,12 @@ describe("buildSeasonBenchImbalance (actual innings from imported box scores)", 
   });
 
   it("skips games whose stats haven't been imported (actuals only)", () => {
-    const noStats = { id: "g2", status: "final", teamScore: 1, opponentScore: 0 };
+    const noStats = {
+      id: "g2",
+      status: "final",
+      teamScore: 1,
+      opponentScore: 0,
+    };
     const out = buildSeasonBenchImbalance([noStats], "");
     expect(out.size).toBe(0);
   });
