@@ -57,7 +57,7 @@ Never edit rules in the Console without mirroring the change back into the repo 
 - **No emojis in code or comments** unless the file is intentionally about emoji rendering (e.g., empty-state glyphs sanctioned in `docs/design/coachs-card/ICONOGRAPHY.md`).
 - **Comments explain _why_, not _what_.** Identifiers should already tell the reader what. Add a comment for a hidden constraint, a surprise, or a workaround for a known bug.
 - **Don't over-abstract.** Three similar lines is better than a premature helper. Helpers earn their keep when there are 5+ call sites or the logic is non-obvious.
-- **Reuse before inventing.** The primitives in `src/components/shared.jsx` (Button, Chip, GlassCard, Eyebrow, StatTile, PlayerAvatar) and the semantic type classes in `src/styles.css` (`.t-h1`, `.t-eyebrow`, `.t-body`, etc.) cover the vast majority of UI cases.
+- **Reuse before inventing.** The primitives in `src/components/shared.tsx` (Button, Chip, GlassCard, Eyebrow, StatTile, PlayerAvatar) and the semantic type classes in `src/styles.css` (`.t-h1`, `.t-eyebrow`, `.t-body`, etc.) cover the vast majority of UI cases.
 - **Persistence goes through `persistTeam` / `updateTeam`** — never call `setDoc` from a screen.
 - **CSS color tokens** (`var(--team-primary)`, `var(--slate-700)`, etc.) over Tailwind defaults whenever the value belongs to the design system. Hardcoded hex codes belong only in `src/styles.css`.
 
@@ -66,11 +66,11 @@ Never edit rules in the Console without mirroring the change back into the repo 
 The app uses `useEffect` heavily. Two rules that have bitten us:
 
 1. **List every dependency the linter wants.** The exhaustive-deps rule catches real bugs. If you need a stable callback, wrap it in `useCallback`; if you need a fire-once effect, factor the body into a `useRef` instead of dropping deps.
-2. **`onSnapshot` subscriptions must clean up.** Always return `unsub()` from the effect. The active-team subscription in `App.jsx` also handles a one-shot retry for `permission-denied` — copy that pattern if you add another rule-sensitive subscription.
+2. **`onSnapshot` subscriptions must clean up.** Always return `unsub()` from the effect. The active-team subscription in `App.tsx` also handles a one-shot retry for `permission-denied` — copy that pattern if you add another rule-sensitive subscription.
 
 ## What not to do
 
-- Don't add npm dependencies without checking that the registry policy in CI allows them. Several historically-blocked installs are tracked in `docs/unfinished-work-single-pr-plan.md`.
+- Don't add npm dependencies without checking that the registry policy in CI allows them.
 - Don't commit secrets, build artifacts (`/build`), or `.env` files. The `.gitignore` covers the common cases but verify before staging.
 - Don't push to `main`. Open a PR.
 - Don't reformat large unrelated regions in a feature PR — it makes the diff unreviewable. Save formatting passes for their own PR.
