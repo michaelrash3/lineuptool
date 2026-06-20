@@ -199,6 +199,18 @@ service cloud.firestore {
                          .affectedKeys()
                          .hasOnly(['interestSignups'])
                     && appendsExactlyOne('interestSignups');
+
+      // Public player-info write path (anonymous auth included): a parent
+      // submits uniform/equipment sizing + logistics for a rostered kid via
+      // the same standing share link as the interest form. Allowed any time a
+      // share link exists (no open/closed gate — sizing is collected
+      // year-round). Same append-only integrity caps as the signup paths.
+      allow update: if isSignedIn()
+                    && resource.data.tryoutShareId != null
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['playerInfoSubmissions'])
+                    && appendsExactlyOne('playerInfoSubmissions');
     }
 
     // Sanitized public mirror of a team, maintained by the coach client

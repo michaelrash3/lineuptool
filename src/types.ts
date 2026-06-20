@@ -268,6 +268,40 @@ export interface InterestSignup {
   notes?: string;
 }
 
+// Parent-submitted player info (uniform/equipment sizing + logistics) for a
+// rostered kid, collected via the public Player Info Portal on the standing
+// share link. The coach reviews each submission and applies it onto a matching
+// roster Player. Append-only on the team doc, mirroring TryoutSignup.
+export interface PlayerInfoSubmission {
+  id: string;
+  submittedAt: string;
+  firstName: string;
+  lastName: string;
+  // Preferred jersey number.
+  number?: string;
+  // Uniform / equipment sizing.
+  hatSize?: string;
+  shirtSize?: string;
+  pantsSize?: string;
+  height?: string;
+  weight?: string;
+  // School logistics.
+  school?: string;
+  grade?: string;
+  // Parent / guardian contact.
+  parentName?: string;
+  email?: string;
+  phone?: string;
+  // Emergency contact (secondary).
+  emergencyName?: string;
+  emergencyPhone?: string;
+  notes?: string;
+  // Set once the coach matches + applies this submission onto a roster player,
+  // so the inbox can mark it handled instead of re-prompting.
+  appliedToPlayerId?: string;
+  appliedAt?: string;
+}
+
 export interface TryoutSessionEvaluatorGrades {
   coachRole?: "Head" | "Assistant";
   evaluatorId?: string;
@@ -308,6 +342,10 @@ export interface Team {
   // gate — the public form is always available at the standing share
   // URL so flyers stay useful between tryout cycles.
   interestSignups?: InterestSignup[];
+  // Parent-submitted uniform/equipment sizing + logistics (PR: Player Info
+  // Portal). Collected year-round on the standing share link; the coach
+  // applies each onto a matching roster player from the Player Info tab.
+  playerInfoSubmissions?: PlayerInfoSubmission[];
   // Persistent team join code. 6-char uppercase alphanumeric. Anyone
   // who has the code can join the team as an assistant coach. The HC
   // can regenerate it (rotating all existing codes) from Settings.

@@ -10,6 +10,7 @@ const TAB_TO_PATH: Record<string, string> = {
   evaluation: "/evaluation",
   tryouts: "/tryouts",
   interest: "/interest",
+  playerInfo: "/player-info",
   finances: "/finances",
   settings: "/settings",
 };
@@ -19,6 +20,7 @@ const pathToTab = (pathname: string): string => {
   const first = pathname.split("/").filter(Boolean)[0];
   if (first === "in-game") return "schedule";
   if (first === "depth-chart") return "depthChart";
+  if (first === "player-info") return "playerInfo";
   return first || "home";
 };
 
@@ -76,6 +78,7 @@ export const useMainShellRouting = ({
               "depthChart",
               "tryouts",
               "interest",
+              "playerInfo",
               "evaluation",
               "finances",
               "settings",
@@ -88,6 +91,7 @@ export const useMainShellRouting = ({
               "stats",
               "depthChart",
               "interest",
+              "playerInfo",
               "evaluation",
               "finances",
               "settings",

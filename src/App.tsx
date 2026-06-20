@@ -183,6 +183,16 @@ const TryoutsPortal = lazy(() =>
     default: m.TryoutsPortal,
   })),
 );
+const PlayerInfoPortal = lazy(() =>
+  import("./screens/PlayerInfoPortal").then((m) => ({
+    default: m.PlayerInfoPortal,
+  })),
+);
+const PlayerInfoTab = lazy(() =>
+  import("./screens/PlayerInfoTab").then((m) => ({
+    default: m.PlayerInfoTab,
+  })),
+);
 const InGameView = lazy(() =>
   import("./screens/InGameView").then((m) => ({ default: m.InGameView })),
 );
@@ -201,6 +211,7 @@ const TAB_TITLE_LABELS: Record<string, string> = {
   evaluation: "Evaluation",
   tryouts: "Tryouts",
   interest: "Interest",
+  playerInfo: "Player Info",
   finances: "Finances",
   settings: "Settings",
 };
@@ -2129,6 +2140,8 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     deleteTryoutSignups,
     deleteInterestSignup,
     convertInterestToTryout,
+    deletePlayerInfoSubmission,
+    applyPlayerInfoToPlayer,
     saveTryoutEvaluation,
     saveTryoutEvaluations,
     acceptTryout,
@@ -2665,6 +2678,8 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       deleteTryoutSignups,
       deleteInterestSignup,
       convertInterestToTryout,
+      deletePlayerInfoSubmission,
+      applyPlayerInfoToPlayer,
       acceptTryout,
       saveTryoutEvaluation,
       saveTryoutEvaluations,
@@ -2751,6 +2766,8 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       deleteTryoutSignups,
       deleteInterestSignup,
       convertInterestToTryout,
+      deletePlayerInfoSubmission,
+      applyPlayerInfoToPlayer,
       acceptTryout,
       saveTryoutEvaluation,
       saveTryoutEvaluations,
@@ -3633,6 +3650,10 @@ const MainShell = () => {
   const interestButton = !isAssistant
     ? { id: "interest", icon: Icons.Clipboard, label: "Interest" }
     : null;
+  // Head-only "Player Info" inbox for parent-submitted sizing/logistics.
+  const playerInfoButton = !isAssistant
+    ? { id: "playerInfo", icon: Icons.Users, label: "Player Info" }
+    : null;
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
@@ -3653,6 +3674,7 @@ const MainShell = () => {
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
         ...(tryoutsVisible ? [tryoutsButton] : []),
         ...(interestButton ? [interestButton] : []),
+        ...(playerInfoButton ? [playerInfoButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         // Money is the head coach's business alone — assistants never see
         // the Finances tab (mirrors the Settings route gate below).
@@ -3727,6 +3749,16 @@ const MainShell = () => {
                   }
                 />
                 <Route
+                  path="/player-info"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PlayerInfoTab />
+                    )
+                  }
+                />
+                <Route
                   path="/finances"
                   element={
                     isAssistant ? <Navigate to="/" replace /> : <FinancesTab />
@@ -3797,7 +3829,8 @@ const App = () => {
   // document via a shareId-scoped read.
   if (
     typeof window !== "undefined" &&
-    window.location.pathname.startsWith("/tryouts-portal/")
+    (window.location.pathname.startsWith("/tryouts-portal/") ||
+      window.location.pathname.startsWith("/player-info-portal/"))
   ) {
     return (
       <AppMotionProvider>
@@ -3808,6 +3841,10 @@ const App = () => {
                 <Route
                   path="/tryouts-portal/:slug"
                   element={<TryoutsPortal />}
+                />
+                <Route
+                  path="/player-info-portal/:slug"
+                  element={<PlayerInfoPortal />}
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
