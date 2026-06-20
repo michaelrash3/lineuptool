@@ -51,6 +51,9 @@ import {
   evalRoundRecency,
 } from "./utils/helpers";
 
+// Local alias: a Player with a pre-computed profile bag attached by the engine.
+type ProfiledPlayer = Player & { profile: PlayerProfile };
+
 // ---------- Constants ----------
 const POS_10: Position[] = [
   "P",
@@ -683,7 +686,7 @@ export function countGamesCaught(
 ): number {
   let n = 0;
   for (const g of games || []) {
-    const line: any = g?.playerStats?.[playerId];
+    const line = g?.playerStats?.[playerId];
     if (!line || typeof line !== "object") continue;
     if (
       line.fPb != null ||
@@ -807,7 +810,7 @@ export function calculateTotalScore(
   // derive directly from `stats` here. Either way the weights — and therefore
   // the 0–100 normalization — are unchanged, and a kid with no stats sits at
   // the neutral 3 exactly like an ungraded eval used to.
-  const g: any = grades;
+  const g: GradeMap = grades ?? {};
   const fielding =
     numOrNull(g.glove) ??
     numOrNull(g.fielding) ??
@@ -1289,7 +1292,7 @@ export function calcPitcherScore(
     neutralFill?: boolean;
   },
 ): number {
-  const g: any = grades || {};
+  const g: GradeMap = grades || {};
   const slots: Record<string, number | null> = {
     velocity:
       numOrNull(g.velocity) ??
@@ -1384,7 +1387,7 @@ export function calcCatcherScore(
   stats?: PlayerStats | null,
   opts?: { gamesCaught?: number },
 ): number {
-  const g: any = grades || {};
+  const g: GradeMap = grades || {};
   const slots: Record<string, number | null> = {
     throwing: numOrNull(g.throwing) ?? statThrowingGrade(stats),
     blocking:
@@ -1859,8 +1862,11 @@ function buildPositionHistory(
     id?: string,
     name?: string,
   ) => string | undefined = IDENTITY_RESOLVER,
-): any {
-  const out = new Map();
+): Map<string, Map<string, { total: number; bigGame: number }>> {
+  const out = new Map<
+    string,
+    Map<string, { total: number; bigGame: number }>
+  >();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup) continue;
     if (!isFinalizedGame(g)) continue;
@@ -1874,6 +1880,7 @@ function buildPositionHistory(
         const p = innPos[pos];
         if (!p) continue;
         const key = resolveId(p.id, p.name);
+        if (!key) continue;
         let m = out.get(key);
         if (!m) {
           m = new Map();
@@ -1896,8 +1903,8 @@ function buildFirstInningBenchHistory(
     id?: string,
     name?: string,
   ) => string | undefined = IDENTITY_RESOLVER,
-): any {
-  const counts = new Map();
+): Map<string, number> {
+  const counts = new Map<string, number>();
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
     if (!isFinalizedGame(g)) continue;
@@ -1908,6 +1915,7 @@ function buildFirstInningBenchHistory(
       // the original slot id; tally under the resolved (current) id.
       if (g.attendance?.[bp.id] === false) continue;
       const key = resolveId(bp.id, bp.name);
+      if (!key) continue;
       counts.set(key, (counts.get(key) || 0) + 1);
     }
   }
@@ -1929,8 +1937,14 @@ function buildExtraSitHistory(
     id?: string,
     name?: string,
   ) => string | undefined = IDENTITY_RESOLVER,
-): any {
-  const out = new Map();
+): Map<
+  string,
+  { extraSits: number; benchInn: number; defInn: number; expectedDef: number }
+> {
+  const out = new Map<
+    string,
+    { extraSits: number; benchInn: number; defInn: number; expectedDef: number }
+  >();
 
   for (const g of games) {
     if (g.id === currentGameId || !g.lineup?.length) continue;
@@ -1942,11 +1956,14 @@ function buildExtraSitHistory(
     // weren't there). NKB rules treat them as "skip in batting without
     // penalty," and for fairness purposes their bench/play count must
     // be prorated to the innings they actually played.
-    const removedFrom = (pid: any) => {
-      const r: any = (g.midGameRemovals as any)?.[pid];
-      return Number.isFinite(r?.fromInning) ? r.fromInning : null;
+    const removedFrom = (pid: string): number | null => {
+      const r = (
+        g.midGameRemovals as Record<string, { fromInning?: number }>
+      )?.[pid];
+      const fi = r?.fromInning;
+      return Number.isFinite(fi) && fi != null ? fi : null;
     };
-    const isActiveAtInning = (pid: any, inn: any) => {
+    const isActiveAtInning = (pid: string, inn: number) => {
       if (g.attendance?.[pid] === false) return false;
       const rf = removedFrom(pid);
       if (rf !== null && inn >= rf) return false;
@@ -1956,13 +1973,13 @@ function buildExtraSitHistory(
     // For this game, count attending players and bench slots per inning.
     // Bench slots per inning is constant within a game (driven by defenseSize
     // + roster present), so we read it from the first inning's BENCH array.
-    const attending = new Set();
+    const attending = new Set<string>();
     // Map each original snapshot id → name so we can resolve orphaned ids
     // (from a roster delete+re-add) to the current roster id at accumulation
     // time. All the per-game tallying below stays keyed by the original id so
     // attendance / mid-game-removal lookups (also keyed by the snapshot id)
     // stay correct.
-    const idName = new Map();
+    const idName = new Map<string, string>();
     for (const inning of g.lineup) {
       for (const pos in inning) {
         if (pos === "BENCH") continue;
@@ -1997,7 +2014,7 @@ function buildExtraSitHistory(
     const expectedDefThisGame = totalDefenseSlots / playerCount;
 
     // Per-player innings-played count: every inning they were active.
-    const playedInn = new Map();
+    const playedInn = new Map<string, number>();
     for (const id of attending) playedInn.set(id, 0);
     for (let i = 0; i < innings; i++) {
       for (const id of attending) {
@@ -2009,14 +2026,14 @@ function buildExtraSitHistory(
 
     // Tally each attending player's bench count, skipping innings they
     // weren't active for (full absence OR mid-game removal).
-    const benchCount = new Map();
+    const benchCount = new Map<string, number>();
     for (const id of attending) benchCount.set(id, 0);
     for (let i = 0; i < innings; i++) {
       const inning = g.lineup[i];
       for (const bp of (inning.BENCH || []) as any[]) {
         if (!isActiveAtInning(bp.id, i)) continue;
         if (benchCount.has(bp.id)) {
-          benchCount.set(bp.id, benchCount.get(bp.id) + 1);
+          benchCount.set(bp.id, (benchCount.get(bp.id) ?? 0) + 1);
         }
       }
     }
@@ -2030,6 +2047,7 @@ function buildExtraSitHistory(
       // Key by the CURRENT roster id so a re-added player's pre-delete
       // history isn't stranded under their old (orphaned) id.
       const key = resolveId(pid, idName.get(pid));
+      if (!key) continue;
       const cur = out.get(key) || {
         extraSits: 0,
         benchInn: 0,
@@ -2083,10 +2101,10 @@ function buildExtraSitHistory(
  * a number to limit to top N hitters.
  */
 function generateBattingOrder(
-  profiledPlayers: any[],
+  profiledPlayers: ProfiledPlayer[],
   battingSize: string,
   opts: { seed?: number; leagueRuleSet?: string; teamAge?: string } = {},
-): any[] {
+): ProfiledPlayer[] {
   const { leagueRuleSet, teamAge, seed } = opts;
   const total = profiledPlayers.length;
   const count =
@@ -2104,10 +2122,13 @@ function generateBattingOrder(
   for (const p of profiledPlayers) {
     factor.set(p.id, 1 + (rand() * 2 - 1) * JITTER);
   }
-  const score = (p: any, key: any) => (p.profile[key] || 0) * factor.get(p.id);
+  const score = (p: ProfiledPlayer, key: string) =>
+    ((p.profile as unknown as Record<string, number>)[key] || 0) *
+    factor.get(p.id);
   // OPS lives on raw stats, not in the precomputed profile, so wrap it the
   // same way for jittered selection (only used by the youth strategy).
-  const opsScore = (p: any) => (+p.stats?.ops || 0) * factor.get(p.id);
+  const opsScore = (p: ProfiledPlayer) =>
+    +(p.stats?.ops ?? 0) * factor.get(p.id);
 
   const byOverall = [...profiledPlayers].sort(
     (a, b) => score(b, "overallScore") - score(a, "overallScore"),
@@ -2116,7 +2137,7 @@ function generateBattingOrder(
   const order = new Array(count).fill(null);
   const reasons = new Array(count).fill("");
 
-  function takeBest(scoreKey: any) {
+  function takeBest(scoreKey: string) {
     if (pool.length === 0) return null;
     let bestIdx = 0;
     for (let i = 1; i < pool.length; i++) {
@@ -2135,7 +2156,12 @@ function generateBattingOrder(
     return pool.splice(bestIdx, 1)[0];
   }
 
-  function place(idx: any, player: any, role: any, note: any) {
+  function place(
+    idx: number,
+    player: ProfiledPlayer | null,
+    role: string,
+    note: string,
+  ) {
     if (player && idx < count) {
       order[idx] = player;
       reasons[idx] = { role, note };
@@ -2195,7 +2221,7 @@ function generateBattingOrder(
 
     // Tail: descending by composite youthScore (leadoff + contact + OPS).
     // No `powerScore`  HR/SLG/RBI are noise at this age.
-    const youthScore = (p: any) =>
+    const youthScore = (p: ProfiledPlayer) =>
       score(p, "leadoffScore") + score(p, "contactScore") + opsScore(p) * 100;
     pool.sort((a, b) => youthScore(b) - youthScore(a));
     let descIdx = 0;
@@ -2388,11 +2414,11 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     allPlayers || activePlayers,
     { teamAge, games: games as any },
   );
-  const profiled = activePlayers.map((p: any) => ({
+  const profiled: ProfiledPlayer[] = activePlayers.map((p) => ({
     ...p,
     profile: buildPlayerProfile(p, grades[p.id]),
   }));
-  const byId = new Map(profiled.map((p: any) => [p.id, p]));
+  const byId = new Map(profiled.map((p) => [p.id, p]));
 
   const defSizeNum = parseInt(defenseSize, 10) || 9;
   const positions = getPositionsForInning(
@@ -2403,13 +2429,14 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   const gameDate =
     (currentGame as any).date || new Date().toISOString().slice(0, 10);
   const kidPitch = /kid/i.test(String(pitchingFormat || ""));
-  const slim = (p: any): SlimPlayer => ({
+  const slim = (p: ProfiledPlayer): SlimPlayer => ({
     id: p.id,
     name: p.name,
     number: p.number ?? "",
   });
 
-  const eligibleFor = (pos: string, p: any): boolean => {
+  const eligibleFor = (pos: string, p: ProfiledPlayer | undefined): boolean => {
+    if (!p) return false;
     if (pos === "C") return isCatcherEligible(p);
     if (isPositionBlocked(p, pos)) return false;
     if (pos === "P" && kidPitch)
@@ -2424,11 +2451,15 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     if (!Array.isArray(list)) return -1;
     return list.indexOf(pid);
   };
-  const scoreFor = (pos: string, p: any): number => {
+  const scoreFor = (pos: string, p: ProfiledPlayer): number => {
     let s: number;
     if (pos === "P")
       s = calcPitcherScore(p.profile.grades, p.stats, {
-        topMph: p.stats?.pTopMph ?? p.pitching?.topMph ?? null,
+        topMph:
+          p.stats?.pTopMph ??
+          (p as unknown as { pitching?: { topMph?: number } }).pitching
+            ?.topMph ??
+          null,
         teamAge,
       });
     else if (pos === "C") s = calcCatcherScore(p.profile.grades, p.stats);
@@ -2442,9 +2473,9 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   // pick validated with the bipartite matching so a greedy choice can never
   // strand a later position.
   const eligCount = (pos: string) =>
-    profiled.filter((p: any) => eligibleFor(pos, p)).length;
+    profiled.filter((p) => eligibleFor(pos, p)).length;
   const fillOrder = [...positions].sort((a, b) => eligCount(a) - eligCount(b));
-  const assigned = new Map<string, any>(); // pos → profiled player
+  const assigned = new Map<string, ProfiledPlayer>(); // pos → profiled player
   const used = new Set<string>();
 
   // Honor a coach-selected starting pitcher (Starting Pitcher picker): seat
@@ -2464,8 +2495,8 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
 
   for (const pos of pendingOrder) {
     const candidates = profiled
-      .filter((p: any) => !used.has(p.id) && eligibleFor(pos, p))
-      .sort((a: any, b: any) => scoreFor(pos, b) - scoreFor(pos, a));
+      .filter((p) => !used.has(p.id) && eligibleFor(pos, p))
+      .sort((a, b) => scoreFor(pos, b) - scoreFor(pos, a));
     if (candidates.length === 0) {
       return {
         error: `No eligible player available for ${pos}. Check Comfortable Positions${
@@ -2474,11 +2505,11 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
       };
     }
     const remainingPos = fillOrder.filter((x) => x !== pos && !assigned.has(x));
-    let picked: any = null;
+    let picked: ProfiledPlayer | null = null;
     for (const cand of candidates) {
       const remainingIds = profiled
-        .filter((p: any) => !used.has(p.id) && p.id !== cand.id)
-        .map((p: any) => p.id);
+        .filter((p) => !used.has(p.id) && p.id !== cand.id)
+        .map((p) => p.id);
       const match = maxPositionMatching(remainingPos, remainingIds, (mp, pid) =>
         eligibleFor(mp, byId.get(pid)),
       );
@@ -2505,10 +2536,9 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     subEnterInning == null ? null : Math.min(4, totalInnings);
   const starterReturnInning = totalInnings >= 5 ? 5 : null;
   const benchPlayers = profiled
-    .filter((p: any) => !used.has(p.id))
+    .filter((p) => !used.has(p.id))
     .sort(
-      (a: any, b: any) =>
-        (b.profile.overallScore || 0) - (a.profile.overallScore || 0),
+      (a, b) => (b.profile.overallScore || 0) - (a.profile.overallScore || 0),
     );
   const replaceableSlots = [...assigned.entries()]
     .filter(([pos]) => pos !== "P" && pos !== "C")
@@ -2556,16 +2586,16 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     const handoffInning = catcherPolicy.cap + 1;
     const scriptedIn = new Set(substitutions.map((s) => s.in?.id));
     const eligible = benchPlayers
-      .filter((p: any) => isCatcherEligible(p))
+      .filter((p) => isCatcherEligible(p))
       .sort(
-        (a: any, b: any) =>
+        (a, b) =>
           calcCatcherScore(b.profile.grades, b.stats) -
           calcCatcherScore(a.profile.grades, a.stats),
       );
     // Prefer a bench catcher with no scripted field stint; otherwise borrow
     // a scripted sub — their field stint ends when they strap the gear on.
     const pick =
-      eligible.find((p: any) => !scriptedIn.has(p.id)) || eligible[0] || null;
+      eligible.find((p) => !scriptedIn.has(p.id)) || eligible[0] || null;
     if (pick) {
       catcherHandoff = {
         inning: handoffInning,
@@ -3271,7 +3301,7 @@ function precomputeBenchSchedule(opts: any): any {
     for (const p of profiled) if (!isPositionBlocked(p, pos)) n++;
     posSupply.set(pos, n);
   }
-  const scarcityDrain = (p: any) => {
+  const scarcityDrain = (p: Player) => {
     let drain = 0;
     for (const [pos, supply] of posSupply) {
       if (supply > 0 && !isPositionBlocked(p, pos)) drain += 1 / supply;
