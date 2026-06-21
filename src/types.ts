@@ -119,6 +119,10 @@ export interface Player {
   // the kid to absent in Game Day Attendance; the coach can still toggle
   // them back per game.
   absences?: string[];
+  // ISO instant of the most recent parent Availability-form submission applied
+  // to this player. Drives the Availability tab's completion tracker (who has /
+  // hasn't filled out the form). Absent = no submission on file yet.
+  availabilitySubmittedAt?: string;
   // Will this kid come back next season? Explicit boolean as of the
   // returning-Y/N change. For Advance Season, missing still means "yes"
   // for back-compat via isReturning(); Tryouts planning treats missing as
@@ -322,6 +326,27 @@ export interface PlayerInfoSubmission {
   appliedAt?: string;
 }
 
+// Parent-submitted availability: the dates a family marked their kid as
+// unavailable, collected via the public Availability Portal. When the name +
+// DOB uniquely identify a roster player the coach client auto-merges `dates`
+// into that player's `absences`; ambiguous ones wait in a match queue.
+export interface AvailabilitySubmission {
+  id: string;
+  submittedAt: string;
+  firstName: string;
+  lastName: string;
+  // ISO yyyy-mm-dd — required by the form so submissions can auto-match.
+  dob?: string;
+  parentName?: string;
+  email?: string;
+  phone?: string;
+  // ISO yyyy-mm-dd dates the kid is unavailable.
+  dates: string[];
+  // Stamped once merged onto a roster player's absences.
+  appliedToPlayerId?: string;
+  appliedAt?: string;
+}
+
 export interface TryoutSessionEvaluatorGrades {
   coachRole?: "Head" | "Assistant";
   evaluatorId?: string;
@@ -366,6 +391,10 @@ export interface Team {
   // Portal). Collected year-round on the standing share link; the coach
   // applies each onto a matching roster player from the Player Info tab.
   playerInfoSubmissions?: PlayerInfoSubmission[];
+  // Parent-submitted availability (unavailable dates). Collected year-round on
+  // the standing share link; the coach client auto-merges confident matches
+  // onto player.absences from the Availability tab.
+  availabilitySubmissions?: AvailabilitySubmission[];
   // Persistent team join code. 6-char uppercase alphanumeric. Anyone
   // who has the code can join the team as an assistant coach. The HC
   // can regenerate it (rotating all existing codes) from Settings.
