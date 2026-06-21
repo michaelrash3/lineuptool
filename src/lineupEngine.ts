@@ -139,6 +139,10 @@ type BenchScheduleOpts = {
   rand: () => number;
   forcedBenchInning0: Set<string> | null;
   firstInningOverridesById: Record<string, string>;
+  // The inning the position overrides apply to. 0 for a normal from-scratch
+  // build; on a mid-game rebuild (fromInning > 0 + currentLineup) it's the
+  // first RE-SOLVED inning, so a coach's in-game pin lands where they made it.
+  overrideInning?: number;
 };
 
 // Context passed to each tryBuildLineup attempt.
@@ -3552,6 +3556,7 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     rand,
     forcedBenchInning0,
     firstInningOverridesById,
+    overrideInning = 0,
   } = opts;
 
   // Field-position "supply": how many present players are eligible for each
@@ -3926,13 +3931,13 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     for (let bi = 0; bi < catcherInningBlocks.length; bi++) {
       const block = catcherInningBlocks[bi];
       const blockSize = block.length;
-      const involvesInning0 = block.includes(0);
+      const involvesOverrideInning = block.includes(overrideInning);
 
       const isAvailable = (p: ProfiledPlayer) => {
-        if (involvesInning0) {
+        if (involvesOverrideInning) {
           const lockedPos = firstInningLockedPos.get(p.id);
           // If you forced them to play a specific spot that IS NOT catcher in
-          // the 1st inning, they can't be the catcher for a block covering it.
+          // the override inning, they can't be the catcher for a block covering it.
           if (lockedPos && lockedPos !== "C") return false;
         }
         // Enough remaining play budget to be on the field every inning of the
@@ -4103,8 +4108,8 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     for (const p of profiled) {
       if (alreadyBenched.has(p.id)) continue;
       if (offFieldByInning[inn].has(p.id)) continue;
-      // 1st Inning Override safety: Do not bench a kid if the user explicitly forced them into a position in Inning 0
-      if (inn === 0 && firstInningMustPlay.has(p.id)) continue;
+      // 1st Inning Override safety: Do not bench a kid if the user explicitly forced them into a position in the override inning
+      if (inn === overrideInning && firstInningMustPlay.has(p.id)) continue;
       // Hard rule: no kid sits two innings in a row.
       if (inn > 0 && schedule.get(p.id).has(inn - 1)) continue;
       // Never bench the last available player for any position.
@@ -4141,7 +4146,7 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         (p: ProfiledPlayer) =>
           !alreadyBenched.has(p.id) &&
           !offFieldByInning[inn].has(p.id) &&
-          !(inn === 0 && firstInningMustPlay.has(p.id)) &&
+          !(inn === overrideInning && firstInningMustPlay.has(p.id)) &&
           // No back to back: skip kids who sat the previous inning
           !(inn > 0 && schedule.get(p.id).has(inn - 1)) &&
           // Never bench the last available player for any position.
@@ -4268,7 +4273,7 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
           if (benchedThisInn.has(o.id) || o.id === b) continue;
           if (o.id === catcherId) continue; // catcher must stay on
           if (offFieldByInning[inn].has(o.id)) continue;
-          if (inn === 0 && firstInningMustPlay.has(o.id)) continue;
+          if (inn === overrideInning && firstInningMustPlay.has(o.id)) continue;
           if (inn > 0 && schedule.get(o.id).has(inn - 1)) continue; // no back-to-back
           const trial = new Set(benchedThisInn);
           trial.delete(b);
@@ -4340,6 +4345,16 @@ function tryBuildLineup(ctx: TryBuildCtx):
     fromInning = 0,
     currentLineup = null,
   } = ctx;
+
+  // First RE-SOLVED inning on a mid-game rebuild (innings 0..mgFromInning-1 are
+  // replayed verbatim from currentLineup below). 0 for a normal from-scratch
+  // build. The position overrides apply HERE, not at a hardcoded inning 0, so a
+  // coach's in-game pin (e.g. move a player to pitcher in inning 4) lands on the
+  // inning they're on.
+  const mgFromInning =
+    fromInning > 0 && Array.isArray(currentLineup) && currentLineup.length > 0
+      ? Math.min(fromInning, currentLineup.length, totalInnings)
+      : 0;
 
   // Resolved catcher playing-time policy. Defaulted defensively so any caller
   // that predates the setting still gets the legacy behavior.
@@ -4444,6 +4459,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
     rand,
     forcedBenchInning0,
     firstInningOverridesById, // Safe-guards our overrides so we don't bench them
+    overrideInning: mgFromInning, // ...at the inning the coach actually pinned
   });
   if (!sched)
     return { ok: false, failure: { type: "bench-schedule-impossible" } };
@@ -4459,10 +4475,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
   // (catcher cap / position history / bench tally) and push their slot maps
   // verbatim into `lineup`, so the main fill loop below only has to fill
   // the remaining innings while still respecting carry-over rules.
-  const mgFromInning =
-    fromInning > 0 && Array.isArray(currentLineup) && currentLineup.length > 0
-      ? Math.min(fromInning, currentLineup.length, totalInnings)
-      : 0;
+  // (mgFromInning is computed once near the top of tryBuildLineup.)
   for (let inn = 0; inn < mgFromInning; inn++) {
     const playedInn = currentLineup![inn] || {};
     const seeded: any = {};
@@ -4530,7 +4543,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
     // here is side-effect free.
     const buildSlots = (useLock: boolean) => {
       const inningSlots: Record<string, any> = {};
-      if (inn === 0) {
+      if (inn === mgFromInning) {
         for (const pos in firstInningOverridesById) {
           const pid = firstInningOverridesById[pos];
           const player = profiled.find((p) => p.id === pid);
