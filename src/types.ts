@@ -198,14 +198,44 @@ export interface Game {
   [key: string]: unknown;
 }
 
-// A single drill the coach logged for a practice — what was worked on, plus
-// optional notes and how many minutes it ran. Lives on Practice.drills so the
-// coach can recall later what was practiced.
+// Skill bucket a drill works on. Mirrors the EvalGroup vocabulary
+// (src/constants/ui.ts) plus "Conditioning" and "Team" for warm-ups and
+// situational/scrimmage work that don't map onto a single eval group.
+export type DrillCategory =
+  | "Hitting"
+  | "Fielding"
+  | "Baserunning"
+  | "Pitching"
+  | "Catching"
+  | "Conditioning"
+  | "Team";
+
+// A reusable drill definition in the team's drill library. The library is
+// shared across practices (one small array on the team doc) so coaches build a
+// plan by picking from it instead of re-typing the same drills every week.
+export interface DrillDefinition {
+  id: string;
+  name: string;
+  category: DrillCategory;
+  // Default block length, dropped onto the practice agenda when picked.
+  defaultMinutes?: number;
+  // Which setting the drill suits; "both" shows in indoor and outdoor plans.
+  environment?: "indoor" | "outdoor" | "both";
+  equipment?: string;
+  description?: string;
+}
+
+// A single drill on a practice — both the plan (added before practice) and the
+// record (what was worked on). Lives on Practice.drills. libraryId/category are
+// set when the entry was added from the drill library; free-typed drills leave
+// them blank.
 export interface DrillLogEntry {
   id: string;
   name: string;
   notes?: string;
   minutes?: number;
+  category?: DrillCategory;
+  libraryId?: string;
 }
 
 // A scheduled (or completed) team practice. Manually created or imported from
@@ -376,6 +406,10 @@ export interface Team {
   players?: Player[];
   games?: Game[];
   practices?: Practice[];
+  // Reusable team drill library — coaches pick from this to plan a practice
+  // agenda. Seeded from DEFAULT_DRILL_LIBRARY for new teams; older teams fall
+  // back to the seed for display until they edit it.
+  drillLibrary?: DrillDefinition[];
   // Tryouts (PR M)
   tryoutShareId?: string;
   tryoutsOpen?: boolean;

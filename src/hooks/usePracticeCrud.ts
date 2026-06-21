@@ -1,6 +1,11 @@
 import { useCallback } from "react";
 import { normalizeDateToIso } from "../utils/helpers";
-import type { ConfirmContextValue, ToastContextValue } from "../types";
+import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
+import type {
+  ConfirmContextValue,
+  DrillDefinition,
+  ToastContextValue,
+} from "../types";
 
 // Practice CRUD, mirroring useGameCrud's shape. Pure persistence (add / update /
 // delete a practice + save its attendance) writing through the injected
@@ -13,6 +18,13 @@ interface UsePracticeCrudArgs {
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
+
+// Older teams have no stored drillLibrary; fall back to the seed so the first
+// edit persists the seed + the change rather than dropping the starters.
+const libraryOf = (data: any): DrillDefinition[] =>
+  Array.isArray(data?.drillLibrary) && data.drillLibrary.length > 0
+    ? data.drillLibrary
+    : DEFAULT_DRILL_LIBRARY;
 
 export const usePracticeCrud = ({
   teamData,
@@ -108,10 +120,54 @@ export const usePracticeCrud = ({
     [teamData.practices, updateTeam],
   );
 
+  // ----- Drill library (reusable, team-level) -----
+  const addDrillToLibrary = useCallback(
+    (def: Omit<DrillDefinition, "id">) => {
+      const name = (def?.name || "").trim();
+      if (!name) {
+        toast.push({
+          kind: "warn",
+          title: "Missing info",
+          message: "A drill needs a name.",
+        });
+        return;
+      }
+      const entry: DrillDefinition = {
+        ...def,
+        name,
+        id: "drill-" + Math.random().toString(36).substring(2, 10),
+      };
+      updateTeam({ drillLibrary: [...libraryOf(teamData), entry] });
+    },
+    [teamData, updateTeam, toast],
+  );
+
+  const updateDrillInLibrary = useCallback(
+    (id: string, patch: Partial<DrillDefinition>) => {
+      const next = libraryOf(teamData).map((d) =>
+        d.id === id ? { ...d, ...patch } : d,
+      );
+      updateTeam({ drillLibrary: next });
+    },
+    [teamData, updateTeam],
+  );
+
+  const removeDrillFromLibrary = useCallback(
+    (id: string) => {
+      updateTeam({
+        drillLibrary: libraryOf(teamData).filter((d) => d.id !== id),
+      });
+    },
+    [teamData, updateTeam],
+  );
+
   return {
     addPractice,
     updatePractice,
     removePractice,
     savePracticeAttendance,
+    addDrillToLibrary,
+    updateDrillInLibrary,
+    removeDrillFromLibrary,
   };
 };

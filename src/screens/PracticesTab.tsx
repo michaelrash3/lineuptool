@@ -4,27 +4,24 @@ import { useTeam } from "../contexts";
 import { formatGameDateDisplay, isDepartedPlayer } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
+import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
+import type { DrillCategory, DrillDefinition } from "../types";
 
-// Suggested practice-plan blocks, keyed by environment. The coach can drop any
-// of these straight into a practice's drill log; they're starting points, not
-// prescriptions. Outdoor assumes a full field; indoor assumes a gym/cage with
-// no live outfield play.
-const PLAN_SUGGESTIONS: Record<string, { name: string; minutes: number }[]> = {
-  outdoor: [
-    { name: "Dynamic warm-up + base running", minutes: 10 },
-    { name: "Long toss / arm care", minutes: 10 },
-    { name: "Infield / outfield defense reps", minutes: 20 },
-    { name: "Live batting practice", minutes: 25 },
-    { name: "Situational scrimmage", minutes: 20 },
-  ],
-  indoor: [
-    { name: "Dynamic warm-up", minutes: 10 },
-    { name: "Tee work / soft toss", minutes: 20 },
-    { name: "Fielding footwork & transfers", minutes: 15 },
-    { name: "Throwing progression (band + partner)", minutes: 10 },
-    { name: "Baseball IQ / situations chalk talk", minutes: 15 },
-  ],
-};
+// The drill categories a coach can tag a library drill with. Mirrors the
+// DrillCategory union in types.ts; order here drives the picker grouping.
+const DRILL_CATEGORIES: DrillCategory[] = [
+  "Hitting",
+  "Fielding",
+  "Pitching",
+  "Catching",
+  "Baserunning",
+  "Conditioning",
+  "Team",
+];
+
+// A library drill fits a practice if it's tagged for that environment or both.
+const fitsEnv = (d: DrillDefinition, env: string): boolean =>
+  !d.environment || d.environment === "both" || d.environment === env;
 
 const newId = (p: string) =>
   p + "-" + Math.random().toString(36).substring(2, 9);
@@ -95,6 +92,7 @@ const PracticeRow = memo(
     practice,
     players,
     isHead,
+    drillLibrary,
     updatePractice,
     removePractice,
     savePracticeAttendance,
@@ -113,7 +111,21 @@ const PracticeRow = memo(
     const excusedCount = players.filter(
       (p: any) => statusOf(att[p.id]) === "excused",
     ).length;
+    const env = practice.environment || "outdoor";
     const drills = Array.isArray(practice.drills) ? practice.drills : [];
+    // Running total so a coach can fill a time box while planning the agenda.
+    const totalMinutes = drills.reduce(
+      (sum: number, d: any) => sum + (Number(d.minutes) || 0),
+      0,
+    );
+    // Library drills that suit this practice's environment, minus ones already
+    // on the agenda (matched by libraryId).
+    const usedLibraryIds = new Set(
+      drills.map((d: any) => d.libraryId).filter(Boolean),
+    );
+    const planChoices = (drillLibrary as DrillDefinition[]).filter(
+      (d) => fitsEnv(d, env) && !usedLibraryIds.has(d.id),
+    );
 
     const [gy, gm, gd] = (practice.date || "").split("-");
     const moDate = gy ? new Date(Number(gy), Number(gm) - 1, Number(gd)) : null;
@@ -121,7 +133,6 @@ const PracticeRow = memo(
       ? moDate.toLocaleDateString(undefined, { month: "short" }).toUpperCase()
       : "";
     const dnum = gd ? String(Number(gd)) : "";
-    const env = practice.environment || "outdoor";
 
     const cycleAttendance = (pid: string) => {
       savePracticeAttendance(practice.id, {
@@ -129,6 +140,7 @@ const PracticeRow = memo(
         [pid]: nextStatus(statusOf(att[pid])),
       });
     };
+    // Free-typed drill (no library link).
     const addDrill = (name: string, minutes?: number) => {
       const trimmed = name.trim();
       if (!trimmed) return;
@@ -139,10 +151,33 @@ const PracticeRow = memo(
         ],
       });
     };
+    // Drop a library drill onto the agenda, carrying its category + link so the
+    // chip can hide once used and the log keeps the skill tag.
+    const addFromLibrary = (def: DrillDefinition) =>
+      updatePractice(practice.id, {
+        drills: [
+          ...drills,
+          {
+            id: newId("d"),
+            name: def.name,
+            minutes: def.defaultMinutes || undefined,
+            category: def.category,
+            libraryId: def.id,
+          },
+        ],
+      });
     const removeDrill = (id: string) =>
       updatePractice(practice.id, {
         drills: drills.filter((d: any) => d.id !== id),
       });
+    // Reorder the agenda (drills is an ordered array). dir -1 = earlier.
+    const moveDrill = (idx: number, dir: number) => {
+      const j = idx + dir;
+      if (j < 0 || j >= drills.length) return;
+      const next = [...drills];
+      [next[idx], next[j]] = [next[j], next[idx]];
+      updatePractice(practice.id, { drills: next });
+    };
 
     return (
       <div className="relative border-b border-line">
@@ -275,20 +310,35 @@ const PracticeRow = memo(
               )}
             </div>
 
-            {/* Drill log + plan */}
+            {/* Drill plan / log */}
             <div>
-              <span className="t-eyebrow text-ink-3 block mb-1.5">
-                Drill Log — what we worked on
-              </span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="t-eyebrow text-ink-3">
+                  Practice Plan — drills, in order
+                </span>
+                {totalMinutes > 0 && (
+                  <span className="t-chip px-2 py-0.5 rounded-md border border-line bg-surface-2 text-ink-2 tabular-nums">
+                    {totalMinutes}m total
+                  </span>
+                )}
+              </div>
               {drills.length > 0 ? (
                 <div className="mb-2">
-                  {drills.map((d: any) => (
+                  {drills.map((d: any, idx: number) => (
                     <div
                       key={d.id}
                       className="flex items-center justify-between gap-2 px-1 py-1.5 border-b border-line"
                     >
-                      <span className="font-bold text-ink text-sm truncate">
+                      <span className="font-bold text-ink text-sm truncate min-w-0">
+                        <span className="text-ink-3 tabular-nums mr-1.5">
+                          {idx + 1}.
+                        </span>
                         {d.name}
+                        {d.category ? (
+                          <span className="t-chip ml-1.5 px-1.5 py-0.5 rounded-sm border border-line bg-surface-2 text-ink-3 align-middle">
+                            {d.category}
+                          </span>
+                        ) : null}
                         {d.minutes ? (
                           <span className="text-ink-3 tabular-nums ml-1.5">
                             {d.minutes}m
@@ -296,21 +346,41 @@ const PracticeRow = memo(
                         ) : null}
                       </span>
                       {isHead && (
-                        <button
-                          type="button"
-                          onClick={() => removeDrill(d.id)}
-                          className="text-ink-3 hover:text-loss shrink-0"
-                          aria-label="Remove drill"
-                        >
-                          <Icons.X className="w-3.5 h-3.5" />
-                        </button>
+                        <span className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => moveDrill(idx, -1)}
+                            disabled={idx === 0}
+                            className="text-ink-3 hover:text-ink disabled:opacity-30 disabled:hover:text-ink-3"
+                            aria-label="Move drill earlier"
+                          >
+                            <Icons.ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveDrill(idx, 1)}
+                            disabled={idx === drills.length - 1}
+                            className="text-ink-3 hover:text-ink disabled:opacity-30 disabled:hover:text-ink-3"
+                            aria-label="Move drill later"
+                          >
+                            <Icons.ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeDrill(d.id)}
+                            className="text-ink-3 hover:text-loss ml-0.5"
+                            aria-label="Remove drill"
+                          >
+                            <Icons.X className="w-3.5 h-3.5" />
+                          </button>
+                        </span>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="t-body text-ink-3 italic mb-2">
-                  No drills logged yet.
+                  No drills planned yet.
                 </p>
               )}
 
@@ -351,33 +421,39 @@ const PracticeRow = memo(
                   </form>
 
                   <span className="t-eyebrow text-ink-3 block mb-1.5">
-                    {env === "indoor" ? "Indoor" : "Outdoor"} plan — tap to add
+                    From your {env === "indoor" ? "indoor" : "outdoor"} drill
+                    library — tap to add
                   </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {(PLAN_SUGGESTIONS[env] || PLAN_SUGGESTIONS.outdoor).map(
-                      (s) => {
-                        const already = drills.some(
-                          (d: any) => d.name === s.name,
-                        );
-                        return (
-                          <button
-                            key={s.name}
-                            type="button"
-                            disabled={already}
-                            onClick={() => addDrill(s.name, s.minutes)}
-                            className={`t-chip px-2.5 py-1 rounded-sm border border-line transition-colors ${
-                              already
-                                ? "bg-surface-2 text-ink-3 opacity-60 cursor-default"
-                                : "bg-surface text-ink-2 hover:text-ink hover:border-ink-3"
-                            }`}
-                          >
-                            {already ? "✓ " : "+ "}
-                            {s.name}
-                          </button>
-                        );
-                      },
-                    )}
-                  </div>
+                  {planChoices.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {planChoices.map((d) => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => addFromLibrary(d)}
+                          title={
+                            d.equipment
+                              ? `Equipment: ${d.equipment}`
+                              : undefined
+                          }
+                          className="t-chip px-2.5 py-1 rounded-sm border border-line transition-colors bg-surface text-ink-2 hover:text-ink hover:border-ink-3"
+                        >
+                          {"+ "}
+                          {d.name}
+                          {d.defaultMinutes ? (
+                            <span className="text-ink-3 tabular-nums ml-1">
+                              {d.defaultMinutes}m
+                            </span>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="t-body text-ink-3 italic">
+                      Every {env} library drill is already on the plan. Add more
+                      in the Drill Library above.
+                    </p>
+                  )}
                 </>
               )}
             </div>
@@ -471,6 +547,147 @@ const AddPracticeForm = ({ onAdd, onClose }: any) => {
   );
 };
 
+// Collapsible manager for the reusable team drill library. Head coach builds
+// the menu here once; every practice's planner picks from it.
+const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<DrillCategory>("Hitting");
+  const [minutes, setMinutes] = useState("");
+  const [environment, setEnvironment] = useState<"both" | "indoor" | "outdoor">(
+    "both",
+  );
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onAdd({
+      name: name.trim(),
+      category,
+      defaultMinutes: Number(minutes) || undefined,
+      environment,
+    });
+    setName("");
+    setMinutes("");
+  };
+
+  return (
+    <div className="pb-5 border-b border-line">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 text-left"
+      >
+        <span className="t-eyebrow text-ink-3">
+          Drill Library · {library.length}
+        </span>
+        <Icons.ChevronDown
+          className={`w-4 h-4 text-ink-3 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {library.map((d: DrillDefinition) => (
+              <span
+                key={d.id}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border border-line bg-surface-2"
+              >
+                <span className="font-bold text-ink text-sm">{d.name}</span>
+                <span className="t-chip px-1.5 py-0.5 rounded-sm border border-line bg-surface text-ink-3">
+                  {d.category}
+                </span>
+                {d.defaultMinutes ? (
+                  <span className="text-ink-3 text-xs tabular-nums">
+                    {d.defaultMinutes}m
+                  </span>
+                ) : null}
+                {d.environment && d.environment !== "both" ? (
+                  <span className="text-ink-3 text-[10px] uppercase tracking-widest">
+                    {d.environment}
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => onRemove(d.id)}
+                  className="text-ink-3 hover:text-loss"
+                  aria-label={`Remove ${d.name} from library`}
+                >
+                  <Icons.X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+
+          <form
+            onSubmit={submit}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 items-end"
+          >
+            <label className="block lg:col-span-2">
+              <span className="t-eyebrow text-ink-3 block mb-1">New drill</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Drill name…"
+                className="w-full px-2.5 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)] placeholder:text-ink-3"
+              />
+            </label>
+            <label className="block">
+              <span className="t-eyebrow text-ink-3 block mb-1">Category</span>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as DrillCategory)}
+                className="w-full px-2.5 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+              >
+                {DRILL_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end gap-2">
+              <label className="block w-16">
+                <span className="t-eyebrow text-ink-3 block mb-1">Min</span>
+                <input
+                  value={minutes}
+                  onChange={(e) =>
+                    setMinutes(e.target.value.replace(/[^0-9]/g, ""))
+                  }
+                  inputMode="numeric"
+                  placeholder="min"
+                  className="w-full px-2 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)] placeholder:text-ink-3 tabular-nums"
+                />
+              </label>
+              <label className="block flex-1">
+                <span className="t-eyebrow text-ink-3 block mb-1">Where</span>
+                <select
+                  value={environment}
+                  onChange={(e) => setEnvironment(e.target.value as any)}
+                  className="w-full px-2.5 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                >
+                  <option value="both">Both</option>
+                  <option value="outdoor">Outdoor</option>
+                  <option value="indoor">Indoor</option>
+                </select>
+              </label>
+              <button
+                type="submit"
+                className="btn-premium px-3 py-2 rounded-sm shrink-0"
+                style={{ color: "var(--team-tertiary)" }}
+                aria-label="Add drill to library"
+              >
+                <Icons.Plus className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const PracticesTab = memo(() => {
   const {
     team,
@@ -479,9 +696,18 @@ export const PracticesTab = memo(() => {
     updatePractice,
     removePractice,
     savePracticeAttendance,
+    addDrillToLibrary,
+    removeDrillFromLibrary,
   } = useTeam() as any;
   const isHead = currentRole !== "assistant";
   const [adding, setAdding] = useState(false);
+
+  // Older teams have no stored drillLibrary; show the seed so the planner is
+  // never empty. (The CRUD hook persists the seed + edits on first change.)
+  const drillLibrary = useMemo(() => {
+    const lib = team.drillLibrary;
+    return Array.isArray(lib) && lib.length > 0 ? lib : DEFAULT_DRILL_LIBRARY;
+  }, [team.drillLibrary]);
 
   const players = useMemo(
     () =>
@@ -577,6 +803,15 @@ export const PracticesTab = memo(() => {
         </div>
       )}
 
+      {/* Reusable drill library — head builds the menu the planner picks from */}
+      {isHead && (
+        <DrillLibraryManager
+          library={drillLibrary}
+          onAdd={addDrillToLibrary}
+          onRemove={removeDrillFromLibrary}
+        />
+      )}
+
       {practices.length === 0 ? (
         <div className="text-center py-16">
           <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
@@ -598,6 +833,7 @@ export const PracticesTab = memo(() => {
                 practice={p}
                 players={players}
                 isHead={isHead}
+                drillLibrary={drillLibrary}
                 updatePractice={updatePractice}
                 removePractice={removePractice}
                 savePracticeAttendance={savePracticeAttendance}

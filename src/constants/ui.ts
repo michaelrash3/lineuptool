@@ -1,4 +1,5 @@
 // UI-only constants extracted from App.jsx Section 4.
+import type { DrillDefinition } from "../types";
 
 // League rule sets keep their stored values ("NKB" / "USSSA") so all rules
 // logic and existing data are unchanged, but they're SHOWN to coaches as
@@ -348,11 +349,95 @@ export const computeNextSeason = (
   return null;
 };
 
+// Starter drill library seeded onto every new team (and used as the display
+// fallback for teams created before the library existed). Derived from the
+// old hardcoded indoor/outdoor PLAN_SUGGESTIONS that used to live in
+// PracticesTab, now first-class, categorized, reusable definitions. Stable
+// "seed-*" ids keep them dedupe-able.
+export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
+  // Warm-up / conditioning
+  {
+    id: "seed-dynamic-warmup",
+    name: "Dynamic warm-up",
+    category: "Conditioning",
+    defaultMinutes: 10,
+    environment: "both",
+  },
+  {
+    id: "seed-baserunning",
+    name: "Base running",
+    category: "Baserunning",
+    defaultMinutes: 10,
+    environment: "both",
+  },
+  // Throwing / pitching
+  {
+    id: "seed-long-toss",
+    name: "Long toss / arm care",
+    category: "Pitching",
+    defaultMinutes: 10,
+    environment: "outdoor",
+  },
+  {
+    id: "seed-throwing-progression",
+    name: "Throwing progression (band + partner)",
+    category: "Pitching",
+    defaultMinutes: 10,
+    environment: "indoor",
+  },
+  // Defense
+  {
+    id: "seed-infield-outfield",
+    name: "Infield / outfield defense reps",
+    category: "Fielding",
+    defaultMinutes: 20,
+    environment: "outdoor",
+  },
+  {
+    id: "seed-footwork-transfers",
+    name: "Fielding footwork & transfers",
+    category: "Fielding",
+    defaultMinutes: 15,
+    environment: "indoor",
+  },
+  // Hitting
+  {
+    id: "seed-live-bp",
+    name: "Live batting practice",
+    category: "Hitting",
+    defaultMinutes: 25,
+    environment: "outdoor",
+  },
+  {
+    id: "seed-tee-soft-toss",
+    name: "Tee work / soft toss",
+    category: "Hitting",
+    defaultMinutes: 20,
+    environment: "both",
+  },
+  // Team / IQ
+  {
+    id: "seed-situational-scrimmage",
+    name: "Situational scrimmage",
+    category: "Team",
+    defaultMinutes: 20,
+    environment: "outdoor",
+  },
+  {
+    id: "seed-baseball-iq",
+    name: "Baseball IQ / situations chalk talk",
+    category: "Team",
+    defaultMinutes: 15,
+    environment: "indoor",
+  },
+];
+
 export const DEFAULT_TEAM_DATA = Object.freeze({
   players: [],
   coaches: [],
   games: [],
   practices: [],
+  drillLibrary: DEFAULT_DRILL_LIBRARY,
   evaluationEvents: [],
   evalSchemaVersion: EVAL_SCHEMA_VERSION,
   leagueRuleSet: "USSSA",
