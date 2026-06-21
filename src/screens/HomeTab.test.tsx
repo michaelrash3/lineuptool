@@ -161,4 +161,55 @@ describe("HomeTab", () => {
     });
     expect(screen.queryByText(/Machine\/Coach/)).toBeNull();
   });
+
+  it("counts only active-roster players in the next-game Out badge", () => {
+    renderWithProviders(<HomeTab />, {
+      team: {
+        team: {
+          ...emptyTeam,
+          players: [
+            { id: "a1", name: "Active One", present: true, stats: {} },
+            { id: "a2", name: "Active Two", present: true, stats: {} },
+            { id: "a3", name: "Active Three", present: true, stats: {} },
+            // Inactive/released kids get auto-marked absent during prep —
+            // they must NOT inflate the "Out" badge.
+            { id: "x1", name: "Inactive One", present: false, stats: {} },
+            { id: "x2", name: "Inactive Two", present: false, stats: {} },
+          ],
+          games: [
+            {
+              id: "g1",
+              date: "2026-06-19",
+              status: "draft",
+              opponent: "Bears",
+              attendance: {
+                a1: false, // the one kid actually marked out
+                a2: true,
+                a3: true,
+                x1: false, // inactive — should be ignored
+                x2: false, // inactive — should be ignored
+              },
+            },
+          ],
+        },
+        teams: [{ id: "t1", name: "Hawks" }],
+        activeTeamId: "t1",
+        record: { wins: 0, losses: 0, ties: 0 },
+        user: { uid: "u1" },
+        currentRole: "head",
+      },
+      ui: {
+        setIsAddingGame: jest.fn(),
+        setIsAddingPlayer: jest.fn(),
+      },
+    });
+    // One active player is out — not three. The badge renders "<n> Out" as two
+    // text nodes, so match on the element's full text content.
+    expect(
+      screen.getByText((_, el) => el?.textContent === "1 Out"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText((_, el) => el?.textContent === "3 Out"),
+    ).toBeNull();
+  });
 });

@@ -224,9 +224,24 @@ const UpcomingGameCard = memo(
     // At-a-glance attendance state for the next game, so the coach doesn't build
     // a lineup before confirming who's coming. `attendance` maps playerId→bool;
     // an empty map means nobody's been marked yet (everyone defaults present).
+    //
+    // Only active-roster players count. Inactive/released kids (present ===
+    // false) get auto-marked absent in game.attendance during lineup prep, and
+    // stale entries can linger for players who've since left the roster —
+    // neither is "out for this game" in the coach's sense. Counting them
+    // inflated the badge (e.g. showing "4 Out" when one kid was actually
+    // marked absent), so filter the map down to the current active roster.
+    const activeIds = new Set(
+      (team.players || [])
+        .filter((p: Player) => p.present !== false)
+        .map((p: Player) => p.id),
+    );
     const attMap = game.attendance || {};
-    const attMarked = Object.keys(attMap).length;
-    const attOut = Object.values(attMap).filter((v) => v === false).length;
+    const attEntries = Object.entries(attMap).filter(([id]) =>
+      activeIds.has(id),
+    );
+    const attMarked = attEntries.length;
+    const attOut = attEntries.filter(([, v]) => v === false).length;
 
     let whenLabel;
     if (dayDiff === 0) whenLabel = "Today";
