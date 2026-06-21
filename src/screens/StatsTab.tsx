@@ -27,6 +27,7 @@ import {
   buildSeasonBenchImbalance,
   recentGameLines,
   aggregateGameLines,
+  isDepartedPlayer,
 } from "../utils/helpers";
 import type { BenchImbalanceEntry } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
@@ -418,7 +419,11 @@ export const StatsTab = memo(() => {
   // the known Team shape for this screen.
   const team = teamRaw as Team;
   const stripped = team.statDisplay === "stripped";
-  const players: Player[] = useMemo(() => team.players || [], [team]);
+  // Departed players are excluded everywhere but the Roster tab.
+  const players: Player[] = useMemo(
+    () => (team.players || []).filter((p: Player) => !isDepartedPlayer(p)),
+    [team],
+  );
   const games: Game[] = useMemo(() => team.games || [], [team]);
   const evaluationEvents: EvaluationEvent[] = useMemo(
     () => team.evaluationEvents || [],

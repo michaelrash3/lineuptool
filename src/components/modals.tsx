@@ -51,21 +51,13 @@ const RecentMovementPanel = React.lazy(() =>
 const ABSENCE_DATE_INPUT_CLASS =
   "w-full p-2.5 bg-surface border border-line-strong rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner";
 
-const rosterStatusOf = (player: any) => {
-  if (player?.rosterStatus === "departed") return "departed";
-  if (player?.present === false || player?.rosterStatus === "inactive")
-    return "inactive";
-  return "active";
-};
+const rosterStatusOf = (player: any) =>
+  player?.rosterStatus === "departed" ? "departed" : "active";
 
 const ROSTER_STATUS_COPY: Record<string, { label: string; help: string }> = {
   active: {
     label: "Active",
     help: "Available for games and practices.",
-  },
-  inactive: {
-    label: "Inactive",
-    help: "Temporarily hidden from game-day attendance and lineups.",
   },
   departed: {
     label: "Departed",
@@ -1134,7 +1126,6 @@ export const PlayerProfileModal = memo(() => {
                 className="w-full p-2.5 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
               >
                 <option value="active">Active</option>
-                <option value="inactive">Inactive / temporarily away</option>
                 <option value="departed">Departed / no longer with team</option>
               </select>
               <p className="mt-2 text-[11px] text-ink-3 font-medium">
@@ -1860,24 +1851,6 @@ export const PlayerProfileModal = memo(() => {
         </div>
 
         <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
-          <button
-            onClick={() =>
-              updatePlayer(player.id, {
-                present: rosterStatusOf(player) !== "active",
-                rosterStatus:
-                  rosterStatusOf(player) === "active" ? "inactive" : "active",
-              })
-            }
-            className={`text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line ${
-              rosterStatusOf(player) !== "active"
-                ? "bg-win-bg hover:opacity-90 text-win"
-                : "bg-warn-bg hover:opacity-90 text-warnfg"
-            }`}
-          >
-            {rosterStatusOf(player) !== "active"
-              ? "MARK ACTIVE"
-              : "MARK INACTIVE"}
-          </button>
           <button
             onClick={() => setShowReport(true)}
             className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"

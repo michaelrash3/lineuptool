@@ -10,7 +10,7 @@ import {
   fieldFitScore,
   suggestPrimaryPosition,
 } from "../lineupEngine";
-import { canonicalizeOutfield } from "../utils/helpers";
+import { canonicalizeOutfield, isDepartedPlayer } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
 import type { GradeMap, Player, Team } from "../types";
 
@@ -305,7 +305,11 @@ export const DepthChartTab = memo(() => {
   const team = teamRaw as Team;
   // Memoized off `team` so the `|| fallback` defaults stay referentially stable
   // as deps for the useMemo blocks below.
-  const players: Player[] = useMemo(() => team.players || [], [team]);
+  // Departed players are excluded everywhere but the Roster tab.
+  const players: Player[] = useMemo(
+    () => (team.players || []).filter((p: Player) => !isDepartedPlayer(p)),
+    [team],
+  );
   const evaluationEvents = useMemo(() => team.evaluationEvents || [], [team]);
   const depthChart: Record<string, string[]> = useMemo(
     () => team.depthChart || {},

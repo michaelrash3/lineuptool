@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
-import { formatGameDateDisplay } from "../utils/helpers";
+import { formatGameDateDisplay, isDepartedPlayer } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
 
@@ -484,7 +484,10 @@ export const PracticesTab = memo(() => {
   const [adding, setAdding] = useState(false);
 
   const players = useMemo(
-    () => (team.players || []).filter((p: any) => p && p.inactive !== true),
+    () =>
+      (team.players || []).filter(
+        (p: any) => p && p.inactive !== true && !isDepartedPlayer(p),
+      ),
     [team.players],
   );
 

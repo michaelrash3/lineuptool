@@ -11,6 +11,7 @@ import {
   calculateBaseballAge,
   evalStatHint,
   evalRoundRecency,
+  isDepartedPlayer,
 } from "../utils/helpers";
 import {
   EVAL_CATEGORIES,
@@ -1479,17 +1480,21 @@ export const EvaluationTab = memo(() => {
   // order coaches call kids on the field. Numeric sort; unnumbered
   // players sink to the bottom with name as the tie-break.
   const players = useMemo<Player[]>(() => {
-    return ((rawPlayers || []) as Player[]).slice().sort((a, b) => {
-      const na = parseInt(String(a.number ?? ""), 10);
-      const nb = parseInt(String(b.number ?? ""), 10);
-      const aValid = Number.isFinite(na);
-      const bValid = Number.isFinite(nb);
-      if (aValid && bValid) {
-        if (na !== nb) return na - nb;
-      } else if (aValid) return -1;
-      else if (bValid) return 1;
-      return (a.name || "").localeCompare(b.name || "");
-    });
+    // Departed players are excluded everywhere but the Roster tab.
+    return ((rawPlayers || []) as Player[])
+      .filter((p) => !isDepartedPlayer(p))
+      .slice()
+      .sort((a, b) => {
+        const na = parseInt(String(a.number ?? ""), 10);
+        const nb = parseInt(String(b.number ?? ""), 10);
+        const aValid = Number.isFinite(na);
+        const bValid = Number.isFinite(nb);
+        if (aValid && bValid) {
+          if (na !== nb) return na - nb;
+        } else if (aValid) return -1;
+        else if (bValid) return 1;
+        return (a.name || "").localeCompare(b.name || "");
+      });
   }, [rawPlayers]);
 
   // Eval cadence: "Start new Eval" is gated until a preseason / biweekly

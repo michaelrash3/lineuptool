@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { isGameFinalized } from "../utils/helpers";
+import { isGameFinalized, isDepartedPlayer } from "../utils/helpers";
 
 // Lightweight fuzzy match: case-insensitive substring score. Returns -1 if
 // the query has zero characters present in the candidate; otherwise lower
@@ -67,7 +67,10 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
   const allItems = useMemo(() => {
     if (!team) return [];
     const items = [];
-    const players = team.players || [];
+    // Departed players are excluded everywhere but the Roster tab.
+    const players = (team.players || []).filter(
+      (p: any) => !isDepartedPlayer(p),
+    );
     const games = team.games || [];
 
     for (const p of players) {

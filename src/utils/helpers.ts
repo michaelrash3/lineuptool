@@ -1419,10 +1419,11 @@ export const foldAbsenceRanges = (
 // ---------------------------------------------------------------------------
 
 // A player counts toward availability unless they've left the team. Departed
-// players are excluded; everyone else (active, or the legacy "inactive") still
-// counts so the calendar reflects the kids who could actually show up.
+// players are excluded; everyone else still counts. `rosterStatus` is typed as
+// unknown so the loose `Player` shape (open index signature) passes without a
+// cast at every call site.
 export const isDepartedPlayer = (
-  player: { rosterStatus?: string } | null | undefined,
+  player: { rosterStatus?: unknown; [key: string]: unknown } | null | undefined,
 ): boolean => player?.rosterStatus === "departed";
 
 // How many non-departed players are available on a date (i.e. NOT scheduled

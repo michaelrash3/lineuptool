@@ -1046,6 +1046,17 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               return { ...ev, grades: nextGrades };
             });
           }
+          // v10 — retire the "Inactive" roster status. Anyone not Departed
+          // becomes active again: clear a stale rosterStatus and flip present
+          // back to true so legacy-inactive kids return to lineups, stats, and
+          // attendance. Departed players are untouched.
+          if (stored < 10) {
+            migratedPlayers = migratedPlayers.map((p: Player) => {
+              if (!p || p.rosterStatus === "departed") return p;
+              const { rosterStatus: _dropped, ...rest } = p;
+              return { ...rest, present: true };
+            });
+          }
           persistTeamRef.current?.({
             evaluationEvents: migratedEvents,
             players: migratedPlayers,
