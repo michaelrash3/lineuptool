@@ -1554,6 +1554,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     updatePractice,
     removePractice,
     savePracticeAttendance,
+    addDrillToLibrary,
+    updateDrillInLibrary,
+    removeDrillFromLibrary,
   } = usePracticeCrud({ teamData, updateTeam, toast, confirm });
 
   // ----- Lineup actions ----- (extracted to src/hooks/useLineupActions.ts)
@@ -2667,6 +2670,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updatePractice,
       removePractice,
       savePracticeAttendance,
+      addDrillToLibrary,
+      updateDrillInLibrary,
+      removeDrillFromLibrary,
       generateLineup,
       regenerateLineup,
       regenerateBatting,
@@ -2758,6 +2764,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updatePractice,
       removePractice,
       savePracticeAttendance,
+      addDrillToLibrary,
+      updateDrillInLibrary,
+      removeDrillFromLibrary,
       generateLineup,
       regenerateLineup,
       regenerateBatting,
