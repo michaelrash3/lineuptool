@@ -1411,7 +1411,83 @@ export const foldAbsenceRanges = (
   return out;
 };
 
-// Movement caused by a player's most recent imported game line: the season
+// ---------------------------------------------------------------------------
+// Availability calendar helpers. The coach's Availability tab blocks out dates
+// where the team can't field a full defense; the parent form and that calendar
+// share the month-grid date math here. All dates are ISO yyyy-mm-dd, built from
+// UTC parts so a viewer's local timezone never shifts a day.
+// ---------------------------------------------------------------------------
+
+// A player counts toward availability unless they've left the team. Departed
+// players are excluded; everyone else (active, or the legacy "inactive") still
+// counts so the calendar reflects the kids who could actually show up.
+export const isDepartedPlayer = (
+  player: { rosterStatus?: string } | null | undefined,
+): boolean => player?.rosterStatus === "departed";
+
+// How many non-departed players are available on a date (i.e. NOT scheduled
+// out via their absences list).
+export const countAvailableOnDate = (
+  players:
+    | Array<{ rosterStatus?: string; absences?: string[] }>
+    | null
+    | undefined,
+  dateIso: string | null | undefined,
+): number => {
+  if (!dateIso) return 0;
+  const day = String(dateIso).slice(0, 10);
+  return (players || []).filter(
+    (p) => !isDepartedPlayer(p) && !isPlayerScheduledOut(p, day),
+  ).length;
+};
+
+// True when fewer than `minPlayers` players are available on the date — the
+// signal to block the day out on the calendar. `minPlayers` is the team's
+// defenseSize (9 or 10).
+export const isShortHandedOnDate = (
+  players:
+    | Array<{ rosterStatus?: string; absences?: string[] }>
+    | null
+    | undefined,
+  dateIso: string | null | undefined,
+  minPlayers: number,
+): boolean => countAvailableOnDate(players, dateIso) < minPlayers;
+
+// The non-departed players scheduled out on a date — drives the "who's out"
+// panel when the coach taps a day.
+export const playersOutOnDate = <
+  T extends { rosterStatus?: string; absences?: string[] },
+>(
+  players: T[] | null | undefined,
+  dateIso: string | null | undefined,
+): T[] => {
+  if (!dateIso) return [];
+  const day = String(dateIso).slice(0, 10);
+  return (players || []).filter(
+    (p) => !isDepartedPlayer(p) && isPlayerScheduledOut(p, day),
+  );
+};
+
+// Build a 6-row × 7-col month matrix (Sun-first) for `year`/`month` (month is
+// 0-based). Each cell is an ISO yyyy-mm-dd string for in-month days, or null
+// for the leading/trailing blanks. Pure; UTC-based so no timezone drift.
+export const buildMonthGrid = (
+  year: number,
+  month: number,
+): Array<string | null> => {
+  const firstWeekday = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const cells: Array<string | null> = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push(
+      `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+    );
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+};
+
 // stats derived from all of their game lines vs the same derivation with the
 // newest game excluded. Lets Recent Movement work for coaches who import
 // stats per game (no statsHistory snapshots from a season-CSV upload).

@@ -1,5 +1,9 @@
 import { useCallback } from "react";
-import { blankStats, normalizeTryoutSessions } from "../utils/helpers";
+import {
+  blankStats,
+  normalizeTryoutSessions,
+  isDepartedPlayer,
+} from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Tryout + interest-signup flows extracted from App.tsx's TeamProvider.
@@ -279,6 +283,137 @@ export const useTryoutFlows = ({
     [teamData.playerInfoSubmissions, teamData.players, updateTeam, toast],
   );
 
+  // Drop a parent-submitted availability entry. Coach-only; the two-tap confirm
+  // lives in the AvailabilityTab UI so there's no native prompt here.
+  const deleteAvailabilitySubmission = useCallback(
+    (id: any) => {
+      if (!id) return;
+      const next = (teamData.availabilitySubmissions || []).filter(
+        (s: any) => s.id !== id,
+      );
+      updateTeam({ availabilitySubmissions: next });
+    },
+    [teamData.availabilitySubmissions, updateTeam],
+  );
+
+  // Merge a parent-submitted availability entry onto a roster player: union the
+  // submitted dates into player.absences (deduped + sorted), stamp the player's
+  // availabilitySubmittedAt (drives the completion tracker), and mark the
+  // submission handled — all in one write. Pure union, so re-applying or a
+  // parent re-submitting more dates is always safe.
+  const applyAvailabilityToPlayer = useCallback(
+    (submissionId: any, playerId: any, opts?: { silent?: boolean }) => {
+      if (!submissionId || !playerId) return;
+      const sub = (teamData.availabilitySubmissions || []).find(
+        (s: any) => s.id === submissionId,
+      );
+      const player = (teamData.players || []).find(
+        (p: any) => p.id === playerId,
+      );
+      if (!sub || !player) return;
+
+      const dates = Array.isArray(sub.dates) ? sub.dates : [];
+      const mergedAbsences = [
+        ...new Set([...(player.absences || []), ...dates]),
+      ].sort();
+      const now = new Date().toISOString();
+      const nextPlayers = (teamData.players || []).map((p: any) =>
+        p.id === playerId
+          ? {
+              ...p,
+              absences: mergedAbsences,
+              availabilitySubmittedAt: sub.submittedAt || now,
+            }
+          : p,
+      );
+      const nextSubs = (teamData.availabilitySubmissions || []).map((s: any) =>
+        s.id === submissionId
+          ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
+          : s,
+      );
+      updateTeam({
+        players: nextPlayers,
+        availabilitySubmissions: nextSubs,
+      });
+      if (!opts?.silent) {
+        toast.push({
+          kind: "success",
+          title: "Availability applied",
+          message:
+            `${sub.firstName || ""} ${sub.lastName || ""}`.trim() ||
+            player.name,
+        });
+      }
+    },
+    [teamData.availabilitySubmissions, teamData.players, updateTeam, toast],
+  );
+
+  // Auto-apply every un-applied availability submission whose name + DOB
+  // uniquely identify one non-departed roster player. Ambiguous or unmatched
+  // submissions are left for the coach to match by hand. Runs on the coach
+  // client (only members can write players) — typically when the Availability
+  // tab mounts. Batches all confident matches into a SINGLE write so the
+  // optimistic merge doesn't drop all-but-one. Returns the number applied.
+  const autoApplyAvailability = useCallback(() => {
+    const subs = teamData.availabilitySubmissions || [];
+    const players = teamData.players || [];
+    const pending = subs.filter((s: any) => !s.appliedToPlayerId);
+    if (pending.length === 0) return 0;
+
+    const norm = (v: any) =>
+      String(v ?? "")
+        .trim()
+        .toLowerCase();
+    const matchPlayer = (sub: any): any | null => {
+      const dob = String(sub.dob || "").trim();
+      const full = `${sub.firstName || ""} ${sub.lastName || ""}`
+        .trim()
+        .toLowerCase();
+      const active = players.filter((p: any) => !isDepartedPlayer(p));
+      if (dob) {
+        const byDob = active.filter(
+          (p: any) => String(p.dob || "").trim() === dob,
+        );
+        if (byDob.length === 1) return byDob[0];
+        if (byDob.length > 1 && full) {
+          const hit = byDob.find((p: any) => norm(p.name) === full);
+          if (hit) return hit;
+        }
+        return null; // DOB present but ambiguous/unmatched → manual
+      }
+      // No DOB: only auto-apply on a unique name match.
+      const byName = active.filter((p: any) => norm(p.name) === full);
+      return byName.length === 1 ? byName[0] : null;
+    };
+
+    const now = new Date().toISOString();
+    const playersById = new Map<string, any>(
+      players.map((p: any) => [p.id, { ...p }]),
+    );
+    const appliedSubIds = new Map<string, string>(); // subId → playerId
+    for (const sub of pending) {
+      const player = matchPlayer(sub);
+      if (!player) continue;
+      const target = playersById.get(player.id);
+      const dates = Array.isArray(sub.dates) ? sub.dates : [];
+      target.absences = [
+        ...new Set([...(target.absences || []), ...dates]),
+      ].sort();
+      target.availabilitySubmittedAt = sub.submittedAt || now;
+      appliedSubIds.set(sub.id, player.id);
+    }
+    if (appliedSubIds.size === 0) return 0;
+
+    const nextPlayers = players.map((p: any) => playersById.get(p.id) || p);
+    const nextSubs = subs.map((s: any) =>
+      appliedSubIds.has(s.id)
+        ? { ...s, appliedToPlayerId: appliedSubIds.get(s.id), appliedAt: now }
+        : s,
+    );
+    updateTeam({ players: nextPlayers, availabilitySubmissions: nextSubs });
+    return appliedSubIds.size;
+  }, [teamData.availabilitySubmissions, teamData.players, updateTeam]);
+
   // Tryout grades live in date-grouped tryoutSessions, separate from the
   // roster evaluationEvents collection. Each date has one session; each
   // evaluator owns a grades map keyed by signup id inside that session.
@@ -473,6 +608,9 @@ export const useTryoutFlows = ({
     convertInterestToTryout,
     deletePlayerInfoSubmission,
     applyPlayerInfoToPlayer,
+    deleteAvailabilitySubmission,
+    applyAvailabilityToPlayer,
+    autoApplyAvailability,
     saveTryoutEvaluation,
     saveTryoutEvaluations,
     acceptTryout,

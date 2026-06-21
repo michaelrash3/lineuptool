@@ -188,6 +188,16 @@ const PlayerInfoPortal = lazy(() =>
     default: m.PlayerInfoPortal,
   })),
 );
+const AvailabilityPortal = lazy(() =>
+  import("./screens/AvailabilityPortal").then((m) => ({
+    default: m.AvailabilityPortal,
+  })),
+);
+const AvailabilityTab = lazy(() =>
+  import("./screens/AvailabilityTab").then((m) => ({
+    default: m.AvailabilityTab,
+  })),
+);
 const PlayerInfoTab = lazy(() =>
   import("./screens/PlayerInfoTab").then((m) => ({
     default: m.PlayerInfoTab,
@@ -212,6 +222,7 @@ const TAB_TITLE_LABELS: Record<string, string> = {
   tryouts: "Tryouts",
   interest: "Interest",
   playerInfo: "Player Info",
+  availability: "Availability",
   finances: "Finances",
   settings: "Settings",
 };
@@ -2142,6 +2153,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     convertInterestToTryout,
     deletePlayerInfoSubmission,
     applyPlayerInfoToPlayer,
+    deleteAvailabilitySubmission,
+    applyAvailabilityToPlayer,
+    autoApplyAvailability,
     saveTryoutEvaluation,
     saveTryoutEvaluations,
     acceptTryout,
@@ -2680,6 +2694,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       convertInterestToTryout,
       deletePlayerInfoSubmission,
       applyPlayerInfoToPlayer,
+      deleteAvailabilitySubmission,
+      applyAvailabilityToPlayer,
+      autoApplyAvailability,
       acceptTryout,
       saveTryoutEvaluation,
       saveTryoutEvaluations,
@@ -2768,6 +2785,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       convertInterestToTryout,
       deletePlayerInfoSubmission,
       applyPlayerInfoToPlayer,
+      deleteAvailabilitySubmission,
+      applyAvailabilityToPlayer,
+      autoApplyAvailability,
       acceptTryout,
       saveTryoutEvaluation,
       saveTryoutEvaluations,
@@ -3654,6 +3674,10 @@ const MainShell = () => {
   const playerInfoButton = !isAssistant
     ? { id: "playerInfo", icon: Icons.Users, label: "Player Info" }
     : null;
+  // Head-only "Availability" calendar for parent-submitted absences.
+  const availabilityButton = !isAssistant
+    ? { id: "availability", icon: Icons.Calendar, label: "Availability" }
+    : null;
   const navButtons = isAssistant
     ? [
         { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
@@ -3675,6 +3699,7 @@ const MainShell = () => {
         ...(tryoutsVisible ? [tryoutsButton] : []),
         ...(interestButton ? [interestButton] : []),
         ...(playerInfoButton ? [playerInfoButton] : []),
+        ...(availabilityButton ? [availabilityButton] : []),
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
         // Money is the head coach's business alone — assistants never see
         // the Finances tab (mirrors the Settings route gate below).
@@ -3759,6 +3784,16 @@ const MainShell = () => {
                   }
                 />
                 <Route
+                  path="/availability"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <AvailabilityTab />
+                    )
+                  }
+                />
+                <Route
                   path="/finances"
                   element={
                     isAssistant ? <Navigate to="/" replace /> : <FinancesTab />
@@ -3830,7 +3865,8 @@ const App = () => {
   if (
     typeof window !== "undefined" &&
     (window.location.pathname.startsWith("/tryouts-portal/") ||
-      window.location.pathname.startsWith("/player-info-portal/"))
+      window.location.pathname.startsWith("/player-info-portal/") ||
+      window.location.pathname.startsWith("/availability-portal/"))
   ) {
     return (
       <AppMotionProvider>
@@ -3845,6 +3881,10 @@ const App = () => {
                 <Route
                   path="/player-info-portal/:slug"
                   element={<PlayerInfoPortal />}
+                />
+                <Route
+                  path="/availability-portal/:slug"
+                  element={<AvailabilityPortal />}
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

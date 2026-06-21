@@ -269,6 +269,27 @@ describe("public signup append constraints", () => {
     );
   });
 
+  it("allows appending exactly one availability submission", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        availabilitySubmissions: arrayUnion({ id: "av1", firstName: "New" }),
+      }),
+    );
+  });
+
+  it("denies availability writes when no share link exists", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        tryoutShareId: null,
+      });
+    });
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        availabilitySubmissions: arrayUnion({ id: "av1", firstName: "New" }),
+      }),
+    );
+  });
+
   it("denies removing/replacing existing signups", async () => {
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {

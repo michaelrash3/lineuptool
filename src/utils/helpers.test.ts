@@ -44,6 +44,11 @@ import {
   addAbsenceDateRange,
   removeAbsenceDates,
   foldAbsenceRanges,
+  countAvailableOnDate,
+  isShortHandedOnDate,
+  playersOutOnDate,
+  buildMonthGrid,
+  isDepartedPlayer,
   recentGameLines,
   evalStatHint,
   deriveTournaments,
@@ -1878,6 +1883,54 @@ describe("absence date-range helpers", () => {
     ]);
     expect(foldAbsenceRanges([])).toEqual([]);
     expect(foldAbsenceRanges(null)).toEqual([]);
+  });
+});
+
+describe("availability calendar helpers", () => {
+  const roster = [
+    { id: "a", name: "A", absences: ["2026-07-04"] },
+    { id: "b", name: "B", absences: ["2026-07-04", "2026-07-05"] },
+    { id: "c", name: "C", absences: [] },
+    { id: "d", name: "D", rosterStatus: "departed", absences: [] },
+  ];
+
+  it("isDepartedPlayer flags only departed players", () => {
+    expect(isDepartedPlayer({ rosterStatus: "departed" })).toBe(true);
+    expect(isDepartedPlayer({ rosterStatus: "inactive" })).toBe(false);
+    expect(isDepartedPlayer({})).toBe(false);
+    expect(isDepartedPlayer(null)).toBe(false);
+  });
+
+  it("countAvailableOnDate excludes departed and scheduled-out players", () => {
+    // Active non-departed = A, B, C. On 7/4 both A and B are out → 1 (C).
+    expect(countAvailableOnDate(roster, "2026-07-04")).toBe(1);
+    // On 7/5 only B is out → A and C available → 2.
+    expect(countAvailableOnDate(roster, "2026-07-05")).toBe(2);
+    // A clear day → all 3 active available (departed D never counts).
+    expect(countAvailableOnDate(roster, "2026-08-01")).toBe(3);
+    expect(countAvailableOnDate(roster, null)).toBe(0);
+  });
+
+  it("isShortHandedOnDate compares available against the minimum", () => {
+    expect(isShortHandedOnDate(roster, "2026-07-04", 2)).toBe(true); // 1 < 2
+    expect(isShortHandedOnDate(roster, "2026-07-05", 2)).toBe(false); // 2 == 2
+    expect(isShortHandedOnDate(roster, "2026-08-01", 3)).toBe(false); // 3 == 3
+  });
+
+  it("playersOutOnDate lists non-departed players scheduled out", () => {
+    const out = playersOutOnDate(roster, "2026-07-04").map((p: any) => p.id);
+    expect(out).toEqual(["a", "b"]);
+    expect(playersOutOnDate(roster, "2026-08-01")).toEqual([]);
+  });
+
+  it("buildMonthGrid pads to whole weeks and places days correctly", () => {
+    // July 2026: the 1st is a Wednesday (weekday index 3).
+    const grid = buildMonthGrid(2026, 6);
+    expect(grid.length % 7).toBe(0);
+    expect(grid.slice(0, 3)).toEqual([null, null, null]);
+    expect(grid[3]).toBe("2026-07-01");
+    expect(grid).toContain("2026-07-31");
+    expect(grid.filter((d) => d !== null)).toHaveLength(31);
   });
 });
 
