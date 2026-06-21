@@ -3100,10 +3100,11 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
       }
       setLineup((cur: Inning[] | null) => {
         if (!cur) return cur;
-        // Tournament starting-lineup edits carry to the rest of the game so the
-        // coach's hand-picked defense holds every inning — not just the 1st —
-        // while leaving the rule-capped catcher and the engine's scripted
-        // substitution windows alone. See applyLineupSwap for the full contract.
+        // Lineup edits carry forward to the remaining innings so the coach's
+        // change holds for the rest of the game — not just the inning they
+        // edited — while leaving the rule-capped catcher and any inning whose
+        // arrangement already differs (rotation / scripted subs) alone. See
+        // applyLineupSwap for the full contract.
         return applyLineupSwap(cur, {
           innIdx,
           sPos: swapSelection.pos,
@@ -3111,12 +3112,12 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
           sPlayer: swapSelection.player as NonNullable<SlimPlayer>,
           tPos: pos,
           tPlayer: player,
-          propagateToStarterInnings: tournamentPlan != null,
+          carryForward: true,
         });
       });
       setSwapSelection(null);
     },
-    [swapSelection, tournamentPlan],
+    [swapSelection],
   );
 
   const addInning = useCallback(() => {

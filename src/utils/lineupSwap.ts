@@ -4,15 +4,18 @@
 // (player `b`, possibly null/empty, or the BENCH). Positions are keyed by the
 // Inning shape; "BENCH" is the reserve array, everything else is a field slot.
 //
-// Tournament starting-lineup edits additionally CARRY to the rest of the game:
-// the coach's hand-picked defense should hold every inning, not just the 1st.
-// Two things are deliberately left untouched when propagating:
+// Edits additionally CARRY FORWARD to the rest of the game: a change in inning
+// N applies to inning N and every LATER inning (N+1 .. end), so the coach's
+// change holds for the remaining innings — not just the one they edited.
+// Earlier innings (0 .. N-1) are always left alone. Two things are deliberately
+// left untouched when propagating:
 //   1. The catcher ("C"). Its innings are rule-capped / rotated, so a catcher
 //      edit never propagates, and a propagated field swap never displaces an
 //      inning's catcher.
-//   2. The engine's scripted substitution windows. If a sub already occupies an
-//      affected slot in inning k, that inning's pre-state no longer matches
-//      inning 1, so the carry skips it — auto-subs survive.
+//   2. Innings whose arrangement already differs (e.g. fair-rotation shuffles
+//      or scripted substitution windows). If a later inning's pre-state no
+//      longer matches the edited inning, the carry skips it — intentional
+//      rotation and auto-subs survive.
 
 import type { Inning, SlimPlayer } from "../types";
 
@@ -22,8 +25,10 @@ export interface LineupSwap {
   sPlayer: NonNullable<SlimPlayer>;
   tPos: string;
   tPlayer: SlimPlayer | null;
-  // When true, an inning-0 edit carries to the matching starter innings.
-  propagateToStarterInnings: boolean;
+  // When true, the edit carries forward to the later innings (innIdx+1 .. end),
+  // applying the same swap to every later inning that still matches the
+  // pre-swap arrangement.
+  carryForward: boolean;
 }
 
 // Apply the swap (a@sPos <-> b@tPos) to a single inning's slot, in place.
@@ -69,14 +74,10 @@ export function applyLineupSwap(lineup: Inning[], swap: LineupSwap): Inning[] {
   applySwap(next[swap.innIdx], swap);
 
   const carries =
-    swap.propagateToStarterInnings &&
-    swap.innIdx === 0 &&
-    swap.sPos !== "C" &&
-    swap.tPos !== "C";
+    swap.carryForward && swap.sPos !== "C" && swap.tPos !== "C";
   if (carries) {
     const { sPos, sPlayer: a, tPos, tPlayer: b } = swap;
-    for (let k = 0; k < next.length; k++) {
-      if (k === swap.innIdx) continue;
+    for (let k = swap.innIdx + 1; k < next.length; k++) {
       const slot = next[k];
       // Never disturb an inning's catcher — that rotation is rule-driven.
       const catcherId = (slot.C as SlimPlayer)?.id;

@@ -8,9 +8,9 @@ const p = (id: string): NonNullable<SlimPlayer> => ({
   number: "",
 });
 
-// 4-inning tournament-style grid: Alice starts at SS innings 1-2 & 4, a sub
-// (Bob) takes SS in inning 3. Carl catches every inning (rule-driven). Dan is
-// on the bench until tapped in.
+// 4-inning grid: Alice starts at SS innings 1-2 & 4, a sub (Bob) takes SS in
+// inning 3. Carl catches every inning (rule-driven). Dan is on the bench until
+// tapped in.
 const grid = (): Inning[] => [
   { SS: p("alice"), "1B": p("ed"), C: p("carl"), BENCH: [p("dan")] },
   { SS: p("alice"), "1B": p("ed"), C: p("carl"), BENCH: [p("dan")] },
@@ -31,19 +31,19 @@ describe("applyLineupSwap", () => {
       sPlayer: p("alice"),
       tPos: "1B",
       tPlayer: p("ed"),
-      propagateToStarterInnings: true,
+      carryForward: true,
     });
     expect(JSON.stringify(original)).toBe(snapshot);
   });
 
-  it("non-tournament edit only changes the edited inning", () => {
+  it("with carryForward off, only the edited inning changes", () => {
     const out = applyLineupSwap(grid(), {
       innIdx: 0,
       sPos: "SS",
       sPlayer: p("alice"),
       tPos: "1B",
       tPlayer: p("ed"),
-      propagateToStarterInnings: false,
+      carryForward: false,
     });
     expect((out[0].SS as SlimPlayer)?.id).toBe("ed");
     expect((out[0]["1B"] as SlimPlayer)?.id).toBe("alice");
@@ -51,7 +51,7 @@ describe("applyLineupSwap", () => {
     expect((out[1].SS as SlimPlayer)?.id).toBe("alice");
   });
 
-  it("tournament edit carries a field swap to matching starter innings", () => {
+  it("carries a field swap forward to matching later innings", () => {
     // Move bench Dan into SS in inning 1, sending Alice to the bench.
     const out = applyLineupSwap(grid(), {
       innIdx: 0,
@@ -59,7 +59,7 @@ describe("applyLineupSwap", () => {
       sPlayer: p("dan"),
       tPos: "SS",
       tPlayer: p("alice"),
-      propagateToStarterInnings: true,
+      carryForward: true,
     });
     // Innings 1,2,4 (Alice was the SS starter) -> Dan. Inning 3 keeps the
     // scripted sub Bob.
@@ -78,7 +78,7 @@ describe("applyLineupSwap", () => {
       sPlayer: p("carl"),
       tPos: "SS",
       tPlayer: p("alice"),
-      propagateToStarterInnings: true,
+      carryForward: true,
     });
     // Only inning 1 changed; the rest keep Carl behind the plate and Alice at SS.
     expect((out[0].C as SlimPlayer)?.id).toBe("alice");
@@ -99,23 +99,25 @@ describe("applyLineupSwap", () => {
       sPlayer: p("alice"),
       tPos: "1B",
       tPlayer: p("ed"),
-      propagateToStarterInnings: true,
+      carryForward: true,
     });
-    // Field swap of Alice<->Ed carries across starter innings, catcher intact.
+    // Field swap of Alice<->Ed carries across matching innings, catcher intact.
     expect(ssIds(out)).toEqual(["ed", "ed", "bob", "ed"]);
     out.forEach((inn) => expect((inn.C as SlimPlayer)?.id).toBe("carl"));
   });
 
-  it("only carries edits made to the first inning", () => {
+  it("carries forward from the edited inning, never to earlier ones", () => {
     const out = applyLineupSwap(grid(), {
       innIdx: 1,
       sPos: "SS",
       sPlayer: p("alice"),
       tPos: "1B",
       tPlayer: p("ed"),
-      propagateToStarterInnings: true,
+      carryForward: true,
     });
-    // Edit was in inning 2 (index 1) -> no propagation.
-    expect(ssIds(out)).toEqual(["alice", "ed", "bob", "alice"]);
+    // Edit in inning 2 (index 1): inning 1 (earlier) is untouched, inning 2 is
+    // swapped, inning 3 keeps the scripted sub (Bob), inning 4 matches so it
+    // carries.
+    expect(ssIds(out)).toEqual(["alice", "ed", "bob", "ed"]);
   });
 });
