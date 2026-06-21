@@ -1720,6 +1720,76 @@ describe("mid-game rebuild fairness", () => {
   });
 });
 
+// A coach moving a player to pitcher mid-game (Rec / fair-play engine) pins
+// them at the inning they're ON — the first re-solved inning — not a hardcoded
+// inning 0. Without this, the fair rotation would slide the moved pitcher off
+// the mound by the time the rebuilt innings are used. (The tournament pipeline
+// regenerates fresh and the in-game caller keeps played innings via its merge,
+// so this contract is specific to generateLineup.)
+describe("mid-game rebuild honors a position pin at the re-solved inning", () => {
+  const slim = (id: any) => ({ id, name: `Player ${id}`, number: "" });
+  const players = Array.from({ length: 11 }, (_, i) =>
+    makePlayer(`p${i}`, `P${i}`),
+  );
+  const onFieldExcept = (excludeId: any) => {
+    const fielders = players.filter((p) => p.id !== excludeId);
+    return {
+      P: slim(fielders[0].id),
+      C: slim(fielders[1].id),
+      "1B": slim(fielders[2].id),
+      "2B": slim(fielders[3].id),
+      "3B": slim(fielders[4].id),
+      SS: slim(fielders[5].id),
+      LF: slim(fielders[6].id),
+      LCF: slim(fielders[7].id),
+      RCF: slim(fielders[8].id),
+      RF: slim(fielders[9].id),
+      BENCH: [slim(excludeId)],
+    };
+  };
+  // Innings 0..2 played; p0/p1/p2 each sat one. The played pitcher is never p5.
+  const currentLineup = [
+    onFieldExcept("p0"),
+    onFieldExcept("p1"),
+    onFieldExcept("p2"),
+  ];
+  const baseInput = {
+    activePlayers: players,
+    allPlayers: players,
+    games: [],
+    evaluationEvents: [],
+    currentGame: { id: "g_test", date: "2026-05-01", opponent: "X" },
+    firstInningOverridesById: { P: "p5" }, // move p5 to the mound at inning 3
+    totalInnings: 6,
+    leagueRuleSet: "USSSA",
+    teamAge: "10U",
+    defenseSize: "10",
+    positionLock: "0",
+    battingSize: "roster",
+    seed: 17,
+    isBigGame: false,
+    fromInning: 3,
+    currentLineup,
+  };
+
+  test("rec: pin lands at inning 3, played innings untouched", () => {
+    const res = generateLineup({ ...baseInput, competitive: false } as any);
+    expect(res.error).toBeUndefined();
+    // Played innings 0..2 are replayed verbatim (the original pitcher stays).
+    for (let i = 0; i < 3; i++) {
+      expect((res.lineup![i].P as any)?.id).toBe(
+        (currentLineup[i].P as any).id,
+      );
+    }
+    // The re-solved inning (3, the one the coach is on) has p5 on the mound.
+    expect((res.lineup![3].P as any)?.id).toBe("p5");
+    // p5 isn't benched in the inning they were just pinned to.
+    expect((res.lineup![3].BENCH || []).map((b: any) => b?.id)).not.toContain(
+      "p5",
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 8U fuzz / soak — run many realistic 8U setups through the engine and
 // assert it never bails out and never violates basic invariants. This is

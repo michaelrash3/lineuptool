@@ -3,6 +3,7 @@ import { Icons } from "../icons";
 import { formatGameDateDisplay, sameDayRoleSets } from "../utils/helpers";
 import {
   checkPitchEligibility,
+  generateLineup,
   generateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
@@ -291,17 +292,13 @@ export const InGameView = memo(() => {
     flushTimerRef.current = setTimeout(flush, 500);
   };
 
-  // One-tap pitcher assignment from the Available pool. Rec games swap the
-  // chosen player into the P slot for the CURRENT inning only (reusing
-  // performSwap, which keeps undo history + haptics). Tournament games
-  // re-run the tournament generator from the current active participants,
-  // force the selected reliever into P, and copy the generated defense to
-  // this inning plus every remaining inning.
+  // One-tap pitcher assignment from the Available pool. Both Rec and Tournament
+  // games re-run the engine with the chosen reliever forced to P and re-flow the
+  // current + remaining innings around them (recalibrateRestOfGame picks the
+  // right engine). Only if that rebuild can't run (e.g. the engine errors) do we
+  // fall back to a current-inning-only swap via performSwap.
   const assignPitcher = (playerId: any) => {
-    if (game.tournamentPlan) {
-      assignPitcherRestOfGame(playerId);
-      return;
-    }
+    if (assignPitcherRestOfGame(playerId)) return;
     const innNow = pendingLineup
       ? pendingLineup[currentInning]
       : liveLineup[currentInning];
@@ -328,12 +325,12 @@ export const InGameView = memo(() => {
   // current/future defense with the selected reliever forced to P, and record
   // one whole-lineup undo snapshot. This intentionally does NOT swap the
   // pulled pitcher into the reliever's old field/bench spot.
-  const assignPitcherRestOfGame = (playerId: any) => {
+  const assignPitcherRestOfGame = (playerId: any): boolean => {
     const base = pendingLineup ?? game.lineup;
     const current = base[currentInning];
-    if (!current) return;
-    if (current.P?.id === playerId) return;
-    recalibrateRestOfGame(
+    if (!current) return false;
+    if (current.P?.id === playerId) return false;
+    return recalibrateRestOfGame(
       { P: playerId },
       {
         title: "Pitching change",
@@ -350,8 +347,9 @@ export const InGameView = memo(() => {
   // Re-optimize the current + remaining innings with a set of position pins,
   // keeping the innings already played. Shared by the pitching change (pin P)
   // and a manual position move (pin the swapped spots + keep the battery). The
-  // fair rotation keeps rotating around the pins. Tournament games only — Rec
-  // games don't run the tournament generator. Returns true if it rebuilt.
+  // fair rotation keeps rotating around the pins. Works in BOTH Rec and
+  // Tournament games (the engine is chosen by game type below). Returns true if
+  // it rebuilt.
   const recalibrateRestOfGame = (
     overrides: Record<string, string>,
     opts: { title: string; message: (rebuiltCurrent: any) => string },
@@ -380,7 +378,18 @@ export const InGameView = memo(() => {
     for (const [pos, id] of Object.entries(overrides))
       if (id && activeIds.has(id)) pins[pos] = id;
 
-    const result = generateTournamentLineup({
+    // Pick the engine by game type, mirroring useLineupActions: Tournament
+    // (USSSA) games run the competitive pipeline; Rec games run the fair-play
+    // engine. This is what makes the re-flow work in BOTH modes, not just
+    // tournament. The two engines preserve the already-played innings
+    // differently: the Rec engine (generateLineup) replays them via
+    // fromInning/currentLineup, which also makes it apply the pin at the
+    // CURRENT inning (the one the coach is on) rather than inning 0 — without
+    // that, the fair-play rotation would slide the moved pitcher off the mound.
+    // The tournament pipeline doesn't take fromInning; it regenerates fresh and
+    // we keep the played innings in the caller-side merge below.
+    const isTournament = (game.leagueRuleSet || team.leagueRuleSet) === "USSSA";
+    const result = (isTournament ? generateTournamentLineup : generateLineup)({
       activePlayers,
       allPlayers: roster.length ? roster : activePlayers,
       games: team.games || [],
@@ -388,8 +397,11 @@ export const InGameView = memo(() => {
       currentGame: game,
       firstInningOverridesById: pins,
       totalInnings: base.length,
+      ...(isTournament
+        ? {}
+        : { fromInning: currentInning, currentLineup: base }),
       leagueRuleSet: game.leagueRuleSet || team.leagueRuleSet,
-      competitive: true,
+      competitive: isTournament,
       depthChart: team.depthChart,
       pitchRuleSet: resolvePitchRuleSet({
         pitchRuleSet: team.pitchRuleSet,
@@ -544,9 +556,9 @@ export const InGameView = memo(() => {
       // of the game (like the Available-Pitchers change and a position move):
       // the incoming arm/glove is pinned to the mound/plate, the other half of
       // the battery is kept for continuity, and the remaining innings re-flow
-      // around them. Tournament games only. Other subs just fill the tapped spot
-      // below.
-      if (game.tournamentPlan && (pos === "P" || pos === "C")) {
+      // around them. Both Rec and Tournament. Other subs just fill the tapped
+      // spot below.
+      if (pos === "P" || pos === "C") {
         const cur = (pendingLineup ?? game.lineup)[currentInning];
         const pins: Record<string, string> = {};
         if ((cur?.P as any)?.id) pins.P = (cur.P as any).id;
@@ -598,15 +610,26 @@ export const InGameView = memo(() => {
       return;
     }
 
-    // A POSITION MOVE (both cells on the field) in a tournament game
-    // recalibrates the rest of the game: the two swapped players are pinned to
-    // their new spots and the current battery (P/C) is kept for continuity,
-    // then the generator re-optimizes the remaining innings' defense + rotation
-    // around them. Innings already played are untouched. Rec games keep the
-    // current-inning-only behavior below.
+    // A POSITION MOVE (both cells on the field) recalibrates the rest of the
+    // game: the two swapped players are pinned to their new spots and the
+    // current battery (P/C) is kept for continuity, then the engine re-optimizes
+    // the remaining innings' defense + rotation around them. Innings already
+    // played are untouched. If the rebuild can't run it falls back to the
+    // current-inning-only swap below.
+    //   - Tournament: any position move re-flows the rest of the game.
+    //   - Rec: only a move that touches the BATTERY (a player to/from P or C)
+    //     re-flows; a plain field↔field tweak stays current-inning-only so a
+    //     coach's small fair-play adjustment doesn't reshuffle the whole game.
+    const movesBattery =
+      firstSel.pos === "P" ||
+      secondSel.pos === "P" ||
+      firstSel.pos === "C" ||
+      secondSel.pos === "C";
+    const isTournamentGame =
+      (game.leagueRuleSet || team.leagueRuleSet) === "USSSA";
     if (
       !isSubstitution &&
-      game.tournamentPlan &&
+      (isTournamentGame || movesBattery) &&
       currentInning < liveLineup.length - 1 &&
       firstSel.type === "position" &&
       secondSel.type === "position"
