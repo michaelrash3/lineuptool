@@ -73,8 +73,7 @@ export function applyLineupSwap(lineup: Inning[], swap: LineupSwap): Inning[] {
 
   applySwap(next[swap.innIdx], swap);
 
-  const carries =
-    swap.carryForward && swap.sPos !== "C" && swap.tPos !== "C";
+  const carries = swap.carryForward && swap.sPos !== "C" && swap.tPos !== "C";
   if (carries) {
     const { sPos, sPlayer: a, tPos, tPlayer: b } = swap;
     for (let k = swap.innIdx + 1; k < next.length; k++) {
