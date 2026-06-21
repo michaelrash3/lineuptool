@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { visualizer } from "rollup-plugin-visualizer";
 
 // Vite replaces Create React App (react-scripts). Static assets continue to
 // live in public/ and are copied to the build output as-is. Tests run under
@@ -34,6 +35,16 @@ export default defineConfig({
         // The firebase vendor chunk pushes past workbox's 2MB default.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
+    }),
+    // Bundle treemap. Only emits during a real `vite build` (no-op for the dev
+    // server / vitest), writing bundle-stats.html at the repo root (gitignored).
+    // gzip + brotli sizes match what the CDN actually ships, so a chunk creeping
+    // into the startup graph is visible instead of silent. Open it after a build:
+    //   npm run build && open bundle-stats.html
+    visualizer({
+      filename: "bundle-stats.html",
+      gzipSize: true,
+      brotliSize: true,
     }),
   ],
   // Vite's default output dir is ./dist (see vercel.json, which pins the
