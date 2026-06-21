@@ -15,7 +15,6 @@ const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
 
 const FILTER_CHIPS = [
   { id: "present", label: "Present" },
-  { id: "inactive", label: "Inactive" },
   { id: "departed", label: "Departed" },
   { id: "pitchers", label: "Pitchers" },
   { id: "catchers", label: "Catchers" },
@@ -40,20 +39,17 @@ const playerComfortable = (player: any, pos: any) => {
   return player.primaryPosition === pos;
 };
 
-const getRosterStatus = (player: any) => {
-  if (player.rosterStatus === "departed") return "departed";
-  if (player.present === false || player.rosterStatus === "inactive")
-    return "inactive";
-  return "active";
-};
+// A player is either active or Departed (the "inactive" status was retired in
+// schema v10). Departed players are kept on the Roster for records but pulled
+// from every other tab.
+const getRosterStatus = (player: any) =>
+  player.rosterStatus === "departed" ? "departed" : "active";
 
 const playerMatchesFilter = (player: any, filterId: any) => {
   const rosterStatus = getRosterStatus(player);
   switch (filterId) {
     case "present":
       return rosterStatus === "active";
-    case "inactive":
-      return rosterStatus === "inactive";
     case "departed":
       return rosterStatus === "departed";
     case "pitchers":
@@ -170,9 +166,7 @@ const PlayerRow = memo(
                     ? "0 0 0 3px rgba(148,163,184,0.18)"
                     : "0 0 0 3px rgba(16,185,129,0.18)",
                 }}
-                title={
-                  hasDeparted ? "Departed" : absent ? "Inactive" : "Present"
-                }
+                title={hasDeparted ? "Departed" : "Present"}
               />
             </div>
             <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -192,15 +186,9 @@ const PlayerRow = memo(
                   Age {calculateBaseballAge(player.dob, currentSeason) || "?"}
                 </span>
               )}
-              {absent && (
-                <span
-                  className={`t-chip px-2 py-1 rounded-md border border-line ${
-                    hasDeparted
-                      ? "bg-warn-bg text-warnfg"
-                      : "bg-loss-bg text-loss"
-                  }`}
-                >
-                  {hasDeparted ? "Departed" : "Inactive"}
+              {hasDeparted && (
+                <span className="t-chip px-2 py-1 rounded-md border border-line bg-warn-bg text-warnfg">
+                  Departed
                 </span>
               )}
             </div>
@@ -431,6 +419,17 @@ export const RosterTab = memo(() => {
     [players],
   );
 
+  // Departed players sort to the bottom under their own header; active players
+  // render first in the normal list.
+  const visibleActive = useMemo(
+    () => visiblePlayers.filter((p) => getRosterStatus(p) !== "departed"),
+    [visiblePlayers],
+  );
+  const visibleDeparted = useMemo(
+    () => visiblePlayers.filter((p) => getRosterStatus(p) === "departed"),
+    [visiblePlayers],
+  );
+
   const filtersActive = activeFilters.size > 0 || searchQuery.trim().length > 0;
 
   return (
@@ -591,22 +590,55 @@ export const RosterTab = memo(() => {
                 </button>
               </div>
             ) : (
-              <StaggerList className="flex flex-col">
-                {visiblePlayers.map((player) => (
-                  <StaggerItem key={player.id}>
-                    <PlayerRow
-                      player={player}
-                      currentSeason={currentSeason}
-                      onOpenProfile={openPlayerProfile}
-                      onSelectStats={setSelectedStatsId}
-                      selectedForStats={player.id === selectedStatsId}
-                      showPositionTag={canEdit}
-                      logoUrl={(team as any)?.logoUrl}
-                      stripped={stripped}
-                    />
-                  </StaggerItem>
-                ))}
-              </StaggerList>
+              <>
+                {visibleActive.length > 0 && (
+                  <StaggerList className="flex flex-col">
+                    {visibleActive.map((player) => (
+                      <StaggerItem key={player.id}>
+                        <PlayerRow
+                          player={player}
+                          currentSeason={currentSeason}
+                          onOpenProfile={openPlayerProfile}
+                          onSelectStats={setSelectedStatsId}
+                          selectedForStats={player.id === selectedStatsId}
+                          showPositionTag={canEdit}
+                          logoUrl={(team as any)?.logoUrl}
+                          stripped={stripped}
+                        />
+                      </StaggerItem>
+                    ))}
+                  </StaggerList>
+                )}
+                {visibleDeparted.length > 0 && (
+                  <div className={visibleActive.length > 0 ? "mt-6" : ""}>
+                    <div className="flex items-center gap-2 px-1 pb-2 mb-1 border-b border-line">
+                      <Icons.Users className="w-4 h-4 text-ink-3" />
+                      <h3 className="text-xs font-black uppercase tracking-widest text-ink-3">
+                        Departed
+                      </h3>
+                      <span className="t-eyebrow text-ink-3 tabular-nums">
+                        {visibleDeparted.length}
+                      </span>
+                    </div>
+                    <StaggerList className="flex flex-col opacity-90">
+                      {visibleDeparted.map((player) => (
+                        <StaggerItem key={player.id}>
+                          <PlayerRow
+                            player={player}
+                            currentSeason={currentSeason}
+                            onOpenProfile={openPlayerProfile}
+                            onSelectStats={setSelectedStatsId}
+                            selectedForStats={player.id === selectedStatsId}
+                            showPositionTag={canEdit}
+                            logoUrl={(team as any)?.logoUrl}
+                            stripped={stripped}
+                          />
+                        </StaggerItem>
+                      ))}
+                    </StaggerList>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

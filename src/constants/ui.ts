@@ -232,7 +232,11 @@ export const getEvalCategoriesForPlayer = (
 // young ages). Contact/Power/Fielding/Arm/Velocity/Strikes/Off-Speed/Throwing
 // are derived from imported stats — the v9 migration strips those saved grade
 // keys from prior rounds (notes are preserved).
-export const EVAL_SCHEMA_VERSION = 9;
+// v10 (2026-06) — roster-status simplification. The "Inactive" status is
+// retired: a player is now either active or Departed. The v10 migration folds
+// every non-departed player back to active (present: true, no stale
+// rosterStatus), so legacy "inactive" kids rejoin lineups/stats/attendance.
+export const EVAL_SCHEMA_VERSION = 10;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [

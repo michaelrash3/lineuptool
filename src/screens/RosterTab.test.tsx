@@ -75,7 +75,7 @@ describe("RosterTab", () => {
     expect(screen.queryByText("RBI", { selector: "div" })).toBeNull();
   });
 
-  it("distinguishes temporarily inactive players from departed players", async () => {
+  it("separates departed players into their own section (no Inactive status)", async () => {
     renderWithProviders(<RosterTab />, {
       team: {
         team: {
@@ -88,11 +88,11 @@ describe("RosterTab", () => {
               present: false,
               rosterStatus: "departed",
             },
+            // A legacy "inactive" player now counts as active (status retired).
             {
               id: "p4",
               name: "Lily Chen",
               number: "22",
-              present: false,
               rosterStatus: "inactive",
             },
           ],
@@ -103,9 +103,12 @@ describe("RosterTab", () => {
       ui: { setIsAddingPlayer: jest.fn() },
     });
 
-    expect(screen.getByText("2 Active")).toBeInTheDocument();
+    // p1, p2, and the former-inactive p4 are all active; only Zoe is departed.
+    expect(screen.getByText("3 Active")).toBeInTheDocument();
     expect(screen.getAllByText("Departed").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Inactive").length).toBeGreaterThan(0);
+    // The "Inactive" status is gone entirely.
+    expect(screen.queryByText("Inactive")).toBeNull();
+    expect(screen.getByText("Lily Chen")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Departed" }));
     expect(screen.getByText("Zoe Kim")).toBeInTheDocument();
