@@ -25,6 +25,66 @@ const hexToRgb = (hex?: string): [number, number, number] => {
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
 };
 
+// Faint watermark behind the invoice: the team logo centered at low opacity
+// (mirroring the lineup card), or a big diagonal team name when there's no
+// logo. Drawn first so the content sits on top. Opacity is applied via a
+// graphics state and reset to 1 afterward so nothing else is affected.
+const drawWatermark = (
+  pdf: import("jspdf").jsPDF,
+  team: Team | null | undefined,
+  accent: [number, number, number],
+  pageW: number,
+  pageH: number,
+): void => {
+  // jspdf's GState lives on the instance but isn't in every typings build.
+  const gs = pdf as unknown as {
+    GState: (opts: { opacity: number }) => unknown;
+    setGState: (state: unknown) => void;
+  };
+  const fade = (opacity: number) => gs.setGState(gs.GState({ opacity }));
+
+  const logo = (team?.logoUrl || "").trim();
+  if (logo.startsWith("data:image")) {
+    try {
+      const props = pdf.getImageProperties(logo);
+      if (props?.width && props?.height) {
+        const wmMax = Math.min(pageW, pageH) * 0.6;
+        const r = Math.min(wmMax / props.width, wmMax / props.height);
+        const w = props.width * r;
+        const h = props.height * r;
+        fade(0.06);
+        pdf.addImage(
+          logo,
+          props.fileType || "PNG",
+          (pageW - w) / 2,
+          (pageH - h) / 2,
+          w,
+          h,
+          undefined,
+          "FAST",
+        );
+        fade(1);
+        return;
+      }
+    } catch {
+      // Bad/unsupported logo data — fall through to the text watermark.
+    }
+  }
+
+  const name = (team?.name || "").trim();
+  if (!name) return;
+  fade(0.05);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(90);
+  pdf.setTextColor(accent[0], accent[1], accent[2]);
+  pdf.text(name.toUpperCase(), pageW / 2, pageH / 2, {
+    align: "center",
+    baseline: "middle",
+    angle: 32,
+  });
+  fade(1);
+};
+
 const renderFeeSheetPdf = async ({
   team,
   finances,
@@ -46,6 +106,9 @@ const renderFeeSheetPdf = async ({
   const margin = 56;
   const contentW = pageW - margin * 2;
   const accent = hexToRgb(team?.primaryColor);
+
+  // Watermark first so all content lands on top of it.
+  drawWatermark(pdf, team, accent, pageW, pageH);
 
   // Accent bar across the top.
   pdf.setFillColor(accent[0], accent[1], accent[2]);
