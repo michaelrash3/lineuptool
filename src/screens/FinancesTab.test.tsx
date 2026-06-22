@@ -729,6 +729,37 @@ describe("FinancesTab", () => {
     ).toBeInTheDocument();
   });
 
+  it("reverses an applied carryover discount back to the bank", () => {
+    const applied: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          {
+            id: "carry-2026-08-01-abc123",
+            date: "2026-08-01",
+            label: "Carried over (through Spring 2026)",
+            amount: 240,
+            fundraising: true,
+          },
+        ],
+      },
+    };
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: applied },
+    });
+    fireEvent.click(
+      screen.getByLabelText("Reverse carryover team-fee discount"),
+    );
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    // The carryover entry flips back to a plain (non-fundraising) income, so
+    // the surplus no longer discounts dues.
+    expect(patch.finances.incomes[0]).toMatchObject({
+      id: "carry-2026-08-01-abc123",
+      fundraising: false,
+    });
+  });
+
   it("renders the empty state without a finances object at all", () => {
     renderWithProviders(<FinancesTab />, {
       team: { team: { players: [], games: [] } },

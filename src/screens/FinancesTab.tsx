@@ -422,6 +422,33 @@ export const FinancesTab = memo(() => {
     });
   };
 
+  // ---- Reverse the apply above. Applying flips the carryover entry to
+  // `fundraising: true`; this flips it back so the surplus sits in the bank
+  // again instead of discounting dues. Lets a coach undo a mistaken tap
+  // without hand-editing the ledger.
+  const carryoverApplied = useMemo(
+    () =>
+      (finances.incomes || []).filter((i) => isCarryover(i) && i.fundraising),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [finances.incomes],
+  );
+  const carryoverAppliedTotal = carryoverApplied.reduce(
+    (sum, i) => sum + (Number(i.amount) || 0),
+    0,
+  );
+  const reverseCarryoverDiscount = () => {
+    writeFinances({
+      incomes: (finances.incomes || []).map((i) =>
+        isCarryover(i) && i.fundraising ? { ...i, fundraising: false } : i,
+      ),
+    });
+    toast.push({
+      kind: "success",
+      title: "Carryover discount reversed",
+      message: "Last season's surplus is back in the bank, not on dues.",
+    });
+  };
+
   const applyPreset = (preset: (typeof BUDGET_PRESETS)[number]) => {
     setBudgetLabel(preset.label);
     setQtyMode(true);
@@ -737,6 +764,26 @@ export const FinancesTab = memo(() => {
                   >
                     <Icons.Check className="w-4 h-4" /> Apply as team-fee
                     discount
+                  </Button>
+                </div>
+              )}
+              {carryoverAppliedTotal > 0 && (
+                <div className="flex flex-wrap items-center gap-3 py-2 pl-3 border-l-2 border-line-strong">
+                  <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
+                    Last season&apos;s{" "}
+                    <span className="font-black text-ink tabular-nums">
+                      {formatCurrency(carryoverAppliedTotal)}
+                    </span>{" "}
+                    surplus is applied as a team-fee discount. Reverse it if that
+                    was a mistake.
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Reverse carryover team-fee discount"
+                    onClick={reverseCarryoverDiscount}
+                  >
+                    <Icons.Refresh className="w-4 h-4" /> Reverse discount
                   </Button>
                 </div>
               )}
