@@ -155,8 +155,9 @@ const renderFeeSheetPdf = async ({
   return pdf.output("blob");
 };
 
-// Tries the Web Share API first (so the coach's iOS/Android share sheet
-// appears), falling back to a download link. Mirrors downloadLineupPdf.
+// Downloads the fee sheet straight to the coach's device as a PDF file — no
+// share sheet. The handout is meant to be saved and printed, so it goes
+// directly to downloads where it can be reopened, printed, or attached.
 export const downloadPlayerFeeSheetPdf = async (
   args: FeeSheetArgs,
 ): Promise<void> => {
@@ -176,28 +177,6 @@ export const downloadPlayerFeeSheetPdf = async (
     }.pdf`
       .replace(/\s+/g, "-")
       .toLowerCase();
-    const file = new File([blob], filename, { type: "application/pdf" });
-
-    const nav = navigator as unknown as {
-      share?: (data: {
-        files: File[];
-        title?: string;
-        text?: string;
-      }) => Promise<void>;
-      canShare?: (data: { files: File[] }) => boolean;
-    };
-    if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
-      try {
-        await nav.share!({
-          files: [file],
-          title: "Player Fee Breakdown",
-          text: "Player Fee Breakdown",
-        });
-        return;
-      } catch (e) {
-        if ((e as { name?: string })?.name === "AbortError") return;
-      }
-    }
 
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
