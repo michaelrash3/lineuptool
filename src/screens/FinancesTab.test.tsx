@@ -680,14 +680,70 @@ describe("FinancesTab", () => {
     });
     // $240 across 2 paying families ≈ $120 off each.
     expect(screen.getByText(/\$120 off per/)).toBeInTheDocument();
+    // Two-tap confirm: Yes swaps to a confirm message, no write yet.
     fireEvent.click(
       screen.getByLabelText("Apply carryover as team-fee discount"),
     );
+    expect(teamValue.updateTeam).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText("Confirm apply carryover discount"));
     const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
     expect(patch.finances.incomes[0]).toMatchObject({
       id: "carry-2026-08-01-abc123",
       fundraising: true,
     });
+  });
+
+  it("dismisses the carryover prompt permanently on a confirmed No", () => {
+    const carried: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          {
+            id: "carry-2026-08-01-abc123",
+            date: "2026-08-01",
+            label: "Carried over (through Spring 2026)",
+            amount: 240,
+          },
+        ],
+      },
+    };
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: carried },
+    });
+    // First No swaps to the confirm message without writing.
+    fireEvent.click(screen.getByLabelText("Skip carryover discount"));
+    expect(teamValue.updateTeam).not.toHaveBeenCalled();
+    // Confirming No flags the entry dismissed (stays in the bank, not applied).
+    fireEvent.click(screen.getByLabelText("Confirm skip carryover discount"));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(patch.finances.incomes[0]).toMatchObject({
+      id: "carry-2026-08-01-abc123",
+      dismissed: true,
+    });
+    expect(patch.finances.incomes[0].fundraising).toBeFalsy();
+  });
+
+  it("hides the carryover prompt once it has been dismissed", () => {
+    const dismissed: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          {
+            id: "carry-2026-08-01-abc123",
+            date: "2026-08-01",
+            label: "Carried over (through Spring 2026)",
+            amount: 240,
+            dismissed: true,
+          },
+        ],
+      },
+    };
+    renderWithProviders(<FinancesTab />, { team: { team: dismissed } });
+    expect(
+      screen.queryByLabelText("Apply carryover as team-fee discount"),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the carryover prompt once the discount is applied; debt never prompts", () => {
