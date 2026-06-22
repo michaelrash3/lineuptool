@@ -18,72 +18,35 @@ interface FeeSheetArgs {
 }
 
 // "#1b4f9c" → [27, 79, 156]; falls back to slate-900 for missing/odd values.
-const hexToRgb = (hex?: string): [number, number, number] => {
+type RGB = [number, number, number];
+const hexToRgb = (hex?: string): RGB => {
   const m = /^#?([0-9a-f]{6})$/i.exec((hex || "").trim());
   if (!m) return [17, 24, 39];
   const int = parseInt(m[1], 16);
   return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
 };
 
-// Faint watermark behind the invoice: the team logo centered at low opacity
-// (mirroring the lineup card), or a big diagonal team name when there's no
-// logo. Drawn first so the content sits on top. Opacity is applied via a
-// graphics state and reset to 1 afterward so nothing else is affected.
-const drawWatermark = (
-  pdf: import("jspdf").jsPDF,
-  team: Team | null | undefined,
-  accent: [number, number, number],
-  pageW: number,
-  pageH: number,
-): void => {
-  // jspdf's GState lives on the instance but isn't in every typings build.
-  const gs = pdf as unknown as {
-    GState: (opts: { opacity: number }) => unknown;
-    setGState: (state: unknown) => void;
-  };
-  const fade = (opacity: number) => gs.setGState(gs.GState({ opacity }));
-
-  const logo = (team?.logoUrl || "").trim();
-  if (logo.startsWith("data:image")) {
-    try {
-      const props = pdf.getImageProperties(logo);
-      if (props?.width && props?.height) {
-        const wmMax = Math.min(pageW, pageH) * 0.6;
-        const r = Math.min(wmMax / props.width, wmMax / props.height);
-        const w = props.width * r;
-        const h = props.height * r;
-        fade(0.06);
-        pdf.addImage(
-          logo,
-          props.fileType || "PNG",
-          (pageW - w) / 2,
-          (pageH - h) / 2,
-          w,
-          h,
-          undefined,
-          "FAST",
-        );
-        fade(1);
-        return;
-      }
-    } catch {
-      // Bad/unsupported logo data — fall through to the text watermark.
-    }
-  }
-
-  const name = (team?.name || "").trim();
-  if (!name) return;
-  fade(0.05);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(90);
-  pdf.setTextColor(accent[0], accent[1], accent[2]);
-  pdf.text(name.toUpperCase(), pageW / 2, pageH / 2, {
-    align: "center",
-    baseline: "middle",
-    angle: 32,
-  });
-  fade(1);
+// Black or white text, whichever reads on the given background. Keeps the
+// header legible whatever team color a coach picked (navy vs. a bright yellow).
+const idealTextOn = (c: RGB): RGB => {
+  const luminance = (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
+  return luminance > 0.62 ? [17, 24, 39] : [255, 255, 255];
 };
+
+// Mix a color toward white by t (0..1) — used for the faint accent tint behind
+// the total row.
+const tint = (c: RGB, t: number): RGB => [
+  Math.round(c[0] + (255 - c[0]) * t),
+  Math.round(c[1] + (255 - c[1]) * t),
+  Math.round(c[2] + (255 - c[2]) * t),
+];
+
+const SLATE_900: RGB = [17, 24, 39];
+const SLATE_600: RGB = [71, 85, 105];
+const SLATE_500: RGB = [100, 116, 139];
+const SLATE_400: RGB = [148, 163, 184];
+const HAIRLINE: RGB = [226, 232, 240];
+const ZEBRA: RGB = [247, 249, 252];
 
 const renderFeeSheetPdf = async ({
   team,
@@ -104,114 +67,176 @@ const renderFeeSheetPdf = async ({
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 56;
+  const right = pageW - margin;
   const contentW = pageW - margin * 2;
   const accent = hexToRgb(team?.primaryColor);
-
-  // Watermark first so all content lands on top of it.
-  drawWatermark(pdf, team, accent, pageW, pageH);
-
-  // Accent bar across the top.
-  pdf.setFillColor(accent[0], accent[1], accent[2]);
-  pdf.rect(0, 0, pageW, 8, "F");
-
-  let y = margin + 14;
-
-  // Team name.
-  pdf.setFont("helvetica", "bold");
-  pdf.setTextColor(17, 24, 39);
-  pdf.setFontSize(22);
-  pdf.text(team?.name || "Team", margin, y);
-
-  // Eyebrow.
-  y += 22;
+  const onAccent = idealTextOn(accent);
+  const teamName = (team?.name || "Team").trim();
   const season = (team?.currentSeason || "").trim();
-  pdf.setFontSize(11);
-  pdf.setTextColor(accent[0], accent[1], accent[2]);
-  pdf.text(
-    `PLAYER FEE BREAKDOWN${season ? ` — ${season.toUpperCase()}` : ""}`,
-    margin,
-    y,
-  );
 
-  // Fee callout box.
-  y += 26;
-  const boxH = 66;
-  pdf.setFillColor(245, 247, 250);
-  pdf.setDrawColor(226, 232, 240);
-  pdf.setLineWidth(1);
-  pdf.roundedRect(margin, y, contentW, boxH, 8, 8, "FD");
-  pdf.setFontSize(10);
-  pdf.setTextColor(100, 116, 139);
-  pdf.text("ANNUAL FEE PER PLAYER", margin + 18, y + 24);
-  pdf.setFontSize(30);
-  pdf.setTextColor(17, 24, 39);
-  pdf.text(formatCurrency(breakdown.fee), margin + 18, y + 54);
-  y += boxH + 32;
+  // ---- Letterhead band (team color) ----
+  const bandH = 104;
+  pdf.setFillColor(accent[0], accent[1], accent[2]);
+  pdf.rect(0, 0, pageW, bandH, "F");
 
-  // Intro line.
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(11);
-  pdf.setTextColor(71, 85, 105);
-  pdf.text(
-    "Here's how each player's fee supports the team this season:",
-    margin,
-    y,
-  );
-  y += 26;
-
-  // Table header.
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(9);
-  pdf.setTextColor(100, 116, 139);
-  pdf.text("EXPENSE", margin, y);
-  pdf.text("PER PLAYER", pageW - margin, y, { align: "right" });
-  y += 8;
-  pdf.setDrawColor(accent[0], accent[1], accent[2]);
-  pdf.setLineWidth(1.5);
-  pdf.line(margin, y, pageW - margin, y);
-  y += 20;
-
-  // Expense rows. Long labels wrap; the amount aligns to the first line.
-  const labelMaxW = contentW - 120;
-  for (const line of breakdown.lines) {
-    const wrapped = pdf.splitTextToSize(line.label, labelMaxW) as string[];
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(12);
-    pdf.setTextColor(30, 41, 59);
-    pdf.text(wrapped, margin, y);
-    pdf.setFont("helvetica", "bold");
-    pdf.text(formatCurrency(line.amount), pageW - margin, y, {
-      align: "right",
-    });
-    y += 16 * wrapped.length + 6;
-    pdf.setDrawColor(241, 245, 249);
-    pdf.setLineWidth(0.5);
-    pdf.line(margin, y, pageW - margin, y);
-    y += 12;
+  // Logo in a white chip on the left so it reads on any band color. The chip
+  // also keeps the logo's own background from clashing with the team color.
+  let textX = margin;
+  const logo = (team?.logoUrl || "").trim();
+  if (logo.startsWith("data:image")) {
+    try {
+      const props = pdf.getImageProperties(logo);
+      if (props?.width && props?.height) {
+        const chip = 64;
+        const cx = margin;
+        const cy = (bandH - chip) / 2;
+        pdf.setFillColor(255, 255, 255);
+        pdf.roundedRect(cx, cy, chip, chip, 8, 8, "F");
+        const box = chip - 16;
+        const r = Math.min(box / props.width, box / props.height);
+        const lw = props.width * r;
+        const lh = props.height * r;
+        pdf.addImage(
+          logo,
+          props.fileType || "PNG",
+          cx + (chip - lw) / 2,
+          cy + (chip - lh) / 2,
+          lw,
+          lh,
+          undefined,
+          "FAST",
+        );
+        textX = cx + chip + 18;
+      }
+    } catch {
+      // Unsupported logo data — just omit the chip.
+    }
   }
 
-  // Total — equals the fee exactly because the lines are spread from it.
-  y += 4;
+  // Team name + document title.
+  pdf.setTextColor(onAccent[0], onAccent[1], onAccent[2]);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(21);
+  pdf.text(teamName, textX, 50);
+  pdf.setFontSize(9.5);
+  pdf.setCharSpace(2);
+  pdf.text("PLAYER FEE SCHEDULE", textX, 72);
+  pdf.setCharSpace(0);
+
+  // Right-aligned document meta (season + issue date).
+  const issued = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  if (season) {
+    pdf.setFontSize(12);
+    pdf.text(season.toUpperCase(), right, 48, { align: "right" });
+  }
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.text(`Issued ${issued}`, right, season ? 66 : 50, { align: "right" });
+
+  let y = bandH + 38;
+
+  // ---- Fee callout (left accent stripe) ----
+  const calloutH = 74;
+  pdf.setFillColor(ZEBRA[0], ZEBRA[1], ZEBRA[2]);
+  pdf.rect(margin, y, contentW, calloutH, "F");
+  pdf.setFillColor(accent[0], accent[1], accent[2]);
+  pdf.rect(margin, y, 6, calloutH, "F");
+  pdf.setDrawColor(HAIRLINE[0], HAIRLINE[1], HAIRLINE[2]);
+  pdf.setLineWidth(0.75);
+  pdf.rect(margin, y, contentW, calloutH);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9.5);
+  pdf.setTextColor(SLATE_500[0], SLATE_500[1], SLATE_500[2]);
+  pdf.setCharSpace(1.5);
+  pdf.text("ANNUAL FEE PER PLAYER", margin + 22, y + 28);
+  pdf.setCharSpace(0);
+  pdf.setFontSize(30);
+  pdf.setTextColor(SLATE_900[0], SLATE_900[1], SLATE_900[2]);
+  pdf.text(formatCurrency(breakdown.fee), margin + 22, y + 60);
+  y += calloutH + 34;
+
+  // ---- Intro line ----
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(11);
+  pdf.setTextColor(SLATE_600[0], SLATE_600[1], SLATE_600[2]);
+  pdf.text("Each player's fee supports the team as follows:", margin, y);
+  y += 28;
+
+  // ---- Table header ----
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  pdf.setTextColor(SLATE_500[0], SLATE_500[1], SLATE_500[2]);
+  pdf.setCharSpace(1);
+  pdf.text("EXPENSE", margin + 8, y);
+  pdf.text("PER PLAYER", right - 8, y, { align: "right" });
+  pdf.setCharSpace(0);
+  y += 9;
   pdf.setDrawColor(accent[0], accent[1], accent[2]);
   pdf.setLineWidth(1.5);
-  pdf.line(margin, y, pageW - margin, y);
-  y += 24;
+  pdf.line(margin, y, right, y);
+
+  // ---- Expense rows (zebra striped) ----
+  const labelMaxW = contentW - 130;
+  breakdown.lines.forEach((line, i) => {
+    const wrapped = pdf.splitTextToSize(line.label, labelMaxW) as string[];
+    const rowH = 15 * wrapped.length + 15;
+    if (i % 2 === 0) {
+      pdf.setFillColor(ZEBRA[0], ZEBRA[1], ZEBRA[2]);
+      pdf.rect(margin, y, contentW, rowH, "F");
+    }
+    const baseline = y + (rowH - (wrapped.length - 1) * 15) / 2 + 4;
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(11.5);
+    pdf.setTextColor(30, 41, 59);
+    pdf.text(wrapped, margin + 8, baseline);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(SLATE_900[0], SLATE_900[1], SLATE_900[2]);
+    pdf.text(formatCurrency(line.amount), right - 8, baseline, {
+      align: "right",
+    });
+    y += rowH;
+  });
+
+  // ---- Total row (accent tint band) ----
+  const totalH = 42;
+  const band = tint(accent, 0.86);
+  pdf.setFillColor(band[0], band[1], band[2]);
+  pdf.rect(margin, y, contentW, totalH, "F");
+  pdf.setDrawColor(accent[0], accent[1], accent[2]);
+  pdf.setLineWidth(1.5);
+  pdf.line(margin, y, right, y);
+  const totalBaseline = y + totalH / 2 + 5;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(13);
-  pdf.setTextColor(17, 24, 39);
-  pdf.text("TOTAL", margin, y);
-  pdf.text(formatCurrency(breakdown.fee), pageW - margin, y, {
+  pdf.setTextColor(SLATE_900[0], SLATE_900[1], SLATE_900[2]);
+  pdf.setCharSpace(0.5);
+  pdf.text("TOTAL", margin + 8, totalBaseline);
+  pdf.setCharSpace(0);
+  pdf.setFontSize(15);
+  pdf.text(formatCurrency(breakdown.fee), right - 8, totalBaseline, {
     align: "right",
   });
 
-  // Footer note.
-  pdf.setFont("helvetica", "normal");
+  // ---- Footer ----
+  const footY = pageH - 64;
+  pdf.setDrawColor(HAIRLINE[0], HAIRLINE[1], HAIRLINE[2]);
+  pdf.setLineWidth(0.75);
+  pdf.line(margin, footY, right, footY);
+  pdf.setFont("helvetica", "bold");
   pdf.setFontSize(9);
-  pdf.setTextColor(148, 163, 184);
+  pdf.setTextColor(SLATE_900[0], SLATE_900[1], SLATE_900[2]);
+  pdf.text(`${teamName}${season ? `  ·  ${season}` : ""}`, margin, footY + 18);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(SLATE_400[0], SLATE_400[1], SLATE_400[2]);
   pdf.text(
-    "Fees cover the team's operating costs for the season. Questions? Please reach out to your coach.",
+    "This schedule reflects the team's estimated operating costs for the season. Questions? Please contact your coach.",
     margin,
-    pageH - 48,
+    footY + 32,
     { maxWidth: contentW },
   );
 
