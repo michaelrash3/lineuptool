@@ -59,6 +59,7 @@ import {
   formatCurrency,
   budgetTotal,
   suggestedFeePerPlayer,
+  buildPlayerFeeBreakdown,
   financeSummary,
   teamFeesStatus,
   budgetItemAmount,
@@ -2065,6 +2066,67 @@ describe("blockedRosterWipeReason (empty-roster write guard)", () => {
     expect(blockedRosterWipeReason({ players: [] }, null, true)).toBeNull();
     expect(
       blockedRosterWipeReason({ players: [] }, undefined, true),
+    ).toBeNull();
+  });
+});
+
+describe("buildPlayerFeeBreakdown (parent fee sheet)", () => {
+  it("spreads the fee across expenses so lines total exactly the fee", () => {
+    const fin = {
+      nextClubFee: 200,
+      budgetItems: [
+        { id: "b1", label: "Tournaments", amount: 3000 },
+        { id: "b2", label: "Uniforms", amount: 1000 },
+      ],
+    };
+    const out = buildPlayerFeeBreakdown(fin, [{ id: "a" }]);
+    expect(out).not.toBeNull();
+    expect(out!.fee).toBe(200);
+    // 3:1 split of $200 → $150 / $50.
+    expect(out!.lines).toEqual([
+      { label: "Tournaments", amount: 150 },
+      { label: "Uniforms", amount: 50 },
+    ]);
+    const sum = out!.lines.reduce((s, l) => s + l.amount, 0);
+    expect(sum).toBeCloseTo(out!.fee);
+  });
+
+  it("lands rounding drift on the largest line so the column sums to the fee", () => {
+    const fin = {
+      nextClubFee: 100,
+      budgetItems: [
+        { id: "b1", label: "A", amount: 1 },
+        { id: "b2", label: "B", amount: 1 },
+        { id: "b3", label: "C", amount: 1 },
+      ],
+    };
+    const out = buildPlayerFeeBreakdown(fin, [{ id: "a" }]);
+    const sum = out!.lines.reduce((s, l) => s + l.amount, 0);
+    expect(Math.round(sum * 100) / 100).toBe(100);
+  });
+
+  it("falls back to the suggested fee when no next-season fee is set", () => {
+    const fin = {
+      budgetItems: [{ id: "b1", label: "Tournaments", amount: 1000 }],
+    };
+    // 1000 / 4 payers = 250 suggested; the whole fee maps to the one line.
+    const players = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+    const out = buildPlayerFeeBreakdown(fin, players);
+    expect(out!.fee).toBe(250);
+    expect(out!.lines).toEqual([{ label: "Tournaments", amount: 250 }]);
+  });
+
+  it("returns null without priced expenses or without a fee", () => {
+    expect(
+      buildPlayerFeeBreakdown({ nextClubFee: 200, budgetItems: [] }, [
+        { id: "a" },
+      ]),
+    ).toBeNull();
+    expect(
+      buildPlayerFeeBreakdown(
+        { budgetItems: [{ id: "b1", label: "X", amount: 100 }] },
+        [],
+      ),
     ).toBeNull();
   });
 });
