@@ -32,12 +32,14 @@ import {
   sponsorshipTotal,
   suggestedFeePerPlayer,
   plannedPayerCount,
+  buildPlayerFeeBreakdown,
   estimateBudgetFromSeason,
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
+import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
 import type { BudgetItem, Player, Team, TeamFinances } from "../types";
 
 // Finances — head-coach-only money tracker for the club: what the season will
@@ -190,6 +192,12 @@ export const FinancesTab = memo(() => {
   // only sponsorships pledged for the coming year offset the suggested fee.
   const sponsored = sponsorshipTotal(finances);
   const suggested = suggestedFeePerPlayer(finances, players);
+  // The parent-facing fee sheet needs both priced expenses and a per-player
+  // fee (next-season fee, or the planner's suggestion) to spread across them.
+  const feeSheetReady = useMemo(
+    () => buildPlayerFeeBreakdown(finances, players) != null,
+    [finances, players],
+  );
   const clubFee = Math.max(0, Number(finances.clubFee) || 0);
   // What each family actually owes: the club fee minus this season's
   // fundraising credit (fundraising-flagged ledger income ÷ paying players).
@@ -1909,6 +1917,26 @@ export const FinancesTab = memo(() => {
                 })}
               </ul>
             </>
+          )}
+          {/* Parent-facing handout: one player's fee spread across the
+              expected expenses, as a printable/shareable PDF. */}
+          {feeSheetReady && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-2 p-3">
+              <p className="t-meta text-ink-3 flex-1 min-w-[14rem]">
+                Hand families a one-page PDF showing where a player&apos;s fee
+                goes.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-label="Download player fee breakdown PDF"
+                onClick={() =>
+                  downloadPlayerFeeSheetPdf({ team, finances, players, toast })
+                }
+              >
+                <Icons.Printer className="w-4 h-4" /> Player fee sheet
+              </Button>
+            </div>
           )}
           <div className="flex flex-wrap items-center gap-2">
             {BUDGET_PRESETS.map((preset) => (

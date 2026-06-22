@@ -3030,6 +3030,52 @@ export const plannedPayerCount = (
   return (players || []).filter((p) => p?.id && !exempt.has(p.id)).length;
 };
 
+// Per-player breakdown for the parent-facing fee sheet: the fee one family
+// pays, split across the budget's expected expenses PROPORTIONALLY so the
+// lines total EXACTLY the fee. The fee runs a touch above the raw sum of the
+// expense shares (the rounding buffer, plus any sponsor offset); spreading it
+// proportionally across the lines folds that internal math invisibly into the
+// numbers, so a document handed to parents never exposes a "buffer" or
+// "sponsorship" line — every dollar of the fee simply maps to a real expense.
+// The fee is next season's set fee when present, otherwise the planner's
+// suggestion. null when there's no fee or no priced expenses to show.
+export const buildPlayerFeeBreakdown = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): { fee: number; lines: Array<{ label: string; amount: number }> } | null => {
+  const items = (finances?.budgetItems || [])
+    .map((item) => ({
+      label: (item?.label || "").trim() || "Team expense",
+      amount: budgetItemAmount(item, finances?.salesTaxPct),
+    }))
+    .filter((it) => it.amount > 0);
+  const total = items.reduce((sum, it) => sum + it.amount, 0);
+  if (total <= 0) return null;
+
+  const setFee = money(finances?.nextClubFee);
+  const fee = setFee > 0 ? setFee : suggestedFeePerPlayer(finances, players);
+  if (fee == null || fee <= 0) return null;
+
+  // Each expense's proportional share of the fee, rounded to cents. Rounding
+  // drift (a cent or two) lands on the largest line so the column still sums
+  // to the fee exactly — the printed Total always reconciles.
+  const lines = items.map((it) => ({
+    label: it.label,
+    amount: Math.round(((fee * it.amount) / total) * 100) / 100,
+  }));
+  const allocated = lines.reduce((sum, l) => sum + l.amount, 0);
+  const residual = Math.round((fee - allocated) * 100) / 100;
+  if (residual !== 0 && lines.length > 0) {
+    let maxIdx = 0;
+    for (let i = 1; i < lines.length; i += 1) {
+      if (lines[i].amount > lines[maxIdx].amount) maxIdx = i;
+    }
+    lines[maxIdx].amount =
+      Math.round((lines[maxIdx].amount + residual) * 100) / 100;
+  }
+  return { fee, lines };
+};
+
 // Rough next-season budget proposed from THIS season's actual spending:
 // one item per budget category that saw money (label kept, amount = the
 // larger of plan vs actual, rounded up to a clean $25), plus a single
