@@ -4,7 +4,6 @@ import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts";
 import { getPlayerInitials } from "../components/shared";
 import { QRCodeImg } from "../components/QRCodeImg";
-import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
@@ -435,7 +434,6 @@ export const RosterTab = memo(() => {
   return (
     <div className="w-full space-y-6">
       {canEdit && <PlayerInfoLinkCard team={team} />}
-      <PitcherRankingPanel />
       <PitchingPlanPanel />
       <ArmCarePanel />
       <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
