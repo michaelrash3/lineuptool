@@ -170,6 +170,12 @@ export interface Game {
   lineup?: Inning[];
   battingLineup?: SlimPlayer[];
   originalLineup?: Inning[];
+  // Durable in-game manual position picks (field position → playerId). When the
+  // coach moves a player to a spot during a game, that choice is remembered and
+  // fed into every rest-of-game re-flow so it sticks (and later re-flows from
+  // other changes don't undo it). See InGameView + the engine's
+  // stickyOverridesById.
+  manualLocks?: Record<string, string>;
   attendance?: Record<PlayerId, boolean>;
   gameType?: GameType;
   // Marks an exhibition/scrimmage: stays on the schedule and is playable, but
@@ -802,6 +808,12 @@ export interface EngineInput {
   evaluationEvents?: EvaluationEvent[];
   currentGame?: Partial<Game> & { id?: string };
   firstInningOverridesById?: Record<string, string>;
+  // Durable in-game manual position picks (position → playerId). Unlike
+  // firstInningOverridesById (a single-inning pin), these are held for the rest
+  // of the game: the engine seats the player at the spot in every inning from
+  // the rebuild point on (best-effort, field positions only). See InGameView's
+  // manualLocks.
+  stickyOverridesById?: Record<string, string>;
   totalInnings?: number;
   leagueRuleSet?: string;
   teamAge?: string;

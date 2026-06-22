@@ -18,6 +18,31 @@ import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { ScoreEditor } from "./ScheduleTab";
 
+// Durable manual position picks are tracked for FIELD positions only. P keeps
+// its pitch-count-governed rotation and C its catcher-block continuity, so we
+// never lock those — they're honored for the current inning via the point
+// override, but not held game-long.
+const LOCKABLE = (pos: string) => pos !== "P" && pos !== "C" && pos !== "BENCH";
+
+// Fold a manual move into the durable lock map. `assignments` is the post-move
+// occupant of each tapped spot. A player can hold only one locked spot, so any
+// stale lock elsewhere for that player is cleared (they moved). Moving into P/C
+// (or the bench) just clears the player's old field lock.
+const nextManualLocks = (
+  prev: Record<string, string> | undefined,
+  assignments: { pos: string; playerId?: string }[],
+): Record<string, string> => {
+  const locks: Record<string, string> = { ...(prev || {}) };
+  for (const { pos, playerId } of assignments) {
+    if (!playerId) continue;
+    for (const k of Object.keys(locks))
+      if (locks[k] === playerId && k !== pos) delete locks[k];
+    if (LOCKABLE(pos)) locks[pos] = playerId;
+    else delete locks[pos];
+  }
+  return locks;
+};
+
 export const InGameView = memo(() => {
   const {
     team,
@@ -239,6 +264,15 @@ export const InGameView = memo(() => {
       if (cur) updateGame(game.id, { lineup: cur });
       return null;
     });
+    // A removed player can't hold a manual lock anymore — drop it so the
+    // refill isn't forced to seat someone who just left.
+    const locks: Record<string, string> = game.manualLocks || {};
+    if (Object.values(locks).includes(playerId)) {
+      const nextLocks: Record<string, string> = {};
+      for (const [pos, id] of Object.entries(locks))
+        if (id !== playerId) nextLocks[pos] = id;
+      updateGame(game.id, { manualLocks: nextLocks });
+    }
     // Delegate to the TeamProvider orchestrator — it runs the engine to
     // refill the defensive slots and strips the player from battingLineup.
     removePlayerMidGameAction?.(playerId, {
@@ -330,6 +364,8 @@ export const InGameView = memo(() => {
     const current = base[currentInning];
     if (!current) return false;
     if (current.P?.id === playerId) return false;
+    // The new pitcher is no longer a field lock (P isn't lockable).
+    const locks = nextManualLocks(game.manualLocks, [{ pos: "P", playerId }]);
     return recalibrateRestOfGame(
       { P: playerId },
       {
@@ -341,6 +377,7 @@ export const InGameView = memo(() => {
             currentInning + 1
           } on — the rest of the lineup re-flowed around it.`,
       },
+      locks,
     );
   };
 
@@ -353,6 +390,7 @@ export const InGameView = memo(() => {
   const recalibrateRestOfGame = (
     overrides: Record<string, string>,
     opts: { title: string; message: (rebuiltCurrent: any) => string },
+    sticky?: Record<string, string>,
   ): boolean => {
     if (!canEdit) return false;
     const base = pendingLineup ?? game.lineup;
@@ -377,6 +415,15 @@ export const InGameView = memo(() => {
     const pins: Record<string, string> = {};
     for (const [pos, id] of Object.entries(overrides))
       if (id && activeIds.has(id)) pins[pos] = id;
+    // Durable manual locks (field positions) that the engine holds for the rest
+    // of the game. Default to the game's stored locks; callers pass the freshly
+    // updated map for the move that triggered this rebuild. Filter to players in
+    // this inning.
+    const sourceLocks: Record<string, string> =
+      sticky ?? game.manualLocks ?? {};
+    const stickyPins: Record<string, string> = {};
+    for (const [pos, id] of Object.entries(sourceLocks))
+      if (id && activeIds.has(id)) stickyPins[pos] = id;
 
     // Pick the engine by game type, mirroring useLineupActions: Tournament
     // (USSSA) games run the competitive pipeline; Rec games run the fair-play
@@ -396,6 +443,7 @@ export const InGameView = memo(() => {
       evaluationEvents: team.evaluationEvents || [],
       currentGame: game,
       firstInningOverridesById: pins,
+      stickyOverridesById: stickyPins,
       totalInnings: base.length,
       ...(isTournament
         ? {}
@@ -451,7 +499,14 @@ export const InGameView = memo(() => {
     setPendingLineup(next);
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
     flushTimerRef.current = setTimeout(flush, 500);
-    setInGameUndoStack([{ lineup: base }, ...inGameUndoStack].slice(0, 5));
+    // Persist the manual locks that drove this rebuild so later re-flows (from
+    // other changes) keep building around them. Snapshot the prior locks on the
+    // undo entry so undo restores them too.
+    const priorLocks = game.manualLocks || {};
+    if (sticky) updateGame(game.id, { manualLocks: sticky });
+    setInGameUndoStack(
+      [{ lineup: base, locks: priorLocks }, ...inGameUndoStack].slice(0, 5),
+    );
     setInGameSelection(null);
     tapHaptic();
     toast.push({
@@ -564,15 +619,23 @@ export const InGameView = memo(() => {
         if ((cur?.P as any)?.id) pins.P = (cur.P as any).id;
         if ((cur?.C as any)?.id) pins.C = (cur.C as any).id;
         pins[pos] = inPlayer.id; // the incoming player takes the tapped slot
-        const did = recalibrateRestOfGame(pins, {
-          title: pos === "P" ? "Pitching change" : "Catcher change",
-          message: () =>
-            `${inPlayer.name} ${
-              pos === "P" ? "takes the mound" : "is behind the plate"
-            } from inning ${
-              currentInning + 1
-            } on — the rest of the lineup re-flowed around it.`,
-        });
+        // Incoming arm/glove moves to P/C (not lockable) — clear any field lock.
+        const locks = nextManualLocks(game.manualLocks, [
+          { pos, playerId: inPlayer.id },
+        ]);
+        const did = recalibrateRestOfGame(
+          pins,
+          {
+            title: pos === "P" ? "Pitching change" : "Catcher change",
+            message: () =>
+              `${inPlayer.name} ${
+                pos === "P" ? "takes the mound" : "is behind the plate"
+              } from inning ${
+                currentInning + 1
+              } on — the rest of the lineup re-flowed around it.`,
+          },
+          locks,
+        );
         if (did) return; // otherwise fall through to a fill-forward sub
       }
 
@@ -642,13 +705,23 @@ export const InGameView = memo(() => {
       // secondSel now holds playerA).
       pins[firstSel.pos] = playerB.id;
       pins[secondSel.pos] = playerA.id;
-      const did = recalibrateRestOfGame(pins, {
-        title: "Defense recalibrated",
-        message: () =>
-          `Lineup re-flowed around your change from inning ${
-            currentInning + 1
-          } on.`,
-      });
+      // Remember both tapped spots as durable manual picks (field positions are
+      // held rest-of-game; P/C are dropped by nextManualLocks).
+      const locks = nextManualLocks(game.manualLocks, [
+        { pos: firstSel.pos, playerId: playerB.id },
+        { pos: secondSel.pos, playerId: playerA.id },
+      ]);
+      const did = recalibrateRestOfGame(
+        pins,
+        {
+          title: "Defense recalibrated",
+          message: () =>
+            `Lineup re-flowed around your change from inning ${
+              currentInning + 1
+            } on.`,
+        },
+        locks,
+      );
       if (did) return; // otherwise fall back to a current-inning-only swap
     }
 
@@ -700,6 +773,9 @@ export const InGameView = memo(() => {
     } else if (entry.prevInning) {
       patchInning(entry.inning, entry.prevInning);
     }
+    // Restore the manual locks captured before the change this entry undoes.
+    if (entry.locks !== undefined)
+      updateGame(game.id, { manualLocks: entry.locks });
     setInGameUndoStack(inGameUndoStack.slice(1));
     setInGameSelection(null);
   };
