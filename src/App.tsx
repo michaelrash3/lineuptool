@@ -1959,6 +1959,11 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           teamAge: newAgeGroup,
           players: [...updatedPlayers, ...promotedPlayers],
           games: [],
+          // GameChanger issues a new calendar feed per season, so the prior
+          // season's URL is dead here. Clear it alongside the games reset so
+          // the Schedule auto-sync doesn't fire against the stale feed and the
+          // import modal starts blank, prompting the coach for the new link.
+          gcCalendarUrl: "",
           evaluationEvents: preseasonRound ? [preseasonRound] : [],
           tryoutSessions: [],
           tryoutSignups: [],
