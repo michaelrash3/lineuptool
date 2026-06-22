@@ -1212,7 +1212,7 @@ export const FinancesTab = memo(() => {
             <div className="pt-4 space-y-3">
               <form
                 onSubmit={addTransaction}
-                className="flex flex-col sm:flex-row gap-2"
+                className="flex flex-col sm:flex-row sm:flex-wrap gap-2"
               >
                 <div
                   className="flex rounded-xl overflow-hidden border border-line self-start sm:self-auto"
@@ -1260,7 +1260,7 @@ export const FinancesTab = memo(() => {
                       : "What was it for?"
                   }
                   aria-label="Transaction description"
-                  className={`${FORM_INPUT_CLASS} flex-1`}
+                  className={`${FORM_INPUT_CLASS} flex-1 sm:min-w-[12rem]`}
                   style={FORM_INPUT_RING_STYLE}
                 />
                 {txnDir === "out" &&
