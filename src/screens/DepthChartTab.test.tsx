@@ -167,4 +167,20 @@ describe("DepthChartTab", () => {
     });
     expect(screen.queryByLabelText(/^Move /)).toBeNull();
   });
+
+  it("shows the Pitcher Ranking panel for kid-pitch teams age 9+", () => {
+    renderWithProviders(<DepthChartTab />, {
+      team: { team: { ...pitcherTeam, teamAge: "10U" } },
+    });
+    expect(screen.getByText("Pitcher Ranking")).toBeInTheDocument();
+  });
+
+  it("hides the Pitcher Ranking panel when pitcher ranking doesn't apply", () => {
+    renderWithProviders(<DepthChartTab />, {
+      team: {
+        team: { ...pitcherTeam, teamAge: "10U", pitchingFormat: "Coach Pitch" },
+      },
+    });
+    expect(screen.queryByText("Pitcher Ranking")).not.toBeInTheDocument();
+  });
 });
