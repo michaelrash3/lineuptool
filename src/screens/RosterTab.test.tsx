@@ -75,6 +75,26 @@ describe("RosterTab", () => {
     expect(screen.queryByText("RBI", { selector: "div" })).toBeNull();
   });
 
+  it("offers Import Roster at the bottom for head coaches", () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players, games: [] },
+        currentRole: "head",
+        uploadStatsCsv: jest.fn(),
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.getByText("Import Roster")).toBeInTheDocument();
+  });
+
+  it("hides Import Roster from assistant coaches", () => {
+    renderWithProviders(<RosterTab />, {
+      team: { team: { players, games: [] }, currentRole: "assistant" },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.queryByText("Import Roster")).not.toBeInTheDocument();
+  });
+
   it("separates departed players into their own section (no Inactive status)", async () => {
     renderWithProviders(<RosterTab />, {
       team: {

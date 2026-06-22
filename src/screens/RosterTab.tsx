@@ -4,6 +4,7 @@ import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts";
 import { getPlayerInitials } from "../components/shared";
 import { QRCodeImg } from "../components/QRCodeImg";
+import { ImportCsvButton } from "../components/ImportCsvButton";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
@@ -365,7 +366,7 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
 });
 
 export const RosterTab = memo(() => {
-  const { team, currentRole } = useTeam();
+  const { team, currentRole, uploadStatsCsv } = useTeam();
   const canEdit = currentRole !== "assistant";
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
@@ -646,6 +647,14 @@ export const RosterTab = memo(() => {
           onSelect={setSelectedStatsId}
         />
       </div>
+      {canEdit && (
+        <ImportCsvButton
+          id="roster-import-csv"
+          label="Import Roster"
+          onChange={uploadStatsCsv}
+          hint="TeamSnap roster or GameChanger CSV"
+        />
+      )}
     </div>
   );
 });

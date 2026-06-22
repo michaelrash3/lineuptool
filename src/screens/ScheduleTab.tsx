@@ -14,6 +14,7 @@ import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog, RecordBadge } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
+import { ImportCsvButton } from "../components/ImportCsvButton";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { isoInstantToLocalTime } from "../utils/icsParse";
@@ -199,6 +200,7 @@ export const ScheduleTab = memo(() => {
     applyLineupTemplate,
     deleteLineupTemplate,
     currentRole,
+    uploadScheduleCsv,
   } = useTeam();
   const canEdit = currentRole !== "assistant";
   const {
@@ -2421,6 +2423,16 @@ export const ScheduleTab = memo(() => {
             </div>
           );
         })()}
+      {canEdit && (
+        <div className="mt-6">
+          <ImportCsvButton
+            id="schedule-import-csv"
+            label="Import Schedule"
+            onChange={uploadScheduleCsv}
+            hint="Schedule CSV (date, opponent, location)"
+          />
+        </div>
+      )}
     </div>
   );
 });

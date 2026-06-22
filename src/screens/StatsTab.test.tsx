@@ -52,6 +52,20 @@ describe("StatsTab", () => {
     expect(screen.queryByText("Stats & Dashboard")).toBeNull();
   });
 
+  it("offers Import Stats at the bottom for head coaches", () => {
+    renderWithProviders(<StatsTab />, {
+      team: { team, currentRole: "head", uploadStatsCsv: jest.fn() },
+    });
+    expect(screen.getByText("Import Stats")).toBeInTheDocument();
+  });
+
+  it("hides Import Stats from assistant coaches", () => {
+    renderWithProviders(<StatsTab />, {
+      team: { team, currentRole: "assistant" },
+    });
+    expect(screen.queryByText("Import Stats")).not.toBeInTheDocument();
+  });
+
   it("renders the batting table with players and sortable headers", () => {
     renderWithProviders(<StatsTab />, { team: { team } });
     expect(screen.getByRole("button", { name: /OPS/ })).toBeInTheDocument();
