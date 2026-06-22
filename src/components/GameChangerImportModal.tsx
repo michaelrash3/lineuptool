@@ -120,6 +120,23 @@ export const GameChangerImportModal: React.FC<Props> = ({
     onClose();
   };
 
+  // Drop the saved feed without needing a replacement link. Useful right after
+  // a season rollover, when GameChanger hasn't issued the new season's feed
+  // yet: clearing it stops the Schedule tab auto-syncing the dead URL and
+  // leaves the field blank for the new link whenever it arrives.
+  const hasSavedFeed = !!String(team?.gcCalendarUrl || "").trim();
+  const removeFeed = () => {
+    updateTeam({ gcCalendarUrl: "" });
+    setUrl("");
+    setCandidates(null);
+    setError(null);
+    toast.push({
+      kind: "success",
+      title: "GameChanger feed removed",
+      message: "Paste this season's calendar link when you have it.",
+    });
+  };
+
   const newCount = candidates?.filter((c) => !c.isExisting).length ?? 0;
   const dupCount = candidates?.filter((c) => c.isExisting).length ?? 0;
 
@@ -172,6 +189,15 @@ export const GameChangerImportModal: React.FC<Props> = ({
           >
             {loading ? "Loading…" : "Preview games"}
           </button>
+
+          {hasSavedFeed && (
+            <button
+              onClick={removeFeed}
+              className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-ink-3 hover:text-rose-600"
+            >
+              <Icons.Trash className="w-3.5 h-3.5" /> Remove saved feed
+            </button>
+          )}
 
           {error && (
             <div className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-xl p-3">
