@@ -1790,6 +1790,124 @@ describe("mid-game rebuild honors a position pin at the re-solved inning", () =>
   });
 });
 
+// In-game manual position picks are authoritative: the coach can seat a kid out
+// of their usual spots, but a hard `restrictions` entry still blocks it. And a
+// "sticky" pick holds the spot for the rest of the game.
+describe("manual overrides: honor out-of-comfort, respect restrictions, stick", () => {
+  const run = (players: any[], extra: any = {}) =>
+    generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g", date: "2026-05-01", opponent: "X" },
+      totalInnings: 2,
+      leagueRuleSet: "USSSA",
+      teamAge: "10U",
+      defenseSize: "9",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 7,
+      ...extra,
+    } as any);
+
+  test("rec: seats a player at a spot outside their comfortable list", () => {
+    const players = makeRoster(10);
+    // p5 is comfortable only in the outfield; SS is out of comfort, NOT restricted.
+    players[5] = makePlayer("p5", "P5", {
+      comfortablePositions: ["LF", "CF", "RF"],
+    });
+    const res = run(players, { firstInningOverridesById: { SS: "p5" } });
+    expect(res.error).toBeUndefined();
+    expect((res.lineup![0].SS as any)?.id).toBe("p5");
+  });
+
+  test("rec: refuses a spot the player is hard-restricted from", () => {
+    const players = makeRoster(10);
+    players[5] = makePlayer("p5", "P5", { restrictions: ["SS"] });
+    const res = run(players, { firstInningOverridesById: { SS: "p5" } });
+    expect(res.error).toBeUndefined();
+    expect((res.lineup![0].SS as any)?.id).not.toBe("p5");
+  });
+
+  test("tournament: seats a player at a spot outside their comfortable list", () => {
+    const players = makeRoster(10);
+    players[5] = makePlayer("p5", "P5", {
+      comfortablePositions: ["LF", "CF", "RF"],
+    });
+    const res = generateTournamentLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g", date: "2026-05-01", opponent: "X" },
+      totalInnings: 2,
+      leagueRuleSet: "USSSA",
+      teamAge: "10U",
+      defenseSize: "9",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 7,
+      competitive: true,
+      firstInningOverridesById: { SS: "p5" },
+    } as any);
+    expect(res.error).toBeUndefined();
+    expect((res.lineup![0].SS as any)?.id).toBe("p5");
+  });
+
+  test("rec: a sticky lock holds the spot across the remaining innings", () => {
+    const slim = (id: any) => ({ id, name: `Player ${id}`, number: "" });
+    const players = makeRoster(11);
+    const onFieldExcept = (excludeId: any) => {
+      const f = players.filter((p) => p.id !== excludeId);
+      return {
+        P: slim(f[0].id),
+        C: slim(f[1].id),
+        "1B": slim(f[2].id),
+        "2B": slim(f[3].id),
+        "3B": slim(f[4].id),
+        SS: slim(f[5].id),
+        LF: slim(f[6].id),
+        LCF: slim(f[7].id),
+        RCF: slim(f[8].id),
+        RF: slim(f[9].id),
+        BENCH: [slim(excludeId)],
+      };
+    };
+    // Played innings 0..2; p7 is deliberately NOT at SS in them.
+    const currentLineup = [
+      onFieldExcept("p0"),
+      onFieldExcept("p1"),
+      onFieldExcept("p2"),
+    ];
+    const res = generateLineup({
+      activePlayers: players,
+      allPlayers: players,
+      games: [],
+      evaluationEvents: [],
+      currentGame: { id: "g", date: "2026-05-01", opponent: "X" },
+      totalInnings: 6,
+      leagueRuleSet: "USSSA",
+      teamAge: "10U",
+      defenseSize: "10",
+      positionLock: "0",
+      battingSize: "roster",
+      seed: 7,
+      fromInning: 3,
+      currentLineup,
+      stickyOverridesById: { SS: "p7" },
+    } as any);
+    expect(res.error).toBeUndefined();
+    // From the rebuild inning on, p7 holds SS whenever they're on the field.
+    for (let i = 3; i < 6; i++) {
+      const benched = (res.lineup![i].BENCH || []).map((b: any) => b?.id);
+      if (!benched.includes("p7")) {
+        expect((res.lineup![i].SS as any)?.id).toBe("p7");
+      }
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 8U fuzz / soak — run many realistic 8U setups through the engine and
 // assert it never bails out and never violates basic invariants. This is

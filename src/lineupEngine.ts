@@ -153,6 +153,7 @@ type TryBuildCtx = {
   totalInnings: number;
   isStarter: Set<string>;
   firstInningOverridesById: Record<string, string>;
+  stickyOverridesById?: Record<string, string>;
   positionHistory: Map<string, Map<string, { total: number; bigGame: number }>>;
   firstInningBenchHx: Map<string, number>;
   benchHistory: Map<string, ExtraSitEntry>;
@@ -233,6 +234,22 @@ export function isPositionBlocked(
     return restr.some((c) => canonicalizeOutfield(c) === target);
   }
   return false;
+}
+
+// A HARD block on a position: an explicit entry in the player's `restrictions`
+// list (a "never play here" marker), independent of their comfortable list.
+// Used for in-game MANUAL overrides, which are authoritative — the coach can
+// seat a kid out of their usual spot — but must still respect a hard
+// restriction. (`isPositionBlocked` conflates this with the soft
+// comfortable-positions preference, which a manual pick is allowed to ignore.)
+export function isHardRestricted(
+  p: { comfortablePositions?: string[]; restrictions?: string[] },
+  pos: string,
+): boolean {
+  const restr = Array.isArray(p.restrictions) ? p.restrictions : null;
+  if (!restr || restr.length === 0) return false;
+  const target = canonicalizeOutfield(pos);
+  return restr.some((c) => canonicalizeOutfield(c) === target);
 }
 
 // Catcher eligibility. Catcher is just another entry in a player's
@@ -2519,6 +2536,9 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     // Coach-selected starting pitcher comes through here as { P: playerId },
     // same channel the Rec path uses for first-inning position locks.
     firstInningOverridesById = {},
+    // Durable in-game manual position picks; seated in the starting nine so the
+    // scripted-starter rotation keeps them at the spot for the rest of the game.
+    stickyOverridesById = {},
   } = input as any;
 
   if (!Array.isArray(activePlayers) || activePlayers.length < 7) {
@@ -2556,6 +2576,21 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     if (!p) return false;
     if (pos === "C") return isCatcherEligible(p);
     if (isPositionBlocked(p, pos)) return false;
+    if (pos === "P" && kidPitch)
+      return checkPitchEligibility(p, gameDate, teamAge, ruleSet);
+    return true;
+  };
+  // Eligibility for a MANUAL override (coach's explicit pick). Authoritative —
+  // honor the pick even out of the player's comfortable spots — but still
+  // respect a hard restriction, the catcher opt-in, and (for P) pitch-count
+  // rules, which are safety/legality, not preference.
+  const eligibleForOverride = (
+    pos: string,
+    p: ProfiledPlayer | undefined,
+  ): boolean => {
+    if (!p) return false;
+    if (pos === "C") return isCatcherEligible(p);
+    if (isHardRestricted(p, pos)) return false;
     if (pos === "P" && kidPitch)
       return checkPitchEligibility(p, gameDate, teamAge, ruleSet);
     return true;
@@ -2607,7 +2642,12 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
   // not the top-ranked option. A pin is skipped if the player isn't present, is
   // already seated, or isn't eligible there (so P still falls back to the normal
   // pick when the chosen arm can't go).
-  const overridePins = firstInningOverridesById || {};
+  // Manual picks are seated authoritatively (eligibleForOverride honors out-of-
+  // comfort spots while still respecting hard restrictions / catcher opt-in /
+  // pitch rules). Sticky locks (durable manual picks) seat the same way; in the
+  // tournament path they ride the starting nine, which the scripted starters
+  // hold for the rest of the game. firstInningOverridesById wins ties.
+  const overridePins = { ...stickyOverridesById, ...firstInningOverridesById };
   for (const pos of fillOrder) {
     const pid = overridePins[pos];
     if (!pid || assigned.has(pos)) continue;
@@ -2616,7 +2656,7 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
       pp &&
       !used.has(pp.id) &&
       positions.includes(pos) &&
-      eligibleFor(pos, pp)
+      eligibleForOverride(pos, pp)
     ) {
       assigned.set(pos, pp);
       used.add(pp.id);
@@ -2963,6 +3003,7 @@ export function generateLineup(input: EngineInput): EngineResult {
     evaluationEvents = [],
     currentGame,
     firstInningOverridesById = {},
+    stickyOverridesById = {},
     totalInnings = 6,
     leagueRuleSet = "USSSA",
     teamAge = "8U",
@@ -3329,6 +3370,7 @@ export function generateLineup(input: EngineInput): EngineResult {
         totalInnings,
         isStarter,
         firstInningOverridesById,
+        stickyOverridesById,
         positionHistory,
         firstInningBenchHx: firstInnHx,
         benchHistory: seasonHx,
@@ -4322,6 +4364,7 @@ function tryBuildLineup(ctx: TryBuildCtx):
     totalInnings,
     isStarter,
     firstInningOverridesById,
+    stickyOverridesById = {},
     positionHistory,
     firstInningBenchHx,
     benchHistory,
@@ -4557,10 +4600,35 @@ function tryBuildLineup(ctx: TryBuildCtx):
                 position: pos,
               },
             };
-          if (isPositionBlocked(player, pos)) continue;
+          // A manual override is authoritative — honor it even out of the
+          // player's comfortable spots — but still respect a hard restriction.
+          if (isHardRestricted(player, pos)) continue;
           // Catcher is opt-in only: never honor a first-inning override that
           // would seat a non-cleared kid at C.
           if (pos === "C" && !isCatcherEligible(player)) continue;
+          inningSlots[pos] = player;
+        }
+      }
+
+      // Sticky manual locks: the coach's durable in-game position picks, held
+      // for the rest of the game (every inning from mgFromInning on). Best
+      // effort — seat the player whenever they're on the field and not hard-
+      // restricted; if the fairness scheduler benched them this inning, the spot
+      // fills normally below. Field positions only: P keeps its pitch-count-
+      // governed rotation and C its catcher-block continuity, so a lock can
+      // never strand an over-limit pitcher on the mound.
+      if (inn >= mgFromInning) {
+        for (const pos in stickyOverridesById) {
+          if (pos === "P" || pos === "C") continue;
+          if (inningSlots[pos]) continue; // a point override already won it
+          const pid = stickyOverridesById[pos];
+          if (benchedSet.has(pid)) continue;
+          const player = profiled.find((p) => p.id === pid);
+          if (!player || !positionsToFill.includes(pos)) continue;
+          if (isHardRestricted(player, pos)) continue;
+          // Don't double-book a player already locked into another spot here.
+          if (Object.values(inningSlots).some((p: any) => p.id === pid))
+            continue;
           inningSlots[pos] = player;
         }
       }
