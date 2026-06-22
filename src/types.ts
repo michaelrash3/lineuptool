@@ -552,6 +552,11 @@ export interface IncomeEntry {
   // Optional child this fundraising entry is credited to (raffle/sponsor a kid
   // brought in). Only meaningful when `fundraising` is true.
   playerId?: PlayerId;
+  // Set when the coach answers "No" to applying a carried-over surplus as a
+  // dues discount. The money stays in the bank as plain income; this flag just
+  // stops the "apply it?" prompt from ever returning. Only set on carryover
+  // entries.
+  dismissed?: boolean;
 }
 
 // A sponsorship pledged toward NEXT season's budget, entered in the Budget

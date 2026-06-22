@@ -116,6 +116,29 @@ describe("ScheduleTab", () => {
     expect(screen.getByText("No Games Scheduled")).toBeInTheDocument();
   });
 
+  it("offers Import Schedule at the bottom for head coaches", () => {
+    renderWithProviders(<ScheduleTab />, {
+      team: {
+        team: baseTeam,
+        record: { wins: 0, losses: 0, ties: 0 },
+        currentRole: "head",
+        uploadScheduleCsv: jest.fn(),
+      },
+    });
+    expect(screen.getByText("Import Schedule")).toBeInTheDocument();
+  });
+
+  it("hides Import Schedule from assistant coaches", () => {
+    renderWithProviders(<ScheduleTab />, {
+      team: {
+        team: baseTeam,
+        record: { wins: 0, losses: 0, ties: 0 },
+        currentRole: "assistant",
+      },
+    });
+    expect(screen.queryByText("Import Schedule")).not.toBeInTheDocument();
+  });
+
   it("lists scheduled games by opponent", () => {
     renderWithProviders(<ScheduleTab />, {
       team: {

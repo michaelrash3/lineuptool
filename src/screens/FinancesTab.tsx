@@ -401,7 +401,9 @@ export const FinancesTab = memo(() => {
     /^Carried over/.test(String(i.label || ""));
   const carryoverPending = useMemo(
     () =>
-      (finances.incomes || []).filter((i) => isCarryover(i) && !i.fundraising),
+      (finances.incomes || []).filter(
+        (i) => isCarryover(i) && !i.fundraising && !i.dismissed,
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [finances.incomes],
   );
@@ -409,16 +411,42 @@ export const FinancesTab = memo(() => {
     (sum, i) => sum + (Number(i.amount) || 0),
     0,
   );
+  // Two-tap confirm for the pending prompt: the first Yes/No swaps the row to a
+  // confirm message; tapping the same answer again commits. Null = the initial
+  // question. Resets whenever the pending set changes (apply/dismiss/new roll).
+  const [carryoverChoice, setCarryoverChoice] = useState<
+    null | "apply" | "skip"
+  >(null);
   const applyCarryoverDiscount = () => {
     writeFinances({
       incomes: (finances.incomes || []).map((i) =>
         isCarryover(i) && !i.fundraising ? { ...i, fundraising: true } : i,
       ),
     });
+    setCarryoverChoice(null);
     toast.push({
       kind: "success",
       title: "Carryover applied to team fees",
       message: "Last season's surplus now discounts every family's fee.",
+    });
+  };
+
+  // "No, skip" — leave the surplus in the bank as plain income and stop asking.
+  // Flags the pending carryover entries as dismissed so the prompt never
+  // returns; the money still counts toward the club balance.
+  const dismissCarryoverDiscount = () => {
+    writeFinances({
+      incomes: (finances.incomes || []).map((i) =>
+        isCarryover(i) && !i.fundraising && !i.dismissed
+          ? { ...i, dismissed: true }
+          : i,
+      ),
+    });
+    setCarryoverChoice(null);
+    toast.push({
+      kind: "success",
+      title: "Left in the bank",
+      message: "Last season's surplus stays in the bank — we won't ask again.",
     });
   };
 
@@ -744,27 +772,97 @@ export const FinancesTab = memo(() => {
             <div className="py-3 border-b border-line space-y-2">
               {carryoverPendingTotal > 0 && payerCount > 0 && (
                 <div className="flex flex-wrap items-center gap-3 py-2 pl-3 border-l-2 border-line-strong">
-                  <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
-                    Last season left{" "}
-                    <span className="font-black text-ink tabular-nums">
-                      {formatCurrency(carryoverPendingTotal)}
-                    </span>{" "}
-                    in the bank. Apply it as a team-fee discount — about{" "}
-                    <span className="font-black text-win tabular-nums">
-                      {formatCurrency(carryoverPendingTotal / payerCount)} off
-                      per family
-                    </span>
-                    ?
-                  </p>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    aria-label="Apply carryover as team-fee discount"
-                    onClick={applyCarryoverDiscount}
-                  >
-                    <Icons.Check className="w-4 h-4" /> Apply as team-fee
-                    discount
-                  </Button>
+                  {carryoverChoice === null ? (
+                    <>
+                      <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
+                        Last season left{" "}
+                        <span className="font-black text-ink tabular-nums">
+                          {formatCurrency(carryoverPendingTotal)}
+                        </span>{" "}
+                        in the bank. Apply it as a team-fee discount — about{" "}
+                        <span className="font-black text-win tabular-nums">
+                          {formatCurrency(carryoverPendingTotal / payerCount)}{" "}
+                          off per family
+                        </span>
+                        ?
+                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-label="Apply carryover as team-fee discount"
+                          onClick={() => setCarryoverChoice("apply")}
+                        >
+                          <Icons.Check className="w-4 h-4" /> Yes
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Skip carryover discount"
+                          onClick={() => setCarryoverChoice("skip")}
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </>
+                  ) : carryoverChoice === "apply" ? (
+                    <>
+                      <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
+                        Apply{" "}
+                        <span className="font-black text-ink tabular-nums">
+                          {formatCurrency(carryoverPendingTotal)}
+                        </span>{" "}
+                        as a team-fee discount? This lowers every family&apos;s
+                        fee — you can reverse it later.
+                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-label="Confirm apply carryover discount"
+                          onClick={applyCarryoverDiscount}
+                        >
+                          <Icons.Check className="w-4 h-4" /> Yes, apply
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Cancel carryover choice"
+                          onClick={() => setCarryoverChoice(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
+                        Keep{" "}
+                        <span className="font-black text-ink tabular-nums">
+                          {formatCurrency(carryoverPendingTotal)}
+                        </span>{" "}
+                        in the bank and stop asking?
+                      </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          aria-label="Confirm skip carryover discount"
+                          onClick={dismissCarryoverDiscount}
+                        >
+                          No, skip
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Cancel carryover choice"
+                          onClick={() => setCarryoverChoice(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
               {carryoverAppliedTotal > 0 && (

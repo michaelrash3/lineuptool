@@ -17,6 +17,7 @@ import type {
 } from "../types";
 import { PositionVarietyPanel } from "../components/PositionVarietyPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
+import { ImportCsvButton } from "../components/ImportCsvButton";
 import {
   getCombinedGrades,
   calculateTotalScore,
@@ -413,8 +414,9 @@ const SectionCard = ({
 );
 
 export const StatsTab = memo(() => {
-  const { team: teamRaw, currentRole } = useTeam();
+  const { team: teamRaw, currentRole, uploadStatsCsv } = useTeam();
   const { openPlayerProfile } = useUI();
+  const canEdit = currentRole !== "assistant";
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
   const team = teamRaw as Team;
@@ -790,6 +792,14 @@ export const StatsTab = memo(() => {
         {/* end right col */}
       </div>
       {/* end desktop grid */}
+      {canEdit && (
+        <ImportCsvButton
+          id="stats-import-csv"
+          label="Import Stats"
+          onChange={uploadStatsCsv}
+          hint="GameChanger season stats CSV"
+        />
+      )}
     </div>
   );
 });

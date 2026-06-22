@@ -931,8 +931,6 @@ export const SettingsTab = memo(() => {
     mirrorStale,
     resyncPublicMirror,
     uploadLogo,
-    uploadScheduleCsv,
-    uploadStatsCsv,
     exportBackup,
     importBackup,
     deleteTeamCmd,
@@ -1847,52 +1845,20 @@ export const SettingsTab = memo(() => {
                     <Icons.Cloud className="w-4 h-4" /> Data Management
                   </h3>
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      <label
-                        htmlFor="settings-import-schedule-csv"
-                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
-                      >
-                        <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
-                          Import
-                          <br />
-                          Schedule CSV
-                        </span>
-                        <input
-                          id="settings-import-schedule-csv"
-                          type="file"
-                          className="sr-only"
-                          accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
-                          onChange={uploadScheduleCsv}
-                        />
-                      </label>
-                      <label
-                        htmlFor="settings-import-roster-csv"
-                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
-                      >
-                        <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-[var(--info-fg)] mb-3 transition-colors" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
-                          Import
-                          <br />
-                          Roster / Stats CSV
-                        </span>
-                        <input
-                          id="settings-import-roster-csv"
-                          type="file"
-                          className="sr-only"
-                          accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
-                          onChange={uploadStatsCsv}
-                        />
-                      </label>
+                    <p className="text-xs text-ink-3 -mt-2">
+                      Roster, Stats, and Schedule imports now live at the bottom
+                      of their own tabs.
+                    </p>
+                    <div className="grid grid-cols-1 gap-4">
                       <label
                         htmlFor="settings-import-past-season-csv"
-                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md col-span-2 md:col-span-1"
+                        className="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-line-strong rounded-2xl cursor-pointer bg-surface hover:bg-surface-2 hover:border-line-strong transition-all group h-full shadow-sm hover:shadow-md"
                       >
                         <Icons.Upload className="w-6 h-6 text-ink-3 group-hover:text-warnfg mb-3 transition-colors" />
                         <span className="text-[10px] font-black uppercase tracking-widest text-ink-2 text-center leading-snug">
                           Import
                           <br />
-                          Past Season CSV
+                          Previous Season Stats CSV
                         </span>
                         <input
                           id="settings-import-past-season-csv"
