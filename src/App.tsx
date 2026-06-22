@@ -1959,6 +1959,9 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           teamAge: newAgeGroup,
           players: [...updatedPlayers, ...promotedPlayers],
           games: [],
+          // Practices belong to the season just closed — start the new season
+          // with a clean slate rather than carrying last year's dates forward.
+          practices: [],
           // GameChanger issues a new calendar feed per season, so the prior
           // season's URL is dead here. Clear it alongside the games reset so
           // the Schedule auto-sync doesn't fire against the stale feed and the
