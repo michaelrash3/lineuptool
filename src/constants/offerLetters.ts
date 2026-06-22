@@ -30,14 +30,10 @@ export interface OfferLetterDraft {
   body: string;
 }
 
-// The signature block: coach name then their contact lines (email / phone),
-// matching the "[Coach Name] / [Coach Contact Information]" close in the drafts.
-const signature = (ctx: OfferLetterContext): string => {
-  const contact = [ctx.coachEmail, ctx.coachPhone].filter(Boolean).join("\n");
-  return ["Sincerely,", "", ctx.coachName, contact]
-    .filter((l) => l !== undefined)
-    .join("\n");
-};
+// The close. We stop at "Sincerely," on purpose — the coach pastes these
+// drafts into their own email, whose signature already supplies the name and
+// contact lines, so adding them here would just duplicate that block.
+const signature = "Sincerely,";
 
 const phoneClause = (ctx: OfferLetterContext): string =>
   ctx.coachPhone ? ` or call me at ${ctx.coachPhone}` : "";
@@ -112,7 +108,7 @@ export const buildOfferLetter = (
         "",
         `If you have any questions, please contact me directly.`,
         "",
-        signature(ctx),
+        signature,
       ].join("\n"),
     };
   }
@@ -135,7 +131,7 @@ export const buildOfferLetter = (
         "",
         `Welcome to the ${team}. If you or your parents have any questions, please reach out to me.`,
         "",
-        signature(ctx),
+        signature,
       ].join("\n"),
     };
   }
@@ -154,7 +150,7 @@ export const buildOfferLetter = (
         "",
         `Looking forward to meeting you on the field!`,
         "",
-        signature(ctx),
+        signature,
       ].join("\n"),
     };
   }
@@ -170,7 +166,7 @@ export const buildOfferLetter = (
       "",
       `We encourage you to keep practicing and playing hard. We wish you the best of luck in your upcoming baseball season.`,
       "",
-      signature(ctx),
+      signature,
     ].join("\n"),
   };
 };

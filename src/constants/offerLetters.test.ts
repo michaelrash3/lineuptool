@@ -22,8 +22,9 @@ describe("buildOfferLetter", () => {
     expect(body).toContain("three uniform tops");
     expect(body).toContain("within 48 hours");
     expect(body).toContain("call me at (555) 123-4567");
-    expect(body).toContain("Coach Mike");
-    expect(body).toContain("mike@example.com");
+    expect(body.trimEnd().endsWith("Sincerely,")).toBe(true);
+    expect(body).not.toContain("Coach Mike");
+    expect(body).not.toContain("mike@example.com");
   });
 
   it("new player offer congratulates and quotes fees + 48h", () => {
@@ -42,7 +43,8 @@ describe("buildOfferLetter", () => {
     expect(body).toContain("unable to offer you a position");
     expect(body).not.toContain("$1,200");
     expect(body).not.toContain("48 hours");
-    expect(body).toContain("Coach Mike");
+    expect(body.trimEnd().endsWith("Sincerely,")).toBe(true);
+    expect(body).not.toContain("Coach Mike");
   });
 
   it("interest invite thanks the lead and omits money", () => {
@@ -52,7 +54,8 @@ describe("buildOfferLetter", () => {
     expect(body).toContain("at our tryouts");
     expect(body).not.toContain("$1,200");
     expect(body).not.toContain("deposit");
-    expect(body).toContain("Coach Mike");
+    expect(body.trimEnd().endsWith("Sincerely,")).toBe(true);
+    expect(body).not.toContain("Coach Mike");
   });
 
   it("drops the phone clause when no coach phone is set", () => {
