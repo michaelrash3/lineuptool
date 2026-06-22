@@ -557,6 +557,12 @@ export interface IncomeEntry {
   // stops the "apply it?" prompt from ever returning. Only set on carryover
   // entries.
   dismissed?: boolean;
+  // A named CURRENT-season sponsor (business/family) recorded in the Budget
+  // Planner rather than the ledger's generic income form. Always paired with
+  // `fundraising: true` so it lowers what families owe this season; the flag
+  // just lets the planner list it as a sponsor (vs. a car wash) with its own
+  // remove control. The next-season equivalent is SponsorshipEntry.
+  sponsor?: boolean;
 }
 
 // A sponsorship pledged toward NEXT season's budget, entered in the Budget

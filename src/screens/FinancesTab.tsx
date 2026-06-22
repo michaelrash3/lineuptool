@@ -257,6 +257,10 @@ export const FinancesTab = memo(() => {
   // ---- Sponsorships (next season) form state
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
+  // Which season a new sponsor applies to: "this" posts a fundraising income
+  // that lowers current dues; "next" pledges toward next season's planned fee.
+  // Defaults to "next" — this section is the next-season planner.
+  const [sponsorWhen, setSponsorWhen] = useState<"this" | "next">("next");
   // ---- Collections form state (per-player partial payment input)
   const [payInputs, setPayInputs] = useState<Record<string, string>>({});
   const [feeInput, setFeeInput] = useState<string | null>(null);
@@ -533,17 +537,35 @@ export const FinancesTab = memo(() => {
     e?.preventDefault();
     const amount = parseAmount(sponsorAmount);
     if (!sponsorName.trim() || amount == null) return;
-    writeFinances({
-      sponsorships: [
-        ...(finances.sponsorships || []),
-        {
-          id: newId("sp"),
-          sponsor: sponsorName.trim(),
-          amount,
-          date: dateToIsoLocal(new Date()),
-        },
-      ],
-    });
+    if (sponsorWhen === "this") {
+      // Current-season sponsor: a fundraising income so it lowers this
+      // season's dues, flagged `sponsor` so the planner lists it as one.
+      writeFinances({
+        incomes: [
+          ...(finances.incomes || []),
+          {
+            id: newId("inc"),
+            date: dateToIsoLocal(new Date()),
+            label: sponsorName.trim(),
+            amount,
+            fundraising: true,
+            sponsor: true,
+          },
+        ],
+      });
+    } else {
+      writeFinances({
+        sponsorships: [
+          ...(finances.sponsorships || []),
+          {
+            id: newId("sp"),
+            sponsor: sponsorName.trim(),
+            amount,
+            date: dateToIsoLocal(new Date()),
+          },
+        ],
+      });
+    }
     setSponsorName("");
     setSponsorAmount("");
   };
@@ -551,6 +573,17 @@ export const FinancesTab = memo(() => {
   const removeSponsorship = (id: string) =>
     writeFinances({
       sponsorships: (finances.sponsorships || []).filter((s) => s.id !== id),
+    });
+
+  // Current-season sponsors live in the income ledger (fundraising) but are
+  // surfaced here with their own remove control.
+  const currentSponsors = useMemo(
+    () => (finances.incomes || []).filter((i) => i.sponsor && i.fundraising),
+    [finances.incomes],
+  );
+  const removeCurrentSponsor = (id: string) =>
+    writeFinances({
+      incomes: (finances.incomes || []).filter((i) => i.id !== id),
     });
 
   // Stepper on a quantity item ("how many tournaments?"). Keeps the mirrored
@@ -2014,34 +2047,95 @@ export const FinancesTab = memo(() => {
               <Icons.Plus className="w-4 h-4" /> Add
             </Button>
           </form>
-          {/* Sponsorships pledged toward next season's budget. Named after the
-              sponsor; they reduce the suggested fee and convert into ledger
-              income when the season advances. */}
-          <div className="pt-2 border-t border-line space-y-2">
-            <div className="t-eyebrow text-ink-3">
-              Sponsorships — money pledged toward this budget
-            </div>
-            {(finances.sponsorships || []).length > 0 && (
-              <ul className="divide-y divide-line">
-                {(finances.sponsorships || []).map((sp) => (
-                  <li key={sp.id} className="py-2 flex items-center gap-3">
-                    <span className="t-body-bold text-ink flex-1 truncate">
-                      {sp.sponsor}
-                    </span>
-                    <span className="tabular-nums font-black text-win">
-                      {formatCurrency(sp.amount)}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Remove sponsorship from ${sp.sponsor}`}
-                      onClick={() => removeSponsorship(sp.id)}
-                      className="text-ink-3 hover:text-loss transition-colors"
-                    >
-                      <Icons.X className="w-4 h-4" />
-                    </button>
-                  </li>
+          {/* Sponsorships reduce fees. "This season" entries post as
+              fundraising income (lowering current dues); "next season" entries
+              offset the planned fee and convert to income when the season
+              advances. */}
+          <div className="pt-2 border-t border-line space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="t-eyebrow text-ink-3">Sponsorships</div>
+              <div className="flex items-center gap-0.5 rounded-full bg-surface-2 p-0.5">
+                {(
+                  [
+                    ["this", "This season"],
+                    ["next", "Next season"],
+                  ] as const
+                ).map(([val, label]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    aria-label={`Sponsor applies to ${label.toLowerCase()}`}
+                    aria-pressed={sponsorWhen === val}
+                    onClick={() => setSponsorWhen(val)}
+                    className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
+                      sponsorWhen === val
+                        ? "bg-surface text-ink shadow-sm"
+                        : "text-ink-3 hover:text-ink"
+                    }`}
+                  >
+                    {label}
+                  </button>
                 ))}
-              </ul>
+              </div>
+            </div>
+            <p className="t-meta text-ink-3">
+              {sponsorWhen === "this"
+                ? "Lowers what families owe this season, split evenly across paying players."
+                : "Offsets next season's planned fee and becomes income when the season advances."}
+            </p>
+            {currentSponsors.length > 0 && (
+              <div className="space-y-1">
+                <div className="t-eyebrow text-ink-3">
+                  This season — reduces current fees
+                </div>
+                <ul className="divide-y divide-line">
+                  {currentSponsors.map((sp) => (
+                    <li key={sp.id} className="py-2 flex items-center gap-3">
+                      <span className="t-body-bold text-ink flex-1 truncate">
+                        {sp.label}
+                      </span>
+                      <span className="tabular-nums font-black text-win">
+                        {formatCurrency(sp.amount)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove this-season sponsor ${sp.label}`}
+                        onClick={() => removeCurrentSponsor(sp.id)}
+                        className="text-ink-3 hover:text-loss transition-colors"
+                      >
+                        <Icons.X className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {(finances.sponsorships || []).length > 0 && (
+              <div className="space-y-1">
+                <div className="t-eyebrow text-ink-3">
+                  Next season — reduces planned fee
+                </div>
+                <ul className="divide-y divide-line">
+                  {(finances.sponsorships || []).map((sp) => (
+                    <li key={sp.id} className="py-2 flex items-center gap-3">
+                      <span className="t-body-bold text-ink flex-1 truncate">
+                        {sp.sponsor}
+                      </span>
+                      <span className="tabular-nums font-black text-win">
+                        {formatCurrency(sp.amount)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove sponsorship from ${sp.sponsor}`}
+                        onClick={() => removeSponsorship(sp.id)}
+                        className="text-ink-3 hover:text-loss transition-colors"
+                      >
+                        <Icons.X className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
             <form
               onSubmit={addSponsorship}

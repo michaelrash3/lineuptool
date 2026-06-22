@@ -172,6 +172,56 @@ describe("FinancesTab", () => {
     expect(removePatch.finances.sponsorships).toEqual([]);
   });
 
+  it("adds a current-season sponsor as fundraising income reducing this year's fees", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    // Switch the sponsor toggle to the current season.
+    fireEvent.click(screen.getByLabelText("Sponsor applies to this season"));
+    fireEvent.change(screen.getByLabelText("Sponsor name"), {
+      target: { value: "Smith Hardware" },
+    });
+    fireEvent.change(screen.getByLabelText("Sponsorship amount"), {
+      target: { value: "300" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Add Sponsor/ }));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    // Posts to the income ledger as fundraising (lowers current dues), not to
+    // next season's sponsorships.
+    expect(patch.finances.sponsorships).toBeUndefined();
+    const added = patch.finances.incomes[patch.finances.incomes.length - 1];
+    expect(added).toMatchObject({
+      label: "Smith Hardware",
+      amount: 300,
+      fundraising: true,
+      sponsor: true,
+    });
+
+    // It surfaces under "This season" with its own remove control.
+    const withSponsor: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: patch.finances.incomes,
+      },
+    };
+    const second = renderWithProviders(<FinancesTab />, {
+      team: { team: withSponsor },
+    });
+    fireEvent.click(
+      screen.getByLabelText("Remove this-season sponsor Smith Hardware"),
+    );
+    const removePatch = (second.teamValue.updateTeam as jest.Mock).mock
+      .calls[0][0];
+    // The sponsor income is gone; unrelated seed income is untouched.
+    expect(removePatch.finances.incomes.some((i: any) => i.sponsor)).toBe(
+      false,
+    );
+    expect(removePatch.finances.incomes.some((i: any) => i.id === "i1")).toBe(
+      true,
+    );
+  });
+
   it("waives a player's fee and shows the waived state", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },
