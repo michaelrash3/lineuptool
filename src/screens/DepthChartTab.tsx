@@ -12,7 +12,6 @@ import {
 } from "../lineupEngine";
 import { canonicalizeOutfield, isDepartedPlayer } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
-import { PitcherRankingPanel } from "../components/PitcherRankingPanel";
 import type { GradeMap, Player, Team } from "../types";
 
 // Full position names for the card headers.
@@ -441,11 +440,6 @@ export const DepthChartTab = memo(() => {
           </div>
         </div>
       </div>
-
-      {/* Eval-weighted pitcher ranking — context for ordering the P depth
-          chart. Self-gates to kid-pitch / age 9+ / head coach, so it renders
-          nothing when pitcher ranking doesn't apply. */}
-      <PitcherRankingPanel />
 
       {players.length === 0 ? (
         <div className="glass cc-sheen shadow-card border border-line p-8 text-center text-ink-3 font-medium">
