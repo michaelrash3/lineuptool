@@ -177,9 +177,7 @@ describe("FinancesTab", () => {
       team: { team: baseTeam },
     });
     // Switch the sponsor toggle to the current season.
-    fireEvent.click(
-      screen.getByLabelText("Sponsor applies to this season"),
-    );
+    fireEvent.click(screen.getByLabelText("Sponsor applies to this season"));
     fireEvent.change(screen.getByLabelText("Sponsor name"), {
       target: { value: "Smith Hardware" },
     });
@@ -216,12 +214,12 @@ describe("FinancesTab", () => {
     const removePatch = (second.teamValue.updateTeam as jest.Mock).mock
       .calls[0][0];
     // The sponsor income is gone; unrelated seed income is untouched.
-    expect(
-      removePatch.finances.incomes.some((i: any) => i.sponsor),
-    ).toBe(false);
-    expect(
-      removePatch.finances.incomes.some((i: any) => i.id === "i1"),
-    ).toBe(true);
+    expect(removePatch.finances.incomes.some((i: any) => i.sponsor)).toBe(
+      false,
+    );
+    expect(removePatch.finances.incomes.some((i: any) => i.id === "i1")).toBe(
+      true,
+    );
   });
 
   it("waives a player's fee and shows the waived state", () => {
