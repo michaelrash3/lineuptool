@@ -774,8 +774,8 @@ export const FinancesTab = memo(() => {
                     <span className="font-black text-ink tabular-nums">
                       {formatCurrency(carryoverAppliedTotal)}
                     </span>{" "}
-                    surplus is applied as a team-fee discount. Reverse it if that
-                    was a mistake.
+                    surplus is applied as a team-fee discount. Reverse it if
+                    that was a mistake.
                   </p>
                   <Button
                     variant="ghost"
