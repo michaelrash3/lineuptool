@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI } from "../contexts";
+import { useTeam, useUI, useConfirm } from "../contexts";
 import type {
   EvaluationEvent,
   Game,
@@ -234,20 +234,20 @@ const StatsTable = memo(
 
     return (
       <div className="overflow-x-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+        <table className="w-full text-left border-collapse text-base whitespace-nowrap">
           <thead className="bg-surface-2 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-3 t-eyebrow text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
+              <th className="px-3 py-4 text-xs font-black uppercase tracking-widest text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
                 Player
               </th>
               {allCols.map((col) => {
                 const active = col.key === sortKey;
                 return (
-                  <th key={col.key} className="px-4 py-3 text-center">
+                  <th key={col.key} className="px-3 py-4 text-center">
                     <button
                       type="button"
                       onClick={() => clickHeader(col)}
-                      className={`t-eyebrow inline-flex items-center gap-0.5 hover:text-ink ${
+                      className={`text-xs font-black uppercase tracking-widest inline-flex items-center gap-0.5 hover:text-ink ${
                         active ? "text-ink" : "text-ink-3"
                       }`}
                       title={`Sort by ${col.label}`}
@@ -255,9 +255,9 @@ const StatsTable = memo(
                       {col.label}
                       {active &&
                         (asc ? (
-                          <Icons.ChevronUp className="w-3 h-3" />
+                          <Icons.ChevronUp className="w-3.5 h-3.5" />
                         ) : (
-                          <Icons.ChevronDown className="w-3 h-3" />
+                          <Icons.ChevronDown className="w-3.5 h-3.5" />
                         ))}
                     </button>
                   </th>
@@ -268,15 +268,15 @@ const StatsTable = memo(
           <tbody className="divide-y divide-line">
             {sorted.map((r: StatRow) => (
               <tr key={r.id} className="hover:bg-surface-2">
-                <td className="px-4 py-3 sticky left-0 bg-surface z-10 border-r border-line">
+                <td className="px-3 py-4 sticky left-0 bg-surface z-10 border-r border-line">
                   <button
                     type="button"
                     onClick={() => onOpen?.(r.id)}
-                    className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex items-baseline gap-1.5"
+                    className="text-base font-black text-ink hover:text-team-primary uppercase tracking-tight text-left truncate flex items-baseline gap-1.5"
                   >
                     {r.name}
                     {r.number != null && r.number !== "" && (
-                      <span className="text-[10px] text-ink-3 font-bold tabular-nums">
+                      <span className="text-xs text-ink-3 font-bold tabular-nums">
                         #{r.number}
                       </span>
                     )}
@@ -293,7 +293,7 @@ const StatsTable = memo(
                 {allCols.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-4 py-3 text-center tabular-nums ${
+                    className={`px-3 py-4 text-center tabular-nums ${
                       col.key === sortKey
                         ? "font-black text-ink"
                         : "font-bold text-ink-2"
@@ -414,13 +414,8 @@ const SectionCard = ({
 );
 
 export const StatsTab = memo(() => {
-  const {
-    team: teamRaw,
-    currentRole,
-    uploadStatsCsv,
-    updateTeam,
-    confirm,
-  } = useTeam();
+  const { team: teamRaw, currentRole, uploadStatsCsv, updateTeam } = useTeam();
+  const { confirm } = useConfirm();
   const { openPlayerProfile } = useUI();
   const canEdit = currentRole !== "assistant";
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
@@ -572,6 +567,7 @@ export const StatsTab = memo(() => {
       message:
         "This will remove season stats and per-game stat lines for every player. This cannot be undone.",
       confirmLabel: "Delete Stats",
+      danger: true,
     });
     if (!ok) return;
     const clearedPlayers = (team.players || []).map((p: Player) => ({
