@@ -443,9 +443,17 @@ export const DepthChartTab = memo(() => {
 
       {players.length === 0 ? (
         <div className="glass cc-sheen shadow-card border border-line p-8 text-center text-ink-3 font-medium">
-          <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
-            📋
-          </div>
+          {team.logoUrl ? (
+            <img
+              src={team.logoUrl}
+              alt="Team Logo"
+              className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+            />
+          ) : (
+            <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
+              📋
+            </div>
+          )}
           Add players to your roster to build a depth chart.
         </div>
       ) : (
