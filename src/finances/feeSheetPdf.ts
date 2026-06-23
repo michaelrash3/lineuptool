@@ -180,17 +180,40 @@ const renderFeeSheetPdf = async ({
   pdf.line(margin, y, right, y);
 
   // ---- Expense rows (zebra striped) ----
+  // Pre-measure every row, then shrink row spacing/font uniformly if the table
+  // plus the total would otherwise spill past the footer (many budget lines).
   const labelMaxW = contentW - 130;
+  const wrappedLines = breakdown.lines.map(
+    (line) => pdf.splitTextToSize(line.label, labelMaxW) as string[],
+  );
+  const BASE_STEP = 15;
+  const BASE_PAD = 15;
+  const BASE_FONT = 11.5;
+  const totalH = 42;
+  const naturalH = wrappedLines.reduce(
+    (sum, w) => sum + BASE_STEP * w.length + BASE_PAD,
+    0,
+  );
+  const available = pageH - 64 - 16 - totalH - y; // keep clear of the footer
+  const scale =
+    naturalH > available && available > 0
+      ? Math.max(0.55, available / naturalH)
+      : 1;
+  const step = BASE_STEP * scale;
+  const pad = BASE_PAD * scale;
+  const rowFont = Math.max(7.5, BASE_FONT * scale);
+
   breakdown.lines.forEach((line, i) => {
-    const wrapped = pdf.splitTextToSize(line.label, labelMaxW) as string[];
-    const rowH = 15 * wrapped.length + 15;
+    const wrapped = wrappedLines[i];
+    const rowH = step * wrapped.length + pad;
     if (i % 2 === 0) {
       pdf.setFillColor(ZEBRA[0], ZEBRA[1], ZEBRA[2]);
       pdf.rect(margin, y, contentW, rowH, "F");
     }
-    const baseline = y + (rowH - (wrapped.length - 1) * 15) / 2 + 4;
+    const baseline =
+      y + (rowH - (wrapped.length - 1) * step) / 2 + rowFont * 0.34;
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(11.5);
+    pdf.setFontSize(rowFont);
     pdf.setTextColor(30, 41, 59);
     pdf.text(wrapped, margin + 8, baseline);
     pdf.setFont("helvetica", "bold");
@@ -202,7 +225,6 @@ const renderFeeSheetPdf = async ({
   });
 
   // ---- Total row (accent tint band) ----
-  const totalH = 42;
   const band = tint(accent, 0.86);
   pdf.setFillColor(band[0], band[1], band[2]);
   pdf.rect(margin, y, contentW, totalH, "F");

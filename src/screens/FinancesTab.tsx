@@ -536,7 +536,8 @@ export const FinancesTab = memo(() => {
   const addSponsorship = (e?: React.FormEvent) => {
     e?.preventDefault();
     const amount = parseAmount(sponsorAmount);
-    if (!sponsorName.trim() || amount == null) return;
+    const name = sponsorName.trim();
+    if (!name || amount == null) return;
     if (sponsorWhen === "this") {
       // Current-season sponsor: a fundraising income so it lowers this
       // season's dues, flagged `sponsor` so the planner lists it as one.
@@ -546,7 +547,7 @@ export const FinancesTab = memo(() => {
           {
             id: newId("inc"),
             date: dateToIsoLocal(new Date()),
-            label: sponsorName.trim(),
+            label: name,
             amount,
             fundraising: true,
             sponsor: true,
@@ -559,13 +560,24 @@ export const FinancesTab = memo(() => {
           ...(finances.sponsorships || []),
           {
             id: newId("sp"),
-            sponsor: sponsorName.trim(),
+            sponsor: name,
             amount,
             date: dateToIsoLocal(new Date()),
           },
         ],
       });
     }
+    toast.push({
+      kind: "success",
+      title:
+        sponsorWhen === "this"
+          ? "Sponsor added — fees reduced"
+          : "Sponsor added",
+      message:
+        sponsorWhen === "this"
+          ? `${name} lowers this season's fees by ${formatCurrency(amount)}.`
+          : `${name} offsets next season's planned fee by ${formatCurrency(amount)}.`,
+    });
     setSponsorName("");
     setSponsorAmount("");
   };
@@ -580,6 +592,11 @@ export const FinancesTab = memo(() => {
   const currentSponsors = useMemo(
     () => (finances.incomes || []).filter((i) => i.sponsor && i.fundraising),
     [finances.incomes],
+  );
+  const currentSponsorTotal = useMemo(
+    () =>
+      currentSponsors.reduce((sum, sp) => sum + (Number(sp.amount) || 0), 0),
+    [currentSponsors],
   );
   const removeCurrentSponsor = (id: string) =>
     writeFinances({
@@ -2085,8 +2102,13 @@ export const FinancesTab = memo(() => {
             </p>
             {currentSponsors.length > 0 && (
               <div className="space-y-1">
-                <div className="t-eyebrow text-ink-3">
-                  This season — reduces current fees
+                <div className="flex items-center justify-between gap-2">
+                  <span className="t-eyebrow text-ink-3">
+                    This season — reduces current fees
+                  </span>
+                  <span className="t-eyebrow tabular-nums text-win">
+                    {formatCurrency(currentSponsorTotal)} total
+                  </span>
                 </div>
                 <ul className="divide-y divide-line">
                   {currentSponsors.map((sp) => (
