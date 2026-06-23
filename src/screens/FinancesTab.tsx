@@ -2134,8 +2134,13 @@ export const FinancesTab = memo(() => {
             )}
             {(finances.sponsorships || []).length > 0 && (
               <div className="space-y-1">
-                <div className="t-eyebrow text-ink-3">
-                  Next season — reduces planned fee
+                <div className="flex items-center justify-between gap-2">
+                  <span className="t-eyebrow text-ink-3">
+                    Next season — reduces planned fee
+                  </span>
+                  <span className="t-eyebrow tabular-nums text-win">
+                    {formatCurrency(sponsored)} total
+                  </span>
                 </div>
                 <ul className="divide-y divide-line">
                   {(finances.sponsorships || []).map((sp) => (
