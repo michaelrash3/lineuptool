@@ -814,9 +814,17 @@ export const PracticesTab = memo(() => {
 
       {practices.length === 0 ? (
         <div className="text-center py-16">
-          <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
-            ⚾
-          </div>
+          {team.logoUrl ? (
+            <img
+              src={team.logoUrl}
+              alt="Team Logo"
+              className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+            />
+          ) : (
+            <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
+              ⚾
+            </div>
+          )}
           <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
             No Practices Yet
           </h3>

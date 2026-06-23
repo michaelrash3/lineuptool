@@ -2156,12 +2156,20 @@ export const EvaluationTab = memo(() => {
                 )}
                 {players.length === 0 ? (
                   <div className="text-center py-10 t-body">
-                    <div
-                      className="text-4xl leading-none mb-3 opacity-80"
-                      aria-hidden
-                    >
-                      ⭐
-                    </div>
+                    {team?.logoUrl ? (
+                      <img
+                        src={team.logoUrl}
+                        alt="Team Logo"
+                        className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+                      />
+                    ) : (
+                      <div
+                        className="text-4xl leading-none mb-3 opacity-80"
+                        aria-hidden
+                      >
+                        ⭐
+                      </div>
+                    )}
                     No players on the roster yet.
                   </div>
                 ) : (

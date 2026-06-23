@@ -128,12 +128,20 @@ export const PlayerInfoTab = memo(() => {
 
           {submissions.length === 0 ? (
             <div className="text-center py-12 bg-surface border border-line rounded-xl">
-              <div
-                className="text-5xl leading-none mb-3 opacity-80"
-                aria-hidden
-              >
-                🧢
-              </div>
+              {team?.logoUrl ? (
+                <img
+                  src={team.logoUrl}
+                  alt="Team Logo"
+                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+                />
+              ) : (
+                <div
+                  className="text-5xl leading-none mb-3 opacity-80"
+                  aria-hidden
+                >
+                  🧢
+                </div>
+              )}
               <p className="text-sm font-bold text-ink-3 mb-1">
                 No player info submitted yet
               </p>
