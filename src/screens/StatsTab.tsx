@@ -414,7 +414,13 @@ const SectionCard = ({
 );
 
 export const StatsTab = memo(() => {
-  const { team: teamRaw, currentRole, uploadStatsCsv, updateTeam, confirm } = useTeam();
+  const {
+    team: teamRaw,
+    currentRole,
+    uploadStatsCsv,
+    updateTeam,
+    confirm,
+  } = useTeam();
   const { openPlayerProfile } = useUI();
   const canEdit = currentRole !== "assistant";
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
@@ -575,7 +581,11 @@ export const StatsTab = memo(() => {
     }));
     const clearedGames = (team.games || []).map((g: Game) => {
       if (!g.playerStats) return g;
-      const { playerStats: _removed, statsImportedAt: _ts, ...rest } = g as Game & { statsImportedAt?: string };
+      const {
+        playerStats: _removed,
+        statsImportedAt: _ts,
+        ...rest
+      } = g as Game & { statsImportedAt?: string };
       return rest;
     });
     updateTeam({ players: clearedPlayers, games: clearedGames });
