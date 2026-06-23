@@ -414,7 +414,13 @@ const SectionCard = ({
 );
 
 export const StatsTab = memo(() => {
-  const { team: teamRaw, currentRole, uploadStatsCsv } = useTeam();
+  const {
+    team: teamRaw,
+    currentRole,
+    uploadStatsCsv,
+    updateTeam,
+    confirm,
+  } = useTeam();
   const { openPlayerProfile } = useUI();
   const canEdit = currentRole !== "assistant";
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
@@ -559,6 +565,31 @@ export const StatsTab = memo(() => {
     }
     return map;
   }, [evaluationEvents, players]);
+
+  const clearAllStats = useCallback(async () => {
+    const ok = await confirm({
+      title: "Delete all imported stats?",
+      message:
+        "This will remove season stats and per-game stat lines for every player. This cannot be undone.",
+      confirmLabel: "Delete Stats",
+    });
+    if (!ok) return;
+    const clearedPlayers = (team.players || []).map((p: Player) => ({
+      ...p,
+      stats: undefined,
+      statsHistory: undefined,
+    }));
+    const clearedGames = (team.games || []).map((g: Game) => {
+      if (!g.playerStats) return g;
+      const {
+        playerStats: _removed,
+        statsImportedAt: _ts,
+        ...rest
+      } = g as Game & { statsImportedAt?: string };
+      return rest;
+    });
+    updateTeam({ players: clearedPlayers, games: clearedGames });
+  }, [confirm, team, updateTeam]);
 
   // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
   const armAlerts = useMemo(() => {
@@ -793,12 +824,23 @@ export const StatsTab = memo(() => {
       </div>
       {/* end desktop grid */}
       {canEdit && (
-        <ImportCsvButton
-          id="stats-import-csv"
-          label="Import Stats"
-          onChange={uploadStatsCsv}
-          hint="GameChanger season stats CSV"
-        />
+        <div className="space-y-3">
+          <ImportCsvButton
+            id="stats-import-csv"
+            label="Import Stats"
+            onChange={uploadStatsCsv}
+            hint="GameChanger season stats CSV"
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={clearAllStats}
+              className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
+            >
+              Delete All Stats
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
