@@ -237,13 +237,13 @@ const StatsTable = memo(
         <table className="w-full text-left border-collapse text-base whitespace-nowrap">
           <thead className="bg-surface-2 sticky top-0 z-10">
             <tr>
-              <th className="px-3 py-4 text-xs font-black uppercase tracking-widest text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
+              <th className="px-3 py-2.5 text-xs font-black uppercase tracking-widest text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
                 Player
               </th>
               {allCols.map((col) => {
                 const active = col.key === sortKey;
                 return (
-                  <th key={col.key} className="px-3 py-4 text-center">
+                  <th key={col.key} className="px-3 py-2.5 text-center">
                     <button
                       type="button"
                       onClick={() => clickHeader(col)}
@@ -268,7 +268,7 @@ const StatsTable = memo(
           <tbody className="divide-y divide-line">
             {sorted.map((r: StatRow) => (
               <tr key={r.id} className="hover:bg-surface-2">
-                <td className="px-3 py-4 sticky left-0 bg-surface z-10 border-r border-line">
+                <td className="px-3 py-2.5 sticky left-0 bg-surface z-10 border-r border-line">
                   <button
                     type="button"
                     onClick={() => onOpen?.(r.id)}
@@ -293,7 +293,7 @@ const StatsTable = memo(
                 {allCols.map((col) => (
                   <td
                     key={col.key}
-                    className={`px-3 py-4 text-center tabular-nums ${
+                    className={`px-3 py-2.5 text-center tabular-nums ${
                       col.key === sortKey
                         ? "font-black text-ink"
                         : "font-bold text-ink-2"
@@ -735,74 +735,6 @@ export const StatsTab = memo(() => {
               </div>
             </SectionCard>
           )}
-
-          {/* Per-player stats table with category toggle */}
-          <SectionCard
-            icon={Icons.Bat}
-            title="Player Stats"
-            subtitle={`Showing ${statScopeLabel} stats${statFormat === "all" ? "" : " from per-game imports"}`}
-          >
-            <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((c) => {
-                  const on = c.id === category;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setCategory(c.id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
-                      style={
-                        on
-                          ? {
-                              backgroundColor: "var(--team-primary)",
-                              color: "var(--team-tertiary)",
-                              borderColor: "var(--team-primary)",
-                            }
-                          : undefined
-                      }
-                    >
-                      {c.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  ["all", "All Formats"],
-                  ["machine", "Machine/Coach"],
-                  ["kid", "Kid Pitch"],
-                ].map(([id, label]) => {
-                  const on = statFormat === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() =>
-                        setStatFormat(id as "all" | "machine" | "kid")
-                      }
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
-                        on
-                          ? "border-team-primary text-team-primary"
-                          : "border-line text-ink-2"
-                      }`}
-                      title="Filter stat lines by game pitching format"
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <StatsTable
-              key={activeCat.id}
-              rows={rows}
-              cols={activeCat.cols}
-              defaultKey={activeCat.defaultKey}
-              onOpen={openPlayerProfile}
-              seriesById={stripped ? null : seriesById}
-            />
-          </SectionCard>
         </div>
         {/* end left col */}
 
@@ -819,6 +751,74 @@ export const StatsTab = memo(() => {
         {/* end right col */}
       </div>
       {/* end desktop grid */}
+
+      {/* Per-player stats table with category toggle — full width so the wide
+          batting/pitching columns have room to breathe. */}
+      <SectionCard
+        icon={Icons.Bat}
+        title="Player Stats"
+        subtitle={`Showing ${statScopeLabel} stats${statFormat === "all" ? "" : " from per-game imports"}`}
+      >
+        <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => {
+              const on = c.id === category;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCategory(c.id)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
+                  style={
+                    on
+                      ? {
+                          backgroundColor: "var(--team-primary)",
+                          color: "var(--team-tertiary)",
+                          borderColor: "var(--team-primary)",
+                        }
+                      : undefined
+                  }
+                >
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["all", "All Formats"],
+              ["machine", "Machine/Coach"],
+              ["kid", "Kid Pitch"],
+            ].map(([id, label]) => {
+              const on = statFormat === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setStatFormat(id as "all" | "machine" | "kid")}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
+                    on
+                      ? "border-team-primary text-team-primary"
+                      : "border-line text-ink-2"
+                  }`}
+                  title="Filter stat lines by game pitching format"
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <StatsTable
+          key={activeCat.id}
+          rows={rows}
+          cols={activeCat.cols}
+          defaultKey={activeCat.defaultKey}
+          onOpen={openPlayerProfile}
+          seriesById={stripped ? null : seriesById}
+        />
+      </SectionCard>
+
       {canEdit && (
         <div className="space-y-3">
           <ImportCsvButton
