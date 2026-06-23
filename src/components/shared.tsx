@@ -64,8 +64,8 @@ export const LeaderboardCard = memo(
                 style={{ backgroundColor: primaryColor, color: tertiaryColor }}
               >
                 {formatStr
-                  ? formatStat(top.stats[statKey])
-                  : (top.stats[statKey] || 0).toString()}
+                  ? formatStat(top.stats?.[statKey])
+                  : (top.stats?.[statKey] || 0).toString()}
               </span>
             </span>
           ) : (
@@ -111,8 +111,8 @@ export const LeaderboardCard = memo(
                   }}
                 >
                   {formatStr
-                    ? formatStat(p.stats[statKey])
-                    : (p.stats[statKey] || 0).toString()}
+                    ? formatStat(p.stats?.[statKey])
+                    : (p.stats?.[statKey] || 0).toString()}
                 </span>
               </div>
             ))

@@ -159,6 +159,48 @@ describe("LeaderboardCard stripped variant", () => {
     expect(screen.queryByText("Second Hitter")).toBeNull();
     expect(screen.queryByText("3")).toBeNull();
   });
+
+  // Ascending stats (e.g. Strikeouts, statKey "k") don't filter players by
+  // value, so a freshly-added player with no `stats` object survives into the
+  // render. Accessing `p.stats[statKey]` directly used to crash the whole
+  // Dashboard with "Cannot read properties of undefined (reading 'k')".
+  it("renders an ascending stat when a player has no stats object", () => {
+    const mixed = [
+      { id: "x", name: "No Stats Kid" }, // stats is undefined
+      { id: "y", name: "Punchout King", stats: { k: 12 } },
+    ];
+    expect(() =>
+      render(
+        <LeaderboardCard
+          {...common}
+          title="Strikeouts"
+          statKey="k"
+          formatStr={false}
+          asc
+          players={mixed}
+        />,
+      ),
+    ).not.toThrow();
+    expect(screen.getByText("No Stats Kid")).toBeInTheDocument();
+  });
+
+  it("renders an ascending stat with no stats object in the stripped variant", () => {
+    const mixed = [{ id: "x", name: "No Stats Kid" }];
+    expect(() =>
+      render(
+        <LeaderboardCard
+          {...common}
+          title="Strikeouts"
+          statKey="k"
+          formatStr={false}
+          asc
+          stripped
+          players={mixed}
+        />,
+      ),
+    ).not.toThrow();
+    expect(screen.getByText("No Stats Kid")).toBeInTheDocument();
+  });
 });
 
 describe("EmptyState", () => {
