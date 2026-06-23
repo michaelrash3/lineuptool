@@ -237,13 +237,13 @@ const StatsTable = memo(
         <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
           <thead className="bg-surface-2 sticky top-0 z-10">
             <tr>
-              <th className="p-2.5 t-eyebrow text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
+              <th className="px-4 py-3 t-eyebrow text-ink-2 text-left sticky left-0 bg-surface-2 z-20 border-r border-line">
                 Player
               </th>
               {allCols.map((col) => {
                 const active = col.key === sortKey;
                 return (
-                  <th key={col.key} className="p-2.5 text-center">
+                  <th key={col.key} className="px-4 py-3 text-center">
                     <button
                       type="button"
                       onClick={() => clickHeader(col)}
@@ -268,7 +268,7 @@ const StatsTable = memo(
           <tbody className="divide-y divide-line">
             {sorted.map((r: StatRow) => (
               <tr key={r.id} className="hover:bg-surface-2">
-                <td className="p-2 sticky left-0 bg-surface z-10 border-r border-line">
+                <td className="px-4 py-3 sticky left-0 bg-surface z-10 border-r border-line">
                   <button
                     type="button"
                     onClick={() => onOpen?.(r.id)}
@@ -293,7 +293,7 @@ const StatsTable = memo(
                 {allCols.map((col) => (
                   <td
                     key={col.key}
-                    className={`p-2 text-center tabular-nums ${
+                    className={`px-4 py-3 text-center tabular-nums ${
                       col.key === sortKey
                         ? "font-black text-ink"
                         : "font-bold text-ink-2"
