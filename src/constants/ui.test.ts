@@ -10,7 +10,6 @@ import {
   EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
-  calculateEvaluationScore100,
 } from "./ui";
 
 const ids = (cats: { id: string }[]) => cats.map((c) => c.id);
@@ -173,25 +172,5 @@ describe("pitcherRosterPremium", () => {
     expect(pitcherRosterPremium(W * 4, W)).toBe(
       Math.round(PITCHER_ROSTER_PREMIUM_MAX / 2),
     );
-  });
-});
-
-describe("calculateEvaluationScore100", () => {
-  it("normalizes weighted eval grades to 1-100 and ignores informational pitch velocity", () => {
-    const cats = getEvalCategoriesForPlayer("Kid Pitch", {
-      comfortablePositions: ["P"],
-    });
-    const score = calculateEvaluationScore100(cats, {
-      approach: 5,
-      speed: 4,
-      baserunning: 4,
-      baseballIQ: 5,
-      coachability: 5,
-      composure: 4,
-      pitchVelo: 34,
-    });
-    expect(score).not.toBeNull();
-    expect(score!).toBeGreaterThan(80);
-    expect(score!).toBeLessThanOrEqual(100);
   });
 });

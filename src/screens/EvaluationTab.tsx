@@ -26,7 +26,6 @@ import {
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
-  calculateEvaluationScore100,
   EVAL_SCALE_DEFAULT,
   velocityGradeFromMph,
 } from "../constants/ui";
@@ -42,6 +41,7 @@ import {
   suggestPrimaryPosition,
 } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts";
+import { currentEvaluationScore100, playerTopMph } from "../utils/evaluationScore";
 import { A11yDialog } from "../components/shared";
 import { evalPromptStatus } from "../utils/helpers";
 import {
@@ -79,14 +79,6 @@ interface EvalGradeRecord {
 // differ structurally only in the suggested-positions chip array, which the
 // engine ignores.
 const asGradeMap = (g: EvalGradeRecord): GradeMap => g as GradeMap;
-
-// `pitching` rides on Player only through its `[key: string]: unknown` index
-// signature, so read the optional radar topMph through a narrowing helper
-// instead of casting at each call site.
-const playerTopMph = (player: Player): number | undefined => {
-  const pitching = (player as { pitching?: { topMph?: number } }).pitching;
-  return pitching?.topMph;
-};
 
 // EvaluationEvent carries several eval-workflow fields only through its
 // `[key: string]: unknown` index signature (tryout linkage + the denormalized
@@ -127,36 +119,7 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   0,
 );
 
-// Eval-card score: normalize every applicable bucket back to a percentage.
-// Adding pitcher/catcher points should expand the denominator, not let a
-// multi-position player exceed (or be capped against) a smaller 100-point base.
-// This intentionally excludes the left-handed-pitcher roster scarcity bump;
-// lefty value is only considered inside the Roster Decisions advisory logic.
-const evalTotalScore = (
-  grades: GradeMap,
-  player: Player,
-  teamAge?: string,
-): number => {
-  const stats = player?.stats || null;
-  let earned = (calculateTotalScore(grades, stats) / 100) * TOTAL_SCORE_MAX;
-  let possible = TOTAL_SCORE_MAX;
 
-  if (playerIsPitcher(player)) {
-    earned += calcPitcherScore(grades, stats, {
-      topMph: stats?.pTopMph ?? playerTopMph(player),
-      teamAge,
-      neutralFill: true,
-    });
-    possible += PITCHER_EVAL_MAX;
-  }
-
-  if (playerIsCatcher(player)) {
-    earned += calcCatcherScore(grades, stats);
-    possible += CATCHER_EVAL_MAX;
-  }
-
-  return Math.min(100, Math.max(0, Math.round((earned / possible) * 100)));
-};
 
 // Roster-decision premium: pitching WELL puts a kid a leg up when comparing
 // players. Additive on top of the universal Total Score (never subtracts), so a
@@ -302,9 +265,7 @@ export const RosterDecisionsPanel = memo(() => {
         .map((ev: EvalRound) => {
           const g = ev.grades?.[player.id];
           if (!g) return null;
-          const score = calculateEvaluationScore100(playerCats, g, {
-            teamAge: team?.teamAge,
-          });
+          const score = currentEvaluationScore100(asGradeMap(g), player, team?.teamAge);
           if (score == null) return null;
           return {
             date: ev.date,
@@ -795,12 +756,15 @@ export const RosterDecisionsPanel = memo(() => {
 ============================================================================ */
 // ---------- Insights helpers ----------
 
-// Current evaluation score across universal categories, normalized to 1–100.
-const avgUniversal = (gradeRecord: GradeMap | null | undefined) =>
-  calculateEvaluationScore100(
-    EVAL_CATEGORIES.filter((c) => !c.addOn),
-    gradeRecord,
-  );
+// Average a player's universal coach grades for round-over-round flags.
+const avgUniversal = (gradeRecord: GradeMap | null | undefined) => {
+  if (!gradeRecord) return null;
+  const vals = EVAL_CATEGORIES.filter((c) => !c.addOn)
+    .map((c) => Number(gradeRecord[c.id]))
+    .filter((v) => Number.isFinite(v) && v >= 1 && v <= EVAL_SCALE_MAX);
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+};
 
 // Compute the list of automatic flags from the most-recent two rounds.
 // Standouts: average grade up by ≥ 0.75 round-over-round
@@ -1798,7 +1762,7 @@ export const EvaluationTab = memo(() => {
         const grades: EvalGradeRecord = { ...DEFAULT_GRADES, ...savedGrades };
         const totalScore = Math.min(
           100,
-          evalTotalScore(asGradeMap(grades), player, teamAge),
+          currentEvaluationScore100(asGradeMap(grades), player, teamAge) ?? 0,
         );
         const primarySuggestion = suggestPrimaryPosition(
           player,
@@ -2186,7 +2150,7 @@ export const EvaluationTab = memo(() => {
                       // bucket plus any applicable pitcher/catcher buckets.
                       const totalScore = Math.min(
                         100,
-                        evalTotalScore(asGradeMap(grades), player, teamAge),
+                        currentEvaluationScore100(asGradeMap(grades), player, teamAge) ?? 0,
                       );
                       const expanded = expandedPlayerIds.has(player.id);
                       const rankRow = rankByPlayerId.get(player.id);
