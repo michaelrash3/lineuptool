@@ -10,6 +10,8 @@ const ctx: OfferLetterContext = {
   coachName: "Coach Mike",
   coachEmail: "mike@example.com",
   coachPhone: "(555) 123-4567",
+  venmoAccountName: "@CoachMike",
+  venmoLink: "https://venmo.com/u/CoachMike",
 };
 
 describe("buildOfferLetter", () => {
@@ -21,7 +23,9 @@ describe("buildOfferLetter", () => {
     expect(body).toContain("deposit of $300 is required by March 19, 2026");
     expect(body).toContain("three uniform tops");
     expect(body).toContain("within 48 hours");
-    expect(body).toContain("call me at (555) 123-4567");
+    expect(body).toContain("call/text me at (555) 123-4567");
+    expect(body).toContain("@CoachMike");
+    expect(body).toContain("https://venmo.com/u/CoachMike");
     expect(body.trimEnd().endsWith("Sincerely,")).toBe(true);
     expect(body).not.toContain("Coach Mike");
     expect(body).not.toContain("mike@example.com");
@@ -63,4 +67,16 @@ describe("buildOfferLetter", () => {
     expect(body).not.toContain("call me at");
     expect(body).toContain("reply to this message confirming your acceptance.");
   });
+});
+
+
+it("not returning letter is separate from tryout rejection and avoids money", () => {
+  const decline = buildOfferLetter("notReturning", ctx);
+  const rejection = buildOfferLetter("rejection", ctx);
+  expect(decline.subject).toBe("Trash Pandas Baseball Roster Update");
+  expect(decline.body).toContain("will not be offering you a spot on the roster");
+  expect(rejection.body).toContain("Thank you for attending the tryouts");
+  expect(decline.body).not.toContain("deposit");
+  expect(decline.body).not.toContain("Venmo");
+  expect(decline.body).not.toContain("team fees");
 });

@@ -478,7 +478,7 @@ const ReturningIntentPanel = memo(
     );
     if (players.length === 0) return null;
     return (
-      <div className="glass-card p-4 sm:p-5 space-y-3">
+      <div className="cc-card p-4 sm:p-5 space-y-3">
         <div>
           <h3 className="t-h3 flex items-center gap-2">
             <Icons.Clipboard className="w-4 h-4" /> Returning Intent
@@ -586,7 +586,7 @@ const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
       roster.belowLine.length ===
     0;
   return (
-    <div className="glass-card p-4 sm:p-5 space-y-3">
+    <div className="cc-card p-4 sm:p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <h3 className="t-h3 flex items-center gap-2">
           <Icons.Clipboard className="w-4 h-4" /> Roster Projection
@@ -951,7 +951,7 @@ export const TryoutsTab = memo(() => {
 
   return (
     <div className="max-w-6xl mx-auto lg:max-w-none space-y-4">
-      <div className="glass-card">
+      <div className="cc-card">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -992,7 +992,7 @@ export const TryoutsTab = memo(() => {
         <div
           className={`${isHead ? "lg:col-span-8" : "lg:col-span-12"} space-y-4`}
         >
-          <div className="glass-card p-3 flex flex-wrap items-center gap-2">
+          <div className="cc-card p-3 flex flex-wrap items-center gap-2">
             <input
               type="text"
               value={search}
@@ -1036,7 +1036,7 @@ export const TryoutsTab = memo(() => {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="glass-card p-8 text-center text-ink-3 text-sm font-medium">
+            <div className="cc-card p-8 text-center text-ink-3 text-sm font-medium">
               No tryout signups yet. Share the public form link from Settings to
               start collecting.
             </div>

@@ -609,6 +609,29 @@ export const useImportExportFlows = ({
     toast.push({ kind: "success", title: "Roster CSV downloaded" });
   }, [teamData.players, activeTeamId, toast, playersToCsv]);
 
+
+  const playerInfoToCsv = useCallback((players: any[]) => {
+    const headers = [
+      "First", "Last", "Jersey Number", "Birthdate", "Submitted At",
+      "Parent / Guardian", "Phone", "Email", "Emergency Name", "Emergency Phone",
+      "Hat Size", "Shirt Size", "Pants Size", "Height", "Weight",
+      "School", "Grade", "Notes",
+    ];
+    const rows = (players || []).map((p) => {
+      const parts = (p.name || "").trim().split(/\s+/);
+      const first = parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] || "";
+      const last = parts.length > 1 ? parts[parts.length - 1] : "";
+      return [first, last, p.number, p.dob, p.playerInfoSubmittedAt, p.parentName, p.phone, p.email, p.emergencyName, p.emergencyPhone, p.hatSize, p.shirtSize, p.pantsSize, p.height, p.weight, p.school, p.grade, p.notes].map(csvEscape).join(",");
+    });
+    return [headers.map(csvEscape).join(","), ...rows].join("\r\n");
+  }, []);
+
+  const exportPlayerInfoCsv = useCallback(() => {
+    const csv = playerInfoToCsv(teamData.players || []);
+    downloadCsv(`player-info-${activeTeamId}-${getLocalDateString()}.csv`, csv);
+    toast.push({ kind: "success", title: "Player Info CSV downloaded" });
+  }, [teamData.players, activeTeamId, toast, playerInfoToCsv]);
+
   const exportNewPlayersCsv = useCallback(() => {
     const incoming = (teamData.players || []).filter(
       (p: any) => p.playerStatus === "accepted",
@@ -724,6 +747,7 @@ export const useImportExportFlows = ({
     uploadGameStatsCsv,
     exportBackup,
     exportRosterCsv,
+    exportPlayerInfoCsv,
     exportNewPlayersCsv,
     setPlayerStatus,
     setPlayerReturning,

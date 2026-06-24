@@ -67,13 +67,13 @@ module.exports = {
       // utilities resolve to these app-wide. rounded-full is left intact for
       // genuine circles (avatars, spinners).
       borderRadius: {
-        DEFAULT: "3px",
-        sm: "2px",
-        md: "3px",
-        lg: "4px",
-        xl: "5px",
-        "2xl": "6px",
-        "3xl": "8px",
+        DEFAULT: "0px",
+        sm: "0px",
+        md: "0px",
+        lg: "0px",
+        xl: "0px",
+        "2xl": "0px",
+        "3xl": "0px",
       },
     },
   },

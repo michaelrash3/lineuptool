@@ -3,7 +3,7 @@ import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { buildSeasonSummary } from "../utils/helpers";
-import { getEvalCategoriesForTeam } from "../constants/ui";
+import { calculateEvaluationScore100, getEvalCategoriesForTeam } from "../constants/ui";
 
 // End-of-Season team report: record + run diff + streak, top performers,
 // attendance leaders, and biggest eval improvers. Read-only; shareable via
@@ -169,12 +169,7 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
   const improvers = useMemo(() => {
     const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
     const overallOf = (g: any) => {
-      const vals = categories
-        .map((c) => num(g?.[c.id]))
-        .filter((v): v is number => v !== undefined);
-      return vals.length
-        ? vals.reduce((s, v) => s + v, 0) / vals.length
-        : undefined;
+      return calculateEvaluationScore100(categories, g, { teamAge: team?.teamAge }) ?? undefined;
     };
     const out: Array<{ player: any; delta: number }> = [];
     for (const p of players) {

@@ -143,21 +143,21 @@ const MonthPicker = ({
     });
 
   return (
-    <div className="bg-surface border border-line rounded-xl p-3">
-      <div className="flex items-center justify-between mb-2">
+    <div className="relative overflow-hidden bg-surface border border-line rounded-xl p-4 shadow-card">
+      <div className="-m-4 mb-4 px-4 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, var(--team-primary), var(--team-secondary))" }}>
         <button
           type="button"
           onClick={() => step(-1)}
-          className="p-1.5 rounded-md text-ink-2 hover:bg-surface-2"
+          className="p-2 rounded-md text-white hover:bg-white/15"
           aria-label="Previous month"
         >
           <Icons.ChevronDown className="w-4 h-4 rotate-90" />
         </button>
-        <span className="t-button text-ink">{monthLabel}</span>
+        <span className="t-button text-white">{monthLabel}</span>
         <button
           type="button"
           onClick={() => step(1)}
-          className="p-1.5 rounded-md text-ink-2 hover:bg-surface-2"
+          className="p-2 rounded-md text-white hover:bg-white/15"
           aria-label="Next month"
         >
           <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
@@ -173,7 +173,7 @@ const MonthPicker = ({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {cells.map((iso, i) => {
           if (!iso) return <div key={i} />;
           const isSel = selected.has(iso);
@@ -186,7 +186,7 @@ const MonthPicker = ({
               disabled={isPast}
               onClick={() => onToggle(iso)}
               aria-pressed={isSel}
-              className={`aspect-square rounded-md text-sm font-bold transition-colors ${
+              className={`aspect-square min-h-11 rounded-md text-base font-bold transition-colors ${
                 isPast
                   ? "text-ink-3 opacity-40 cursor-not-allowed"
                   : isSel
@@ -224,6 +224,7 @@ export const AvailabilityPortal = () => {
   });
   // Selected unavailable dates (ISO yyyy-mm-dd).
   const [dates, setDates] = useState<string[]>([]);
+  const [dateDetails, setDateDetails] = useState<Record<string, { startTime?: string; endTime?: string; reason?: string }>>({});
   // The "add a range" shortcut inputs.
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
@@ -294,10 +295,29 @@ export const AvailabilityPortal = () => {
     };
   }, [linkSlug]);
 
-  const toggleDate = (iso: string) =>
-    setDates((prev) =>
-      prev.includes(iso) ? prev.filter((d) => d !== iso) : [...prev, iso],
-    );
+  const toggleDate = (iso: string) => {
+    setDates((prev) => {
+      if (prev.includes(iso)) {
+        setDateDetails((details) => {
+          const next = { ...details };
+          delete next[iso];
+          return next;
+        });
+        return prev.filter((d) => d !== iso);
+      }
+      return [...prev, iso].sort();
+    });
+  };
+
+  const updateDateDetail = (
+    iso: string,
+    patch: { startTime?: string; endTime?: string; reason?: string },
+  ) => {
+    setDateDetails((prev) => ({
+      ...prev,
+      [iso]: { ...(prev[iso] || {}), ...patch },
+    }));
+  };
 
   const addRange = () => {
     if (!rangeFrom) return setError("Pick a start date for the range.");
@@ -339,6 +359,12 @@ export const AvailabilityPortal = () => {
       phone: clampText(form.phone, SIGNUP_LIMITS.phone),
       // Cap the payload — a sane ceiling on dates per submission.
       dates: sortedDates.slice(0, 366),
+      blocks: sortedDates.slice(0, 366).map((date) => ({
+        date,
+        ...(dateDetails[date]?.startTime ? { startTime: dateDetails[date].startTime } : {}),
+        ...(dateDetails[date]?.endTime ? { endTime: dateDetails[date].endTime } : {}),
+        ...(dateDetails[date]?.reason ? { reason: clampText(dateDetails[date].reason || "", 140) } : {}),
+      })),
     };
 
     try {
@@ -533,20 +559,35 @@ export const AvailabilityPortal = () => {
             </div>
 
             {sortedDates.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="space-y-2">
                 {sortedDates.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() =>
-                      setDates((prev) => removeAbsenceDates(prev, [d]))
-                    }
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-surface-2 border border-line text-ink hover:bg-loss-bg hover:text-loss hover:border-loss transition-colors"
-                    title="Remove this date"
-                  >
-                    {formatShortDate(d)}
-                    <Icons.X className="w-3 h-3" />
-                  </button>
+                  <div key={d} className="border border-line bg-surface-2 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-black text-ink">{formatShortDate(d)}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDates((prev) => removeAbsenceDates(prev, [d]));
+                          setDateDetails((prev) => { const next = { ...prev }; delete next[d]; return next; });
+                        }}
+                        className="text-loss text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-1"
+                        title="Remove this date"
+                      >
+                        <Icons.X className="w-3 h-3" /> Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <Field label="Start time (optional)">
+                        <input type="time" value={dateDetails[d]?.startTime || ""} onChange={(e) => updateDateDetail(d, { startTime: e.target.value })} className={INPUT_BASE} style={RING_STYLE} />
+                      </Field>
+                      <Field label="End time (optional)">
+                        <input type="time" value={dateDetails[d]?.endTime || ""} onChange={(e) => updateDateDetail(d, { endTime: e.target.value })} className={INPUT_BASE} style={RING_STYLE} />
+                      </Field>
+                      <Field label="Reason (optional)">
+                        <input type="text" value={dateDetails[d]?.reason || ""} onChange={(e) => updateDateDetail(d, { reason: e.target.value })} placeholder="Vacation, school event..." className={INPUT_BASE} style={RING_STYLE} />
+                      </Field>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

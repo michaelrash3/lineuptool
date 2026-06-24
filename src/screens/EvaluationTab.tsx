@@ -26,6 +26,7 @@ import {
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,
+  calculateEvaluationScore100,
   EVAL_SCALE_DEFAULT,
   velocityGradeFromMph,
 } from "../constants/ui";
@@ -301,17 +302,14 @@ export const RosterDecisionsPanel = memo(() => {
         .map((ev: EvalRound) => {
           const g = ev.grades?.[player.id];
           if (!g) return null;
-          // Average only over categories that apply to THIS player, so a
-          // non-catcher/non-pitcher isn't dragged down by specialties they
-          // were never meant to be graded on.
-          const vals = playerCats
-            .map((c) => Number(g[c.id]))
-            .filter((v) => Number.isFinite(v));
-          if (vals.length === 0) return null;
+          const score = calculateEvaluationScore100(playerCats, g, {
+            teamAge: team?.teamAge,
+          });
+          if (score == null) return null;
           return {
             date: ev.date,
             label: ev.label || ev.date,
-            avg: vals.reduce((a, b) => a + b, 0) / vals.length,
+            avg: score,
           };
         })
         .filter((e): e is { date: string; label: string; avg: number } => !!e);
@@ -797,16 +795,12 @@ export const RosterDecisionsPanel = memo(() => {
 ============================================================================ */
 // ---------- Insights helpers ----------
 
-// Average a player's grades across all the universal categories they have a
-// number for (excludes notes / non-numeric fields).
-const avgUniversal = (gradeRecord: GradeMap | null | undefined) => {
-  if (!gradeRecord) return null;
-  const vals = EVAL_CATEGORIES.filter((c) => !c.addOn)
-    .map((c) => Number(gradeRecord[c.id]))
-    .filter((v) => Number.isFinite(v) && v >= 1 && v <= EVAL_SCALE_MAX);
-  if (vals.length === 0) return null;
-  return vals.reduce((a, b) => a + b, 0) / vals.length;
-};
+// Current evaluation score across universal categories, normalized to 1–100.
+const avgUniversal = (gradeRecord: GradeMap | null | undefined) =>
+  calculateEvaluationScore100(
+    EVAL_CATEGORIES.filter((c) => !c.addOn),
+    gradeRecord,
+  );
 
 // Compute the list of automatic flags from the most-recent two rounds.
 // Standouts: average grade up by ≥ 0.75 round-over-round

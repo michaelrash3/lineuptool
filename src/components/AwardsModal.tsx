@@ -2,7 +2,7 @@ import React, { memo, useMemo, useState } from "react";
 import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
-import { getEvalCategoriesForTeam } from "../constants/ui";
+import { calculateEvaluationScore100, getEvalCategoriesForTeam } from "../constants/ui";
 
 // Auto season awards / superlatives. Each award nominates a winner straight
 // from the team's data; the coach can override per award (persisted on the team
@@ -66,12 +66,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
   const improver = useMemo(() => {
     const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
     const overallOf = (g: any) => {
-      const vals = categories
-        .map((c) => num(g?.[c.id]))
-        .filter((v): v is number => v !== undefined);
-      return vals.length
-        ? vals.reduce((s, v) => s + v, 0) / vals.length
-        : undefined;
+      return calculateEvaluationScore100(categories, g, { teamAge: team?.teamAge }) ?? undefined;
     };
     let best: any = null;
     let bestDelta = 0;

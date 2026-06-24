@@ -265,6 +265,35 @@ export const velocityGradeFromMph = (
   );
 };
 
+export const evalGradeToScore100 = (grade: number): number =>
+  Math.max(0, Math.min(100, (grade / EVAL_SCALE_MAX) * 100));
+
+export const calculateEvaluationScore100 = (
+  categories: EvalCategory[],
+  grades: Record<string, unknown> | null | undefined,
+  opts: { teamAge?: string } = {},
+): number | null => {
+  if (!grades) return null;
+  let weighted = 0;
+  let totalWeight = 0;
+  for (const category of categories) {
+    const weight = Number(category.weight || 0);
+    if (!Number.isFinite(weight) || weight <= 0) continue;
+    const raw = Number(grades[category.id]);
+    if (!Number.isFinite(raw)) continue;
+    let normalizedGrade: number | null = null;
+    if (category.inputKind === "mph") {
+      normalizedGrade = velocityGradeFromMph(raw, opts.teamAge);
+    } else if (raw >= 1 && raw <= EVAL_SCALE_MAX) {
+      normalizedGrade = raw;
+    }
+    if (normalizedGrade == null || !Number.isFinite(normalizedGrade)) continue;
+    weighted += evalGradeToScore100(normalizedGrade) * weight;
+    totalWeight += weight;
+  }
+  return totalWeight > 0 ? weighted / totalWeight : null;
+};
+
 // Roster-decision premium for pitching well. Pure: takes a player's
 // eval-weighted pitcher score and the sum of those weights, and rewards only
 // pitching ABOVE the neutral grade — so default/ungraded pitching (every cat at
