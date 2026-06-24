@@ -132,32 +132,53 @@ export const LeaderboardCard = memo(
    the surface feel intentional; `icon` is an optional small Lucide mark; pass
    an `action`/`onAction` for a primary CTA. */
 export const EmptyState = memo(
-  ({ glyph, icon: Icon, title, body, action, onAction }: any) => (
-    <div className="rounded-2xl bg-surface border border-line shadow-card p-8 text-center">
-      {glyph && (
-        <div className="text-5xl leading-none mb-3 opacity-80" aria-hidden>
-          {glyph}
+  ({ glyph, icon: Icon, title, body, action, onAction }: any) => {
+    const { team } = useTeam();
+    const logoUrl = (team as any)?.logoUrl;
+    return (
+      <div className="relative overflow-hidden border border-line bg-transparent px-6 py-20 text-center min-h-[276px] flex flex-col items-center justify-center">
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt="Team Logo"
+            className="absolute inset-0 m-auto h-[82%] w-[82%] object-contain opacity-20 grayscale pointer-events-none select-none"
+            aria-hidden
+          />
+        ) : glyph ? (
+          <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
+            {glyph}
+          </div>
+        ) : null}
+        <div className="relative z-10 flex flex-col items-center">
+          {Icon && !logoUrl && (
+            <div className="inline-flex p-3 bg-surface-2 mb-4">
+              <Icon className="w-7 h-7 text-ink-3" />
+            </div>
+          )}
+          {title && (
+            <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
+              {title}
+            </h3>
+          )}
+          {body && (
+            <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto mb-5">
+              {body}
+            </p>
+          )}
+          {action && (
+            <button
+              type="button"
+              onClick={onAction}
+              className="inline-flex items-center gap-2 t-button px-5 py-2.5 text-white"
+              style={{ backgroundColor: "var(--team-primary)" }}
+            >
+              {action}
+            </button>
+          )}
         </div>
-      )}
-      {Icon && (
-        <div className="inline-flex p-3 rounded-2xl bg-surface-2 mb-4">
-          <Icon className="w-7 h-7 text-ink-3" />
-        </div>
-      )}
-      {title && <h3 className="t-h3 mb-2">{title}</h3>}
-      {body && <p className="t-body max-w-md mx-auto mb-5">{body}</p>}
-      {action && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="inline-flex items-center gap-2 t-button px-5 py-2.5 rounded-xl shadow-md text-white"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        >
-          {action}
-        </button>
-      )}
-    </div>
-  ),
+      </div>
+    );
+  },
 );
 
 /* Compact W-L record. `variant`: "compact" (header) | "full" (home/schedule). */
@@ -523,9 +544,7 @@ export const extractLogoPalette = (
   });
 
 export const StatTile = ({ label, value, className = "" }: any) => (
-  <div
-    className={`cc-card cc-sheen px-6 py-5 text-center rounded-2xl ${className}`}
-  >
+  <div className={`cc-card px-6 py-5 text-center rounded-2xl ${className}`}>
     <span className="block mb-1.5 t-eyebrow">{label}</span>
     <span className="block t-stat-num t-gradient">{value}</span>
   </div>

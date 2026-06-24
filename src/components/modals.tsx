@@ -602,6 +602,8 @@ export const PlayerProfileModal = memo(() => {
 
   const [editingContact, setEditingContact] = useState(false);
   const [showReturningOffer, setShowReturningOffer] = useState(false);
+  const [showCurrentPlayerDecline, setShowCurrentPlayerDecline] =
+    useState(false);
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -796,6 +798,7 @@ export const PlayerProfileModal = memo(() => {
     setEditingPlayerName(false);
     setTrendStatKey(null);
     setShowReturningOffer(false);
+    setShowCurrentPlayerDecline(false);
   };
 
   return (
@@ -1820,6 +1823,14 @@ export const PlayerProfileModal = memo(() => {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setShowCurrentPlayerDecline(true)}
+                  className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
+                >
+                  <Icons.FileText className="w-3.5 h-3.5" /> Current Player
+                  Decline
+                </button>
+                <button
+                  type="button"
                   onClick={() => setEditingContact(!editingContact)}
                   className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                 >
@@ -1831,6 +1842,17 @@ export const PlayerProfileModal = memo(() => {
               { key: "parentName", label: "Parent / Guardian Name" },
               { key: "phone", label: "Phone Number" },
               { key: "email", label: "Email Address" },
+              { key: "emergencyName", label: "Emergency Contact Name" },
+              { key: "emergencyPhone", label: "Emergency Contact Phone" },
+              { key: "school", label: "School" },
+              { key: "grade", label: "Grade" },
+              { key: "hatSize", label: "Hat Size" },
+              { key: "shirtSize", label: "Shirt Size" },
+              { key: "pantsSize", label: "Pants Size" },
+              { key: "height", label: "Height" },
+              { key: "weight", label: "Weight" },
+              { key: "notes", label: "Player Info Notes" },
+              { key: "playerInfoSubmittedAt", label: "Player Info Submitted" },
             ].map(({ key, label }) => (
               <div key={key}>
                 <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
@@ -1886,6 +1908,15 @@ export const PlayerProfileModal = memo(() => {
           onSaveNextSeasonMoney={(patch) =>
             updateTeam?.({ finances: { ...(team.finances || {}), ...patch } })
           }
+        />
+      )}
+      {showCurrentPlayerDecline && (
+        <OfferLetterModal
+          open
+          onClose={() => setShowCurrentPlayerDecline(false)}
+          kind="notReturning"
+          recipientEmail={player.email}
+          ctx={makeOfferLetterContext(team, user, player.name)}
         />
       )}
       {showReport && (

@@ -10,6 +10,7 @@ export type OfferLetterKind =
   | "returning"
   | "newPlayer"
   | "rejection"
+  | "notReturning"
   | "interest";
 
 export interface OfferLetterContext {
@@ -23,6 +24,8 @@ export interface OfferLetterContext {
   coachName: string;
   coachEmail: string;
   coachPhone: string;
+  venmoAccountName: string;
+  venmoLink: string;
 }
 
 export interface OfferLetterDraft {
@@ -36,7 +39,12 @@ export interface OfferLetterDraft {
 const signature = "Sincerely,";
 
 const phoneClause = (ctx: OfferLetterContext): string =>
-  ctx.coachPhone ? ` or call me at ${ctx.coachPhone}` : "";
+  ctx.coachPhone ? ` or call/text me at ${ctx.coachPhone}` : "";
+
+const venmoAccount = (ctx: OfferLetterContext): string =>
+  ctx.venmoAccountName || "[Venmo Account Name]";
+const venmoLink = (ctx: OfferLetterContext): string =>
+  ctx.venmoLink || "[Venmo Link]";
 
 const clubName = (ctx: OfferLetterContext): string =>
   `${ctx.teamName || "our team"} Baseball Club`;
@@ -76,7 +84,8 @@ const formatOfferDate = (date: string): string => {
 export const OFFER_LETTER_LABELS: Record<OfferLetterKind, string> = {
   returning: "Returning Player Offer",
   newPlayer: "New Player Offer",
-  rejection: "Thank You / Not Selected",
+  rejection: "Tryout Rejection Letter",
+  notReturning: "Not Returning Player Letter",
   interest: "Interest / Tryout Invite",
 };
 
@@ -100,11 +109,11 @@ export const buildOfferLetter = (
         "",
         `The team fees for the upcoming season are ${ctx.teamFees}. ${coveredItems}`,
         "",
-        `To secure your roster spot, a deposit of ${ctx.deposit} is required by ${dueDate}.`,
-        "",
         `Please let us know your decision within 48 hours of receiving this offer. To accept, please reply directly to this message confirming your acceptance${phoneClause(
           ctx,
         )}.`,
+        "",
+        `To secure your roster spot, a deposit of ${ctx.deposit || "[Deposit Amount]"} is required by ${dueDate}. You can complete this payment via Venmo by sending the deposit to ${venmoAccount(ctx)} or by clicking directly on this link: ${venmoLink(ctx)}.`,
         "",
         `If you have any questions, please contact me directly.`,
         "",
@@ -123,11 +132,11 @@ export const buildOfferLetter = (
         "",
         `The team fees for the season are ${ctx.teamFees}. ${coveredItems}`,
         "",
-        `To officially accept this offer and secure your spot, a deposit of ${ctx.deposit} is required by ${dueDate}.`,
-        "",
         `You have 48 hours to accept this offer. To accept, please reply to this message confirming your acceptance${phoneClause(
           ctx,
         )}.`,
+        "",
+        `To officially secure your spot, a deposit of ${ctx.deposit || "[Deposit Amount]"} is required by ${dueDate}. You can submit this payment via Venmo to ${venmoAccount(ctx)} or by clicking here: ${venmoLink(ctx)}.`,
         "",
         `Welcome to the ${team}. If you or your parents have any questions, please reach out to me.`,
         "",
@@ -149,6 +158,23 @@ export const buildOfferLetter = (
         )} with any questions in the meantime.`,
         "",
         `Looking forward to meeting you on the field!`,
+        "",
+        signature,
+      ].join("\n"),
+    };
+  }
+
+  if (kind === "notReturning") {
+    return {
+      subject: `${team} Baseball Roster Update`,
+      body: [
+        `Dear ${ctx.playerName},`,
+        "",
+        `Thank you for your time and dedication to the ${club} over the past season. We appreciate the hard work you put into the team.`,
+        "",
+        "As we prepare for the upcoming season, we have had to make difficult roster decisions. At this time, we will not be offering you a spot on the roster for the next season.",
+        "",
+        "We wish you the best of luck in your future baseball endeavors and hope you have a great season wherever you play next.",
         "",
         signature,
       ].join("\n"),

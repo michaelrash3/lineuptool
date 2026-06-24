@@ -33,5 +33,7 @@ export const makeOfferLetterContext = (
     coachName: user?.displayName || "Your coach",
     coachEmail: user?.email || "",
     coachPhone: (team?.headCoachPhone as string) || "",
+    venmoAccountName: (team?.coachVenmoAccountName as string) || "",
+    venmoLink: (team?.coachVenmoLink as string) || "",
   };
 };

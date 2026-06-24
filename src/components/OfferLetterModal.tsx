@@ -47,6 +47,7 @@ export const OfferLetterModal = memo(
     // Rejection and interest drafts don't mention money, so no warning.
     const missingMoney =
       kind !== "rejection" &&
+      kind !== "notReturning" &&
       kind !== "interest" &&
       (!ctx.teamFees || !ctx.deposit || !ctx.depositDueDate);
 
@@ -190,6 +191,19 @@ export const OfferLetterModal = memo(
               onFocus={(e) => e.currentTarget.select()}
               className="w-full p-3 text-sm bg-surface text-ink border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] resize-y leading-relaxed"
             />
+            {ctx.venmoLink && draft.body.includes(ctx.venmoLink) && (
+              <div className="mt-2 text-xs font-bold text-ink-2 bg-surface-2 border border-line rounded-lg px-3 py-2">
+                Venmo link:{" "}
+                <a
+                  href={ctx.venmoLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-team-primary underline underline-offset-2"
+                >
+                  {ctx.venmoLink}
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </Modal>

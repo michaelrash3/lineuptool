@@ -4,6 +4,7 @@ import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { buildSeasonSummary } from "../utils/helpers";
 import { getEvalCategoriesForTeam } from "../constants/ui";
+import { currentEvaluationScore100 } from "../utils/evaluationScore";
 
 // End-of-Season team report: record + run diff + streak, top performers,
 // attendance leaders, and biggest eval improvers. Read-only; shareable via
@@ -168,14 +169,8 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
 
   const improvers = useMemo(() => {
     const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
-    const overallOf = (g: any) => {
-      const vals = categories
-        .map((c) => num(g?.[c.id]))
-        .filter((v): v is number => v !== undefined);
-      return vals.length
-        ? vals.reduce((s, v) => s + v, 0) / vals.length
-        : undefined;
-    };
+    const overallOf = (g: any, p: any) =>
+      currentEvaluationScore100(g, p, team?.teamAge) ?? undefined;
     const out: Array<{ player: any; delta: number }> = [];
     for (const p of players) {
       const rounds = evaluationEvents
@@ -187,14 +182,14 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
             (a.createdAt || 0) - (b.createdAt || 0),
         );
       if (rounds.length < 2) continue;
-      const first = overallOf(rounds[0].grades[p.id]);
-      const last = overallOf(rounds[rounds.length - 1].grades[p.id]);
+      const first = overallOf(rounds[0].grades[p.id], p);
+      const last = overallOf(rounds[rounds.length - 1].grades[p.id], p);
       if (first === undefined || last === undefined) continue;
       const delta = last - first;
       if (delta > 0) out.push({ player: p, delta });
     }
     return out.sort((a, b) => b.delta - a.delta).slice(0, 3);
-  }, [players, evaluationEvents, team?.pitchingFormat]);
+  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
 
   const reportText = useMemo(() => {
     const lines = [

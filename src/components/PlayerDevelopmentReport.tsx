@@ -3,6 +3,7 @@ import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { getEvalCategoriesForTeam } from "../constants/ui";
+import { currentEvaluationScore100 } from "../utils/evaluationScore";
 
 // Per-player development one-pager: this season's stat line, evaluation
 // (latest grade per category + within-season trend), season-over-season stat
@@ -100,8 +101,10 @@ const StatGrid = memo(
 // trend (first round's overall average vs the latest round's).
 const useEvalTrend = (
   evaluationEvents: any[],
+  player: any,
   playerId: string,
   categories: any[],
+  teamAge?: string,
 ) =>
   useMemo(() => {
     const rounds = (evaluationEvents || [])
@@ -114,12 +117,7 @@ const useEvalTrend = (
       );
     if (rounds.length === 0) return null;
     const overallOf = (g: any) => {
-      const vals = categories
-        .map((c) => num(g?.[c.id]))
-        .filter((v): v is number => v !== undefined);
-      return vals.length
-        ? vals.reduce((s, v) => s + v, 0) / vals.length
-        : undefined;
+      return currentEvaluationScore100(g, player, teamAge) ?? undefined;
     };
     const first = overallOf(rounds[0].grades[playerId]);
     const last = overallOf(rounds[rounds.length - 1].grades[playerId]);
@@ -142,7 +140,7 @@ const useEvalTrend = (
         first !== undefined && last !== undefined ? last - first : undefined,
       latestByCat,
     };
-  }, [evaluationEvents, playerId, categories]);
+  }, [evaluationEvents, player, playerId, categories, teamAge]);
 
 const attIsPresent = (v: any) => v === true || v === "present";
 const attIsAbsent = (v: any) => v === false || v === "absent";
@@ -162,7 +160,13 @@ export const PlayerDevelopmentReport = memo(
       () => getEvalCategoriesForTeam(team?.pitchingFormat),
       [team?.pitchingFormat],
     );
-    const evalTrend = useEvalTrend(evaluationEvents, player?.id, categories);
+    const evalTrend = useEvalTrend(
+      evaluationEvents,
+      player,
+      player?.id,
+      categories,
+      team?.teamAge,
+    );
 
     const pitched = (read(player?.stats, "ip", "pIp") || 0) > 0;
 
@@ -244,7 +248,7 @@ export const PlayerDevelopmentReport = memo(
               : evalTrend.delta < 0
                 ? ` (▼ ${evalTrend.delta.toFixed(1)})`
                 : " (→)";
-        lines.push(`Eval: ${evalTrend.overallLast.toFixed(1)}/5${arrow}`);
+        lines.push(`Eval: ${evalTrend.overallLast.toFixed(0)}/100${arrow}`);
       }
       if (growth.prev) {
         const dAvg =
@@ -353,8 +357,8 @@ export const PlayerDevelopmentReport = memo(
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="text-2xl font-black tabular-nums text-ink">
-                    {evalTrend.overallLast?.toFixed(1) ?? "—"}
-                    <span className="text-sm text-ink-3">/5</span>
+                    {evalTrend.overallLast?.toFixed(0) ?? "—"}
+                    <span className="text-sm text-ink-3">/100</span>
                   </div>
                   {evalTrend.delta !== undefined && (
                     <span

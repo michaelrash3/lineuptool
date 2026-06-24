@@ -82,7 +82,7 @@ export const FinanceHero = ({
   months: CashflowMonth[];
 }) => (
   <div
-    className="glass-card relative overflow-hidden text-white"
+    className="cc-card relative overflow-hidden text-white"
     style={{
       background:
         "linear-gradient(135deg, var(--team-primary), var(--team-primary-2))",

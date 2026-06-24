@@ -313,15 +313,20 @@ export const useTryoutFlows = ({
       if (!sub || !player) return;
 
       const dates = Array.isArray(sub.dates) ? sub.dates : [];
+      const blocks = Array.isArray(sub.blocks)
+        ? sub.blocks
+        : dates.map((date: string) => ({ date }));
       const mergedAbsences = [
         ...new Set([...(player.absences || []), ...dates]),
       ].sort();
+      const mergedBlocks = [...(player.availabilityBlocks || []), ...blocks];
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
         p.id === playerId
           ? {
               ...p,
               absences: mergedAbsences,
+              availabilityBlocks: mergedBlocks,
               availabilitySubmittedAt: sub.submittedAt || now,
             }
           : p,
@@ -396,9 +401,16 @@ export const useTryoutFlows = ({
       if (!player) continue;
       const target = playersById.get(player.id);
       const dates = Array.isArray(sub.dates) ? sub.dates : [];
+      const blocks = Array.isArray(sub.blocks)
+        ? sub.blocks
+        : dates.map((date: string) => ({ date }));
       target.absences = [
         ...new Set([...(target.absences || []), ...dates]),
       ].sort();
+      target.availabilityBlocks = [
+        ...(target.availabilityBlocks || []),
+        ...blocks,
+      ];
       target.availabilitySubmittedAt = sub.submittedAt || now;
       appliedSubIds.set(sub.id, player.id);
     }
