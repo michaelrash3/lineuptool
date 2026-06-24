@@ -366,7 +366,13 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
 });
 
 export const RosterTab = memo(() => {
-  const { team, currentRole, uploadStatsCsv } = useTeam();
+  const {
+    team,
+    currentRole,
+    uploadStatsCsv,
+    exportRosterCsv,
+    exportPlayerInfoCsv,
+  } = useTeam();
   const canEdit = currentRole !== "assistant";
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
@@ -435,6 +441,57 @@ export const RosterTab = memo(() => {
   return (
     <div className="w-full space-y-6">
       {canEdit && <PlayerInfoLinkCard team={team} />}
+      {canEdit && (
+        <div className="cc-card p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-widest text-ink-3">
+                Player Info completion
+              </div>
+              <div className="text-2xl font-black text-ink">
+                {players.filter((p: any) => p.playerInfoSubmittedAt).length}/
+                {players.length} submitted
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={exportRosterCsv}
+                className="t-button"
+              >
+                Roster CSV
+              </button>
+              <button
+                type="button"
+                onClick={exportPlayerInfoCsv}
+                className="t-button"
+              >
+                Player Info CSV
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {players.map((p: any) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-2 border border-line bg-surface px-3 py-2 text-xs font-bold"
+              >
+                <span className="truncate" title={p.name}>
+                  Player #{p.number || "—"}
+                </span>
+                <span
+                  className={p.playerInfoSubmittedAt ? "text-win" : "text-loss"}
+                >
+                  {p.playerInfoSubmittedAt
+                    ? `✓ ${new Date(p.playerInfoSubmittedAt).toLocaleDateString()}`
+                    : "✕ Missing"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <PitchingPlanPanel />
       <ArmCarePanel />
       <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">

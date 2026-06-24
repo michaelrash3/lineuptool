@@ -48,9 +48,9 @@
   --info-bg: #dbeafe;
 
   /* Sharp, architectural geometry — crisp edges read premium. */
-  --radius: 4px;
-  --radius-sm: 2px;
-  --radius-lg: 6px;
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-lg: 0px;
 
   /* SLATE SCALE */
   --slate-50: #f8fafc;

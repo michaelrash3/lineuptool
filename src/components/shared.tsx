@@ -523,9 +523,7 @@ export const extractLogoPalette = (
   });
 
 export const StatTile = ({ label, value, className = "" }: any) => (
-  <div
-    className={`cc-card cc-sheen px-6 py-5 text-center rounded-2xl ${className}`}
-  >
+  <div className={`cc-card px-6 py-5 text-center rounded-2xl ${className}`}>
     <span className="block mb-1.5 t-eyebrow">{label}</span>
     <span className="block t-stat-num t-gradient">{value}</span>
   </div>

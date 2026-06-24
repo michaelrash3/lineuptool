@@ -27,7 +27,7 @@ export const GameLogPanel = memo(() => {
   };
 
   return (
-    <div className="glass-card">
+    <div className="cc-card">
       <div
         className="h-1.5 w-full"
         style={{ backgroundColor: "var(--team-primary)" }}

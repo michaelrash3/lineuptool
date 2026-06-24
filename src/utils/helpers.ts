@@ -1339,12 +1339,86 @@ export const deriveSeasonFromGameLines = (
 // school event), entered ahead of time on the player profile. A game on one
 // of these dates defaults the kid to absent in Game Day Attendance — the
 // coach can still toggle them back if plans change.
+const minutesFromTime = (value: unknown): number | null => {
+  const m = String(value || "").match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (
+    !Number.isFinite(h) ||
+    !Number.isFinite(min) ||
+    h < 0 ||
+    h > 23 ||
+    min < 0 ||
+    min > 59
+  )
+    return null;
+  return h * 60 + min;
+};
+
+export const availabilityBlockOverlapsEvent = (
+  block:
+    | { date?: string; startTime?: string; endTime?: string }
+    | null
+    | undefined,
+  event:
+    | {
+        date?: string | null;
+        time?: string | null;
+        startTime?: string | null;
+        endTime?: string | null;
+      }
+    | string
+    | null
+    | undefined,
+): boolean => {
+  const eventDate = typeof event === "string" ? event : event?.date;
+  if (!block?.date || !eventDate) return false;
+  if (String(block.date).slice(0, 10) !== String(eventDate).slice(0, 10))
+    return false;
+  const blockStart = minutesFromTime(block.startTime);
+  const blockEnd = minutesFromTime(block.endTime);
+  const eventStart =
+    typeof event === "string"
+      ? null
+      : minutesFromTime(event?.startTime || event?.time);
+  const eventEnd =
+    typeof event === "string" ? null : minutesFromTime(event?.endTime);
+  const blockAllDay = blockStart == null || blockEnd == null;
+  const eventAllDay = eventStart == null;
+  if (blockAllDay || eventAllDay) return true;
+  const normalizedBlockEnd = Math.max(blockStart + 1, blockEnd);
+  const normalizedEventEnd =
+    eventEnd == null ? eventStart + 120 : Math.max(eventStart + 1, eventEnd);
+  return blockStart < normalizedEventEnd && eventStart < normalizedBlockEnd;
+};
+
 export const isPlayerScheduledOut = (
-  player: { absences?: string[] } | null | undefined,
+  player:
+    | {
+        absences?: string[];
+        availabilityBlocks?: Array<{
+          date?: string;
+          startTime?: string;
+          endTime?: string;
+        }>;
+      }
+    | null
+    | undefined,
   dateIso: string | null | undefined,
+  eventTime?: string | null,
+  eventEndTime?: string | null,
 ): boolean => {
   if (!dateIso) return false;
-  return (player?.absences || []).includes(String(dateIso).slice(0, 10));
+  const event = {
+    date: String(dateIso).slice(0, 10),
+    time: eventTime || null,
+    endTime: eventEndTime || null,
+  };
+  if ((player?.absences || []).includes(event.date)) return true;
+  return (player?.availabilityBlocks || []).some((block) =>
+    availabilityBlockOverlapsEvent(block, event),
+  );
 };
 
 // Walk an inclusive yyyy-mm-dd range via UTC parts (no local-TZ drift) and

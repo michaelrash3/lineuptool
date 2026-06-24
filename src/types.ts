@@ -119,6 +119,7 @@ export interface Player {
   // the kid to absent in Game Day Attendance; the coach can still toggle
   // them back per game.
   absences?: string[];
+  availabilityBlocks?: AvailabilityBlock[];
   // ISO instant of the most recent parent Availability-form submission applied
   // to this player. Drives the Availability tab's completion tracker (who has /
   // hasn't filled out the form). Absent = no submission on file yet.
@@ -366,6 +367,13 @@ export interface PlayerInfoSubmission {
 // unavailable, collected via the public Availability Portal. When the name +
 // DOB uniquely identify a roster player the coach client auto-merges `dates`
 // into that player's `absences`; ambiguous ones wait in a match queue.
+export interface AvailabilityBlock {
+  date: string;
+  startTime?: string;
+  endTime?: string;
+  reason?: string;
+}
+
 export interface AvailabilitySubmission {
   id: string;
   submittedAt: string;
@@ -376,8 +384,9 @@ export interface AvailabilitySubmission {
   parentName?: string;
   email?: string;
   phone?: string;
-  // ISO yyyy-mm-dd dates the kid is unavailable.
+  // ISO yyyy-mm-dd dates the kid is unavailable. Legacy entries are all-day.
   dates: string[];
+  blocks?: AvailabilityBlock[];
   // Stamped once merged onto a roster player's absences.
   appliedToPlayerId?: string;
   appliedAt?: string;
