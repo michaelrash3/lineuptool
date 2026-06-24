@@ -1,9 +1,9 @@
 // Small reusable presentational components extracted from App.jsx Section 8.
 // All consumers go through useTeam/useUI from ../contexts.
 
-import React, { memo, useMemo } from "react";
+import React, { memo, useContext, useMemo } from "react";
 import { formatStat } from "../utils/helpers";
-import { useTeam, useUI } from "../contexts";
+import { TeamContext, useTeam, useUI } from "../contexts";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { m, SCALE_IN } from "./motion";
 
@@ -133,8 +133,8 @@ export const LeaderboardCard = memo(
    an `action`/`onAction` for a primary CTA. */
 export const EmptyState = memo(
   ({ glyph, icon: Icon, title, body, action, onAction }: any) => {
-    const { team } = useTeam();
-    const logoUrl = (team as any)?.logoUrl;
+    const teamContext = useContext(TeamContext);
+    const logoUrl = (teamContext?.team as any)?.logoUrl;
     return (
       <div className="relative overflow-hidden border border-line bg-transparent px-6 py-20 text-center min-h-[276px] flex flex-col items-center justify-center">
         {logoUrl ? (
