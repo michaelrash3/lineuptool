@@ -160,7 +160,13 @@ export const PlayerDevelopmentReport = memo(
       () => getEvalCategoriesForTeam(team?.pitchingFormat),
       [team?.pitchingFormat],
     );
-    const evalTrend = useEvalTrend(evaluationEvents, player, player?.id, categories, team?.teamAge);
+    const evalTrend = useEvalTrend(
+      evaluationEvents,
+      player,
+      player?.id,
+      categories,
+      team?.teamAge,
+    );
 
     const pitched = (read(player?.stats, "ip", "pIp") || 0) > 0;
 

@@ -189,7 +189,7 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
       if (delta > 0) out.push({ player: p, delta });
     }
     return out.sort((a, b) => b.delta - a.delta).slice(0, 3);
-  }, [players, evaluationEvents, team?.pitchingFormat]);
+  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
 
   const reportText = useMemo(() => {
     const lines = [

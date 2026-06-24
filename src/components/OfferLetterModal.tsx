@@ -193,7 +193,7 @@ export const OfferLetterModal = memo(
             />
             {ctx.venmoLink && draft.body.includes(ctx.venmoLink) && (
               <div className="mt-2 text-xs font-bold text-ink-2 bg-surface-2 border border-line rounded-lg px-3 py-2">
-                Venmo link: {" "}
+                Venmo link:{" "}
                 <a
                   href={ctx.venmoLink}
                   target="_blank"

@@ -92,7 +92,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
     return best
       ? { playerId: best.id, value: `+${bestDelta.toFixed(1)}` }
       : null;
-  }, [players, evaluationEvents, team?.pitchingFormat]);
+  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
 
   const ironman = useMemo(() => {
     const maps = [

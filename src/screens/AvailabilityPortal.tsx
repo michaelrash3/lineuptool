@@ -144,7 +144,13 @@ const MonthPicker = ({
 
   return (
     <div className="relative overflow-hidden bg-surface border border-line rounded-xl p-4 shadow-card">
-      <div className="-m-4 mb-4 px-4 py-3 flex items-center justify-between" style={{ background: "linear-gradient(135deg, var(--team-primary), var(--team-secondary))" }}>
+      <div
+        className="-m-4 mb-4 px-4 py-3 flex items-center justify-between"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--team-primary), var(--team-secondary))",
+        }}
+      >
         <button
           type="button"
           onClick={() => step(-1)}
@@ -224,7 +230,9 @@ export const AvailabilityPortal = () => {
   });
   // Selected unavailable dates (ISO yyyy-mm-dd).
   const [dates, setDates] = useState<string[]>([]);
-  const [dateDetails, setDateDetails] = useState<Record<string, { startTime?: string; endTime?: string; reason?: string }>>({});
+  const [dateDetails, setDateDetails] = useState<
+    Record<string, { startTime?: string; endTime?: string; reason?: string }>
+  >({});
   // The "add a range" shortcut inputs.
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
@@ -361,9 +369,15 @@ export const AvailabilityPortal = () => {
       dates: sortedDates.slice(0, 366),
       blocks: sortedDates.slice(0, 366).map((date) => ({
         date,
-        ...(dateDetails[date]?.startTime ? { startTime: dateDetails[date].startTime } : {}),
-        ...(dateDetails[date]?.endTime ? { endTime: dateDetails[date].endTime } : {}),
-        ...(dateDetails[date]?.reason ? { reason: clampText(dateDetails[date].reason || "", 140) } : {}),
+        ...(dateDetails[date]?.startTime
+          ? { startTime: dateDetails[date].startTime }
+          : {}),
+        ...(dateDetails[date]?.endTime
+          ? { endTime: dateDetails[date].endTime }
+          : {}),
+        ...(dateDetails[date]?.reason
+          ? { reason: clampText(dateDetails[date].reason || "", 140) }
+          : {}),
       })),
     };
 
@@ -561,14 +575,23 @@ export const AvailabilityPortal = () => {
             {sortedDates.length > 0 && (
               <div className="space-y-2">
                 {sortedDates.map((d) => (
-                  <div key={d} className="border border-line bg-surface-2 p-3 space-y-2">
+                  <div
+                    key={d}
+                    className="border border-line bg-surface-2 p-3 space-y-2"
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-black text-ink">{formatShortDate(d)}</div>
+                      <div className="text-xs font-black text-ink">
+                        {formatShortDate(d)}
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
                           setDates((prev) => removeAbsenceDates(prev, [d]));
-                          setDateDetails((prev) => { const next = { ...prev }; delete next[d]; return next; });
+                          setDateDetails((prev) => {
+                            const next = { ...prev };
+                            delete next[d];
+                            return next;
+                          });
                         }}
                         className="text-loss text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-1"
                         title="Remove this date"
@@ -578,13 +601,38 @@ export const AvailabilityPortal = () => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <Field label="Start time (optional)">
-                        <input type="time" value={dateDetails[d]?.startTime || ""} onChange={(e) => updateDateDetail(d, { startTime: e.target.value })} className={INPUT_BASE} style={RING_STYLE} />
+                        <input
+                          type="time"
+                          value={dateDetails[d]?.startTime || ""}
+                          onChange={(e) =>
+                            updateDateDetail(d, { startTime: e.target.value })
+                          }
+                          className={INPUT_BASE}
+                          style={RING_STYLE}
+                        />
                       </Field>
                       <Field label="End time (optional)">
-                        <input type="time" value={dateDetails[d]?.endTime || ""} onChange={(e) => updateDateDetail(d, { endTime: e.target.value })} className={INPUT_BASE} style={RING_STYLE} />
+                        <input
+                          type="time"
+                          value={dateDetails[d]?.endTime || ""}
+                          onChange={(e) =>
+                            updateDateDetail(d, { endTime: e.target.value })
+                          }
+                          className={INPUT_BASE}
+                          style={RING_STYLE}
+                        />
                       </Field>
                       <Field label="Reason (optional)">
-                        <input type="text" value={dateDetails[d]?.reason || ""} onChange={(e) => updateDateDetail(d, { reason: e.target.value })} placeholder="Vacation, school event..." className={INPUT_BASE} style={RING_STYLE} />
+                        <input
+                          type="text"
+                          value={dateDetails[d]?.reason || ""}
+                          onChange={(e) =>
+                            updateDateDetail(d, { reason: e.target.value })
+                          }
+                          placeholder="Vacation, school event..."
+                          className={INPUT_BASE}
+                          style={RING_STYLE}
+                        />
                       </Field>
                     </div>
                   </div>

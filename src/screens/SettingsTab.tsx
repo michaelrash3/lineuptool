@@ -148,7 +148,9 @@ const TryoutsSettingsPanel = memo(
               <input
                 type="url"
                 value={team.coachVenmoLink || ""}
-                onChange={(e) => updateTeam?.({ coachVenmoLink: e.target.value })}
+                onChange={(e) =>
+                  updateTeam?.({ coachVenmoLink: e.target.value })
+                }
                 placeholder="https://venmo.com/u/CoachVenmo"
                 className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
               />

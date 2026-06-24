@@ -164,7 +164,6 @@ export const buildOfferLetter = (
     };
   }
 
-
   if (kind === "notReturning") {
     return {
       subject: `${team} Baseball Roster Update`,

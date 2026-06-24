@@ -319,10 +319,7 @@ export const useTryoutFlows = ({
       const mergedAbsences = [
         ...new Set([...(player.absences || []), ...dates]),
       ].sort();
-      const mergedBlocks = [
-        ...(player.availabilityBlocks || []),
-        ...blocks,
-      ];
+      const mergedBlocks = [...(player.availabilityBlocks || []), ...blocks];
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
         p.id === playerId

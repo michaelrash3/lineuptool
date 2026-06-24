@@ -602,7 +602,8 @@ export const PlayerProfileModal = memo(() => {
 
   const [editingContact, setEditingContact] = useState(false);
   const [showReturningOffer, setShowReturningOffer] = useState(false);
-  const [showCurrentPlayerDecline, setShowCurrentPlayerDecline] = useState(false);
+  const [showCurrentPlayerDecline, setShowCurrentPlayerDecline] =
+    useState(false);
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -1825,7 +1826,8 @@ export const PlayerProfileModal = memo(() => {
                   onClick={() => setShowCurrentPlayerDecline(true)}
                   className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
-                  <Icons.FileText className="w-3.5 h-3.5" /> Current Player Decline
+                  <Icons.FileText className="w-3.5 h-3.5" /> Current Player
+                  Decline
                 </button>
                 <button
                   type="button"

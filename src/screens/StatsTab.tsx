@@ -808,7 +808,9 @@ export const StatsTab = memo(() => {
                   <button
                     key={id}
                     type="button"
-                    onClick={() => setStatFormat(id as "all" | "machine" | "kid")}
+                    onClick={() =>
+                      setStatFormat(id as "all" | "machine" | "kid")
+                    }
                     className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
                       on
                         ? "border-team-primary text-team-primary"

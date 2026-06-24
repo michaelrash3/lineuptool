@@ -41,7 +41,10 @@ import {
   suggestPrimaryPosition,
 } from "../lineupEngine";
 import { useTeam, useUI } from "../contexts";
-import { currentEvaluationScore100, playerTopMph } from "../utils/evaluationScore";
+import {
+  currentEvaluationScore100,
+  playerTopMph,
+} from "../utils/evaluationScore";
 import { A11yDialog } from "../components/shared";
 import { evalPromptStatus } from "../utils/helpers";
 import {
@@ -118,8 +121,6 @@ const PITCH_WEIGHT_SUM = Object.values(PITCHER_SCORE_WEIGHTS).reduce(
   (a, b) => a + b,
   0,
 );
-
-
 
 // Roster-decision premium: pitching WELL puts a kid a leg up when comparing
 // players. Additive on top of the universal Total Score (never subtracts), so a
@@ -265,7 +266,11 @@ export const RosterDecisionsPanel = memo(() => {
         .map((ev: EvalRound) => {
           const g = ev.grades?.[player.id];
           if (!g) return null;
-          const score = currentEvaluationScore100(asGradeMap(g), player, team?.teamAge);
+          const score = currentEvaluationScore100(
+            asGradeMap(g),
+            player,
+            team?.teamAge,
+          );
           if (score == null) return null;
           return {
             date: ev.date,
@@ -542,6 +547,7 @@ export const RosterDecisionsPanel = memo(() => {
     teamAge,
     currentSeason,
     team?.pitchingFormat,
+    team?.teamAge,
   ]);
 
   if (!decisions || decisions.length === 0) return null;
@@ -2150,7 +2156,11 @@ export const EvaluationTab = memo(() => {
                       // bucket plus any applicable pitcher/catcher buckets.
                       const totalScore = Math.min(
                         100,
-                        currentEvaluationScore100(asGradeMap(grades), player, teamAge) ?? 0,
+                        currentEvaluationScore100(
+                          asGradeMap(grades),
+                          player,
+                          teamAge,
+                        ) ?? 0,
                       );
                       const expanded = expandedPlayerIds.has(player.id);
                       const rankRow = rankByPlayerId.get(player.id);

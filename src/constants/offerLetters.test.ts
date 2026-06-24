@@ -69,12 +69,13 @@ describe("buildOfferLetter", () => {
   });
 });
 
-
 it("not returning letter is separate from tryout rejection and avoids money", () => {
   const decline = buildOfferLetter("notReturning", ctx);
   const rejection = buildOfferLetter("rejection", ctx);
   expect(decline.subject).toBe("Trash Pandas Baseball Roster Update");
-  expect(decline.body).toContain("will not be offering you a spot on the roster");
+  expect(decline.body).toContain(
+    "will not be offering you a spot on the roster",
+  );
   expect(rejection.body).toContain("Thank you for attending the tryouts");
   expect(decline.body).not.toContain("deposit");
   expect(decline.body).not.toContain("Venmo");
