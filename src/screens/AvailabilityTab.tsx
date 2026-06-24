@@ -2,7 +2,10 @@ import React, { memo, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { QRCodeImg } from "../components/QRCodeImg";
-import { AvailabilityCalendar } from "../components/AvailabilityCalendar";
+import {
+  AvailabilityCalendar,
+  type AvailabilityCalendarEvent,
+} from "../components/AvailabilityCalendar";
 import { isDepartedPlayer, playersOutOnDate } from "../utils/helpers";
 
 const formatShort = (iso: string): string => {
@@ -28,7 +31,7 @@ const ShareCard = memo(({ team }: any) => {
       ? `${window.location.origin}/availability-portal/${shareId}`
       : null;
   return (
-    <div className="bg-surface border border-line rounded-xl overflow-hidden">
+    <div className="bg-transparent border border-line rounded-xl overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -127,13 +130,32 @@ export const AvailabilityTab = memo(() => {
     return Number.isFinite(n) && n > 0 ? n : 9;
   }, [defenseSize]);
 
-  const eventDates = useMemo(() => {
-    const set = new Set<string>();
-    for (const g of team?.games || [])
-      if (g?.date) set.add(String(g.date).slice(0, 10));
-    for (const p of team?.practices || [])
-      if (p?.date) set.add(String(p.date).slice(0, 10));
-    return set;
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, AvailabilityCalendarEvent[]>();
+    const add = (date: any, event: AvailabilityCalendarEvent) => {
+      const iso = String(date || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+      map.set(iso, [...(map.get(iso) || []), event]);
+    };
+    for (const g of team?.games || []) {
+      add(g?.date, {
+        id: String(g?.id || `game-${g?.date}-${g?.opponent || ""}`),
+        date: String(g?.date || "").slice(0, 10),
+        type: "game",
+        title: `${g?.isScrimmage ? "Scrimmage" : "Game"}${g?.opponent ? ` vs ${g.opponent}` : ""}`,
+        meta: g?.status === "final" ? "Final" : g?.status || "Scheduled",
+      });
+    }
+    for (const p of team?.practices || []) {
+      add(p?.date, {
+        id: String(p?.id || `practice-${p?.date}`),
+        date: String(p?.date || "").slice(0, 10),
+        type: "practice",
+        title: p?.location ? `Practice · ${p.location}` : "Practice",
+        meta: p?.environment || p?.status || "Scheduled",
+      });
+    }
+    return map;
   }, [team?.games, team?.practices]);
 
   const submissions = useMemo(
@@ -208,7 +230,7 @@ export const AvailabilityTab = memo(() => {
 
       <AvailabilityCalendar
         players={players}
-        eventDates={eventDates}
+        eventsByDate={eventsByDate}
         minPlayers={minPlayers}
         selectedDate={selectedDate}
         onSelectDate={(iso) =>
@@ -217,7 +239,7 @@ export const AvailabilityTab = memo(() => {
       />
 
       {selectedDate && (
-        <div className="bg-surface border border-line rounded-xl p-4">
+        <div className="bg-transparent border border-line rounded-xl p-4">
           <div className="flex items-center justify-between gap-3 mb-2">
             <h3 className="t-h3">
               {new Date(
@@ -245,12 +267,35 @@ export const AvailabilityTab = memo(() => {
           <div className="text-sm font-bold text-ink mb-2">
             {activePlayers.length - outOnSelected.length} of{" "}
             {activePlayers.length} available
-            {eventDates.has(selectedDate) && (
-              <span className="ml-2 text-[10px] font-black uppercase tracking-widest text-ink-3">
-                · Game/practice scheduled
-              </span>
-            )}
           </div>
+          {(eventsByDate.get(selectedDate) || []).length > 0 && (
+            <div className="mb-3 grid gap-2">
+              {(eventsByDate.get(selectedDate) || []).map((event) => (
+                <div
+                  key={event.id}
+                  className="flex items-center gap-2 rounded-lg border border-line bg-app px-3 py-2"
+                >
+                  <span
+                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                      event.type === "game"
+                        ? "text-white bg-[var(--team-primary)]"
+                        : "bg-win-bg text-win border border-win/40"
+                    }`}
+                  >
+                    {event.type}
+                  </span>
+                  <span className="text-sm font-bold text-ink flex-1 min-w-0 truncate">
+                    {event.title}
+                  </span>
+                  {event.meta && (
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                      {event.meta}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           {outOnSelected.length === 0 ? (
             <p className="t-meta text-ink-3">Everyone is available.</p>
           ) : (
@@ -271,6 +316,88 @@ export const AvailabilityTab = memo(() => {
         </div>
       )}
 
+      {/* Completed parent forms — full submission details for coach review. */}
+      <div className="space-y-2">
+        <h3 className="t-h3 flex items-center gap-2">
+          <Icons.Clipboard className="w-4 h-4" /> Submitted forms
+          <span className="text-[11px] font-bold text-ink-3">
+            {submissions.length}
+          </span>
+        </h3>
+        {submissions.length === 0 ? (
+          <p className="t-meta text-ink-3 bg-transparent border border-line rounded-xl p-4">
+            No parent Availability forms have been submitted yet.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {[...submissions]
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.submittedAt || 0).getTime() -
+                  new Date(a.submittedAt || 0).getTime(),
+              )
+              .map((sub: any) => {
+                const matched = activePlayers.find(
+                  (p: any) => p.id === sub.appliedToPlayerId,
+                );
+                return (
+                  <div
+                    key={sub.id}
+                    className="bg-transparent border border-line rounded-xl p-3 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-black uppercase tracking-tight text-ink">
+                          {sub.firstName} {sub.lastName}
+                        </div>
+                        <div className="text-[11px] font-medium text-ink-3">
+                          {sub.parentName || "Parent/guardian not listed"}
+                          {sub.email ? ` · ${sub.email}` : ""}
+                          {sub.phone ? ` · ${sub.phone}` : ""}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                          sub.appliedToPlayerId
+                            ? "bg-win-bg text-win border border-win/40"
+                            : "bg-loss-bg text-loss border border-loss"
+                        }`}
+                      >
+                        {sub.appliedToPlayerId
+                          ? `Applied${matched?.name ? ` to ${matched.name}` : ""}`
+                          : "Needs match"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(sub.dates || []).length === 0 ? (
+                        <span className="text-[11px] font-bold text-ink-3">
+                          No unavailable dates selected.
+                        </span>
+                      ) : (
+                        (sub.dates || []).map((date: string) => (
+                          <button
+                            key={`${sub.id}-${date}`}
+                            type="button"
+                            onClick={() => setSelectedDate(date)}
+                            className="px-2 py-1 rounded-md text-[11px] font-bold bg-app text-ink border border-line hover:border-[var(--team-primary)]"
+                          >
+                            {formatShort(date)}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                      Submitted{" "}
+                      {formatShort(String(sub.submittedAt || "").slice(0, 10))}
+                      {sub.dob ? ` · DOB ${sub.dob}` : ""}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
+
       {/* Match queue — submissions that couldn't auto-match. */}
       {pending.length > 0 && (
         <div className="space-y-2">
@@ -285,7 +412,7 @@ export const AvailabilityTab = memo(() => {
             return (
               <div
                 key={sub.id}
-                className="bg-surface border border-line rounded-xl p-3 flex flex-col gap-2 sm:flex-row sm:items-start shadow-sm"
+                className="bg-transparent border border-line rounded-xl p-3 flex flex-col gap-2 sm:flex-row sm:items-start shadow-sm"
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-black uppercase tracking-tight text-ink">
@@ -391,7 +518,7 @@ export const AvailabilityTab = memo(() => {
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center gap-2 bg-surface border border-line rounded-lg px-3 py-2"
+                    className="flex items-center gap-2 bg-transparent border border-line rounded-lg px-3 py-2"
                   >
                     <span
                       className={`w-5 h-5 rounded-full grid place-items-center shrink-0 ${
