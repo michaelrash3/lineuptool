@@ -67,11 +67,10 @@ describe("AppHeader → NavDrawer integration", () => {
     );
   });
 
-  it("portals the drawer out of the backdrop-filtered glass header", () => {
-    // Regression: the header carries `.glass` (backdrop-filter), which makes
-    // it the containing block for a nested position:fixed overlay — crushing
-    // the drawer to the header's height and hiding the nav list. The drawer
-    // must be portaled to <body> so it stays pinned to the full viewport.
+  it("portals the drawer out of the header", () => {
+    // Regression: the drawer should never be constrained by header
+    // chrome/layout. It must be portaled to <body> so it stays pinned to the
+    // full viewport.
     const { container } = renderHeader();
     fireEvent.click(
       screen.getByRole("button", { name: /open navigation menu/i }),

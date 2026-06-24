@@ -592,11 +592,9 @@ export const NavDrawer = memo(
         {open &&
           typeof document !== "undefined" &&
           createPortal(
-            // Portaled to <body>: the header carries a `backdrop-filter`
-            // (.glass), which would otherwise become the containing block for
-            // this position:fixed overlay and crush it down to the header's
-            // height — squashing the nav list into a sliver. Rendering at the
-            // document root keeps the drawer pinned to the full viewport.
+            // Portaled to <body> so this position:fixed overlay is never
+            // constrained by header chrome/layout and stays pinned to the full
+            // viewport.
             <div className="fixed inset-0 z-[60] print:hidden">
               {/* Dimmed, tap-away backdrop */}
               <div

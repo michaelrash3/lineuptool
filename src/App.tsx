@@ -3743,8 +3743,7 @@ const MainShell = () => {
   return (
     <div className="min-h-screen bg-app print:bg-surface relative">
       {/* Massive team-logo watermark — part of the team's branding, fixed
-          behind all content. The fluid (glassy/translucent) screens let it
-          show through. Only renders when the team has a logo set. */}
+          behind all content and visible through transparent non-modal cards. Only renders when the team has a logo set. */}
       {team?.logoUrl && (
         <div
           aria-hidden="true"

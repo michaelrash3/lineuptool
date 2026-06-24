@@ -460,7 +460,7 @@ export const TryoutsPortal = () => {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-surface backdrop-blur rounded-2xl shadow-card border border-line overflow-hidden"
+        className="bg-transparent rounded-2xl shadow-card border border-line overflow-hidden"
       >
         <div
           className="h-1 w-full"
