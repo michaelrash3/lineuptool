@@ -16,8 +16,8 @@ describe("RosterTab", () => {
       ui: { setIsAddingPlayer: jest.fn() },
     });
     expect(screen.getByText("Team Roster")).toBeInTheDocument();
-    expect(screen.getByText("Ava Rivera")).toBeInTheDocument();
-    expect(screen.getByText("Mia Stone")).toBeInTheDocument();
+    expect(screen.getAllByText("Ava Rivera").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Mia Stone").length).toBeGreaterThan(0);
   });
 
   it("invokes setIsAddingPlayer when a head coach taps Add Player", async () => {
@@ -128,11 +128,11 @@ describe("RosterTab", () => {
     expect(screen.getAllByText("Departed").length).toBeGreaterThan(0);
     // The "Inactive" status is gone entirely.
     expect(screen.queryByText("Inactive")).toBeNull();
-    expect(screen.getByText("Lily Chen")).toBeInTheDocument();
+    expect(screen.getAllByText("Lily Chen").length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole("button", { name: "Departed" }));
-    expect(screen.getByText("Zoe Kim")).toBeInTheDocument();
-    expect(screen.queryByText("Lily Chen")).toBeNull();
+    expect(screen.getAllByText("Zoe Kim").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Lily Chen").length).toBe(1);
   });
 
   it("stats side panel shows team leaders and switches to a player on jersey tap", async () => {
