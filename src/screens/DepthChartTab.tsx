@@ -174,7 +174,7 @@ const PositionCard = memo(
             <span
               className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-sm text-[11px] font-black tracking-widest"
               style={{
-                backgroundColor: "var(--team-primary-15)",
+                backgroundColor: "var(--team-tertiary)",
                 color: "var(--team-primary)",
               }}
             >
