@@ -111,10 +111,9 @@ const PlayerRow = memo(
             background (no white fill) in the middle. */}
           {showPositionTag && player.primaryPosition && (
             <span
-              className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded font-black uppercase z-10"
+              className="absolute top-1.5 left-2 t-chip px-1.5 py-0.5 rounded font-black uppercase text-white/85 z-10"
               style={{
-                backgroundColor: "var(--team-tertiary)",
-                color: "var(--team-primary)",
+                backgroundColor: "rgba(0,0,0,0.35)",
                 fontSize: "9px",
                 letterSpacing: "0.12em",
               }}
