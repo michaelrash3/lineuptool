@@ -265,7 +265,7 @@ export const useTryoutFlows = ({
 
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
-        p.id === playerId ? { ...p, ...patch } : p,
+        p.id === playerId ? { ...p, ...patch, playerInfoSubmittedAt: now } : p,
       );
       const nextSubs = (teamData.playerInfoSubmissions || []).map((s: any) =>
         s.id === submissionId

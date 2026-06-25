@@ -284,8 +284,12 @@ export const PlayerAvatar = memo(
     ) : null;
     const positionBadge = hasPosition ? (
       <span
-        className="absolute top-0 left-0 px-1 rounded-br-md text-[9px] font-black uppercase tracking-wider text-white"
-        style={{ background: "rgba(15,23,42,0.7)", lineHeight: 1.2 }}
+        className="absolute top-0 left-0 px-1 rounded-br-md text-[9px] font-black uppercase tracking-wider"
+        style={{
+          background: "var(--team-tertiary)",
+          color: "var(--team-primary)",
+          lineHeight: 1.2,
+        }}
       >
         {player.primaryPosition}
       </span>

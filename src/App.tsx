@@ -147,6 +147,11 @@ const HomeTab = lazy(() =>
 const RosterTab = lazy(() =>
   import("./screens/RosterTab").then((m) => ({ default: m.RosterTab })),
 );
+const PlayerProfilePage = lazy(() =>
+  import("./screens/PlayerProfilePage").then((m) => ({
+    default: m.PlayerProfilePage,
+  })),
+);
 const StatsTab = lazy(() =>
   import("./screens/StatsTab").then((m) => ({ default: m.StatsTab })),
 );
@@ -3772,6 +3777,10 @@ const MainShell = () => {
                 <Route path="/" element={<HomeTab />} />
                 <Route path="/stats" element={<StatsTab />} />
                 <Route path="/roster" element={<RosterTab />} />
+                <Route
+                  path="/roster/:playerId"
+                  element={<PlayerProfilePage />}
+                />
                 <Route path="/depth-chart" element={<DepthChartTab />} />
                 <Route path="/schedule" element={<ScheduleTab />} />
                 <Route path="/practices" element={<PracticesTab />} />
@@ -3849,7 +3858,6 @@ const MainShell = () => {
         </Suspense>
       </main>
       <SharedModals />
-      {viewingPlayerId && <PlayerProfileModal />}
       <AddPlayerModal />
       <PastSeasonImportModal />
       <Suspense fallback={null}>
