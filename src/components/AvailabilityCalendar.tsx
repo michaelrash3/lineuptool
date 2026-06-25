@@ -64,8 +64,8 @@ export const AvailabilityCalendar = ({
     });
 
   return (
-    <div className="bg-transparent border border-line rounded-2xl p-3 sm:p-4 shadow-card overflow-hidden">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-transparent border border-line rounded-2xl p-4 sm:p-5 lg:p-6 shadow-card overflow-hidden">
+      <div className="flex items-center justify-between mb-5">
         <button
           type="button"
           onClick={() => step(-1)}
@@ -90,7 +90,7 @@ export const AvailabilityCalendar = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+      <div className="grid grid-cols-7 gap-2 mb-2">
         {WEEKDAYS.map((d) => (
           <div
             key={d}
@@ -101,9 +101,9 @@ export const AvailabilityCalendar = ({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-2">
         {cells.map((iso, i) => {
-          if (!iso) return <div key={i} className="min-h-[4.75rem]" />;
+          if (!iso) return <div key={i} className="min-h-[6.25rem]" />;
           const available = countAvailableOnDate(players, iso);
           const short = available < minPlayers;
           const dayEvents = eventsByDate.get(iso) || [];
@@ -116,7 +116,7 @@ export const AvailabilityCalendar = ({
               type="button"
               onClick={() => onSelectDate(iso)}
               aria-label={`${iso}: ${available} of ${activeCount} available${short ? ", short-handed" : ""}${dayEvents.length ? `, ${dayEvents.length} scheduled event${dayEvents.length === 1 ? "" : "s"}` : ""}`}
-              className={`min-h-[4.75rem] rounded-xl p-1.5 flex flex-col items-stretch justify-between border text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
+              className={`min-h-[6.25rem] sm:min-h-[7.5rem] rounded-2xl p-2 sm:p-3 flex flex-col items-stretch justify-between border text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
                 isSelected
                   ? "ring-2 ring-[var(--team-primary)] shadow-card"
                   : ""
@@ -127,20 +127,22 @@ export const AvailabilityCalendar = ({
               }`}
             >
               <span className="flex items-start justify-between gap-1">
-                <span className="text-sm font-black leading-none">{day}</span>
-                <span className="text-[10px] font-black tabular-nums leading-none inline-flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-app border border-line">
+                <span className="text-base sm:text-lg font-black leading-none">
+                  {day}
+                </span>
+                <span className="text-[11px] font-black tabular-nums leading-none inline-flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-app border border-line">
                   {short && <Icons.Alert className="w-2.5 h-2.5" />}
                   {available}/{activeCount}
                 </span>
               </span>
               <span className="space-y-1">
                 {eventTypes.has("game") && (
-                  <span className="block truncate rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-white bg-[var(--team-primary)]">
+                  <span className="block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white bg-[var(--team-primary)]">
                     Game
                   </span>
                 )}
                 {eventTypes.has("practice") && (
-                  <span className="block truncate rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-win-bg text-win border border-win/40">
+                  <span className="block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest bg-win-bg text-win border border-win/40">
                     Practice
                   </span>
                 )}
