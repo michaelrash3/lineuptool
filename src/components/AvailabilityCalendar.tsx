@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import {
   buildMonthGrid,
   countAvailableOnDate,
   isDepartedPlayer,
+  playersOutOnDate,
 } from "../utils/helpers";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -25,6 +26,7 @@ interface AvailabilityCalendarProps {
   minPlayers: number;
   selectedDate: string | null;
   onSelectDate: (iso: string) => void;
+  onMonthChange?: (view: { year: number; month: number }) => void;
 }
 
 // Month calendar for the coach's Availability tab. Each day shows how many
@@ -36,6 +38,7 @@ export const AvailabilityCalendar = ({
   minPlayers,
   selectedDate,
   onSelectDate,
+  onMonthChange,
 }: AvailabilityCalendarProps) => {
   const now = new Date();
   const [view, setView] = useState({
@@ -50,6 +53,10 @@ export const AvailabilityCalendar = ({
     () => (players || []).filter((p) => !isDepartedPlayer(p)).length,
     [players],
   );
+  useEffect(() => {
+    onMonthChange?.(view);
+  }, [onMonthChange, view]);
+
   const monthLabel = new Date(
     Date.UTC(view.year, view.month, 1),
   ).toLocaleDateString(undefined, {
@@ -103,9 +110,13 @@ export const AvailabilityCalendar = ({
 
       <div className="grid grid-cols-7 gap-2">
         {cells.map((iso, i) => {
-          if (!iso) return <div key={i} className="min-h-[6.25rem]" />;
+          if (!iso)
+            return <div key={i} className="min-h-[6.5rem] lg:min-h-[9rem]" />;
+          const unavailablePlayers = playersOutOnDate(players, iso);
           const available = countAvailableOnDate(players, iso);
-          const short = available < minPlayers;
+          const unavailable = unavailablePlayers.length;
+          const shortBy = Math.max(0, minPlayers - available);
+          const short = shortBy > 0;
           const dayEvents = eventsByDate.get(iso) || [];
           const isSelected = iso === selectedDate;
           const day = Number(iso.slice(8, 10));
@@ -115,8 +126,8 @@ export const AvailabilityCalendar = ({
               key={i}
               type="button"
               onClick={() => onSelectDate(iso)}
-              aria-label={`${iso}: ${available} of ${activeCount} available${short ? ", short-handed" : ""}${dayEvents.length ? `, ${dayEvents.length} scheduled event${dayEvents.length === 1 ? "" : "s"}` : ""}`}
-              className={`min-h-[6.25rem] sm:min-h-[7.5rem] rounded-2xl p-2 sm:p-3 flex flex-col items-stretch justify-between border text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
+              aria-label={`${iso}: ${available} of ${activeCount} available, ${unavailable} out${short ? `, short by ${shortBy}` : ""}${dayEvents.length ? `, ${dayEvents.length} scheduled event${dayEvents.length === 1 ? "" : "s"}` : ""}`}
+              className={`min-h-[6.5rem] sm:min-h-[8rem] lg:min-h-[9rem] rounded-2xl p-2 sm:p-3 flex flex-col items-stretch gap-2 border text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
                 isSelected
                   ? "ring-2 ring-[var(--team-primary)] shadow-card"
                   : ""
@@ -135,7 +146,31 @@ export const AvailabilityCalendar = ({
                   {available}/{activeCount}
                 </span>
               </span>
-              <span className="space-y-1">
+              <span className="grid gap-1 text-[10px] font-bold text-ink-3">
+                <span>{unavailable} out</span>
+                {short && (
+                  <span className="inline-flex items-center gap-1 font-black text-loss">
+                    <Icons.Alert className="w-3 h-3" /> Short by {shortBy}
+                  </span>
+                )}
+                {unavailablePlayers.length > 0 && (
+                  <span className="hidden sm:block truncate normal-case tracking-normal text-ink-2">
+                    Out:{" "}
+                    {unavailablePlayers
+                      .slice(0, 2)
+                      .map((player: any) =>
+                        String(player.name || "Player")
+                          .split(" ")
+                          .pop(),
+                      )
+                      .join(", ")}
+                    {unavailablePlayers.length > 2
+                      ? ` +${unavailablePlayers.length - 2}`
+                      : ""}
+                  </span>
+                )}
+              </span>
+              <span className="space-y-1 mt-auto">
                 {eventTypes.has("game") && (
                   <span className="block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white bg-[var(--team-primary)]">
                     Game

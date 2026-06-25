@@ -6,7 +6,12 @@ import {
   AvailabilityCalendar,
   type AvailabilityCalendarEvent,
 } from "../components/AvailabilityCalendar";
-import { isDepartedPlayer, playersOutOnDate } from "../utils/helpers";
+import {
+  buildMonthGrid,
+  countAvailableOnDate,
+  isDepartedPlayer,
+  playersOutOnDate,
+} from "../utils/helpers";
 
 const formatShort = (iso: string): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
@@ -168,6 +173,11 @@ export const AvailabilityTab = memo(() => {
   );
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const now = new Date();
+  const [visibleMonth, setVisibleMonth] = useState({
+    year: now.getUTCFullYear(),
+    month: now.getUTCMonth(),
+  });
   const [matchById, setMatchById] = useState<Record<string, string>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -200,6 +210,59 @@ export const AvailabilityTab = memo(() => {
     () => (selectedDate ? playersOutOnDate(players, selectedDate) : []),
     [players, selectedDate],
   );
+  const selectedEvents = useMemo(
+    () => (selectedDate ? eventsByDate.get(selectedDate) || [] : []),
+    [eventsByDate, selectedDate],
+  );
+
+  const selectedAvailable = selectedDate
+    ? activePlayers.length - outOnSelected.length
+    : 0;
+  const selectedShortBy = Math.max(0, minPlayers - selectedAvailable);
+
+  const monthInsights = useMemo(() => {
+    const days = buildMonthGrid(visibleMonth.year, visibleMonth.month).filter(
+      Boolean,
+    ) as string[];
+    let shortHandedDays = 0;
+    let gameConflicts = 0;
+    let practiceConflicts = 0;
+    let worstDay: { iso: string; available: number } | null = null;
+
+    for (const iso of days) {
+      const available = countAvailableOnDate(players, iso);
+      const out = playersOutOnDate(players, iso).length;
+      const events = eventsByDate.get(iso) || [];
+      if (available < minPlayers) shortHandedDays += 1;
+      if (out > 0 && events.some((event) => event.type === "game")) {
+        gameConflicts += 1;
+      }
+      if (out > 0 && events.some((event) => event.type === "practice")) {
+        practiceConflicts += 1;
+      }
+      if (!worstDay || available < worstDay.available) {
+        worstDay = { iso, available };
+      }
+    }
+
+    return { shortHandedDays, gameConflicts, practiceConflicts, worstDay };
+  }, [eventsByDate, minPlayers, players, visibleMonth]);
+
+  const selectedDateLabel = selectedDate
+    ? new Date(
+        Date.UTC(
+          Number(selectedDate.slice(0, 4)),
+          Number(selectedDate.slice(5, 7)) - 1,
+          Number(selectedDate.slice(8, 10)),
+        ),
+      ).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "";
 
   if (!isHead) {
     return (
@@ -214,7 +277,7 @@ export const AvailabilityTab = memo(() => {
   ).length;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6">
       <div className="border-b border-line pb-5">
         <h2 className="t-h2 flex items-center gap-3">
           <Icons.Calendar className="w-6 h-6" /> Availability
@@ -228,93 +291,156 @@ export const AvailabilityTab = memo(() => {
 
       <ShareCard team={team} />
 
-      <AvailabilityCalendar
-        players={players}
-        eventsByDate={eventsByDate}
-        minPlayers={minPlayers}
-        selectedDate={selectedDate}
-        onSelectDate={(iso) =>
-          setSelectedDate((prev) => (prev === iso ? null : iso))
-        }
-      />
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:items-start space-y-6 lg:space-y-0">
+        <div className="min-w-0 space-y-4">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Short-handed days
+              </div>
+              <div className="mt-1 text-2xl font-black text-ink">
+                {monthInsights.shortHandedDays}
+              </div>
+            </div>
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Game conflicts
+              </div>
+              <div className="mt-1 text-2xl font-black text-ink">
+                {monthInsights.gameConflicts}
+              </div>
+            </div>
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Practice conflicts
+              </div>
+              <div className="mt-1 text-2xl font-black text-ink">
+                {monthInsights.practiceConflicts}
+              </div>
+            </div>
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Worst availability
+              </div>
+              <div className="mt-1 text-sm font-black text-ink truncate">
+                {monthInsights.worstDay
+                  ? `${formatShort(monthInsights.worstDay.iso)} · ${monthInsights.worstDay.available}/${activePlayers.length}`
+                  : "No dates"}
+              </div>
+            </div>
+          </div>
 
-      {selectedDate && (
-        <div className="bg-transparent border border-line rounded-xl p-4">
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <h3 className="t-h3">
-              {new Date(
-                Date.UTC(
-                  Number(selectedDate.slice(0, 4)),
-                  Number(selectedDate.slice(5, 7)) - 1,
-                  Number(selectedDate.slice(8, 10)),
-                ),
-              ).toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                timeZone: "UTC",
-              })}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setSelectedDate(null)}
-              className="p-1 text-ink-3 hover:text-ink"
-              aria-label="Close"
-            >
-              <Icons.X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="text-sm font-bold text-ink mb-2">
-            {activePlayers.length - outOnSelected.length} of{" "}
-            {activePlayers.length} available
-          </div>
-          {(eventsByDate.get(selectedDate) || []).length > 0 && (
-            <div className="mb-3 grid gap-2">
-              {(eventsByDate.get(selectedDate) || []).map((event) => (
-                <div
-                  key={event.id}
-                  className="flex items-center gap-2 rounded-lg border border-line bg-app px-3 py-2"
-                >
-                  <span
-                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
-                      event.type === "game"
-                        ? "text-white bg-[var(--team-primary)]"
-                        : "bg-win-bg text-win border border-win/40"
-                    }`}
-                  >
-                    {event.type}
-                  </span>
-                  <span className="text-sm font-bold text-ink flex-1 min-w-0 truncate">
-                    {event.title}
-                  </span>
-                  {event.meta && (
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
-                      {event.meta}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {outOnSelected.length === 0 ? (
-            <p className="t-meta text-ink-3">Everyone is available.</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 self-center">
-                Out:
-              </span>
-              {outOnSelected.map((p: any) => (
-                <span
-                  key={p.id}
-                  className="px-2 py-1 rounded-md text-[11px] font-bold bg-loss-bg text-loss border border-loss"
-                >
-                  {p.name}
-                </span>
-              ))}
-            </div>
-          )}
+          <AvailabilityCalendar
+            players={players}
+            eventsByDate={eventsByDate}
+            minPlayers={minPlayers}
+            selectedDate={selectedDate}
+            onMonthChange={setVisibleMonth}
+            onSelectDate={(iso) =>
+              setSelectedDate((prev) => (prev === iso ? null : iso))
+            }
+          />
         </div>
-      )}
+
+        <aside className="bg-transparent border border-line rounded-2xl p-4 shadow-card lg:sticky lg:top-6">
+          {!selectedDate ? (
+            <div className="py-10 text-center">
+              <Icons.Calendar className="w-8 h-8 mx-auto text-ink-3 mb-3" />
+              <h3 className="t-h3">Select a date</h3>
+              <p className="text-sm font-medium text-ink-3 mt-1">
+                Select a date to see who is out.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="t-h3">{selectedDateLabel}</h3>
+                  <div className="text-sm font-bold text-ink mt-1">
+                    {selectedAvailable} of {activePlayers.length} available
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(null)}
+                  className="p-1 text-ink-3 hover:text-ink"
+                  aria-label="Close"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {selectedShortBy > 0 && (
+                <div className="flex items-start gap-2 rounded-xl border border-loss bg-loss-bg p-3 text-loss">
+                  <Icons.Alert className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div className="text-sm font-black">
+                    Short by {selectedShortBy} for a {minPlayers}-player
+                    defense.
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
+                  Scheduled
+                </div>
+                {selectedEvents.length === 0 ? (
+                  <p className="t-meta text-ink-3">No games or practices.</p>
+                ) : (
+                  <div className="grid gap-2">
+                    {selectedEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="rounded-lg border border-line bg-app px-3 py-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                              event.type === "game"
+                                ? "text-white bg-[var(--team-primary)]"
+                                : "bg-win-bg text-win border border-win/40"
+                            }`}
+                          >
+                            {event.type}
+                          </span>
+                          {event.meta && (
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                              {event.meta}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-sm font-bold text-ink">
+                          {event.title}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
+                  Unavailable players
+                </div>
+                {outOnSelected.length === 0 ? (
+                  <p className="t-meta text-ink-3">Everyone is available.</p>
+                ) : (
+                  <div className="grid gap-1.5">
+                    {outOnSelected.map((player: any) => (
+                      <span
+                        key={player.id}
+                        className="px-2 py-1.5 rounded-md text-sm font-bold bg-loss-bg text-loss border border-loss"
+                      >
+                        {player.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
 
       {/* Completed parent forms — full submission details for coach review. */}
       <div className="space-y-2">
