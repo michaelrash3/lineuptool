@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeGcEventsIntoGames } from "./gcSync";
+import { mergeGcEventsIntoGames, mergeGcEventsIntoPractices } from "./gcSync";
 import type { GcEvent } from "./icsParse";
 
 const defaults = {
@@ -37,6 +37,37 @@ describe("mergeGcEventsIntoGames", () => {
     expect(games[0].status).toBe("scheduled");
     expect(games[0].defenseSize).toBe("10");
     expect(typeof games[0].id).toBe("string");
+  });
+
+  it("routes GameChanger practice titles with matchup words to practices, not games", () => {
+    const practice = ev({
+      uid: "practice-vs",
+      summary:
+        "TrashPandas Baseball Club 9U vs TrashPandas Baseball Club 9U Practice",
+      opponent: "TrashPandas Baseball Club 9U Practice",
+      isHome: true,
+      startDate: "2026-07-17",
+      startUtc: "2026-07-17T23:00:00.000Z",
+      endUtc: "2026-07-18T00:30:00.000Z",
+      location: "Rec Kid Pitch",
+    });
+
+    const gameResult = mergeGcEventsIntoGames([], [practice], defaults);
+    expect(gameResult.added).toBe(0);
+    expect(gameResult.games).toHaveLength(0);
+
+    const practiceResult = mergeGcEventsIntoPractices([], [practice]);
+    expect(practiceResult.added).toBe(1);
+    expect(practiceResult.practices).toHaveLength(1);
+    expect(practiceResult.practices[0]).toMatchObject({
+      gcUid: "practice-vs",
+      date: "2026-07-17",
+      startUtc: "2026-07-17T23:00:00.000Z",
+      endUtc: "2026-07-18T00:30:00.000Z",
+      location: "Rec Kid Pitch",
+      source: "gamechanger",
+      status: "scheduled",
+    });
   });
 
   it("de-dupes by gcUid — re-syncing the same feed adds nothing", () => {

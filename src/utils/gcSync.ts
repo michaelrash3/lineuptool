@@ -39,6 +39,9 @@ export interface GcMergeResult {
   updated: number;
 }
 
+const hasPracticeKeyword = (ev: GcEvent): boolean =>
+  /practice/i.test(ev.summary || "");
+
 // Upsert parsed feed events into the existing games array, matched by the
 // feed's stable UID (game.gcUid):
 //   - new events become new "scheduled" games,
@@ -64,6 +67,7 @@ export const mergeGcEventsIntoGames = (
   let added = 0;
   let updated = 0;
   for (const ev of events) {
+    if (hasPracticeKeyword(ev)) continue;
     const fields = {
       // All-day events keep their literal feed date and have no instant
       // (null startUtc → no clock-time chip in the schedule).
@@ -110,18 +114,10 @@ export const mergeGcEventsIntoGames = (
   return { games: added > 0 || updated > 0 ? next : base, added, updated };
 };
 
-// A feed event is a GAME when its SUMMARY has a matchup separator (" @ " /
-// "@ " for away or " vs " for home — same separators parseMatchup keys on).
-// Everything else with "practice" in the SUMMARY is a PRACTICE. Anything that
-// is neither is ignored on import.
-const isGameEvent = (ev: GcEvent): boolean => {
-  if (ev.isHome === true || ev.isHome === false) return true;
-  const s = ev.summary || "";
-  return / @ |@ | vs /i.test(s);
-};
-
-const isPracticeEvent = (ev: GcEvent): boolean =>
-  !isGameEvent(ev) && /practice/i.test(ev.summary || "");
+// GameChanger can publish practice titles like "Team vs Opponent Practice".
+// Any SUMMARY that says practice should route to the Practices tab instead of
+// becoming a lineup-needed game, even if the parser also found a matchup.
+const isPracticeEvent = (ev: GcEvent): boolean => hasPracticeKeyword(ev);
 
 export interface GcPracticeMergeResult {
   practices: any[];
