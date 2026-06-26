@@ -3,7 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 // Light/dark theme manager. Persists the user's choice ("light" | "dark" |
 // "system") to localStorage and applies it to <html data-theme>. The actual
 // data-theme attribute is also set pre-paint by the inline script in
-// public/index.html so there's no flash on load; this hook keeps it in sync
+// index.html (the Vite entry at the repo root) so there's no flash on load;
+// this hook keeps it in sync
 // after hydration and reacts to OS changes when in "system" mode.
 
 export type ThemeMode = "light" | "dark" | "system";

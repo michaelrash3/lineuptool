@@ -31,14 +31,14 @@ Formatting is pinned to **Prettier** (config in `.prettierrc.json`). Run `npm ru
 
 ## When to update which doc
 
-| Touched                                                            | Update                                                                   |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| New screen, new context value, new top-level routing               | `docs/ARCHITECTURE.md`                                                   |
-| Changed a user-facing flow (sign-in, join, tryouts, eval, in-game) | `docs/USER-FLOWS.md`                                                     |
-| Changed `firestore.rules`                                          | `docs/firebase-rules-rollout.md` (validation matrix + rollback note)     |
-| Added a deploy step, env var, or build flag                        | `README.md` quickstart                                                   |
-| Bumped `EVAL_SCHEMA_VERSION` or any other schema version           | `docs/ARCHITECTURE.md` migration ladder + a one-release fallback in code |
-| Visual change to a primitive (Button, Card, Modal, etc.)           | The corresponding preview HTML under `docs/design/coachs-card/preview/`  |
+| Touched                                                            | Update                                                                      |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| New screen, new context value, new top-level routing               | `docs/ARCHITECTURE.md`                                                      |
+| Changed a user-facing flow (sign-in, join, tryouts, eval, in-game) | `docs/USER-FLOWS.md`                                                        |
+| Changed `firestore.rules`                                          | `docs/firebase-rules-rollout.md` (validation matrix + rollback note)        |
+| Added a deploy step, env var, or build flag                        | `README.md` quickstart                                                      |
+| Bumped `EVAL_SCHEMA_VERSION` or any other schema version           | `docs/ARCHITECTURE.md` migration ladder + a one-release fallback in code    |
+| Visual change to a primitive (Button, Card, Modal, etc.)           | Attach before/after screenshots on the PR (DOM assertions don't cover look) |
 
 ## Rules rollout
 
@@ -54,7 +54,7 @@ Never edit rules in the Console without mirroring the change back into the repo 
 
 ## Code conventions
 
-- **No emojis in code or comments** unless the file is intentionally about emoji rendering (e.g., empty-state glyphs sanctioned in `docs/design/coachs-card/ICONOGRAPHY.md`).
+- **No emojis in code or comments** unless the file is intentionally about emoji rendering (e.g., sanctioned empty-state glyphs).
 - **Comments explain _why_, not _what_.** Identifiers should already tell the reader what. Add a comment for a hidden constraint, a surprise, or a workaround for a known bug.
 - **Don't over-abstract.** Three similar lines is better than a premature helper. Helpers earn their keep when there are 5+ call sites or the logic is non-obvious.
 - **Reuse before inventing.** The primitives in `src/components/shared.tsx` (Button, Chip, GlassCard, Eyebrow, StatTile, PlayerAvatar) and the semantic type classes in `src/styles.css` (`.t-h1`, `.t-eyebrow`, `.t-body`, etc.) cover the vast majority of UI cases.

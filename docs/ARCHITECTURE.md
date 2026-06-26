@@ -63,7 +63,7 @@ Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` f
 
 ## Client layout
 
-`src/App.tsx` is intentionally a monolith — about 3,600 lines containing all top-level state, every team mutation, and the auth/Firestore subscriptions. Three patterns make it readable:
+`src/App.tsx` is intentionally a monolith — about 4,000 lines containing all top-level state, every team mutation, and the auth/Firestore subscriptions. Three patterns make it readable:
 
 1. **Context providers wrap the shell.**
    - `ToastProvider` — at the very top so tryouts portal can post toasts without a team
@@ -150,7 +150,7 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 
 ## Firestore rules → flows
 
-`firestore.rules` is small (~55 lines) but encodes four overlapping permission lanes on the team doc:
+`firestore.rules` (~280 lines) encodes four overlapping permission lanes on the team doc:
 
 1. **Owner/member**: full read/write (`allow read, write: if isMember(resource.data)`)
 2. **Bootstrap**: `allow create` when `ownerId` matches the caller — used by `createTeam` and the `bootstrapDefaultTeam` fallback
