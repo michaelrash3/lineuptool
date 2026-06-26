@@ -1,6 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
+import { EmptyState } from "../components/shared";
 
 // Parent-submitted Player Info inbox (uniform/equipment sizing + logistics).
 // Head-only. Each row shows what a parent sent via the public Player Info
@@ -127,30 +128,12 @@ export const PlayerInfoTab = memo(() => {
           </div>
 
           {submissions.length === 0 ? (
-            <div className="text-center py-12 bg-surface border border-line rounded-xl">
-              {team?.logoUrl ? (
-                <img
-                  src={team.logoUrl}
-                  alt="Team Logo"
-                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                />
-              ) : (
-                <div
-                  className="text-5xl leading-none mb-3 opacity-80"
-                  aria-hidden
-                >
-                  🧢
-                </div>
-              )}
-              <p className="text-sm font-bold text-ink-3 mb-1">
-                No player info submitted yet
-              </p>
-              <p className="text-xs text-ink-3 font-medium max-w-sm mx-auto">
-                Share your team's Player Info link or QR code (found on the
-                Roster page). Submissions will appear here as parents fill it
-                out.
-              </p>
-            </div>
+            <EmptyState
+              glyph="🧢"
+              logoUrl={team?.logoUrl}
+              title="No player info submitted yet"
+              body="Share your team's Player Info link or QR code (found on the Roster page). Submissions will appear here as parents fill it out."
+            />
           ) : visible.length === 0 ? (
             <div className="text-sm font-bold text-ink-3 italic text-center py-8">
               No submissions match the current search.

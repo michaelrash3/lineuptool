@@ -3,6 +3,7 @@ import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { getEvalCategoriesForTeam } from "../constants/ui";
+import { evalCompositeScore } from "../lineupEngine";
 
 // Per-player development one-pager: this season's stat line, evaluation
 // (latest grade per category + within-season trend), season-over-season stat
@@ -102,6 +103,8 @@ const useEvalTrend = (
   evaluationEvents: any[],
   playerId: string,
   categories: any[],
+  stats?: any,
+  teamAge?: string,
 ) =>
   useMemo(() => {
     const rounds = (evaluationEvents || [])
@@ -113,14 +116,10 @@ const useEvalTrend = (
           (a.createdAt || 0) - (b.createdAt || 0),
       );
     if (rounds.length === 0) return null;
-    const overallOf = (g: any) => {
-      const vals = categories
-        .map((c) => num(g?.[c.id]))
-        .filter((v): v is number => v !== undefined);
-      return vals.length
-        ? vals.reduce((s, v) => s + v, 0) / vals.length
-        : undefined;
-    };
+    // The headline score is the same 0–100 percentage scale as the Stats
+    // "Overall" column, with pitch velocity folded in (evalCompositeScore).
+    const overallOf = (g: any) =>
+      g ? evalCompositeScore(g, stats, teamAge) : undefined;
     const first = overallOf(rounds[0].grades[playerId]);
     const last = overallOf(rounds[rounds.length - 1].grades[playerId]);
     // Latest value per category, walking newest-first.
@@ -142,7 +141,7 @@ const useEvalTrend = (
         first !== undefined && last !== undefined ? last - first : undefined,
       latestByCat,
     };
-  }, [evaluationEvents, playerId, categories]);
+  }, [evaluationEvents, playerId, categories, stats, teamAge]);
 
 const attIsPresent = (v: any) => v === true || v === "present";
 const attIsAbsent = (v: any) => v === false || v === "absent";
@@ -162,7 +161,13 @@ export const PlayerDevelopmentReport = memo(
       () => getEvalCategoriesForTeam(team?.pitchingFormat),
       [team?.pitchingFormat],
     );
-    const evalTrend = useEvalTrend(evaluationEvents, player?.id, categories);
+    const evalTrend = useEvalTrend(
+      evaluationEvents,
+      player?.id,
+      categories,
+      player?.stats,
+      team?.teamAge,
+    );
 
     const pitched = (read(player?.stats, "ip", "pIp") || 0) > 0;
 
@@ -353,8 +358,8 @@ export const PlayerDevelopmentReport = memo(
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
                   <div className="text-2xl font-black tabular-nums text-ink">
-                    {evalTrend.overallLast?.toFixed(1) ?? "—"}
-                    <span className="text-sm text-ink-3">/5</span>
+                    {evalTrend.overallLast ?? "—"}
+                    <span className="text-sm text-ink-3">/100</span>
                   </div>
                   {evalTrend.delta !== undefined && (
                     <span
@@ -371,10 +376,11 @@ export const PlayerDevelopmentReport = memo(
                         : evalTrend.delta < 0
                           ? "▼ "
                           : "→ "}
-                      {evalTrend.delta !== 0 ? evalTrend.delta.toFixed(1) : ""}
+                      {evalTrend.delta !== 0 ? Math.abs(evalTrend.delta) : ""}
                       <span className="text-ink-3 font-bold">
                         {" "}
-                        over {evalTrend.rounds} rounds
+                        over {evalTrend.rounds}{" "}
+                        {evalTrend.rounds === 1 ? "month" : "months"}
                       </span>
                     </span>
                   )}

@@ -1941,7 +1941,7 @@ export const EvaluationTab = memo(() => {
                     {promptStatus.active
                       ? promptStatus.kind === "preseason"
                         ? " (preseason due)"
-                        : " (biweekly due)"
+                        : " (monthly due)"
                       : promptStatus.daysUntilDue != null
                         ? ` (next due in ${promptStatus.daysUntilDue}d)`
                         : ""}
@@ -2049,7 +2049,7 @@ export const EvaluationTab = memo(() => {
                     {promptStatus.active
                       ? promptStatus.kind === "preseason"
                         ? " (preseason)."
-                        : " (biweekly)."
+                        : " (monthly)."
                       : myRounds.length > 0
                         ? ", pre-filled from your latest round."
                         : "."}

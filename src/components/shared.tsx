@@ -127,30 +127,42 @@ export const LeaderboardCard = memo(
   },
 );
 
-/* Empty-state card for blank surfaces (no roster, no games, no stats…).
-   `glyph` is a large sanctioned emoji watermark (⚾ 🧢 📋 ⭐ 📅 📊) that makes
-   the surface feel intentional; `icon` is an optional small Lucide mark; pass
-   an `action`/`onAction` for a primary CTA. */
+/* Empty-state for blank surfaces (no roster, no games, no stats…). Unified to
+   the Schedule look: a transparent (card-less) center column with the team logo
+   as a faint grayscale watermark — falling back to a large sanctioned emoji
+   glyph (⚾ 🧢 📋 ⭐ 📅 📊) when no `logoUrl` is supplied. Pass an
+   `action`/`onAction` for a primary CTA. */
 export const EmptyState = memo(
-  ({ glyph, icon: Icon, title, body, action, onAction }: any) => (
-    <div className="rounded-2xl bg-surface border border-line shadow-card p-8 text-center">
-      {glyph && (
-        <div className="text-5xl leading-none mb-3 opacity-80" aria-hidden>
-          {glyph}
-        </div>
+  ({ glyph, logoUrl, title, body, action, onAction }: any) => (
+    <div className="text-center py-20 bg-transparent">
+      {logoUrl ? (
+        <img
+          src={logoUrl}
+          alt="Team Logo"
+          className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
+        />
+      ) : (
+        glyph && (
+          <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
+            {glyph}
+          </div>
+        )
       )}
-      {Icon && (
-        <div className="inline-flex p-3 rounded-2xl bg-surface-2 mb-4">
-          <Icon className="w-7 h-7 text-ink-3" />
-        </div>
+      {title && (
+        <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
+          {title}
+        </h3>
       )}
-      {title && <h3 className="t-h3 mb-2">{title}</h3>}
-      {body && <p className="t-body max-w-md mx-auto mb-5">{body}</p>}
+      {body && (
+        <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
+          {body}
+        </p>
+      )}
       {action && (
         <button
           type="button"
           onClick={onAction}
-          className="inline-flex items-center gap-2 t-button px-5 py-2.5 rounded-xl shadow-md text-white"
+          className="mt-5 inline-flex items-center gap-2 t-button px-5 py-2.5 shadow-md text-white"
           style={{ backgroundColor: "var(--team-primary)" }}
         >
           {action}

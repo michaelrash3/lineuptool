@@ -1492,7 +1492,7 @@ export const UpNextPanel = memo(
           title: isHead
             ? "Start this round's evaluations"
             : "Send your evaluations to the head coach",
-          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
+          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Monthly"} round${
             promptStatus.nextDueDate
               ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
               : ""
@@ -1812,6 +1812,7 @@ export const HomeTab = memo(() => {
           ) : (
             <EmptyState
               glyph="📅"
+              logoUrl={team?.logoUrl}
               title="No Games Yet"
               body="Add your first game to start planning lineups. Once a game exists, the dashboard wakes up — today's game, pitcher availability, and trend insights all flow from here."
               action={
@@ -2076,6 +2077,7 @@ export const HomeTab = memo(() => {
       {!hasPlayers ? (
         <EmptyState
           glyph="🧢"
+          logoUrl={team?.logoUrl}
           title="No Players Yet"
           body="Add players to the roster or import last season's stats from a GameChanger CSV. Leaderboards and insights light up once you've got a roster in place."
           action={

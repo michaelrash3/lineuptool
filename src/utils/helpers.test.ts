@@ -226,42 +226,20 @@ describe("date helpers", () => {
 });
 
 describe("evalDueDatesForYear", () => {
-  it("anchors Spring on Feb 1 and Mar 15", () => {
+  it("returns the first of every month (monthly cadence)", () => {
     const dates = evalDueDatesForYear(2026);
-    expect(dates[0].getMonth()).toBe(1); // February
-    expect(dates[0].getDate()).toBe(1);
-    expect(dates[1].getMonth()).toBe(2); // March
-    expect(dates[1].getDate()).toBe(15);
+    expect(dates.length).toBe(12);
+    dates.forEach((d, i) => {
+      expect(d.getMonth()).toBe(i);
+      expect(d.getDate()).toBe(1);
+      expect(d.getFullYear()).toBe(2026);
+    });
   });
 
-  it("walks biweekly Sundays from Mar 15 through Jun 30", () => {
-    const dates = evalDueDatesForYear(2026)
-      .filter((d) => d.getMonth() >= 2 && d.getMonth() <= 5)
-      .filter((d) => !(d.getMonth() === 2 && d.getDate() === 15));
-    for (const d of dates) {
-      expect(d.getDay()).toBe(0); // Sunday
-    }
-    expect(dates[0].getTime()).toBeGreaterThan(new Date(2026, 2, 15).getTime());
-    const last = dates[dates.length - 1];
-    expect(last.getTime()).toBeLessThanOrEqual(new Date(2026, 5, 30).getTime());
-  });
-
-  it("walks weekly Sundays Sep 1–Oct 31 for Fall", () => {
-    const fall = evalDueDatesForYear(2026).filter(
-      (d) => d.getMonth() >= 8 && d.getMonth() <= 9,
-    );
-    for (const d of fall) {
-      expect(d.getDay()).toBe(0);
-    }
-    expect(fall.length).toBeGreaterThanOrEqual(8);
-  });
-
-  it("emits no dates in Jul/Aug/Nov–Jan", () => {
+  it("anchors preseason on Feb 1", () => {
     const dates = evalDueDatesForYear(2026);
-    const offSeasonMonths = new Set([0, 6, 7, 10, 11]);
-    for (const d of dates) {
-      expect(offSeasonMonths.has(d.getMonth())).toBe(false);
-    }
+    expect(dates[1].getMonth()).toBe(1); // February
+    expect(dates[1].getDate()).toBe(1);
   });
 
   it("returns dates sorted ascending with no duplicates", () => {
@@ -270,41 +248,6 @@ describe("evalDueDatesForYear", () => {
     const sorted = [...times].sort((a, b) => a - b);
     expect(times).toEqual(sorted);
     expect(new Set(times).size).toBe(times.length);
-  });
-
-  // The spring biweekly walk starts the first Sunday *after* Mar 15
-  // (the `|| 7` skip), specifically so Mar 15 isn't pushed twice when it
-  // itself lands on a Sunday. Lock that intentional asymmetry.
-  it("never duplicates Mar 15 even in a year where it is a Sunday", () => {
-    let year = null;
-    for (let y = 2024; y <= 2040; y++) {
-      if (new Date(y, 2, 15).getDay() === 0) {
-        year = y;
-        break;
-      }
-    }
-    expect(year).not.toBeNull();
-    const dates = evalDueDatesForYear(year!);
-    const mar15s = dates.filter(
-      (d) => d.getMonth() === 2 && d.getDate() === 15,
-    );
-    expect(mar15s.length).toBe(1);
-  });
-
-  // Fall has no separate Sep 1 anchor, so unlike spring it *includes*
-  // Sep 1 when that day is a Sunday (no `|| 7` skip). Lock that too.
-  it("includes Sep 1 in Fall when it falls on a Sunday", () => {
-    let year = null;
-    for (let y = 2024; y <= 2040; y++) {
-      if (new Date(y, 8, 1).getDay() === 0) {
-        year = y;
-        break;
-      }
-    }
-    expect(year).not.toBeNull();
-    const dates = evalDueDatesForYear(year!);
-    const hasSep1 = dates.some((d) => d.getMonth() === 8 && d.getDate() === 1);
-    expect(hasSep1).toBe(true);
   });
 });
 
@@ -318,32 +261,33 @@ describe("evalPromptStatus calendar cadence", () => {
     expect(status.kind).toBe("preseason");
   });
 
-  it("is active on Mar 12 (within 3 days before Mar 15)", () => {
-    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 2, 12));
+  it("is active on Mar 1 (monthly)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 2, 1));
     expect(status.active).toBe(true);
-    expect(status.kind).toBe("biweekly");
+    expect(status.kind).toBe("monthly");
   });
 
-  it("is not active mid-July (off-season)", () => {
+  it("is not active mid-month (Jul 15)", () => {
     const status = evalPromptStatus(team, uid, "Head", new Date(2026, 6, 15));
     expect(status.active).toBe(false);
   });
 
-  it("is not active mid-August (still off-season)", () => {
+  it("surfaces the next first-of-month due date mid-month", () => {
     const status = evalPromptStatus(team, uid, "Head", new Date(2026, 7, 15));
     expect(status.active).toBe(false);
-    expect(status.nextDueDate).toMatch(/^2026-09-/);
+    expect(status.nextDueDate).toMatch(/^2026-09-01/);
   });
 
-  it("is active on a Fall Sunday (Sep 13, 2026 is a Sunday)", () => {
-    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 8, 13));
+  it("is active on Sep 1 (monthly)", () => {
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 8, 1));
     expect(status.active).toBe(true);
-    expect(status.kind).toBe("biweekly");
+    expect(status.kind).toBe("monthly");
   });
 
-  it("is not active on Nov 1 (after fall window)", () => {
+  it("is active on Nov 1 (monthly, year-round cadence)", () => {
     const status = evalPromptStatus(team, uid, "Head", new Date(2026, 10, 1));
-    expect(status.active).toBe(false);
+    expect(status.active).toBe(true);
+    expect(status.kind).toBe("monthly");
   });
 
   it("does not fire on a date the coach already submitted on or after", () => {
@@ -367,25 +311,25 @@ describe("evalPromptStatus calendar cadence", () => {
   });
 
   it("clears once an eval is filed early, before the due date passes", () => {
-    // Mar 15 due date; coach files on Mar 12 (3 days early, still inside the
+    // Apr 1 due date; coach files on Mar 30 (2 days early, still inside the
     // active window). The prompt must go quiet for the rest of the window
-    // instead of nagging until Mar 15 arrives.
+    // instead of nagging until Apr 1 arrives.
     const submittedTeam = {
       currentSeason: "Spring 2026",
       evaluationEvents: [
         {
           coachRole: "Head",
           evaluatorId: uid,
-          date: "2026-03-12",
+          date: "2026-03-30",
         },
       ],
     };
-    // Two days before the due date, having already submitted.
+    // One day before the due date, having already submitted.
     const before = evalPromptStatus(
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 2, 13),
+      new Date(2026, 2, 31),
     );
     expect(before.active).toBe(false);
     // And the day after the due date — still cleared, not re-nagging.
@@ -393,44 +337,42 @@ describe("evalPromptStatus calendar cadence", () => {
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 2, 16),
+      new Date(2026, 3, 2),
     );
     expect(after.active).toBe(false);
   });
 
   it("surfaces the active due date so the banner can show it", () => {
-    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 2, 12));
+    const status = evalPromptStatus(team, uid, "Head", new Date(2026, 2, 1));
     expect(status.active).toBe(true);
-    expect(status.nextDueDate).toBe("2026-03-15");
+    expect(status.nextDueDate).toBe("2026-03-01");
   });
 
   it("does not let an early eval suppress the next cadence window", () => {
-    // Filing for the Mar 15 round must not clear the following biweekly
-    // Sunday's prompt (adjacent windows stay independent).
+    // Filing for the Mar 1 round must not clear the following month's prompt
+    // (adjacent monthly windows stay independent).
     const submittedTeam = {
       currentSeason: "Spring 2026",
       evaluationEvents: [
-        { coachRole: "Head", evaluatorId: uid, date: "2026-03-12" },
+        { coachRole: "Head", evaluatorId: uid, date: "2026-03-01" },
       ],
     };
-    // Mar 22, 2026 is the next biweekly Sunday after Mar 15 (Mar 15 itself is
-    // a Sunday, so the cadence steps a week, then biweekly thereafter).
     const status = evalPromptStatus(
       submittedTeam,
       uid,
       "Head",
-      new Date(2026, 2, 22),
+      new Date(2026, 3, 1),
     );
     expect(status.active).toBe(true);
-    expect(status.nextDueDate).toBe("2026-03-22");
+    expect(status.nextDueDate).toBe("2026-04-01");
   });
 
   it("rolls the next due date into next year at year end", () => {
-    // Late December: all of this year's windows are past, so the next due
-    // date must come from next year's Feb 1 preseason anchor.
+    // Late December: this year's windows are past, so the next due date must
+    // come from next year's Jan 1 anchor.
     const status = evalPromptStatus(team, uid, "Head", new Date(2026, 11, 20));
     expect(status.active).toBe(false);
-    expect(status.nextDueDate).toBe("2027-02-01");
+    expect(status.nextDueDate).toBe("2027-01-01");
   });
 
   it("returns inert defaults when team or user is missing", () => {
@@ -712,12 +654,13 @@ describe("evalRoundDateForSave", () => {
     ).padStart(2, "0")}`;
 
   it("stamps a save made on a due date with that due date", () => {
-    // Mar 15, 2026 is a scheduled due date.
-    expect(evalRoundDateForSave(new Date(2026, 2, 15, 12))).toBe("2026-03-15");
+    // Mar 1, 2026 is a scheduled monthly due date.
+    expect(evalRoundDateForSave(new Date(2026, 2, 1, 12))).toBe("2026-03-01");
   });
 
   it("snaps a save filed a few days early to the upcoming due date", () => {
-    expect(evalRoundDateForSave(new Date(2026, 2, 12, 9))).toBe("2026-03-15");
+    // Mar 29 is closest to Apr 1 (3 days out) — snap forward.
+    expect(evalRoundDateForSave(new Date(2026, 2, 29, 9))).toBe("2026-04-01");
   });
 
   it("stamps a preseason save with Feb 1", () => {
@@ -728,9 +671,9 @@ describe("evalRoundDateForSave", () => {
     expect(evalRoundDateForSave(new Date(2026, 0, 25, 12))).toBe("2026-02-01");
   });
 
-  it("never returns the literal off-season day — always a real due date", () => {
-    const out = evalRoundDateForSave(new Date(2026, 6, 1, 12)); // Jul 1
-    expect(out).not.toBe("2026-07-01");
+  it("never returns the literal mid-month day — always a real due date", () => {
+    const out = evalRoundDateForSave(new Date(2026, 6, 18, 12)); // Jul 18
+    expect(out).not.toBe("2026-07-18");
     const allDue = new Set(
       [
         ...evalDueDatesForYear(2025),
@@ -771,13 +714,13 @@ describe("restampEvalDueDates", () => {
         id: "a",
         coachRole: "Head",
         evaluatorId: "u1",
-        date: "2026-03-17",
+        date: "2026-03-03",
         grades: {},
       },
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe("a");
-    expect(out[0].date).toBe("2026-03-15");
+    expect(out[0].date).toBe("2026-03-01");
   });
 
   it("leaves tryout grades (tryoutSignupId) untouched", () => {
@@ -813,7 +756,7 @@ describe("restampEvalDueDates", () => {
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe("new");
-    expect(out[0].date).toBe("2026-03-15");
+    expect(out[0].date).toBe("2026-03-01");
   });
 
   it("keeps distinct coaches/roles that land on the same date separate", () => {
@@ -834,7 +777,7 @@ describe("restampEvalDueDates", () => {
       },
     ]);
     expect(out).toHaveLength(2);
-    expect(out.every((e) => e.date === "2026-03-15")).toBe(true);
+    expect(out.every((e) => e.date === "2026-03-01")).toBe(true);
   });
 
   it("preserves original order of surviving rounds", () => {
@@ -856,7 +799,7 @@ describe("restampEvalDueDates", () => {
     ]);
     expect(out.map((e) => e.id)).toEqual(["feb", "mar"]);
     expect(out[0].date).toBe("2026-02-01");
-    expect(out[1].date).toBe("2026-03-15");
+    expect(out[1].date).toBe("2026-03-01");
   });
 
   it("is idempotent", () => {

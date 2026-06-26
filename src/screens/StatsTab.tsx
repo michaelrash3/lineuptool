@@ -29,6 +29,7 @@ import {
   recentGameLines,
   aggregateGameLines,
   isDepartedPlayer,
+  teamAgeNumber,
 } from "../utils/helpers";
 import type { BenchImbalanceEntry } from "../utils/helpers";
 import { isKidPitchFormat } from "../constants/ui";
@@ -437,27 +438,33 @@ export const StatsTab = memo(() => {
   const [statFormat, setStatFormat] = useState<"all" | "machine" | "kid">(
     "all",
   );
+  // The Kid/Machine format split only matters for younger (≤8U) machine/coach-
+  // pitch teams. 9U and up are single-format (kid pitch), so hide the toggle and
+  // always show all games. Unknown age → treat as 9U+ (the common case).
+  const ageNum = teamAgeNumber(team.teamAge);
+  const showFormatFilter = ageNum != null && ageNum <= 8;
+  const effectiveStatFormat = showFormatFilter ? statFormat : "all";
   const activeCat = CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
 
   const filteredGames = useMemo(() => {
-    if (statFormat === "all") return games;
+    if (effectiveStatFormat === "all") return games;
     return games.filter((g) => {
       const fmt = String(g.pitchingFormat || team.pitchingFormat || "");
       const kid = isKidPitchFormat(fmt);
-      return statFormat === "kid" ? kid : !kid;
+      return effectiveStatFormat === "kid" ? kid : !kid;
     });
-  }, [games, statFormat, team]);
+  }, [games, effectiveStatFormat, team]);
 
   const statScopeLabel =
-    statFormat === "kid"
+    effectiveStatFormat === "kid"
       ? "Kid Pitch"
-      : statFormat === "machine"
+      : effectiveStatFormat === "machine"
         ? "Machine/Coach Pitch"
         : "All Formats";
 
   const scopedStatsForPlayer = useCallback(
     (p: Player): PlayerStats => {
-      if (statFormat === "all") return p.stats || {};
+      if (effectiveStatFormat === "all") return p.stats || {};
       const lines = filteredGames
         .map((g) => g?.playerStats?.[p.id])
         .filter(
@@ -465,7 +472,7 @@ export const StatsTab = memo(() => {
         );
       return lines.length > 0 ? aggregateGameLines(lines) : {};
     },
-    [filteredGames, statFormat],
+    [filteredGames, effectiveStatFormat],
   );
 
   // Eval Total Score per player, surfaced as the "Overall" column.
@@ -765,7 +772,7 @@ export const StatsTab = memo(() => {
       <SectionCard
         icon={Icons.Bat}
         title="Player Stats"
-        subtitle={`Showing ${statScopeLabel} stats${statFormat === "all" ? "" : " from per-game imports"}`}
+        subtitle={`Showing ${statScopeLabel} stats${effectiveStatFormat === "all" ? "" : " from per-game imports"}`}
       >
         <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
           <div className="flex flex-wrap gap-2">
@@ -792,30 +799,34 @@ export const StatsTab = memo(() => {
               );
             })}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              ["all", "All Formats"],
-              ["machine", "Machine/Coach"],
-              ["kid", "Kid Pitch"],
-            ].map(([id, label]) => {
-              const on = statFormat === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setStatFormat(id as "all" | "machine" | "kid")}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
-                    on
-                      ? "border-team-primary text-team-primary"
-                      : "border-line text-ink-2"
-                  }`}
-                  title="Filter stat lines by game pitching format"
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+          {showFormatFilter && (
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["all", "All Formats"],
+                ["machine", "Machine/Coach"],
+                ["kid", "Kid Pitch"],
+              ].map(([id, label]) => {
+                const on = statFormat === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() =>
+                      setStatFormat(id as "all" | "machine" | "kid")
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
+                      on
+                        ? "border-team-primary text-team-primary"
+                        : "border-line text-ink-2"
+                    }`}
+                    title="Filter stat lines by game pitching format"
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
         <StatsTable
           key={activeCat.id}

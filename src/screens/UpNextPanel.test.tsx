@@ -51,7 +51,7 @@ const renderPanel = (overrides: any = {}) => {
           promptStatus={
             overrides.promptStatus ?? {
               active: true,
-              kind: "biweekly",
+              kind: "monthly",
               nextDueDate: "2999-05-10",
             }
           }

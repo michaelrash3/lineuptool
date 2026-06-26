@@ -47,10 +47,10 @@
   --info-fg: #1d4ed8;
   --info-bg: #dbeafe;
 
-  /* Sharp, architectural geometry — crisp edges read premium. */
-  --radius: 4px;
-  --radius-sm: 2px;
-  --radius-lg: 6px;
+  /* Sharp, architectural geometry — squared edges throughout (no rounding). */
+  --radius: 0px;
+  --radius-sm: 0px;
+  --radius-lg: 0px;
 
   /* SLATE SCALE */
   --slate-50: #f8fafc;
@@ -418,12 +418,11 @@ body::before {
   box-shadow: var(--shadow-card), var(--card-ring);
 }
 
-/* Frosted glass panel — translucent, blurred, luminous edge. Use for floating
-   chrome (headers, menus, command palette, sticky bars). */
+/* Solid chrome panel for floating surfaces (headers, menus, command palette,
+   sticky bars). Frost is reserved for modal scrims only — see the dialog
+   backdrops, which keep their backdrop-blur. */
 .glass {
-  background: var(--glass-fill);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  backdrop-filter: blur(18px) saturate(150%);
+  background: var(--surface);
   border: 1px solid var(--hairline);
 }
 
