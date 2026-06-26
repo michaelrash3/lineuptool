@@ -48,6 +48,7 @@ export const OfferLetterModal = memo(
     const missingMoney =
       kind !== "rejection" &&
       kind !== "interest" &&
+      kind !== "notReturning" &&
       (!ctx.teamFees || !ctx.deposit || !ctx.depositDueDate);
 
     const saveNextSeasonMoney = () => {

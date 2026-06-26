@@ -483,6 +483,12 @@ export interface Team {
   // Head coach's phone, captured in Settings purely so recruiting/offer
   // letters can fill in "call me at …". Never shown publicly.
   headCoachPhone?: string;
+  // Coach's Venmo for deposit collection on offer letters. venmoHandle is the
+  // username (with or without a leading "@"); venmoLink is an optional explicit
+  // deep link (otherwise derived as https://venmo.com/u/<handle>). Settings →
+  // Tryouts. Never shown publicly.
+  venmoHandle?: string;
+  venmoLink?: string;
   // Optional public-facing head-coach contact shown on the tryouts portal so
   // prospective families can reach out. Opt-in; mirrored into the public doc.
   headCoachName?: string;

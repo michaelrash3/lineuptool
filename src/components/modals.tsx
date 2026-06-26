@@ -602,6 +602,7 @@ export const PlayerProfileModal = memo(() => {
 
   const [editingContact, setEditingContact] = useState(false);
   const [showReturningOffer, setShowReturningOffer] = useState(false);
+  const [showNotReturning, setShowNotReturning] = useState(false);
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -1820,6 +1821,13 @@ export const PlayerProfileModal = memo(() => {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setShowNotReturning(true)}
+                  className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                >
+                  <Icons.FileText className="w-3.5 h-3.5" /> Not Returning
+                </button>
+                <button
+                  type="button"
                   onClick={() => setEditingContact(!editingContact)}
                   className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors"
                 >
@@ -1886,6 +1894,15 @@ export const PlayerProfileModal = memo(() => {
           onSaveNextSeasonMoney={(patch) =>
             updateTeam?.({ finances: { ...(team.finances || {}), ...patch } })
           }
+        />
+      )}
+      {showNotReturning && (
+        <OfferLetterModal
+          open
+          onClose={() => setShowNotReturning(false)}
+          kind="notReturning"
+          recipientEmail={player.email}
+          ctx={makeOfferLetterContext(team, user, player.name)}
         />
       )}
       {showReport && (

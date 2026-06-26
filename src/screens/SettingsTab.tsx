@@ -126,6 +126,23 @@ const TryoutsSettingsPanel = memo(
               on the public tryouts page.
             </p>
           </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+              Venmo handle (for deposit collection)
+            </label>
+            <input
+              type="text"
+              value={team.venmoHandle || ""}
+              onChange={(e) => updateTeam?.({ venmoHandle: e.target.value })}
+              placeholder="@Trash-Pandas"
+              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+            />
+            <p className="text-[10px] text-ink-3 font-medium mt-1">
+              Added to offer letters with a clickable{" "}
+              <span className="font-mono">venmo.com/u/…</span> link so parents
+              can pay their deposit. Stays private.
+            </p>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
