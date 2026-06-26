@@ -254,9 +254,12 @@ export const useTryoutFlows = ({
       put("weight", sub.weight);
       put("school", sub.school);
       put("grade", sub.grade);
-      put("emergencyName", sub.emergencyName);
-      put("emergencyPhone", sub.emergencyPhone);
-      // DOB + parent/guardian contact only fill gaps — don't clobber what the
+      // Parent / guardian 2 (legacy emergency fields are read as a fallback so
+      // older submissions still populate Parent 2).
+      put("parent2Name", sub.parent2Name || sub.emergencyName);
+      put("parent2Phone", sub.parent2Phone || sub.emergencyPhone);
+      put("parent2Email", sub.parent2Email);
+      // DOB + parent/guardian 1 contact only fill gaps — don't clobber what the
       // coach may have already curated on the roster.
       if (!player.dob) put("dob", sub.dob);
       if (!player.parentName) put("parentName", sub.parentName);
@@ -265,7 +268,9 @@ export const useTryoutFlows = ({
 
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
-        p.id === playerId ? { ...p, ...patch } : p,
+        p.id === playerId
+          ? { ...p, ...patch, playerInfoSubmittedAt: sub.submittedAt || now }
+          : p,
       );
       const nextSubs = (teamData.playerInfoSubmissions || []).map((s: any) =>
         s.id === submissionId

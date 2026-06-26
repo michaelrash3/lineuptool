@@ -123,6 +123,9 @@ export interface Player {
   // to this player. Drives the Availability tab's completion tracker (who has /
   // hasn't filled out the form). Absent = no submission on file yet.
   availabilitySubmittedAt?: string;
+  // ISO instant of the most recent Player Info form submission applied to this
+  // player. Drives the Player Info tab's completion tracker. Absent = none yet.
+  playerInfoSubmittedAt?: string;
   // Will this kid come back next season? Explicit boolean as of the
   // returning-Y/N change. For Advance Season, missing still means "yes"
   // for back-compat via isReturning(); Tryouts planning treats missing as
@@ -348,11 +351,17 @@ export interface PlayerInfoSubmission {
   // School logistics.
   school?: string;
   grade?: string;
-  // Parent / guardian contact.
+  // Parent / guardian 1 contact (parentName/email/phone are the legacy names,
+  // kept as Parent 1 so existing data and matching keep working).
   parentName?: string;
   email?: string;
   phone?: string;
-  // Emergency contact (secondary).
+  // Parent / guardian 2 contact.
+  parent2Name?: string;
+  parent2Phone?: string;
+  parent2Email?: string;
+  // Legacy emergency contact — superseded by Parent 2. Still read for back-compat
+  // and migrated into parent2Name/parent2Phone.
   emergencyName?: string;
   emergencyPhone?: string;
   notes?: string;
