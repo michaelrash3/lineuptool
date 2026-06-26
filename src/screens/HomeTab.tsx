@@ -18,6 +18,7 @@ import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard, EmptyState } from "../components/shared";
+import { WeatherWidget } from "../components/WeatherWidget";
 import { SeasonReportModal } from "../components/SeasonReportModal";
 import { AwardsModal } from "../components/AwardsModal";
 import { StaggerList, StaggerItem, AnimatedNumber } from "../components/motion";
@@ -408,6 +409,13 @@ const UpcomingGameCard = memo(
                   </>
                 )}
               </p>
+              {!isFinal && (
+                <WeatherWidget
+                  location={game.location}
+                  date={game.date}
+                  className="mt-2"
+                />
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap">
