@@ -19,6 +19,11 @@ import { leagueRuleSetLabel } from "../constants/ui";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard, EmptyState } from "../components/shared";
 import { WeatherWidget } from "../components/WeatherWidget";
+import { ReminderActions } from "../components/ReminderActions";
+import {
+  buildGameReminderDraft,
+  collectParentEmails,
+} from "../utils/reminderDraft";
 import { SeasonReportModal } from "../components/SeasonReportModal";
 import { AwardsModal } from "../components/AwardsModal";
 import { StaggerList, StaggerItem, AnimatedNumber } from "../components/motion";
@@ -257,6 +262,16 @@ const UpcomingGameCard = memo(
       whenLabel = `In ${dayDiff} days`;
     }
     const fullDate = formatGameDateDisplay(game.date);
+    // Parent-facing game reminder the coach sends from their own mail client.
+    const parentEmails = isFinal ? [] : collectParentEmails(team);
+    const gameReminderDraft = buildGameReminderDraft({
+      teamName: team.name,
+      opponent: game.opponent,
+      dateLabel: fullDate,
+      timeLabel: isoInstantToLocalTime(game.startUtc),
+      location: game.location,
+      isHome: game.isHome,
+    });
     // Scoreboard-style date block (MON / DD).
     const [gy, gm, gd] = (game.date || "").split("-");
     const dateBlockObj = gy
@@ -415,6 +430,16 @@ const UpcomingGameCard = memo(
                   date={game.date}
                   className="mt-2"
                 />
+              )}
+              {parentEmails.length > 0 && (
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <span className="t-eyebrow text-ink-3">Remind families</span>
+                  <ReminderActions
+                    draft={gameReminderDraft}
+                    recipients={parentEmails}
+                    bcc
+                  />
+                </div>
               )}
             </div>
           </div>
