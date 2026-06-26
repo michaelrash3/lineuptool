@@ -83,7 +83,7 @@ import { WelcomeChooser } from "./components/WelcomeChooser";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import {
-  PlayerProfileModal,
+  PlayerProfilePage,
   AddPlayerModal,
   PastSeasonImportModal,
 } from "./components/modals";
@@ -2843,6 +2843,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const team = useTeam();
   const toast = useToast();
+  const navigateToRoute = useNavigate();
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -3168,9 +3169,11 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, []);
 
+  // Each player has their own page now: navigate to /player/:id. The route's
+  // PlayerProfilePage sets viewingPlayerId, which the profile content reads.
   const openPlayerProfile = useCallback(
-    (id: string) => setViewingPlayerId(id),
-    [],
+    (id: string) => navigateToRoute(`/player/${id}`),
+    [navigateToRoute],
   );
 
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
@@ -3376,7 +3379,6 @@ const MainShell = () => {
     joinTeamByCode,
   } = useTeam();
   const {
-    viewingPlayerId,
     activeTab,
     setActiveTab,
     selectedGameId,
@@ -3773,6 +3775,10 @@ const MainShell = () => {
                 <Route path="/" element={<HomeTab />} />
                 <Route path="/stats" element={<StatsTab />} />
                 <Route path="/roster" element={<RosterTab />} />
+                <Route
+                  path="/player/:playerId"
+                  element={<PlayerProfilePage />}
+                />
                 <Route path="/depth-chart" element={<DepthChartTab />} />
                 <Route path="/schedule" element={<ScheduleTab />} />
                 <Route path="/practices" element={<PracticesTab />} />
@@ -3850,7 +3856,6 @@ const MainShell = () => {
         </Suspense>
       </main>
       <SharedModals />
-      {viewingPlayerId && <PlayerProfileModal />}
       <AddPlayerModal />
       <PastSeasonImportModal />
       <Suspense fallback={null}>
