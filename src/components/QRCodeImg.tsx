@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { reportError } from "../utils/errorReporter";
 
 // `qrcode` is imported dynamically at point-of-use so the library only loads
 // when a QR code is actually rendered/downloaded (share-link surfaces), instead
@@ -96,8 +97,10 @@ export const QRCodeImg = ({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } catch {
-      // Best-effort; if generation fails the download just doesn't fire.
+    } catch (err) {
+      // Best-effort; if generation fails the download just doesn't fire — but
+      // report it so a broken export isn't completely invisible.
+      reportError(err, { source: "QRCodeImg.download", value });
     }
   }, [value, filename, downloadSize]);
 

@@ -112,7 +112,7 @@ import {
   DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
 import { applyLineupSwap } from "./utils/lineupSwap";
-import { sendGmailMessage } from "./integrations/gmailSend";
+import { buildEvalReminderDraft, buildMailtoUrl } from "./utils/reminderDraft";
 import { useMainShellRouting } from "./hooks/useMainShellRouting";
 import { useTeamMembership } from "./hooks/useTeamMembership";
 import { useInviteFlows } from "./hooks/useInviteFlows";
@@ -2349,19 +2349,6 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       typeof window !== "undefined"
         ? `${window.location.origin}${window.location.pathname}#/evaluation`
         : "/evaluation";
-    const subject = `[${teamName}] Eval round due`;
-    const buildBody = (recipientName: string | null | undefined) =>
-      [
-        `Hi ${recipientName || "coach"},`,
-        "",
-        `${fromName} is asking for a fresh evaluation round for ${teamName}.`,
-        "",
-        "Open the eval form in LineupTool and submit your grades:",
-        url,
-        "",
-        "This is an automatic reminder. You can mute these in Settings -> Coaches.",
-      ].join("\n");
-
     const recipients = [];
     if (status.headDue) {
       recipients.push({ name: fromName, email: user.email });
@@ -2401,37 +2388,33 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    (async () => {
-      let sent = 0;
-      for (const r of finalRecipients) {
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await sendGmailMessage({
-            auth,
-            to: r.email,
-            subject,
-            body: buildBody(r.name),
-            fromEmail: user.email ?? "",
-            fromName,
-          });
-          sent++;
-        } catch {
-          // Silent on Gmail failures — we don't want a flood of toasts
-          // on app open. If consent was declined, the user will see the
-          // popup once.
-        }
-      }
-      persistTeamRef.current?.({
-        lastEvalEmailedAt: new Date().toISOString(),
-      });
-      if (sent > 0) {
-        toast.push({
-          kind: "success",
-          title: `Reminder emails sent (${sent})`,
-          message: "Coaches were notified that an eval round is due.",
-        });
-      }
-    })();
+    // Surface a one-click reminder the head sends from their own mail client.
+    // (The Gmail API send was removed — gmail.send is a restricted scope an
+    // unverified Spark-plan app can't use, so it failed silently.) Mark the
+    // cool-off now so the prompt shows at most once per cadence window.
+    const recipientEmails = finalRecipients
+      .map((r) => r.email)
+      .filter((e): e is string => !!e);
+    persistTeamRef.current?.({
+      lastEvalEmailedAt: new Date().toISOString(),
+    });
+    const draft = buildEvalReminderDraft({ teamName, fromName, url });
+    toast.push({
+      kind: "info",
+      title: "Eval round due",
+      message: "Email your coaches a reminder to submit their grades.",
+      duration: 12000,
+      action: {
+        label: "Email coaches",
+        onClick: () => {
+          window.location.href = buildMailtoUrl(
+            recipientEmails.join(","),
+            draft.subject,
+            draft.body,
+          );
+        },
+      },
+    });
   }, [authReady, user, activeTeamId, realRole, teamData, loadingActive, toast]);
 
   // Capture ?join= param immediately on first load so iOS redirect

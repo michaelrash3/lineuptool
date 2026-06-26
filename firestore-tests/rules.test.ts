@@ -42,6 +42,8 @@ const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
   ["artifacts", APP_ID, "public", "data", "teamInvites", code] as const;
+const settingsPath = (uid: string, docId = "teams") =>
+  ["artifacts", APP_ID, "users", uid, "settings", docId] as const;
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
@@ -330,6 +332,39 @@ describe("public signup append constraints", () => {
         tryoutSignups: arrayUnion({ id: "s2" }),
       }),
     );
+  });
+});
+
+describe("user settings docs", () => {
+  // The per-user selector doc (which teams I'm in / which is active) is
+  // uid-scoped: only the owning uid may read or write it.
+  it("lets a user write their own settings doc", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...settingsPath(OWNER)), {
+        teams: [{ id: "team-1", name: "Hawks" }],
+        activeTeamId: "team-1",
+      }),
+    );
+  });
+
+  it("lets a user read their own settings doc", async () => {
+    await assertSucceeds(getDoc(doc(dbFor(OWNER), ...settingsPath(OWNER))));
+  });
+
+  it("denies reading another user's settings doc", async () => {
+    await assertFails(getDoc(doc(dbFor(OUTSIDER), ...settingsPath(OWNER))));
+  });
+
+  it("denies writing another user's settings doc", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...settingsPath(OWNER)), {
+        activeTeamId: "hijacked",
+      }),
+    );
+  });
+
+  it("denies an unauthenticated caller reading a settings doc", async () => {
+    await assertFails(getDoc(doc(dbFor(), ...settingsPath(OWNER))));
   });
 });
 

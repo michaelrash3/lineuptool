@@ -72,7 +72,7 @@ HTMLAnchorElement.prototype.click = function click(this: HTMLAnchorElement) {
 vi.mock("canvas-confetti", () => ({ default: () => {} }));
 
 // jsdom has no matchMedia. framer-motion's `MotionConfig reducedMotion="user"`
-// and src/lib/celebrate.ts both query prefers-reduced-motion through it.
+// and src/utils/celebrate.ts both query prefers-reduced-motion through it.
 if (!window.matchMedia) {
   window.matchMedia = ((query: string) => ({
     matches: false,

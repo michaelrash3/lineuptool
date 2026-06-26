@@ -3,7 +3,6 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import "./fonts";
 import "./styles.css";
-// @ts-ignore - App.jsx is plain JS without type declarations
 import App from "./App";
 import { initErrorReporting } from "./utils/errorReporter";
 import { initSentry } from "./utils/sentry";

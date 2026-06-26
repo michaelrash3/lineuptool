@@ -1083,8 +1083,8 @@ export function mostRecentDayPitches(
     | null
     | undefined,
 ): { pitches: number; date: string | null } {
-  const log = Array.isArray(pitching?.log) ? pitching!.log! : null;
-  if (log && log.length) {
+  const log = pitching?.log;
+  if (Array.isArray(log) && log.length) {
     let maxDate: string | null = null;
     for (const o of log)
       if (o?.date && (!maxDate || o.date > maxDate)) maxDate = o.date;
@@ -1240,7 +1240,8 @@ export function analyzePitchingWorkload(
     consecutiveDays: 0,
     alerts: [],
   };
-  const log = Array.isArray(pitching?.log) ? pitching!.log! : [];
+  const rawLog = pitching?.log;
+  const log = Array.isArray(rawLog) ? rawLog : [];
   const dayMap = new Map<string, number>();
   let outings = 0;
   for (const o of log) {
@@ -3179,8 +3180,10 @@ export function generateLineup(input: EngineInput): EngineResult {
         depthChartRank.set(key, m);
       }
       // First occurrence wins if a player is listed under both CF and LCF/RCF.
+      // const capture so the closure sees the non-null map without a `!`.
+      const rank = m;
       ids.forEach((id, i) => {
-        if (!m!.has(id)) m!.set(id, i);
+        if (!rank.has(id)) rank.set(id, i);
         chartedPlayerIds.add(id);
       });
     }
@@ -4163,7 +4166,8 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       const totalPrior = (hist?.benchInn || 0) + (hist?.defInn || 0);
       // Season ratio: lower means under sat across the season.
       // No history  0.5 (neutral).
-      const priorRatio = totalPrior > 0 ? hist!.benchInn / totalPrior : 0.5;
+      const priorRatio =
+        totalPrior > 0 ? (hist?.benchInn || 0) / totalPrior : 0.5;
       eligible.push({
         p,
         debt,
@@ -4199,7 +4203,8 @@ function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         if (eligible.length >= remainingSlots) break;
         const hist = priorExtraSits.get(p.id);
         const totalPrior = (hist?.benchInn || 0) + (hist?.defInn || 0);
-        const priorRatio = totalPrior > 0 ? hist!.benchInn / totalPrior : 0.5;
+        const priorRatio =
+          totalPrior > 0 ? (hist?.benchInn || 0) / totalPrior : 0.5;
         eligible.push({
           p,
           debt: 1,

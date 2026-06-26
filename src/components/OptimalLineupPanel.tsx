@@ -66,8 +66,26 @@ export const OptimalLineupPanel = memo(() => {
     return ruleSet === "USSSA"
       ? buildCompetitiveLineup(input)
       : generateLineup(input);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextGame, present, players, games, evaluationEvents, defenseSize]);
+    // All inputs are listed so a mid-session team-setting change (catcher cap,
+    // pitching format, innings, etc.) re-runs the preview. They're primitives /
+    // stable snapshot arrays, so the memo still only recomputes when one
+    // genuinely changes; the seed keeps the output stable across renders.
+  }, [
+    nextGame,
+    present,
+    players,
+    games,
+    evaluationEvents,
+    leagueRuleSet,
+    inningsCount,
+    teamAge,
+    defenseSize,
+    positionLock,
+    battingSize,
+    pitchingFormat,
+    catcherMaxInnings,
+    catcherConsecutive,
+  ]);
 
   if (currentRole !== "head" || !nextGame) return null;
 

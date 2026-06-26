@@ -9,6 +9,8 @@ import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
+import { downloadRosterDirectoryPdf } from "../roster/rosterDirectoryPdf";
+import { collectParentEmails } from "../utils/reminderDraft";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
 const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
@@ -279,24 +281,6 @@ const PlayerRow = memo(
 // page (head-only) because it's about outfitting kids already on the roster.
 // Reuses the team's standing share id on the /player-info-portal/ path — the
 // same id the Tryouts/Interest link uses, so there's nothing extra to generate.
-// Gather every parent/guardian email on file (roster Parent 1 + Parent 2,
-// plus un-applied Player Info submissions), deduped and validated.
-const collectParentEmails = (team: any): string[] => {
-  const out = new Set<string>();
-  const add = (v: unknown) => {
-    const s = String(v ?? "").trim();
-    if (s && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s)) out.add(s);
-  };
-  for (const p of team?.players || []) {
-    add(p.email);
-    add(p.parent2Email);
-  }
-  for (const s of team?.playerInfoSubmissions || []) {
-    add(s.email);
-    add(s.parent2Email);
-  }
-  return [...out];
-};
 
 const PlayerInfoLinkCard = memo(({ team }: any) => {
   const toast = useToast();
@@ -410,6 +394,19 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
               className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
             >
               <Icons.Download className="w-3.5 h-3.5" /> Player Info CSV
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                downloadRosterDirectoryPdf({
+                  team,
+                  players: team?.players,
+                  toast,
+                })
+              }
+              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+            >
+              <Icons.FileText className="w-3.5 h-3.5" /> Directory PDF
             </button>
             <button
               type="button"

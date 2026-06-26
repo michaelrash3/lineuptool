@@ -2,7 +2,7 @@ import React, { memo, useMemo, useState } from "react";
 import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
-import { buildMailtoUrl } from "../integrations/gmailSend";
+import { buildMailtoUrl } from "../utils/reminderDraft";
 import {
   buildOfferLetter,
   OFFER_LETTER_LABELS,
