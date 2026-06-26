@@ -62,10 +62,9 @@ module.exports = {
         "glow-strong": "var(--glow-primary-strong)",
         inset: "inset 0 2px 4px rgb(0 0 0 / 0.05)",
       },
-      // Sharp, architectural geometry — crisp edges read as precise/expensive;
-      // rounded "bubble" corners felt cheap/generic. Existing rounded-*
-      // utilities resolve to these app-wide. rounded-full is left intact for
-      // genuine circles (avatars, spinners).
+      // Squared, architectural geometry — every rounded-* utility resolves to a
+      // hard 0 corner app-wide. rounded-full is left intact for genuine circles
+      // (avatars, spinners, status dots).
       borderRadius: {
         DEFAULT: "0px",
         sm: "0px",

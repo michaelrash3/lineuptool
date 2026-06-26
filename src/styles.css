@@ -47,7 +47,7 @@
   --info-fg: #1d4ed8;
   --info-bg: #dbeafe;
 
-  /* Sharp, architectural geometry — crisp edges read premium. */
+  /* Sharp, architectural geometry — squared edges throughout (no rounding). */
   --radius: 0px;
   --radius-sm: 0px;
   --radius-lg: 0px;

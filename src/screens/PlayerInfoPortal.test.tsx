@@ -54,8 +54,8 @@ describe("PlayerInfoPortal", () => {
 
     fill(/first name/i, "Ava");
     fill(/last name/i, "Rivera");
-    fill(/email/i, "a@b"); // passes native check, fails our stricter isValidEmail
-    fill(/^phone/i, "5551234");
+    fill(/email \*/i, "a@b"); // passes native check, fails our stricter isValidEmail
+    fill(/phone \*/i, "5551234");
     fireEvent.click(screen.getByText("Submit Player Info"));
 
     const alert = await screen.findByRole("alert");
@@ -70,12 +70,12 @@ describe("PlayerInfoPortal", () => {
     fill(/first name/i, "  Ava  ");
     fill(/last name/i, "Rivera");
     fill(/date of birth/i, "2015-04-10");
-    fill(/email/i, "parent@example.com");
-    fill(/^phone/i, "5551234");
+    fill(/email \*/i, "parent@example.com");
+    fill(/phone \*/i, "5551234");
     fill(/hat size/i, "MED-LG");
     fill(/shirt \/ jersey size/i, "Adult S");
     fill(/grade/i, "5th");
-    fill(/contact name/i, "Grandma Rivera");
+    fill(/^name$/i, "Grandma Rivera"); // Parent / Guardian 2 name
 
     fireEvent.click(screen.getByText("Submit Player Info"));
 
@@ -88,7 +88,7 @@ describe("PlayerInfoPortal", () => {
     expect(sub.hatSize).toBe("MED-LG");
     expect(sub.shirtSize).toBe("Adult S");
     expect(sub.grade).toBe("5th");
-    expect(sub.emergencyName).toBe("Grandma Rivera");
+    expect(sub.parent2Name).toBe("Grandma Rivera");
     expect(sub.id).toMatch(/^pi-/);
   });
 

@@ -131,8 +131,9 @@ export const PlayerInfoPortal = () => {
     parentName: "",
     email: "",
     phone: "",
-    emergencyName: "",
-    emergencyPhone: "",
+    parent2Name: "",
+    parent2Phone: "",
+    parent2Email: "",
     notes: "",
   });
 
@@ -238,8 +239,9 @@ export const PlayerInfoPortal = () => {
       parentName: clampText(form.parentName, SIGNUP_LIMITS.name),
       email: clampText(form.email, SIGNUP_LIMITS.email),
       phone: clampText(form.phone, SIGNUP_LIMITS.phone),
-      emergencyName: clampText(form.emergencyName, SIGNUP_LIMITS.name),
-      emergencyPhone: clampText(form.emergencyPhone, SIGNUP_LIMITS.phone),
+      parent2Name: clampText(form.parent2Name, SIGNUP_LIMITS.name),
+      parent2Phone: clampText(form.parent2Phone, SIGNUP_LIMITS.phone),
+      parent2Email: clampText(form.parent2Email, SIGNUP_LIMITS.email),
       notes: clampText(form.notes, SIGNUP_LIMITS.notes),
     };
 
@@ -332,7 +334,7 @@ export const PlayerInfoPortal = () => {
         </h1>
         <p className="t-body mt-2 max-w-md mx-auto">
           Help your coach gear up. Share your player's uniform/equipment sizing,
-          school, and an emergency contact. It only takes a minute.
+          school, and parent/guardian contacts. It only takes a minute.
         </p>
       </header>
 
@@ -507,7 +509,7 @@ export const PlayerInfoPortal = () => {
 
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
-              <h2 className="t-h2">Parent / Guardian</h2>
+              <h2 className="t-h2">Parent / Guardian 1</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Your Name">
@@ -546,26 +548,37 @@ export const PlayerInfoPortal = () => {
 
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-3 pb-2 border-b border-line">
-              <h2 className="t-h2">Emergency Contact</h2>
+              <h2 className="t-h2">Parent / Guardian 2</h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Contact Name">
+              <Field label="Name">
                 <input
                   type="text"
-                  value={form.emergencyName}
+                  value={form.parent2Name}
                   onChange={(e) =>
-                    setForm({ ...form, emergencyName: e.target.value })
+                    setForm({ ...form, parent2Name: e.target.value })
                   }
                   className={INPUT_BASE}
                   style={RING_STYLE}
                 />
               </Field>
-              <Field label="Contact Phone">
+              <Field label="Phone">
                 <input
                   type="tel"
-                  value={form.emergencyPhone}
+                  value={form.parent2Phone}
                   onChange={(e) =>
-                    setForm({ ...form, emergencyPhone: e.target.value })
+                    setForm({ ...form, parent2Phone: e.target.value })
+                  }
+                  className={INPUT_BASE}
+                  style={RING_STYLE}
+                />
+              </Field>
+              <Field label="Email" className="sm:col-span-2">
+                <input
+                  type="email"
+                  value={form.parent2Email}
+                  onChange={(e) =>
+                    setForm({ ...form, parent2Email: e.target.value })
                   }
                   className={INPUT_BASE}
                   style={RING_STYLE}

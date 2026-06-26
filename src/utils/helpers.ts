@@ -1501,7 +1501,7 @@ export const isDepartedPlayer = (
 ): boolean => player?.rosterStatus === "departed";
 
 // How many non-departed players are available on a date (i.e. NOT scheduled
-// out via their absences list).
+// out via their absences or an overlapping availability block).
 export const countAvailableOnDate = (
   players:
     | Array<{ rosterStatus?: string; absences?: string[] }>
@@ -1958,11 +1958,11 @@ export const blankStats = (): PlayerStats => ({
 });
 
 // ============================================================================
-// Eval prompt cadence — preseason + biweekly for both head and assistant.
-// Coaches submit a fresh evaluation round once when the season starts, then
-// every 14 days. The submission UI is gated to active prompts; outside an
-// active window the assistant's Submit Eval button is disabled and the head's
-// "Start New Round" affordance is hidden.
+// Eval prompt cadence — preseason + monthly for both head and assistant.
+// Coaches submit a fresh evaluation round once when the season starts (Feb 1),
+// then on the first of every month. The submission UI is gated to active
+// prompts; outside an active window the assistant's Submit Eval button is
+// disabled and the head's "Start New Round" affordance is hidden.
 // ============================================================================
 
 const MS_PER_DAY = 86_400_000;
@@ -1971,45 +1971,18 @@ const MS_PER_DAY = 86_400_000;
 // see the prompt; tight enough that the badge doesn't get stale.
 const EVAL_WINDOW_DAYS = 3;
 
-// Build the full ordered list of eval due-dates for a given calendar
-// year. Spring: Feb 1 (preseason), Mar 15, then every other Sunday
-// through Jun 30. Fall: every Sunday from Sep 1 through Oct 31.
-// Pure; no dependency on current time. Exported for unit testing.
+// Build the full ordered list of eval due-dates for a given calendar year:
+// the first of every month (monthly cadence). Feb 1 doubles as the spring
+// preseason kickoff. Pure; no dependency on current time. Exported for tests.
 export const evalDueDatesForYear = (year: number): Date[] => {
   const dates: Date[] = [];
-  // Spring preseason + March 15
-  dates.push(new Date(year, 1, 1)); // Feb 1
-  dates.push(new Date(year, 2, 15)); // Mar 15
-  // Every other Sunday from the first Sunday after Mar 15 through Jun 30.
-  const springEnd = new Date(year, 5, 30);
-  const firstSundayAfter = (start: Date) => {
-    const d = new Date(start);
-    d.setDate(d.getDate() + ((7 - d.getDay()) % 7 || 7));
-    return d;
-  };
-  let sunday = firstSundayAfter(new Date(year, 2, 15));
-  while (sunday.getTime() <= springEnd.getTime()) {
-    dates.push(new Date(sunday));
-    sunday = new Date(sunday);
-    sunday.setDate(sunday.getDate() + 14);
+  for (let month = 0; month < 12; month++) {
+    dates.push(new Date(year, month, 1));
   }
-  // Fall: every Sunday from Sep 1 through Oct 31.
-  const fallStart = new Date(year, 8, 1);
-  const fallEnd = new Date(year, 9, 31);
-  let fallSunday = new Date(fallStart);
-  // Walk forward to the first Sunday on or after Sep 1.
-  if (fallSunday.getDay() !== 0) {
-    fallSunday.setDate(fallSunday.getDate() + ((7 - fallSunday.getDay()) % 7));
-  }
-  while (fallSunday.getTime() <= fallEnd.getTime()) {
-    dates.push(new Date(fallSunday));
-    fallSunday = new Date(fallSunday);
-    fallSunday.setDate(fallSunday.getDate() + 7);
-  }
-  return dates.sort((a, b) => a.getTime() - b.getTime());
+  return dates;
 };
 
-type EvalPromptKind = "preseason" | "biweekly";
+type EvalPromptKind = "preseason" | "monthly";
 
 export interface EvalPromptStatus {
   active: boolean;
@@ -2114,12 +2087,12 @@ export const evalPromptStatus = (
   }
 
   if (activeDue) {
-    // Preseason vs biweekly: Feb 1 is the preseason kickoff; everything
-    // else carries the "biweekly" label so existing copy doesn't break.
+    // Preseason vs monthly: Feb 1 is the preseason kickoff; every other
+    // first-of-month carries the "monthly" label.
     const isPreseason = activeDue.getMonth() === 1 && activeDue.getDate() === 1;
     return {
       active: true,
-      kind: isPreseason ? "preseason" : "biweekly",
+      kind: isPreseason ? "preseason" : "monthly",
       lastSubmittedDate,
       nextDueDate: dateToIsoLocal(activeDue),
       daysUntilDue: 0,
@@ -2548,7 +2521,7 @@ export const emailPromptStatus = (
   }
   return {
     active: true,
-    kind: headStatus.kind || firstActiveKind || "biweekly",
+    kind: headStatus.kind || firstActiveKind || "monthly",
     headDue: !!headStatus.active,
     assistantsDue,
     reason: null,

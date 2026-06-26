@@ -254,9 +254,12 @@ export const useTryoutFlows = ({
       put("weight", sub.weight);
       put("school", sub.school);
       put("grade", sub.grade);
-      put("emergencyName", sub.emergencyName);
-      put("emergencyPhone", sub.emergencyPhone);
-      // DOB + parent/guardian contact only fill gaps — don't clobber what the
+      // Parent / guardian 2 (legacy emergency fields are read as a fallback so
+      // older submissions still populate Parent 2).
+      put("parent2Name", sub.parent2Name || sub.emergencyName);
+      put("parent2Phone", sub.parent2Phone || sub.emergencyPhone);
+      put("parent2Email", sub.parent2Email);
+      // DOB + parent/guardian 1 contact only fill gaps — don't clobber what the
       // coach may have already curated on the roster.
       if (!player.dob) put("dob", sub.dob);
       if (!player.parentName) put("parentName", sub.parentName);
@@ -265,7 +268,9 @@ export const useTryoutFlows = ({
 
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
-        p.id === playerId ? { ...p, ...patch, playerInfoSubmittedAt: now } : p,
+        p.id === playerId
+          ? { ...p, ...patch, playerInfoSubmittedAt: sub.submittedAt || now }
+          : p,
       );
       const nextSubs = (teamData.playerInfoSubmissions || []).map((s: any) =>
         s.id === submissionId
@@ -319,7 +324,23 @@ export const useTryoutFlows = ({
       const mergedAbsences = [
         ...new Set([...(player.absences || []), ...dates]),
       ].sort();
-      const mergedBlocks = [...(player.availabilityBlocks || []), ...blocks];
+      // Union the submission's time/reason blocks, deduped by date+start+end so
+      // re-submitting the same block is a no-op. Pure add — a parent re-filing
+      // the form only ever appends, never overwrites.
+      const blockKey = (b: any) =>
+        `${String(b?.date).slice(0, 10)}|${b?.startTime || ""}|${b?.endTime || ""}`;
+      const blockMap = new Map<string, any>();
+      for (const b of [...(player.availabilityBlocks || []), ...blocks]) {
+        if (!b?.date) continue;
+        const key = blockKey(b);
+        // Prefer an entry that carries a reason when merging duplicates.
+        if (!blockMap.has(key) || (b.reason && !blockMap.get(key)?.reason)) {
+          blockMap.set(key, { ...b, date: String(b.date).slice(0, 10) });
+        }
+      }
+      const mergedBlocks = [...blockMap.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
         p.id === playerId
@@ -407,10 +428,20 @@ export const useTryoutFlows = ({
       target.absences = [
         ...new Set([...(target.absences || []), ...dates]),
       ].sort();
-      target.availabilityBlocks = [
-        ...(target.availabilityBlocks || []),
-        ...blocks,
-      ];
+      // Union time/reason blocks, deduped by date+start+end (pure add).
+      const wKey = (w: any) =>
+        `${String(w?.date).slice(0, 10)}|${w?.startTime || ""}|${w?.endTime || ""}`;
+      const wMap = new Map<string, any>();
+      for (const w of [...(target.availabilityBlocks || []), ...blocks]) {
+        if (!w?.date) continue;
+        const key = wKey(w);
+        if (!wMap.has(key) || (w.reason && !wMap.get(key)?.reason)) {
+          wMap.set(key, { ...w, date: String(w.date).slice(0, 10) });
+        }
+      }
+      target.availabilityBlocks = [...wMap.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
       target.availabilitySubmittedAt = sub.submittedAt || now;
       appliedSubIds.set(sub.id, player.id);
     }

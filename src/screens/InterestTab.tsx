@@ -4,6 +4,7 @@ import { useTeam } from "../contexts";
 import { calculateBaseballAge } from "../utils/helpers";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
+import { EmptyState } from "../components/shared";
 
 // Player Interest Survey leads (year-round). Head-only screen.
 // Each row carries the parent's contact info, the kid's positions
@@ -84,29 +85,11 @@ export const InterestTab = memo(() => {
             </span>
           </div>
           {leads.length === 0 ? (
-            <div className="text-center py-12 bg-surface border border-line rounded-xl">
-              {team?.logoUrl ? (
-                <img
-                  src={team.logoUrl}
-                  alt="Team Logo"
-                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                />
-              ) : (
-                <div
-                  className="text-5xl leading-none mb-3 opacity-80"
-                  aria-hidden
-                >
-                  🧢
-                </div>
-              )}
-              <p className="text-sm font-bold text-ink-3 mb-1">
-                No interest signups yet
-              </p>
-              <p className="text-xs text-ink-3 font-medium max-w-sm mx-auto">
-                Share your team's standing link or QR code. Parents will appear
-                here as they submit.
-              </p>
-            </div>
+            <EmptyState
+              glyph="🧢"
+              title="No interest signups yet"
+              body="Share your team's standing link or QR code. Parents will appear here as they submit."
+            />
           ) : visible.length === 0 ? (
             <div className="text-sm font-bold text-ink-3 italic text-center py-8">
               No leads match the current search.

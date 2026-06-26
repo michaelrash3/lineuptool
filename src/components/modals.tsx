@@ -18,8 +18,31 @@ import {
 } from "../utils/helpers";
 import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
+import { useNavigate, useParams } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog, PlayerAvatar } from "./shared";
+
+// Shell for the player profile: a full-page container when routed to
+// /player/:id (asPage), or the legacy centered dialog overlay otherwise.
+const ProfileShell = ({ asPage, onClose, children }: any) =>
+  asPage ? (
+    <div className="w-full max-w-2xl mx-auto bg-surface border border-line flex flex-col">
+      {children}
+    </div>
+  ) : (
+    <div
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm overflow-y-auto"
+      onClick={onClose}
+    >
+      <A11yDialog
+        label="Player profile"
+        onClose={onClose}
+        className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
+      >
+        {children}
+      </A11yDialog>
+    </div>
+  );
 import {
   PROFILE_SECTIONS,
   STATS_TAB_KEYS,
@@ -532,7 +555,8 @@ const PastSeasonForm = memo(
    Shows a hand-rolled SVG line chart of that stat across seasons (current +
    any past-season entries that have data for it). For pitching stats, only
    plots seasons whose pitchingFormat === "Kid Pitch". */
-export const PlayerProfileModal = memo(() => {
+export const PlayerProfileModal = memo(({ asPage = false }: any) => {
+  const navigate = useNavigate();
   const {
     team,
     updateTeam,
@@ -602,8 +626,7 @@ export const PlayerProfileModal = memo(() => {
 
   const [editingContact, setEditingContact] = useState(false);
   const [showReturningOffer, setShowReturningOffer] = useState(false);
-  const [showCurrentPlayerDecline, setShowCurrentPlayerDecline] =
-    useState(false);
+  const [showNotReturning, setShowNotReturning] = useState(false);
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -792,25 +815,24 @@ export const PlayerProfileModal = memo(() => {
   const positions = ROSTER_POSITIONS;
 
   const close = () => {
-    setViewingPlayerId(null);
     setActiveSection("general");
     setEditingContact(false);
     setEditingPlayerName(false);
     setTrendStatKey(null);
     setShowReturningOffer(false);
-    setShowCurrentPlayerDecline(false);
+    setShowNotReturning(false);
+    // In page mode the route owns the player id — navigate back to the roster;
+    // in dialog mode just clear the viewing id to dismiss the overlay.
+    if (asPage) {
+      navigate("/roster");
+    } else {
+      setViewingPlayerId(null);
+    }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm overflow-y-auto"
-      onClick={close}
-    >
-      <A11yDialog
-        label="Player profile"
-        onClose={close}
-        className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
-      >
+    <>
+      <ProfileShell asPage={asPage} onClose={close}>
         <div
           className="p-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -1823,11 +1845,10 @@ export const PlayerProfileModal = memo(() => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowCurrentPlayerDecline(true)}
+                  onClick={() => setShowNotReturning(true)}
                   className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
-                  <Icons.FileText className="w-3.5 h-3.5" /> Current Player
-                  Decline
+                  <Icons.FileText className="w-3.5 h-3.5" /> Not Returning
                 </button>
                 <button
                   type="button"
@@ -1839,11 +1860,12 @@ export const PlayerProfileModal = memo(() => {
               </div>
             </div>
             {[
-              { key: "parentName", label: "Parent / Guardian Name" },
-              { key: "phone", label: "Phone Number" },
-              { key: "email", label: "Email Address" },
-              { key: "emergencyName", label: "Emergency Contact Name" },
-              { key: "emergencyPhone", label: "Emergency Contact Phone" },
+              { key: "parentName", label: "Parent / Guardian 1 Name" },
+              { key: "phone", label: "Parent 1 Phone" },
+              { key: "email", label: "Parent 1 Email" },
+              { key: "parent2Name", label: "Parent / Guardian 2 Name" },
+              { key: "parent2Phone", label: "Parent 2 Phone" },
+              { key: "parent2Email", label: "Parent 2 Email" },
               { key: "school", label: "School" },
               { key: "grade", label: "Grade" },
               { key: "hatSize", label: "Hat Size" },
@@ -1852,7 +1874,6 @@ export const PlayerProfileModal = memo(() => {
               { key: "height", label: "Height" },
               { key: "weight", label: "Weight" },
               { key: "notes", label: "Player Info Notes" },
-              { key: "playerInfoSubmittedAt", label: "Player Info Submitted" },
             ].map(({ key, label }) => (
               <div key={key}>
                 <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
@@ -1893,11 +1914,11 @@ export const PlayerProfileModal = memo(() => {
               className="text-[10px] font-black uppercase tracking-widest text-white px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
-              Close
+              {asPage ? "Back to Roster" : "Close"}
             </button>
           </div>
         </div>
-      </A11yDialog>
+      </ProfileShell>
       {showReturningOffer && (
         <OfferLetterModal
           open
@@ -1910,10 +1931,10 @@ export const PlayerProfileModal = memo(() => {
           }
         />
       )}
-      {showCurrentPlayerDecline && (
+      {showNotReturning && (
         <OfferLetterModal
           open
-          onClose={() => setShowCurrentPlayerDecline(false)}
+          onClose={() => setShowNotReturning(false)}
           kind="notReturning"
           recipientEmail={player.email}
           ctx={makeOfferLetterContext(team, user, player.name)}
@@ -1944,6 +1965,23 @@ export const PlayerProfileModal = memo(() => {
           />
         </React.Suspense>
       )}
+    </>
+  );
+});
+
+// Routed player profile (/roster/:playerId). Drives the shared PlayerProfile
+// content from the URL param instead of an overlay, so each player has their
+// own page. Clears the viewing id on unmount so a stale overlay can't linger.
+export const PlayerProfilePage = memo(() => {
+  const { playerId } = useParams();
+  const { setViewingPlayerId } = useUI();
+  useEffect(() => {
+    if (playerId) setViewingPlayerId(playerId);
+    return () => setViewingPlayerId(null);
+  }, [playerId, setViewingPlayerId]);
+  return (
+    <div className="w-full py-2">
+      <PlayerProfileModal asPage />
     </div>
   );
 });

@@ -127,10 +127,11 @@ export const LeaderboardCard = memo(
   },
 );
 
-/* Empty-state card for blank surfaces (no roster, no games, no stats…).
-   `glyph` is a large sanctioned emoji watermark (⚾ 🧢 📋 ⭐ 📅 📊) that makes
-   the surface feel intentional; `icon` is an optional small Lucide mark; pass
-   an `action`/`onAction` for a primary CTA. */
+/* Empty-state for blank surfaces (no roster, no games, no stats…). Unified to
+   the Schedule look: a transparent (card-less) center column with the team logo
+   as a faint grayscale watermark — falling back to a large sanctioned emoji
+   glyph (⚾ 🧢 📋 ⭐ 📅 📊) when no `logoUrl` is supplied. Pass an
+   `action`/`onAction` for a primary CTA. */
 export const EmptyState = memo(
   ({ glyph, icon: Icon, title, body, action, onAction }: any) => {
     const teamContext = useContext(TeamContext);

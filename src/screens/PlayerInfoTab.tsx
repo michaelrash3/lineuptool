@@ -1,6 +1,20 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
+import { EmptyState } from "../components/shared";
+import { isDepartedPlayer } from "../utils/helpers";
+
+const formatShort = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").slice(0, 10));
+  if (!m) return iso;
+  return new Date(
+    Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])),
+  ).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+};
 
 // Parent-submitted Player Info inbox (uniform/equipment sizing + logistics).
 // Head-only. Each row shows what a parent sent via the public Player Info
@@ -27,6 +41,14 @@ export const PlayerInfoTab = memo(() => {
         new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
     );
   }, [team?.playerInfoSubmissions]);
+
+  const activePlayers = useMemo(
+    () => players.filter((p: any) => !isDepartedPlayer(p)),
+    [players],
+  );
+  const submittedCount = activePlayers.filter(
+    (p: any) => p.playerInfoSubmittedAt,
+  ).length;
 
   // Per-submission chosen roster player id (for the "apply" action). Defaults
   // lazily to the best name match the first time a row renders its dropdown.
@@ -127,30 +149,11 @@ export const PlayerInfoTab = memo(() => {
           </div>
 
           {submissions.length === 0 ? (
-            <div className="text-center py-12 bg-surface border border-line rounded-xl">
-              {team?.logoUrl ? (
-                <img
-                  src={team.logoUrl}
-                  alt="Team Logo"
-                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                />
-              ) : (
-                <div
-                  className="text-5xl leading-none mb-3 opacity-80"
-                  aria-hidden
-                >
-                  🧢
-                </div>
-              )}
-              <p className="text-sm font-bold text-ink-3 mb-1">
-                No player info submitted yet
-              </p>
-              <p className="text-xs text-ink-3 font-medium max-w-sm mx-auto">
-                Share your team's Player Info link or QR code (found on the
-                Roster page). Submissions will appear here as parents fill it
-                out.
-              </p>
-            </div>
+            <EmptyState
+              glyph="🧢"
+              title="No player info submitted yet"
+              body="Share your team's Player Info link or QR code (found on the Roster page). Submissions will appear here as parents fill it out."
+            />
           ) : visible.length === 0 ? (
             <div className="text-sm font-bold text-ink-3 italic text-center py-8">
               No submissions match the current search.
@@ -194,6 +197,16 @@ export const PlayerInfoTab = memo(() => {
                         {sub.parentName ? `${sub.parentName} · ` : ""}
                         {sub.email} · {sub.phone}
                       </div>
+                      {(sub.parent2Name ||
+                        sub.parent2Phone ||
+                        sub.parent2Email) && (
+                        <div className="text-[11px] text-ink-2 font-medium mt-0.5 break-all">
+                          {sub.parent2Name ? `${sub.parent2Name} · ` : ""}
+                          {[sub.parent2Email, sub.parent2Phone]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         <Chip label="DOB" value={sub.dob} />
                         <Chip label="Hat" value={sub.hatSize} />
@@ -204,13 +217,6 @@ export const PlayerInfoTab = memo(() => {
                         <Chip label="School" value={sub.school} />
                         <Chip label="Grade" value={sub.grade} />
                       </div>
-                      {(sub.emergencyName || sub.emergencyPhone) && (
-                        <div className="text-[10px] text-ink-3 font-medium mt-1.5">
-                          Emergency: {sub.emergencyName}
-                          {sub.emergencyName && sub.emergencyPhone ? " · " : ""}
-                          {sub.emergencyPhone}
-                        </div>
-                      )}
                       {sub.notes && (
                         <div className="text-[11px] text-ink-2 font-medium mt-1.5 italic line-clamp-2">
                           "{sub.notes}"
@@ -291,6 +297,58 @@ export const PlayerInfoTab = memo(() => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Completion tracker — who has / hasn't submitted the Player Info form. */}
+      <div className="space-y-2">
+        <h3 className="t-h3 flex items-center gap-2">
+          <Icons.Clipboard className="w-4 h-4" /> Form completion
+          <span className="text-[11px] font-bold text-ink-3">
+            {submittedCount} / {activePlayers.length}
+          </span>
+        </h3>
+        {activePlayers.length === 0 ? (
+          <p className="t-meta text-ink-3">No active players on the roster.</p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {[...activePlayers]
+              .sort((a: any, b: any) => {
+                const aDone = a.playerInfoSubmittedAt ? 1 : 0;
+                const bDone = b.playerInfoSubmittedAt ? 1 : 0;
+                if (aDone !== bDone) return aDone - bDone; // missing first
+                return String(a.name || "").localeCompare(String(b.name || ""));
+              })
+              .map((p: any) => {
+                const done = !!p.playerInfoSubmittedAt;
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-2 bg-surface border border-line rounded-lg px-3 py-2"
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-full grid place-items-center shrink-0 ${
+                        done ? "bg-win-bg text-win" : "bg-loss-bg text-loss"
+                      }`}
+                    >
+                      {done ? (
+                        <Icons.Check className="w-3 h-3" />
+                      ) : (
+                        <Icons.X className="w-3 h-3" />
+                      )}
+                    </span>
+                    <span className="text-sm font-bold text-ink flex-1 min-w-0 truncate">
+                      {p.name}
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                      {done
+                        ? `Submitted ${formatShort(String(p.playerInfoSubmittedAt))}`
+                        : "Not yet"}
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+        )}
       </div>
     </div>
   );

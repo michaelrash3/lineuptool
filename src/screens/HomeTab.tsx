@@ -1492,7 +1492,7 @@ export const UpNextPanel = memo(
           title: isHead
             ? "Start this round's evaluations"
             : "Send your evaluations to the head coach",
-          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Biweekly"} round${
+          sub: `${promptStatus.kind === "preseason" ? "Preseason" : "Monthly"} round${
             promptStatus.nextDueDate
               ? ` · due ${formatGameDateDisplay(promptStatus.nextDueDate)}`
               : ""

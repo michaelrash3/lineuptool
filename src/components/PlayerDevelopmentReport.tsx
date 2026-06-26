@@ -375,10 +375,13 @@ export const PlayerDevelopmentReport = memo(
                         : evalTrend.delta < 0
                           ? "▼ "
                           : "→ "}
-                      {evalTrend.delta !== 0 ? evalTrend.delta.toFixed(1) : ""}
+                      {evalTrend.delta !== 0
+                        ? Math.abs(Math.round(evalTrend.delta))
+                        : ""}
                       <span className="text-ink-3 font-bold">
                         {" "}
-                        over {evalTrend.rounds} rounds
+                        over {evalTrend.rounds}{" "}
+                        {evalTrend.rounds === 1 ? "month" : "months"}
                       </span>
                     </span>
                   )}

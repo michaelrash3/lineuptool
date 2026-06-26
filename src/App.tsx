@@ -83,7 +83,7 @@ import { WelcomeChooser } from "./components/WelcomeChooser";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import {
-  PlayerProfileModal,
+  PlayerProfilePage,
   AddPlayerModal,
   PastSeasonImportModal,
 } from "./components/modals";
@@ -146,11 +146,6 @@ const HomeTab = lazy(() =>
 );
 const RosterTab = lazy(() =>
   import("./screens/RosterTab").then((m) => ({ default: m.RosterTab })),
-);
-const PlayerProfilePage = lazy(() =>
-  import("./screens/PlayerProfilePage").then((m) => ({
-    default: m.PlayerProfilePage,
-  })),
 );
 const StatsTab = lazy(() =>
   import("./screens/StatsTab").then((m) => ({ default: m.StatsTab })),
@@ -2848,6 +2843,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const team = useTeam();
   const toast = useToast();
+  const navigateToRoute = useNavigate();
 
   const [modal, setModal] = useState({
     isOpen: false,
@@ -3173,9 +3169,11 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, []);
 
+  // Each player has their own page now: navigate to /player/:id. The route's
+  // PlayerProfilePage sets viewingPlayerId, which the profile content reads.
   const openPlayerProfile = useCallback(
-    (id: string) => setViewingPlayerId(id),
-    [],
+    (id: string) => navigateToRoute(`/roster/${id}`),
+    [navigateToRoute],
   );
 
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
@@ -3380,14 +3378,8 @@ const MainShell = () => {
     createTeam,
     joinTeamByCode,
   } = useTeam();
-  const {
-    viewingPlayerId,
-    activeTab,
-    setActiveTab,
-    selectedGameId,
-    inGameId,
-    setInGameId,
-  } = useUI();
+  const { activeTab, setActiveTab, selectedGameId, inGameId, setInGameId } =
+    useUI();
   const location = useLocation();
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";

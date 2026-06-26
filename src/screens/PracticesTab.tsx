@@ -1,7 +1,11 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
-import { formatGameDateDisplay, isDepartedPlayer } from "../utils/helpers";
+import {
+  formatGameDateDisplay,
+  isDepartedPlayer,
+  dateToIsoLocal,
+} from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
 import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
@@ -717,13 +721,21 @@ export const PracticesTab = memo(() => {
     [team.players],
   );
 
-  const practices = useMemo(
-    () =>
-      [...(team.practices || [])].sort((a: any, b: any) =>
-        String(b.date).localeCompare(String(a.date)),
-      ),
-    [team.practices],
-  );
+  // Upcoming first: the next/soonest practice on top, ascending by date; once a
+  // practice's date passes it drops below the upcoming set (past group ordered
+  // most-recent-first). Mirrors the Schedule tab's "working set on top" grouping.
+  const practices = useMemo(() => {
+    const today = dateToIsoLocal(new Date());
+    const isPast = (p: any) => String(p.date || "") < today;
+    return [...(team.practices || [])].sort((a: any, b: any) => {
+      const ap = isPast(a) ? 1 : 0;
+      const bp = isPast(b) ? 1 : 0;
+      if (ap !== bp) return ap - bp; // upcoming/today before past
+      return ap === 1
+        ? String(b.date).localeCompare(String(a.date)) // past: newest first
+        : String(a.date).localeCompare(String(b.date)); // upcoming: soonest first
+    });
+  }, [team.practices]);
 
   // Season miss-tracker: across practices where attendance was actually taken,
   // who has missed the most. Only explicit "out" marks count — present (the
