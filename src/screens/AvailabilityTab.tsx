@@ -220,9 +220,7 @@ export const AvailabilityTab = memo(() => {
   // event / no event → all-day).
   const selectedWindow = useMemo(
     () =>
-      selectedDate
-        ? eventWindowForDate(games, practices, selectedDate)
-        : null,
+      selectedDate ? eventWindowForDate(games, practices, selectedDate) : null,
     [games, practices, selectedDate],
   );
   const outOnSelected = useMemo(
@@ -517,7 +515,8 @@ export const AvailabilityTab = memo(() => {
                         {sub.firstName} {sub.lastName}
                       </span>
                       <span className="text-[10px] font-bold text-ink-3">
-                        Submitted {formatShort(String(sub.submittedAt).slice(0, 10))}
+                        Submitted{" "}
+                        {formatShort(String(sub.submittedAt).slice(0, 10))}
                       </span>
                       {sub.appliedToPlayerId && (
                         <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-win-bg text-win">

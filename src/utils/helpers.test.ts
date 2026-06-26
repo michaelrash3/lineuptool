@@ -2762,11 +2762,17 @@ describe("time-aware availability", () => {
     };
     // Event 5–7pm does NOT overlap an "out 3–4:30pm" block.
     expect(
-      isPlayerOutForEvent(player, "2026-05-10", { start: 17 * 60, end: 19 * 60 }),
+      isPlayerOutForEvent(player, "2026-05-10", {
+        start: 17 * 60,
+        end: 19 * 60,
+      }),
     ).toBe(false);
     // Event 4–6pm DOES overlap.
     expect(
-      isPlayerOutForEvent(player, "2026-05-10", { start: 16 * 60, end: 18 * 60 }),
+      isPlayerOutForEvent(player, "2026-05-10", {
+        start: 16 * 60,
+        end: 18 * 60,
+      }),
     ).toBe(true);
   });
 
@@ -2789,7 +2795,10 @@ describe("time-aware availability", () => {
     ];
     // Morning event: b's afternoon block doesn't apply → both available.
     expect(
-      countAvailableOnDate(players, "2026-05-10", { start: 9 * 60, end: 10 * 60 }),
+      countAvailableOnDate(players, "2026-05-10", {
+        start: 9 * 60,
+        end: 10 * 60,
+      }),
     ).toBe(2);
     // No window (all-day): b is out → 1 available.
     expect(countAvailableOnDate(players, "2026-05-10")).toBe(1);

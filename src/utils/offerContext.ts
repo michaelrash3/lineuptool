@@ -28,9 +28,12 @@ export const makeOfferLetterContext = (
   const rawHandle = String(team?.venmoHandle || "").trim();
   const handle = rawHandle.replace(/^@/, "");
   const rawLink = String(team?.venmoLink || "").trim();
-  const venmoLink =
-    rawLink || (handle ? `https://venmo.com/u/${handle}` : "");
-  const venmoName = rawHandle ? (rawHandle.startsWith("@") ? rawHandle : `@${handle}`) : "";
+  const venmoLink = rawLink || (handle ? `https://venmo.com/u/${handle}` : "");
+  const venmoName = rawHandle
+    ? rawHandle.startsWith("@")
+      ? rawHandle
+      : `@${handle}`
+    : "";
 
   return {
     playerName: recipientName || "[Player Name]",

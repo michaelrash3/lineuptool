@@ -1508,10 +1508,7 @@ export const eventWindowForDate = (
   const day = String(dateIso).slice(0, 10);
   const wins: TimeWindow[] = [];
   let sawEvent = false;
-  const consider = (
-    start: number | null,
-    end: number | null,
-  ): boolean => {
+  const consider = (start: number | null, end: number | null): boolean => {
     sawEvent = true;
     if (start == null) return false; // untimed event → all-day
     wins.push({ start, end: end ?? Math.min(start + 120, 24 * 60) });

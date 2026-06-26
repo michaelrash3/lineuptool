@@ -235,8 +235,7 @@ export const AvailabilityPortal = () => {
   const setDetail = (
     iso: string,
     patch: { start?: string; end?: string; reason?: string },
-  ) =>
-    setDetails((prev) => ({ ...prev, [iso]: { ...prev[iso], ...patch } }));
+  ) => setDetails((prev) => ({ ...prev, [iso]: { ...prev[iso], ...patch } }));
 
   const selectedSet = useMemo(() => new Set(dates), [dates]);
   const sortedDates = useMemo(() => [...dates].sort(), [dates]);
