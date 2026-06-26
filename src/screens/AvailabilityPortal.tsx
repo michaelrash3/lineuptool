@@ -228,6 +228,16 @@ export const AvailabilityPortal = () => {
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
 
+  // Optional per-date time window + reason, keyed by ISO date.
+  const [details, setDetails] = useState<
+    Record<string, { start?: string; end?: string; reason?: string }>
+  >({});
+  const setDetail = (
+    iso: string,
+    patch: { start?: string; end?: string; reason?: string },
+  ) =>
+    setDetails((prev) => ({ ...prev, [iso]: { ...prev[iso], ...patch } }));
+
   const selectedSet = useMemo(() => new Set(dates), [dates]);
   const sortedDates = useMemo(() => [...dates].sort(), [dates]);
 
@@ -339,6 +349,21 @@ export const AvailabilityPortal = () => {
       phone: clampText(form.phone, SIGNUP_LIMITS.phone),
       // Cap the payload — a sane ceiling on dates per submission.
       dates: sortedDates.slice(0, 366),
+      // Per-date time window + reason (only the fields the parent filled in).
+      blocks: sortedDates.slice(0, 366).map((d) => {
+        const det = details[d] || {};
+        const block: {
+          date: string;
+          start?: string;
+          end?: string;
+          reason?: string;
+        } = { date: d };
+        if (det.start) block.start = det.start;
+        if (det.end) block.end = det.end;
+        if (det.reason)
+          block.reason = clampText(det.reason, SIGNUP_LIMITS.notes);
+        return block;
+      }),
     };
 
     try {
@@ -533,21 +558,76 @@ export const AvailabilityPortal = () => {
             </div>
 
             {sortedDates.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {sortedDates.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() =>
-                      setDates((prev) => removeAbsenceDates(prev, [d]))
-                    }
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold bg-surface-2 border border-line text-ink hover:bg-loss-bg hover:text-loss hover:border-loss transition-colors"
-                    title="Remove this date"
-                  >
-                    {formatShortDate(d)}
-                    <Icons.X className="w-3 h-3" />
-                  </button>
-                ))}
+              <div className="space-y-2">
+                <p className="text-[11px] text-ink-3 font-medium">
+                  Optionally add a time window and a reason for each date. Leave
+                  the times blank if your player is out all day.
+                </p>
+                {sortedDates.map((d) => {
+                  const det = details[d] || {};
+                  return (
+                    <div
+                      key={d}
+                      className="bg-surface-2 border border-line rounded-md p-2.5 space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-black text-ink">
+                          {formatShortDate(d)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDates((prev) => removeAbsenceDates(prev, [d]))
+                          }
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-ink-3 hover:bg-loss-bg hover:text-loss hover:border-loss border border-line transition-colors"
+                          title="Remove this date"
+                        >
+                          Remove <Icons.X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-ink-3">
+                            Unavailable from
+                          </span>
+                          <input
+                            type="time"
+                            value={det.start || ""}
+                            onChange={(e) =>
+                              setDetail(d, { start: e.target.value })
+                            }
+                            className={INPUT_BASE}
+                            style={RING_STYLE}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-ink-3">
+                            Until
+                          </span>
+                          <input
+                            type="time"
+                            value={det.end || ""}
+                            onChange={(e) =>
+                              setDetail(d, { end: e.target.value })
+                            }
+                            className={INPUT_BASE}
+                            style={RING_STYLE}
+                          />
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        value={det.reason || ""}
+                        onChange={(e) =>
+                          setDetail(d, { reason: e.target.value })
+                        }
+                        placeholder="Reason (optional) — e.g. travel, school event"
+                        className={INPUT_BASE}
+                        style={RING_STYLE}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

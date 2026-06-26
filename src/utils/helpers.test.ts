@@ -41,6 +41,9 @@ import {
   latestGameLineMovement,
   seasonSeriesFromGameLines,
   isPlayerScheduledOut,
+  isPlayerOutForEvent,
+  eventWindowForDate,
+  eventDayOf,
   addAbsenceDateRange,
   removeAbsenceDates,
   foldAbsenceRanges,
@@ -2724,5 +2727,71 @@ describe("finances money math", () => {
     // Payment from a kid no longer rostered still shows, with a fallback name.
     expect(rows[6].label).toBe("Team fee — Player");
     expect(transactionLedger(null)).toEqual([]);
+  });
+});
+
+describe("time-aware availability", () => {
+  it("eventDayOf prefers explicit date, falls back to startUtc", () => {
+    expect(eventDayOf({ date: "2026-05-10" })).toBe("2026-05-10");
+    const day = eventDayOf({ startUtc: "2026-05-10T18:00:00Z" });
+    expect(day).toMatch(/^2026-05-\d{2}$/); // local day from the instant
+    expect(eventDayOf({})).toBeNull();
+  });
+
+  it("eventWindowForDate returns null when an event that day has no time", () => {
+    const games = [{ date: "2026-05-10" }]; // no time → all-day
+    expect(eventWindowForDate(games, [], "2026-05-10")).toBeNull();
+  });
+
+  it("eventWindowForDate parses a free-text game time", () => {
+    const games = [{ date: "2026-05-10", time: "5:00 PM" }];
+    const w = eventWindowForDate(games, [], "2026-05-10");
+    expect(w).toEqual({ start: 17 * 60, end: 17 * 60 + 120 });
+  });
+
+  it("an all-day block counts the player out regardless of event time", () => {
+    const player = { absences: ["2026-05-10"] };
+    const win = { start: 17 * 60, end: 19 * 60 };
+    expect(isPlayerOutForEvent(player, "2026-05-10", win)).toBe(true);
+  });
+
+  it("a timed block only counts out when it overlaps the event window", () => {
+    const player = {
+      absences: ["2026-05-10"],
+      absenceWindows: [{ date: "2026-05-10", start: "15:00", end: "16:30" }],
+    };
+    // Event 5–7pm does NOT overlap an "out 3–4:30pm" block.
+    expect(
+      isPlayerOutForEvent(player, "2026-05-10", { start: 17 * 60, end: 19 * 60 }),
+    ).toBe(false);
+    // Event 4–6pm DOES overlap.
+    expect(
+      isPlayerOutForEvent(player, "2026-05-10", { start: 16 * 60, end: 18 * 60 }),
+    ).toBe(true);
+  });
+
+  it("a no-time event (null window) makes any block count out", () => {
+    const player = {
+      absences: ["2026-05-10"],
+      absenceWindows: [{ date: "2026-05-10", start: "15:00", end: "16:30" }],
+    };
+    expect(isPlayerOutForEvent(player, "2026-05-10", null)).toBe(true);
+  });
+
+  it("countAvailableOnDate is time-aware with a window", () => {
+    const players = [
+      { id: "a" },
+      {
+        id: "b",
+        absences: ["2026-05-10"],
+        absenceWindows: [{ date: "2026-05-10", start: "15:00", end: "16:00" }],
+      },
+    ];
+    // Morning event: b's afternoon block doesn't apply → both available.
+    expect(
+      countAvailableOnDate(players, "2026-05-10", { start: 9 * 60, end: 10 * 60 }),
+    ).toBe(2);
+    // No window (all-day): b is out → 1 available.
+    expect(countAvailableOnDate(players, "2026-05-10")).toBe(1);
   });
 });

@@ -119,6 +119,16 @@ export interface Player {
   // the kid to absent in Game Day Attendance; the coach can still toggle
   // them back per game.
   absences?: string[];
+  // Per-date unavailability windows with an optional time range + reason, from
+  // the Availability form. Mirrors the dates in `absences` (which stays the
+  // canonical all-day list); a window with start/end makes the block time-aware
+  // so it only conflicts with overlapping games/practices.
+  absenceWindows?: Array<{
+    date: string;
+    start?: string;
+    end?: string;
+    reason?: string;
+  }>;
   // ISO instant of the most recent parent Availability-form submission applied
   // to this player. Drives the Availability tab's completion tracker (who has /
   // hasn't filled out the form). Absent = no submission on file yet.
@@ -387,6 +397,15 @@ export interface AvailabilitySubmission {
   phone?: string;
   // ISO yyyy-mm-dd dates the kid is unavailable.
   dates: string[];
+  // Optional per-date time window + reason. `dates` still lists every blocked
+  // day (for matching + the all-day fallback); `blocks` carries the richer
+  // detail merged into the player's absenceWindows on apply.
+  blocks?: Array<{
+    date: string;
+    start?: string;
+    end?: string;
+    reason?: string;
+  }>;
   // Stamped once merged onto a roster player's absences.
   appliedToPlayerId?: string;
   appliedAt?: string;

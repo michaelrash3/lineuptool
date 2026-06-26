@@ -321,12 +321,31 @@ export const useTryoutFlows = ({
       const mergedAbsences = [
         ...new Set([...(player.absences || []), ...dates]),
       ].sort();
+      // Union the submission's time/reason windows into absenceWindows, deduped
+      // by date+start+end so re-submitting the same block is a no-op. Pure add —
+      // a parent re-filing the form only ever appends, never overwrites.
+      const subBlocks = Array.isArray(sub.blocks) ? sub.blocks : [];
+      const windowKey = (w: any) =>
+        `${String(w?.date).slice(0, 10)}|${w?.start || ""}|${w?.end || ""}`;
+      const windowMap = new Map<string, any>();
+      for (const w of [...(player.absenceWindows || []), ...subBlocks]) {
+        if (!w?.date) continue;
+        const key = windowKey(w);
+        // Prefer an entry that carries a reason when merging duplicates.
+        if (!windowMap.has(key) || (w.reason && !windowMap.get(key)?.reason)) {
+          windowMap.set(key, { ...w, date: String(w.date).slice(0, 10) });
+        }
+      }
+      const mergedWindows = [...windowMap.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
       const now = new Date().toISOString();
       const nextPlayers = (teamData.players || []).map((p: any) =>
         p.id === playerId
           ? {
               ...p,
               absences: mergedAbsences,
+              absenceWindows: mergedWindows,
               availabilitySubmittedAt: sub.submittedAt || now,
             }
           : p,
@@ -404,6 +423,21 @@ export const useTryoutFlows = ({
       target.absences = [
         ...new Set([...(target.absences || []), ...dates]),
       ].sort();
+      // Union time/reason windows, deduped by date+start+end (pure add).
+      const subBlocks = Array.isArray(sub.blocks) ? sub.blocks : [];
+      const wKey = (w: any) =>
+        `${String(w?.date).slice(0, 10)}|${w?.start || ""}|${w?.end || ""}`;
+      const wMap = new Map<string, any>();
+      for (const w of [...(target.absenceWindows || []), ...subBlocks]) {
+        if (!w?.date) continue;
+        const key = wKey(w);
+        if (!wMap.has(key) || (w.reason && !wMap.get(key)?.reason)) {
+          wMap.set(key, { ...w, date: String(w.date).slice(0, 10) });
+        }
+      }
+      target.absenceWindows = [...wMap.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      );
       target.availabilitySubmittedAt = sub.submittedAt || now;
       appliedSubIds.set(sub.id, player.id);
     }

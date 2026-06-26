@@ -3,7 +3,30 @@ import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { QRCodeImg } from "../components/QRCodeImg";
 import { AvailabilityCalendar } from "../components/AvailabilityCalendar";
-import { isDepartedPlayer, playersOutOnDate } from "../utils/helpers";
+import {
+  isDepartedPlayer,
+  playersOutOnDate,
+  eventDayOf,
+  eventWindowForDate,
+} from "../utils/helpers";
+
+// Render a player's blocked window + reason on a date for the "who's out" panel.
+const outDetailFor = (player: any, dateIso: string): string => {
+  const day = String(dateIso).slice(0, 10);
+  const w = (player?.absenceWindows || []).find(
+    (x: any) => String(x?.date).slice(0, 10) === day,
+  );
+  if (!w) return "All day";
+  const span =
+    w.start && w.end
+      ? `${w.start}–${w.end}`
+      : w.start
+        ? `from ${w.start}`
+        : w.end
+          ? `until ${w.end}`
+          : "All day";
+  return w.reason ? `${span} · ${w.reason}` : span;
+};
 
 const formatShort = (iso: string): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
@@ -127,14 +150,22 @@ export const AvailabilityTab = memo(() => {
     return Number.isFinite(n) && n > 0 ? n : 9;
   }, [defenseSize]);
 
+  const games = useMemo(() => team?.games || [], [team?.games]);
+  const practices = useMemo(() => team?.practices || [], [team?.practices]);
+  // Derive each event's day from its explicit date OR its startUtc instant so
+  // feed-imported games (startUtc only) still light up the calendar.
   const eventDates = useMemo(() => {
     const set = new Set<string>();
-    for (const g of team?.games || [])
-      if (g?.date) set.add(String(g.date).slice(0, 10));
-    for (const p of team?.practices || [])
-      if (p?.date) set.add(String(p.date).slice(0, 10));
+    for (const g of games) {
+      const d = eventDayOf(g);
+      if (d) set.add(d);
+    }
+    for (const p of practices) {
+      const d = eventDayOf(p);
+      if (d) set.add(d);
+    }
     return set;
-  }, [team?.games, team?.practices]);
+  }, [games, practices]);
 
   const submissions = useMemo(
     () => team?.availabilitySubmissions || [],
@@ -148,6 +179,17 @@ export const AvailabilityTab = memo(() => {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [matchById, setMatchById] = useState<Record<string, string>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Newest-first copy of every submitted form, kept for the coach to review.
+  const submissionHistory = useMemo(
+    () =>
+      [...submissions].sort(
+        (a: any, b: any) =>
+          new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
+      ),
+    [submissions],
+  );
 
   // Auto-apply confident (unique name+DOB) matches whenever submissions change.
   // Idempotent: applied entries get appliedToPlayerId so re-runs are no-ops.
@@ -174,9 +216,21 @@ export const AvailabilityTab = memo(() => {
     return hit?.id || "";
   };
 
+  // Time-aware: who's out for the selected day's actual event window (a no-time
+  // event / no event → all-day).
+  const selectedWindow = useMemo(
+    () =>
+      selectedDate
+        ? eventWindowForDate(games, practices, selectedDate)
+        : null,
+    [games, practices, selectedDate],
+  );
   const outOnSelected = useMemo(
-    () => (selectedDate ? playersOutOnDate(players, selectedDate) : []),
-    [players, selectedDate],
+    () =>
+      selectedDate
+        ? playersOutOnDate(players, selectedDate, selectedWindow)
+        : [],
+    [players, selectedDate, selectedWindow],
   );
 
   if (!isHead) {
@@ -208,8 +262,11 @@ export const AvailabilityTab = memo(() => {
 
       <AvailabilityCalendar
         players={players}
+        games={games}
+        practices={practices}
         eventDates={eventDates}
         minPlayers={minPlayers}
+        logoUrl={team?.logoUrl}
         selectedDate={selectedDate}
         onSelectDate={(iso) =>
           setSelectedDate((prev) => (prev === iso ? null : iso))
@@ -254,17 +311,20 @@ export const AvailabilityTab = memo(() => {
           {outOnSelected.length === 0 ? (
             <p className="t-meta text-ink-3">Everyone is available.</p>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 self-center">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3">
                 Out:
               </span>
               {outOnSelected.map((p: any) => (
-                <span
+                <div
                   key={p.id}
-                  className="px-2 py-1 rounded-md text-[11px] font-bold bg-loss-bg text-loss border border-loss"
+                  className="flex items-center gap-2 px-2 py-1 rounded-md text-[11px] font-bold bg-loss-bg text-loss border border-loss"
                 >
-                  {p.name}
-                </span>
+                  <span className="shrink-0">{p.name}</span>
+                  <span className="text-[10px] font-medium text-loss/80 truncate">
+                    {outDetailFor(p, selectedDate)}
+                  </span>
+                </div>
               ))}
             </div>
           )}
@@ -418,6 +478,93 @@ export const AvailabilityTab = memo(() => {
           </div>
         )}
       </div>
+
+      {/* Submitted forms — a saved copy of every parent submission to review. */}
+      {submissionHistory.length > 0 && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            className="w-full flex items-center gap-2"
+            aria-expanded={showHistory}
+          >
+            <h3 className="t-h3 flex items-center gap-2">
+              <Icons.FileText className="w-4 h-4" /> Submitted forms
+              <span className="text-[11px] font-bold text-ink-3">
+                {submissionHistory.length}
+              </span>
+            </h3>
+            <Icons.ChevronDown
+              className={`w-4 h-4 text-ink-3 ml-auto transition-transform ${
+                showHistory ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+          {showHistory && (
+            <div className="flex flex-col gap-2">
+              {submissionHistory.map((sub: any) => {
+                const blocks =
+                  Array.isArray(sub.blocks) && sub.blocks.length
+                    ? sub.blocks
+                    : (sub.dates || []).map((d: string) => ({ date: d }));
+                return (
+                  <div
+                    key={sub.id}
+                    className="bg-surface border border-line rounded-lg p-3"
+                  >
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-sm font-black uppercase tracking-tight text-ink">
+                        {sub.firstName} {sub.lastName}
+                      </span>
+                      <span className="text-[10px] font-bold text-ink-3">
+                        Submitted {formatShort(String(sub.submittedAt).slice(0, 10))}
+                      </span>
+                      {sub.appliedToPlayerId && (
+                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-win-bg text-win">
+                          Applied
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      {blocks.slice(0, 12).map((b: any, i: number) => {
+                        const span =
+                          b.start && b.end
+                            ? `${b.start}–${b.end}`
+                            : b.start
+                              ? `from ${b.start}`
+                              : b.end
+                                ? `until ${b.end}`
+                                : "All day";
+                        return (
+                          <div
+                            key={i}
+                            className="text-[11px] text-ink-2 font-medium flex flex-wrap gap-x-2"
+                          >
+                            <span className="font-bold text-ink">
+                              {formatShort(b.date)}
+                            </span>
+                            <span className="text-ink-3">{span}</span>
+                            {b.reason && (
+                              <span className="italic text-ink-3">
+                                · {b.reason}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {blocks.length > 12 && (
+                        <span className="text-[10px] text-ink-3">
+                          +{blocks.length - 12} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 });

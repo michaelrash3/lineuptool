@@ -1439,19 +1439,158 @@ export const isDepartedPlayer = (
   player: { rosterStatus?: unknown; [key: string]: unknown } | null | undefined,
 ): boolean => player?.rosterStatus === "departed";
 
-// How many non-departed players are available on a date (i.e. NOT scheduled
-// out via their absences list).
-export const countAvailableOnDate = (
-  players:
-    | Array<{ rosterStatus?: string; absences?: string[] }>
+// A parent-submitted unavailability window on one date. start/end are "HH:MM"
+// (24h) strings; absent start/end = an all-day block. reason is free text.
+export interface AbsenceWindow {
+  date: string;
+  start?: string;
+  end?: string;
+  reason?: string;
+}
+
+// A scheduled event's clock window on a day, in minutes-since-midnight. null
+// means "all-day" (no clock time) — a block on that day always conflicts.
+export interface TimeWindow {
+  start: number;
+  end: number;
+}
+
+// Minutes-since-midnight from "HH:MM" or "h:mm AM/PM"; null if unparseable.
+const timeToMinutes = (s: unknown): number | null => {
+  const t = String(s ?? "").trim();
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  const ap = m[3]?.toLowerCase();
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+};
+
+const localDayFromInstant = (iso: unknown): string | null => {
+  const d = new Date(String(iso));
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+};
+
+const instantToLocalMinutes = (iso: unknown): number | null => {
+  const d = new Date(String(iso));
+  if (Number.isNaN(d.getTime())) return null;
+  return d.getHours() * 60 + d.getMinutes();
+};
+
+// Which day (yyyy-mm-dd) a game/practice falls on — its explicit `date` if set,
+// otherwise derived from the timed `startUtc` instant. Fixes calendars that
+// missed feed-imported events carrying only a startUtc.
+export const eventDayOf = (
+  ev: { date?: string; startUtc?: string | null } | null | undefined,
+): string | null => {
+  if (ev?.date) return String(ev.date).slice(0, 10);
+  if (ev?.startUtc) return localDayFromInstant(ev.startUtc);
+  return null;
+};
+
+// The clock window of the scheduled event(s) on a day. Returns null when there
+// is no event, or any event that day has no clock time (treated as all-day per
+// the agreed rule — a no-time game blocks the whole day). When all events that
+// day are timed, returns the union [earliest start, latest end]; a missing end
+// defaults to start + 2h.
+export const eventWindowForDate = (
+  games: Array<any> | null | undefined,
+  practices: Array<any> | null | undefined,
+  dateIso: string | null | undefined,
+): TimeWindow | null => {
+  if (!dateIso) return null;
+  const day = String(dateIso).slice(0, 10);
+  const wins: TimeWindow[] = [];
+  let sawEvent = false;
+  const consider = (
+    start: number | null,
+    end: number | null,
+  ): boolean => {
+    sawEvent = true;
+    if (start == null) return false; // untimed event → all-day
+    wins.push({ start, end: end ?? Math.min(start + 120, 24 * 60) });
+    return true;
+  };
+  for (const g of games || []) {
+    if (eventDayOf(g) !== day) continue;
+    const start = instantToLocalMinutes(g?.startUtc) ?? timeToMinutes(g?.time);
+    if (!consider(start, instantToLocalMinutes(g?.endUtc))) return null;
+  }
+  for (const p of practices || []) {
+    if (eventDayOf(p) !== day) continue;
+    const start = instantToLocalMinutes(p?.startUtc);
+    if (!consider(start, instantToLocalMinutes(p?.endUtc))) return null;
+  }
+  if (!sawEvent || wins.length === 0) return null;
+  return {
+    start: Math.min(...wins.map((w) => w.start)),
+    end: Math.max(...wins.map((w) => w.end)),
+  };
+};
+
+// Whether a player is unavailable for an event on a date, honoring time windows.
+// All-day blocks (or any block when the event itself is all-day / window is
+// null) always count as out; a timed block only counts as out when it overlaps
+// the event window. Passing no eventWindow falls back to all-day semantics, so
+// existing callers keep their original behavior.
+export const isPlayerOutForEvent = (
+  player:
+    | { absences?: string[]; absenceWindows?: AbsenceWindow[] }
     | null
     | undefined,
   dateIso: string | null | undefined,
+  eventWindow?: TimeWindow | null,
+): boolean => {
+  if (!dateIso) return false;
+  const day = String(dateIso).slice(0, 10);
+  const inAbsences = (player?.absences || []).includes(day);
+  const windows = (player?.absenceWindows || []).filter(
+    (w) => String(w?.date).slice(0, 10) === day,
+  );
+  if (!inAbsences && windows.length === 0) return false;
+  // A pure all-day block: the date is in absences with no timed window, or a
+  // window is missing a start/end.
+  const allDay =
+    (inAbsences && windows.length === 0) ||
+    windows.some(
+      (w) => timeToMinutes(w.start) == null || timeToMinutes(w.end) == null,
+    );
+  if (allDay) return true;
+  // Only timed blocks remain. An all-day event (null window) conflicts with any.
+  if (!eventWindow) return true;
+  return windows.some((w) => {
+    const s = timeToMinutes(w.start);
+    const e = timeToMinutes(w.end);
+    if (s == null || e == null) return true;
+    return s < eventWindow.end && e > eventWindow.start;
+  });
+};
+
+// How many non-departed players are available on a date. Pass the day's
+// `eventWindow` (see eventWindowForDate) for time-aware counting; omit it for
+// all-day semantics.
+export const countAvailableOnDate = (
+  players:
+    | Array<{
+        rosterStatus?: string;
+        absences?: string[];
+        absenceWindows?: AbsenceWindow[];
+      }>
+    | null
+    | undefined,
+  dateIso: string | null | undefined,
+  eventWindow?: TimeWindow | null,
 ): number => {
   if (!dateIso) return 0;
   const day = String(dateIso).slice(0, 10);
   return (players || []).filter(
-    (p) => !isDepartedPlayer(p) && !isPlayerScheduledOut(p, day),
+    (p) => !isDepartedPlayer(p) && !isPlayerOutForEvent(p, day, eventWindow),
   ).length;
 };
 
@@ -1465,20 +1604,26 @@ export const isShortHandedOnDate = (
     | undefined,
   dateIso: string | null | undefined,
   minPlayers: number,
-): boolean => countAvailableOnDate(players, dateIso) < minPlayers;
+  eventWindow?: TimeWindow | null,
+): boolean => countAvailableOnDate(players, dateIso, eventWindow) < minPlayers;
 
 // The non-departed players scheduled out on a date — drives the "who's out"
-// panel when the coach taps a day.
+// panel when the coach taps a day. Time-aware when an eventWindow is passed.
 export const playersOutOnDate = <
-  T extends { rosterStatus?: string; absences?: string[] },
+  T extends {
+    rosterStatus?: string;
+    absences?: string[];
+    absenceWindows?: AbsenceWindow[];
+  },
 >(
   players: T[] | null | undefined,
   dateIso: string | null | undefined,
+  eventWindow?: TimeWindow | null,
 ): T[] => {
   if (!dateIso) return [];
   const day = String(dateIso).slice(0, 10);
   return (players || []).filter(
-    (p) => !isDepartedPlayer(p) && isPlayerScheduledOut(p, day),
+    (p) => !isDepartedPlayer(p) && isPlayerOutForEvent(p, day, eventWindow),
   );
 };
 
