@@ -9,6 +9,7 @@ import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
 import { ArmCarePanel } from "../components/ArmCarePanel";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
+import { downloadRosterDirectoryPdf } from "../roster/rosterDirectoryPdf";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
 const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
@@ -410,6 +411,19 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
               className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
             >
               <Icons.Download className="w-3.5 h-3.5" /> Player Info CSV
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                downloadRosterDirectoryPdf({
+                  team,
+                  players: team?.players,
+                  toast,
+                })
+              }
+              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+            >
+              <Icons.FileText className="w-3.5 h-3.5" /> Directory PDF
             </button>
             <button
               type="button"
