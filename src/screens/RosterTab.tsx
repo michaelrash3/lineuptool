@@ -433,9 +433,21 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
 });
 
 export const RosterTab = memo(() => {
-  const { team, currentRole, uploadStatsCsv } = useTeam();
+  const {
+    team,
+    currentRole,
+    uploadStatsCsv,
+    exportRosterCsv,
+    exportPlayerInfoCsv,
+  } = useTeam();
   const canEdit = currentRole !== "assistant";
-  const { setIsAddingPlayer, openPlayerProfile } = useUI();
+  const { setIsAddingPlayer, openPlayerProfile: recordProfileOpen } = useUI();
+  const openPlayerProfile = (id: string) => {
+    recordProfileOpen?.(id);
+    if (typeof window !== "undefined")
+      window.history.pushState(null, "", `/roster/${id}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
   const { players, logoUrl, currentSeason } = team;
   const stripped = (team as any).statDisplay === "stripped";
 
@@ -714,6 +726,7 @@ export const RosterTab = memo(() => {
           onSelect={setSelectedStatsId}
         />
       </div>
+
       {canEdit && (
         <ImportCsvButton
           id="roster-import-csv"
@@ -721,6 +734,54 @@ export const RosterTab = memo(() => {
           onChange={uploadStatsCsv}
           hint="TeamSnap roster or GameChanger CSV"
         />
+      )}
+      {canEdit && (
+        <div className="cc-card p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-widest text-ink-3">
+                Player Info completion
+              </div>
+              <div className="text-2xl font-black text-ink">
+                {players.filter((p: any) => p.playerInfoSubmittedAt).length}/
+                {players.length} submitted
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={exportRosterCsv}
+                className="t-button"
+              >
+                Roster CSV
+              </button>
+              <button
+                type="button"
+                onClick={exportPlayerInfoCsv}
+                className="t-button"
+              >
+                Player Info CSV
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {players.map((p: any) => (
+              <div
+                key={p.id}
+                className="flex items-center justify-between gap-2 border border-line bg-surface px-3 py-2 text-xs font-bold"
+              >
+                <span className="truncate">{p.name || "Unnamed Player"}</span>
+                <span
+                  className={p.playerInfoSubmittedAt ? "text-win" : "text-loss"}
+                >
+                  {p.playerInfoSubmittedAt
+                    ? `✓ ${new Date(p.playerInfoSubmittedAt).toLocaleDateString()}`
+                    : "✕ Missing"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

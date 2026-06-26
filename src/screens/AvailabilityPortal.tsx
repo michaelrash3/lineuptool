@@ -143,21 +143,27 @@ const MonthPicker = ({
     });
 
   return (
-    <div className="bg-surface border border-line rounded-xl p-3">
-      <div className="flex items-center justify-between mb-2">
+    <div className="relative overflow-hidden bg-surface border border-line rounded-xl p-4 shadow-card">
+      <div
+        className="-m-4 mb-4 px-4 py-3 flex items-center justify-between"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--team-primary), var(--team-secondary))",
+        }}
+      >
         <button
           type="button"
           onClick={() => step(-1)}
-          className="p-1.5 rounded-md text-ink-2 hover:bg-surface-2"
+          className="p-2 rounded-md text-white hover:bg-white/15"
           aria-label="Previous month"
         >
           <Icons.ChevronDown className="w-4 h-4 rotate-90" />
         </button>
-        <span className="t-button text-ink">{monthLabel}</span>
+        <span className="t-button text-white">{monthLabel}</span>
         <button
           type="button"
           onClick={() => step(1)}
-          className="p-1.5 rounded-md text-ink-2 hover:bg-surface-2"
+          className="p-2 rounded-md text-white hover:bg-white/15"
           aria-label="Next month"
         >
           <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
@@ -173,7 +179,7 @@ const MonthPicker = ({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
         {cells.map((iso, i) => {
           if (!iso) return <div key={i} />;
           const isSel = selected.has(iso);
@@ -186,7 +192,7 @@ const MonthPicker = ({
               disabled={isPast}
               onClick={() => onToggle(iso)}
               aria-pressed={isSel}
-              className={`aspect-square rounded-md text-sm font-bold transition-colors ${
+              className={`aspect-square min-h-11 rounded-md text-base font-bold transition-colors ${
                 isPast
                   ? "text-ink-3 opacity-40 cursor-not-allowed"
                   : isSel
@@ -224,18 +230,12 @@ export const AvailabilityPortal = () => {
   });
   // Selected unavailable dates (ISO yyyy-mm-dd).
   const [dates, setDates] = useState<string[]>([]);
+  const [dateDetails, setDateDetails] = useState<
+    Record<string, { startTime?: string; endTime?: string; reason?: string }>
+  >({});
   // The "add a range" shortcut inputs.
   const [rangeFrom, setRangeFrom] = useState("");
   const [rangeTo, setRangeTo] = useState("");
-
-  // Optional per-date time window + reason, keyed by ISO date.
-  const [details, setDetails] = useState<
-    Record<string, { start?: string; end?: string; reason?: string }>
-  >({});
-  const setDetail = (
-    iso: string,
-    patch: { start?: string; end?: string; reason?: string },
-  ) => setDetails((prev) => ({ ...prev, [iso]: { ...prev[iso], ...patch } }));
 
   const selectedSet = useMemo(() => new Set(dates), [dates]);
   const sortedDates = useMemo(() => [...dates].sort(), [dates]);
@@ -303,10 +303,29 @@ export const AvailabilityPortal = () => {
     };
   }, [linkSlug]);
 
-  const toggleDate = (iso: string) =>
-    setDates((prev) =>
-      prev.includes(iso) ? prev.filter((d) => d !== iso) : [...prev, iso],
-    );
+  const toggleDate = (iso: string) => {
+    setDates((prev) => {
+      if (prev.includes(iso)) {
+        setDateDetails((details) => {
+          const next = { ...details };
+          delete next[iso];
+          return next;
+        });
+        return prev.filter((d) => d !== iso);
+      }
+      return [...prev, iso].sort();
+    });
+  };
+
+  const updateDateDetail = (
+    iso: string,
+    patch: { startTime?: string; endTime?: string; reason?: string },
+  ) => {
+    setDateDetails((prev) => ({
+      ...prev,
+      [iso]: { ...(prev[iso] || {}), ...patch },
+    }));
+  };
 
   const addRange = () => {
     if (!rangeFrom) return setError("Pick a start date for the range.");
@@ -348,21 +367,18 @@ export const AvailabilityPortal = () => {
       phone: clampText(form.phone, SIGNUP_LIMITS.phone),
       // Cap the payload — a sane ceiling on dates per submission.
       dates: sortedDates.slice(0, 366),
-      // Per-date time window + reason (only the fields the parent filled in).
-      blocks: sortedDates.slice(0, 366).map((d) => {
-        const det = details[d] || {};
-        const block: {
-          date: string;
-          start?: string;
-          end?: string;
-          reason?: string;
-        } = { date: d };
-        if (det.start) block.start = det.start;
-        if (det.end) block.end = det.end;
-        if (det.reason)
-          block.reason = clampText(det.reason, SIGNUP_LIMITS.notes);
-        return block;
-      }),
+      blocks: sortedDates.slice(0, 366).map((date) => ({
+        date,
+        ...(dateDetails[date]?.startTime
+          ? { startTime: dateDetails[date].startTime }
+          : {}),
+        ...(dateDetails[date]?.endTime
+          ? { endTime: dateDetails[date].endTime }
+          : {}),
+        ...(dateDetails[date]?.reason
+          ? { reason: clampText(dateDetails[date].reason || "", 140) }
+          : {}),
+      })),
     };
 
     try {
@@ -463,7 +479,7 @@ export const AvailabilityPortal = () => {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-surface backdrop-blur rounded-2xl shadow-card border border-line overflow-hidden"
+        className="bg-transparent rounded-2xl shadow-card border border-line overflow-hidden"
       >
         <div
           className="h-1 w-full"
@@ -558,75 +574,69 @@ export const AvailabilityPortal = () => {
 
             {sortedDates.length > 0 && (
               <div className="space-y-2">
-                <p className="text-[11px] text-ink-3 font-medium">
-                  Optionally add a time window and a reason for each date. Leave
-                  the times blank if your player is out all day.
-                </p>
-                {sortedDates.map((d) => {
-                  const det = details[d] || {};
-                  return (
-                    <div
-                      key={d}
-                      className="bg-surface-2 border border-line rounded-md p-2.5 space-y-2"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-black text-ink">
-                          {formatShortDate(d)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setDates((prev) => removeAbsenceDates(prev, [d]))
-                          }
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold text-ink-3 hover:bg-loss-bg hover:text-loss hover:border-loss border border-line transition-colors"
-                          title="Remove this date"
-                        >
-                          Remove <Icons.X className="w-3 h-3" />
-                        </button>
+                {sortedDates.map((d) => (
+                  <div
+                    key={d}
+                    className="border border-line bg-surface-2 p-3 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-black text-ink">
+                        {formatShortDate(d)}
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-ink-3">
-                            Unavailable from
-                          </span>
-                          <input
-                            type="time"
-                            value={det.start || ""}
-                            onChange={(e) =>
-                              setDetail(d, { start: e.target.value })
-                            }
-                            className={INPUT_BASE}
-                            style={RING_STYLE}
-                          />
-                        </label>
-                        <label className="flex flex-col gap-1">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-ink-3">
-                            Until
-                          </span>
-                          <input
-                            type="time"
-                            value={det.end || ""}
-                            onChange={(e) =>
-                              setDetail(d, { end: e.target.value })
-                            }
-                            className={INPUT_BASE}
-                            style={RING_STYLE}
-                          />
-                        </label>
-                      </div>
-                      <input
-                        type="text"
-                        value={det.reason || ""}
-                        onChange={(e) =>
-                          setDetail(d, { reason: e.target.value })
-                        }
-                        placeholder="Reason (optional) — e.g. travel, school event"
-                        className={INPUT_BASE}
-                        style={RING_STYLE}
-                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDates((prev) => removeAbsenceDates(prev, [d]));
+                          setDateDetails((prev) => {
+                            const next = { ...prev };
+                            delete next[d];
+                            return next;
+                          });
+                        }}
+                        className="text-loss text-[11px] font-black uppercase tracking-widest inline-flex items-center gap-1"
+                        title="Remove this date"
+                      >
+                        <Icons.X className="w-3 h-3" /> Remove
+                      </button>
                     </div>
-                  );
-                })}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <Field label="Start time (optional)">
+                        <input
+                          type="time"
+                          value={dateDetails[d]?.startTime || ""}
+                          onChange={(e) =>
+                            updateDateDetail(d, { startTime: e.target.value })
+                          }
+                          className={INPUT_BASE}
+                          style={RING_STYLE}
+                        />
+                      </Field>
+                      <Field label="End time (optional)">
+                        <input
+                          type="time"
+                          value={dateDetails[d]?.endTime || ""}
+                          onChange={(e) =>
+                            updateDateDetail(d, { endTime: e.target.value })
+                          }
+                          className={INPUT_BASE}
+                          style={RING_STYLE}
+                        />
+                      </Field>
+                      <Field label="Reason (optional)">
+                        <input
+                          type="text"
+                          value={dateDetails[d]?.reason || ""}
+                          onChange={(e) =>
+                            updateDateDetail(d, { reason: e.target.value })
+                          }
+                          placeholder="Vacation, school event..."
+                          className={INPUT_BASE}
+                          style={RING_STYLE}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </section>

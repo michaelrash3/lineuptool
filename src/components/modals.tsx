@@ -1846,7 +1846,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                 <button
                   type="button"
                   onClick={() => setShowNotReturning(true)}
-                  className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                  className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Not Returning
                 </button>
@@ -1866,6 +1866,14 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
               { key: "parent2Name", label: "Parent / Guardian 2 Name" },
               { key: "parent2Phone", label: "Parent 2 Phone" },
               { key: "parent2Email", label: "Parent 2 Email" },
+              { key: "school", label: "School" },
+              { key: "grade", label: "Grade" },
+              { key: "hatSize", label: "Hat Size" },
+              { key: "shirtSize", label: "Shirt Size" },
+              { key: "pantsSize", label: "Pants Size" },
+              { key: "height", label: "Height" },
+              { key: "weight", label: "Weight" },
+              { key: "notes", label: "Player Info Notes" },
             ].map(({ key, label }) => (
               <div key={key}>
                 <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
@@ -1882,45 +1890,6 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                 />
               </div>
             ))}
-
-            {/* Read-only Player Info captured from the Player Info form. */}
-            {[
-              ["number", "Jersey #"],
-              ["hatSize", "Hat"],
-              ["shirtSize", "Shirt"],
-              ["pantsSize", "Pants"],
-              ["height", "Height"],
-              ["weight", "Weight"],
-              ["school", "School"],
-              ["grade", "Grade"],
-            ].some(([k]) => player[k]) && (
-              <div>
-                <h4 className="font-black text-xs uppercase tracking-widest text-ink-3 flex items-center gap-2 mt-2 mb-2">
-                  <Icons.Users className="w-4 h-4" /> Player Info
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    ["number", "Jersey #"],
-                    ["hatSize", "Hat"],
-                    ["shirtSize", "Shirt"],
-                    ["pantsSize", "Pants"],
-                    ["height", "Ht"],
-                    ["weight", "Wt"],
-                    ["school", "School"],
-                    ["grade", "Grade"],
-                  ].map(([k, lbl]) =>
-                    player[k] ? (
-                      <span
-                        key={k}
-                        className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded bg-surface-2 border border-line text-ink"
-                      >
-                        {lbl}: {String(player[k])}
-                      </span>
-                    ) : null,
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -2000,7 +1969,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
   );
 });
 
-// Routed player profile (/player/:playerId). Drives the shared PlayerProfile
+// Routed player profile (/roster/:playerId). Drives the shared PlayerProfile
 // content from the URL param instead of an overlay, so each player has their
 // own page. Clears the viewing id on unmount so a stale overlay can't linger.
 export const PlayerProfilePage = memo(() => {

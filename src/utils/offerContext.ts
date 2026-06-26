@@ -23,18 +23,6 @@ export const makeOfferLetterContext = (
       : finances.depositAmount != null
         ? Number(finances.depositAmount)
         : null;
-  // Coach's Venmo, set in Settings → Tryouts. Accept either a handle
-  // ("@Trash-Pandas" or "Trash-Pandas") or a full link; derive the missing one.
-  const rawHandle = String(team?.venmoHandle || "").trim();
-  const handle = rawHandle.replace(/^@/, "");
-  const rawLink = String(team?.venmoLink || "").trim();
-  const venmoLink = rawLink || (handle ? `https://venmo.com/u/${handle}` : "");
-  const venmoName = rawHandle
-    ? rawHandle.startsWith("@")
-      ? rawHandle
-      : `@${handle}`
-    : "";
-
   return {
     playerName: recipientName || "[Player Name]",
     teamName: team?.name || "our team",
@@ -45,7 +33,7 @@ export const makeOfferLetterContext = (
     coachName: user?.displayName || "Your coach",
     coachEmail: user?.email || "",
     coachPhone: (team?.headCoachPhone as string) || "",
-    venmoName,
-    venmoLink,
+    venmoAccountName: (team?.coachVenmoAccountName as string) || "",
+    venmoLink: (team?.coachVenmoLink as string) || "",
   };
 };

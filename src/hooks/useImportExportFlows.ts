@@ -611,28 +611,28 @@ export const useImportExportFlows = ({
 
   // Player Info CSV — every field collected on the Player Info form, applied
   // onto the roster. Separate from the basic roster CSV so the sizing/contact
-  // export stays self-contained. parent2 falls back to legacy emergency fields.
+  // export stays self-contained. Parent 2 falls back to legacy emergency fields.
   const playerInfoToCsv = useCallback((players: any[]) => {
     const headers = [
       "First",
       "Last",
       "Jersey Number",
       "Birthdate",
-      "Hat",
-      "Shirt",
-      "Pants",
-      "Height",
-      "Weight",
-      "School",
-      "Grade",
+      "Submitted At",
       "Parent 1 Name",
       "Parent 1 Phone",
       "Parent 1 Email",
       "Parent 2 Name",
       "Parent 2 Phone",
       "Parent 2 Email",
+      "Hat Size",
+      "Shirt Size",
+      "Pants Size",
+      "Height",
+      "Weight",
+      "School",
+      "Grade",
       "Notes",
-      "Submitted",
     ];
     const rows = (players || []).map((p) => {
       const parts = (p.name || "").trim().split(/\s+/);
@@ -644,6 +644,15 @@ export const useImportExportFlows = ({
         last,
         p.number,
         p.dob,
+        p.playerInfoSubmittedAt
+          ? String(p.playerInfoSubmittedAt).slice(0, 10)
+          : "",
+        p.parentName,
+        p.phone,
+        p.email,
+        p.parent2Name || p.emergencyName,
+        p.parent2Phone || p.emergencyPhone,
+        p.parent2Email,
         p.hatSize,
         p.shirtSize,
         p.pantsSize,
@@ -651,16 +660,7 @@ export const useImportExportFlows = ({
         p.weight,
         p.school,
         p.grade,
-        p.parentName,
-        p.phone,
-        p.email,
-        p.parent2Name || p.emergencyName,
-        p.parent2Phone || p.emergencyPhone,
-        p.parent2Email,
         p.notes,
-        p.playerInfoSubmittedAt
-          ? String(p.playerInfoSubmittedAt).slice(0, 10)
-          : "",
       ]
         .map(csvEscape)
         .join(",");

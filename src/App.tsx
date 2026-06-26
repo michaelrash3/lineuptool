@@ -3172,7 +3172,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // Each player has their own page now: navigate to /player/:id. The route's
   // PlayerProfilePage sets viewingPlayerId, which the profile content reads.
   const openPlayerProfile = useCallback(
-    (id: string) => navigateToRoute(`/player/${id}`),
+    (id: string) => navigateToRoute(`/roster/${id}`),
     [navigateToRoute],
   );
 
@@ -3740,8 +3740,7 @@ const MainShell = () => {
   return (
     <div className="min-h-screen bg-app print:bg-surface relative">
       {/* Massive team-logo watermark — part of the team's branding, fixed
-          behind all content. The fluid (glassy/translucent) screens let it
-          show through. Only renders when the team has a logo set. */}
+          behind all content and visible through transparent non-modal cards. Only renders when the team has a logo set. */}
       {team?.logoUrl && (
         <div
           aria-hidden="true"
@@ -3771,7 +3770,7 @@ const MainShell = () => {
                 <Route path="/stats" element={<StatsTab />} />
                 <Route path="/roster" element={<RosterTab />} />
                 <Route
-                  path="/player/:playerId"
+                  path="/roster/:playerId"
                   element={<PlayerProfilePage />}
                 />
                 <Route path="/depth-chart" element={<DepthChartTab />} />

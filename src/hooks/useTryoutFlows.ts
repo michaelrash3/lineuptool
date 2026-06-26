@@ -318,25 +318,27 @@ export const useTryoutFlows = ({
       if (!sub || !player) return;
 
       const dates = Array.isArray(sub.dates) ? sub.dates : [];
+      const blocks = Array.isArray(sub.blocks)
+        ? sub.blocks
+        : dates.map((date: string) => ({ date }));
       const mergedAbsences = [
         ...new Set([...(player.absences || []), ...dates]),
       ].sort();
-      // Union the submission's time/reason windows into absenceWindows, deduped
-      // by date+start+end so re-submitting the same block is a no-op. Pure add —
-      // a parent re-filing the form only ever appends, never overwrites.
-      const subBlocks = Array.isArray(sub.blocks) ? sub.blocks : [];
-      const windowKey = (w: any) =>
-        `${String(w?.date).slice(0, 10)}|${w?.start || ""}|${w?.end || ""}`;
-      const windowMap = new Map<string, any>();
-      for (const w of [...(player.absenceWindows || []), ...subBlocks]) {
-        if (!w?.date) continue;
-        const key = windowKey(w);
+      // Union the submission's time/reason blocks, deduped by date+start+end so
+      // re-submitting the same block is a no-op. Pure add — a parent re-filing
+      // the form only ever appends, never overwrites.
+      const blockKey = (b: any) =>
+        `${String(b?.date).slice(0, 10)}|${b?.startTime || ""}|${b?.endTime || ""}`;
+      const blockMap = new Map<string, any>();
+      for (const b of [...(player.availabilityBlocks || []), ...blocks]) {
+        if (!b?.date) continue;
+        const key = blockKey(b);
         // Prefer an entry that carries a reason when merging duplicates.
-        if (!windowMap.has(key) || (w.reason && !windowMap.get(key)?.reason)) {
-          windowMap.set(key, { ...w, date: String(w.date).slice(0, 10) });
+        if (!blockMap.has(key) || (b.reason && !blockMap.get(key)?.reason)) {
+          blockMap.set(key, { ...b, date: String(b.date).slice(0, 10) });
         }
       }
-      const mergedWindows = [...windowMap.values()].sort((a, b) =>
+      const mergedBlocks = [...blockMap.values()].sort((a, b) =>
         a.date.localeCompare(b.date),
       );
       const now = new Date().toISOString();
@@ -345,7 +347,7 @@ export const useTryoutFlows = ({
           ? {
               ...p,
               absences: mergedAbsences,
-              absenceWindows: mergedWindows,
+              availabilityBlocks: mergedBlocks,
               availabilitySubmittedAt: sub.submittedAt || now,
             }
           : p,
@@ -420,22 +422,24 @@ export const useTryoutFlows = ({
       if (!player) continue;
       const target = playersById.get(player.id);
       const dates = Array.isArray(sub.dates) ? sub.dates : [];
+      const blocks = Array.isArray(sub.blocks)
+        ? sub.blocks
+        : dates.map((date: string) => ({ date }));
       target.absences = [
         ...new Set([...(target.absences || []), ...dates]),
       ].sort();
-      // Union time/reason windows, deduped by date+start+end (pure add).
-      const subBlocks = Array.isArray(sub.blocks) ? sub.blocks : [];
+      // Union time/reason blocks, deduped by date+start+end (pure add).
       const wKey = (w: any) =>
-        `${String(w?.date).slice(0, 10)}|${w?.start || ""}|${w?.end || ""}`;
+        `${String(w?.date).slice(0, 10)}|${w?.startTime || ""}|${w?.endTime || ""}`;
       const wMap = new Map<string, any>();
-      for (const w of [...(target.absenceWindows || []), ...subBlocks]) {
+      for (const w of [...(target.availabilityBlocks || []), ...blocks]) {
         if (!w?.date) continue;
         const key = wKey(w);
         if (!wMap.has(key) || (w.reason && !wMap.get(key)?.reason)) {
           wMap.set(key, { ...w, date: String(w.date).slice(0, 10) });
         }
       }
-      target.absenceWindows = [...wMap.values()].sort((a, b) =>
+      target.availabilityBlocks = [...wMap.values()].sort((a, b) =>
         a.date.localeCompare(b.date),
       );
       target.availabilitySubmittedAt = sub.submittedAt || now;

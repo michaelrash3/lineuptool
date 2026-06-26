@@ -977,28 +977,6 @@ export function calculateTotalScore(
   return Math.min(100, Math.max(0, Math.round((raw / TOTAL_SCORE_MAX) * 100)));
 }
 
-// The composite shown on the Player Development Report (and Awards / Season
-// Report improver math). It is the same 0–100 percentage scale as the Stats
-// "Overall" column (calculateTotalScore), with pitch velocity folded in: mph is
-// a raw measurement, never a 1–5 grade, so it's converted to an age-relative
-// quality (0..1 via calcVelocityQuality) and applied as a ±5 shift around the
-// neutral mid-band. Position players (no velocity reading) are unaffected.
-export function evalCompositeScore(
-  grades: GradeMap | null | undefined,
-  stats?: PlayerStats | null,
-  teamAge?: string,
-): number {
-  const base = calculateTotalScore(grades, stats);
-  const mph =
-    numOrNull(grades?.pitchVelo) ??
-    numOrNull(stats?.pTopMph) ??
-    numOrNull(stats?.pFbMph);
-  const quality = calcVelocityQuality(mph ?? null, teamAge);
-  if (quality == null) return base;
-  const shift = (quality - 0.5) * 10; // −5 (weak) … +5 (elite)
-  return Math.min(100, Math.max(0, Math.round(base + shift)));
-}
-
 // ---------- Pitch count eligibility ----------
 
 // Little League / Pitch Smart daily max by age — the default rule set. Also the

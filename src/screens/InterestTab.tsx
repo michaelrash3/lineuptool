@@ -87,7 +87,6 @@ export const InterestTab = memo(() => {
           {leads.length === 0 ? (
             <EmptyState
               glyph="🧢"
-              logoUrl={team?.logoUrl}
               title="No interest signups yet"
               body="Share your team's standing link or QR code. Parents will appear here as they submit."
             />

@@ -24,23 +24,27 @@ describe("makeOfferLetterContext", () => {
     expect(ctx.depositDueDate).toBe("2026-07-15");
   });
 
-  it("derives the Venmo link + display name from a bare handle", () => {
+  it("passes the coach Venmo account name + link through", () => {
     const ctx = makeOfferLetterContext(
-      { name: "Trash Pandas", venmoHandle: "Trash-Pandas" },
+      {
+        name: "Trash Pandas",
+        coachVenmoAccountName: "@Trash-Pandas",
+        coachVenmoLink: "https://venmo.com/u/Trash-Pandas",
+      },
       { displayName: "Coach", email: "coach@example.com" },
       "Ava",
     );
-    expect(ctx.venmoName).toBe("@Trash-Pandas");
+    expect(ctx.venmoAccountName).toBe("@Trash-Pandas");
     expect(ctx.venmoLink).toBe("https://venmo.com/u/Trash-Pandas");
   });
 
-  it("leaves Venmo blank when no handle or link is set", () => {
+  it("leaves Venmo blank when nothing is set", () => {
     const ctx = makeOfferLetterContext(
       { name: "Trash Pandas" },
       { displayName: "Coach", email: "coach@example.com" },
       "Ava",
     );
-    expect(ctx.venmoName).toBe("");
+    expect(ctx.venmoAccountName).toBe("");
     expect(ctx.venmoLink).toBe("");
   });
 });

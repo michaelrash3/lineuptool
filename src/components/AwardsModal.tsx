@@ -2,7 +2,8 @@ import React, { memo, useMemo, useState } from "react";
 import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
-import { evalCompositeScore } from "../lineupEngine";
+import { getEvalCategoriesForTeam } from "../constants/ui";
+import { currentEvaluationScore100 } from "../utils/evaluationScore";
 
 // Auto season awards / superlatives. Each award nominates a winner straight
 // from the team's data; the coach can override per award (persisted on the team
@@ -64,9 +65,9 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
 
   // Pre-compute the two non-stat awards (eval growth + attendance).
   const improver = useMemo(() => {
-    // Same 0–100 composite (incl. velocity) as the Development Report.
-    const overallOf = (g: any, stats: any) =>
-      g ? evalCompositeScore(g, stats, team?.teamAge) : undefined;
+    const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
+    const overallOf = (g: any, p: any) =>
+      currentEvaluationScore100(g, p, team?.teamAge) ?? undefined;
     let best: any = null;
     let bestDelta = 0;
     for (const p of players) {
@@ -79,8 +80,8 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
             (a.createdAt || 0) - (b.createdAt || 0),
         );
       if (rounds.length < 2) continue;
-      const f = overallOf(rounds[0].grades[p.id], p.stats);
-      const l = overallOf(rounds[rounds.length - 1].grades[p.id], p.stats);
+      const f = overallOf(rounds[0].grades[p.id], p);
+      const l = overallOf(rounds[rounds.length - 1].grades[p.id], p);
       if (f === undefined || l === undefined) continue;
       const d = l - f;
       if (d > bestDelta) {
@@ -89,9 +90,9 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
       }
     }
     return best
-      ? { playerId: best.id, value: `+${Math.round(bestDelta)}` }
+      ? { playerId: best.id, value: `+${bestDelta.toFixed(1)}` }
       : null;
-  }, [players, evaluationEvents, team?.teamAge]);
+  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
 
   const ironman = useMemo(() => {
     const maps = [

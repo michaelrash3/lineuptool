@@ -99,7 +99,7 @@
   --surface-glass-4: rgba(255, 255, 255, 0.6);
   --surface-glass-5: rgba(255, 255, 255, 0.8);
   --hairline: rgba(15, 23, 42, 0.08);
-  /* Translucent glass fill + top sheen used by .glass / premium cards. */
+  /* Legacy glass tokens retained for theme compatibility and subtle sheens. */
   --glass-fill: color-mix(in srgb, var(--surface) 80%, transparent);
   --sheen: linear-gradient(
     180deg,
@@ -402,27 +402,27 @@ body::before {
 
 .glass-card {
   position: relative;
-  background: var(--surface);
+  background: transparent;
   border: 1px solid var(--line);
   box-shadow: var(--shadow-card), var(--card-ring);
   border-radius: var(--radius);
   overflow: hidden;
 }
 
-/* Reusable premium surface — layered fill, hairline border, inner sheen. */
+/* Reusable premium card frame — transparent so team watermarks remain visible. */
 .cc-card {
   position: relative;
-  background: var(--surface);
+  background: transparent;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card), var(--card-ring);
 }
 
-/* Solid chrome panel for floating surfaces (headers, menus, command palette,
-   sticky bars). Frost is reserved for modal scrims only — see the dialog
-   backdrops, which keep their backdrop-blur. */
+/* Transparent premium panel — no frosted fill/blur so non-modal app chrome
+   lets the team watermark show through. Popup modal panels/backdrops define
+   their own surfaces separately where needed. */
 .glass {
-  background: var(--surface);
+  background: transparent;
   border: 1px solid var(--hairline);
 }
 

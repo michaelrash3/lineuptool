@@ -151,7 +151,6 @@ export const PlayerInfoTab = memo(() => {
           {submissions.length === 0 ? (
             <EmptyState
               glyph="🧢"
-              logoUrl={team?.logoUrl}
               title="No player info submitted yet"
               body="Share your team's Player Info link or QR code (found on the Roster page). Submissions will appear here as parents fill it out."
             />

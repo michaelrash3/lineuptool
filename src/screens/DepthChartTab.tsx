@@ -164,7 +164,7 @@ const PositionCard = memo(
     };
 
     return (
-      <div className="glass cc-sheen shadow-card border border-line overflow-hidden">
+      <div className="cc-card overflow-hidden">
         <div
           className="h-1 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -174,7 +174,7 @@ const PositionCard = memo(
             <span
               className="inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-sm text-[11px] font-black tracking-widest"
               style={{
-                backgroundColor: "var(--team-primary-15)",
+                backgroundColor: "var(--team-tertiary)",
                 color: "var(--team-primary)",
               }}
             >
@@ -404,7 +404,7 @@ export const DepthChartTab = memo(() => {
 
   return (
     <div className="space-y-4 max-w-screen-2xl mx-auto">
-      <div className="glass cc-sheen shadow-card border border-line px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="cc-card px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div
             className="p-2 rounded-full"
@@ -442,7 +442,7 @@ export const DepthChartTab = memo(() => {
       </div>
 
       {players.length === 0 ? (
-        <div className="glass cc-sheen shadow-card border border-line p-8 text-center text-ink-3 font-medium">
+        <div className="cc-card p-8 text-center text-ink-3 font-medium">
           {team.logoUrl ? (
             <img
               src={team.logoUrl}

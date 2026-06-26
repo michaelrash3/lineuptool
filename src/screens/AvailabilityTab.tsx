@@ -2,31 +2,16 @@ import React, { memo, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { QRCodeImg } from "../components/QRCodeImg";
-import { AvailabilityCalendar } from "../components/AvailabilityCalendar";
 import {
+  AvailabilityCalendar,
+  type AvailabilityCalendarEvent,
+} from "../components/AvailabilityCalendar";
+import {
+  buildMonthGrid,
+  countAvailableOnDate,
   isDepartedPlayer,
   playersOutOnDate,
-  eventDayOf,
-  eventWindowForDate,
 } from "../utils/helpers";
-
-// Render a player's blocked window + reason on a date for the "who's out" panel.
-const outDetailFor = (player: any, dateIso: string): string => {
-  const day = String(dateIso).slice(0, 10);
-  const w = (player?.absenceWindows || []).find(
-    (x: any) => String(x?.date).slice(0, 10) === day,
-  );
-  if (!w) return "All day";
-  const span =
-    w.start && w.end
-      ? `${w.start}–${w.end}`
-      : w.start
-        ? `from ${w.start}`
-        : w.end
-          ? `until ${w.end}`
-          : "All day";
-  return w.reason ? `${span} · ${w.reason}` : span;
-};
 
 const formatShort = (iso: string): string => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || "");
@@ -51,7 +36,7 @@ const ShareCard = memo(({ team }: any) => {
       ? `${window.location.origin}/availability-portal/${shareId}`
       : null;
   return (
-    <div className="bg-surface border border-line rounded-xl overflow-hidden">
+    <div className="bg-transparent border border-line rounded-xl overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -150,22 +135,33 @@ export const AvailabilityTab = memo(() => {
     return Number.isFinite(n) && n > 0 ? n : 9;
   }, [defenseSize]);
 
-  const games = useMemo(() => team?.games || [], [team?.games]);
-  const practices = useMemo(() => team?.practices || [], [team?.practices]);
-  // Derive each event's day from its explicit date OR its startUtc instant so
-  // feed-imported games (startUtc only) still light up the calendar.
-  const eventDates = useMemo(() => {
-    const set = new Set<string>();
-    for (const g of games) {
-      const d = eventDayOf(g);
-      if (d) set.add(d);
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, AvailabilityCalendarEvent[]>();
+    const add = (date: any, event: AvailabilityCalendarEvent) => {
+      const iso = String(date || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+      map.set(iso, [...(map.get(iso) || []), event]);
+    };
+    for (const g of team?.games || []) {
+      add(g?.date, {
+        id: String(g?.id || `game-${g?.date}-${g?.opponent || ""}`),
+        date: String(g?.date || "").slice(0, 10),
+        type: "game",
+        title: `${g?.isScrimmage ? "Scrimmage" : "Game"}${g?.opponent ? ` vs ${g.opponent}` : ""}`,
+        meta: g?.status === "final" ? "Final" : g?.status || "Scheduled",
+      });
     }
-    for (const p of practices) {
-      const d = eventDayOf(p);
-      if (d) set.add(d);
+    for (const p of team?.practices || []) {
+      add(p?.date, {
+        id: String(p?.id || `practice-${p?.date}`),
+        date: String(p?.date || "").slice(0, 10),
+        type: "practice",
+        title: p?.location ? `Practice · ${p.location}` : "Practice",
+        meta: p?.environment || p?.status || "Scheduled",
+      });
     }
-    return set;
-  }, [games, practices]);
+    return map;
+  }, [team?.games, team?.practices]);
 
   const submissions = useMemo(
     () => team?.availabilitySubmissions || [],
@@ -177,19 +173,13 @@ export const AvailabilityTab = memo(() => {
   );
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const now = new Date();
+  const [visibleMonth, setVisibleMonth] = useState({
+    year: now.getUTCFullYear(),
+    month: now.getUTCMonth(),
+  });
   const [matchById, setMatchById] = useState<Record<string, string>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
-
-  // Newest-first copy of every submitted form, kept for the coach to review.
-  const submissionHistory = useMemo(
-    () =>
-      [...submissions].sort(
-        (a: any, b: any) =>
-          new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
-      ),
-    [submissions],
-  );
 
   // Auto-apply confident (unique name+DOB) matches whenever submissions change.
   // Idempotent: applied entries get appliedToPlayerId so re-runs are no-ops.
@@ -216,20 +206,63 @@ export const AvailabilityTab = memo(() => {
     return hit?.id || "";
   };
 
-  // Time-aware: who's out for the selected day's actual event window (a no-time
-  // event / no event → all-day).
-  const selectedWindow = useMemo(
-    () =>
-      selectedDate ? eventWindowForDate(games, practices, selectedDate) : null,
-    [games, practices, selectedDate],
-  );
   const outOnSelected = useMemo(
-    () =>
-      selectedDate
-        ? playersOutOnDate(players, selectedDate, selectedWindow)
-        : [],
-    [players, selectedDate, selectedWindow],
+    () => (selectedDate ? playersOutOnDate(players, selectedDate) : []),
+    [players, selectedDate],
   );
+  const selectedEvents = useMemo(
+    () => (selectedDate ? eventsByDate.get(selectedDate) || [] : []),
+    [eventsByDate, selectedDate],
+  );
+
+  const selectedAvailable = selectedDate
+    ? activePlayers.length - outOnSelected.length
+    : 0;
+  const selectedShortBy = Math.max(0, minPlayers - selectedAvailable);
+
+  const monthInsights = useMemo(() => {
+    const days = buildMonthGrid(visibleMonth.year, visibleMonth.month).filter(
+      Boolean,
+    ) as string[];
+    let shortHandedDays = 0;
+    let gameConflicts = 0;
+    let practiceConflicts = 0;
+    let worstDay: { iso: string; available: number } | null = null;
+
+    for (const iso of days) {
+      const available = countAvailableOnDate(players, iso);
+      const out = playersOutOnDate(players, iso).length;
+      const events = eventsByDate.get(iso) || [];
+      if (available < minPlayers) shortHandedDays += 1;
+      if (out > 0 && events.some((event) => event.type === "game")) {
+        gameConflicts += 1;
+      }
+      if (out > 0 && events.some((event) => event.type === "practice")) {
+        practiceConflicts += 1;
+      }
+      if (!worstDay || available < worstDay.available) {
+        worstDay = { iso, available };
+      }
+    }
+
+    return { shortHandedDays, gameConflicts, practiceConflicts, worstDay };
+  }, [eventsByDate, minPlayers, players, visibleMonth]);
+
+  const selectedDateLabel = selectedDate
+    ? new Date(
+        Date.UTC(
+          Number(selectedDate.slice(0, 4)),
+          Number(selectedDate.slice(5, 7)) - 1,
+          Number(selectedDate.slice(8, 10)),
+        ),
+      ).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "";
 
   if (!isHead) {
     return (
@@ -244,7 +277,7 @@ export const AvailabilityTab = memo(() => {
   ).length;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="w-full max-w-7xl mx-auto space-y-6">
       <div className="border-b border-line pb-5">
         <h2 className="t-h2 flex items-center gap-3">
           <Icons.Calendar className="w-6 h-6" /> Availability
@@ -258,76 +291,238 @@ export const AvailabilityTab = memo(() => {
 
       <ShareCard team={team} />
 
-      <AvailabilityCalendar
-        players={players}
-        games={games}
-        practices={practices}
-        eventDates={eventDates}
-        minPlayers={minPlayers}
-        logoUrl={team?.logoUrl}
-        selectedDate={selectedDate}
-        onSelectDate={(iso) =>
-          setSelectedDate((prev) => (prev === iso ? null : iso))
-        }
-      />
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:items-start space-y-6 lg:space-y-0">
+        <div className="min-w-0 space-y-4">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Short-handed days
+              </div>
+              <div className="mt-1 text-2xl font-black text-ink">
+                {monthInsights.shortHandedDays}
+              </div>
+            </div>
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Game conflicts
+              </div>
+              <div className="mt-1 text-2xl font-black text-ink">
+                {monthInsights.gameConflicts}
+              </div>
+            </div>
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Practice conflicts
+              </div>
+              <div className="mt-1 text-2xl font-black text-ink">
+                {monthInsights.practiceConflicts}
+              </div>
+            </div>
+            <div className="bg-transparent border border-line rounded-xl p-3 shadow-sm">
+              <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                Worst availability
+              </div>
+              <div className="mt-1 text-sm font-black text-ink truncate">
+                {monthInsights.worstDay
+                  ? `${formatShort(monthInsights.worstDay.iso)} · ${monthInsights.worstDay.available}/${activePlayers.length}`
+                  : "No dates"}
+              </div>
+            </div>
+          </div>
 
-      {selectedDate && (
-        <div className="bg-surface border border-line rounded-xl p-4">
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <h3 className="t-h3">
-              {new Date(
-                Date.UTC(
-                  Number(selectedDate.slice(0, 4)),
-                  Number(selectedDate.slice(5, 7)) - 1,
-                  Number(selectedDate.slice(8, 10)),
-                ),
-              ).toLocaleDateString(undefined, {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                timeZone: "UTC",
-              })}
-            </h3>
-            <button
-              type="button"
-              onClick={() => setSelectedDate(null)}
-              className="p-1 text-ink-3 hover:text-ink"
-              aria-label="Close"
-            >
-              <Icons.X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="text-sm font-bold text-ink mb-2">
-            {activePlayers.length - outOnSelected.length} of{" "}
-            {activePlayers.length} available
-            {eventDates.has(selectedDate) && (
-              <span className="ml-2 text-[10px] font-black uppercase tracking-widest text-ink-3">
-                · Game/practice scheduled
-              </span>
-            )}
-          </div>
-          {outOnSelected.length === 0 ? (
-            <p className="t-meta text-ink-3">Everyone is available.</p>
+          <AvailabilityCalendar
+            players={players}
+            eventsByDate={eventsByDate}
+            minPlayers={minPlayers}
+            selectedDate={selectedDate}
+            onMonthChange={setVisibleMonth}
+            onSelectDate={(iso) =>
+              setSelectedDate((prev) => (prev === iso ? null : iso))
+            }
+          />
+        </div>
+
+        <aside className="bg-transparent border border-line rounded-2xl p-4 shadow-card lg:sticky lg:top-6">
+          {!selectedDate ? (
+            <div className="py-10 text-center">
+              <Icons.Calendar className="w-8 h-8 mx-auto text-ink-3 mb-3" />
+              <h3 className="t-h3">Select a date</h3>
+              <p className="text-sm font-medium text-ink-3 mt-1">
+                Select a date to see who is out.
+              </p>
+            </div>
           ) : (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-widest text-ink-3">
-                Out:
-              </span>
-              {outOnSelected.map((p: any) => (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-2 px-2 py-1 rounded-md text-[11px] font-bold bg-loss-bg text-loss border border-loss"
-                >
-                  <span className="shrink-0">{p.name}</span>
-                  <span className="text-[10px] font-medium text-loss/80 truncate">
-                    {outDetailFor(p, selectedDate)}
-                  </span>
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="t-h3">{selectedDateLabel}</h3>
+                  <div className="text-sm font-bold text-ink mt-1">
+                    {selectedAvailable} of {activePlayers.length} available
+                  </div>
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(null)}
+                  className="p-1 text-ink-3 hover:text-ink"
+                  aria-label="Close"
+                >
+                  <Icons.X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {selectedShortBy > 0 && (
+                <div className="flex items-start gap-2 rounded-xl border border-loss bg-loss-bg p-3 text-loss">
+                  <Icons.Alert className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div className="text-sm font-black">
+                    Short by {selectedShortBy} for a {minPlayers}-player
+                    defense.
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
+                  Scheduled
+                </div>
+                {selectedEvents.length === 0 ? (
+                  <p className="t-meta text-ink-3">No games or practices.</p>
+                ) : (
+                  <div className="grid gap-2">
+                    {selectedEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="rounded-lg border border-line bg-app px-3 py-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                              event.type === "game"
+                                ? "text-white bg-[var(--team-primary)]"
+                                : "bg-win-bg text-win border border-win/40"
+                            }`}
+                          >
+                            {event.type}
+                          </span>
+                          {event.meta && (
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                              {event.meta}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-sm font-bold text-ink">
+                          {event.title}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-ink-3 mb-2">
+                  Unavailable players
+                </div>
+                {outOnSelected.length === 0 ? (
+                  <p className="t-meta text-ink-3">Everyone is available.</p>
+                ) : (
+                  <div className="grid gap-1.5">
+                    {outOnSelected.map((player: any) => (
+                      <span
+                        key={player.id}
+                        className="px-2 py-1.5 rounded-md text-sm font-bold bg-loss-bg text-loss border border-loss"
+                      >
+                        {player.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
-      )}
+        </aside>
+      </div>
+
+      {/* Completed parent forms — full submission details for coach review. */}
+      <div className="space-y-2">
+        <h3 className="t-h3 flex items-center gap-2">
+          <Icons.Clipboard className="w-4 h-4" /> Submitted forms
+          <span className="text-[11px] font-bold text-ink-3">
+            {submissions.length}
+          </span>
+        </h3>
+        {submissions.length === 0 ? (
+          <p className="t-meta text-ink-3 bg-transparent border border-line rounded-xl p-4">
+            No parent Availability forms have been submitted yet.
+          </p>
+        ) : (
+          <div className="grid gap-2">
+            {[...submissions]
+              .sort(
+                (a: any, b: any) =>
+                  new Date(b.submittedAt || 0).getTime() -
+                  new Date(a.submittedAt || 0).getTime(),
+              )
+              .map((sub: any) => {
+                const matched = activePlayers.find(
+                  (p: any) => p.id === sub.appliedToPlayerId,
+                );
+                return (
+                  <div
+                    key={sub.id}
+                    className="bg-transparent border border-line rounded-xl p-3 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-black uppercase tracking-tight text-ink">
+                          {sub.firstName} {sub.lastName}
+                        </div>
+                        <div className="text-[11px] font-medium text-ink-3">
+                          {sub.parentName || "Parent/guardian not listed"}
+                          {sub.email ? ` · ${sub.email}` : ""}
+                          {sub.phone ? ` · ${sub.phone}` : ""}
+                        </div>
+                      </div>
+                      <span
+                        className={`px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${
+                          sub.appliedToPlayerId
+                            ? "bg-win-bg text-win border border-win/40"
+                            : "bg-loss-bg text-loss border border-loss"
+                        }`}
+                      >
+                        {sub.appliedToPlayerId
+                          ? `Applied${matched?.name ? ` to ${matched.name}` : ""}`
+                          : "Needs match"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(sub.dates || []).length === 0 ? (
+                        <span className="text-[11px] font-bold text-ink-3">
+                          No unavailable dates selected.
+                        </span>
+                      ) : (
+                        (sub.dates || []).map((date: string) => (
+                          <button
+                            key={`${sub.id}-${date}`}
+                            type="button"
+                            onClick={() => setSelectedDate(date)}
+                            className="px-2 py-1 rounded-md text-[11px] font-bold bg-app text-ink border border-line hover:border-[var(--team-primary)]"
+                          >
+                            {formatShort(date)}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                      Submitted{" "}
+                      {formatShort(String(sub.submittedAt || "").slice(0, 10))}
+                      {sub.dob ? ` · DOB ${sub.dob}` : ""}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        )}
+      </div>
 
       {/* Match queue — submissions that couldn't auto-match. */}
       {pending.length > 0 && (
@@ -343,7 +538,7 @@ export const AvailabilityTab = memo(() => {
             return (
               <div
                 key={sub.id}
-                className="bg-surface border border-line rounded-xl p-3 flex flex-col gap-2 sm:flex-row sm:items-start shadow-sm"
+                className="bg-transparent border border-line rounded-xl p-3 flex flex-col gap-2 sm:flex-row sm:items-start shadow-sm"
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-black uppercase tracking-tight text-ink">
@@ -449,7 +644,7 @@ export const AvailabilityTab = memo(() => {
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center gap-2 bg-surface border border-line rounded-lg px-3 py-2"
+                    className="flex items-center gap-2 bg-transparent border border-line rounded-lg px-3 py-2"
                   >
                     <span
                       className={`w-5 h-5 rounded-full grid place-items-center shrink-0 ${
@@ -476,94 +671,6 @@ export const AvailabilityTab = memo(() => {
           </div>
         )}
       </div>
-
-      {/* Submitted forms — a saved copy of every parent submission to review. */}
-      {submissionHistory.length > 0 && (
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setShowHistory((v) => !v)}
-            className="w-full flex items-center gap-2"
-            aria-expanded={showHistory}
-          >
-            <h3 className="t-h3 flex items-center gap-2">
-              <Icons.FileText className="w-4 h-4" /> Submitted forms
-              <span className="text-[11px] font-bold text-ink-3">
-                {submissionHistory.length}
-              </span>
-            </h3>
-            <Icons.ChevronDown
-              className={`w-4 h-4 text-ink-3 ml-auto transition-transform ${
-                showHistory ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {showHistory && (
-            <div className="flex flex-col gap-2">
-              {submissionHistory.map((sub: any) => {
-                const blocks =
-                  Array.isArray(sub.blocks) && sub.blocks.length
-                    ? sub.blocks
-                    : (sub.dates || []).map((d: string) => ({ date: d }));
-                return (
-                  <div
-                    key={sub.id}
-                    className="bg-surface border border-line rounded-lg p-3"
-                  >
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-sm font-black uppercase tracking-tight text-ink">
-                        {sub.firstName} {sub.lastName}
-                      </span>
-                      <span className="text-[10px] font-bold text-ink-3">
-                        Submitted{" "}
-                        {formatShort(String(sub.submittedAt).slice(0, 10))}
-                      </span>
-                      {sub.appliedToPlayerId && (
-                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-win-bg text-win">
-                          Applied
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex flex-col gap-1">
-                      {blocks.slice(0, 12).map((b: any, i: number) => {
-                        const span =
-                          b.start && b.end
-                            ? `${b.start}–${b.end}`
-                            : b.start
-                              ? `from ${b.start}`
-                              : b.end
-                                ? `until ${b.end}`
-                                : "All day";
-                        return (
-                          <div
-                            key={i}
-                            className="text-[11px] text-ink-2 font-medium flex flex-wrap gap-x-2"
-                          >
-                            <span className="font-bold text-ink">
-                              {formatShort(b.date)}
-                            </span>
-                            <span className="text-ink-3">{span}</span>
-                            {b.reason && (
-                              <span className="italic text-ink-3">
-                                · {b.reason}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                      {blocks.length > 12 && (
-                        <span className="text-[10px] text-ink-3">
-                          +{blocks.length - 12} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 });

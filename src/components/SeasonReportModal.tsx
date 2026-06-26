@@ -3,7 +3,8 @@ import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { buildSeasonSummary } from "../utils/helpers";
-import { evalCompositeScore } from "../lineupEngine";
+import { getEvalCategoriesForTeam } from "../constants/ui";
+import { currentEvaluationScore100 } from "../utils/evaluationScore";
 
 // End-of-Season team report: record + run diff + streak, top performers,
 // attendance leaders, and biggest eval improvers. Read-only; shareable via
@@ -167,9 +168,9 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
   }, [games, practices, players]);
 
   const improvers = useMemo(() => {
-    // Same 0–100 composite (incl. velocity) as the Development Report.
-    const overallOf = (g: any, stats: any) =>
-      g ? evalCompositeScore(g, stats, team?.teamAge) : undefined;
+    const categories = getEvalCategoriesForTeam(team?.pitchingFormat);
+    const overallOf = (g: any, p: any) =>
+      currentEvaluationScore100(g, p, team?.teamAge) ?? undefined;
     const out: Array<{ player: any; delta: number }> = [];
     for (const p of players) {
       const rounds = evaluationEvents
@@ -181,14 +182,14 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
             (a.createdAt || 0) - (b.createdAt || 0),
         );
       if (rounds.length < 2) continue;
-      const first = overallOf(rounds[0].grades[p.id], p.stats);
-      const last = overallOf(rounds[rounds.length - 1].grades[p.id], p.stats);
+      const first = overallOf(rounds[0].grades[p.id], p);
+      const last = overallOf(rounds[rounds.length - 1].grades[p.id], p);
       if (first === undefined || last === undefined) continue;
       const delta = last - first;
       if (delta > 0) out.push({ player: p, delta });
     }
     return out.sort((a, b) => b.delta - a.delta).slice(0, 3);
-  }, [players, evaluationEvents, team?.teamAge]);
+  }, [players, evaluationEvents, team?.pitchingFormat, team?.teamAge]);
 
   const reportText = useMemo(() => {
     const lines = [
@@ -217,7 +218,7 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
     if (improvers.length) {
       lines.push("", "Most improved (eval):");
       for (const im of improvers)
-        lines.push(`• ${im.player.name} (+${Math.round(im.delta)})`);
+        lines.push(`• ${im.player.name} (+${im.delta.toFixed(1)})`);
     }
     return lines.join("\n");
   }, [team, summary, leaders, attendance, improvers]);
@@ -357,7 +358,7 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
                     {im.player.name}
                   </span>
                   <span className="text-sm font-black tabular-nums text-win shrink-0">
-                    ▲ +{Math.round(im.delta)}
+                    ▲ +{im.delta.toFixed(1)}
                   </span>
                 </li>
               ))}

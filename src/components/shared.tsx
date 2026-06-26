@@ -1,9 +1,9 @@
 // Small reusable presentational components extracted from App.jsx Section 8.
 // All consumers go through useTeam/useUI from ../contexts.
 
-import React, { memo, useMemo } from "react";
+import React, { memo, useContext, useMemo } from "react";
 import { formatStat } from "../utils/helpers";
-import { useTeam, useUI } from "../contexts";
+import { TeamContext, useTeam, useUI } from "../contexts";
 import { useModalA11y } from "../hooks/useModalA11y";
 import { m, SCALE_IN } from "./motion";
 
@@ -133,43 +133,53 @@ export const LeaderboardCard = memo(
    glyph (⚾ 🧢 📋 ⭐ 📅 📊) when no `logoUrl` is supplied. Pass an
    `action`/`onAction` for a primary CTA. */
 export const EmptyState = memo(
-  ({ glyph, logoUrl, title, body, action, onAction }: any) => (
-    <div className="text-center py-20 bg-transparent">
-      {logoUrl ? (
-        <img
-          src={logoUrl}
-          alt="Team Logo"
-          className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-        />
-      ) : (
-        glyph && (
+  ({ glyph, icon: Icon, title, body, action, onAction }: any) => {
+    const teamContext = useContext(TeamContext);
+    const logoUrl = (teamContext?.team as any)?.logoUrl;
+    return (
+      <div className="relative overflow-hidden border border-line bg-transparent px-6 py-20 text-center min-h-[276px] flex flex-col items-center justify-center">
+        {logoUrl ? (
+          <img
+            src={logoUrl}
+            alt="Team Logo"
+            className="absolute inset-0 m-auto h-[82%] w-[82%] object-contain opacity-20 grayscale pointer-events-none select-none"
+            aria-hidden
+          />
+        ) : glyph ? (
           <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
             {glyph}
           </div>
-        )
-      )}
-      {title && (
-        <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
-          {title}
-        </h3>
-      )}
-      {body && (
-        <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
-          {body}
-        </p>
-      )}
-      {action && (
-        <button
-          type="button"
-          onClick={onAction}
-          className="mt-5 inline-flex items-center gap-2 t-button px-5 py-2.5 shadow-md text-white"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        >
-          {action}
-        </button>
-      )}
-    </div>
-  ),
+        ) : null}
+        <div className="relative z-10 flex flex-col items-center">
+          {Icon && !logoUrl && (
+            <div className="inline-flex p-3 bg-surface-2 mb-4">
+              <Icon className="w-7 h-7 text-ink-3" />
+            </div>
+          )}
+          {title && (
+            <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
+              {title}
+            </h3>
+          )}
+          {body && (
+            <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto mb-5">
+              {body}
+            </p>
+          )}
+          {action && (
+            <button
+              type="button"
+              onClick={onAction}
+              className="inline-flex items-center gap-2 t-button px-5 py-2.5 text-white"
+              style={{ backgroundColor: "var(--team-primary)" }}
+            >
+              {action}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  },
 );
 
 /* Compact W-L record. `variant`: "compact" (header) | "full" (home/schedule). */
@@ -275,8 +285,12 @@ export const PlayerAvatar = memo(
     ) : null;
     const positionBadge = hasPosition ? (
       <span
-        className="absolute top-0 left-0 px-1 rounded-br-md text-[9px] font-black uppercase tracking-wider text-white"
-        style={{ background: "rgba(15,23,42,0.7)", lineHeight: 1.2 }}
+        className="absolute top-0 left-0 px-1 rounded-br-md text-[9px] font-black uppercase tracking-wider"
+        style={{
+          background: "var(--team-tertiary)",
+          color: "var(--team-primary)",
+          lineHeight: 1.2,
+        }}
       >
         {player.primaryPosition}
       </span>
@@ -535,9 +549,7 @@ export const extractLogoPalette = (
   });
 
 export const StatTile = ({ label, value, className = "" }: any) => (
-  <div
-    className={`cc-card cc-sheen px-6 py-5 text-center rounded-2xl ${className}`}
-  >
+  <div className={`cc-card px-6 py-5 text-center rounded-2xl ${className}`}>
     <span className="block mb-1.5 t-eyebrow">{label}</span>
     <span className="block t-stat-num t-gradient">{value}</span>
   </div>

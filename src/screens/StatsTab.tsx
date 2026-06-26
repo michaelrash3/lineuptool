@@ -29,10 +29,9 @@ import {
   recentGameLines,
   aggregateGameLines,
   isDepartedPlayer,
-  teamAgeNumber,
 } from "../utils/helpers";
 import type { BenchImbalanceEntry } from "../utils/helpers";
-import { isKidPitchFormat } from "../constants/ui";
+import { ageFromTeamAge, isKidPitchFormat } from "../constants/ui";
 import { Sparkline } from "../components/charts/Sparkline";
 
 // Stats & Dashboard — one place that pulls together everything already imported
@@ -438,12 +437,9 @@ export const StatsTab = memo(() => {
   const [statFormat, setStatFormat] = useState<"all" | "machine" | "kid">(
     "all",
   );
-  // The Kid/Machine format split only matters for younger (≤8U) machine/coach-
-  // pitch teams. 9U and up are single-format (kid pitch), so hide the toggle and
-  // always show all games. Unknown age → treat as 9U+ (the common case).
-  const ageNum = teamAgeNumber(team.teamAge);
-  const showFormatFilter = ageNum != null && ageNum <= 8;
-  const effectiveStatFormat = showFormatFilter ? statFormat : "all";
+  const teamAgeNum = ageFromTeamAge(team.teamAge);
+  const statsFormatLockedToKidPitch = teamAgeNum >= 9;
+  const effectiveStatFormat = statsFormatLockedToKidPitch ? "all" : statFormat;
   const activeCat = CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
 
   const filteredGames = useMemo(() => {
@@ -455,8 +451,9 @@ export const StatsTab = memo(() => {
     });
   }, [games, effectiveStatFormat, team]);
 
-  const statScopeLabel =
-    effectiveStatFormat === "kid"
+  const statScopeLabel = statsFormatLockedToKidPitch
+    ? "Kid Pitch"
+    : effectiveStatFormat === "kid"
       ? "Kid Pitch"
       : effectiveStatFormat === "machine"
         ? "Machine/Coach Pitch"
@@ -799,7 +796,7 @@ export const StatsTab = memo(() => {
               );
             })}
           </div>
-          {showFormatFilter && (
+          {!statsFormatLockedToKidPitch && (
             <div className="flex flex-wrap gap-2">
               {[
                 ["all", "All Formats"],

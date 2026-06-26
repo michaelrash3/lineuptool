@@ -19,7 +19,7 @@ const ThemeToggle = () => {
       aria-checked={isDark}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Light mode" : "Dark mode"}
-      className="shrink-0 p-3 text-ink-2 bg-surface hover:bg-surface-2 hover:text-ink border border-line rounded-xl shadow-sm transition-colors"
+      className="shrink-0 p-3 text-ink-2 bg-white/10 hover:bg-white/15 hover:text-ink border border-white/20 rounded-xl shadow-sm backdrop-blur-xl transition-colors"
     >
       {isDark ? (
         <Icons.Sun className="w-4 h-4" />
@@ -592,11 +592,9 @@ export const NavDrawer = memo(
         {open &&
           typeof document !== "undefined" &&
           createPortal(
-            // Portaled to <body>: the header carries a `backdrop-filter`
-            // (.glass), which would otherwise become the containing block for
-            // this position:fixed overlay and crush it down to the header's
-            // height — squashing the nav list into a sliver. Rendering at the
-            // document root keeps the drawer pinned to the full viewport.
+            // Portaled to <body> so this position:fixed overlay is never
+            // constrained by header chrome/layout and stays pinned to the full
+            // viewport.
             <div className="fixed inset-0 z-[60] print:hidden">
               {/* Dimmed, tap-away backdrop */}
               <div
@@ -607,7 +605,7 @@ export const NavDrawer = memo(
               <nav
                 role="menu"
                 aria-label="Primary navigation"
-                className="nav-drawer-panel absolute inset-y-0 left-0 w-[300px] max-w-[88vw] flex flex-col glass border-r border-line shadow-2xl"
+                className="nav-drawer-panel absolute inset-y-0 left-0 w-[300px] max-w-[88vw] flex flex-col bg-surface/70 supports-[backdrop-filter]:bg-surface/55 backdrop-blur-2xl border-r border-white/20 shadow-2xl"
                 style={{ animation: "drawerIn 0.2s ease-out" }}
               >
                 {/* team-accent edge strip */}
@@ -621,7 +619,7 @@ export const NavDrawer = memo(
                   }}
                   aria-hidden="true"
                 />
-                <div className="flex items-center gap-3 px-4 py-4 border-b border-line">
+                <div className="flex items-center gap-3 px-4 py-4 border-b border-white/15">
                   <div className="min-w-0">
                     <div className="text-base font-black uppercase tracking-tight leading-none text-ink truncate">
                       {teamName}
@@ -640,7 +638,7 @@ export const NavDrawer = memo(
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-3 py-3">
+                <div className="flex-1 overflow-y-auto px-3 py-3 bg-white/[0.03]">
                   <div className="flex flex-col gap-1">
                     {navButtons.map((btn: any) => (
                       <NavRow
@@ -654,7 +652,7 @@ export const NavDrawer = memo(
                   </div>
                 </div>
 
-                <div className="border-t border-line px-3 py-3 flex flex-col gap-2">
+                <div className="border-t border-white/15 px-3 py-3 flex flex-col gap-2 bg-white/[0.04]">
                   {showSettings && (
                     <NavRow
                       icon={Icons.Settings}

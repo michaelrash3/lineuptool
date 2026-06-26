@@ -83,7 +83,7 @@ export const OptimalLineupPanel = memo(() => {
   const ruleLabel = leagueRuleSetLabel(nextGame.leagueRuleSet || leagueRuleSet);
 
   return (
-    <div className="glass-card mb-6">
+    <div className="cc-card mb-6">
       <div
         className="h-1.5 w-full"
         style={{ backgroundColor: "var(--team-primary)" }}
