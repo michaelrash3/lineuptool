@@ -135,7 +135,7 @@ export const LeaderboardCard = memo(
 export const EmptyState = memo(
   ({ glyph, icon: Icon, title, body, action, onAction }: any) => {
     const teamContext = useContext(TeamContext);
-    const logoUrl = (teamContext?.team as any)?.logoUrl;
+    const logoUrl = teamContext?.team?.logoUrl;
     return (
       <div className="relative overflow-hidden border border-line bg-transparent px-6 py-20 text-center min-h-[276px] flex flex-col items-center justify-center">
         {logoUrl ? (
@@ -269,7 +269,7 @@ export const PlayerAvatar = memo(
     circleClassName = "bg-white",
   }: any) => {
     const { team } = useTeam();
-    const logoUrl = (team as any)?.logoUrl;
+    const logoUrl = team?.logoUrl;
     const initials = getPlayerInitials(player?.name);
     const dim = { width: size, height: size };
     const hasNumber =

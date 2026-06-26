@@ -77,8 +77,15 @@ export const useInviteFlows = ({
             updatedAt: Date.now(),
           });
           // Invalidate the old code's lookup so a rotated code stops resolving.
+          // Best-effort: the new code already works, but report a failed cleanup
+          // so a lingering stale lookup is diagnosable instead of silent.
           if (prevCode && prevCode !== code) {
-            await deleteDoc(inviteRef(prevCode)).catch(() => {});
+            await deleteDoc(inviteRef(prevCode)).catch((err) =>
+              reportError(err, {
+                source: "useInviteFlows.invalidateOldInvite",
+                prevCode,
+              }),
+            );
           }
         } catch (err) {
           reportError(err, { source: "useInviteFlows.regenerateJoinCode" });
