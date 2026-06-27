@@ -2,7 +2,7 @@ import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { formatStat, calculateBaseballAge } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts";
-import { getPlayerInitials } from "../components/shared";
+import { getPlayerInitials, EmptyState } from "../components/shared";
 import { QRCodeImg } from "../components/QRCodeImg";
 import { ImportCsvButton } from "../components/ImportCsvButton";
 import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
@@ -628,27 +628,17 @@ export const RosterTab = memo(() => {
           )}
           <div className="p-4 sm:p-6">
             {players.length === 0 ? (
-              <div className="text-center py-20">
-                {logoUrl ? (
-                  <img
-                    src={logoUrl}
-                    alt="Team Logo"
-                    className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                  />
-                ) : (
-                  <div
-                    className="text-5xl leading-none mb-4 opacity-80"
-                    aria-hidden
-                  >
-                    🧢
-                  </div>
-                )}
-                <h3 className="t-h3 mb-2 text-ink-3">No Roster Found</h3>
-                <p className="t-body max-w-sm mx-auto">
-                  Manually add players to build your team, or head to Settings
-                  to import your stats file.
-                </p>
-              </div>
+              <EmptyState
+                glyph="🧢"
+                title="No Roster Found"
+                body="Manually add players to build your team, or head to Settings to import your stats file."
+                {...(canEdit
+                  ? {
+                      action: "Add Player",
+                      onAction: () => setIsAddingPlayer(true),
+                    }
+                  : {})}
+              />
             ) : visiblePlayers.length === 0 ? (
               <div className="text-center py-12">
                 <Icons.Jersey className="w-10 h-10 text-ink-3 mx-auto mb-3" />

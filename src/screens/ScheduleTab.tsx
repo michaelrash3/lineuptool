@@ -12,7 +12,7 @@ import {
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { A11yDialog, RecordBadge } from "../components/shared";
+import { A11yDialog, RecordBadge, EmptyState } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { ImportCsvButton } from "../components/ImportCsvButton";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
@@ -1553,28 +1553,11 @@ export const ScheduleTab = memo(() => {
       <div className="lg:flex lg:items-start lg:gap-6 mt-4">
         <div className="lg:flex-1 lg:min-w-0 p-0 border border-line rounded-2xl overflow-hidden">
           {games.length === 0 ? (
-            <div className="text-center py-20 bg-transparent">
-              {logoUrl ? (
-                <img
-                  src={logoUrl}
-                  alt="Team Logo"
-                  className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                />
-              ) : (
-                <div
-                  className="text-5xl leading-none mb-4 opacity-80"
-                  aria-hidden
-                >
-                  📅
-                </div>
-              )}
-              <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
-                No Games Scheduled
-              </h3>
-              <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
-                Add a game manually or head to Settings to import your schedule.
-              </p>
-            </div>
+            <EmptyState
+              glyph="📅"
+              title="No Games Scheduled"
+              body="Add a game manually or head to Settings to import your schedule."
+            />
           ) : (
             <div className="flex flex-col">
               {sortedGames.map((game) => {

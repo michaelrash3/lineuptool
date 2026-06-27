@@ -16,7 +16,7 @@ import {
   combinedTryoutGradeForSignup,
   evaluatorTryoutGradeForSignup,
 } from "../utils/helpers";
-import { A11yDialog } from "../components/shared";
+import { A11yDialog, EmptyState } from "../components/shared";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
 import type { OfferLetterKind } from "../constants/offerLetters";
@@ -1036,10 +1036,11 @@ export const TryoutsTab = memo(() => {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="cc-card p-8 text-center text-ink-3 text-sm font-medium">
-              No tryout signups yet. Share the public form link from Settings to
-              start collecting.
-            </div>
+            <EmptyState
+              glyph="⭐"
+              title="No Signups Yet"
+              body="Share the public form link from Settings to start collecting tryout signups."
+            />
           ) : (
             <div className="space-y-2">
               {filtered.map((s) => {

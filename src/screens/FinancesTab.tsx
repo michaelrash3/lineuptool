@@ -9,6 +9,7 @@ import { Icons } from "../icons";
 import { useTeam, useUI, useToast } from "../contexts";
 import {
   Button,
+  EmptyState,
   FORM_INPUT_CLASS,
   FORM_INPUT_RING_STYLE,
   PlayerAvatar,
@@ -1106,23 +1107,11 @@ export const FinancesTab = memo(() => {
               </div>
             </div>
             {players.length === 0 ? (
-              <div className="p-6 text-center text-ink-3 font-medium">
-                {team.logoUrl ? (
-                  <img
-                    src={team.logoUrl}
-                    alt="Team Logo"
-                    className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-                  />
-                ) : (
-                  <div
-                    className="text-4xl leading-none mb-3 opacity-80"
-                    aria-hidden
-                  >
-                    📊
-                  </div>
-                )}
-                Add players on the Roster tab to track who owes the team fee.
-              </div>
+              <EmptyState
+                glyph="📊"
+                title="No Players Yet"
+                body="Add players on the Roster tab to track who owes the team fee."
+              />
             ) : (
               <ul className="divide-y divide-line">
                 {players.map((p) => {

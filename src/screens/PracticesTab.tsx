@@ -8,6 +8,7 @@ import {
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
+import { EmptyState } from "../components/shared";
 import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
 import type { DrillCategory, DrillDefinition } from "../types";
 
@@ -825,26 +826,14 @@ export const PracticesTab = memo(() => {
       )}
 
       {practices.length === 0 ? (
-        <div className="text-center py-16">
-          {team.logoUrl ? (
-            <img
-              src={team.logoUrl}
-              alt="Team Logo"
-              className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-            />
-          ) : (
-            <div className="text-5xl leading-none mb-4 opacity-80" aria-hidden>
-              ⚾
-            </div>
-          )}
-          <h3 className="font-black uppercase tracking-widest text-ink-3 text-lg mb-2">
-            No Practices Yet
-          </h3>
-          <p className="text-ink-3 text-sm font-semibold max-w-sm mx-auto">
-            Add a practice manually, or import your schedule from GameChanger in
-            Settings — practices come in alongside games.
-          </p>
-        </div>
+        <EmptyState
+          glyph="📋"
+          title="No Practices Yet"
+          body="Add a practice manually, or import your schedule from GameChanger in Settings — practices come in alongside games."
+          {...(isHead
+            ? { action: "Add Practice", onAction: () => setAdding(true) }
+            : {})}
+        />
       ) : (
         <StaggerList className="flex flex-col">
           {practices.map((p: any) => (
