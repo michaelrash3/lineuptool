@@ -1,5 +1,8 @@
 import {
   normalizeDateToIso,
+  formatDateDisplay,
+  randomCode,
+  dedupePlayerInfoSubmissions,
   parseCsvRecords,
   parseGameChangerPastSeasonCsv,
   evalDueDatesForYear,
@@ -222,6 +225,113 @@ describe("date helpers", () => {
 
   it("rejects invalid calendar dates", () => {
     expect(normalizeDateToIso("2/30/26")).toBe("");
+  });
+});
+
+describe("formatDateDisplay (zero-padded MM/DD/YYYY)", () => {
+  it.each([
+    ["2017-10-08", "10/08/2017"],
+    ["2026-4-7", "04/07/2026"],
+    ["4/7/26", "04/07/2026"],
+    // Date-only strings are read as calendar parts (no timezone shift), so an
+    // early-month DOB never rolls back a day in a western zone.
+    ["2017-01-01", "01/01/2017"],
+  ])("formats date-only string %s as %s", (input, expected) => {
+    expect(formatDateDisplay(input)).toBe(expected);
+  });
+
+  it("returns empty string for blank/nullish input", () => {
+    expect(formatDateDisplay("")).toBe("");
+    expect(formatDateDisplay(null)).toBe("");
+    expect(formatDateDisplay(undefined)).toBe("");
+  });
+
+  it("passes through an unparseable string unchanged", () => {
+    expect(formatDateDisplay("not a date")).toBe("not a date");
+  });
+
+  it("formats an epoch/Date timestamp in local time", () => {
+    // Build a local-time date so the assertion is timezone-independent.
+    const d = new Date(2026, 5, 27); // 2026-06-27 local
+    expect(formatDateDisplay(d)).toBe("06/27/2026");
+    expect(formatDateDisplay(d.getTime())).toBe("06/27/2026");
+  });
+});
+
+describe("randomCode (CSPRNG over an explicit alphabet)", () => {
+  const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  it("returns the exact requested length, every char in the alphabet", () => {
+    for (let i = 0; i < 200; i++) {
+      const code = randomCode(6, ALPHABET);
+      expect(code).toHaveLength(6);
+      expect([...code].every((c) => ALPHABET.includes(c))).toBe(true);
+    }
+  });
+
+  it("is effectively non-repeating across calls", () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 500; i++) seen.add(randomCode(6, ALPHABET));
+    // Collisions in 500 draws from ~887M space should be vanishingly unlikely.
+    expect(seen.size).toBeGreaterThan(495);
+  });
+
+  it("guards against empty inputs", () => {
+    expect(randomCode(0, ALPHABET)).toBe("");
+    expect(randomCode(6, "")).toBe("");
+  });
+});
+
+describe("dedupePlayerInfoSubmissions (latest replaces prior per person)", () => {
+  it("keeps only the most recent submission for the same person", () => {
+    const subs = [
+      {
+        id: "a",
+        firstName: "Kelton",
+        lastName: "Michels",
+        dob: "2017-10-08",
+        shirtSize: "YM",
+        submittedAt: "2026-06-20T12:00:00Z",
+      },
+      {
+        id: "b",
+        firstName: "kelton ",
+        lastName: " MICHELS",
+        dob: "2017-10-08",
+        shirtSize: "YL",
+        submittedAt: "2026-06-27T12:00:00Z",
+      },
+    ];
+    const out = dedupePlayerInfoSubmissions(subs);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("b");
+    expect(out[0].shirtSize).toBe("YL");
+  });
+
+  it("keeps distinct people and preserves first-appearance order", () => {
+    const subs = [
+      { id: "a", firstName: "Bryson", lastName: "Carman", dob: "2016-01-01" },
+      { id: "b", firstName: "Jack", lastName: "Hummel", dob: "2016-02-02" },
+    ];
+    const out = dedupePlayerInfoSubmissions(subs);
+    expect(out.map((s) => s.id)).toEqual(["a", "b"]);
+  });
+
+  it("does not collapse same-name kids with different DOBs", () => {
+    const subs = [
+      { id: "a", firstName: "Sam", lastName: "Lee", dob: "2015-03-03" },
+      { id: "b", firstName: "Sam", lastName: "Lee", dob: "2016-04-04" },
+    ];
+    expect(dedupePlayerInfoSubmissions(subs)).toHaveLength(2);
+  });
+
+  it("returns [] for nullish input and is a no-op when unique", () => {
+    expect(dedupePlayerInfoSubmissions(null)).toEqual([]);
+    expect(dedupePlayerInfoSubmissions(undefined)).toEqual([]);
+    const unique = [
+      { id: "a", firstName: "A", lastName: "B", dob: "2015-01-01" },
+    ];
+    expect(dedupePlayerInfoSubmissions(unique)).toHaveLength(1);
   });
 });
 

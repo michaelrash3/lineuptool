@@ -17,6 +17,7 @@ import {
   isValidEmail,
   isSafeCssColor,
   isSafeImageUrl,
+  genId,
 } from "../utils/helpers";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -223,7 +224,7 @@ export const PlayerInfoPortal = () => {
 
     // Trim + length-clamp every free-text field before it leaves the browser.
     const submission = {
-      id: `pi-${Math.random().toString(36).slice(2, 10)}`,
+      id: genId("pi"),
       submittedAt: new Date().toISOString(),
       firstName: clampText(form.firstName, SIGNUP_LIMITS.name),
       lastName: clampText(form.lastName, SIGNUP_LIMITS.name),

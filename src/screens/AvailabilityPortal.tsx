@@ -20,6 +20,7 @@ import {
   buildMonthGrid,
   addAbsenceDateRange,
   removeAbsenceDates,
+  genId,
 } from "../utils/helpers";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -357,7 +358,7 @@ export const AvailabilityPortal = () => {
     setSubmitting(true);
 
     const submission = {
-      id: `av-${Math.random().toString(36).slice(2, 10)}`,
+      id: genId("av"),
       submittedAt: new Date().toISOString(),
       firstName: clampText(form.firstName, SIGNUP_LIMITS.name),
       lastName: clampText(form.lastName, SIGNUP_LIMITS.name),

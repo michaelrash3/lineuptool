@@ -108,6 +108,8 @@ import {
   financeSummary,
   formatCurrency,
   rollFinancesForNewSeason,
+  dedupePlayerInfoSubmissions,
+  genId,
   FIRESTORE_DOC_LIMIT_BYTES,
   DOC_SIZE_WARN_RATIO,
 } from "./utils/helpers";
@@ -579,7 +581,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         setActiveTeamId(existingData?.activeTeamId || existingTeams[0].id);
         return existingTeams[0].id;
       }
-      const id = "team-" + Math.random().toString(36).substring(2, 10);
+      const id = genId("team");
       const teamRef = doc(
         db,
         "artifacts",
@@ -1448,6 +1450,28 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     updateTeam({ players: stripped });
   }, [activeTeamId, teamData.players, updateTeam]);
 
+  // Player Info replace-on-resubmit. The public portal can only ever APPEND to
+  // playerInfoSubmissions (the rules enforce append-only so an anonymous caller
+  // can't rewrite other families' entries), so a parent correcting their info
+  // leaves a stale duplicate behind. Reconcile coach-side: collapse to the
+  // latest submission per person and persist. (Availability stays add-only.)
+  // The signature ref makes this idempotent AND loop-safe: a failed, optimistic-
+  // rolled-back write restores the same source array, whose signature we've
+  // already acted on, so we don't retry-storm; a genuinely new submission
+  // changes the signature and reconciles again.
+  const playerInfoReconcileSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeTeamId || loadedTeamIdRef.current !== activeTeamId) return;
+    const subs = teamData.playerInfoSubmissions;
+    if (!Array.isArray(subs) || subs.length === 0) return;
+    const deduped = dedupePlayerInfoSubmissions(subs);
+    if (deduped.length === subs.length) return; // no duplicates to collapse
+    const sig = subs.map((s: any) => `${s?.id}:${s?.submittedAt}`).join("|");
+    if (playerInfoReconcileSigRef.current === sig) return;
+    playerInfoReconcileSigRef.current = sig;
+    updateTeam({ playerInfoSubmissions: deduped });
+  }, [activeTeamId, teamData.playerInfoSubmissions, updateTeam]);
+
   // Auto-correct defenseSize on age/league change. BATCHED into a single write.
   // We read the four relevant fields outside the effect so the dependency list
   // literally matches what's used (avoids the ESLint exhaustive-deps confusion
@@ -1526,7 +1550,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     (form: { name: string; role: string }) => {
       if (!form.name.trim()) return;
       const newCoach = {
-        id: "c-" + Math.random().toString(36).substring(2, 10),
+        id: genId("c"),
         name: form.name.trim(),
         role: form.role,
       };
@@ -1608,7 +1632,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const createTeam = useCallback(
     async (name: string = "", leagueRuleSet?: "NKB" | "USSSA") => {
       if (!user || !name.trim()) return false;
-      const id = "team-" + Math.random().toString(36).substring(2, 10);
+      const id = genId("team");
       setSyncStatus("Creating");
       try {
         const teamRef = doc(
@@ -1862,7 +1886,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         .filter((s: TryoutSignup) => promotionSet.has(s.id))
         .map((s: TryoutSignup) => {
           const player = {
-            id: "p-" + Math.random().toString(36).slice(2, 10),
+            id: genId("p"),
             name: `${s.firstName || ""} ${s.lastName || ""}`.trim() || "Player",
             number: s.tryoutNumber || s.number || "",
             dob: s.dob || "",
@@ -1929,7 +1953,7 @@ const TeamProvider = ({ children }: { children: React.ReactNode }) => {
                   signup: TryoutSignup;
                   player: Player;
                 }) => ({
-                  id: `pay-deposit-${signup.id}-${Math.random().toString(36).slice(2, 8)}`,
+                  id: genId(`pay-deposit-${signup.id}`),
                   playerId: player.id,
                   date: String(
                     tryoutDepositPayments[signup.id] || nowIso,
@@ -3718,6 +3742,14 @@ const MainShell = () => {
 
   return (
     <div className="min-h-screen bg-app print:bg-surface relative">
+      {/* Keyboard/screen-reader users can jump past the header + tab bar straight
+          to the screen content. Visually hidden until focused (first Tab press). */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:bg-[var(--team-primary)] focus:px-4 focus:py-2 focus:text-sm focus:font-extrabold focus:uppercase focus:tracking-widest focus:text-white focus:shadow-lg focus:outline-none"
+      >
+        Skip to content
+      </a>
       {/* Massive team-logo watermark — part of the team's branding, fixed
           behind all content and visible through transparent non-modal cards. Only renders when the team has a logo set. */}
       {team?.logoUrl && (
@@ -3737,7 +3769,11 @@ const MainShell = () => {
           wide screens so tab layouts compose into panels instead of stretching
           edge-to-edge. Gated at lg so phone/tablet stay full-bleed and
           byte-identical. See the Desktop layout spec in docs/ARCHITECTURE.md. */}
-      <main className="relative z-10 w-full lg:max-w-[1440px] lg:mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="relative z-10 w-full lg:max-w-[1440px] lg:mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 print:p-0 print:max-w-none focus:outline-none"
+      >
         <Suspense fallback={<ScreenLoader />}>
           <ErrorBoundary resetKey={location.pathname}>
             {/* Keyed entrance-only transition: replays on navigation. Exit

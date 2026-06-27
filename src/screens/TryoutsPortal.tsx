@@ -17,6 +17,7 @@ import {
   isValidEmail,
   isSafeCssColor,
   isSafeImageUrl,
+  genId,
 } from "../utils/helpers";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -317,7 +318,7 @@ export const TryoutsPortal = () => {
           ),
         );
         const lead = {
-          id: `int-${Math.random().toString(36).slice(2, 10)}`,
+          id: genId("int"),
           submittedAt: new Date().toISOString(),
           firstName: cleanForm.firstName,
           lastName: cleanForm.lastName,
@@ -346,7 +347,7 @@ export const TryoutsPortal = () => {
         const submission = isDatedTryoutSignup
           ? {
               ...lead,
-              id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+              id: genId("ts"),
               status: "tryout",
               tryoutDate: selectedDate,
             }

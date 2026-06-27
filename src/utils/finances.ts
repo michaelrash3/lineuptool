@@ -11,6 +11,7 @@ import type {
   Team,
   TeamFinances,
 } from "../types";
+import { genId } from "./id";
 
 // ---------- Team finances (money math) ----------
 // Pure helpers behind the Finances tab. All amounts are dollars; display
@@ -207,14 +208,14 @@ export const estimateBudgetFromSeason = (
     const basis = Math.max(spent, planned);
     if (basis <= 0) continue;
     items.push({
-      id: `b-${Math.random().toString(36).slice(2, 10)}`,
+      id: genId("b"),
       label: item.label,
       amount: roundUpToIncrement(basis, 25),
     });
   }
   if (money(actuals.unplanned) > 0) {
     items.push({
-      id: `b-${Math.random().toString(36).slice(2, 10)}`,
+      id: genId("b"),
       label: "Other (unplanned this season)",
       amount: roundUpToIncrement(actuals.unplanned, 25),
     });
@@ -707,7 +708,7 @@ export const rollFinancesForNewSeason = (
   // so the players list is irrelevant here.
   const s = financeSummary(finances, []);
   const balance = Math.round(s.balanceNow * 100) / 100;
-  const carryId = `carry-${date}-${Math.random().toString(36).slice(2, 8)}`;
+  const carryId = genId(`carry-${date}`);
   const incomes = [
     ...(balance > 0
       ? [

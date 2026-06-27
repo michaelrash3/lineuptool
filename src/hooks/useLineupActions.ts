@@ -5,7 +5,7 @@ import {
   generateTournamentLineup as engineGenerateTournamentLineup,
   resolvePitchRuleSet,
 } from "../lineupEngine";
-import { sameDayRoleSets } from "../utils/helpers";
+import { sameDayRoleSets, genId } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Lineup generation, undo, save, templates, and mid-game player removal —
@@ -569,7 +569,7 @@ export const useLineupActions = ({
       }
       const trimmed = (name || "").trim() || "Untitled Template";
       const tpl = {
-        id: "tpl-" + Math.random().toString(36).substring(2, 10),
+        id: genId("tpl"),
         name: trimmed,
         lineup,
         battingLineup,

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { normalizeDateToIso } from "../utils/helpers";
+import { normalizeDateToIso, genId } from "../utils/helpers";
 import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
 import type {
   ConfirmContextValue,
@@ -44,7 +44,7 @@ export const usePracticeCrud = ({
         return;
       }
       const newPractice = {
-        id: "p-" + Math.random().toString(36).substring(2, 10),
+        id: genId("p"),
         date: iso,
         startUtc: form?.startUtc ?? null,
         endUtc: form?.endUtc ?? null,
@@ -135,7 +135,7 @@ export const usePracticeCrud = ({
       const entry: DrillDefinition = {
         ...def,
         name,
-        id: "drill-" + Math.random().toString(36).substring(2, 10),
+        id: genId("drill"),
       };
       updateTeam({ drillLibrary: [...libraryOf(teamData), entry] });
     },

@@ -9,7 +9,7 @@ import {
 } from "firebase/firestore";
 import { appId, db } from "../firebase";
 import { reportError } from "../utils/errorReporter";
-import { mergeTeamEntries } from "../utils/helpers";
+import { mergeTeamEntries, randomCode } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 interface AuthUser {
@@ -57,10 +57,9 @@ export const useInviteFlows = ({
   // previous one. The code is still written onto the team doc (via updateTeam)
   // for backward compatibility and because the self-join rule gates on it.
   const regenerateJoinCode = useCallback(() => {
-    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    let code = "";
-    for (let i = 0; i < 6; i++)
-      code += alphabet[Math.floor(Math.random() * alphabet.length)];
+    // Crockford-ish alphabet (no I/O/0/1) over a CSPRNG. 6 chars × 31 symbols ≈
+    // 887M combinations, so a stale-but-valid code isn't trivially brute-forced.
+    const code = randomCode(6, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
     const prevCode = String(teamData.joinCode || "")
       .trim()
       .toUpperCase();

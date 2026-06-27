@@ -3,6 +3,7 @@
 // upsert logic in one place means both paths de-dupe games identically.
 
 import { parseGameChangerIcs, type GcEvent } from "./icsParse";
+import { genId } from "./id";
 
 // Fetch a GameChanger .ics feed through our same-origin proxy and parse it.
 // Throws with a readable message (the proxy returns JSON errors) on failure.
@@ -93,7 +94,7 @@ export const mergeGcEventsIntoGames = (
       }
     } else {
       next.push({
-        id: "g-" + Math.random().toString(36).substring(2, 10),
+        id: genId("g"),
         ...fields,
         leagueRuleSet: defaults.leagueRuleSet,
         pitchingFormat: defaults.pitchingFormat,
@@ -168,7 +169,7 @@ export const mergeGcEventsIntoPractices = (
       }
     } else {
       next.push({
-        id: "p-" + Math.random().toString(36).substring(2, 10),
+        id: genId("p"),
         ...fields,
         environment: "outdoor",
         attendance: {},

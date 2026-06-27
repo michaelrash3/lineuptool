@@ -17,12 +17,14 @@
       name="description"
       content="Team logistics and game-day organization for coaching staff."
     />
-    <!-- Social / link previews. og:image is root-relative; most crawlers
-         resolve it against the deploy origin. When a production domain is set
-         up, add an absolute <link rel="canonical"> + og:url here (a
-         guessed/wrong canonical hurts SEO more than omitting it). -->
+    <!-- Canonical/og:url point at the current deploy origin. If a custom domain
+         replaces lineuptool.vercel.app, update both here and in
+         public/sitemap.xml + public/robots.txt (one source of truth per file). -->
+    <link rel="canonical" href="https://lineuptool.vercel.app/" />
+    <!-- Social / link previews. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Dugout" />
+    <meta property="og:url" content="https://lineuptool.vercel.app/" />
     <meta property="og:title" content="Dugout" />
     <meta
       property="og:description"

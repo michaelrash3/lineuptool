@@ -11,6 +11,7 @@ import {
 } from "../constants/ui";
 import {
   calculateBaseballAge,
+  formatDateDisplay,
   getReturningDecision,
   normalizeTryoutSessions,
   combinedTryoutGradeForSignup,
@@ -958,9 +959,9 @@ export const TryoutsTab = memo(() => {
         />
         <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="t-h2 flex items-center gap-3">
+            <h1 className="t-h2 flex items-center gap-3">
               <Icons.Users className="w-6 h-6" /> Tryouts
-            </h2>
+            </h1>
             <p className="t-eyebrow text-ink-3 mt-1">
               {(tryoutSignups || []).length} signup
               {(tryoutSignups || []).length === 1 ? "" : "s"}
@@ -1081,9 +1082,9 @@ export const TryoutsTab = memo(() => {
                         </div>
                         <div className="text-[11px] text-ink-3 font-medium">
                           {isHead && <>{s.email || "no email"} · </>}
-                          {new Date(s.submittedAt).toLocaleDateString()}
+                          {formatDateDisplay(new Date(s.submittedAt))}
                           {s.tryoutDate
-                            ? ` · Tryout date: ${s.tryoutDate}`
+                            ? ` · Tryout date: ${formatDateDisplay(s.tryoutDate)}`
                             : ""}
                         </div>
                       </div>
@@ -1205,7 +1206,7 @@ export const TryoutsTab = memo(() => {
                           <div>
                             <div className="t-eyebrow">DOB</div>
                             <div className="font-bold text-ink">
-                              {s.dob || "—"}
+                              {formatDateDisplay(s.dob) || "—"}
                             </div>
                           </div>
                           <div>

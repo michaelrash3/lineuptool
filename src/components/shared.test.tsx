@@ -8,6 +8,7 @@ import {
   PlayerAvatar,
   LeaderboardCard,
   EmptyState,
+  downscaleImageToDataURL,
 } from "./shared";
 import { renderWithProviders } from "../test-utils";
 import { useTeam, useToast } from "../contexts";
@@ -225,5 +226,17 @@ describe("EmptyState", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: "Add Game" }));
     expect(onAction).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("downscaleImageToDataURL MIME guard", () => {
+  it("rejects a non-image file before decoding", async () => {
+    const file = new File(["plain text"], "notes.txt", { type: "text/plain" });
+    await expect(downscaleImageToDataURL(file)).rejects.toThrow(/image file/i);
+  });
+
+  it("rejects a file with an unknown (empty) MIME type", async () => {
+    const file = new File(["bytes"], "mystery", { type: "" });
+    await expect(downscaleImageToDataURL(file)).rejects.toThrow(/image file/i);
   });
 });
