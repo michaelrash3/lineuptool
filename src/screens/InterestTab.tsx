@@ -102,7 +102,7 @@ export const InterestTab = memo(() => {
                 return (
                   <div
                     key={lead.id}
-                    className="bg-surface border border-line rounded-xl p-3 flex items-start gap-3 shadow-sm"
+                    className="cc-card p-3 flex items-start gap-3"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 flex-wrap">

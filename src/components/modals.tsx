@@ -101,7 +101,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
     setToDate("");
   };
   return (
-    <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+    <div className="cc-card p-5">
       <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
         <Icons.Calendar className="w-4 h-4" /> Scheduled Absences
       </h4>
@@ -1139,7 +1139,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                 </div>
               </div>
 
-              <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+              <div className="cc-card p-5">
                 <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-2 flex items-center gap-2">
                   <Icons.Users className="w-4 h-4" /> Roster Status
                 </h4>
@@ -1176,7 +1176,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
               />
 
               {pitchingFormat === "Kid Pitch" && (
-                <div className="p-5 bg-surface border border-line rounded-xl shadow-sm">
+                <div className="cc-card p-5">
                   <h4 className="font-black text-xs uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
                     <Icons.Pitch className="w-4 h-4" /> Recent Pitching
                   </h4>
@@ -1591,7 +1591,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                 </div>
 
                 {/* Game-by-game timeline (collapsed by default) */}
-                <div className="bg-surface border border-line rounded-xl shadow-sm overflow-hidden">
+                <div className="cc-card overflow-hidden">
                   <button
                     type="button"
                     onClick={() => setShowTimeline((s) => !s)}
@@ -1753,7 +1753,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                 </div>
 
                 {inningsBreakdown.gamesAvailable === 0 ? (
-                  <div className="bg-surface border border-line rounded-xl p-8 text-center shadow-sm">
+                  <div className="cc-card p-8 text-center">
                     <Icons.Calendar className="w-10 h-10 text-ink-3 mx-auto mb-3" />
                     <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
                       No Game History Yet

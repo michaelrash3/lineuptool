@@ -376,7 +376,7 @@ export const StatTrendModal = memo(
                 </div>
 
                 {/* Season-by-season breakdown table */}
-                <div className="bg-surface border border-line rounded-xl overflow-hidden">
+                <div className="cc-card overflow-hidden">
                   <div className="grid grid-cols-3 px-4 py-2 bg-app border-b border-line">
                     <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
                       Season

@@ -495,7 +495,7 @@ const ReturningIntentPanel = memo(
             return (
               <div
                 key={p.id}
-                className="flex items-center gap-3 flex-wrap bg-surface border border-line rounded-xl p-3"
+                className="cc-card flex items-center gap-3 flex-wrap p-3"
               >
                 <div className="flex-1 min-w-[160px]">
                   <div className="text-sm font-black text-ink">{p.name}</div>
