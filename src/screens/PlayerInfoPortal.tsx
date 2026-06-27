@@ -143,7 +143,7 @@ export const PlayerInfoPortal = () => {
     const name = (team?.name || "").trim();
     if (name) document.title = `${name} Player Info`;
     return () => {
-      document.title = "Coach's Card";
+      document.title = "Dugout";
     };
   }, [team?.name]);
 

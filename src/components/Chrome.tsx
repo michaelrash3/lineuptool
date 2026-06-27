@@ -77,9 +77,9 @@ export const LoginScreen = ({
           </div>
         </div>
         <Eyebrow className="block mb-2 text-ink-3">Sign In Required</Eyebrow>
-        <h1 className="t-h1 mb-2">Coach's Card</h1>
+        <h1 className="t-h1 mb-2">Dugout</h1>
         <p className="t-body mb-7">
-          Lineups, in-game swaps, eval rounds, and season stats in one place.
+          Team logistics and game-day organization for coaching staff.
         </p>
         <button
           onClick={onSignIn}

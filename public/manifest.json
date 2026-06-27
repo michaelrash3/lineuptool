@@ -1,7 +1,7 @@
 {
-  "name": "Coach's Card",
-  "short_name": "Coach",
-  "description": "Youth-baseball lineup builder, in-game swap manager, and player evaluation tool for head and assistant coaches.",
+  "name": "Dugout",
+  "short_name": "Dugout",
+  "description": "Team logistics and game-day organization for coaching staff.",
   "id": "/",
   "scope": "/",
   "start_url": "/",

@@ -2932,11 +2932,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const screen = inGameId ? "In-Game" : TAB_TITLE_LABELS[activeTab] || "";
     const name = (teamName || "").trim();
-    document.title = name
-      ? screen
-        ? `${name} · ${screen}`
-        : name
-      : "Coach's Card";
+    document.title = name ? (screen ? `${name} · ${screen}` : name) : "Dugout";
   }, [teamName, activeTab, inGameId]);
 
   // Snapshot of the game data we last loaded into local editor state, used
