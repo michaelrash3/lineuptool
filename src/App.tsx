@@ -3381,8 +3381,14 @@ const MainShell = () => {
     createTeam,
     joinTeamByCode,
   } = useTeam();
-  const { activeTab, setActiveTab, selectedGameId, inGameId, setInGameId } =
-    useUI();
+  const {
+    activeTab,
+    setActiveTab,
+    selectedGameId,
+    setSelectedGameId,
+    inGameId,
+    setInGameId,
+  } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
@@ -3393,6 +3399,8 @@ const MainShell = () => {
     setActiveTab,
     inGameId,
     setInGameId,
+    selectedGameId,
+    setSelectedGameId,
     isAssistant,
     tryoutsOpen: tryoutsVisible,
     location,
