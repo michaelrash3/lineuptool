@@ -7,14 +7,13 @@
 #   - Merges only when the `build-and-test` CI job (typecheck + lint + tests +
 #     build + audit, see ci.yml) has succeeded AND every other check run and
 #     commit status (e.g. the Vercel deployment) on the head commit is green.
-#   - Only PRs explicitly marked "Ready for review" are merged; DRAFT PRs are
-#     held. Drafting a PR is therefore the hold switch for human sign-off (e.g.
-#     a design/visual change you want eyeballed on the Vercel preview first) —
-#     mark it Ready when approved and it squash-merges hands-off.
+#   - Drafts are NOT held: a green claude/* PR is promoted out of draft (if
+#     needed) and squash-merged hands-off. There is no manual "Ready for
+#     review" gate.
 #
 # To pause it entirely, disable this workflow in the repo's Actions tab (or
-# delete the file). To require human review on a specific PR, leave it as a
-# draft.
+# delete the file). To hold a specific PR, push it with a failing check or
+# close it until you're ready.
 
 name: Auto-merge Claude PRs
 
@@ -100,15 +99,21 @@ jobs:
                 continue;
               }
 
-              // Draft = held for human sign-off. Only PRs explicitly marked
-              // "Ready for review" auto-merge, so design/visual PRs can sit in
-              // draft until a person eyeballs the Vercel preview and promotes
-              // them. The `ready_for_review` trigger above re-runs this workflow
-              // the moment a draft is marked ready, so the merge still happens
-              // hands-off once approved.
+              // No draft hold. GitHub refuses to merge a draft via the API, so
+              // promote it out of draft first (GraphQL markPullRequestReadyForReview),
+              // then squash-merge. A green claude/* PR therefore lands hands-off
+              // whether or not a human ever clicked "Ready for review".
               if (pr.draft) {
-                core.info(`${tag}: draft — held for review; mark it Ready to merge.`);
-                continue;
+                try {
+                  await github.graphql(
+                    `mutation($id:ID!){ markPullRequestReadyForReview(input:{pullRequestId:$id}){ pullRequest { id } } }`,
+                    { id: pr.node_id }
+                  );
+                  core.info(`${tag}: promoted out of draft.`);
+                } catch (e) {
+                  core.warning(`${tag}: could not mark ready — ${e.status || ""} ${e.message}`);
+                  continue;
+                }
               }
 
               try {
