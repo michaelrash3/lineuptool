@@ -2,6 +2,7 @@ import React, { memo, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import { QRCodeImg } from "../components/QRCodeImg";
+import { Modal } from "../components/shared";
 import {
   AvailabilityCalendar,
   type AvailabilityCalendarEvent,
@@ -36,36 +37,25 @@ const ShareCard = memo(({ team }: any) => {
       ? `${window.location.origin}/availability-portal/${shareId}`
       : null;
   return (
-    <div className="bg-transparent border border-line rounded-xl overflow-hidden">
+    <>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-surface-2 transition-colors"
-        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className="w-full sm:w-auto py-2.5 px-5 inline-flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
       >
-        <div
-          className="p-2 rounded-full shrink-0"
-          style={{ backgroundColor: "var(--team-primary-15)" }}
-        >
-          <Icons.Calendar
-            className="w-4 h-4"
-            style={{ color: "var(--team-primary)" }}
-          />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="t-button text-ink">Availability Form</div>
-          <p className="text-[11px] text-ink-3 font-medium">
-            Send to parents to collect the dates their kid is unavailable.
-          </p>
-        </div>
-        <Icons.ChevronDown
-          className={`w-4 h-4 text-ink-3 shrink-0 transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
-        />
+        <Icons.Calendar className="w-4 h-4" /> Availability Form
       </button>
-      {open && (
-        <div className="px-4 pb-4 pt-1 border-t border-line space-y-3">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        eyebrow="Availability"
+        title="Availability Form"
+        size="md"
+      >
+        <p className="t-meta text-ink-3 mb-4">
+          Send to parents to collect the dates their kid is unavailable.
+        </p>
+        <div className="space-y-3">
           {url ? (
             <>
               <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
@@ -106,8 +96,8 @@ const ShareCard = memo(({ team }: any) => {
             </p>
           )}
         </div>
-      )}
-    </div>
+      </Modal>
+    </>
   );
 });
 
