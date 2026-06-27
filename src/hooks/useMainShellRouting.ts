@@ -31,6 +31,8 @@ interface UseMainShellRoutingArgs {
   setActiveTab: (tab: string) => void;
   inGameId: string | null;
   setInGameId: (id: string | null) => void;
+  selectedGameId: string | null;
+  setSelectedGameId: (id: string | null) => void;
   isAssistant: boolean;
   tryoutsOpen: boolean;
   location: { pathname: string };
@@ -42,6 +44,8 @@ export const useMainShellRouting = ({
   setActiveTab,
   inGameId,
   setInGameId,
+  selectedGameId,
+  setSelectedGameId,
   isAssistant,
   tryoutsOpen,
   location,
@@ -141,6 +145,32 @@ export const useMainShellRouting = ({
     const match = location.pathname.match(/^\/in-game\/([^/]+)/);
     if (match && match[1] !== inGameId) setInGameId(match[1]);
     else if (!match && inGameId) setInGameId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  // The full-screen game editor (selectedGameId) is URL-backed at
+  // /schedule/game/:id, the same contract as inGameId above. This makes the
+  // editor a real page: the browser/Android back button closes it, it's
+  // deep-linkable, and a refresh keeps you on it. Every place that opens a
+  // game still just calls setSelectedGameId(id) — these effects mirror that
+  // selection into the URL (and vice-versa) with no per-call-site changes.
+  // In-game takes precedence, so don't fight its route while it's active.
+  useEffect(() => {
+    if (location.pathname.startsWith("/in-game/")) return;
+    if (selectedGameId) {
+      if (!location.pathname.startsWith(`/schedule/game/${selectedGameId}`)) {
+        navigate(`/schedule/game/${selectedGameId}`);
+      }
+    } else if (location.pathname.startsWith("/schedule/game/")) {
+      navigate("/schedule");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedGameId]);
+
+  useEffect(() => {
+    const match = location.pathname.match(/^\/schedule\/game\/([^/]+)/);
+    if (match && match[1] !== selectedGameId) setSelectedGameId(match[1]);
+    else if (!match && selectedGameId) setSelectedGameId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
