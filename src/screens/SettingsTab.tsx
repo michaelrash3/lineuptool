@@ -193,7 +193,7 @@ const TryoutsSettingsPanel = memo(
         </div>
         <div className="space-y-3">
           {shareId ? (
-            <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
+            <div className="cc-card p-3 space-y-2">
               <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
                 Player Interest Link
               </div>
@@ -312,7 +312,7 @@ const TryoutsSettingsPanel = memo(
             </button>
           </label>
 
-          <div className="bg-surface border border-line rounded-xl p-3 space-y-2">
+          <div className="cc-card p-3 space-y-2">
             <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
               Tryout lifecycle
             </div>
@@ -341,7 +341,7 @@ const TryoutsSettingsPanel = memo(
             </div>
           </div>
 
-          <label className="flex items-center justify-between bg-surface border border-line rounded-xl p-3">
+          <label className="cc-card flex items-center justify-between p-3">
             <div className="flex-1 min-w-0">
               <div className="text-xs font-black uppercase tracking-widest text-ink">
                 Roster Cap
@@ -389,7 +389,7 @@ const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
   };
 
   return (
-    <div className="bg-surface border border-line rounded-xl p-3 space-y-3">
+    <div className="cc-card p-3 space-y-3">
       <div>
         <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
           Tryout dates
@@ -505,7 +505,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
       </p>
       {code ? (
         <div className="space-y-3">
-          <div className="bg-surface border border-line rounded-xl p-3 flex items-center gap-3">
+          <div className="cc-card p-3 flex items-center gap-3">
             <code
               className="text-2xl font-black tracking-[0.25em] font-mono px-3 py-2 rounded-lg"
               style={{

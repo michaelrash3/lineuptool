@@ -389,25 +389,32 @@ const SectionCard = ({
   icon: Icon,
   title,
   subtitle,
+  action,
   children,
 }: {
   icon: ComponentType<{ className?: string; style?: CSSProperties }>;
   title: string;
   subtitle?: string;
+  action?: React.ReactNode;
   children?: React.ReactNode;
 }) => (
   <div className="border-b border-line pb-6">
-    <div className="px-1 py-4 flex items-center gap-3">
+    <div className="px-1 py-4 flex flex-wrap items-center gap-3">
       <div
         className="p-2 rounded-full shrink-0"
         style={{ backgroundColor: "var(--team-primary-15)" }}
       >
         <Icon className="w-5 h-5" style={{ color: "var(--team-primary)" }} />
       </div>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <h2 className="t-h2">{title}</h2>
         {subtitle && <p className="t-eyebrow text-ink-3 mt-0.5">{subtitle}</p>}
       </div>
+      {action && (
+        <div className="flex flex-wrap items-center justify-end gap-3 w-full sm:w-auto">
+          {action}
+        </div>
+      )}
     </div>
     {children}
   </div>
@@ -770,6 +777,25 @@ export const StatsTab = memo(() => {
         icon={Icons.Bat}
         title="Player Stats"
         subtitle={`Showing ${statScopeLabel} stats${effectiveStatFormat === "all" ? "" : " from per-game imports"}`}
+        action={
+          canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={clearAllStats}
+                className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
+              >
+                Delete All Stats
+              </button>
+              <ImportCsvButton
+                id="stats-import-csv"
+                label="Import Stats"
+                onChange={uploadStatsCsv}
+                hint="GameChanger season stats CSV"
+              />
+            </>
+          )
+        }
       >
         <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
           <div className="flex flex-wrap gap-2">
@@ -834,26 +860,6 @@ export const StatsTab = memo(() => {
           seriesById={stripped ? null : seriesById}
         />
       </SectionCard>
-
-      {canEdit && (
-        <div className="space-y-3">
-          <ImportCsvButton
-            id="stats-import-csv"
-            label="Import Stats"
-            onChange={uploadStatsCsv}
-            hint="GameChanger season stats CSV"
-          />
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={clearAllStats}
-              className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
-            >
-              Delete All Stats
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 });

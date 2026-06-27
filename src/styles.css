@@ -400,22 +400,19 @@ body::before {
    COMPONENT HELPERS
    ============================================================================ */
 
-.glass-card {
-  position: relative;
-  background: transparent;
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-card), var(--card-ring);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-/* Reusable premium card frame — transparent so team watermarks remain visible. */
+/* Content sections flow seamlessly — no boxed chrome (no fill, border, or
+   shadow). Sections are delineated by their headers and surrounding whitespace
+   instead of nested cards. Opaque surfaces are reserved for interactive
+   controls (buttons/inputs/selects), the nav/side panels, and pop-up modals,
+   which define their own fills. `.cc-card` survives only as a spacing/position
+   hook so existing padding utilities keep working. */
+.glass-card,
 .cc-card {
   position: relative;
   background: transparent;
-  border: 1px solid var(--line);
+  border: 0;
+  box-shadow: none;
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card), var(--card-ring);
 }
 
 /* Transparent premium panel — no frosted fill/blur so non-modal app chrome

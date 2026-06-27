@@ -2389,7 +2389,7 @@ export const EvaluationTab = memo(() => {
           {/* Right rail: live Complete Ranking */}
           <div className="lg:col-span-3">
             {players.length > 0 && (
-              <aside className="lg:sticky lg:top-24 bg-surface border border-line rounded-xl p-3 space-y-3">
+              <aside className="cc-card lg:sticky lg:top-24 p-3 space-y-3">
                 <div>
                   <div className="t-eyebrow text-ink-3">Complete Ranking</div>
                   <p className="text-[10px] text-ink-3 mt-1 leading-snug">

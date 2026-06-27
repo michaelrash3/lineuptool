@@ -171,7 +171,7 @@ export const PlayerInfoTab = memo(() => {
                 return (
                   <div
                     key={sub.id}
-                    className="bg-surface border border-line rounded-xl p-3 flex flex-col gap-3 shadow-sm sm:flex-row sm:items-start"
+                    className="cc-card p-3 flex flex-col gap-3 sm:flex-row sm:items-start"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2 flex-wrap">

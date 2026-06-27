@@ -317,7 +317,7 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
   };
 
   return (
-    <div className="bg-surface border border-line rounded-xl overflow-hidden">
+    <div className="cc-card overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -545,14 +545,22 @@ export const RosterTab = memo(() => {
             </div>
 
             {canEdit && (
-              <button
-                type="button"
-                onClick={() => setIsAddingPlayer(true)}
-                className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
-                style={{ color: "var(--team-tertiary)" }}
-              >
-                <Icons.UserPlus className="w-4 h-4" /> Add Player
-              </button>
+              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <ImportCsvButton
+                  id="roster-import-csv"
+                  label="Import Roster"
+                  onChange={uploadStatsCsv}
+                  hint="TeamSnap roster or GameChanger CSV"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsAddingPlayer(true)}
+                  className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
+                  style={{ color: "var(--team-tertiary)" }}
+                >
+                  <Icons.UserPlus className="w-4 h-4" /> Add Player
+                </button>
+              </div>
             )}
           </div>
           {players.length > 0 && (
@@ -714,14 +722,6 @@ export const RosterTab = memo(() => {
         />
       </div>
 
-      {canEdit && (
-        <ImportCsvButton
-          id="roster-import-csv"
-          label="Import Roster"
-          onChange={uploadStatsCsv}
-          hint="TeamSnap roster or GameChanger CSV"
-        />
-      )}
       {canEdit && (
         <div className="cc-card p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

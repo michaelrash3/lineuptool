@@ -12,9 +12,13 @@ import {
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
 import { useTeam, useUI, useToast } from "../contexts";
-import { A11yDialog, RecordBadge, EmptyState } from "../components/shared";
+import {
+  A11yDialog,
+  RecordBadge,
+  EmptyState,
+  Modal,
+} from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
-import { ImportCsvButton } from "../components/ImportCsvButton";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import { isoInstantToLocalTime } from "../utils/icsParse";
@@ -261,6 +265,9 @@ export const ScheduleTab = memo(() => {
     string | null
   >(null);
   const [gcImportOpen, setGcImportOpen] = useState(false);
+  // Single "Import Schedule" entry point — a chooser offering either the
+  // GameChanger link sync or a plain CSV upload.
+  const [scheduleImportOpen, setScheduleImportOpen] = useState(false);
   // Desktop master-detail: tracks which game is previewed in the right rail.
   // Separate from selectedGameId (which opens the full-screen editor).
   const [desktopPreviewId, setDesktopPreviewId] = useState<string | null>(null);
@@ -709,7 +716,7 @@ export const ScheduleTab = memo(() => {
                 fully playable, but counts toward NOTHING: record, stats,
                 defensive innings, bench equity, and engine seasonal fairness all
                 ignore it. */}
-              <div className="bg-surface border border-line rounded-xl p-3 mt-3 flex items-center gap-3">
+              <div className="cc-card p-3 mt-3 flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() =>
@@ -863,7 +870,7 @@ export const ScheduleTab = memo(() => {
             const anyImbalance = rows.some((r: any) => Math.abs(r.delta) >= 1);
             if (!anyImbalance) return null;
             return (
-              <div className="bg-surface border border-line rounded-xl p-3 mt-3">
+              <div className="cc-card p-3 mt-3">
                 <div className="text-[10px] font-black uppercase tracking-widest text-ink-2 mb-2 flex items-center gap-2">
                   <Icons.Users className="w-3.5 h-3.5" />
                   Innings Played This Season
@@ -1104,7 +1111,7 @@ export const ScheduleTab = memo(() => {
                       (pos) => (
                         <div
                           key={pos}
-                          className="flex items-center gap-3 bg-surface border border-line rounded-xl p-2 shadow-sm"
+                          className="cc-card flex items-center gap-3 p-2"
                         >
                           <span className="font-black text-[11px] w-8 text-center text-ink shrink-0 uppercase tracking-widest">
                             {pos}
@@ -1189,7 +1196,7 @@ export const ScheduleTab = memo(() => {
               </div>
               <div className="flex flex-wrap justify-center gap-3 items-center w-full lg:w-auto">
                 {canEdit && !isTournamentGame && (
-                  <div className="flex items-center bg-surface border border-line rounded-xl overflow-hidden shadow-sm">
+                  <div className="cc-card flex items-center overflow-hidden">
                     <button
                       onClick={removeInning}
                       disabled={lineup.length <= 1}
@@ -1420,10 +1427,10 @@ export const ScheduleTab = memo(() => {
           )}
           {canEdit && (
             <button
-              onClick={() => setGcImportOpen(true)}
+              onClick={() => setScheduleImportOpen(true)}
               className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
             >
-              <Icons.Calendar className="w-4 h-4" /> Import from GameChanger
+              <Icons.Upload className="w-4 h-4" /> Import Schedule
             </button>
           )}
           {canEdit && (
@@ -1444,6 +1451,58 @@ export const ScheduleTab = memo(() => {
         updateTeam={updateTeam}
         toast={toast}
       />
+      <Modal
+        open={scheduleImportOpen}
+        onClose={() => setScheduleImportOpen(false)}
+        eyebrow="Schedule"
+        title="Import Schedule"
+        size="sm"
+      >
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => {
+              setScheduleImportOpen(false);
+              setGcImportOpen(true);
+            }}
+            className="w-full flex items-center gap-3 p-4 text-left rounded-xl border border-line-strong bg-surface hover:bg-surface-2 transition-colors"
+          >
+            <Icons.Calendar className="w-5 h-5 text-team-primary shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-black uppercase tracking-wider text-ink">
+                From GameChanger
+              </span>
+              <span className="block text-xs text-ink-3 mt-0.5">
+                Sync games from your team's GameChanger schedule link.
+              </span>
+            </span>
+          </button>
+          <label
+            htmlFor="schedule-import-csv"
+            className="w-full flex items-center gap-3 p-4 text-left rounded-xl border border-line-strong bg-surface hover:bg-surface-2 transition-colors cursor-pointer"
+          >
+            <Icons.Upload className="w-5 h-5 text-team-primary shrink-0" />
+            <span className="min-w-0">
+              <span className="block text-sm font-black uppercase tracking-wider text-ink">
+                Upload CSV
+              </span>
+              <span className="block text-xs text-ink-3 mt-0.5">
+                Schedule CSV (date, opponent, location).
+              </span>
+            </span>
+            <input
+              id="schedule-import-csv"
+              type="file"
+              className="sr-only"
+              accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
+              onChange={(e) => {
+                setScheduleImportOpen(false);
+                uploadScheduleCsv(e);
+              }}
+            />
+          </label>
+        </div>
+      </Modal>
       {isAddingGame && (
         <div className="p-5 bg-surface border-b border-white/30 flex flex-col sm:flex-row gap-3">
           <input
@@ -2396,16 +2455,6 @@ export const ScheduleTab = memo(() => {
             </div>
           );
         })()}
-      {canEdit && (
-        <div className="mt-6">
-          <ImportCsvButton
-            id="schedule-import-csv"
-            label="Import Schedule"
-            onChange={uploadScheduleCsv}
-            hint="Schedule CSV (date, opponent, location)"
-          />
-        </div>
-      )}
     </div>
   );
 });
