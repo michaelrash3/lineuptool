@@ -1363,9 +1363,7 @@ export const TryoutsTab = memo(() => {
           >
             <div className="p-1.5 bg-loss" />
             <div className="p-5 sm:p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
-                End tryout — clear no-shows?
-              </h3>
+              <h3 className="t-h3 mb-1">End tryout — clear no-shows?</h3>
               <p className="text-sm text-ink-2 font-medium mb-4">
                 {noShowCount} signup{noShowCount === 1 ? "" : "s"} marked
                 no-show will be permanently deleted. Their grades, if any, are
