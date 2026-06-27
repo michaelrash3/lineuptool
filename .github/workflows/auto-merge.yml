@@ -7,11 +7,14 @@
 #   - Merges only when the `build-and-test` CI job (typecheck + lint + tests +
 #     build + audit, see ci.yml) has succeeded AND every other check run and
 #     commit status (e.g. the Vercel deployment) on the head commit is green.
-#   - Draft PRs are flipped to "ready for review" first, then squash-merged.
+#   - Only PRs explicitly marked "Ready for review" are merged; DRAFT PRs are
+#     held. Drafting a PR is therefore the hold switch for human sign-off (e.g.
+#     a design/visual change you want eyeballed on the Vercel preview first) —
+#     mark it Ready when approved and it squash-merges hands-off.
 #
-# To pause it, disable this workflow in the repo's Actions tab (or delete the
-# file). To require human review again, narrow the branch prefix or add a label
-# gate in the script below.
+# To pause it entirely, disable this workflow in the repo's Actions tab (or
+# delete the file). To require human review on a specific PR, leave it as a
+# draft.
 
 name: Auto-merge Claude PRs
 
@@ -97,12 +100,15 @@ jobs:
                 continue;
               }
 
+              // Draft = held for human sign-off. Only PRs explicitly marked
+              // "Ready for review" auto-merge, so design/visual PRs can sit in
+              // draft until a person eyeballs the Vercel preview and promotes
+              // them. The `ready_for_review` trigger above re-runs this workflow
+              // the moment a draft is marked ready, so the merge still happens
+              // hands-off once approved.
               if (pr.draft) {
-                await github.graphql(
-                  `mutation($id:ID!){ markPullRequestReadyForReview(input:{pullRequestId:$id}){ pullRequest { number } } }`,
-                  { id: pr.node_id }
-                );
-                core.info(`${tag}: marked ready for review.`);
+                core.info(`${tag}: draft — held for review; mark it Ready to merge.`);
+                continue;
               }
 
               try {
