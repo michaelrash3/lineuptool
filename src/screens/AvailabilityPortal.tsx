@@ -244,7 +244,7 @@ export const AvailabilityPortal = () => {
     const name = (team?.name || "").trim();
     if (name) document.title = `${name} Availability`;
     return () => {
-      document.title = "Coach's Card";
+      document.title = "Dugout";
     };
   }, [team?.name]);
 

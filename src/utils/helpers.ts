@@ -2687,7 +2687,7 @@ export const buildScheduleIcs = (
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Coach's Card//Schedule//EN",
+    "PRODID:-//Dugout//Schedule//EN",
     "CALSCALE:GREGORIAN",
   ];
   for (const { g, iso } of events) {

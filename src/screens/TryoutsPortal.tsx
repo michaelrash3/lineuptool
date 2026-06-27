@@ -158,7 +158,7 @@ export const TryoutsPortal = () => {
       document.title = `${name} Player Interest`;
     }
     return () => {
-      document.title = "Coach's Card";
+      document.title = "Dugout";
     };
   }, [team?.name]);
 

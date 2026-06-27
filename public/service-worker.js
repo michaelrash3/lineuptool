@@ -1,4 +1,4 @@
-// Coach's Card offline cache.
+// Dugout offline cache.
 //
 // Strategy:
 //   - Navigations (HTML)      → network first, fall back to cached

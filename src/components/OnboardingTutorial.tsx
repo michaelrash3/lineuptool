@@ -37,7 +37,7 @@ const buildSteps = (ctx: any) => {
   return [
     {
       eyebrow: "Welcome",
-      title: "Coach's Card",
+      title: "Dugout",
       icon: Icons.HomePlate,
       body: "Lineups, in-game swaps, eval rounds, tryouts, season stats — all in one place. Each step below pushes you to actually do the thing.",
     },

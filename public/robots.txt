@@ -1,4 +1,4 @@
-# Coach's Card — allow all crawlers. The app shell lives at / (the rest of the
+# Dugout — allow all crawlers. The app shell lives at / (the rest of the
 # app renders client-side behind Firebase auth, so there are no extra static
 # paths to expose). Public Tryouts Portal links use per-team dynamic slugs that
 # coaches share directly, so they aren't enumerated here.
