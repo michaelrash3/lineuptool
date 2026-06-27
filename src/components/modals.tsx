@@ -1101,7 +1101,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                     );
                   })}
                 </div>
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 bg-surface border border-line p-3 rounded-xl shadow-sm">
+                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 cc-card p-3">
                   {positions.map((pos) => {
                     // Canonicalize so legacy LCF/RCF data lights up the CF chip,
                     // and every toggle re-saves the clean canonical list.
@@ -1284,7 +1284,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
               >
                 <h3 className="t-h3">Season Report</h3>
                 {/* Current season summary */}
-                <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                <div className="cc-card p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
                       <Icons.Bat className="w-4 h-4" /> {currentSeason}
@@ -1384,7 +1384,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                     ).sort((a, b) => b[1] - a[1]);
                     const maxCount = entries[0]?.[1] || 1;
                     return (
-                      <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                      <div className="cc-card p-5">
                         <h4 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4 flex items-center gap-2">
                           <Icons.Glove className="w-4 h-4" /> Innings by
                           Position
@@ -1428,7 +1428,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                   })()}
 
                 {/* Past Seasons */}
-                <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                <div className="cc-card p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2">
                       <Icons.Clock className="w-4 h-4" /> Past Seasons
@@ -1694,10 +1694,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                   );
                   if (keys.length === 0) return null;
                   return (
-                    <div
-                      key={category}
-                      className="bg-surface border border-line rounded-xl p-5 shadow-sm"
-                    >
+                    <div key={category} className="cc-card p-5">
                       <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-3 capitalize">
                         {category}
                       </h5>
@@ -1769,7 +1766,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                 ) : (
                   <>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="cc-card p-4">
                         <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                           Games Played
                         </div>
@@ -1780,7 +1777,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                           </span>
                         </div>
                       </div>
-                      <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="cc-card p-4">
                         <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                           Defensive Inn.
                         </div>
@@ -1788,7 +1785,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                           {inningsBreakdown.totalDefensive}
                         </div>
                       </div>
-                      <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="cc-card p-4">
                         <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                           Bench Inn.
                         </div>
@@ -1796,7 +1793,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                           {inningsBreakdown.bench}
                         </div>
                       </div>
-                      <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+                      <div className="cc-card p-4">
                         <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                           1st Inn. Bench
                         </div>
@@ -1806,7 +1803,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                       </div>
                     </div>
 
-                    <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+                    <div className="cc-card p-5">
                       <h5 className="font-black text-[11px] uppercase tracking-widest text-ink mb-4">
                         By Position
                       </h5>

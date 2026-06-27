@@ -467,7 +467,7 @@ export const RecentMovementPanel = memo(
     }
     if (series.length < 2) {
       return (
-        <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+        <div className="cc-card p-5">
           <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
             <Icons.Forward className="w-4 h-4" /> Recent Movement
           </h4>
@@ -485,7 +485,7 @@ export const RecentMovementPanel = memo(
     );
 
     return (
-      <div className="bg-surface border border-line rounded-xl p-5 shadow-sm">
+      <div className="cc-card p-5">
         <h4 className="font-black text-[11px] uppercase tracking-widest text-ink flex items-center gap-2 mb-3">
           <Icons.Forward className="w-4 h-4" /> Recent Movement
           <span className="ml-auto text-[9px] font-bold text-ink-3 normal-case tracking-normal">

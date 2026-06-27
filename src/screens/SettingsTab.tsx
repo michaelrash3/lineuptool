@@ -1643,7 +1643,7 @@ export const SettingsTab = memo(() => {
                   <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
                     <Icons.Clipboard className="w-4 h-4" /> Eval Reminders
                   </h3>
-                  <label className="flex items-start gap-3 bg-surface border border-line p-3 rounded-xl shadow-sm cursor-pointer">
+                  <label className="flex items-start gap-3 cc-card p-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={team.emailEvalRemindersDisabled !== true}
