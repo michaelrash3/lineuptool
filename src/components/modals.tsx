@@ -26,7 +26,7 @@ import { A11yDialog, PlayerAvatar } from "./shared";
 // /player/:id (asPage), or the legacy centered dialog overlay otherwise.
 const ProfileShell = ({ asPage, onClose, children }: any) =>
   asPage ? (
-    <div className="w-full max-w-2xl lg:max-w-none mx-auto bg-surface border border-line flex flex-col">
+    <div className="w-full max-w-2xl lg:max-w-none mx-auto flex flex-col">
       {children}
     </div>
   ) : (
@@ -941,7 +941,9 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
 
         <div
           ref={scrollContainerRef}
-          className="overflow-y-auto custom-scrollbar flex-1 bg-app/50"
+          className={`overflow-y-auto custom-scrollbar flex-1 ${
+            asPage ? "" : "bg-app/50"
+          }`}
         >
           {/* Desktop control-panel: the compact General Info becomes a right
               rail (lg:order-2) beside the data-dense main column; below lg
