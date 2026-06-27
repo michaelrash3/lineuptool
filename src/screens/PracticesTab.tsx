@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam } from "../contexts";
+import { useTeam, useToast } from "../contexts";
 import {
   formatGameDateDisplay,
   isDepartedPlayer,
@@ -8,7 +8,7 @@ import {
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
-import { EmptyState } from "../components/shared";
+import { EmptyState, Modal } from "../components/shared";
 import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
 import type { DrillCategory, DrillDefinition } from "../types";
 
@@ -705,7 +705,9 @@ export const PracticesTab = memo(() => {
     removeDrillFromLibrary,
   } = useTeam() as any;
   const isHead = currentRole !== "assistant";
+  const toast = useToast();
   const [adding, setAdding] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   // Older teams have no stored drillLibrary; show the seed so the planner is
   // never empty. (The CRUD hook persists the seed + edits on first change.)
@@ -738,28 +740,67 @@ export const PracticesTab = memo(() => {
     });
   }, [team.practices]);
 
-  // Season miss-tracker: across practices where attendance was actually taken,
-  // who has missed the most. Only explicit "out" marks count — present (the
-  // default) and excused absences do not.
-  const missLeaders = useMemo(() => {
-    const taken = practices.filter(
+  // Season attendance report (pulled on demand): across COMPLETED practices
+  // where attendance was actually taken, how many each player has missed. A
+  // practice that hasn't happened yet (date in the future) never counts, even
+  // if attendance was pre-marked. Only explicit "out" marks are misses —
+  // present (the default) and excused absences are not.
+  const attendanceReport = useMemo(() => {
+    const today = dateToIsoLocal(new Date());
+    const counted = practices.filter(
       (p: any) =>
         p.status !== "cancelled" &&
         p.attendance &&
-        Object.keys(p.attendance).length > 0,
+        Object.keys(p.attendance).length > 0 &&
+        !(p.date && String(p.date) > today),
     );
-    if (taken.length === 0) return { total: 0, rows: [] as any[] };
     const rows = players
       .map((p: any) => {
-        const missed = taken.filter(
+        const missed = counted.filter(
           (pr: any) => statusOf(pr.attendance[p.id]) === "absent",
         ).length;
-        return { player: p, missed, attended: taken.length - missed };
+        return { player: p, missed, attended: counted.length - missed };
       })
-      .filter((r: any) => r.missed > 0)
-      .sort((a: any, b: any) => b.missed - a.missed);
-    return { total: taken.length, rows };
+      .sort(
+        (a: any, b: any) =>
+          b.missed - a.missed ||
+          String(a.player.name || "").localeCompare(
+            String(b.player.name || ""),
+          ),
+      );
+    return { total: counted.length, rows };
   }, [practices, players]);
+
+  // Plain-text CSV export so the coach can "pull" the attendance report.
+  const downloadAttendanceCsv = () => {
+    const esc = (v: unknown) => {
+      const s = String(v ?? "");
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [
+      ["Player", "Practices Missed", "Attended", "Total Counted"].join(","),
+    ];
+    attendanceReport.rows.forEach((r: any) => {
+      lines.push(
+        [
+          esc(r.player.name || "Unnamed Player"),
+          r.missed,
+          r.attended,
+          attendanceReport.total,
+        ].join(","),
+      );
+    });
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${team?.name || "team"}-practice-attendance.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.push({ kind: "success", title: "Attendance report downloaded" });
+  };
 
   return (
     <div className="space-y-6">
@@ -770,21 +811,25 @@ export const PracticesTab = memo(() => {
             style={{ backgroundColor: "var(--team-primary)" }}
           />
           <h2 className="t-h2">Practices</h2>
-          {missLeaders.total > 0 && (
-            <span className="t-eyebrow text-ink-3">
-              · {missLeaders.total} with attendance
-            </span>
-          )}
         </div>
         {isHead && !adding && (
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="btn-premium self-start sm:self-auto px-4 py-2.5 rounded-sm font-black uppercase tracking-widest text-xs flex items-center gap-2"
-            style={{ color: "var(--team-tertiary)" }}
-          >
-            <Icons.Plus className="w-4 h-4" /> Add Practice
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setReportOpen(true)}
+              className="self-start sm:self-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+            >
+              <Icons.Clipboard className="w-4 h-4" /> Attendance Report
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="btn-premium self-start sm:self-auto px-4 py-2.5 rounded-sm font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2"
+              style={{ color: "var(--team-tertiary)" }}
+            >
+              <Icons.Plus className="w-4 h-4" /> Add Practice
+            </button>
+          </div>
         )}
       </div>
 
@@ -792,29 +837,63 @@ export const PracticesTab = memo(() => {
         <AddPracticeForm onAdd={addPractice} onClose={() => setAdding(false)} />
       )}
 
-      {/* Season miss-tracker */}
-      {missLeaders.rows.length > 0 && (
-        <div className="pb-5 border-b border-line">
-          <span className="t-eyebrow text-ink-3 block mb-2">
-            Most practices missed
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {missLeaders.rows.slice(0, 8).map((r: any) => (
-              <span
-                key={r.player.id}
-                className="inline-flex items-center gap-2 px-2.5 py-1 rounded-sm border border-line bg-surface-2"
+      <Modal
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        eyebrow="Practices"
+        title="Attendance Report"
+        size="lg"
+      >
+        <p className="t-meta text-ink-3 mb-4">
+          {attendanceReport.total === 0
+            ? "No completed practices with attendance taken yet. Take attendance on a past practice and misses show up here."
+            : `Across ${attendanceReport.total} completed ${
+                attendanceReport.total === 1 ? "practice" : "practices"
+              } with attendance taken. Upcoming practices are not counted.`}
+        </p>
+        {attendanceReport.total > 0 && (
+          <>
+            <div className="border border-line">
+              <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-3 py-2 border-b border-line bg-surface-2 t-eyebrow text-ink-3">
+                <span>Player</span>
+                <span className="text-right tabular-nums">Missed</span>
+                <span className="text-right tabular-nums">Attended</span>
+              </div>
+              <div className="max-h-[55vh] overflow-y-auto custom-scrollbar divide-y divide-line">
+                {attendanceReport.rows.map((r: any) => (
+                  <div
+                    key={r.player.id}
+                    className="grid grid-cols-[1fr_auto_auto] gap-x-4 px-3 py-2 items-center text-sm"
+                  >
+                    <span className="font-bold text-ink truncate">
+                      {r.player.name || "Unnamed Player"}
+                    </span>
+                    <span
+                      className={`text-right tabular-nums font-black ${
+                        r.missed > 0 ? "text-loss" : "text-ink-3"
+                      }`}
+                    >
+                      {r.missed}
+                    </span>
+                    <span className="text-right tabular-nums text-ink-2">
+                      {r.attended}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={downloadAttendanceCsv}
+                className="px-4 py-2 inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line-strong rounded-xl hover:bg-surface-2 transition-colors"
               >
-                <span className="font-bold text-ink text-sm">
-                  {r.player.name}
-                </span>
-                <span className="t-chip px-1.5 py-0.5 rounded-sm bg-loss-bg text-loss border border-line tabular-nums">
-                  {r.missed} missed
-                </span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+                <Icons.Download className="w-4 h-4" /> Download CSV
+              </button>
+            </div>
+          </>
+        )}
+      </Modal>
 
       {/* Reusable drill library — head builds the menu the planner picks from */}
       {isHead && (
