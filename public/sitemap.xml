@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dugout is a single-page app that renders client-side behind Firebase auth,
+     so the only crawlable surface is the landing/shell at the root. Public
+     Tryouts/Player-Info/Availability portal links use per-team dynamic slugs
+     coaches share directly and are intentionally not enumerated here. Update the
+     host if a custom domain replaces lineuptool.vercel.app. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://lineuptool.vercel.app/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>

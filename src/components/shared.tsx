@@ -369,6 +369,12 @@ export const downscaleImageToDataURL = (
 ): Promise<string> =>
   new Promise((resolve, reject) => {
     if (!file) return reject(new Error("No file"));
+    // Reject non-image files up front so a renamed binary (e.g. a .pdf picked as
+    // a "photo") never gets fed to the canvas/decoder. Browsers set file.type
+    // from the OS MIME mapping; empty type (unknown) is treated as not-an-image.
+    if (!file.type || !file.type.startsWith("image/")) {
+      return reject(new Error("Please choose an image file."));
+    }
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Failed to read file"));
     reader.onload = () => {

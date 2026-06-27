@@ -2,19 +2,11 @@ import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
 import { EmptyState } from "../components/shared";
-import { isDepartedPlayer } from "../utils/helpers";
-
-const formatShort = (iso: string): string => {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || "").slice(0, 10));
-  if (!m) return iso;
-  return new Date(
-    Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])),
-  ).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-};
+import {
+  isDepartedPlayer,
+  formatDateDisplay,
+  dedupePlayerInfoSubmissions,
+} from "../utils/helpers";
 
 // Parent-submitted Player Info inbox (uniform/equipment sizing + logistics).
 // Head-only. Each row shows what a parent sent via the public Player Info
@@ -35,8 +27,11 @@ export const PlayerInfoTab = memo(() => {
     [team?.players],
   );
 
+  // Collapse to the latest submission per person before display, so the inbox
+  // shows one row per kid even in the brief window before the coach-side
+  // reconcile in App.tsx persists the dedup (a resubmission replaces the prior).
   const submissions = useMemo(() => {
-    return [...(team?.playerInfoSubmissions || [])].sort(
+    return dedupePlayerInfoSubmissions(team?.playerInfoSubmissions).sort(
       (a: any, b: any) =>
         new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime(),
     );
@@ -120,9 +115,9 @@ export const PlayerInfoTab = memo(() => {
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <div className="border-b border-line pb-5">
-          <h2 className="t-h2 flex items-center gap-3">
+          <h1 className="t-h2 flex items-center gap-3">
             <Icons.Users className="w-6 h-6" /> Player Info
-          </h2>
+          </h1>
           <p className="text-xs text-ink-2 font-medium mt-1.5">
             Uniform/equipment sizing and logistics parents submitted on your
             team's Player Info form. Match each one to a roster player and tap
@@ -184,7 +179,7 @@ export const PlayerInfoTab = memo(() => {
                           </span>
                         )}
                         <span className="text-[10px] font-bold text-ink-3">
-                          {new Date(sub.submittedAt).toLocaleDateString()}
+                          {formatDateDisplay(new Date(sub.submittedAt))}
                         </span>
                         {applied && (
                           <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-win-bg text-win inline-flex items-center gap-1">
@@ -208,7 +203,7 @@ export const PlayerInfoTab = memo(() => {
                         </div>
                       )}
                       <div className="flex flex-wrap gap-1 mt-1.5">
-                        <Chip label="DOB" value={sub.dob} />
+                        <Chip label="DOB" value={formatDateDisplay(sub.dob)} />
                         <Chip label="Hat" value={sub.hatSize} />
                         <Chip label="Shirt" value={sub.shirtSize} />
                         <Chip label="Pants" value={sub.pantsSize} />
@@ -341,7 +336,7 @@ export const PlayerInfoTab = memo(() => {
                     </span>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-ink-3">
                       {done
-                        ? `Submitted ${formatShort(String(p.playerInfoSubmittedAt))}`
+                        ? `Submitted ${formatDateDisplay(new Date(String(p.playerInfoSubmittedAt)))}`
                         : "Not yet"}
                     </span>
                   </div>

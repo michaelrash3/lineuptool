@@ -3,7 +3,14 @@ import {
   blankStats,
   normalizeTryoutSessions,
   isDepartedPlayer,
+  randomCode,
+  genId,
 } from "../utils/helpers";
+
+// Lowercase base36 — matches the look of the previous Math.random().toString(36)
+// share tokens, but every character is now uniformly drawn from a CSPRNG and the
+// length is exact (the old slice(2, N) could occasionally come up short).
+const SLUG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 import type { ToastContextValue } from "../types";
 
 // Tryout + interest-signup flows extracted from App.tsx's TeamProvider.
@@ -26,9 +33,7 @@ export const useTryoutFlows = ({
   activeTeamId,
 }: UseTryoutFlowsArgs) => {
   const generateTryoutShareId = useCallback(() => {
-    const id =
-      Math.random().toString(36).slice(2, 8) +
-      Math.random().toString(36).slice(2, 8);
+    const id = randomCode(12, SLUG_ALPHABET);
     updateTeam({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" });
     return id;
   }, [updateTeam]);
@@ -38,7 +43,7 @@ export const useTryoutFlows = ({
       const date = String(rawDate || "").trim();
       if (!date) return null;
       const base = String(activeTeamId || "").replace(/[^a-zA-Z0-9_-]/g, "");
-      const rand = Math.random().toString(36).slice(2, 8);
+      const rand = randomCode(6, SLUG_ALPHABET);
       const slug = `${base || "team"}-${date}-${rand}`;
       const dates = Array.isArray(teamData.tryoutDates)
         ? teamData.tryoutDates
@@ -92,7 +97,7 @@ export const useTryoutFlows = ({
 
   const appendTryoutSignup = useCallback(
     (signup: any) => {
-      const id = signup.id || "ts-" + Math.random().toString(36).slice(2, 10);
+      const id = signup.id || genId("ts");
       const entry = {
         id,
         submittedAt: signup.submittedAt || new Date().toISOString(),
@@ -170,7 +175,7 @@ export const useTryoutFlows = ({
       );
       if (!lead) return;
       const signup = {
-        id: `ts-${Math.random().toString(36).slice(2, 10)}`,
+        id: genId("ts"),
         submittedAt: new Date().toISOString(),
         firstName: lead.firstName,
         lastName: lead.lastName,
@@ -587,7 +592,7 @@ export const useTryoutFlows = ({
         // player (and ride into next season as a returner), so their tryout
         // signup is consumed — they're a roster player, not a tryout anymore.
         const player = {
-          id: "p-" + Math.random().toString(36).slice(2, 10),
+          id: genId("p"),
           name,
           number: signup.tryoutNumber || signup.number || "",
           dob: signup.dob || "",

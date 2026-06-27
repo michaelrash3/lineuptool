@@ -10,6 +10,7 @@ import {
 import {
   buildMonthGrid,
   countAvailableOnDate,
+  formatDateDisplay,
   isDepartedPlayer,
   playersOutOnDate,
 } from "../utils/helpers";
@@ -269,9 +270,9 @@ export const AvailabilityTab = memo(() => {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
       <div className="border-b border-line pb-5">
-        <h2 className="t-h2 flex items-center gap-3">
+        <h1 className="t-h2 flex items-center gap-3">
           <Icons.Calendar className="w-6 h-6" /> Availability
-        </h2>
+        </h1>
         <p className="text-xs text-ink-2 font-medium mt-1.5">
           Days are blocked out when fewer than {minPlayers} players are
           available (your team's defense size). Parents submit unavailable dates
@@ -505,7 +506,7 @@ export const AvailabilityTab = memo(() => {
                     <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-ink-3">
                       Submitted{" "}
                       {formatShort(String(sub.submittedAt || "").slice(0, 10))}
-                      {sub.dob ? ` · DOB ${sub.dob}` : ""}
+                      {sub.dob ? ` · DOB ${formatDateDisplay(sub.dob)}` : ""}
                     </div>
                   </div>
                 );
@@ -535,7 +536,7 @@ export const AvailabilityTab = memo(() => {
                     {sub.firstName} {sub.lastName}
                     {sub.dob && (
                       <span className="ml-2 text-[10px] font-bold text-ink-3">
-                        DOB {sub.dob}
+                        DOB {formatDateDisplay(sub.dob)}
                       </span>
                     )}
                   </div>

@@ -57,9 +57,9 @@ export const InterestTab = memo(() => {
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <div className="border-b border-line pb-5">
-          <h2 className="t-h2 flex items-center gap-3">
+          <h1 className="t-h2 flex items-center gap-3">
             <Icons.Users className="w-6 h-6" /> Player Interest
-          </h2>
+          </h1>
           <p className="text-xs text-ink-2 font-medium mt-1.5">
             Parents who submitted the year-round interest survey on your team
             page. When tryouts open, "Move to Tryouts" promotes a lead into the

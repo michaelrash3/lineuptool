@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { normalizeDateToIso } from "../utils/helpers";
+import { normalizeDateToIso, genId } from "../utils/helpers";
 import { celebrateWin } from "../utils/celebrate";
 import type { ConfirmContextValue, ToastContextValue } from "../types";
 
@@ -35,7 +35,7 @@ export const useGameCrud = ({
         return;
       }
       const newGame = {
-        id: "g-" + Math.random().toString(36).substring(2, 10),
+        id: genId("g"),
         date: form.date,
         opponent: form.opponent.trim(),
         leagueRuleSet: form.leagueRuleSet,

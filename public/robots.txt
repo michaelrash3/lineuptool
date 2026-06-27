@@ -5,5 +5,6 @@
 User-agent: *
 Allow: /
 
-# Add a Sitemap directive once a production domain is configured, e.g.:
-# Sitemap: https://your-domain.example/sitemap.xml
+# Only the public landing/shell is indexable; update this host if a custom
+# domain replaces lineuptool.vercel.app.
+Sitemap: https://lineuptool.vercel.app/sitemap.xml

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { blankStats } from "../utils/helpers";
+import { blankStats, genId } from "../utils/helpers";
 import type { ConfirmContextValue, ToastContextValue } from "../types";
 
 // Roster/player CRUD extracted from App.tsx's TeamProvider. Pure persistence
@@ -20,7 +20,7 @@ export const usePlayerCrud = ({
 }: UsePlayerCrudArgs) => {
   const addPlayer = useCallback(
     (form: any) => {
-      const id = form.id || "p-" + Math.random().toString(36).substring(2, 10);
+      const id = form.id || genId("p");
       const newPlayer = {
         id,
         name: form.name.trim(),

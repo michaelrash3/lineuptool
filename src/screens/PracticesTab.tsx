@@ -5,6 +5,7 @@ import {
   formatGameDateDisplay,
   isDepartedPlayer,
   dateToIsoLocal,
+  genId,
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
@@ -28,8 +29,7 @@ const DRILL_CATEGORIES: DrillCategory[] = [
 const fitsEnv = (d: DrillDefinition, env: string): boolean =>
   !d.environment || d.environment === "both" || d.environment === env;
 
-const newId = (p: string) =>
-  p + "-" + Math.random().toString(36).substring(2, 9);
+const newId = (p: string) => genId(p);
 
 // Attendance is tri-state: present / absent (a real miss) / excused (e.g. a
 // fall conflict with football, or winter basketball/wrestling — not held
@@ -810,7 +810,7 @@ export const PracticesTab = memo(() => {
             className="block h-4 w-1 rounded-sm"
             style={{ backgroundColor: "var(--team-primary)" }}
           />
-          <h2 className="t-h2">Practices</h2>
+          <h1 className="t-h2">Practices</h1>
         </div>
         {isHead && !adding && (
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">

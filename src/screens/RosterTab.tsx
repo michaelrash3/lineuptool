@@ -1,6 +1,10 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { formatStat, calculateBaseballAge } from "../utils/helpers";
+import {
+  formatStat,
+  calculateBaseballAge,
+  formatDateDisplay,
+} from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts";
 import { getPlayerInitials, EmptyState, Modal } from "../components/shared";
 import { QRCodeImg } from "../components/QRCodeImg";
@@ -517,7 +521,7 @@ export const RosterTab = memo(() => {
                   style={{ color: "var(--team-primary)" }}
                 />
               </div>
-              <h2 className="t-h2 flex items-center gap-3">
+              <h1 className="t-h2 flex items-center gap-3">
                 Team Roster
                 <span
                   className="t-chip px-2.5 py-1 rounded-lg"
@@ -528,7 +532,7 @@ export const RosterTab = memo(() => {
                 >
                   {activeRosterCount} Active
                 </span>
-              </h2>
+              </h1>
             </div>
 
             {canEdit && (
@@ -755,7 +759,7 @@ export const RosterTab = memo(() => {
                   className={p.playerInfoSubmittedAt ? "text-win" : "text-loss"}
                 >
                   {p.playerInfoSubmittedAt
-                    ? `✓ ${new Date(p.playerInfoSubmittedAt).toLocaleDateString()}`
+                    ? `✓ ${formatDateDisplay(new Date(p.playerInfoSubmittedAt))}`
                     : "✕ Missing"}
                 </span>
               </div>

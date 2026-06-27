@@ -10,6 +10,7 @@ import {
   recordCatchingOuting,
   recordPitchingOuting,
   stripPitchingStatsForFormat,
+  genId,
 } from "../utils/helpers";
 import { getLocalDateString } from "../constants/ui";
 import type { ConfirmContextValue, ToastContextValue } from "../types";
@@ -78,7 +79,7 @@ export const useImportExportFlows = ({
             }
             const opp = oppIdx !== -1 ? cols[oppIdx] : "TBD";
             newGames.push({
-              id: "g-" + Math.random().toString(36).substring(2, 10),
+              id: genId("g"),
               date: isoDate,
               opponent: opp || "TBD",
               leagueRuleSet: teamData.leagueRuleSet,
@@ -218,7 +219,7 @@ export const useImportExportFlows = ({
                   );
                   if (!exists) {
                     nextCoachContacts.push({
-                      id: "cc-" + Math.random().toString(36).substring(2, 10),
+                      id: genId("cc"),
                       name,
                       email: coachEmail,
                       sourceRole: cols[idx.position],
@@ -257,7 +258,7 @@ export const useImportExportFlows = ({
                 updated++;
               } else {
                 next.push({
-                  id: "p-" + Math.random().toString(36).substring(2, 10),
+                  id: genId("p"),
                   name,
                   number: rosterFields.number || "",
                   dob: rosterFields.dob || "",
@@ -323,7 +324,7 @@ export const useImportExportFlows = ({
             } else {
               // New player from a stats CSV — minimal record
               next.push({
-                id: "p-" + Math.random().toString(36).substring(2, 10),
+                id: genId("p"),
                 name,
                 number: idx.num !== -1 ? cols[idx.num] || "" : "",
                 dob: "",

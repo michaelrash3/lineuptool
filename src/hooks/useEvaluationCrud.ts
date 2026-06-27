@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { evalRoundDateForSave, dateToIsoLocal } from "../utils/helpers";
+import { evalRoundDateForSave, dateToIsoLocal, genId } from "../utils/helpers";
 import type { ToastContextValue } from "../types";
 
 // Pull a display-able last name from a Firebase auth user. Eval rounds
@@ -77,7 +77,7 @@ export const useEvaluationCrud = ({
     const roundDate = dateTaken(snapped) ? today : snapped;
     const evaluatorName = lastNameOfUser(user);
     const newEvent = {
-      id: "ev-" + Math.random().toString(36).substring(2, 10),
+      id: genId("ev"),
       date: roundDate,
       // Wall-clock creation stamp — the unambiguous tiebreaker for "latest
       // round" sorts when two rounds share a date (same-day saves).
@@ -120,7 +120,7 @@ export const useEvaluationCrud = ({
         );
       } else {
         const newEvent = {
-          id: "ev-" + Math.random().toString(36).substring(2, 10),
+          id: genId("ev"),
           date: roundDate,
           createdAt: Date.now(),
           coachRole: "Assistant",

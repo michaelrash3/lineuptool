@@ -38,6 +38,7 @@ import {
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
+  genId,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
 import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
@@ -49,8 +50,7 @@ import type { BudgetItem, Player, Team, TeamFinances } from "../types";
 // and one dated ledger of everything received (fees, sponsorships) and spent.
 // Everything lives under `team.finances` on the one team doc.
 
-const newId = (prefix: string) =>
-  `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+const newId = (prefix: string) => genId(prefix);
 
 // Common youth-club cost categories. Tapping a chip prefills the add form;
 // quantity-mode presets plan as count × per-unit cost (8 tournaments × $450).

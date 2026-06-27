@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { blankStats } from "../utils/helpers";
+import { blankStats, genId } from "../utils/helpers";
 import type { ConfirmContextValue } from "../types";
 
 // Past-season entry CRUD extracted from App.tsx's TeamProvider. Pure
@@ -23,7 +23,7 @@ export const usePastSeasonCrud = ({
         if (p.id !== playerId) return p;
         const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
         const newEntry = {
-          id: "ps-" + Math.random().toString(36).substring(2, 10),
+          id: genId("ps"),
           season: entry.season || "",
           ageGroup: entry.ageGroup || "",
           pitchingFormat: entry.pitchingFormat || "Kid Pitch",
@@ -100,7 +100,7 @@ export const usePastSeasonCrud = ({
         if (!a.playerId) continue;
         const list = byPlayer.get(a.playerId) || [];
         list.push({
-          id: "ps-" + Math.random().toString(36).substring(2, 10),
+          id: genId("ps"),
           season: a.season || "",
           ageGroup: a.ageGroup || "",
           pitchingFormat: a.pitchingFormat || "Kid Pitch",

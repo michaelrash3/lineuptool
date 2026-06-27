@@ -9,6 +9,7 @@ import {
   PlayerStats,
   SlimPlayer,
 } from "../types";
+import { genId } from "./id";
 
 export const formatStat = (val: unknown): string => {
   if (val === undefined || val === null || val === "") return ".000";
@@ -102,6 +103,108 @@ export const formatGameDateDisplay = (
     day: "numeric",
     timeZone: "UTC",
   }).format(new Date(Date.UTC(y, m - 1, d)));
+};
+
+// Compact, locale-independent date for display: zero-padded MM/DD/YYYY (e.g.
+// "10/08/2017"). Used for DOBs and submission timestamps that previously leaked
+// raw ISO ("2017-10-08") or unpadded locale strings ("6/27/2026").
+//
+// - Date-only strings (DOB) are read as calendar parts via normalizeDateToIso,
+//   so there is no timezone shift (a UTC birthdate never rolls to the day before
+//   in a western zone).
+// - Numbers / Date objects are timestamps (e.g. submittedAt = Date.now()) and
+//   are formatted in the viewer's local time.
+// Unparseable input is returned unchanged so we never render "NaN/NaN/".
+export const formatDateDisplay = (
+  value: string | number | Date | null | undefined,
+): string => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" || value instanceof Date) {
+    const dt = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(dt.getTime())) return "";
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
+    return `${mm}/${dd}/${dt.getFullYear()}`;
+  }
+  const iso = normalizeDateToIso(value);
+  if (!iso) return String(value);
+  const [y, m, d] = iso.split("-");
+  return `${m.padStart(2, "0")}/${d.padStart(2, "0")}/${y}`;
+};
+
+// Cryptographically-strong random string over an explicit alphabet. Uses
+// rejection sampling so every character is uniformly distributed — a naive
+// `byte % alphabet.length` skews toward the first `256 % len` characters.
+// Used for the team join code (which gates self-join) and tryout share tokens,
+// so they shouldn't be predictable from a weak PRNG. Falls back to Math.random
+// only if Web Crypto is unavailable (it isn't in any supported browser).
+export const randomCode = (length: number, alphabet: string): string => {
+  if (length <= 0 || !alphabet) return "";
+  const cryptoObj =
+    typeof globalThis !== "undefined" ? globalThis.crypto : undefined;
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== "function") {
+    let out = "";
+    for (let i = 0; i < length; i++)
+      out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return out;
+  }
+  // Largest multiple of alphabet.length that fits in a byte; bytes at or above
+  // it are rejected to keep the distribution uniform.
+  const limit = 256 - (256 % alphabet.length);
+  const buf = new Uint8Array(length);
+  let out = "";
+  while (out.length < length) {
+    cryptoObj.getRandomValues(buf);
+    for (let i = 0; i < buf.length && out.length < length; i++) {
+      if (buf[i] < limit) out += alphabet[buf[i] % alphabet.length];
+    }
+  }
+  return out;
+};
+
+// Player Info submissions arrive from the public portal append-only (the
+// security rules forbid the anonymous client from replacing array entries), so
+// a parent who resubmits — e.g. to correct a shirt size — stacks a second entry
+// in the coach's inbox. Coaches want the LATEST submission to REPLACE the prior
+// one per person, not accumulate. This collapses the array to one entry per
+// person (normalized first + last + dob), keeping the most recently submitted.
+//
+// Deliberately NOT used for availability submissions: those are add-only by
+// design (a family can log unavailable dates across several visits). Order is
+// stable (first-appearance of each surviving person) so a no-op produces an
+// identical array and never triggers a needless write.
+// genId lives in its own leaf module (see utils/id.ts) so utils/finances.ts can
+// share it without an import cycle; re-exported here so the many existing
+// `import { ... } from "../utils/helpers"` call sites keep working.
+export { genId };
+
+export const dedupePlayerInfoSubmissions = <T extends Record<string, any>>(
+  subs: T[] | null | undefined,
+): T[] => {
+  const list = Array.isArray(subs) ? subs : [];
+  const identityOf = (s: any): string =>
+    [
+      String(s?.firstName || "")
+        .trim()
+        .toLowerCase(),
+      String(s?.lastName || "")
+        .trim()
+        .toLowerCase(),
+      String(s?.dob || "").trim(),
+    ].join("|");
+  const submittedMs = (s: any): number => {
+    const t = new Date(s?.submittedAt || 0).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const order: string[] = [];
+  const latest = new Map<string, T>();
+  for (const s of list) {
+    const key = identityOf(s);
+    if (!latest.has(key)) order.push(key);
+    const prev = latest.get(key);
+    if (!prev || submittedMs(s) >= submittedMs(prev)) latest.set(key, s);
+  }
+  return order.map((k) => latest.get(k) as T);
 };
 
 // Slim helpers: strip embedded player objects in saved lineups down to the
@@ -2388,7 +2491,7 @@ export const buildPreseasonSeedRound = (
   if (Object.keys(grades).length === 0) return null;
 
   return {
-    id: "ev-preseason-" + Math.random().toString(36).slice(2, 10),
+    id: genId("ev-preseason"),
     date: meta.date,
     createdAt: Date.now(),
     coachRole: "Head",
