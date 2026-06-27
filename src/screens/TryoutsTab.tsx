@@ -1232,7 +1232,7 @@ export const TryoutsTab = memo(() => {
                           )}
                         </div>
                         {s.notes && (
-                          <p className="text-[11px] text-ink italic bg-surface border border-line rounded-lg p-2">
+                          <p className="cc-card text-[11px] text-ink italic p-2">
                             {s.notes}
                           </p>
                         )}
@@ -1240,7 +1240,7 @@ export const TryoutsTab = memo(() => {
                         {isHead &&
                           impact &&
                           impact.positionalFit.length > 0 && (
-                            <div className="bg-surface border border-line rounded-lg p-3 text-[11px]">
+                            <div className="cc-card p-3 text-[11px]">
                               <div className="font-black uppercase tracking-widest text-win text-[10px] mb-1.5">
                                 Position Fit
                               </div>

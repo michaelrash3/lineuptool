@@ -2768,10 +2768,7 @@ export const EvalTrendModal = memo(
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
                   {categorySeries.map((cs, idx) => (
-                    <div
-                      key={cs.id}
-                      className="bg-surface border border-line rounded-lg p-3"
-                    >
+                    <div key={cs.id} className="cc-card p-3">
                       <div
                         className="text-[10px] font-black uppercase tracking-widest mb-1"
                         style={{ color: palette[idx % palette.length] }}
@@ -2881,7 +2878,7 @@ export const EvalTrendModal = memo(
                     return (
                       <div
                         key={cs.id}
-                        className="bg-surface border border-line rounded-lg p-2.5 flex items-center gap-2"
+                        className="cc-card p-2.5 flex items-center gap-2"
                       >
                         <div
                           className="w-3 h-3 rounded-full shrink-0"
