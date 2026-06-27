@@ -51,7 +51,7 @@ export const ScoreEditor = memo(
 
     return (
       <div className="px-5 pb-5 pt-1 border-t border-line">
-        <div className="bg-surface border border-line rounded-xl p-4 shadow-sm">
+        <div className="cc-card p-4">
           <div className="flex flex-col sm:flex-row sm:items-end gap-3 flex-wrap">
             <div className="w-full sm:w-28">
               <label
