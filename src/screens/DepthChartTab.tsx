@@ -11,6 +11,7 @@ import {
   suggestPrimaryPosition,
 } from "../lineupEngine";
 import { canonicalizeOutfield, isDepartedPlayer } from "../utils/helpers";
+import { EmptyState } from "../components/shared";
 import { isKidPitchFormat } from "../constants/ui";
 import type { GradeMap, Player, Team } from "../types";
 
@@ -442,20 +443,11 @@ export const DepthChartTab = memo(() => {
       </div>
 
       {players.length === 0 ? (
-        <div className="cc-card p-8 text-center text-ink-3 font-medium">
-          {team.logoUrl ? (
-            <img
-              src={team.logoUrl}
-              alt="Team Logo"
-              className="w-24 h-24 mx-auto mb-6 opacity-40 grayscale"
-            />
-          ) : (
-            <div className="text-4xl leading-none mb-3 opacity-80" aria-hidden>
-              📋
-            </div>
-          )}
-          Add players to your roster to build a depth chart.
-        </div>
+        <EmptyState
+          glyph="📋"
+          title="No Depth Chart Yet"
+          body="Add players to your roster to build a depth chart."
+        />
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {board.map(({ pos, ranked, customized }) => (
