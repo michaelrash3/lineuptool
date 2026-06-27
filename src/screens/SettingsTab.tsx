@@ -583,9 +583,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
           >
             <div className="p-1.5 bg-warnfg" />
             <div className="p-5 sm:p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
-                Rotate team code?
-              </h3>
+              <h3 className="t-h3 mb-1">Rotate team code?</h3>
               <p className="text-sm text-ink-2 font-medium mb-5">
                 The current code{" "}
                 <code className="font-mono font-black text-ink">{code}</code>{" "}

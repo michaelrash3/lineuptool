@@ -150,9 +150,7 @@ export const InGameView = memo(() => {
       <div className="fixed inset-0 z-[85] bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center p-6">
         <div className="bg-surface rounded-2xl shadow-2xl max-w-md w-full p-8 text-center border border-line">
           <Icons.Clipboard className="w-12 h-12 text-ink-3 mx-auto mb-4" />
-          <h3 className="text-xl font-black uppercase tracking-tight text-ink mb-2">
-            No Lineup Generated
-          </h3>
+          <h3 className="t-h2 mb-2">No Lineup Generated</h3>
           <p className="text-sm text-ink-3 font-medium mb-6">
             You need to generate a lineup before starting in-game mode.
           </p>
@@ -1254,9 +1252,7 @@ export const InGameView = memo(() => {
                 <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
                   vs. {game.opponent}
                 </div>
-                <h3 className="text-xl font-black uppercase tracking-tight text-ink">
-                  Final Score
-                </h3>
+                <h3 className="t-h2">Final Score</h3>
               </div>
               <button
                 onClick={() => setShowEndGameScore(false)}
@@ -1305,9 +1301,7 @@ export const InGameView = memo(() => {
             <div className="p-5 sm:p-6 border-b border-line">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-black uppercase tracking-tight text-ink">
-                    Remove a Player
-                  </h3>
+                  <h3 className="t-h2">Remove a Player</h3>
                   <p className="text-[12px] text-ink-2 font-medium mt-1">
                     Mark a player out for the rest of the game (injury, illness,
                     or had to leave). Innings they already played still count

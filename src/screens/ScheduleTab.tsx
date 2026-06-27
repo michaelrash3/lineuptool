@@ -400,9 +400,7 @@ export const ScheduleTab = memo(() => {
                   style={{ color: primaryColor }}
                 />
               </div>
-              <h2 className="text-xl font-black text-ink uppercase tracking-wider">
-                Game Command Center
-              </h2>
+              <h2 className="t-h2">Game Command Center</h2>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
               <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 shadow-sm">
@@ -1185,7 +1183,7 @@ export const ScheduleTab = memo(() => {
                     style={{ color: primaryColor }}
                   />
                 </div>
-                <h2 className="text-xl font-black text-ink uppercase tracking-wider">
+                <h2 className="t-h2">
                   {isTournamentGame ? "Starting Lineup" : "Active Lineup Grid"}
                 </h2>
               </div>
@@ -1318,9 +1316,7 @@ export const ScheduleTab = memo(() => {
                   <div className="p-2 rounded-full bg-surface border border-line shadow-sm">
                     <Icons.Bat className="w-5 h-5 text-ink-2" />
                   </div>
-                  <h3 className="text-lg font-black text-ink uppercase tracking-widest">
-                    Batting Order
-                  </h3>
+                  <h3 className="t-h3">Batting Order</h3>
                 </div>
                 <div className="flex flex-col gap-3 max-w-2xl">
                   {battingLineup.map((p: any, idx: any) => (
@@ -1416,9 +1412,7 @@ export const ScheduleTab = memo(() => {
               style={{ color: primaryColor }}
             />
           </div>
-          <h2 className="text-xl font-black text-ink uppercase tracking-wider flex items-center gap-3">
-            Schedule
-          </h2>
+          <h2 className="t-h2 flex items-center gap-3">Schedule</h2>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (
@@ -1953,7 +1947,7 @@ export const ScheduleTab = memo(() => {
                             <p className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
                               Game Detail
                             </p>
-                            <h3 className="text-lg font-black text-ink uppercase tracking-tight leading-tight">
+                            <h3 className="t-h3 leading-tight">
                               {pg.isHome === false ? "@ " : "vs. "}
                               {pg.opponent}
                             </h3>
@@ -2301,9 +2295,7 @@ export const ScheduleTab = memo(() => {
           >
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
-                Save Lineup Template
-              </h3>
+              <h3 className="t-h3 mb-1">Save Lineup Template</h3>
               <p className="text-xs text-ink-3 font-medium mb-4">
                 Reusable batting order + defensive plan. Apply it to any future
                 game.
@@ -2375,9 +2367,7 @@ export const ScheduleTab = memo(() => {
                   style={{ backgroundColor: "var(--loss)" }}
                 />
                 <div className="p-5 sm:p-6">
-                  <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
-                    Delete Template?
-                  </h3>
+                  <h3 className="t-h3 mb-1">Delete Template?</h3>
                   <p className="text-sm text-ink font-medium mb-5">
                     "{name}" will be removed from your saved templates. Games
                     using this template aren't affected.

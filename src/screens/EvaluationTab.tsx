@@ -659,9 +659,7 @@ export const RosterDecisionsPanel = memo(() => {
             <Icons.Users className="w-6 h-6" style={{ color: primaryColor }} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-ink uppercase tracking-wider">
-              Roster Decisions
-            </h2>
+            <h2 className="t-h2">Roster Decisions</h2>
             {decisions[0]?.teamAvgScore != null && (
               <p className="text-[11px] font-bold text-ink-3 mt-0.5">
                 Team average score:{" "}
@@ -2499,9 +2497,7 @@ export const EvaluationTab = memo(() => {
             <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
             <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-lg font-black uppercase tracking-tight text-ink">
-                  Your Saved Rounds
-                </h3>
+                <h3 className="t-h3">Your Saved Rounds</h3>
                 <p className="text-[12px] text-ink-3 font-medium mt-1">
                   Select a round to review or edit, or delete one saved by
                   mistake.
