@@ -26,7 +26,7 @@ import { A11yDialog, PlayerAvatar } from "./shared";
 // /player/:id (asPage), or the legacy centered dialog overlay otherwise.
 const ProfileShell = ({ asPage, onClose, children }: any) =>
   asPage ? (
-    <div className="w-full max-w-2xl lg:max-w-[1180px] mx-auto bg-surface border border-line flex flex-col">
+    <div className="w-full max-w-2xl lg:max-w-none mx-auto bg-surface border border-line flex flex-col">
       {children}
     </div>
   ) : (
@@ -115,7 +115,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           {ranges.map((r) => (
             <span
               key={r.from}
-              className="t-chip pl-2 pr-1 py-1 rounded-md bg-warn-bg border border-line text-warnfg tabular-nums inline-flex items-center gap-1"
+              className="t-chip whitespace-nowrap pl-2 pr-1 py-1 rounded-md bg-warn-bg border border-line text-warnfg tabular-nums inline-flex items-center gap-1"
             >
               {r.from === r.to
                 ? formatGameDateDisplay(r.from)
@@ -140,13 +140,13 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           ))}
         </div>
       )}
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+      <div className="flex flex-col gap-2">
         <input
           type="date"
           value={fromDate}
           aria-label={`Absence start date for ${player.name}`}
           onChange={(e) => setFromDate(e.target.value)}
-          className={`${ABSENCE_DATE_INPUT_CLASS} sm:w-44`}
+          className={ABSENCE_DATE_INPUT_CLASS}
         />
         <span className="text-[10px] font-black uppercase tracking-widest text-ink-3 text-center">
           to
@@ -157,7 +157,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           min={fromDate || undefined}
           aria-label={`Absence end date for ${player.name}`}
           onChange={(e) => setToDate(e.target.value)}
-          className={`${ABSENCE_DATE_INPUT_CLASS} sm:w-44`}
+          className={ABSENCE_DATE_INPUT_CLASS}
         />
         <button
           type="button"
@@ -949,7 +949,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
           <div className="lg:flex lg:items-start lg:gap-6">
             <div
               data-profile-section="general"
-              className={`p-6 sm:p-7 space-y-6 lg:order-2 lg:w-[22rem] lg:shrink-0 ${
+              className={`p-6 sm:p-7 space-y-6 lg:order-2 lg:w-[26rem] lg:shrink-0 ${
                 canEdit ? "" : "hidden"
               }`}
             >
