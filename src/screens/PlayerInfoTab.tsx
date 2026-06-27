@@ -323,7 +323,7 @@ export const PlayerInfoTab = memo(() => {
                 return (
                   <div
                     key={p.id}
-                    className="flex items-center gap-2 bg-surface border border-line rounded-lg px-3 py-2"
+                    className="cc-card flex items-center gap-2 px-3 py-2"
                   >
                     <span
                       className={`w-5 h-5 rounded-full grid place-items-center shrink-0 ${
