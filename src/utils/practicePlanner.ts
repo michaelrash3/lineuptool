@@ -130,14 +130,17 @@ export const describeEmphasis = (profile: TeamSkillProfile): string => {
     return "A balanced plan across every area — add eval grades to tailor it.";
   }
   const names = signaled.slice(0, 2).map((f) => f.area);
-  const when = profile.roundDate ? ` (from your ${profile.roundDate} round)` : "";
+  const when = profile.roundDate
+    ? ` (from your ${profile.roundDate} round)`
+    : "";
   return `Weighted toward ${names.join(" & ")} — your lowest grades${when}.`;
 };
 
 const envOk = (
   d: DrillDefinition,
   environment: "indoor" | "outdoor",
-): boolean => !d.environment || d.environment === "both" || d.environment === environment;
+): boolean =>
+  !d.environment || d.environment === "both" || d.environment === environment;
 
 export interface PlanInput {
   profile: TeamSkillProfile;

@@ -187,7 +187,9 @@ const PracticePlannerModal = ({
                   ? "border-transparent text-white"
                   : "bg-surface border-line text-ink-2 hover:text-ink"
               }`}
-              style={active ? { backgroundColor: "var(--team-primary)" } : undefined}
+              style={
+                active ? { backgroundColor: "var(--team-primary)" } : undefined
+              }
             >
               {m} min
             </button>
@@ -197,8 +199,8 @@ const PracticePlannerModal = ({
 
       {plan.length === 0 ? (
         <p className="t-body text-ink-3 italic">
-          Your drill library has nothing tagged for an {env} practice — add a few
-          drills to the library and try again.
+          Your drill library has nothing tagged for an {env} practice — add a
+          few drills to the library and try again.
         </p>
       ) : (
         <>
