@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Dugout is a single-page app that renders client-side behind Firebase auth,
+<!-- The Bench Coach is a single-page app that renders client-side behind Firebase auth,
      so the only crawlable surface is the landing/shell at the root. Public
      Tryouts/Player-Info/Availability portal links use per-team dynamic slugs
      coaches share directly and are intentionally not enumerated here. Update the

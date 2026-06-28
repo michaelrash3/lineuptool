@@ -1,4 +1,4 @@
-// Dugout offline cache.
+// The Bench Coach offline cache.
 //
 // Strategy:
 //   - Navigations (HTML)      → network first, fall back to cached

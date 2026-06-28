@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { Button, Eyebrow } from "./shared";
 import { useTeam, useUI } from "../contexts";
+import { APP_NAME } from "../constants/ui";
 
 // Bumped from v1 → v2 when the tour switched from passive descriptions to
 // action-oriented walkthrough with per-step CTAs. v3 adds the tryouts /
@@ -37,7 +38,7 @@ const buildSteps = (ctx: any) => {
   return [
     {
       eyebrow: "Welcome",
-      title: "Dugout",
+      title: APP_NAME,
       icon: Icons.HomePlate,
       body: "Lineups, in-game swaps, eval rounds, tryouts, season stats — all in one place. Each step below pushes you to actually do the thing.",
     },
