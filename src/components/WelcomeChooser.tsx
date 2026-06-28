@@ -343,7 +343,7 @@ export const WelcomeChooser = ({
               style={{ backgroundColor: "var(--team-primary)" }}
             />
             <div className="p-6">
-              <h3 className="text-lg font-black uppercase tracking-tight text-ink mb-1">
+              <h3 className="text-lg font-extrabold tracking-tight text-ink mb-1">
                 Sign out?
               </h3>
               <p className="text-sm text-ink-2 font-medium mb-5">

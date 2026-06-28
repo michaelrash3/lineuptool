@@ -1265,7 +1265,7 @@ export const ScheduleTab = memo(() => {
                   className="w-24 h-24 object-contain drop-shadow-md"
                 />
               )}
-              <h2 className="text-3xl font-black uppercase tracking-tighter text-ink">
+              <h2 className="text-3xl font-extrabold tracking-tighter text-ink">
                 GAME VS {currentGame.opponent || "OPPONENT"}
               </h2>
             </div>
@@ -1710,7 +1710,7 @@ export const ScheduleTab = memo(() => {
                                 Today
                               </span>
                             )}
-                            <h3 className="text-base sm:text-lg font-black uppercase tracking-tight leading-tight text-ink">
+                            <h3 className="text-base sm:text-lg font-extrabold tracking-tight leading-tight text-ink">
                               {game.isHome === false ? "@ " : "VS. "}
                               {game.opponent}
                             </h3>

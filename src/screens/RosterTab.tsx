@@ -159,7 +159,7 @@ const PlayerRow = memo(
               <button
                 type="button"
                 onClick={() => onOpenProfile(player.id)}
-                className="font-black text-base sm:text-lg uppercase tracking-tight text-ink leading-none hover:text-team-primary transition-colors text-left truncate"
+                className="font-extrabold text-base sm:text-lg tracking-tight text-ink leading-none hover:text-team-primary transition-colors text-left truncate"
               >
                 {player.name}
               </button>

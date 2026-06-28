@@ -151,7 +151,7 @@ export const GameChangerImportModal: React.FC<Props> = ({
         className="bg-app border border-line rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col"
       >
         <div className="flex items-center justify-between p-5 border-b border-line">
-          <h3 className="text-lg font-black text-ink uppercase tracking-wider flex items-center gap-2">
+          <h3 className="text-lg font-extrabold text-ink tracking-wider flex items-center gap-2">
             <Icons.Calendar className="w-5 h-5" /> Import from GameChanger
           </h3>
           <button

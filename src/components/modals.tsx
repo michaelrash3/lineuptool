@@ -860,7 +860,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                   if (e.key === "Enter") (e.target as HTMLElement).blur();
                   if (e.key === "Escape") setEditingPlayerName(false);
                 }}
-                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-ink mb-1 w-full p-2 -ml-2 border border-line outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl bg-surface shadow-inner"
+                className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink mb-1 w-full p-2 -ml-2 border border-line outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl bg-surface shadow-inner"
               />
             ) : (
               <h2
@@ -868,7 +868,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
                   setTempPlayerName(player.name);
                   setEditingPlayerName(true);
                 }}
-                className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-ink mb-1 truncate cursor-pointer hover:bg-surface-2 px-2 py-1 -ml-2 rounded-xl transition-colors"
+                className="text-2xl sm:text-3xl font-extrabold tracking-tight text-ink mb-1 truncate cursor-pointer hover:bg-surface-2 px-2 py-1 -ml-2 rounded-xl transition-colors"
               >
                 {player.name}
               </h2>
