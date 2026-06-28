@@ -788,7 +788,7 @@ export const Modal = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
+                  className="shrink-0 -mr-2 -mt-1 inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg transition-colors"
                   aria-label="Close"
                 >
                   <span className="block w-4 h-4 leading-none text-lg">×</span>
