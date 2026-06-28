@@ -1610,6 +1610,12 @@ export const ScheduleTab = memo(() => {
               glyph="📅"
               title="No Games Scheduled"
               body="Add a game manually or head to Settings to import your schedule."
+              {...(canEdit
+                ? {
+                    action: "Add Your First Game",
+                    onAction: () => setIsAddingGame(true),
+                  }
+                : {})}
             />
           ) : (
             <div className="flex flex-col">
