@@ -46,6 +46,14 @@ export {
   playersOutOnDate,
 } from "./availability";
 
+// Game-status predicates now live in ./gameStatus (imported for the many
+// in-module callers, re-exported for existing import sites).
+import { isGameFinalized, countsTowardStats } from "./gameStatus";
+export { isGameFinalized, countsTowardStats };
+
+// Schedule .ics export now lives in ./ics, re-exported here.
+export { buildScheduleIcs } from "./ics";
+
 export const formatStat = (val: unknown): string => {
   if (val === undefined || val === null || val === "") return ".000";
   const str = (Number(val) || 0).toFixed(3);
@@ -700,60 +708,6 @@ export const getReturningDecision = (
 // (`livePlayerIds`); two siblings who share a first+last name and are
 // both still on the roster stay correctly distinguished by their
 // live ids.
-// True when the game should be treated as finalized for stat,
-// record, and trend aggregations. Mirrors the predicate that
-// PR #140 introduced for PlayerProfileModal's innings-by-position
-// (`modals.jsx`); without unifying it across the rest of the
-// app, finalized games that ended up with `status === "completed"`
-// (legacy writer) — or with explicit scores but no status flip —
-// silently fall out of the team's record, the Home leaderboards,
-// and the trend tile, even though they show up correctly on the
-// player profile. Strict `status === "final"` checks remain
-// appropriate for UI affordances tied to the finalizeGame trim
-// flow itself (e.g. Restore Lineup), which only fires from that
-// specific writer.
-//
-// The null/undefined/empty-string guard up front is load-bearing.
-// `Number(null)` is `0` and `isFinite(0)` is true, so a brand-new
-// scheduled game with `teamScore: null, opponentScore: null` would
-// otherwise be treated as a 0-0 tie — that was the bug coaches
-// reported where future games showed up as ties on the trend tile
-// and record badge.
-export const isGameFinalized = (
-  game:
-    | {
-        status?: string;
-        teamScore?: number | string | null;
-        opponentScore?: number | string | null;
-      }
-    | null
-    | undefined,
-): boolean => {
-  if (!game) return false;
-  if (game.status === "final" || game.status === "completed") return true;
-  const ts = game.teamScore;
-  const os = game.opponentScore;
-  if (ts == null || ts === "" || os == null || os === "") return false;
-  return Number.isFinite(Number(ts)) && Number.isFinite(Number(os));
-};
-
-// Whether a game contributes to CUMULATIVE totals — the W-L record, run
-// totals/form/streak, player stats, defensive-innings distribution, bench
-// equity, and the lineup engine's seasonal fairness. A scrimmage is finalizable
-// and lives on the schedule (so it's playable and keeps GameChanger's sync
-// happy) but is excluded from all of the above. Display/scheduling code keeps
-// using isGameFinalized() — a scrimmage is still a real, finalizable game.
-export const countsTowardStats = (
-  game:
-    | {
-        status?: string;
-        teamScore?: number | string | null;
-        opponentScore?: number | string | null;
-        isScrimmage?: boolean;
-      }
-    | null
-    | undefined,
-): boolean => isGameFinalized(game) && !game?.isScrimmage;
 
 // The canonical set of positions a player can be marked comfortable with / be
 // evaluated on — always the 3-outfielder layout, independent of whether the
@@ -2378,104 +2332,6 @@ export const gamesDueForReminder = (
     });
   }
   return due.sort((a, b) => a.date.localeCompare(b.date));
-};
-
-// ============================================================================
-// Schedule calendar export (.ics).
-//
-// Reminders fired from the app only land while it's open (Spark plan — no
-// backend push). Exporting the schedule as an .ics lets a coach add games to
-// their phone/desktop calendar, which then handles reliable native reminders
-// even when the app is closed. This builder is pure so it's unit-testable; the
-// UI wraps the string in a Blob download.
-//
-// Games are emitted as all-day events: the stored date has no reliable time or
-// timezone, and an all-day event shows on the correct calendar day everywhere.
-// Any free-text `time` is appended to the title for the coach's reference
-// without affecting scheduling.
-// ============================================================================
-
-const icsEscapeText = (value: string): string =>
-  String(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r?\n/g, "\\n");
-
-const icsCompactDate = (iso: string): string => iso.replace(/-/g, "");
-
-// All-day DTEND is exclusive, so it points at the day after DTSTART.
-const icsNextDay = (iso: string): string => {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + 1);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(
-    dt.getUTCDate(),
-  )}`;
-};
-
-const icsStamp = (now: Date): string => {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(
-    now.getUTCDate(),
-  )}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(
-    now.getUTCSeconds(),
-  )}Z`;
-};
-
-// Build an RFC 5545 VCALENDAR string for the team's upcoming games. Finalized
-// and postponed games and rows without a parseable date are omitted; events
-// are sorted by date. Returns a valid (empty) calendar when nothing qualifies.
-export const buildScheduleIcs = (
-  games:
-    | Array<{
-        id?: string;
-        date?: string;
-        time?: string;
-        opponent?: string;
-        status?: string;
-        teamScore?: number | string | null;
-        opponentScore?: number | string | null;
-      }>
-    | null
-    | undefined,
-  teamName: string | null | undefined,
-  now: Date = new Date(),
-): string => {
-  const stamp = icsStamp(now);
-  const team = (teamName || "").trim() || "Team";
-
-  const events = (Array.isArray(games) ? games : [])
-    .filter((g) => g && g.id)
-    .filter((g) => (g!.status || "scheduled") !== "postponed")
-    .filter((g) => !isGameFinalized(g!))
-    .map((g) => ({ g: g!, iso: normalizeDateToIso(g!.date) }))
-    .filter((e) => !!e.iso)
-    .sort((a, b) => a.iso.localeCompare(b.iso));
-
-  const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    `PRODID:-//${APP_NAME}//Schedule//EN`,
-    "CALSCALE:GREGORIAN",
-  ];
-  for (const { g, iso } of events) {
-    const opp = (g.opponent || "").trim() || "TBD";
-    const time = (g.time || "").trim();
-    const summary = `${team} vs ${opp}${time ? ` (${time})` : ""}`;
-    lines.push(
-      "BEGIN:VEVENT",
-      `UID:game-${g.id}@coachscard`,
-      `DTSTAMP:${stamp}`,
-      `DTSTART;VALUE=DATE:${icsCompactDate(iso)}`,
-      `DTEND;VALUE=DATE:${icsNextDay(iso)}`,
-      `SUMMARY:${icsEscapeText(summary)}`,
-      "END:VEVENT",
-    );
-  }
-  lines.push("END:VCALENDAR");
-  return lines.join("\r\n") + "\r\n";
 };
 
 // ============================================================================
