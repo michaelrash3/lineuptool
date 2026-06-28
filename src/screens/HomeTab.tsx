@@ -142,7 +142,7 @@ const UpcomingGameCard = memo(
               <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
                 Next Game
               </div>
-              <h3 className="font-black text-lg sm:text-xl text-ink uppercase tracking-tight leading-tight">
+              <h3 className="font-extrabold text-lg sm:text-xl text-ink tracking-tight leading-tight">
                 {title}
               </h3>
               <p className="text-[11px] font-bold text-ink-3 uppercase tracking-widest mt-1">
@@ -387,7 +387,7 @@ const UpcomingGameCard = memo(
                   </span>
                 )}
               </div>
-              <h3 className="font-black text-xl sm:text-2xl text-ink uppercase tracking-tight leading-tight">
+              <h3 className="font-extrabold text-xl sm:text-2xl text-ink tracking-tight leading-tight">
                 {game.isHome === false ? "@ " : "VS. "}
                 {game.opponent}
               </h3>

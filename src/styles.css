@@ -285,38 +285,38 @@ body::before {
    read more refined (tighter tracking, optical sizing) than the old all-900.
    ============================================================================ */
 
+/* Headings read in sentence/Title case — easier to scan than blanket
+   uppercase, and a 800→700 weight ramp restores real hierarchy (everything
+   used to be 800, which flattened it). UPPERCASE is reserved for the short
+   "kicker" roles below (eyebrow/label/chip/button/meta), where it reads as
+   an intentional accent rather than shouting. */
 .t-display {
   font: 800 38px/1.02 var(--font-sans);
   letter-spacing: -0.03em;
-  text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-h1 {
   font: 800 30px/1.05 var(--font-sans);
   letter-spacing: -0.03em;
-  text-transform: uppercase;
   color: var(--ink);
 }
 
 .t-h2 {
-  font: 800 20px/1.1 var(--font-sans);
-  letter-spacing: -0.01em;
-  text-transform: uppercase;
+  font: 700 20px/1.15 var(--font-sans);
+  letter-spacing: -0.015em;
   color: var(--ink);
 }
 
 .t-h3 {
-  font: 800 18px/1.2 var(--font-sans);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font: 700 18px/1.25 var(--font-sans);
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
 
 .t-card-title {
   font: 800 23px/1.1 var(--font-sans);
   letter-spacing: -0.025em;
-  text-transform: uppercase;
   color: var(--ink);
 }
 

@@ -80,7 +80,7 @@ export class ErrorBoundary extends React.Component<
             <div className="p-2.5 rounded-full bg-rose-50">
               <Icons.Alert className="w-6 h-6 text-rose-600" />
             </div>
-            <h2 className="text-lg font-black uppercase tracking-wide text-ink">
+            <h2 className="text-lg font-extrabold tracking-wide text-ink">
               Something went wrong
             </h2>
           </div>

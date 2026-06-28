@@ -271,7 +271,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
                   Certificate of Achievement
                 </div>
                 <div
-                  className="text-lg font-black uppercase tracking-tight mt-1"
+                  className="text-lg font-extrabold tracking-tight mt-1"
                   style={{ color: "var(--team-primary)" }}
                 >
                   {w.label}

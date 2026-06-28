@@ -2730,7 +2730,7 @@ export const EvalTrendModal = memo(
               <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
                 {player.name}
               </div>
-              <h3 className="text-2xl font-black uppercase tracking-tight text-ink">
+              <h3 className="text-2xl font-extrabold tracking-tight text-ink">
                 Evaluation Trend
               </h3>
               <p className="text-[11px] text-ink-3 font-medium mt-0.5">

@@ -463,7 +463,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
             <div className="p-6">
               <h3
                 id="sign-out-title"
-                className="text-lg font-black uppercase tracking-tight text-ink mb-1"
+                className="text-lg font-extrabold tracking-tight text-ink mb-1"
               >
                 Sign out?
               </h3>

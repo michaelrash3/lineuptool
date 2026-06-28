@@ -98,7 +98,7 @@ const DialogShell = ({
         >
           <h3
             id="confirm-dialog-title"
-            className="text-lg font-black uppercase tracking-tight text-ink mb-1"
+            className="text-lg font-extrabold tracking-tight text-ink mb-1"
           >
             {opts.title}
           </h3>
