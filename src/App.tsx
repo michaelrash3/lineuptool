@@ -134,6 +134,7 @@ import {
   DEFAULT_TEAM_DATA,
   EVAL_SCHEMA_VERSION,
   isKidPitchFormat,
+  APP_NAME,
 } from "./constants/ui";
 
 // Pure-function lineup engine. Lives in ./lineupEngine.js next to this file.
@@ -279,7 +280,7 @@ const AppLoadingScreen = () => (
         />
       </div>
       <div className="text-center">
-        <div className="t-h2">Dugout</div>
+        <div className="t-h2">{APP_NAME}</div>
         <div className="t-eyebrow text-ink-3 mt-2 flex items-center justify-center gap-2">
           <Icons.Refresh className="w-3.5 h-3.5 animate-spin" /> Loading…
         </div>
@@ -3006,7 +3007,7 @@ const UIProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const screen = inGameId ? "In-Game" : TAB_TITLE_LABELS[activeTab] || "";
     const name = (teamName || "").trim();
-    document.title = name ? (screen ? `${name} · ${screen}` : name) : "Dugout";
+    document.title = name ? (screen ? `${name} · ${screen}` : name) : APP_NAME;
   }, [teamName, activeTab, inGameId]);
 
   // Snapshot of the game data we last loaded into local editor state, used

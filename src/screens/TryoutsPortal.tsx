@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
+import { APP_NAME } from "../constants/ui";
 import {
   SIGNUP_LIMITS,
   clampText,
@@ -159,7 +160,7 @@ export const TryoutsPortal = () => {
       document.title = `${name} Player Interest`;
     }
     return () => {
-      document.title = "Dugout";
+      document.title = APP_NAME;
     };
   }, [team?.name]);
 

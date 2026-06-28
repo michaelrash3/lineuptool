@@ -1,6 +1,14 @@
 // UI-only constants extracted from App.jsx Section 4.
 import type { DrillDefinition } from "../types";
 
+// Product brand name shown in the UI (browser title, login, cold-start
+// loading screen, onboarding, the .ics calendar PRODID). The repository and
+// npm package stay "lineuptool" for historical reasons. Keep this the single
+// source of truth for the TSX/title spots so the next rebrand is one edit;
+// index.html and public/manifest.json carry the literal string separately.
+export const APP_NAME = "The Bench Coach";
+export const APP_SHORT_NAME = "Bench Coach";
+
 // League rule sets keep their stored values ("NKB" / "USSSA") so all rules
 // logic and existing data are unchanged, but they're SHOWN to coaches as
 // "Rec" and "Tournament" — which is also the play-style switch (Rec games use
