@@ -3748,6 +3748,17 @@ const MainShell = () => {
         // theme/sign-out (account-level controls), not in the tab bar.
       ];
 
+  // Shared by /evaluation and its /evaluation/round/:roundId page so the
+  // assistant's read-only past-round view is a real, deep-linkable route
+  // (back button closes it) rather than local-state-only.
+  const evalElement = !roleResolved ? (
+    <ScreenLoader />
+  ) : isAssistant ? (
+    <AssistantEvalTab />
+  ) : (
+    <EvaluationTab />
+  );
+
   return (
     <div className="min-h-screen bg-app print:bg-surface relative">
       {/* Keyboard/screen-reader users can jump past the header + tab bar straight
@@ -3800,17 +3811,10 @@ const MainShell = () => {
                 <Route path="/schedule" element={<ScheduleTab />} />
                 <Route path="/practices" element={<PracticesTab />} />
                 <Route path="/schedule/*" element={<ScheduleTab />} />
+                <Route path="/evaluation" element={evalElement} />
                 <Route
-                  path="/evaluation"
-                  element={
-                    !roleResolved ? (
-                      <ScreenLoader />
-                    ) : isAssistant ? (
-                      <AssistantEvalTab />
-                    ) : (
-                      <EvaluationTab />
-                    )
-                  }
+                  path="/evaluation/round/:roundId"
+                  element={evalElement}
                 />
                 <Route
                   path="/tryouts"
