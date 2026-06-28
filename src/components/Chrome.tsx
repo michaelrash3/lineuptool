@@ -530,13 +530,25 @@ const NavRow = ({
     role={role}
     onClick={onClick}
     aria-current={isActive ? "page" : undefined}
-    className={`w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide transition-colors border ${
+    className={`relative w-full text-left flex items-center gap-3 px-3 py-3 rounded-xl font-extrabold text-sm tracking-wide transition-colors border ${
       isActive
         ? "shadow-sm"
         : "text-ink-2 hover:bg-surface-2 hover:text-ink border-transparent"
     }`}
     style={isActive ? activeTabStyle : undefined}
   >
+    {/* Non-color cue for the active item: a leading accent bar whose mere
+        presence (not its hue) marks the current page, so the active state
+        survives color-vision differences and low-contrast team colors. It
+        sits in the row's left padding, so it adds no layout shift.
+        aria-current already conveys the same to screen readers. */}
+    {isActive && (
+      <span
+        aria-hidden="true"
+        className="absolute left-0 top-2 bottom-2 w-1"
+        style={{ backgroundColor: "var(--team-primary)" }}
+      />
+    )}
     <Icon className="w-5 h-5 shrink-0" /> {label}
   </button>
 );
