@@ -7,7 +7,7 @@ A youth-baseball coaching app for head and assistant coaches: build inning-by-in
 ## Tech stack
 
 - **React 18** + **TypeScript**, built with **Vite**
-- **Firebase 12** — Auth + Firestore (Spark plan; no Cloud Storage — player photos are stored inline as data URLs)
+- **Firebase 12** — Auth + Firestore (Spark plan; no Cloud Storage). The team logo is the only image and is auto-downscaled/compressed to a small inline data URL on upload; player photos are not stored (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#images))
 - **react-router-dom 6** for routing (tabs + public Tryouts Portal)
 - **Tailwind CSS 3** for styling, with the design tokens centralized in `src/styles.css`
 - **lucide-react** for iconography (see `src/icons.tsx`)
