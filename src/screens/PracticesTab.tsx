@@ -12,6 +12,12 @@ import { StaggerList, StaggerItem } from "../components/motion";
 import { EmptyState, Modal } from "../components/shared";
 import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
 import type { DrillCategory, DrillDefinition } from "../types";
+import {
+  buildTeamSkillProfile,
+  generatePracticePlan,
+  describeEmphasis,
+  type TeamSkillProfile,
+} from "../utils/practicePlanner";
 
 // The drill categories a coach can tag a library drill with. Mirrors the
 // DrillCategory union in types.ts; order here drives the picker grouping.
@@ -92,17 +98,164 @@ const AttendanceRow = ({ player, status, onCycle }: any) => {
 };
 
 // A single practice as an open, expandable row.
+// Smart Practice Planner modal — proposes a time-budgeted agenda weighted to
+// the team's weakest eval areas, drawn from the drill library. The coach picks
+// a length, eyeballs the preview, and applies it to the practice.
+const PLAN_LENGTHS = [60, 75, 90, 105, 120];
+
+const PracticePlannerModal = ({
+  open,
+  onClose,
+  skillProfile,
+  library,
+  environment,
+  pitchingFormat,
+  existingCount,
+  onApply,
+}: {
+  open: boolean;
+  onClose: () => void;
+  skillProfile: TeamSkillProfile;
+  library: DrillDefinition[];
+  environment: string;
+  pitchingFormat?: string;
+  existingCount: number;
+  onApply: (drills: any[]) => void;
+}) => {
+  const [minutes, setMinutes] = useState(90);
+  const env: "indoor" | "outdoor" =
+    environment === "indoor" ? "indoor" : "outdoor";
+  const plan = useMemo(
+    () =>
+      generatePracticePlan({
+        profile: skillProfile,
+        minutes,
+        environment: env,
+        library,
+        pitchingFormat,
+      }),
+    [skillProfile, minutes, env, library, pitchingFormat],
+  );
+  const total = plan.reduce((s, d) => s + (Number(d.minutes) || 0), 0);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      eyebrow="Smart Planner"
+      title="Build a practice plan"
+      size="lg"
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-sm hover:bg-surface-2 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={plan.length === 0}
+            onClick={() => {
+              onApply(plan);
+              onClose();
+            }}
+            className="btn-premium px-5 py-2.5 rounded-sm text-xs font-black uppercase tracking-widest disabled:opacity-50"
+            style={{ color: "var(--team-tertiary)" }}
+          >
+            {existingCount > 0
+              ? `Replace ${existingCount} drill${existingCount === 1 ? "" : "s"}`
+              : "Apply to practice"}
+          </button>
+        </>
+      }
+    >
+      <p className="t-body mb-4">{describeEmphasis(skillProfile)}</p>
+
+      <span className="t-eyebrow text-ink-3 block mb-1.5">Practice length</span>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {PLAN_LENGTHS.map((m) => {
+          const active = m === minutes;
+          return (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMinutes(m)}
+              className={`px-3 py-2 text-xs font-black uppercase tracking-widest rounded-sm border transition-colors ${
+                active
+                  ? "border-transparent text-white"
+                  : "bg-surface border-line text-ink-2 hover:text-ink"
+              }`}
+              style={active ? { backgroundColor: "var(--team-primary)" } : undefined}
+            >
+              {m} min
+            </button>
+          );
+        })}
+      </div>
+
+      {plan.length === 0 ? (
+        <p className="t-body text-ink-3 italic">
+          Your drill library has nothing tagged for an {env} practice — add a few
+          drills to the library and try again.
+        </p>
+      ) : (
+        <>
+          <div className="border border-line rounded-sm divide-y divide-line">
+            {plan.map((d, i) => (
+              <div key={d.id} className="flex items-center gap-3 px-3 py-2">
+                <span className="t-stat-num-sm text-ink-3 w-6 tabular-nums">
+                  {i + 1}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block t-body-bold text-ink truncate">
+                    {d.name}
+                  </span>
+                  {d.category && (
+                    <span className="t-chip text-ink-3">{d.category}</span>
+                  )}
+                </span>
+                <span className="t-stat-num-sm text-ink tabular-nums shrink-0">
+                  {d.minutes}m
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-2 px-1">
+            <span className="t-eyebrow text-ink-3">
+              {plan.length} blocks · {env}
+            </span>
+            <span className="t-body-bold text-ink tabular-nums">
+              {total} min
+            </span>
+          </div>
+          {existingCount > 0 && (
+            <p className="t-meta text-warnfg mt-3">
+              Applying replaces the {existingCount} drill
+              {existingCount === 1 ? "" : "s"} already on this practice.
+            </p>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+};
+
 const PracticeRow = memo(
   ({
     practice,
     players,
     isHead,
     drillLibrary,
+    skillProfile,
+    pitchingFormat,
     updatePractice,
     removePractice,
     savePracticeAttendance,
   }: any) => {
     const [open, setOpen] = useState(false);
+    const [plannerOpen, setPlannerOpen] = useState(false);
     const [drillName, setDrillName] = useState("");
     const [drillMin, setDrillMin] = useState("");
 
@@ -391,6 +544,25 @@ const PracticeRow = memo(
 
               {isHead && (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => setPlannerOpen(true)}
+                    className="w-full mb-3 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-black uppercase tracking-widest rounded-sm border border-line bg-surface text-ink-2 hover:text-ink hover:border-ink-3 transition-colors"
+                  >
+                    <Icons.Sparkles className="w-4 h-4" /> Build a plan
+                  </button>
+                  <PracticePlannerModal
+                    open={plannerOpen}
+                    onClose={() => setPlannerOpen(false)}
+                    skillProfile={skillProfile}
+                    library={drillLibrary}
+                    environment={env}
+                    pitchingFormat={pitchingFormat}
+                    existingCount={drills.length}
+                    onApply={(plan) =>
+                      updatePractice(practice.id, { drills: plan })
+                    }
+                  />
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -706,6 +878,12 @@ export const PracticesTab = memo(() => {
   } = useTeam() as any;
   const isHead = currentRole !== "assistant";
   const toast = useToast();
+  // Team-wide weak-area signal (latest eval round) — shared by every practice's
+  // Smart Planner. Recomputed only when the eval rounds change.
+  const skillProfile = useMemo(
+    () => buildTeamSkillProfile(team),
+    [team.evaluationEvents],
+  );
   const [adding, setAdding] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -922,6 +1100,8 @@ export const PracticesTab = memo(() => {
                 players={players}
                 isHead={isHead}
                 drillLibrary={drillLibrary}
+                skillProfile={skillProfile}
+                pitchingFormat={team.pitchingFormat}
                 updatePractice={updatePractice}
                 removePractice={removePractice}
                 savePracticeAttendance={savePracticeAttendance}
