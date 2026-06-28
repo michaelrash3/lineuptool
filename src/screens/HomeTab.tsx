@@ -1493,6 +1493,17 @@ export const UpNextPanel = memo(
         };
       };
 
+      // Up Next is for *pressing* work. A fee only belongs here once its due
+      // date is within reach (or already past) — a balance due months out
+      // (e.g. the full season fee) is real but not urgent, so it stays on the
+      // Finances tab until it's actually near. Fees with no due date set have
+      // no "far away" signal, so they still surface.
+      const FEE_LEAD_DAYS = 14;
+      const feeIsPressing = (iso: string | null) => {
+        const d = daysUntil(iso);
+        return d == null || d <= FEE_LEAD_DAYS;
+      };
+
       const goToGame = (g: Game) => {
         setSelectedGameId(g.id);
         setOpponentName(g.opponent);
@@ -1581,7 +1592,11 @@ export const UpNextPanel = memo(
 
         // ----- Team Fees: deposit + full fee -----
         const fees = teamFeesStatus(finances, players);
-        if (fees.depositAmount > 0 && fees.depositOwedCount > 0) {
+        if (
+          fees.depositAmount > 0 &&
+          fees.depositOwedCount > 0 &&
+          feeIsPressing(fees.depositDueDate)
+        ) {
           const m = dueMeta(fees.depositDueDate);
           out.push({
             id: "fees-deposit",
@@ -1597,7 +1612,7 @@ export const UpNextPanel = memo(
             onClick: () => setActiveTab("finances"),
           });
         }
-        if (fees.stillOwed > 0) {
+        if (fees.stillOwed > 0 && feeIsPressing(fees.feeDueDate)) {
           const m = dueMeta(fees.feeDueDate);
           out.push({
             id: "fees-full",

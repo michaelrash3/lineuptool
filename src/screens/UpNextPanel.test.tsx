@@ -27,8 +27,8 @@ const baseTeam: any = {
   finances: {
     clubFee: 100,
     depositAmount: 40,
-    depositDueDate: "2999-05-05",
-    feeDueDate: "2999-06-01",
+    depositDueDate: "2999-05-05", // 4 days out — pressing
+    feeDueDate: "2999-05-12", // 11 days out — inside the lead window
     payments: [{ id: "p1", playerId: "k1", amount: 100 }], // k1 paid; k2 owes
   },
 };
@@ -75,6 +75,30 @@ describe("UpNextPanel", () => {
     // k2 still owes the full fee and hasn't met the deposit.
     expect(screen.getByText(/team fees outstanding/i)).toBeInTheDocument();
     expect(screen.getByText(/owe the team-fee deposit/i)).toBeInTheDocument();
+  });
+
+  it("hides team-fee rows whose due date is far in the future", () => {
+    // Both fees are real but due months out — pressing-only Up Next should
+    // leave them on the Finances tab, not clutter the dashboard.
+    renderPanel({
+      team: {
+        finances: {
+          ...baseTeam.finances,
+          depositDueDate: "2999-09-01", // ~4 months out
+          feeDueDate: "2999-12-01", // ~7 months out
+        },
+      },
+    });
+    expect(
+      screen.queryByText(/owe the team-fee deposit/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/team fees outstanding/i),
+    ).not.toBeInTheDocument();
+    // The near-term, non-fee actions still show.
+    expect(
+      screen.getByText(/build the lineup vs thunder/i),
+    ).toBeInTheDocument();
   });
 
   it("deep-links the lineup action into the schedule editor", () => {
