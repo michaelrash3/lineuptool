@@ -362,29 +362,71 @@ export const computeNextSeason = (
 // old hardcoded indoor/outdoor PLAN_SUGGESTIONS that used to live in
 // PracticesTab, now first-class, categorized, reusable definitions. Stable
 // "seed-*" ids keep them dedupe-able.
+// A full coaching library: recognized youth-baseball drills across every
+// category, each with a short explanation of what it is and why you run it, so
+// a new coach can build a real practice (and the Smart Planner has enough per
+// category to vary the agenda week to week). Several "both"/"indoor" options in
+// each category keep indoor/rainy-day plans from coming up empty. Stable
+// "seed-*" ids keep them dedupe-able with any existing saved libraries.
 export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
-  // Warm-up / conditioning
+  // ── Conditioning / warm-up ───────────────────────────────────────────────
   {
     id: "seed-dynamic-warmup",
     name: "Dynamic warm-up",
     category: "Conditioning",
     defaultMinutes: 10,
     environment: "both",
+    description:
+      "A light jog into leg swings, walking lunges, arm circles, and high knees. Raises heart rate and loosens hips, shoulders, and hamstrings so nobody throws or sprints cold.",
   },
   {
-    id: "seed-baserunning",
-    name: "Base running",
-    category: "Baserunning",
+    id: "seed-agility-ladder",
+    name: "Agility ladder footwork",
+    category: "Conditioning",
     defaultMinutes: 10,
     environment: "both",
+    equipment: "Agility ladder",
+    description:
+      "Quick-feet patterns (one-in, two-in, lateral shuffle) through a ground ladder. Builds foot speed, body control, and the short first step fielders and baserunners live on.",
   },
-  // Throwing / pitching
+  {
+    id: "seed-reaction-ball",
+    name: "Reaction ball drill",
+    category: "Conditioning",
+    defaultMinutes: 8,
+    environment: "both",
+    equipment: "Reaction balls",
+    description:
+      "Players field a six-sided reaction ball that bounces unpredictably. Sharpens hand-eye coordination, reflexes, and the instinct to stay low and adjust.",
+  },
+  {
+    id: "seed-pepper",
+    name: "Pepper",
+    category: "Conditioning",
+    defaultMinutes: 10,
+    environment: "both",
+    description:
+      "A hitter taps controlled grounders and liners to a tight line of fielders 15–20 ft away, who field and toss it right back. Classic warm-up for soft hands, quick exchanges, and bat control.",
+  },
+  {
+    id: "seed-conditioning-sprints",
+    name: "Conditioning sprints",
+    category: "Conditioning",
+    defaultMinutes: 10,
+    environment: "both",
+    description:
+      "Short max-effort sprints (home-to-first, foul pole runs) with full recovery between. Builds explosive speed and the late-game legs to beat out a throw in the last inning.",
+  },
+
+  // ── Pitching / throwing / arm care ───────────────────────────────────────
   {
     id: "seed-long-toss",
     name: "Long toss / arm care",
     category: "Pitching",
     defaultMinutes: 10,
     environment: "outdoor",
+    description:
+      "Partners throw at gradually increasing distance, then work back in on a line. Builds arm strength and durability while grooving a clean, full-arm throwing motion.",
   },
   {
     id: "seed-throwing-progression",
@@ -392,14 +434,95 @@ export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
     category: "Pitching",
     defaultMinutes: 10,
     environment: "indoor",
+    equipment: "Resistance bands",
+    description:
+      "Resistance-band shoulder activation (external rotation, scarecrows) then short partner throws stepping back. Indoor arm prep that warms the rotator cuff before any hard throwing.",
   },
-  // Defense
+  {
+    id: "seed-bullpen-target",
+    name: "Bullpen to spots",
+    category: "Pitching",
+    defaultMinutes: 15,
+    environment: "outdoor",
+    description:
+      "Pitchers throw a controlled pen to a catcher, aiming at corners and the bottom of the zone rather than just throwing hard. Builds command and a repeatable delivery.",
+  },
+  {
+    id: "seed-towel-drill",
+    name: "Towel drill",
+    category: "Pitching",
+    defaultMinutes: 10,
+    environment: "both",
+    equipment: "Hand towels",
+    description:
+      "Dry mechanics: the pitcher snaps a towel at a partner's glove out front, repping arm path, stride, and release with zero stress on the arm. Great indoors or on rain days.",
+  },
+  {
+    id: "seed-flat-ground",
+    name: "Flat-ground mechanics",
+    category: "Pitching",
+    defaultMinutes: 12,
+    environment: "both",
+    description:
+      "Controlled throws on flat ground keying balance over the rubber, a directional stride, and finishing out front. Lets pitchers feel mechanics without the mound's added effort.",
+  },
+  {
+    id: "seed-pickoffs",
+    name: "Pickoffs & holding runners",
+    category: "Pitching",
+    defaultMinutes: 10,
+    environment: "outdoor",
+    description:
+      "Pitchers rep the set position, varied looks, slide step, and a quick pickoff move to first. Slows the running game and keeps the defense in control with runners on.",
+  },
+
+  // ── Catching ─────────────────────────────────────────────────────────────
+  {
+    id: "seed-catcher-receiving",
+    name: "Receiving & framing",
+    category: "Catching",
+    defaultMinutes: 12,
+    environment: "both",
+    description:
+      "Catchers receive pitches with a relaxed, quiet glove, 'sticking' borderline pitches and beating them back to the zone. Steals strikes and gives pitchers a confident target.",
+  },
+  {
+    id: "seed-catcher-blocking",
+    name: "Blocking in the dirt",
+    category: "Catching",
+    defaultMinutes: 12,
+    environment: "both",
+    description:
+      "Catchers drop to their knees, chest over the ball, chin down, to smother balls in the dirt and keep them in front. Keeps runners from advancing on a bouncing pitch.",
+  },
+  {
+    id: "seed-catcher-throwdowns",
+    name: "Pop time & throw-downs",
+    category: "Catching",
+    defaultMinutes: 12,
+    environment: "outdoor",
+    description:
+      "Receive, quick transfer, and throw to second focusing on clean footwork and a fast release over raw arm strength. Builds the pop time that shuts down base stealers.",
+  },
+  {
+    id: "seed-catcher-bunts-popups",
+    name: "Bunts & pop-ups (catcher)",
+    category: "Catching",
+    defaultMinutes: 10,
+    environment: "outdoor",
+    description:
+      "Catchers explode from the crouch to field bunts and clear the mask to track foul pop-ups (which curve back toward the field). Owns the area in front of the plate.",
+  },
+
+  // ── Fielding / defense ───────────────────────────────────────────────────
   {
     id: "seed-infield-outfield",
     name: "Infield / outfield defense reps",
     category: "Fielding",
     defaultMinutes: 20,
     environment: "outdoor",
+    description:
+      "Full-field fungo work: infielders take grounders and feeds while outfielders track flies and crow-hop throws to bases. The bread-and-butter defensive block.",
   },
   {
     id: "seed-footwork-transfers",
@@ -407,14 +530,64 @@ export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
     category: "Fielding",
     defaultMinutes: 15,
     environment: "indoor",
+    description:
+      "Glove-to-hand transfer reps and the approach-and-field footwork (round the ball, field through it). Clean exchanges turn into quicker, more accurate throws.",
   },
-  // Hitting
+  {
+    id: "seed-short-hops",
+    name: "Short hops & backhands",
+    category: "Fielding",
+    defaultMinutes: 12,
+    environment: "both",
+    description:
+      "Partners roll/throw short hops and balls to the backhand side. Trains soft hands, a confident glove-side pick, and trusting the in-between hop instead of backing up.",
+  },
+  {
+    id: "seed-double-play",
+    name: "Double-play turns",
+    category: "Fielding",
+    defaultMinutes: 15,
+    environment: "outdoor",
+    description:
+      "Middle infielders rep the feed, footwork around the bag, and the relay throw. Turning two is the biggest momentum swing a youth defense can make.",
+  },
+  {
+    id: "seed-of-communication",
+    name: "Fly-ball communication (OF)",
+    category: "Fielding",
+    defaultMinutes: 10,
+    environment: "outdoor",
+    description:
+      "Outfielders take overlapping fly balls, loudly calling 'ball, ball, ball' and the priority caller takes it. Prevents the dropped-between-everyone collision.",
+  },
+  {
+    id: "seed-rundown",
+    name: "Rundown (pickle) drill",
+    category: "Fielding",
+    defaultMinutes: 10,
+    environment: "both",
+    description:
+      "Defenders trap a runner between bases and run him down with few throws — run hard at the runner, no pump fakes, throw early, follow your throw. Turns chaos into easy outs.",
+  },
+  {
+    id: "seed-bucket-grounders",
+    name: "Rapid-fire grounders",
+    category: "Fielding",
+    defaultMinutes: 10,
+    environment: "both",
+    description:
+      "Coach rapid-fires grounders from a ball bucket so a player gets many reps fast. Builds range, footwork, and conditioning in a short, high-energy burst.",
+  },
+
+  // ── Hitting ──────────────────────────────────────────────────────────────
   {
     id: "seed-live-bp",
     name: "Live batting practice",
     category: "Hitting",
     defaultMinutes: 25,
     environment: "outdoor",
+    description:
+      "Game-speed pitches from a coach or machine so hitters time real pitching, work counts, and drive the ball. The closest thing to in-game at-bats.",
   },
   {
     id: "seed-tee-soft-toss",
@@ -422,21 +595,169 @@ export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
     category: "Hitting",
     defaultMinutes: 20,
     environment: "both",
+    equipment: "Batting tee, net",
+    description:
+      "Controlled swings off a tee and partner soft toss to groove the swing path and contact point with high reps. The foundation every other hitting drill builds on.",
   },
-  // Team / IQ
+  {
+    id: "seed-front-toss",
+    name: "Front toss / short box",
+    category: "Hitting",
+    defaultMinutes: 15,
+    environment: "both",
+    equipment: "L-screen",
+    description:
+      "Underhand tosses from behind a short screen ~15 ft away for high-rep, game-like contact with accurate, repeatable location. Bridges tee work and live BP.",
+  },
+  {
+    id: "seed-two-strike",
+    name: "Two-strike / situational hitting",
+    category: "Hitting",
+    defaultMinutes: 15,
+    environment: "both",
+    description:
+      "Hitters choke up, widen the stance, and battle — shorten up to protect with two strikes and hit the ball where it's pitched. Trades the homer swing for tough outs and moving runners.",
+  },
+  {
+    id: "seed-bunting",
+    name: "Bunting fundamentals",
+    category: "Hitting",
+    defaultMinutes: 12,
+    environment: "both",
+    description:
+      "Square early, get on top of the ball, and 'catch' it with the bat to deaden it down a line. Covers sacrifice and drag bunts — a free 90 feet when you need it.",
+  },
+  {
+    id: "seed-one-hand-vision",
+    name: "One-hand & vision drills",
+    category: "Hitting",
+    defaultMinutes: 12,
+    environment: "both",
+    equipment: "Batting tee, small balls",
+    description:
+      "Top-hand/bottom-hand swings and tracking small balls (or numbers) to isolate barrel control and sharpen pitch recognition. Fixes casting and pulling off the ball.",
+  },
+  {
+    id: "seed-oppo-hit-run",
+    name: "Opposite-field & hit-and-run",
+    category: "Hitting",
+    defaultMinutes: 12,
+    environment: "outdoor",
+    description:
+      "Stay back and drive the outside pitch the other way, and put the ball in play on the move to protect a runner. Teaches situational, contact-first hitting.",
+  },
+
+  // ── Baserunning ──────────────────────────────────────────────────────────
+  {
+    id: "seed-baserunning",
+    name: "Home-to-first & rounding",
+    category: "Baserunning",
+    defaultMinutes: 10,
+    environment: "both",
+    description:
+      "Run hard through first on a ground ball, and on a base hit make the 'banana' turn to round the bag aggressively. Reading the ball out of the box turns singles into doubles.",
+  },
+  {
+    id: "seed-leads",
+    name: "Lead-offs & secondary leads",
+    category: "Baserunning",
+    defaultMinutes: 10,
+    environment: "outdoor",
+    description:
+      "Take a controlled primary lead, shuffle into a secondary lead as the pitch crosses, and read the pitcher for a jump. Where extra bases and steals begin.",
+  },
+  {
+    id: "seed-sliding",
+    name: "Sliding technique",
+    category: "Baserunning",
+    defaultMinutes: 12,
+    environment: "both",
+    equipment: "Slip-n-slide or sliding mats (indoor)",
+    description:
+      "Bent-leg and pop-up slides into a bag, leading with the correct leg and staying on the base. Done on mats indoors — teaches safe sliding so nobody learns it the hard way in a game.",
+  },
+  {
+    id: "seed-first-to-third",
+    name: "First-to-third reads",
+    category: "Baserunning",
+    defaultMinutes: 10,
+    environment: "outdoor",
+    description:
+      "Round second hard and read the outfielder — ball in front, in the gap, or a bobble — to decide whether to take third. Aggressive, smart baserunning that pressures the defense.",
+  },
+  {
+    id: "seed-steals-jumps",
+    name: "Steals & first-step jumps",
+    category: "Baserunning",
+    defaultMinutes: 10,
+    environment: "both",
+    description:
+      "Explosive crossover first step and reading the pitcher's first move to steal second. Reps the jump and footwork that beat the catcher's throw.",
+  },
+  {
+    id: "seed-tag-ups",
+    name: "Tag-ups & scoring from third",
+    category: "Baserunning",
+    defaultMinutes: 8,
+    environment: "outdoor",
+    description:
+      "Read fly-ball depth, get back to tag, and break on the catch — and from third, score on a fly or a ball in the dirt. Wins the run that decides close games.",
+  },
+
+  // ── Team / baseball IQ ───────────────────────────────────────────────────
   {
     id: "seed-situational-scrimmage",
     name: "Situational scrimmage",
     category: "Team",
     defaultMinutes: 20,
     environment: "outdoor",
+    description:
+      "Set the runners, count, and outs, then play it live so players rep real in-game decisions at game speed. The fastest way to turn skills into instincts.",
   },
   {
     id: "seed-baseball-iq",
-    name: "Baseball IQ / situations chalk talk",
+    name: "Baseball IQ / chalk talk",
     category: "Team",
     defaultMinutes: 15,
     environment: "indoor",
+    description:
+      "Whiteboard the 'where's the ball going and what's my job' situations: cutoffs, force vs. tag, who covers on a steal. Builds the mental game without needing a field.",
+  },
+  {
+    id: "seed-cutoffs-relays",
+    name: "Cutoffs & relays",
+    category: "Team",
+    defaultMinutes: 15,
+    environment: "outdoor",
+    description:
+      "Outfield-to-infield relay alignment, lining up the throw, and communicating where it goes. Keeps runners from taking the extra base on balls to the gaps.",
+  },
+  {
+    id: "seed-first-third-defense",
+    name: "First-and-third defense",
+    category: "Team",
+    defaultMinutes: 15,
+    environment: "outdoor",
+    description:
+      "Rep the coverages and reads when runners are on the corners and one breaks — who takes the throw, who watches the runner at third. Defuses a play that wrecks youth defenses.",
+  },
+  {
+    id: "seed-inter-squad",
+    name: "Inter-squad scrimmage",
+    category: "Team",
+    defaultMinutes: 25,
+    environment: "outdoor",
+    description:
+      "A full controlled game, splitting the roster, to apply every skill under real pressure with umpire-style calls. Great season-opening evaluator and team builder.",
+  },
+  {
+    id: "seed-late-game-situations",
+    name: "Late-game pressure situations",
+    category: "Team",
+    defaultMinutes: 12,
+    environment: "outdoor",
+    description:
+      "Stage the tense spots — squeeze bunt, infield in, runner on third with two outs, walk-off — and play them out. Teaches composure so the moment isn't new in the game.",
   },
 ];
 

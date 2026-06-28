@@ -134,3 +134,40 @@ describe("describeEmphasis", () => {
     expect(text).toMatch(/balanced/i);
   });
 });
+
+describe("generatePracticePlan variation (Reshuffle)", () => {
+  const profile = buildTeamSkillProfile({ evaluationEvents: [] });
+  // Two Team drills so the closer block has something to rotate through.
+  const library = [
+    { id: "cond", name: "Laps", category: "Conditioning", environment: "both" },
+    { id: "t1", name: "Situations A", category: "Team", environment: "both" },
+    { id: "t2", name: "Situations B", category: "Team", environment: "both" },
+  ] as any;
+  const make = (variation?: number) =>
+    generatePracticePlan({
+      profile,
+      minutes: 60,
+      environment: "outdoor",
+      library,
+      variation,
+    });
+  const teamBlock = (plan: ReturnType<typeof make>) =>
+    plan.find((d) => d.category === "Team");
+
+  it("defaults to the first matching drill (variation 0 == no variation)", () => {
+    expect(teamBlock(make())?.name).toBe("Situations A");
+    expect(teamBlock(make(0))?.name).toBe("Situations A");
+  });
+
+  it("rotates the drill per category as variation increments, wrapping", () => {
+    expect(teamBlock(make(1))?.name).toBe("Situations B");
+    expect(teamBlock(make(2))?.name).toBe("Situations A"); // wraps (2 candidates)
+  });
+
+  it("keeps the total minutes exact regardless of variation", () => {
+    for (const v of [0, 1, 2, 5]) {
+      const total = make(v).reduce((s, d) => s + (d.minutes || 0), 0);
+      expect(total).toBe(60);
+    }
+  });
+});

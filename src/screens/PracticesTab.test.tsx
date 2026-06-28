@@ -27,7 +27,10 @@ const practice = {
   drills: [],
 };
 
-const renderPractices = (role: CoachRole = "head") => {
+const renderPractices = (
+  role: CoachRole = "head",
+  opts: { drillLibrary?: unknown[] } = {},
+) => {
   const updatePractice = vi.fn();
   const utils = renderWithProviders(<PracticesTab />, {
     team: {
@@ -35,6 +38,7 @@ const renderPractices = (role: CoachRole = "head") => {
         ...DEFAULT_TEAM_DATA,
         practices: [practice],
         evaluationEvents: [round],
+        ...(opts.drillLibrary ? { drillLibrary: opts.drillLibrary } : {}),
       },
       currentRole: role,
       realRole: role,
@@ -93,6 +97,31 @@ describe("PracticesTab — Smart Practice Planner", () => {
       0,
     );
     expect(total).toBe(60);
+  });
+
+  it("reshuffles to a different drill before applying", () => {
+    // Two Team drills so the closer block has an alternative to rotate to.
+    const drillLibrary = [
+      {
+        id: "cond",
+        name: "Laps",
+        category: "Conditioning",
+        environment: "both",
+      },
+      { id: "t1", name: "Situations A", category: "Team", environment: "both" },
+      { id: "t2", name: "Situations B", category: "Team", environment: "both" },
+    ];
+    const { updatePractice } = renderPractices("head", { drillLibrary });
+    expandRow();
+    fireEvent.click(screen.getByRole("button", { name: /Build a plan/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Reshuffle/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Apply to practice/i }));
+
+    const [, patch] = updatePractice.mock.calls[0];
+    const teamBlock = patch.drills.find(
+      (d: { category?: string }) => d.category === "Team",
+    );
+    expect(teamBlock.name).toBe("Situations B");
   });
 
   it("hides the planner entry point from an assistant", () => {
