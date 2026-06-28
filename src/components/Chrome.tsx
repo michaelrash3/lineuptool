@@ -345,7 +345,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 />
                 <button
                   type="submit"
-                  className="p-2 text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
                   style={{
                     backgroundColor: "var(--team-primary)",
                     color: "var(--team-tertiary)",
@@ -360,7 +360,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                     setIsJoiningTeam(false);
                     setJoinCodeInput("");
                   }}
-                  className="p-2 bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
+                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
                 >
                   <Icons.X className="w-4 h-4" />
                 </button>
@@ -397,7 +397,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 <button
                   type="submit"
                   disabled={!newTeamType}
-                  className="p-2 text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
                   style={{
                     backgroundColor: "var(--team-primary)",
                     color: "var(--team-tertiary)",
@@ -408,7 +408,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                 <button
                   type="button"
                   onClick={() => setIsAddingTeam(false)}
-                  className="p-2 bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
+                  className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] bg-surface border border-line text-ink-2 hover:text-ink rounded-lg"
                 >
                   <Icons.X className="w-4 h-4" />
                 </button>
@@ -644,7 +644,7 @@ export const NavDrawer = memo(
                     type="button"
                     onClick={() => setOpen(false)}
                     aria-label="Close navigation menu"
-                    className="ml-auto p-2 text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
+                    className="ml-auto inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-ink-3 hover:text-ink rounded-lg hover:bg-surface-2 transition-colors"
                   >
                     <Icons.X className="w-5 h-5" />
                   </button>
