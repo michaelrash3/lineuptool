@@ -2,7 +2,7 @@
 
 A youth-baseball coaching app for head and assistant coaches: build inning-by-inning lineups, manage in-game swaps, run player evaluations, and keep season stats in one place. Real-time multi-coach via Firebase; install-to-home-screen via PWA.
 
-> The app is branded **Dugout** in the UI. The repository name and the npm package both use `lineuptool` for historical reasons.
+> The app is branded **The Bench Coach** in the UI. The repository name and the npm package both use `lineuptool` for historical reasons.
 
 ## Tech stack
 

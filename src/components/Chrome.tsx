@@ -6,6 +6,7 @@ import { auth } from "../firebase";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog, RecordBadge, Eyebrow } from "./shared";
 import { useTheme } from "../hooks/useTheme";
+import { APP_NAME } from "../constants/ui";
 
 // Light/dark toggle — sun in dark mode (tap to go light), moon in light mode.
 const ThemeToggle = () => {
@@ -77,7 +78,7 @@ export const LoginScreen = ({
           </div>
         </div>
         <Eyebrow className="block mb-2 text-ink-3">Sign In Required</Eyebrow>
-        <h1 className="t-h1 mb-2">Dugout</h1>
+        <h1 className="t-h1 mb-2">{APP_NAME}</h1>
         <p className="t-body mb-7">
           Team logistics and game-day organization for coaching staff.
         </p>

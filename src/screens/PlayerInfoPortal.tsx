@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
+import { APP_NAME } from "../constants/ui";
 import {
   SIGNUP_LIMITS,
   clampText,
@@ -144,7 +145,7 @@ export const PlayerInfoPortal = () => {
     const name = (team?.name || "").trim();
     if (name) document.title = `${name} Player Info`;
     return () => {
-      document.title = "Dugout";
+      document.title = APP_NAME;
     };
   }, [team?.name]);
 

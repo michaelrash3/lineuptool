@@ -10,6 +10,7 @@ import {
   SlimPlayer,
 } from "../types";
 import { genId } from "./id";
+import { APP_NAME } from "../constants/ui";
 
 export const formatStat = (val: unknown): string => {
   if (val === undefined || val === null || val === "") return ".000";
@@ -2790,7 +2791,7 @@ export const buildScheduleIcs = (
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Dugout//Schedule//EN",
+    `PRODID:-//${APP_NAME}//Schedule//EN`,
     "CALSCALE:GREGORIAN",
   ];
   for (const { g, iso } of events) {
