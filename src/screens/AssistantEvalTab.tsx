@@ -1,4 +1,5 @@
 import React, { memo, useState, useEffect, useMemo, useCallback } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
 import {
@@ -55,8 +56,17 @@ export const AssistantEvalTab = memo(() => {
   }, [includeKidPitchAddons]);
   const [grades, setGrades] = useState<Record<string, any>>({});
   const [activeGroup, setActiveGroup] = useState("Hitting");
-  // Inline read-only view of a past round. Null = grading form is active.
-  const [viewingPastRoundId, setViewingPastRoundId] = useState(null);
+  // Read-only view of a past round, URL-backed at /evaluation/round/:id so the
+  // browser/Android back button (not just "Back to Form") closes it and the
+  // view is deep-linkable. Null = grading form is active.
+  const { roundId } = useParams<{ roundId?: string }>();
+  const navigate = useNavigate();
+  const [viewingPastRoundId, setViewingPastRoundId] = useState<string | null>(
+    null,
+  );
+  useEffect(() => {
+    setViewingPastRoundId(roundId ?? null);
+  }, [roundId]);
 
   // Seed grades from this assistant's most recent round on mount + when the
   // user changes. Today's round wins over any older draft so a reopen
@@ -199,7 +209,7 @@ export const AssistantEvalTab = memo(() => {
           </div>
           <button
             type="button"
-            onClick={() => setViewingPastRoundId(null)}
+            onClick={() => navigate("/evaluation")}
             className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
           >
             Back to Form
@@ -253,7 +263,7 @@ export const AssistantEvalTab = memo(() => {
                 <button
                   key={r.id}
                   type="button"
-                  onClick={() => setViewingPastRoundId(r.id)}
+                  onClick={() => navigate(`/evaluation/round/${r.id}`)}
                   className="w-full flex items-center justify-between gap-3 px-1 py-2.5 hover:bg-surface text-left"
                 >
                   <span className="text-sm font-extrabold text-ink tabular-nums">
