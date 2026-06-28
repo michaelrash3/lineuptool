@@ -20,9 +20,9 @@ Key fields:
 | `coachRoles`                                                     | `{ [uid]: "head" \| "assistant" }` | Role assignments                                                                                                                                                                         |
 | `joinCode`                                                       | string (6 chars, `[A-HJ-NP-Z2-9]`) | Self-join code                                                                                                                                                                           |
 | `primaryColor` / `secondaryColor` / `tertiaryColor`              | `#rrggbb`                          | User-customizable team palette (Settings → Team Colors). The active team's triplet is pushed to CSS custom properties at runtime, so every `--team-primary` consumer updates reactively. |
-| `logoUrl`                                                        | string                             | Team logo (data URL or Storage URL)                                                                                                                                                      |
+| `logoUrl`                                                        | string                             | Team logo, stored inline as a downscaled/compressed data URL (see Images below). Old teams may still hold a legacy Cloud Storage URL, which keeps rendering.                             |
 | `teamAge`, `leagueRuleSet`, `defenseSize`, `pitchingFormat`      | enums                              | Engine inputs                                                                                                                                                                            |
-| `players`                                                        | object[]                           | Roster — each entry carries `stats`, `pitching`, `comfortablePositions`, `restrictions`, `photoUrl`, `playerStatus`                                                                      |
+| `players`                                                        | object[]                           | Roster — each entry carries `stats`, `pitching`, `comfortablePositions`, `restrictions`, `playerStatus` (no photo; see Images below)                                                     |
 | `games`                                                          | object[]                           | Schedule + lineups + final box scores. Slimmed before persistence (see `slimGame` in `src/utils/helpers.ts`) so embedded player objects don't push the doc near the 1 MB cap.            |
 | `evaluationEvents`                                               | object[]                           | Eval rounds, schema-versioned (see migration ladder below)                                                                                                                               |
 | `evalSchemaVersion`                                              | number                             | Bumped when the schema changes; clients migrate on read                                                                                                                                  |
@@ -57,9 +57,30 @@ and the first snapshot backfills the doc for teams created before the mirror
 existed. Signups still write to the real team doc by id — those updates don't
 require client read access, so they work without exposing the doc.
 
-### Photos
+### Images
 
-Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` field of each player object. `cropImageTo256DataURL` in `src/components/shared.tsx` covers a chosen file to a 256×256 JPEG at ~0.78 quality (~15 KB each); 30 players × 15 KB ≈ 450 KB inline, comfortably under the Firestore 1 MB document cap. The app does **not** initialize Cloud Storage — that keeps the project on the Firebase Spark plan and avoids the separate rules rollout. Existing photos uploaded to Cloud Storage during earlier releases continue to render from their old URLs; new uploads land inline.
+The whole team lives in **one** Firestore document, so its 1 MB cap is the
+binding storage constraint and inline images are the main thing that can blow
+it. The app does **not** initialize Cloud Storage — that keeps the project on
+the Firebase Spark plan and avoids a separate rules rollout — so the strategy is
+to keep inline bytes small rather than offload them.
+
+- **Team logo** — the only image the app stores. On upload (`uploadLogo` in
+  `App.tsx`) it runs through `downscaleImageToDataURL` in
+  `src/components/shared.tsx`: an image already within `maxDim` (512) and under
+  `targetBytes` (~200 KB) passes through untouched, otherwise it's scaled down
+  and re-encoded — preferring WebP (transparency + good compression; PNG
+  fallback), stepping quality then dimensions down until it fits. So an
+  oversized logo is auto-shrunk instead of rejected. A final headroom check
+  (`HARD_LIMIT`) warns rather than letting a near-cap doc fail its write.
+- **Player photos** — **not stored.** Earlier releases kept inline base64
+  `photoUrl` per player, which was the single biggest contributor to doc size;
+  the field was removed. The persistence gate in `App.tsx` strips `photoUrl`
+  from every players write, and a one-time per-team reclaim pass drops any
+  legacy bytes still on a roster so the next save frees the space. Rosters now
+  render initials via `PlayerAvatar` (`getPlayerInitials`).
+- **Legacy Cloud Storage URLs** — logos uploaded to Cloud Storage during older
+  releases keep rendering from their existing URLs; nothing new is written there.
 
 ## Client layout
 
@@ -84,7 +105,7 @@ Player photos are stored **inline** as base64 JPEG data URLs on the `photoUrl` f
 
 4. **Reusable components under `src/components/`:**
    - `Chrome.tsx` — `LoginScreen`, `AppHeader`, `TabBarNav`
-   - `shared.tsx` — `Button`, `Chip`, `GlassCard`, `Eyebrow`, `StatTile`, `PlayerAvatar`, `RecordBadge`, `LeaderboardCard`, `SharedModals`, plus the photo crop helper
+   - `shared.tsx` — `Button`, `Chip`, `GlassCard`, `Eyebrow`, `StatTile`, `PlayerAvatar`, `RecordBadge`, `LeaderboardCard`, `SharedModals`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
    - `modals.tsx` — `PlayerProfileModal`, `AddPlayerModal`, `PastSeasonImportModal` (large; one file per concern would be nicer but isn't worth the churn yet)
    - `OnboardingTutorial.tsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
    - `WelcomeChooser.tsx` — first-run modal that asks Join vs Create instead of auto-creating "My Team"
