@@ -148,6 +148,11 @@ export interface PlanInput {
   environment: "indoor" | "outdoor";
   library: DrillDefinition[];
   pitchingFormat?: string;
+  // Bump to pull a different drill per category when the library has several
+  // (the "Reshuffle" button). 0 keeps the canonical first-match agenda; each
+  // increment rotates the selection so a coach running this weekly doesn't get
+  // the identical practice every time. Deterministic for a given value.
+  variation?: number;
 }
 
 interface PlannedBlock {
@@ -163,12 +168,19 @@ export const generatePracticePlan = (input: PlanInput): DrillLogEntry[] => {
   const minutes = Math.max(15, Math.round(input.minutes || 0));
   const kidPitch = isKidPitchFormat(input.pitchingFormat);
 
+  const variation = Math.max(0, Math.floor(input.variation || 0));
   const pool = (library || []).filter((d) => envOk(d, environment));
   const used = new Set<string>();
+  // Rotate through the matching drills by `variation` so "Reshuffle" varies the
+  // agenda; variation 0 picks the first match (the original behavior).
   const pick = (category: DrillCategory): DrillDefinition | null => {
-    const hit = pool.find((d) => d.category === category && !used.has(d.id));
-    if (hit) used.add(hit.id);
-    return hit || null;
+    const candidates = pool.filter(
+      (d) => d.category === category && !used.has(d.id),
+    );
+    if (candidates.length === 0) return null;
+    const chosen = candidates[variation % candidates.length];
+    used.add(chosen.id);
+    return chosen;
   };
 
   const blocks: PlannedBlock[] = [];

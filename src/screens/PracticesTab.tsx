@@ -123,6 +123,9 @@ const PracticePlannerModal = ({
   onApply: (drills: any[]) => void;
 }) => {
   const [minutes, setMinutes] = useState(90);
+  // Reshuffle counter — each bump pulls a different drill per category when the
+  // library has options, so a coach can vary the agenda week to week.
+  const [variation, setVariation] = useState(0);
   const env: "indoor" | "outdoor" =
     environment === "indoor" ? "indoor" : "outdoor";
   const plan = useMemo(
@@ -133,10 +136,17 @@ const PracticePlannerModal = ({
         environment: env,
         library,
         pitchingFormat,
+        variation,
       }),
-    [skillProfile, minutes, env, library, pitchingFormat],
+    [skillProfile, minutes, env, library, pitchingFormat, variation],
   );
   const total = plan.reduce((s, d) => s + (Number(d.minutes) || 0), 0);
+  // Plan entries don't carry the (long) description — look it up from the
+  // library so the preview can show it on hover without bloating the agenda.
+  const drillById = useMemo(
+    () => new Map((library || []).map((d) => [d.id, d])),
+    [library],
+  );
 
   return (
     <Modal
@@ -206,7 +216,13 @@ const PracticePlannerModal = ({
         <>
           <div className="border border-line rounded-sm divide-y divide-line">
             {plan.map((d, i) => (
-              <div key={d.id} className="flex items-center gap-3 px-3 py-2">
+              <div
+                key={d.id}
+                className="flex items-center gap-3 px-3 py-2"
+                title={
+                  drillById.get(d.libraryId || "")?.description || undefined
+                }
+              >
                 <span className="t-stat-num-sm text-ink-3 w-6 tabular-nums">
                   {i + 1}
                 </span>
@@ -224,8 +240,15 @@ const PracticePlannerModal = ({
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between mt-2 px-1">
-            <span className="t-eyebrow text-ink-3">
+          <div className="flex items-center justify-between mt-2 px-1 gap-2">
+            <button
+              type="button"
+              onClick={() => setVariation((v) => v + 1)}
+              className="t-eyebrow text-ink-2 hover:text-ink flex items-center gap-1.5 transition-colors"
+            >
+              <Icons.Refresh className="w-3.5 h-3.5" /> Reshuffle
+            </button>
+            <span className="t-eyebrow text-ink-3 truncate">
               {plan.length} blocks · {env}
             </span>
             <span className="t-body-bold text-ink tabular-nums">
@@ -736,6 +759,7 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
   const [environment, setEnvironment] = useState<"both" | "indoor" | "outdoor">(
     "both",
   );
+  const [description, setDescription] = useState("");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -745,9 +769,11 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
       category,
       defaultMinutes: Number(minutes) || undefined,
       environment,
+      description: description.trim() || undefined,
     });
     setName("");
     setMinutes("");
+    setDescription("");
   };
 
   return (
@@ -767,35 +793,42 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
 
       {open && (
         <div className="mt-3">
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex flex-col gap-2 mb-3">
             {library.map((d: DrillDefinition) => (
-              <span
+              <div
                 key={d.id}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm border border-line bg-surface-2"
+                className="rounded-sm border border-line bg-surface-2 p-2.5"
               >
-                <span className="font-bold text-ink text-sm">{d.name}</span>
-                <span className="t-chip px-1.5 py-0.5 rounded-sm border border-line bg-surface text-ink-3">
-                  {d.category}
-                </span>
-                {d.defaultMinutes ? (
-                  <span className="text-ink-3 text-xs tabular-nums">
-                    {d.defaultMinutes}m
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-ink text-sm">{d.name}</span>
+                  <span className="t-chip px-1.5 py-0.5 rounded-sm border border-line bg-surface text-ink-3">
+                    {d.category}
                   </span>
+                  {d.defaultMinutes ? (
+                    <span className="text-ink-3 text-xs tabular-nums">
+                      {d.defaultMinutes}m
+                    </span>
+                  ) : null}
+                  {d.environment && d.environment !== "both" ? (
+                    <span className="text-ink-3 text-[10px] uppercase tracking-widest">
+                      {d.environment}
+                    </span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => onRemove(d.id)}
+                    className="ml-auto shrink-0 text-ink-3 hover:text-loss"
+                    aria-label={`Remove ${d.name} from library`}
+                  >
+                    <Icons.X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {d.description ? (
+                  <p className="t-meta text-ink-3 mt-1 leading-snug">
+                    {d.description}
+                  </p>
                 ) : null}
-                {d.environment && d.environment !== "both" ? (
-                  <span className="text-ink-3 text-[10px] uppercase tracking-widest">
-                    {d.environment}
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => onRemove(d.id)}
-                  className="text-ink-3 hover:text-loss"
-                  aria-label={`Remove ${d.name} from library`}
-                >
-                  <Icons.X className="w-3.5 h-3.5" />
-                </button>
-              </span>
+              </div>
             ))}
           </div>
 
@@ -860,6 +893,17 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
                 <Icons.Plus className="w-4 h-4" />
               </button>
             </div>
+            <label className="block sm:col-span-2 lg:col-span-4">
+              <span className="t-eyebrow text-ink-3 block mb-1">
+                What it is (optional)
+              </span>
+              <input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="One line on what the drill is and why you run it…"
+                className="w-full px-2.5 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)] placeholder:text-ink-3"
+              />
+            </label>
           </form>
         </div>
       )}
