@@ -85,16 +85,27 @@ export const incomeTotal = (
 ): number =>
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
+// Whether sponsorship money is allowed to lower what families pay. Default on;
+// the coach can turn it off in the Budget Planner so sponsor dollars stay in
+// the club balance without discounting fees.
+export const sponsorshipsReduceFees = (
+  finances: TeamFinances | null | undefined,
+): boolean => finances?.sponsorshipsReduceFees !== false;
+
 // THIS season's ledger income flagged as fundraising — the slice of income
 // that reduces each family's dues. Split into money attributed to a specific
 // child (credits that kid's fee first) and unattributed money (splits evenly).
+// When the sponsorship→fees option is off, sponsor-flagged income is excluded
+// (it stays plain club income); car-wash-style fundraising still credits dues.
 const fundraisingBreakdown = (
   finances: TeamFinances | null | undefined,
 ): { byPlayer: Record<string, number>; unattributed: number } => {
   const byPlayer: Record<string, number> = {};
   let unattributed = 0;
+  const sponsorsCredit = sponsorshipsReduceFees(finances);
   for (const i of finances?.incomes || []) {
     if (!i?.fundraising) continue;
+    if (i?.sponsor && !sponsorsCredit) continue;
     const amt = money(i?.amount);
     const pid = String(i?.playerId || "");
     if (pid) byPlayer[pid] = (byPlayer[pid] || 0) + amt;
@@ -127,7 +138,13 @@ export const suggestedFeePerPlayer = (
   if (total <= 0) return null;
   const payers = plannedPayerCount(finances, players);
   if (payers === 0) return null;
-  const uncovered = Math.max(0, total - sponsorshipTotal(finances));
+  // Sponsor pledges offset the fee only when the coach hasn't opted out —
+  // with the option off, families split the full budget and sponsor money
+  // lands as plain income when the season rolls.
+  const offset = sponsorshipsReduceFees(finances)
+    ? sponsorshipTotal(finances)
+    : 0;
+  const uncovered = Math.max(0, total - offset);
   // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
   // and the fee is a clean number; without one, next-dollar ceiling.
   return roundUpToIncrement(uncovered / payers, finances?.feeBufferIncrement);
@@ -652,6 +669,31 @@ export const ledgerCsv = (
     ].join(","),
   );
   return ["Date,Entry,In,Out,Balance", ...rows].join("\n");
+};
+
+// Whether advancing into `nextSeason` should roll the money. The season YEAR
+// runs Fall → Spring: the ledger, collections, and fee schedule carry straight
+// through the mid-year Fall→Spring advance UNTOUCHED, and the money rolls only
+// when a new Fall begins (balance carries over, collections reset, the planned
+// fee is promoted, the year is archived). A planned next-season fee triggers
+// the roll even with no recorded money — the Budget Planner promised it takes
+// effect when the new year starts. No-op when Finances was never used.
+// Extracted from TeamProvider.advanceSeason so the fall→spring guarantee is
+// unit-testable.
+export const shouldRollFinances = (
+  nextSeason: string,
+  finances: TeamFinances | null | undefined,
+): boolean => {
+  const rollingIntoFall = String(nextSeason || "")
+    .toLowerCase()
+    .startsWith("fall");
+  if (!rollingIntoFall) return false;
+  const hadActivity =
+    (finances?.payments || []).length > 0 ||
+    (finances?.incomes || []).length > 0 ||
+    (finances?.expenses || []).length > 0;
+  const hasPlannedFee = finances?.nextClubFee != null;
+  return hadActivity || hasPlannedFee;
 };
 
 export const rollFinancesForNewSeason = (

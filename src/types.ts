@@ -658,6 +658,12 @@ export interface TeamFinances {
   // The only money that offsets the suggested next-season fee — this
   // year's ledger never leaks into next year's planning.
   sponsorships?: SponsorshipEntry[];
+  // Whether sponsorship money lowers what families pay. Default (unset/true):
+  // next-season pledges offset the suggested fee, and this-season sponsor
+  // income credits dues like other fundraising. When false, sponsor money is
+  // plain club income — it boosts the balance but families pay the full fee.
+  // Non-sponsor fundraising (car washes) still credits dues either way.
+  sponsorshipsReduceFees?: boolean;
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];
   payments?: PaymentEntry[];

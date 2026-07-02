@@ -31,6 +31,7 @@ import {
   ledgerCsv,
   yearComparison,
   sponsorshipTotal,
+  sponsorshipsReduceFees,
   suggestedFeePerPlayer,
   plannedPayerCount,
   buildPlayerFeeBreakdown,
@@ -192,6 +193,8 @@ export const FinancesTab = memo(() => {
   // Next-season planning is deliberately isolated from this year's ledger:
   // only sponsorships pledged for the coming year offset the suggested fee.
   const sponsored = sponsorshipTotal(finances);
+  // Coach preference: whether sponsor money lowers fees at all (default yes).
+  const sponsorsReduce = sponsorshipsReduceFees(finances);
   const suggested = suggestedFeePerPlayer(finances, players);
   // The parent-facing fee sheet needs both priced expenses and a per-player
   // fee (next-season fee, or the planner's suggestion) to spread across them.
@@ -2094,14 +2097,35 @@ export const FinancesTab = memo(() => {
             </div>
             <p className="t-meta text-ink-3">
               {sponsorWhen === "this"
-                ? "Lowers what families owe this season, split evenly across paying players."
-                : "Offsets next season's planned fee and becomes income when the season advances."}
+                ? sponsorsReduce
+                  ? "Lowers what families owe this season, split evenly across paying players."
+                  : "Recorded as club income — fees are unchanged while the option below is off."
+                : sponsorsReduce
+                  ? "Offsets next season's planned fee and becomes income when the season advances."
+                  : "Becomes income when the season advances — fees are unchanged while the option below is off."}
             </p>
+            <label
+              className="flex items-center gap-1.5 text-xs font-bold text-ink-2 cursor-pointer"
+              title="On: sponsor money offsets the suggested fee and credits this season's dues. Off: sponsor money stays club income and families pay the full fee."
+            >
+              <input
+                type="checkbox"
+                checked={sponsorsReduce}
+                onChange={(e) =>
+                  writeFinances({ sponsorshipsReduceFees: e.target.checked })
+                }
+                aria-label="Sponsorships reduce player team fees"
+                className="accent-[var(--team-primary)]"
+              />
+              Sponsorships reduce team fees
+            </label>
             {currentSponsors.length > 0 && (
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="t-eyebrow text-ink-3">
-                    This season — reduces current fees
+                    {sponsorsReduce
+                      ? "This season — reduces current fees"
+                      : "This season — held as club income"}
                   </span>
                   <span className="t-eyebrow tabular-nums text-win">
                     {formatCurrency(currentSponsorTotal)} total
@@ -2317,7 +2341,7 @@ export const FinancesTab = memo(() => {
               <span className="font-black text-ink tabular-nums">
                 {formatCurrency(budget)}
               </span>
-              {sponsored > 0 && (
+              {sponsored > 0 && sponsorsReduce && (
                 <> − sponsorships {formatCurrency(sponsored)}</>
               )}
               {suggested != null && (
