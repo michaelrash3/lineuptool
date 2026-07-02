@@ -55,6 +55,7 @@ import {
   financeSummary,
   formatCurrency,
   rollFinancesForNewSeason,
+  shouldRollFinances,
   dedupePlayerInfoSubmissions,
   genId,
   FIRESTORE_DOC_LIMIT_BYTES,
@@ -1378,24 +1379,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         (p: Player) => p.playerStatus === "accepted",
       ).length;
 
-      // The season YEAR runs Fall → Spring, so the money rolls only when the
-      // season advances INTO a new Fall (closing balance carries over, fee
-      // collections reset, the planned next-season fee is promoted, the year is
-      // archived). The mid-year Fall→Spring advance leaves the ledger and
-      // collections running — fall-only pickups just get their fee waived in
-      // Collections. No-op (and no confirm line) when the Finances tab was
-      // never used.
+      // The season YEAR runs Fall → Spring: the mid-year Fall→Spring advance
+      // leaves the ledger and collections running untouched, and the money
+      // rolls only when a new Fall begins. The full policy (and its tests)
+      // lives in shouldRollFinances (utils/finances.ts).
       const hadFinanceActivity =
         ((teamData.finances?.payments || []).length ||
           (teamData.finances?.incomes || []).length ||
           (teamData.finances?.expenses || []).length) > 0;
-      // A planned next-season fee must ALSO trigger the roll — a coach who only
-      // used the Budget Planner (no money recorded yet) was promised the fee
-      // takes effect when the new season starts.
-      const hasPlannedFee = teamData.finances?.nextClubFee != null;
-      const rollingIntoFall = nextSeason.toLowerCase().startsWith("fall");
-      const rollFinances =
-        rollingIntoFall && (hadFinanceActivity || hasPlannedFee);
+      const rollFinances = shouldRollFinances(nextSeason, teamData.finances);
       const closingBalance =
         rollFinances && hadFinanceActivity
           ? financeSummary(teamData.finances, []).balanceNow
