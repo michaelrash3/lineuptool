@@ -997,6 +997,47 @@ describe("FinancesTab", () => {
     expect(screen.getByText("Dee: $100")).toBeInTheDocument();
   });
 
+  it("stamps new money records with recordedBy/recordedAt when a user is present", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam, user: { uid: "coach-1" } },
+    });
+    fireEvent.change(screen.getByLabelText("Payment amount for Ben"), {
+      target: { value: "40" },
+    });
+    fireEvent.click(screen.getByLabelText("Record payment for Ben"));
+    const patch = { finances: appliedFinances(teamValue) };
+    const added = patch.finances.payments[patch.finances.payments.length - 1];
+    expect(added.recordedBy).toBe("coach-1");
+    expect(typeof added.recordedAt).toBe("string");
+    expect(added.recordedAt.length).toBeGreaterThan(0);
+  });
+
+  it("caps the rendered ledger at 100 rows and expands on Show all", () => {
+    const many: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [],
+        payments: [],
+        expenses: Array.from({ length: 120 }, (_, i) => ({
+          id: `bulk-${i}`,
+          date: `2026-03-${String((i % 28) + 1).padStart(2, "0")}`,
+          label: `Bulk expense ${i}`,
+          amount: 5,
+        })),
+      },
+    };
+    renderWithProviders(<FinancesTab />, { team: { team: many } });
+    expect(screen.getAllByText(/Bulk expense/)).toHaveLength(100);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Show all 120 entries/ }),
+    );
+    expect(screen.getAllByText(/Bulk expense/)).toHaveLength(120);
+    expect(
+      screen.queryByRole("button", { name: /Show all/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the empty state without a finances object at all", () => {
     renderWithProviders(<FinancesTab />, {
       team: { team: { players: [], games: [] } },

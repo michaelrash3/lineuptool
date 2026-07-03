@@ -1668,6 +1668,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
                     tryoutDepositPayments[signup.id] || nowIso,
                   ).slice(0, 10),
                   amount: depositAmount,
+                  // Attribution stamp (audit finding 3.7) — the advancing
+                  // coach recorded these promoted deposits.
+                  ...(user?.uid ? { recordedBy: user.uid } : {}),
+                  recordedAt: nowIso,
                 }),
               )
           : [];

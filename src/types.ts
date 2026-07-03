@@ -546,8 +546,16 @@ export interface BudgetItem {
   taxable?: boolean;
 }
 
+// Who entered a money record and when (audit finding 3.7). Stamped at
+// creation only; edits preserve the original stamps. Absent on rows that
+// predate the feature.
+export interface FinanceAttribution {
+  recordedBy?: string; // auth uid of the coach who entered it
+  recordedAt?: string; // ISO instant of entry
+}
+
 // Money actually spent, shown in the ledger with a running balance.
-export interface ExpenseEntry {
+export interface ExpenseEntry extends FinanceAttribution {
   id: string;
   date: string; // ISO yyyy-mm-dd
   label: string;
@@ -560,7 +568,7 @@ export interface ExpenseEntry {
 // Money received that ISN'T a club-fee payment — sponsorships, fundraising,
 // donations. Counts toward the club balance and offsets the suggested
 // per-player fee (sponsors covering costs means families owe less).
-export interface IncomeEntry {
+export interface IncomeEntry extends FinanceAttribution {
   id: string;
   date: string; // ISO yyyy-mm-dd
   label: string;
@@ -605,7 +613,7 @@ export interface SponsorshipEntry {
 
 // Money collected from a family toward the club fee. Multiple entries per
 // player = partial payments.
-export interface PaymentEntry {
+export interface PaymentEntry extends FinanceAttribution {
   id: string;
   playerId: PlayerId;
   date: string; // ISO yyyy-mm-dd
