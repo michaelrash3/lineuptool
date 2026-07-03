@@ -85,27 +85,19 @@ export const incomeTotal = (
 ): number =>
   (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
 
-// Whether sponsorship money is allowed to lower what families pay. Default on;
-// the coach can turn it off in the Budget Planner so sponsor dollars stay in
-// the club balance without discounting fees.
-export const sponsorshipsReduceFees = (
-  finances: TeamFinances | null | undefined,
-): boolean => finances?.sponsorshipsReduceFees !== false;
-
 // THIS season's ledger income flagged as fundraising — the slice of income
 // that reduces each family's dues. Split into money attributed to a specific
 // child (credits that kid's fee first) and unattributed money (splits evenly).
-// When the sponsorship→fees option is off, sponsor-flagged income is excluded
-// (it stays plain club income); car-wash-style fundraising still credits dues.
+// Whether a sponsor's money credits dues is that ENTRY's own choice: a sponsor
+// income carries `fundraising: true` only when the coach left its "reduces
+// team fees" switch on, so this loop needs no sponsor special-casing.
 const fundraisingBreakdown = (
   finances: TeamFinances | null | undefined,
 ): { byPlayer: Record<string, number>; unattributed: number } => {
   const byPlayer: Record<string, number> = {};
   let unattributed = 0;
-  const sponsorsCredit = sponsorshipsReduceFees(finances);
   for (const i of finances?.incomes || []) {
     if (!i?.fundraising) continue;
-    if (i?.sponsor && !sponsorsCredit) continue;
     const amt = money(i?.amount);
     const pid = String(i?.playerId || "");
     if (pid) byPlayer[pid] = (byPlayer[pid] || 0) + amt;
@@ -115,11 +107,22 @@ const fundraisingBreakdown = (
 };
 
 // Sponsorships pledged toward NEXT season's budget (Budget Planner entries
-// with a sponsor name) — the only money that offsets the suggested fee.
+// with a sponsor name) — the gross total, for display.
 export const sponsorshipTotal = (
   finances: TeamFinances | null | undefined,
 ): number =>
   (finances?.sponsorships || []).reduce((sum, s) => sum + money(s?.amount), 0);
+
+// The slice of pledged sponsorships that actually offsets the suggested fee:
+// each pledge carries its own "reduces team fees" switch (default on), so a
+// sponsor whose money the coach wants held as plain club income is skipped.
+export const feeOffsetSponsorshipTotal = (
+  finances: TeamFinances | null | undefined,
+): number =>
+  (finances?.sponsorships || []).reduce(
+    (sum, s) => (s?.reducesFees === false ? sum : sum + money(s?.amount)),
+    0,
+  );
 
 // Suggested NEXT-season fee per paying player. The Budget Planner plans the
 // coming year in isolation: planned costs minus sponsorships pledged for that
@@ -138,13 +141,10 @@ export const suggestedFeePerPlayer = (
   if (total <= 0) return null;
   const payers = plannedPayerCount(finances, players);
   if (payers === 0) return null;
-  // Sponsor pledges offset the fee only when the coach hasn't opted out —
-  // with the option off, families split the full budget and sponsor money
-  // lands as plain income when the season rolls.
-  const offset = sponsorshipsReduceFees(finances)
-    ? sponsorshipTotal(finances)
-    : 0;
-  const uncovered = Math.max(0, total - offset);
+  // Only pledges whose own "reduces team fees" switch is on offset the fee;
+  // the rest are planned as plain club income and families split that part
+  // of the budget themselves.
+  const uncovered = Math.max(0, total - feeOffsetSponsorshipTotal(finances));
   // The buffer rounds UP to the nearest $25/$50 so incidentals are covered
   // and the fee is a clean number; without one, next-dollar ceiling.
   return roundUpToIncrement(uncovered / payers, finances?.feeBufferIncrement);

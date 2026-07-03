@@ -172,6 +172,84 @@ describe("FinancesTab", () => {
     expect(removePatch.finances.sponsorships).toEqual([]);
   });
 
+  it("each sponsor carries its own 'reduces team fees' switch — add off, flip per row", () => {
+    // Add a NEXT-season pledge with the switch UNCHECKED: it must be stored
+    // as reducesFees: false (planned as club income, no fee offset).
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.change(screen.getByLabelText("Sponsor name"), {
+      target: { value: "Iron Rig Fitness" },
+    });
+    fireEvent.change(screen.getByLabelText("Sponsorship amount"), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getByLabelText("This sponsor reduces team fees"));
+    fireEvent.click(screen.getByRole("button", { name: /Add Sponsor/ }));
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(patch.finances.sponsorships[0]).toMatchObject({
+      sponsor: "Iron Rig Fitness",
+      amount: 500,
+      reducesFees: false,
+    });
+
+    // Its row chip reads "club income"; tapping it flips the pledge back to
+    // fee-reducing — per entry, not all-or-nothing.
+    const withPledge: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        sponsorships: patch.finances.sponsorships,
+      },
+    };
+    const second = renderWithProviders(<FinancesTab />, {
+      team: { team: withPledge },
+    });
+    fireEvent.click(
+      second.getByRole("button", {
+        name: /Iron Rig Fitness: held as club income/,
+      }),
+    );
+    const flip = (second.teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    expect(flip.finances.sponsorships[0].reducesFees).toBe(true);
+  });
+
+  it("a this-season sponsor row flips between fee credit and club income", () => {
+    // Seeded sponsor income WITH the fundraising credit on.
+    const withSponsor: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        incomes: [
+          ...baseTeam.finances.incomes,
+          {
+            id: "i2",
+            date: "2026-03-10",
+            label: "Kasselmann McDonald's",
+            amount: 250,
+            fundraising: true,
+            sponsor: true,
+          },
+        ],
+      },
+    };
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: withSponsor },
+    });
+    // Tapping its chip drops the fundraising flag: the money stays in the
+    // ledger as plain club income and no longer credits team fees.
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /Kasselmann McDonald's: reduces team fees/,
+      }),
+    );
+    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const flipped = patch.finances.incomes.find((i: any) => i.id === "i2");
+    expect(flipped.sponsor).toBe(true);
+    expect(flipped.fundraising).toBeUndefined();
+    expect(flipped.amount).toBe(250); // the money itself is untouched
+  });
+
   it("adds a current-season sponsor as fundraising income reducing this year's fees", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },

@@ -4,7 +4,8 @@ import {
   rollFinancesForNewSeason,
   financeSummary,
   suggestedFeePerPlayer,
-  sponsorshipsReduceFees,
+  sponsorshipTotal,
+  feeOffsetSponsorshipTotal,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -13,9 +14,10 @@ import type { TeamFinances } from "../types";
 //    Fall→Spring advance must leave the ledger/collections COMPLETELY intact,
 //    and only a new Fall rolls the money (carry balance, archive year, promote
 //    the planned fee).
-// 2. The sponsorships→fees option — sponsor money lowers fees by default, and
-//    stops lowering them (both the planner offset and this-season dues credit)
-//    when the coach opts out.
+// 2. The per-sponsor "reduces team fees" switch — each sponsor entry decides
+//    for itself whether its money lowers what families pay (default yes):
+//    a this-season sponsor via its own fundraising flag, a next-season pledge
+//    via reducesFees. Never all-or-nothing across sponsors.
 
 const activeFinances = (): TeamFinances => ({
   clubFee: 100,
@@ -174,19 +176,10 @@ describe("rollFinancesForNewSeason — the Spring→Fall year roll", () => {
   });
 });
 
-describe("sponsorships → fees option", () => {
-  it("defaults to reducing fees (unset and true)", () => {
-    expect(sponsorshipsReduceFees(undefined)).toBe(true);
-    expect(sponsorshipsReduceFees({})).toBe(true);
-    expect(sponsorshipsReduceFees({ sponsorshipsReduceFees: true })).toBe(true);
-    expect(sponsorshipsReduceFees({ sponsorshipsReduceFees: false })).toBe(
-      false,
-    );
-  });
-
+describe("per-sponsor 'reduces team fees' switch", () => {
   const players = [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }];
 
-  it("next-season pledges offset the suggested fee by default…", () => {
+  it("a pledge offsets the suggested fee by default (switch unset/on)", () => {
     const finances: TeamFinances = {
       budgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
       sponsorships: [{ id: "sp1", sponsor: "Pizza", amount: 600 }],
@@ -195,41 +188,36 @@ describe("sponsorships → fees option", () => {
     expect(suggestedFeePerPlayer(finances, players)).toBe(100);
   });
 
-  it("…and stop offsetting it when the option is off", () => {
+  it("a pledge held as club income does NOT offset the fee", () => {
     const finances: TeamFinances = {
       budgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
-      sponsorships: [{ id: "sp1", sponsor: "Pizza", amount: 600 }],
-      sponsorshipsReduceFees: false,
+      sponsorships: [
+        { id: "sp1", sponsor: "Pizza", amount: 600, reducesFees: false },
+      ],
     };
-    // Full 1000 / 4 = 250 — sponsor money no longer discounts the fee.
+    // Full 1000 / 4 = 250 — this sponsor's money doesn't discount the fee.
     expect(suggestedFeePerPlayer(finances, players)).toBe(250);
   });
 
-  it("this-season sponsor income credits dues by default…", () => {
+  it("mixed pledges: only the fee-reducing ones offset — never all-or-nothing", () => {
     const finances: TeamFinances = {
-      clubFee: 100,
-      incomes: [
-        {
-          id: "inc1",
-          date: "2026-09-01",
-          label: "Sponsorship — Pizza",
-          amount: 120,
-          fundraising: true,
-          sponsor: true,
-        },
+      budgetItems: [{ id: "b1", label: "Season costs", amount: 1000 }],
+      sponsorships: [
+        { id: "sp1", sponsor: "Pizza", amount: 400 }, // reduces (default)
+        { id: "sp2", sponsor: "Hardware", amount: 600, reducesFees: false },
       ],
     };
-    const s = financeSummary(finances, players);
-    // 120 / 4 payers = $30 off each family's fee.
-    expect(s.duesCreditPerPlayer).toBe(30);
-    expect(s.effectiveFeePerPlayer).toBe(70);
+    expect(feeOffsetSponsorshipTotal(finances)).toBe(400);
+    expect(sponsorshipTotal(finances)).toBe(1000); // gross total for display
+    // (1000 − 400) / 4 = 150 — Hardware's pledge stays club income.
+    expect(suggestedFeePerPlayer(finances, players)).toBe(150);
   });
 
-  it("…and stays plain club income when the option is off", () => {
+  it("a this-season sponsor credits dues only when ITS switch is on", () => {
     const finances: TeamFinances = {
       clubFee: 100,
-      sponsorshipsReduceFees: false,
       incomes: [
+        // Switch on → fundraising credit against dues.
         {
           id: "inc1",
           date: "2026-09-01",
@@ -238,9 +226,17 @@ describe("sponsorships → fees option", () => {
           fundraising: true,
           sponsor: true,
         },
-        // A car wash is NOT sponsor money — it must still credit dues.
+        // Switch off → plain club income, no fundraising flag: fees unchanged.
         {
           id: "inc2",
+          date: "2026-09-02",
+          label: "Sponsorship — Hardware",
+          amount: 80,
+          sponsor: true,
+        },
+        // A car wash is not a sponsor; it credits dues as ever.
+        {
+          id: "inc3",
           date: "2026-09-08",
           label: "Car wash",
           amount: 40,
@@ -249,11 +245,11 @@ describe("sponsorships → fees option", () => {
       ],
     };
     const s = financeSummary(finances, players);
-    // Only the car wash credits dues: 40 / 4 = $10 each.
-    expect(s.duesCreditPerPlayer).toBe(10);
-    expect(s.effectiveFeePerPlayer).toBe(90);
-    // The sponsor money is still in the bank — balance counts both incomes.
-    expect(s.otherIncome).toBe(160);
-    expect(s.balanceNow).toBe(160);
+    // Pizza (120) + car wash (40) credit dues: 160 / 4 = $40 each; Hardware
+    // stays out of the credit but is still in the bank.
+    expect(s.duesCreditPerPlayer).toBe(40);
+    expect(s.effectiveFeePerPlayer).toBe(60);
+    expect(s.otherIncome).toBe(240);
+    expect(s.balanceNow).toBe(240);
   });
 });
