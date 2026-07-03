@@ -31,7 +31,7 @@ import {
   ledgerCsv,
   yearComparison,
   sponsorshipTotal,
-  sponsorshipsReduceFees,
+  feeOffsetSponsorshipTotal,
   suggestedFeePerPlayer,
   plannedPayerCount,
   buildPlayerFeeBreakdown,
@@ -193,8 +193,9 @@ export const FinancesTab = memo(() => {
   // Next-season planning is deliberately isolated from this year's ledger:
   // only sponsorships pledged for the coming year offset the suggested fee.
   const sponsored = sponsorshipTotal(finances);
-  // Coach preference: whether sponsor money lowers fees at all (default yes).
-  const sponsorsReduce = sponsorshipsReduceFees(finances);
+  // The slice of pledges whose own switch offsets the fee — what the planner
+  // math line shows. Pledges held as club income are excluded.
+  const sponsoredOffset = feeOffsetSponsorshipTotal(finances);
   const suggested = suggestedFeePerPlayer(finances, players);
   // The parent-facing fee sheet needs both priced expenses and a per-player
   // fee (next-season fee, or the planner's suggestion) to spread across them.
@@ -265,6 +266,10 @@ export const FinancesTab = memo(() => {
   // that lowers current dues; "next" pledges toward next season's planned fee.
   // Defaults to "next" — this section is the next-season planner.
   const [sponsorWhen, setSponsorWhen] = useState<"this" | "next">("next");
+  // Per-sponsor choice for the NEW entry: whether this sponsor's money lowers
+  // what families pay (default yes). Each recorded sponsor keeps its own
+  // switch afterward — it's never all-or-nothing across sponsors.
+  const [sponsorReduces, setSponsorReduces] = useState(true);
   // ---- Collections form state (per-player partial payment input)
   const [payInputs, setPayInputs] = useState<Record<string, string>>({});
   const [feeInput, setFeeInput] = useState<string | null>(null);
@@ -543,8 +548,9 @@ export const FinancesTab = memo(() => {
     const name = sponsorName.trim();
     if (!name || amount == null) return;
     if (sponsorWhen === "this") {
-      // Current-season sponsor: a fundraising income so it lowers this
-      // season's dues, flagged `sponsor` so the planner lists it as one.
+      // Current-season sponsor income, flagged `sponsor` so the planner lists
+      // it as one. Its own "reduces team fees" switch decides whether it's a
+      // fundraising credit against dues or plain club income.
       writeFinances({
         incomes: [
           ...(finances.incomes || []),
@@ -553,7 +559,7 @@ export const FinancesTab = memo(() => {
             date: dateToIsoLocal(new Date()),
             label: name,
             amount,
-            fundraising: true,
+            ...(sponsorReduces ? { fundraising: true } : {}),
             sponsor: true,
           },
         ],
@@ -567,18 +573,19 @@ export const FinancesTab = memo(() => {
             sponsor: name,
             amount,
             date: dateToIsoLocal(new Date()),
+            ...(sponsorReduces ? {} : { reducesFees: false }),
           },
         ],
       });
     }
     toast.push({
       kind: "success",
-      title:
-        sponsorWhen === "this"
-          ? "Sponsor added — fees reduced"
-          : "Sponsor added",
-      message:
-        sponsorWhen === "this"
+      title: sponsorReduces
+        ? "Sponsor added — fees reduced"
+        : "Sponsor added as club income",
+      message: !sponsorReduces
+        ? `${name} adds ${formatCurrency(amount)} to the club — team fees are unchanged.`
+        : sponsorWhen === "this"
           ? `${name} lowers this season's fees by ${formatCurrency(amount)}.`
           : `${name} offsets next season's planned fee by ${formatCurrency(amount)}.`,
     });
@@ -591,12 +598,38 @@ export const FinancesTab = memo(() => {
       sponsorships: (finances.sponsorships || []).filter((s) => s.id !== id),
     });
 
-  // Current-season sponsors live in the income ledger (fundraising) but are
-  // surfaced here with their own remove control.
+  // Flip an existing NEXT-season pledge's own "reduces team fees" switch.
+  const togglePledgeReduces = (id: string) =>
+    writeFinances({
+      sponsorships: (finances.sponsorships || []).map((s) =>
+        s.id === id ? { ...s, reducesFees: s.reducesFees === false } : s,
+      ),
+    });
+
+  // Current-season sponsors live in the income ledger but are surfaced here
+  // with their own remove + fee-switch controls. Filtered on the sponsor flag
+  // alone so sponsors held as plain income (no fundraising credit) still list.
   const currentSponsors = useMemo(
-    () => (finances.incomes || []).filter((i) => i.sponsor && i.fundraising),
+    () => (finances.incomes || []).filter((i) => i.sponsor),
     [finances.incomes],
   );
+
+  // Flip an existing THIS-season sponsor between fee-crediting fundraising and
+  // plain club income. The `fundraising` flag on the income IS its switch —
+  // the ledger badge and the dues math both follow it.
+  const toggleCurrentSponsorReduces = (id: string) =>
+    writeFinances({
+      incomes: (finances.incomes || []).map((i) =>
+        i.id === id
+          ? i.fundraising
+            ? (() => {
+                const { fundraising: _off, playerId: _kid, ...rest } = i;
+                return rest;
+              })()
+            : { ...i, fundraising: true }
+          : i,
+      ),
+    });
   const currentSponsorTotal = useMemo(
     () =>
       currentSponsors.reduce((sum, sp) => sum + (Number(sp.amount) || 0), 0),
@@ -2097,36 +2130,13 @@ export const FinancesTab = memo(() => {
             </div>
             <p className="t-meta text-ink-3">
               {sponsorWhen === "this"
-                ? sponsorsReduce
-                  ? "Lowers what families owe this season, split evenly across paying players."
-                  : "Recorded as club income — fees are unchanged while the option below is off."
-                : sponsorsReduce
-                  ? "Offsets next season's planned fee and becomes income when the season advances."
-                  : "Becomes income when the season advances — fees are unchanged while the option below is off."}
+                ? "Posts to this season's ledger. Each sponsor has its own switch for whether the money lowers what families owe."
+                : "Pledged toward next season's budget; becomes income when the season advances. Each pledge has its own switch for whether it offsets the planned fee."}
             </p>
-            <label
-              className="flex items-center gap-1.5 text-xs font-bold text-ink-2 cursor-pointer"
-              title="On: sponsor money offsets the suggested fee and credits this season's dues. Off: sponsor money stays club income and families pay the full fee."
-            >
-              <input
-                type="checkbox"
-                checked={sponsorsReduce}
-                onChange={(e) =>
-                  writeFinances({ sponsorshipsReduceFees: e.target.checked })
-                }
-                aria-label="Sponsorships reduce player team fees"
-                className="accent-[var(--team-primary)]"
-              />
-              Sponsorships reduce team fees
-            </label>
             {currentSponsors.length > 0 && (
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="t-eyebrow text-ink-3">
-                    {sponsorsReduce
-                      ? "This season — reduces current fees"
-                      : "This season — held as club income"}
-                  </span>
+                  <span className="t-eyebrow text-ink-3">This season</span>
                   <span className="t-eyebrow tabular-nums text-win">
                     {formatCurrency(currentSponsorTotal)} total
                   </span>
@@ -2137,6 +2147,24 @@ export const FinancesTab = memo(() => {
                       <span className="t-body-bold text-ink flex-1 truncate">
                         {sp.label}
                       </span>
+                      <button
+                        type="button"
+                        aria-pressed={!!sp.fundraising}
+                        aria-label={`${sp.label}: ${sp.fundraising ? "reduces team fees — tap to hold as club income" : "held as club income — tap to reduce team fees"}`}
+                        title={
+                          sp.fundraising
+                            ? "Credits this season's dues. Tap to hold as plain club income instead."
+                            : "Plain club income — fees unchanged. Tap to credit this season's dues."
+                        }
+                        onClick={() => toggleCurrentSponsorReduces(sp.id)}
+                        className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-colors ${
+                          sp.fundraising
+                            ? "bg-win/10 text-win"
+                            : "bg-surface-2 text-ink-3 hover:text-ink"
+                        }`}
+                      >
+                        {sp.fundraising ? "reduces fees" : "club income"}
+                      </button>
                       <span className="tabular-nums font-black text-win">
                         {formatCurrency(sp.amount)}
                       </span>
@@ -2156,9 +2184,7 @@ export const FinancesTab = memo(() => {
             {(finances.sponsorships || []).length > 0 && (
               <div className="space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="t-eyebrow text-ink-3">
-                    Next season — reduces planned fee
-                  </span>
+                  <span className="t-eyebrow text-ink-3">Next season</span>
                   <span className="t-eyebrow tabular-nums text-win">
                     {formatCurrency(sponsored)} total
                   </span>
@@ -2169,6 +2195,26 @@ export const FinancesTab = memo(() => {
                       <span className="t-body-bold text-ink flex-1 truncate">
                         {sp.sponsor}
                       </span>
+                      <button
+                        type="button"
+                        aria-pressed={sp.reducesFees !== false}
+                        aria-label={`${sp.sponsor}: ${sp.reducesFees !== false ? "offsets the planned fee — tap to hold as club income" : "held as club income — tap to offset the planned fee"}`}
+                        title={
+                          sp.reducesFees !== false
+                            ? "Offsets next season's suggested fee. Tap to plan as plain club income instead."
+                            : "Planned as club income — the suggested fee ignores it. Tap to offset the fee."
+                        }
+                        onClick={() => togglePledgeReduces(sp.id)}
+                        className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-colors ${
+                          sp.reducesFees !== false
+                            ? "bg-win/10 text-win"
+                            : "bg-surface-2 text-ink-3 hover:text-ink"
+                        }`}
+                      >
+                        {sp.reducesFees !== false
+                          ? "reduces fees"
+                          : "club income"}
+                      </button>
                       <span className="tabular-nums font-black text-win">
                         {formatCurrency(sp.amount)}
                       </span>
@@ -2208,6 +2254,23 @@ export const FinancesTab = memo(() => {
                 className={`${FORM_INPUT_CLASS} sm:w-40 tabular-nums`}
                 style={FORM_INPUT_RING_STYLE}
               />
+              <label
+                className="flex items-center gap-1.5 self-center text-xs font-bold text-ink-2 whitespace-nowrap cursor-pointer"
+                title={
+                  sponsorWhen === "this"
+                    ? "Checked: credits this season's dues. Unchecked: plain club income — fees unchanged."
+                    : "Checked: offsets next season's suggested fee. Unchecked: planned as plain club income."
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={sponsorReduces}
+                  onChange={(e) => setSponsorReduces(e.target.checked)}
+                  aria-label="This sponsor reduces team fees"
+                  className="accent-[var(--team-primary)]"
+                />
+                Reduces team fees
+              </label>
               <Button type="submit" variant="secondary" size="md">
                 <Icons.Plus className="w-4 h-4" /> Add Sponsor
               </Button>
@@ -2341,8 +2404,8 @@ export const FinancesTab = memo(() => {
               <span className="font-black text-ink tabular-nums">
                 {formatCurrency(budget)}
               </span>
-              {sponsored > 0 && sponsorsReduce && (
-                <> − sponsorships {formatCurrency(sponsored)}</>
+              {sponsoredOffset > 0 && (
+                <> − sponsorships {formatCurrency(sponsoredOffset)}</>
               )}
               {suggested != null && (
                 <>

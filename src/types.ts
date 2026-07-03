@@ -580,10 +580,11 @@ export interface IncomeEntry {
   // entries.
   dismissed?: boolean;
   // A named CURRENT-season sponsor (business/family) recorded in the Budget
-  // Planner rather than the ledger's generic income form. Always paired with
-  // `fundraising: true` so it lowers what families owe this season; the flag
-  // just lets the planner list it as a sponsor (vs. a car wash) with its own
-  // remove control. The next-season equivalent is SponsorshipEntry.
+  // Planner rather than the ledger's generic income form. Whether it lowers
+  // what families owe is that entry's own choice: paired with
+  // `fundraising: true` it credits this season's dues; without it the money is
+  // plain club income. The next-season equivalent is SponsorshipEntry (whose
+  // per-entry switch is `reducesFees`).
   sponsor?: boolean;
 }
 
@@ -596,6 +597,10 @@ export interface SponsorshipEntry {
   sponsor: string;
   amount: number;
   date?: string; // ISO yyyy-mm-dd, when pledged
+  // Per-pledge switch: whether this money offsets the suggested next-season
+  // fee. Default (unset/true) = it does; false = the pledge is planned as
+  // plain club income and families split the full budget.
+  reducesFees?: boolean;
 }
 
 // Money collected from a family toward the club fee. Multiple entries per
@@ -658,12 +663,6 @@ export interface TeamFinances {
   // The only money that offsets the suggested next-season fee — this
   // year's ledger never leaks into next year's planning.
   sponsorships?: SponsorshipEntry[];
-  // Whether sponsorship money lowers what families pay. Default (unset/true):
-  // next-season pledges offset the suggested fee, and this-season sponsor
-  // income credits dues like other fundraising. When false, sponsor money is
-  // plain club income — it boosts the balance but families pay the full fee.
-  // Non-sponsor fundraising (car washes) still credits dues either way.
-  sponsorshipsReduceFees?: boolean;
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];
   payments?: PaymentEntry[];
