@@ -158,11 +158,15 @@ const SortHeader = ({
   </button>
 );
 
+// Ledger rows rendered before the "Show all" toggle kicks in — the math and
+// CSV always use the full ledger; only the table render is bounded.
+const LEDGER_RENDER_CAP = 100;
+
 type LedgerSortKey = "date" | "label" | "in" | "out" | "balance";
 type BudgetSortKey = "label" | "qty" | "planned" | "spent";
 
 export const FinancesTab = memo(() => {
-  const { team: teamRaw, updateFinances } = useTeam();
+  const { team: teamRaw, updateFinances, user } = useTeam();
   const { openPlayerProfile } = useUI();
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
@@ -176,6 +180,14 @@ export const FinancesTab = memo(() => {
   // (docs/FINANCES-AUDIT.md finding 3.2). Scalar fields share this shorthand.
   const setFinanceFields = (fields: FinanceSetFields) =>
     updateFinances({ op: "set", fields });
+
+  // Who-entered-this stamps for new money records (audit finding 3.7).
+  // Creation only — edits preserve the original stamps. undefined values are
+  // scrubbed before the write, so a missing user stays harmless.
+  const recordedStamp = () => ({
+    recordedBy: user?.uid as string | undefined,
+    recordedAt: new Date().toISOString(),
+  });
 
   const summary = useMemo(
     () => financeSummary(finances, players),
@@ -337,6 +349,19 @@ export const FinancesTab = memo(() => {
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
   }, [ledger, ledgerSort]);
+
+  // Render cap (audit finding 3.8): the full ledger stays the source for all
+  // math and the CSV; only the RENDERED rows are bounded. On the default
+  // date-asc sort the window is the tail (the most recent entries) so the
+  // running balance column reads naturally; on other sorts it's the head.
+  const [showAllLedger, setShowAllLedger] = useState(false);
+  const ledgerCapped =
+    !showAllLedger && sortedLedger.length > LEDGER_RENDER_CAP;
+  const visibleLedger = !ledgerCapped
+    ? sortedLedger
+    : ledgerSort.key === "date" && ledgerSort.asc
+      ? sortedLedger.slice(-LEDGER_RENDER_CAP)
+      : sortedLedger.slice(0, LEDGER_RENDER_CAP);
 
   // Planner rows carry their derived planned/spent so sorting and rendering
   // read the same numbers.
@@ -578,6 +603,7 @@ export const FinancesTab = memo(() => {
           amount,
           ...(sponsorReduces ? { fundraising: true } : {}),
           sponsor: true,
+          ...recordedStamp(),
         },
       });
     } else {
@@ -681,6 +707,7 @@ export const FinancesTab = memo(() => {
         playerId,
         date: dateToIsoLocal(new Date()),
         amount: round2(amount),
+        ...recordedStamp(),
       },
     });
     setPayInputs((cur) => ({ ...cur, [playerId]: "" }));
@@ -697,6 +724,7 @@ export const FinancesTab = memo(() => {
       date: isValidIsoDate(txnDate) ? txnDate : dateToIsoLocal(new Date()),
       label: txnLabel.trim(),
       amount,
+      ...recordedStamp(),
     };
     if (txnDir === "in") {
       const incomeEntry = txnFundraising
@@ -1458,14 +1486,14 @@ export const FinancesTab = memo(() => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
-                      {sortedLedger.map((row, idx) => {
+                      {visibleLedger.map((row, idx) => {
                         // Undated legacy rows sort to the bottom and group
                         // under one "No date" header.
                         const monthKey = isValidIsoDate(row.date)
                           ? row.date.slice(0, 7)
                           : "undated";
                         // Month group headers only make sense in date order.
-                        const prevRow = idx > 0 ? sortedLedger[idx - 1] : null;
+                        const prevRow = idx > 0 ? visibleLedger[idx - 1] : null;
                         const prevMonthKey = !prevRow
                           ? null
                           : isValidIsoDate(prevRow.date)
@@ -1648,7 +1676,22 @@ export const FinancesTab = memo(() => {
                         return (
                           <React.Fragment key={`${row.source}-${row.id}`}>
                             {monthHeader}
-                            <tr className="hover:bg-surface-2">
+                            <tr
+                              className="hover:bg-surface-2"
+                              title={
+                                row.recordedBy || row.recordedAt
+                                  ? `Recorded${
+                                      row.recordedAt
+                                        ? ` ${String(row.recordedAt).slice(0, 10)}`
+                                        : ""
+                                    } by ${
+                                      row.recordedBy === user?.uid
+                                        ? "you"
+                                        : "another coach"
+                                    }`
+                                  : undefined
+                              }
+                            >
                               <td className="p-2 tabular-nums font-bold text-ink-2">
                                 {isValidIsoDate(row.date)
                                   ? row.date
@@ -1725,6 +1768,17 @@ export const FinancesTab = memo(() => {
                       })}
                     </tbody>
                   </table>
+                  {ledgerCapped && (
+                    <div className="pt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllLedger(true)}
+                        className="text-xs font-bold underline text-ink-3 hover:text-ink transition-colors"
+                      >
+                        Show all {sortedLedger.length} entries
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               {(finances.pastSeasons || []).length > 0 && (

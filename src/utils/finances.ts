@@ -466,6 +466,10 @@ export interface LedgerRow {
   // Display name of the child a fundraising row is credited to (when attributed
   // to a specific player); absent when it splits evenly.
   creditedTo?: string;
+  // Who entered this record and when (audit finding 3.7); absent on rows
+  // predating the attribution stamps.
+  recordedBy?: string;
+  recordedAt?: string;
 }
 
 // One dated ledger of EVERYTHING received (club-fee payments, sponsorships,
@@ -475,10 +479,22 @@ export const transactionLedger = (
   finances: TeamFinances | null | undefined,
   players?: Array<{ id: string; name?: string }> | null,
 ): LedgerRow[] => {
+  // Map lookup instead of a per-row players.find — O(payments + players)
+  // rather than O(payments × players) (audit finding 3.8).
+  const byId = new Map(
+    (players || []).filter((p) => p?.id).map((p) => [p.id, p]),
+  );
   const nameOf = (pid: string): string => {
-    const p = (players || []).find((x) => x?.id === pid);
+    const p = byId.get(pid);
     return p?.name ? String(p.name) : "Player";
   };
+  const attribution = (e: {
+    recordedBy?: string;
+    recordedAt?: string;
+  }): Partial<LedgerRow> => ({
+    ...(e.recordedBy ? { recordedBy: e.recordedBy } : {}),
+    ...(e.recordedAt ? { recordedAt: e.recordedAt } : {}),
+  });
   const rows: Array<Omit<LedgerRow, "balanceAfter">> = [];
   for (const pay of finances?.payments || []) {
     if (!pay) continue;
@@ -489,6 +505,7 @@ export const transactionLedger = (
       amount: money(pay.amount),
       direction: "in",
       source: "payment",
+      ...attribution(pay),
     });
   }
   for (const inc of finances?.incomes || []) {
@@ -504,6 +521,7 @@ export const transactionLedger = (
       ...(inc.fundraising && inc.playerId
         ? { creditedTo: nameOf(String(inc.playerId)) }
         : {}),
+      ...attribution(inc),
     });
   }
   for (const exp of finances?.expenses || []) {
@@ -515,6 +533,7 @@ export const transactionLedger = (
       amount: money(exp.amount),
       direction: "out",
       source: "expense",
+      ...attribution(exp),
     });
   }
   // Stable sort: date order; ties keep push order (in-rows precede out-rows).

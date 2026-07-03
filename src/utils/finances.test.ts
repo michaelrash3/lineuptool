@@ -436,3 +436,30 @@ describe("rollover archives who still owed (finding 3.6)", () => {
     ).toBe(false);
   });
 });
+
+// --- Attribution passthrough (audit finding 3.7) ---
+
+describe("ledger attribution passthrough", () => {
+  it("carries recordedBy/recordedAt onto ledger rows when present", () => {
+    const finances: TeamFinances = {
+      payments: [
+        {
+          id: "p1",
+          playerId: "k1",
+          date: "2026-03-01",
+          amount: 100,
+          recordedBy: "coach-1",
+          recordedAt: "2026-03-01T12:00:00.000Z",
+        },
+      ],
+      expenses: [
+        { id: "e1", date: "2026-03-02", label: "Legacy row", amount: 10 },
+      ],
+    };
+    const rows = transactionLedger(finances, [{ id: "k1", name: "Ava" }]);
+    expect(rows[0].recordedBy).toBe("coach-1");
+    expect(rows[0].recordedAt).toBe("2026-03-01T12:00:00.000Z");
+    // Rows predating the stamps simply lack the fields.
+    expect("recordedBy" in rows[1]).toBe(false);
+  });
+});
