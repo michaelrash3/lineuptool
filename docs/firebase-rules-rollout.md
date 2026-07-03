@@ -89,9 +89,12 @@ This wraps Vitest in `firebase emulators:exec --only firestore`, so it needs:
 The suite is excluded from the default `npm test` (a pure jsdom unit run) so the
 unit suite stays emulator-free. Coverage includes: non-member vs member team
 reads, the removed join-code full-doc read, assistant `ownerId`/member-removal
-denials, owner delete, sanitized invite read + self-join (only the joining user,
-only a real role), public append-exactly-one vs remove/replace/multi-add/closed
-denials, and public mirror read/write access.
+denials, owner delete, legacy sole-member auto-claim, sanitized invite read +
+self-join (only the joining user, only `assistant`, only themselves into
+`members`), the finances head-gate (owner/co-head allowed incl. dotted-path
+appends; assistant denied incl. bundled writes), coachRoles escalation denials,
+public append-exactly-one vs remove/replace/multi-add/closed denials, and
+public mirror read/write access.
 
 ## Local emulator test loop
 
@@ -130,9 +133,11 @@ full team doc just because a code exists (that rule was removed).
 
 - Use a valid 6-char code.
 - Confirm the invite lookup exposes only sanitized fields.
-- Confirm join succeeds (self only, role `assistant`/`head`).
-- Confirm a non-member cannot read the full team doc, add a different user, set
-  a bogus role, or edit arbitrary fields.
+- Confirm join succeeds (self only, role `assistant` only — the self-join path
+  can no longer grant `head`; promotion to head is done by an existing head via
+  Settings).
+- Confirm a non-member cannot read the full team doc, add a different user
+  (alone or alongside themselves), set a bogus role, or edit arbitrary fields.
 
 ### 4) Public Tryouts Portal
 
@@ -177,6 +182,32 @@ Expected: non-owners cannot rewrite `ownerId` or remove other members. The curre
 - As an assistant, remove only themselves from `members[]` — confirm success (leave-team).
 - On a freshly created team with no `ownerId` and only the caller in `members`, write `{ownerId: caller.uid}` — confirm success (legitimate auto-claim path; covers legacy unclaimed teams).
 - On a team with `ownerId` already set, attempt a delete as a non-owner member — confirm denial. As the owner — confirm success.
+
+### 8) Finances head-gate (added with the finances-audit fix, finding 3.1)
+
+Expected: writes touching the `finances` key succeed only for a head coach —
+the owner, or a member whose `coachRoles` entry is `head` (promoted via
+Settings). Assistants are denied server-side, matching the head-only UI.
+`coachRoles` itself is equally head-gated (otherwise a member could
+self-promote and pass the finances gate), and the join-code self-join can only
+set `assistant`.
+
+- As the owner, record a payment / edit the ledger in Finances — confirm success.
+- As a promoted co-head (non-owner with `coachRoles: head`), do the same — confirm success.
+- As an assistant, attempt a direct Firestore write to `finances` (whole-object
+  or dotted-path `finances.payments` append) — confirm denial. A write bundling
+  `finances` with allowed fields is denied whole.
+- As an assistant, attempt `coachRoles.{self} = 'head'` (plain write, and the
+  members+coachRoles join-clause shape) — confirm denial.
+- As the owner or a co-head, toggle a member's role in Settings — confirm success.
+- **Accepted residual:** assistants can still **read** `finances` (Firestore
+  cannot field-gate reads on a single document; full read privacy would require
+  splitting finances into its own doc). The gate protects integrity, not
+  confidentiality.
+- **Accepted edge:** on a legacy unclaimed team (no `ownerId`), the sole member
+  is head in the UI but passes `isHeadCoach` only after the auto-claim write
+  lands (it fires on team load); a finances write racing it recovers via the
+  optimistic revert + Retry toast.
 
 ## Sequencing the tryout-portal privacy fix
 
