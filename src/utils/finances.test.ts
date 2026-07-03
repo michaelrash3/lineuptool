@@ -359,3 +359,80 @@ describe("parseMoneyInput", () => {
     expect(parseMoneyInput("10.994")).toBe(10.99);
   });
 });
+
+// --- Date integrity (audit finding 3.4) + unpaid-dues archive (3.6) ---
+
+describe("ledger date integrity", () => {
+  it("sinks undated/malformed rows to the bottom so the running balance stays sane", () => {
+    const finances: TeamFinances = {
+      incomes: [
+        { id: "bad", date: "", label: "Mystery money", amount: 500 },
+        { id: "i1", date: "2026-03-01", label: "Sponsor", amount: 100 },
+      ],
+      expenses: [{ id: "e1", date: "2026-03-05", label: "Balls", amount: 40 }],
+    };
+    const rows = transactionLedger(finances);
+    expect(rows.map((r) => r.id)).toEqual(["i1", "e1", "bad"]);
+    // Dated rows carry a clean running balance; the undated row lands last.
+    expect(rows[0].balanceAfter).toBe(100);
+    expect(rows[1].balanceAfter).toBe(60);
+    expect(rows[2].balanceAfter).toBe(560);
+  });
+});
+
+describe("rollover archives who still owed (finding 3.6)", () => {
+  const players = [
+    { id: "p1", name: "Ava" },
+    { id: "p2", name: "Ben" },
+    { id: "p9", name: "Waived Wes" },
+  ];
+
+  it("snapshots partial payers onto the archived season, excluding exempt and settled", () => {
+    const rolled = rollFinancesForNewSeason(
+      activeFinances(),
+      "Spring 2027",
+      "2027-08-01",
+      players,
+    );
+    const archived =
+      rolled?.pastSeasons?.[(rolled?.pastSeasons?.length || 1) - 1];
+    // Fee 100: Ava paid 100 (settled), Ben paid 60 (owes 40), Wes is exempt.
+    expect(archived?.outstanding).toEqual([
+      { playerId: "p2", name: "Ben", owed: 40 },
+    ]);
+    // The carry itself is unchanged — unpaid dues still don't carry over.
+    expect(archived?.closingBalance).toBe(110);
+  });
+
+  it("omits the outstanding key entirely when everyone settled", () => {
+    const settled: TeamFinances = {
+      ...activeFinances(),
+      payments: [
+        { id: "pay1", playerId: "p1", date: "2026-09-10", amount: 100 },
+        { id: "pay2", playerId: "p2", date: "2026-09-12", amount: 100 },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      settled,
+      "Spring 2027",
+      "2027-08-01",
+      players,
+    );
+    expect(
+      "outstanding" in
+        (rolled?.pastSeasons?.[(rolled?.pastSeasons?.length || 1) - 1] || {}),
+    ).toBe(false);
+  });
+
+  it("keeps the legacy call shape working (no players → no snapshot)", () => {
+    const rolled = rollFinancesForNewSeason(
+      activeFinances(),
+      "Spring 2027",
+      "2027-08-01",
+    );
+    expect(
+      "outstanding" in
+        (rolled?.pastSeasons?.[(rolled?.pastSeasons?.length || 1) - 1] || {}),
+    ).toBe(false);
+  });
+});

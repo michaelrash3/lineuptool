@@ -12,6 +12,7 @@ import type {
   TeamFinances,
 } from "../types";
 import { genId } from "./id";
+import { isValidIsoDate } from "./dates";
 
 // ---------- Team finances (money math) ----------
 // Pure helpers behind the Finances tab. All amounts are dollars; display
@@ -517,9 +518,15 @@ export const transactionLedger = (
     });
   }
   // Stable sort: date order; ties keep push order (in-rows precede out-rows).
+  // Blank/malformed dates (legacy imports) sink to the BOTTOM instead of
+  // floating to the top and distorting the running balance from row one
+  // (audit finding 3.4).
+  const dateKey = (d: string): string => (isValidIsoDate(d) ? d : "9999-99-99");
   const sorted = rows
     .map((r, i) => ({ r, i }))
-    .sort((a, b) => a.r.date.localeCompare(b.r.date) || a.i - b.i)
+    .sort(
+      (a, b) => dateKey(a.r.date).localeCompare(dateKey(b.r.date)) || a.i - b.i,
+    )
     .map((x) => x.r);
   let running = 0;
   return sorted.map((r) => {
@@ -755,6 +762,9 @@ export const rollFinancesForNewSeason = (
   finances: TeamFinances | null | undefined,
   archivedSeason: string,
   dateIso: string,
+  // The OUTGOING season's roster — used only to snapshot who still owed dues
+  // at year-close (audit finding 3.6). Optional so older call sites compile.
+  players?: Array<{ id: string; name?: string }> | null,
 ): TeamFinances | null | undefined => {
   const hadActivity =
     (finances?.payments || []).length > 0 ||
@@ -801,10 +811,27 @@ export const rollFinancesForNewSeason = (
   }
   // Label the archived year by its closing season ("through Spring 2027").
   const yearLabel = `through ${archivedSeason}`;
-  // stillOwed isn't part of the carry-over (unpaid fees die with the year),
-  // so the players list is irrelevant here.
-  const s = financeSummary(finances, []);
+  // stillOwed isn't part of the carry-over (unpaid fees still die with the
+  // year) — but who owed WHAT is snapshotted onto the archived row below so
+  // the rollover no longer silently destroys that record. balanceNow itself
+  // is player-independent, so the carry math is unchanged.
+  const s = financeSummary(finances, players || []);
   const balance = round2(s.balanceNow);
+  const exempt = new Set(finances.feeExemptIds || []);
+  const outstanding = (players || [])
+    .filter((p) => p?.id && !exempt.has(p.id))
+    .map((p) => ({
+      playerId: p.id,
+      name: p.name || "Player",
+      owed: round2(
+        Math.max(
+          0,
+          (s.effectiveFeeByPlayer[p.id] ?? s.effectiveFeePerPlayer) -
+            (s.paidByPlayer[p.id] || 0),
+        ),
+      ),
+    }))
+    .filter((o) => o.owed > 0);
   const carryId = genId(`carry-${date}`);
   const incomes = [
     ...(balance > 0
@@ -858,6 +885,7 @@ export const rollFinancesForNewSeason = (
         otherIncome: s.otherIncome,
         spent: s.spent,
         closingBalance: balance,
+        ...(outstanding.length > 0 ? { outstanding } : {}),
       },
     ],
   };

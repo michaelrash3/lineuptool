@@ -1633,7 +1633,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       );
 
       const newSeasonFinances = rollFinances
-        ? rollFinancesForNewSeason(teamData.finances, archivedSeason, nowIso)
+        ? rollFinancesForNewSeason(
+            teamData.finances,
+            archivedSeason,
+            nowIso,
+            // The PRE-advance roster: the families who owed the closing year.
+            teamData.players || [],
+          )
         : teamData.finances;
       const depositAmount = Math.max(
         0,

@@ -621,6 +621,11 @@ export interface FinancePastSeason {
   otherIncome: number;
   spent: number;
   closingBalance: number;
+  // Snapshot of unpaid dues at year-close: the rollover wipes the collection
+  // cycle (unpaid fees die with the year), so who-still-owed is preserved
+  // here. Names are resolved at roll time — those players may leave the
+  // roster afterwards.
+  outstanding?: Array<{ playerId: string; name: string; owed: number }>;
 }
 
 export interface TeamFinances {
