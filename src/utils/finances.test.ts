@@ -6,6 +6,13 @@ import {
   suggestedFeePerPlayer,
   sponsorshipTotal,
   feeOffsetSponsorshipTotal,
+  teamFeesStatus,
+  transactionLedger,
+  ledgerCsv,
+  budgetItemAmount,
+  budgetTotal,
+  parseMoneyInput,
+  MAX_MONEY_INPUT,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -251,5 +258,104 @@ describe("per-sponsor 'reduces team fees' switch", () => {
     expect(s.effectiveFeePerPlayer).toBe(60);
     expect(s.otherIncome).toBe(240);
     expect(s.balanceNow).toBe(240);
+  });
+});
+
+// --- Money-math hardening (audit finding 3.3) + input parsing (3.5) ---
+
+describe("cent rounding at aggregation boundaries", () => {
+  it("sums drift-prone payment amounts to exact cents", () => {
+    // 0.1 + 0.2 !== 0.3 in raw floats; the summary must not leak that.
+    const finances: TeamFinances = {
+      clubFee: 0.3,
+      payments: [
+        { id: "a", playerId: "p1", date: "2026-03-01", amount: 0.1 },
+        { id: "b", playerId: "p1", date: "2026-03-02", amount: 0.2 },
+      ],
+    };
+    const s = financeSummary(finances, [{ id: "p1" }]);
+    expect(s.collected).toBe(0.3);
+    expect(s.paidByPlayer.p1).toBe(0.3);
+    // The family is settled EXACTLY — no fraction-of-a-cent residue.
+    expect(s.stillOwed).toBe(0);
+    expect(s.balanceNow).toBe(0.3);
+  });
+
+  it("teamFeesStatus does not call a settled family unpaid over sub-cent drift", () => {
+    const finances: TeamFinances = {
+      clubFee: 0.3,
+      payments: [
+        { id: "a", playerId: "p1", date: "2026-03-01", amount: 0.1 },
+        { id: "b", playerId: "p1", date: "2026-03-02", amount: 0.2 },
+      ],
+    };
+    const st = teamFeesStatus(finances, [{ id: "p1" }]);
+    expect(st.fullOwedCount).toBe(0);
+    expect(st.stillOwed).toBe(0);
+  });
+
+  it("keeps the ledger running balance in exact agreement with the CSV", () => {
+    const finances: TeamFinances = {
+      payments: [{ id: "a", playerId: "p1", date: "2026-03-01", amount: 10.1 }],
+      expenses: [{ id: "e", date: "2026-03-02", label: "x", amount: 10.2 }],
+      incomes: [{ id: "i", date: "2026-03-03", label: "y", amount: 0.35 }],
+    };
+    const rows = transactionLedger(finances);
+    expect(rows.map((r) => r.balanceAfter)).toEqual([10.1, -0.1, 0.25]);
+    const csv = ledgerCsv(finances);
+    expect(csv).toContain("-0.10");
+    expect(csv).toContain("0.25");
+  });
+
+  it("rounds the taxed budget projection to cents", () => {
+    const finances: TeamFinances = {
+      salesTaxPct: 8.25,
+      budgetItems: [
+        { id: "b1", label: "Entry", amount: 449.99, taxable: true },
+      ],
+    };
+    // 449.99 × 1.0825 = 487.114175 → 487.11, and the total matches exactly.
+    expect(budgetItemAmount(finances.budgetItems![0], 8.25)).toBe(487.11);
+    expect(budgetTotal(finances)).toBe(487.11);
+  });
+});
+
+describe("parseMoneyInput", () => {
+  it("parses plain, $-prefixed, and thousands-grouped amounts", () => {
+    expect(parseMoneyInput("1500")).toBe(1500);
+    expect(parseMoneyInput("$ 12.50")).toBe(12.5);
+    expect(parseMoneyInput("1,500")).toBe(1500);
+    expect(parseMoneyInput("12,345.67")).toBe(12345.67);
+  });
+
+  it("treats a short trailing comma group as a decimal separator", () => {
+    // Previously "1,50" silently became 150 — a 100× error.
+    expect(parseMoneyInput("1,50")).toBe(1.5);
+    expect(parseMoneyInput("12,5")).toBe(12.5);
+  });
+
+  it("rejects malformed grouping instead of silently stripping commas", () => {
+    expect(parseMoneyInput("1,0000")).toBeNull();
+    expect(parseMoneyInput("12,34")).toBe(12.34); // comma-decimal, valid
+    expect(parseMoneyInput("1,23,456")).toBeNull();
+  });
+
+  it("rejects NaN, negatives, and amounts over the sanity cap", () => {
+    expect(parseMoneyInput("abc")).toBeNull();
+    expect(parseMoneyInput("-50")).toBeNull();
+    expect(parseMoneyInput(String(MAX_MONEY_INPUT + 1))).toBeNull();
+    expect(parseMoneyInput(String(MAX_MONEY_INPUT))).toBe(MAX_MONEY_INPUT);
+  });
+
+  it("treats zero/blank as null unless allowZero (clear-the-fee commits)", () => {
+    expect(parseMoneyInput("0")).toBeNull();
+    expect(parseMoneyInput("")).toBeNull();
+    expect(parseMoneyInput("0", { allowZero: true })).toBe(0);
+    expect(parseMoneyInput("", { allowZero: true })).toBeNull();
+  });
+
+  it("rounds to whole cents", () => {
+    expect(parseMoneyInput("10.999")).toBe(11);
+    expect(parseMoneyInput("10.994")).toBe(10.99);
   });
 });

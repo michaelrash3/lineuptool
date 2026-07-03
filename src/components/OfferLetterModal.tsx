@@ -3,6 +3,7 @@ import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { buildMailtoUrl } from "../utils/reminderDraft";
+import { parseMoneyInput } from "../utils/helpers";
 import {
   buildOfferLetter,
   OFFER_LETTER_LABELS,
@@ -52,11 +53,11 @@ export const OfferLetterModal = memo(
       (!ctx.teamFees || !ctx.deposit || !ctx.depositDueDate);
 
     const saveNextSeasonMoney = () => {
-      const n = Number(String(depositInput).replace(/[$,\s]/g, ""));
+      const n = parseMoneyInput(depositInput);
       const patch: { nextDepositAmount?: number; nextDepositDueDate?: string } =
         {};
-      if (Number.isFinite(n) && n > 0) {
-        patch.nextDepositAmount = Math.round(n * 100) / 100;
+      if (n != null) {
+        patch.nextDepositAmount = n;
       }
       if (dueDateInput) patch.nextDepositDueDate = dueDateInput;
       if (Object.keys(patch).length === 0) {

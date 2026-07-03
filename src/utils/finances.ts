@@ -23,6 +23,40 @@ const money = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Round to whole cents. Aggregations and comparisons must go through this at
+// their boundaries (audit finding 3.3): float sums drift by sub-cent amounts
+// (0.1 + 0.2 class errors), and an unrounded `eff - paid > 0` can call a
+// settled family unpaid by a fraction of a cent. On clean 2-decimal inputs
+// every call is an identity.
+export const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+// Sanity cap on typed dollar amounts — a youth team's ledger has no business
+// holding a seven-figure entry; beyond this it's a typo.
+export const MAX_MONEY_INPUT = 1_000_000;
+
+// Parse a typed dollars input into whole cents. Handles "$ 1,500" (thousands),
+// "1,50" (comma-decimal — previously read as 150), and rejects malformed
+// grouping ("1,0000"), over-cap values, and NaN. Non-positive returns null
+// unless `allowZero` (fee/deposit fields treat 0 as "clear").
+export const parseMoneyInput = (
+  raw: string,
+  opts?: { allowZero?: boolean },
+): number | null => {
+  let s = String(raw).replace(/[$\s]/g, "");
+  if (!s) return null;
+  if (/^\d+,\d{1,2}$/.test(s)) {
+    s = s.replace(",", ".");
+  } else if (s.includes(",")) {
+    if (!/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) return null;
+    s = s.replace(/,/g, "");
+  }
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0 || n > MAX_MONEY_INPUT) return null;
+  const cents = round2(n);
+  if (cents <= 0 && !opts?.allowZero) return null;
+  return cents;
+};
+
 // "$1,250" / "$12.50" / "-$80" — whole dollars unless cents are present.
 export const formatCurrency = (value: unknown): string => {
   const n = money(value);
@@ -55,17 +89,20 @@ export const budgetItemAmount = (
     item.qty != null && item.unitAmount != null
       ? Math.max(0, money(item.qty)) * money(item.unitAmount)
       : money(item.amount);
-  // Taxable items (pre-tax quotes) project at their real, taxed cost.
+  // Taxable items (pre-tax quotes) project at their real, taxed cost. The
+  // tax multiply is the planner's one sub-cent producer — round it here.
   const pct = item.taxable ? Math.max(0, money(salesTaxPct)) : 0;
-  return base * (1 + pct / 100);
+  return round2(base * (1 + pct / 100));
 };
 
 export const budgetTotal = (
   finances: TeamFinances | null | undefined,
 ): number =>
-  (finances?.budgetItems || []).reduce(
-    (sum, item) => sum + budgetItemAmount(item, finances?.salesTaxPct),
-    0,
+  round2(
+    (finances?.budgetItems || []).reduce(
+      (sum, item) => sum + budgetItemAmount(item, finances?.salesTaxPct),
+      0,
+    ),
   );
 
 // Round up to the next multiple of `increment` (the fee buffer: incidentals
@@ -83,7 +120,9 @@ export const roundUpToIncrement = (n: number, increment?: number): number => {
 export const incomeTotal = (
   finances: TeamFinances | null | undefined,
 ): number =>
-  (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0);
+  round2(
+    (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0),
+  );
 
 // THIS season's ledger income flagged as fundraising — the slice of income
 // that reduces each family's dues. Split into money attributed to a specific
@@ -111,7 +150,12 @@ const fundraisingBreakdown = (
 export const sponsorshipTotal = (
   finances: TeamFinances | null | undefined,
 ): number =>
-  (finances?.sponsorships || []).reduce((sum, s) => sum + money(s?.amount), 0);
+  round2(
+    (finances?.sponsorships || []).reduce(
+      (sum, s) => sum + money(s?.amount),
+      0,
+    ),
+  );
 
 // The slice of pledged sponsorships that actually offsets the suggested fee:
 // each pledge carries its own "reduces team fees" switch (default on), so a
@@ -119,9 +163,11 @@ export const sponsorshipTotal = (
 export const feeOffsetSponsorshipTotal = (
   finances: TeamFinances | null | undefined,
 ): number =>
-  (finances?.sponsorships || []).reduce(
-    (sum, s) => (s?.reducesFees === false ? sum : sum + money(s?.amount)),
-    0,
+  round2(
+    (finances?.sponsorships || []).reduce(
+      (sum, s) => (s?.reducesFees === false ? sum : sum + money(s?.amount)),
+      0,
+    ),
   );
 
 // Suggested NEXT-season fee per paying player. The Budget Planner plans the
@@ -282,9 +328,14 @@ export const financeSummary = (
     const pid = String(pay?.playerId || "");
     if (pid) paidByPlayer[pid] = (paidByPlayer[pid] || 0) + amt;
   }
+  collected = round2(collected);
+  for (const pid of Object.keys(paidByPlayer)) {
+    paidByPlayer[pid] = round2(paidByPlayer[pid]);
+  }
   const otherIncome = incomeTotal(finances);
   let spent = 0;
   for (const e of finances?.expenses || []) spent += money(e?.amount);
+  spent = round2(spent);
   // Fee-exempt players (fall pickups, scholarships) never owe the club fee.
   const exempt = new Set(finances?.feeExemptIds || []);
   const payers = (players || []).filter((p) => p?.id && !exempt.has(p.id));
@@ -307,7 +358,6 @@ export const financeSummary = (
     attributedCredit[pid] = Math.min(rawAmt, fee);
     evenPool += Math.max(0, rawAmt - fee); // surplus over the fee → team pool
   }
-  const round2 = (n: number) => Math.round(n * 100) / 100;
   const duesCreditPerPlayer =
     payers.length > 0 ? round2(evenPool / payers.length) : 0;
   const effectiveFeePerPlayer = Math.max(0, fee - duesCreditPerPlayer);
@@ -317,18 +367,19 @@ export const financeSummary = (
   for (const p of payers) {
     const credit = (attributedCredit[p.id] || 0) + duesCreditPerPlayer;
     creditByPlayer[p.id] = round2(credit);
-    const eff = Math.max(0, fee - credit);
+    const eff = round2(Math.max(0, fee - credit));
     effectiveFeeByPlayer[p.id] = eff;
-    stillOwed += Math.max(0, eff - (paidByPlayer[p.id] || 0));
+    stillOwed += Math.max(0, round2(eff - (paidByPlayer[p.id] || 0)));
   }
-  const balanceNow = collected + otherIncome - spent;
+  stillOwed = round2(stillOwed);
+  const balanceNow = round2(collected + otherIncome - spent);
   return {
     collected,
     otherIncome,
     spent,
     balanceNow,
     stillOwed,
-    balanceOnceAllPaid: balanceNow + stillOwed,
+    balanceOnceAllPaid: round2(balanceNow + stillOwed),
     paidByPlayer,
     duesCreditPerPlayer,
     effectiveFeePerPlayer,
@@ -370,10 +421,12 @@ export const teamFeesStatus = (
   for (const p of payers) {
     const paid = s.paidByPlayer[p.id] || 0;
     const eff = s.effectiveFeeByPlayer[p.id] ?? s.effectiveFeePerPlayer;
-    if (eff - paid > 0) fullOwedCount++;
+    // Rounded comparisons: a family within half a cent of settled is settled,
+    // not "owes" (audit finding 3.3).
+    if (round2(eff - paid) > 0) fullOwedCount++;
     const deposit = Math.min(baseDeposit, eff);
     if (deposit > 0) {
-      const short = deposit - paid;
+      const short = round2(deposit - paid);
       if (short > 0) {
         depositOwedCount++;
         depositOutstanding += short;
@@ -388,7 +441,7 @@ export const teamFeesStatus = (
     stillOwed: s.stillOwed,
     fullOwedCount,
     depositAmount,
-    depositOutstanding: Math.round(depositOutstanding * 100) / 100,
+    depositOutstanding: round2(depositOutstanding),
     depositOwedCount,
     depositDueDate: finances?.depositDueDate || null,
     feeDueDate: finances?.feeDueDate || null,
@@ -470,7 +523,9 @@ export const transactionLedger = (
     .map((x) => x.r);
   let running = 0;
   return sorted.map((r) => {
-    running += r.direction === "in" ? r.amount : -r.amount;
+    // Cent-rounded at every step so the displayed balances and the CSV's
+    // toFixed(2) column always agree exactly.
+    running = round2(running + (r.direction === "in" ? r.amount : -r.amount));
     return { ...r, balanceAfter: running };
   });
 };
@@ -581,8 +636,8 @@ export const monthlyCashflow = (
       m = { month, label: MONTH_LABELS[mi], in: 0, out: 0, balanceEnd: 0 };
       byMonth.set(month, m);
     }
-    if (r.direction === "in") m.in += r.amount;
-    else m.out += r.amount;
+    if (r.direction === "in") m.in = round2(m.in + r.amount);
+    else m.out = round2(m.out + r.amount);
     m.balanceEnd = r.balanceAfter; // rows arrive in date order
   }
   // Fill silent months so the axis is continuous, carrying the balance.
@@ -749,7 +804,7 @@ export const rollFinancesForNewSeason = (
   // stillOwed isn't part of the carry-over (unpaid fees die with the year),
   // so the players list is irrelevant here.
   const s = financeSummary(finances, []);
-  const balance = Math.round(s.balanceNow * 100) / 100;
+  const balance = round2(s.balanceNow);
   const carryId = genId(`carry-${date}`);
   const incomes = [
     ...(balance > 0
