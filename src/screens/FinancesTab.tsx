@@ -40,6 +40,8 @@ import {
   transactionLedger,
   dateToIsoLocal,
   genId,
+  parseMoneyInput,
+  round2,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
 import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
@@ -95,12 +97,10 @@ const SectionCard = ({
   </section>
 );
 
-// Parse a dollars input; null when not a usable positive amount.
-const parseAmount = (raw: string): number | null => {
-  const n = Number(String(raw).replace(/[$,\s]/g, ""));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 100) / 100;
-};
+// Parse a dollars input; null when not a usable positive amount. Comma
+// handling, the sanity cap, and cent rounding live in parseMoneyInput
+// (utils/finances.ts, unit-tested).
+const parseAmount = (raw: string): number | null => parseMoneyInput(raw);
 
 // "2026-03" → "March 2026" for the ledger month group headers.
 const MONTH_FULL = [
@@ -227,9 +227,11 @@ export const FinancesTab = memo(() => {
   // totals these so its target reflects the actual sum families owe.
   const feeFor = (pid: string) =>
     summary.effectiveFeeByPlayer[pid] ?? effectiveFee;
-  const totalEffectiveFees = players.reduce(
-    (sum: number, p) => (exemptIds.has(p.id) ? sum : sum + feeFor(p.id)),
-    0,
+  const totalEffectiveFees = round2(
+    players.reduce(
+      (sum: number, p) => (exemptIds.has(p.id) ? sum : sum + feeFor(p.id)),
+      0,
+    ),
   );
 
   // Sales tax % — committed on blur/Enter so partial typing never writes.
@@ -238,7 +240,7 @@ export const FinancesTab = memo(() => {
     if (taxInput == null) return;
     const n = Number(String(taxInput).replace(/[%,\s]/g, ""));
     if (Number.isFinite(n) && n >= 0 && n <= 30) {
-      setFinanceFields({ salesTaxPct: Math.round(n * 100) / 100 });
+      setFinanceFields({ salesTaxPct: round2(n) });
     }
     setTaxInput(null);
   };
@@ -677,7 +679,7 @@ export const FinancesTab = memo(() => {
         id: newId("pay"),
         playerId,
         date: dateToIsoLocal(new Date()),
-        amount: Math.round(amount * 100) / 100,
+        amount: round2(amount),
       },
     });
     setPayInputs((cur) => ({ ...cur, [playerId]: "" }));
@@ -781,9 +783,7 @@ export const FinancesTab = memo(() => {
         key: "payments",
         map: (items) =>
           items.map((p) =>
-            p.id === id
-              ? { ...p, date, amount: Math.round(amount * 100) / 100 }
-              : p,
+            p.id === id ? { ...p, date, amount: round2(amount) } : p,
           ),
       });
     } else {
@@ -831,30 +831,25 @@ export const FinancesTab = memo(() => {
     setEditRow(null);
   };
 
+  // Fee/deposit commits accept 0 as "clear the fee" (allowZero).
   const commitClubFee = () => {
     if (feeInput == null) return;
-    const n = Number(String(feeInput).replace(/[$,\s]/g, ""));
-    if (Number.isFinite(n) && n >= 0) {
-      setFinanceFields({ clubFee: Math.round(n * 100) / 100 });
-    }
+    const n = parseMoneyInput(feeInput, { allowZero: true });
+    if (n != null) setFinanceFields({ clubFee: n });
     setFeeInput(null);
   };
 
   const commitDeposit = () => {
     if (depositInput == null) return;
-    const n = Number(String(depositInput).replace(/[$,\s]/g, ""));
-    if (Number.isFinite(n) && n >= 0) {
-      setFinanceFields({ depositAmount: Math.round(n * 100) / 100 });
-    }
+    const n = parseMoneyInput(depositInput, { allowZero: true });
+    if (n != null) setFinanceFields({ depositAmount: n });
     setDepositInput(null);
   };
 
   const commitNextDeposit = () => {
     if (nextDepositInput == null) return;
-    const n = Number(String(nextDepositInput).replace(/[$,\s]/g, ""));
-    if (Number.isFinite(n) && n >= 0) {
-      setFinanceFields({ nextDepositAmount: Math.round(n * 100) / 100 });
-    }
+    const n = parseMoneyInput(nextDepositInput, { allowZero: true });
+    if (n != null) setFinanceFields({ nextDepositAmount: n });
     setNextDepositInput(null);
   };
 
