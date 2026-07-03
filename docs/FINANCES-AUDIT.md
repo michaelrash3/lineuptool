@@ -29,13 +29,13 @@ Finances lives entirely client-side, like the rest of the app:
 
 **Core files**
 
-| File | Role |
-| --- | --- |
-| `src/screens/FinancesTab.tsx` (~2,470 lines) | Entire Finances UI |
-| `src/utils/finances.ts` (~810 lines) | Pure money math (unit-tested) |
-| `src/components/financeViz.tsx` | Hero, cash-flow, donut, year-comparison charts |
-| `src/finances/feeSheetPdf.ts` | Parent-facing fee-schedule PDF (lazy jspdf) |
-| `src/utils/finances.test.ts`, `src/screens/FinancesTab.test.tsx` | ~44 UI cases + math suite |
+| File                                                             | Role                                           |
+| ---------------------------------------------------------------- | ---------------------------------------------- |
+| `src/screens/FinancesTab.tsx` (~2,470 lines)                     | Entire Finances UI                             |
+| `src/utils/finances.ts` (~810 lines)                             | Pure money math (unit-tested)                  |
+| `src/components/financeViz.tsx`                                  | Hero, cash-flow, donut, year-comparison charts |
+| `src/finances/feeSheetPdf.ts`                                    | Parent-facing fee-schedule PDF (lazy jspdf)    |
+| `src/utils/finances.test.ts`, `src/screens/FinancesTab.test.tsx` | ~44 UI cases + math suite                      |
 
 ## 2. What Finances does today (current-state inventory)
 
@@ -74,16 +74,16 @@ parent-facing view, USD only.
 
 ## 3. Audit findings
 
-| # | Severity | Area | Finding |
-| --- | --- | --- | --- |
-| 1 | **High** | Security | `finances` has no server-side protection — any member can read/write it |
-| 2 | **High** | Data loss | Whole-object last-write-wins on every finance mutation |
-| 3 | Medium | Correctness | Floating-point money aggregation without cent rounding |
-| 4 | Medium | Correctness | Blank/invalid dates: charts and totals disagree; ledger ordering distorts |
-| 5 | Medium | Robustness | Amount parsing mishandles comma-decimal input; no refund path |
-| 6 | Low | Design | Unpaid dues silently destroyed on Fall rollover |
-| 7 | Low | Auditability | No attribution (`recordedBy`) on any money entry |
-| 8 | Low | Performance | Unbounded ledger render; O(payments × players) name lookup |
+| #   | Severity | Area         | Finding                                                                   |
+| --- | -------- | ------------ | ------------------------------------------------------------------------- |
+| 1   | **High** | Security     | `finances` has no server-side protection — any member can read/write it   |
+| 2   | **High** | Data loss    | Whole-object last-write-wins on every finance mutation                    |
+| 3   | Medium   | Correctness  | Floating-point money aggregation without cent rounding                    |
+| 4   | Medium   | Correctness  | Blank/invalid dates: charts and totals disagree; ledger ordering distorts |
+| 5   | Medium   | Robustness   | Amount parsing mishandles comma-decimal input; no refund path             |
+| 6   | Low      | Design       | Unpaid dues silently destroyed on Fall rollover                           |
+| 7   | Low      | Auditability | No attribution (`recordedBy`) on any money entry                          |
+| 8   | Low      | Performance  | Unbounded ledger render; O(payments × players) name lookup                |
 
 ### 3.1 `finances` is not protected server-side — High
 
@@ -188,10 +188,10 @@ Decisions recorded 2026-07-03.
 
 ### Approved
 
-| Feature | Why coaches want it | Current state | Feasibility |
-| --- | --- | --- | --- |
-| **Refunds** | Families drop mid-season; deposits get returned; overpayments happen. Every benchmarked product supports money-back entries. | Not representable — negative amounts rejected (`FinancesTab.tsx:100`); refunds must be faked as expenses, corrupting category spend. | Good fit. A `refund` entry type (or signed payment) flowing through `transactionLedger`, `financeSummary`, CSV, and charts. Pure client change + math tests. |
-| **Year-end treasurer report (PDF)** | Season-close accountability to parents/club: budget vs actual, income by source, who paid what, closing balance. The current handoff is a raw CSV. | Ledger CSV + on-screen charts only; `pastSeasons` keeps four numbers per year. | Good fit. Reuse the lazy-jspdf pattern (`src/finances/feeSheetPdf.ts`) over existing `financeSummary`/`budgetActuals`/`yearComparison` outputs. Also the right place to snapshot outstanding balances before rollover wipes them (finding 3.6). |
+| Feature                             | Why coaches want it                                                                                                                                | Current state                                                                                                                        | Feasibility                                                                                                                                                                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Refunds**                         | Families drop mid-season; deposits get returned; overpayments happen. Every benchmarked product supports money-back entries.                       | Not representable — negative amounts rejected (`FinancesTab.tsx:100`); refunds must be faked as expenses, corrupting category spend. | Good fit. A `refund` entry type (or signed payment) flowing through `transactionLedger`, `financeSummary`, CSV, and charts. Pure client change + math tests.                                                                                    |
+| **Year-end treasurer report (PDF)** | Season-close accountability to parents/club: budget vs actual, income by source, who paid what, closing balance. The current handoff is a raw CSV. | Ledger CSV + on-screen charts only; `pastSeasons` keeps four numbers per year.                                                       | Good fit. Reuse the lazy-jspdf pattern (`src/finances/feeSheetPdf.ts`) over existing `financeSummary`/`budgetActuals`/`yearComparison` outputs. Also the right place to snapshot outstanding balances before rollover wipes them (finding 3.6). |
 
 Plus the two high-severity audit fixes, approved as follow-up work:
 
@@ -205,18 +205,18 @@ Plus the two high-severity audit fixes, approved as follow-up work:
 Reviewed with the coach and declined for now; recorded so future requests can
 reopen them with context.
 
-| Feature | Benchmark norm | Why it would fit / notes |
-| --- | --- | --- |
-| Payment method + notes on payments | TeamSnap, Crossbar record method | Trivial schema add (`method?`, `note?` on `PaymentEntry`) |
-| Per-player fee adjustments (sibling discount, partial scholarship) | Common in club invoicing | Today only full waive via `feeExemptIds`; per-player override map would slot into `effectiveFeeByPlayer` |
-| Installment plans / payment schedules | TeamSnap Invoicing, Snap! Spend | Deposit + final due date exist; a schedule array would extend `teamFeesStatus` and HomeTab cards |
-| Payment receipts (per-payment PDF) | Processor-issued receipts elsewhere | Same jspdf pattern as the approved treasurer report |
-| Reimbursements (out-of-pocket + owed-back status) | Common treasurer workflow | New entry flag + settle action in the ledger |
-| Fundraising goals / raise-or-pay | Snap! Raise-style campaigns | Per-player credit already exists; goals/meters are additive |
-| Parent balance portal ("what do I owe") | Table stakes in TeamSnap/Crossbar | Would follow the anonymous-portal + `teamPublic` mirror pattern; declined — coach prefers direct communication |
-| Treasurer access (finance role for a member) | Club norm: a team parent handles money | Declined; finances stay head-only — which the approved rules guard then enforces for real |
-| Online payments (Stripe Payment Links + webhook) | The headline competitor feature | Needs a Vercel function + Stripe account; declined — Venmo/cash workflow is sufficient at this scale |
-| Automated email dues reminders | TeamSnap auto-reminders | Needs server email (Vercel fn + email API), reversing a deliberate product stance; declined |
+| Feature                                                            | Benchmark norm                         | Why it would fit / notes                                                                                       |
+| ------------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Payment method + notes on payments                                 | TeamSnap, Crossbar record method       | Trivial schema add (`method?`, `note?` on `PaymentEntry`)                                                      |
+| Per-player fee adjustments (sibling discount, partial scholarship) | Common in club invoicing               | Today only full waive via `feeExemptIds`; per-player override map would slot into `effectiveFeeByPlayer`       |
+| Installment plans / payment schedules                              | TeamSnap Invoicing, Snap! Spend        | Deposit + final due date exist; a schedule array would extend `teamFeesStatus` and HomeTab cards               |
+| Payment receipts (per-payment PDF)                                 | Processor-issued receipts elsewhere    | Same jspdf pattern as the approved treasurer report                                                            |
+| Reimbursements (out-of-pocket + owed-back status)                  | Common treasurer workflow              | New entry flag + settle action in the ledger                                                                   |
+| Fundraising goals / raise-or-pay                                   | Snap! Raise-style campaigns            | Per-player credit already exists; goals/meters are additive                                                    |
+| Parent balance portal ("what do I owe")                            | Table stakes in TeamSnap/Crossbar      | Would follow the anonymous-portal + `teamPublic` mirror pattern; declined — coach prefers direct communication |
+| Treasurer access (finance role for a member)                       | Club norm: a team parent handles money | Declined; finances stay head-only — which the approved rules guard then enforces for real                      |
+| Online payments (Stripe Payment Links + webhook)                   | The headline competitor feature        | Needs a Vercel function + Stripe account; declined — Venmo/cash workflow is sufficient at this scale           |
+| Automated email dues reminders                                     | TeamSnap auto-reminders                | Needs server email (Vercel fn + email API), reversing a deliberate product stance; declined                    |
 
 ### Not recommended (poor architectural fit)
 
