@@ -715,7 +715,7 @@ export const TryoutsTab = memo(() => {
     team,
     user,
     currentRole,
-    updateTeam,
+    updateFinances,
     updateTryoutSignup,
     deleteTryoutSignup,
     deleteTryoutSignups,
@@ -1420,7 +1420,7 @@ export const TryoutsTab = memo(() => {
               .join(" "),
           )}
           onSaveNextSeasonMoney={(patch) =>
-            updateTeam({ finances: { ...(team.finances || {}), ...patch } })
+            updateFinances({ op: "set", fields: patch })
           }
           onDelivered={() =>
             updateTryoutSignup?.(offerDraft.signup.id, {

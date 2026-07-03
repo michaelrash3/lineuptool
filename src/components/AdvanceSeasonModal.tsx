@@ -47,7 +47,7 @@ export const AdvanceSeasonModal = memo(
     user,
     onClose,
     onConfirm,
-    updateTeam,
+    updateFinances,
     setPlayerStatus, // legacy; kept in the prop list for back-compat
     setPlayerReturning,
   }: any) => {
@@ -496,7 +496,7 @@ export const AdvanceSeasonModal = memo(
             recipientEmail={offerPlayer.email}
             ctx={makeOfferLetterContext(team, user, offerPlayer.name)}
             onSaveNextSeasonMoney={(patch) =>
-              updateTeam?.({ finances: { ...(team.finances || {}), ...patch } })
+              updateFinances?.({ op: "set", fields: patch })
             }
           />
         )}

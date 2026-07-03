@@ -559,7 +559,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
   const navigate = useNavigate();
   const {
     team,
-    updateTeam,
+    updateFinances,
     updatePlayer,
     updatePlayerNested,
     removePlayer,
@@ -1962,7 +1962,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
           recipientEmail={player.email}
           ctx={makeOfferLetterContext(team, user, player.name)}
           onSaveNextSeasonMoney={(patch) =>
-            updateTeam?.({ finances: { ...(team.finances || {}), ...patch } })
+            updateFinances?.({ op: "set", fields: patch })
           }
         />
       )}

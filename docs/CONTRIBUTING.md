@@ -58,7 +58,7 @@ Never edit rules in the Console without mirroring the change back into the repo 
 - **Comments explain _why_, not _what_.** Identifiers should already tell the reader what. Add a comment for a hidden constraint, a surprise, or a workaround for a known bug.
 - **Don't over-abstract.** Three similar lines is better than a premature helper. Helpers earn their keep when there are 5+ call sites or the logic is non-obvious.
 - **Reuse before inventing.** The primitives in `src/components/shared.tsx` (Button, Chip, GlassCard, Eyebrow, StatTile, PlayerAvatar) and the semantic type classes in `src/styles.css` (`.t-h1`, `.t-eyebrow`, `.t-body`, etc.) cover the vast majority of UI cases.
-- **Persistence goes through `persistTeam` / `updateTeam`** — never call `setDoc` from a screen.
+- **Persistence goes through `persistTeam` / `updateTeam`** — never call `setDoc` from a screen. Finance mutations go through `updateFinances` (narrow per-op writes so concurrent edits can't clobber each other; see `src/utils/financeUpdates.ts`).
 - **CSS color tokens** (`var(--team-primary)`, `var(--slate-700)`, etc.) over Tailwind defaults whenever the value belongs to the design system. Hardcoded hex codes belong only in `src/styles.css`.
 
 ## Hooks and side effects

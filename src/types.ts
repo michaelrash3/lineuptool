@@ -736,6 +736,11 @@ export interface TeamContextValue {
   currentRole: CoachRole;
   realRole: CoachRole;
   updateTeam: (patch: Partial<Team>) => void;
+  // Concurrency-safe finance mutations (narrow per-op Firestore writes
+  // instead of whole-object merges) — see src/utils/financeUpdates.ts.
+  updateFinances: (
+    update: import("./utils/financeUpdates").FinanceUpdate,
+  ) => void;
   switchTeam: (id: string) => void | Promise<void>;
   createTeam: (
     name?: string,

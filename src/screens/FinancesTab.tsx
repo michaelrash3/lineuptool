@@ -44,6 +44,7 @@ import {
 import type { LedgerRow } from "../utils/helpers";
 import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
 import type { BudgetItem, Player, Team, TeamFinances } from "../types";
+import type { FinanceSetFields } from "../utils/financeUpdates";
 
 // Finances — head-coach-only money tracker for the club: what the season will
 // cost (Budget Planner with per-tournament / per-session quantity planning),
@@ -160,7 +161,7 @@ type LedgerSortKey = "date" | "label" | "in" | "out" | "balance";
 type BudgetSortKey = "label" | "qty" | "planned" | "spent";
 
 export const FinancesTab = memo(() => {
-  const { team: teamRaw, updateTeam } = useTeam();
+  const { team: teamRaw, updateFinances } = useTeam();
   const { openPlayerProfile } = useUI();
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
@@ -168,8 +169,12 @@ export const FinancesTab = memo(() => {
   const players: Player[] = useMemo(() => team.players || [], [team]);
   const finances: TeamFinances = useMemo(() => team.finances || {}, [team]);
 
-  const writeFinances = (patch: Partial<TeamFinances>) =>
-    updateTeam({ finances: { ...finances, ...patch } });
+  // All mutations go through updateFinances (utils/financeUpdates.ts): narrow
+  // per-op Firestore writes instead of re-writing the whole finances object,
+  // so two coaches recording money simultaneously can't clobber each other
+  // (docs/FINANCES-AUDIT.md finding 3.2). Scalar fields share this shorthand.
+  const setFinanceFields = (fields: FinanceSetFields) =>
+    updateFinances({ op: "set", fields });
 
   const summary = useMemo(
     () => financeSummary(finances, players),
@@ -233,23 +238,24 @@ export const FinancesTab = memo(() => {
     if (taxInput == null) return;
     const n = Number(String(taxInput).replace(/[%,\s]/g, ""));
     if (Number.isFinite(n) && n >= 0 && n <= 30) {
-      writeFinances({ salesTaxPct: Math.round(n * 100) / 100 });
+      setFinanceFields({ salesTaxPct: Math.round(n * 100) / 100 });
     }
     setTaxInput(null);
   };
 
   const toggleItemTax = (id: string) =>
-    writeFinances({
-      budgetItems: (finances.budgetItems || []).map((b) =>
-        b.id === id ? { ...b, taxable: !b.taxable } : b,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "budgetItems",
+      map: (items) =>
+        items.map((b) => (b.id === id ? { ...b, taxable: !b.taxable } : b)),
     });
 
   const toggleFeeWaiver = (playerId: string) => {
     const cur = new Set(finances.feeExemptIds || []);
     if (cur.has(playerId)) cur.delete(playerId);
     else cur.add(playerId);
-    writeFinances({ feeExemptIds: [...cur] });
+    setFinanceFields({ feeExemptIds: [...cur] });
   };
 
   // ---- Budget Planner form state. Quantity mode plans count × per-unit cost
@@ -386,10 +392,11 @@ export const FinancesTab = memo(() => {
       if (amount == null) return;
       patch = { label, amount };
     }
-    writeFinances({
-      budgetItems: (finances.budgetItems || []).map((b) =>
-        b.id === itemEdit.id ? { ...b, ...patch } : b,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "budgetItems",
+      map: (items) =>
+        items.map((b) => (b.id === itemEdit.id ? { ...b, ...patch } : b)),
     });
     setItemEdit(null);
   };
@@ -401,7 +408,7 @@ export const FinancesTab = memo(() => {
     const raw = plannedInput.trim();
     // Blank clears the override back to "current paying roster".
     const n = raw === "" ? 0 : (parseCount(raw) ?? -1);
-    if (n >= 0) writeFinances({ plannedPlayerCount: n });
+    if (n >= 0) setFinanceFields({ plannedPlayerCount: n });
     setPlannedInput(null);
   };
   const plannedCount = plannedPayerCount(finances, players);
@@ -439,10 +446,13 @@ export const FinancesTab = memo(() => {
     null | "apply" | "skip"
   >(null);
   const applyCarryoverDiscount = () => {
-    writeFinances({
-      incomes: (finances.incomes || []).map((i) =>
-        isCarryover(i) && !i.fundraising ? { ...i, fundraising: true } : i,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "incomes",
+      map: (items) =>
+        items.map((i) =>
+          isCarryover(i) && !i.fundraising ? { ...i, fundraising: true } : i,
+        ),
     });
     setCarryoverChoice(null);
     toast.push({
@@ -456,12 +466,15 @@ export const FinancesTab = memo(() => {
   // Flags the pending carryover entries as dismissed so the prompt never
   // returns; the money still counts toward the club balance.
   const dismissCarryoverDiscount = () => {
-    writeFinances({
-      incomes: (finances.incomes || []).map((i) =>
-        isCarryover(i) && !i.fundraising && !i.dismissed
-          ? { ...i, dismissed: true }
-          : i,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "incomes",
+      map: (items) =>
+        items.map((i) =>
+          isCarryover(i) && !i.fundraising && !i.dismissed
+            ? { ...i, dismissed: true }
+            : i,
+        ),
     });
     setCarryoverChoice(null);
     toast.push({
@@ -486,10 +499,13 @@ export const FinancesTab = memo(() => {
     0,
   );
   const reverseCarryoverDiscount = () => {
-    writeFinances({
-      incomes: (finances.incomes || []).map((i) =>
-        isCarryover(i) && i.fundraising ? { ...i, fundraising: false } : i,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "incomes",
+      map: (items) =>
+        items.map((i) =>
+          isCarryover(i) && i.fundraising ? { ...i, fundraising: false } : i,
+        ),
     });
     toast.push({
       kind: "success",
@@ -529,7 +545,7 @@ export const FinancesTab = memo(() => {
       if (amount == null) return;
       item = { id: newId("b"), label: budgetLabel.trim(), amount };
     }
-    writeFinances({ budgetItems: [...(finances.budgetItems || []), item] });
+    updateFinances({ op: "append", key: "budgetItems", entry: item });
     setBudgetLabel("");
     setBudgetAmount("");
     setBudgetQty("");
@@ -538,9 +554,7 @@ export const FinancesTab = memo(() => {
   };
 
   const removeBudgetItem = (id: string) =>
-    writeFinances({
-      budgetItems: (finances.budgetItems || []).filter((b) => b.id !== id),
-    });
+    updateFinances({ op: "removeById", key: "budgetItems", id });
 
   const addSponsorship = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -551,31 +565,29 @@ export const FinancesTab = memo(() => {
       // Current-season sponsor income, flagged `sponsor` so the planner lists
       // it as one. Its own "reduces team fees" switch decides whether it's a
       // fundraising credit against dues or plain club income.
-      writeFinances({
-        incomes: [
-          ...(finances.incomes || []),
-          {
-            id: newId("inc"),
-            date: dateToIsoLocal(new Date()),
-            label: name,
-            amount,
-            ...(sponsorReduces ? { fundraising: true } : {}),
-            sponsor: true,
-          },
-        ],
+      updateFinances({
+        op: "append",
+        key: "incomes",
+        entry: {
+          id: newId("inc"),
+          date: dateToIsoLocal(new Date()),
+          label: name,
+          amount,
+          ...(sponsorReduces ? { fundraising: true } : {}),
+          sponsor: true,
+        },
       });
     } else {
-      writeFinances({
-        sponsorships: [
-          ...(finances.sponsorships || []),
-          {
-            id: newId("sp"),
-            sponsor: name,
-            amount,
-            date: dateToIsoLocal(new Date()),
-            ...(sponsorReduces ? {} : { reducesFees: false }),
-          },
-        ],
+      updateFinances({
+        op: "append",
+        key: "sponsorships",
+        entry: {
+          id: newId("sp"),
+          sponsor: name,
+          amount,
+          date: dateToIsoLocal(new Date()),
+          ...(sponsorReduces ? {} : { reducesFees: false }),
+        },
       });
     }
     toast.push({
@@ -594,16 +606,17 @@ export const FinancesTab = memo(() => {
   };
 
   const removeSponsorship = (id: string) =>
-    writeFinances({
-      sponsorships: (finances.sponsorships || []).filter((s) => s.id !== id),
-    });
+    updateFinances({ op: "removeById", key: "sponsorships", id });
 
   // Flip an existing NEXT-season pledge's own "reduces team fees" switch.
   const togglePledgeReduces = (id: string) =>
-    writeFinances({
-      sponsorships: (finances.sponsorships || []).map((s) =>
-        s.id === id ? { ...s, reducesFees: s.reducesFees === false } : s,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "sponsorships",
+      map: (items) =>
+        items.map((s) =>
+          s.id === id ? { ...s, reducesFees: s.reducesFees === false } : s,
+        ),
     });
 
   // Current-season sponsors live in the income ledger but are surfaced here
@@ -618,17 +631,20 @@ export const FinancesTab = memo(() => {
   // plain club income. The `fundraising` flag on the income IS its switch —
   // the ledger badge and the dues math both follow it.
   const toggleCurrentSponsorReduces = (id: string) =>
-    writeFinances({
-      incomes: (finances.incomes || []).map((i) =>
-        i.id === id
-          ? i.fundraising
-            ? (() => {
-                const { fundraising: _off, playerId: _kid, ...rest } = i;
-                return rest;
-              })()
-            : { ...i, fundraising: true }
-          : i,
-      ),
+    updateFinances({
+      op: "mapEntries",
+      key: "incomes",
+      map: (items) =>
+        items.map((i) =>
+          i.id === id
+            ? i.fundraising
+              ? (() => {
+                  const { fundraising: _off, playerId: _kid, ...rest } = i;
+                  return rest;
+                })()
+              : { ...i, fundraising: true }
+            : i,
+        ),
     });
   const currentSponsorTotal = useMemo(
     () =>
@@ -636,33 +652,33 @@ export const FinancesTab = memo(() => {
     [currentSponsors],
   );
   const removeCurrentSponsor = (id: string) =>
-    writeFinances({
-      incomes: (finances.incomes || []).filter((i) => i.id !== id),
-    });
+    updateFinances({ op: "removeById", key: "incomes", id });
 
   // Stepper on a quantity item ("how many tournaments?"). Keeps the mirrored
   // flat amount in sync so budgetItemAmount and legacy readers agree.
   const stepBudgetQty = (id: string, delta: number) =>
-    writeFinances({
-      budgetItems: (finances.budgetItems || []).map((b) => {
-        if (b.id !== id || b.qty == null || b.unitAmount == null) return b;
-        const qty = Math.max(1, Math.round(b.qty + delta));
-        return { ...b, qty, amount: qty * b.unitAmount };
-      }),
+    updateFinances({
+      op: "mapEntries",
+      key: "budgetItems",
+      map: (items) =>
+        items.map((b) => {
+          if (b.id !== id || b.qty == null || b.unitAmount == null) return b;
+          const qty = Math.max(1, Math.round(b.qty + delta));
+          return { ...b, qty, amount: qty * b.unitAmount };
+        }),
     });
 
   const recordPayment = (playerId: string, amount: number) => {
     if (amount <= 0) return;
-    writeFinances({
-      payments: [
-        ...(finances.payments || []),
-        {
-          id: newId("pay"),
-          playerId,
-          date: dateToIsoLocal(new Date()),
-          amount: Math.round(amount * 100) / 100,
-        },
-      ],
+    updateFinances({
+      op: "append",
+      key: "payments",
+      entry: {
+        id: newId("pay"),
+        playerId,
+        date: dateToIsoLocal(new Date()),
+        amount: Math.round(amount * 100) / 100,
+      },
     });
     setPayInputs((cur) => ({ ...cur, [playerId]: "" }));
   };
@@ -685,15 +701,12 @@ export const FinancesTab = memo(() => {
             ...(txnCreditPlayerId ? { playerId: txnCreditPlayerId } : {}),
           }
         : entry;
-      writeFinances({
-        incomes: [...(finances.incomes || []), incomeEntry],
-      });
+      updateFinances({ op: "append", key: "incomes", entry: incomeEntry });
     } else {
-      writeFinances({
-        expenses: [
-          ...(finances.expenses || []),
-          txnCategory ? { ...entry, budgetItemId: txnCategory } : entry,
-        ],
+      updateFinances({
+        op: "append",
+        key: "expenses",
+        entry: txnCategory ? { ...entry, budgetItemId: txnCategory } : entry,
       });
     }
     setTxnLabel("");
@@ -707,19 +720,13 @@ export const FinancesTab = memo(() => {
     source: "income" | "expense" | "payment",
     id: string,
   ) => {
-    if (source === "income") {
-      writeFinances({
-        incomes: (finances.incomes || []).filter((x) => x.id !== id),
-      });
-    } else if (source === "expense") {
-      writeFinances({
-        expenses: (finances.expenses || []).filter((x) => x.id !== id),
-      });
-    } else {
-      writeFinances({
-        payments: (finances.payments || []).filter((x) => x.id !== id),
-      });
-    }
+    const key =
+      source === "income"
+        ? ("incomes" as const)
+        : source === "expense"
+          ? ("expenses" as const)
+          : ("payments" as const);
+    updateFinances({ op: "removeById", key, id });
   };
 
   // ---- Inline ledger editing. Income/expense rows edit date+label+amount;
@@ -769,12 +776,15 @@ export const FinancesTab = memo(() => {
     if (source === "payment") {
       const amount = parseAmount(editDraft.amount);
       if (amount == null || amount < 0) return; // keep editing until valid
-      writeFinances({
-        payments: (finances.payments || []).map((p) =>
-          p.id === id
-            ? { ...p, date, amount: Math.round(amount * 100) / 100 }
-            : p,
-        ),
+      updateFinances({
+        op: "mapEntries",
+        key: "payments",
+        map: (items) =>
+          items.map((p) =>
+            p.id === id
+              ? { ...p, date, amount: Math.round(amount * 100) / 100 }
+              : p,
+          ),
       });
     } else {
       const amount = parseAmount(editDraft.amount);
@@ -782,33 +792,39 @@ export const FinancesTab = memo(() => {
       if (amount == null || !label) return; // keep editing until valid
       const patch = { date, label, amount };
       if (source === "income") {
-        writeFinances({
-          incomes: (finances.incomes || []).map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  ...patch,
-                  fundraising: editDraft.fundraising,
-                  // Credit only applies to fundraising entries; clear otherwise.
-                  playerId:
-                    editDraft.fundraising && editDraft.playerId
-                      ? editDraft.playerId
-                      : undefined,
-                }
-              : x,
-          ),
+        updateFinances({
+          op: "mapEntries",
+          key: "incomes",
+          map: (items) =>
+            items.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    ...patch,
+                    fundraising: editDraft.fundraising,
+                    // Credit only applies to fundraising entries; clear otherwise.
+                    playerId:
+                      editDraft.fundraising && editDraft.playerId
+                        ? editDraft.playerId
+                        : undefined,
+                  }
+                : x,
+            ),
         });
       } else {
-        writeFinances({
-          expenses: (finances.expenses || []).map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  ...patch,
-                  budgetItemId: editDraft.budgetItemId || undefined,
-                }
-              : x,
-          ),
+        updateFinances({
+          op: "mapEntries",
+          key: "expenses",
+          map: (items) =>
+            items.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    ...patch,
+                    budgetItemId: editDraft.budgetItemId || undefined,
+                  }
+                : x,
+            ),
         });
       }
     }
@@ -819,7 +835,7 @@ export const FinancesTab = memo(() => {
     if (feeInput == null) return;
     const n = Number(String(feeInput).replace(/[$,\s]/g, ""));
     if (Number.isFinite(n) && n >= 0) {
-      writeFinances({ clubFee: Math.round(n * 100) / 100 });
+      setFinanceFields({ clubFee: Math.round(n * 100) / 100 });
     }
     setFeeInput(null);
   };
@@ -828,7 +844,7 @@ export const FinancesTab = memo(() => {
     if (depositInput == null) return;
     const n = Number(String(depositInput).replace(/[$,\s]/g, ""));
     if (Number.isFinite(n) && n >= 0) {
-      writeFinances({ depositAmount: Math.round(n * 100) / 100 });
+      setFinanceFields({ depositAmount: Math.round(n * 100) / 100 });
     }
     setDepositInput(null);
   };
@@ -837,7 +853,7 @@ export const FinancesTab = memo(() => {
     if (nextDepositInput == null) return;
     const n = Number(String(nextDepositInput).replace(/[$,\s]/g, ""));
     if (Number.isFinite(n) && n >= 0) {
-      writeFinances({ nextDepositAmount: Math.round(n * 100) / 100 });
+      setFinanceFields({ nextDepositAmount: Math.round(n * 100) / 100 });
     }
     setNextDepositInput(null);
   };
@@ -1120,7 +1136,7 @@ export const FinancesTab = memo(() => {
                     type="date"
                     value={finances.depositDueDate || ""}
                     onChange={(e) =>
-                      writeFinances({ depositDueDate: e.target.value })
+                      setFinanceFields({ depositDueDate: e.target.value })
                     }
                     aria-label="Deposit due date"
                     className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
@@ -1133,7 +1149,7 @@ export const FinancesTab = memo(() => {
                     type="date"
                     value={finances.feeDueDate || ""}
                     onChange={(e) =>
-                      writeFinances({ feeDueDate: e.target.value })
+                      setFinanceFields({ feeDueDate: e.target.value })
                     }
                     aria-label="All fees due date"
                     className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
@@ -1781,7 +1797,11 @@ export const FinancesTab = memo(() => {
                 size="sm"
                 aria-label="Seed budget from this season"
                 onClick={() =>
-                  writeFinances({ budgetItems: budgetEstimate.items })
+                  updateFinances({
+                    op: "mapEntries",
+                    key: "budgetItems",
+                    map: () => budgetEstimate.items,
+                  })
                 }
               >
                 <Icons.Plus className="w-4 h-4" /> Seed from this season
@@ -2306,7 +2326,9 @@ export const FinancesTab = memo(() => {
                   type="button"
                   aria-label={`Fee buffer ${opt.label}`}
                   aria-pressed={bufferInc === opt.inc}
-                  onClick={() => writeFinances({ feeBufferIncrement: opt.inc })}
+                  onClick={() =>
+                    setFinanceFields({ feeBufferIncrement: opt.inc })
+                  }
                   className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
                     bufferInc === opt.inc
                       ? "text-win bg-win/10"
@@ -2386,7 +2408,7 @@ export const FinancesTab = memo(() => {
                 type="date"
                 value={finances.nextDepositDueDate || ""}
                 onChange={(e) =>
-                  writeFinances({ nextDepositDueDate: e.target.value })
+                  setFinanceFields({ nextDepositDueDate: e.target.value })
                 }
                 aria-label="Next season deposit due date"
                 className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
@@ -2455,7 +2477,7 @@ export const FinancesTab = memo(() => {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => writeFinances({ nextClubFee: suggested })}
+                onClick={() => setFinanceFields({ nextClubFee: suggested })}
               >
                 <Icons.Check className="w-4 h-4" /> Set as next season's fee
               </Button>

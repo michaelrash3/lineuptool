@@ -946,6 +946,7 @@ export const SettingsTab = memo(() => {
     user,
     activeTeamId,
     updateTeam,
+    updateFinances,
     advanceSeason,
     exportRosterCsv,
     exportNewPlayersCsv,
@@ -1984,7 +1985,7 @@ export const SettingsTab = memo(() => {
         nextSeasonLabel={nextSeasonLabel}
         team={team}
         user={user}
-        updateTeam={updateTeam}
+        updateFinances={updateFinances}
         setPlayerStatus={setPlayerStatus}
         setPlayerReturning={setPlayerReturning}
         onClose={() => setAdvanceSeasonOpen(false)}
