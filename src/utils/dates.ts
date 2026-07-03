@@ -162,3 +162,24 @@ export const dateToIsoLocal = (d: Date): string => {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 };
+
+// Milliseconds in one calendar day — shared by the day-delta math in the
+// eval cadence and game-day reminder helpers.
+export const MS_PER_DAY = 86_400_000;
+
+// Parse a stored ISO date ("YYYY-MM-DD", optionally with a time suffix) into
+// a *local* midnight Date. Local construction keeps day-delta math on the
+// same footing as other local-midnight dates and avoids the UTC skew you'd
+// get from `new Date("YYYY-MM-DD")`.
+export const isoToLocalDate = (s: string): Date => {
+  const [y, m, d] = s.slice(0, 10).split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+export const sameLocalDay = (a: Date, b: Date): boolean => {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+};

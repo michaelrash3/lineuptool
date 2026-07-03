@@ -1,0 +1,312 @@
+// Tryouts, public-mirror, and player-info-intake helpers, extracted from
+// helpers.ts. Pure functions over the tryout/session/signup shapes — no
+// React, no Firestore.
+
+// Player Info submissions arrive from the public portal append-only (the
+// security rules forbid the anonymous client from replacing array entries), so
+// a parent who resubmits — e.g. to correct a shirt size — stacks a second entry
+// in the coach's inbox. Coaches want the LATEST submission to REPLACE the prior
+// one per person, not accumulate. This collapses the array to one entry per
+// person (normalized first + last + dob), keeping the most recently submitted.
+//
+// Deliberately NOT used for availability submissions: those are add-only by
+// design (a family can log unavailable dates across several visits). Order is
+// stable (first-appearance of each surviving person) so a no-op produces an
+// identical array and never triggers a needless write.
+export const dedupePlayerInfoSubmissions = <T extends Record<string, any>>(
+  subs: T[] | null | undefined,
+): T[] => {
+  const list = Array.isArray(subs) ? subs : [];
+  const identityOf = (s: any): string =>
+    [
+      String(s?.firstName || "")
+        .trim()
+        .toLowerCase(),
+      String(s?.lastName || "")
+        .trim()
+        .toLowerCase(),
+      String(s?.dob || "").trim(),
+    ].join("|");
+  const submittedMs = (s: any): number => {
+    const t = new Date(s?.submittedAt || 0).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const order: string[] = [];
+  const latest = new Map<string, T>();
+  for (const s of list) {
+    const key = identityOf(s);
+    if (!latest.has(key)) order.push(key);
+    const prev = latest.get(key);
+    if (!prev || submittedMs(s) >= submittedMs(prev)) latest.set(key, s);
+  }
+  return order.map((k) => latest.get(k) as T);
+};
+
+// ----------------------------------------------------------------------------
+// Public team mirror.
+//
+// The Tryouts Portal is an anonymous-auth surface, but Firestore rules grant
+// read access per *document*, not per field — so letting the portal read the
+// full team doc would expose evaluations, other families' contact info, member
+// UIDs, and the join code. Instead the coach app maintains a sanitized mirror
+// doc (artifacts/{appId}/public/data/teamPublic/{teamId}) that the portal reads
+// for branding + tryout config. This projection is the allowlist: only fields
+// listed here ever reach an anonymous reader. Never add roster, schedule,
+// evaluations, signups, members, ownerId, coachRoles, or joinCode.
+// ----------------------------------------------------------------------------
+
+export interface TryoutDateLink {
+  slug: string;
+  date: string;
+}
+
+export interface PublicTeamMirror {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  tertiaryColor: string;
+  logoUrl: string;
+  currentSeason: string;
+  teamAge: string;
+  tryoutsOpen: boolean;
+  tryoutsPhase: string;
+  tryoutShareId: string | null;
+  tryoutDateSlug: string | null;
+  tryoutDates: string[];
+  // Explicit slug→date mapping so the public portal can pin a signup to the
+  // exact tryout date its link was generated for. `tryoutDateLinks` is the
+  // canonical list; `tryoutDateBySlug` is an O(1) lookup of the same data;
+  // `tryoutDateSlugs` exists purely so the portal can resolve a link with a
+  // single `array-contains` query. These carry only slug + ISO date — no
+  // roster, signup, or member data — so they're safe in the public mirror.
+  tryoutDateLinks: TryoutDateLink[];
+  tryoutDateBySlug: Record<string, string>;
+  tryoutDateSlugs: string[];
+  // Optional public-facing head-coach contact shown on the portal so families
+  // can ask questions. Coach opts in via Settings; empty strings hide the block.
+  headCoachName: string;
+  headCoachEmail: string;
+}
+
+// Normalize a team's per-date tryout links into the canonical slug→date shape.
+// New teams persist `tryoutDateLinks` directly (see generateTryoutDateLink).
+// Legacy teams only carried a single `tryoutDateSlug` + a `tryoutDates` array,
+// with the date embedded inside the slug (`<team>-<YYYY-MM-DD>-<rand>`); we
+// recover the intended date by matching a configured date that appears in the
+// slug, falling back to the first configured date. Pure.
+export const normalizeTryoutDateLinks = (
+  team: Record<string, any> | null | undefined,
+): TryoutDateLink[] => {
+  const seen = new Set<string>();
+  const out: TryoutDateLink[] = [];
+  const push = (slug: unknown, date: unknown) => {
+    const s = String(slug || "").trim();
+    const d = String(date || "").trim();
+    if (!s || !d || seen.has(s)) return;
+    seen.add(s);
+    out.push({ slug: s, date: d });
+  };
+
+  if (Array.isArray(team?.tryoutDateLinks)) {
+    for (const link of team!.tryoutDateLinks) {
+      push(link?.slug, link?.date);
+    }
+  }
+
+  // Legacy single-slug fallback (only if not already represented).
+  const legacySlug = String(team?.tryoutDateSlug || "").trim();
+  if (legacySlug && !seen.has(legacySlug)) {
+    const configured = Array.isArray(team?.tryoutDates)
+      ? (team!.tryoutDates as unknown[])
+          .map((d) => String(d).trim())
+          .filter(Boolean)
+      : [];
+    const embedded = configured.find((d) => legacySlug.includes(d));
+    push(legacySlug, embedded || configured[0] || "");
+  }
+
+  return out;
+};
+
+// Resolve the tryout date a given portal slug should pin a signup to. Prefers
+// the explicit mapping; falls back to deriving from a legacy slug, then to the
+// first configured date. Returns "" when nothing resolves. Pure.
+export const resolveTryoutDateForSlug = (
+  source: Record<string, any> | null | undefined,
+  slug: string | null | undefined,
+): string => {
+  const s = String(slug || "").trim();
+  if (!s) return "";
+  const map = source?.tryoutDateBySlug;
+  if (map && typeof map === "object" && typeof map[s] === "string" && map[s]) {
+    return map[s];
+  }
+  for (const link of normalizeTryoutDateLinks(source)) {
+    if (link.slug === s) return link.date;
+  }
+  const configured = Array.isArray(source?.tryoutDates)
+    ? (source!.tryoutDates as unknown[])
+        .map((d) => String(d).trim())
+        .filter(Boolean)
+    : [];
+  // Last-ditch legacy: a configured date embedded in the slug, else the first.
+  return configured.find((d) => s.includes(d)) || configured[0] || "";
+};
+
+export const buildPublicMirror = (
+  team: Record<string, any> | null | undefined,
+): PublicTeamMirror => {
+  const links = normalizeTryoutDateLinks(team);
+  const tryoutDateBySlug: Record<string, string> = {};
+  for (const link of links) tryoutDateBySlug[link.slug] = link.date;
+  return {
+    name: team?.name || "",
+    primaryColor: team?.primaryColor || "",
+    secondaryColor: team?.secondaryColor || "",
+    tertiaryColor: team?.tertiaryColor || "",
+    logoUrl: team?.logoUrl || "",
+    currentSeason: team?.currentSeason || "",
+    teamAge: team?.teamAge || "",
+    tryoutsOpen: team?.tryoutsOpen === true,
+    tryoutsPhase: team?.tryoutsPhase || "",
+    // Null (not omitted) so a team that has never shared still produces a stable
+    // doc; equality queries on these fields simply won't match a null.
+    tryoutShareId: team?.tryoutShareId || null,
+    tryoutDateSlug: team?.tryoutDateSlug || null,
+    tryoutDates: Array.isArray(team?.tryoutDates)
+      ? (team!.tryoutDates as string[]).filter(Boolean)
+      : [],
+    tryoutDateLinks: links,
+    tryoutDateBySlug,
+    tryoutDateSlugs: links.map((l) => l.slug),
+    headCoachName: (team?.headCoachName as string) || "",
+    headCoachEmail: (team?.headCoachPublicEmail as string) || "",
+  };
+};
+
+const tryoutSessionIdForDate = (date: string) =>
+  `tryout-${String(date || "undated").replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+export const normalizeTryoutSessions = (team: any): any[] => {
+  const sessions = Array.isArray(team?.tryoutSessions)
+    ? team.tryoutSessions.map((s: any) => ({
+        ...s,
+        signupIds: Array.isArray(s.signupIds) ? [...s.signupIds] : [],
+        gradesByEvaluator: { ...(s.gradesByEvaluator || {}) },
+      }))
+    : [];
+  const byId = new Map(sessions.map((session: any) => [session.id, session]));
+  for (const e of team?.evaluationEvents || []) {
+    if (!e?.tryoutSignupId || !e?.evaluatorId || !e?.grades?.signup) continue;
+    const signup = (team?.tryoutSignups || []).find(
+      (s: any) => s.id === e.tryoutSignupId,
+    );
+    const date = signup?.tryoutDate || e.date || "undated";
+    const id = tryoutSessionIdForDate(date);
+    const session: any = byId.get(id) || {
+      id,
+      date,
+      label: `Tryout · ${date}`,
+      createdAt: e.createdAt || Date.now(),
+      updatedAt: e.createdAt || Date.now(),
+      signupIds: [],
+      gradesByEvaluator: {},
+    };
+    const evaluatorKey = e.evaluatorId;
+    const evaluator = session.gradesByEvaluator[evaluatorKey] || {
+      coachRole: e.coachRole || "Assistant",
+      evaluatorId: e.evaluatorId,
+      evaluatorName: e.evaluatorName,
+      grades: {},
+    };
+    evaluator.grades = {
+      ...(evaluator.grades || {}),
+      [e.tryoutSignupId]: { ...e.grades.signup },
+    };
+    evaluator.updatedAt = e.createdAt || Date.now();
+    session.gradesByEvaluator[evaluatorKey] = evaluator;
+    if (!session.signupIds.includes(e.tryoutSignupId))
+      session.signupIds.push(e.tryoutSignupId);
+    byId.set(id, session);
+  }
+  return [...byId.values()];
+};
+
+export const combinedTryoutGradeForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+  date?: string,
+): any | null => {
+  if (!signupId) return null;
+  const matches = (sessions || []).filter(
+    (s: any) =>
+      (!date || s.date === date) &&
+      Object.values(s.gradesByEvaluator || {}).some(
+        (eg: any) => eg?.grades?.[signupId],
+      ),
+  );
+  const session = matches.sort(
+    (a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0),
+  )[0];
+  if (!session) return null;
+  const headGrades: any[] = [];
+  const assistantGrades: any[] = [];
+  for (const eg of Object.values(session.gradesByEvaluator || {}) as any[]) {
+    const g = eg?.grades?.[signupId];
+    if (!g) continue;
+    if (eg.coachRole === "Head") headGrades.push(g);
+    else assistantGrades.push(g);
+  }
+  const avg = (grades: any[]) => {
+    if (!grades.length) return null;
+    const out: Record<string, any> = {};
+    const keys = new Set<string>();
+    grades.forEach((g) => Object.keys(g || {}).forEach((k) => keys.add(k)));
+    for (const key of keys) {
+      if (key === "notes" || key === "suggestedPositions") {
+        const latest = [...grades].reverse().find((g) => g?.[key]);
+        if (latest) out[key] = latest[key];
+        continue;
+      }
+      const vals = grades
+        .map((g) => g?.[key])
+        .filter((v) => typeof v === "number");
+      if (vals.length)
+        out[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+    }
+    return out;
+  };
+  const head = avg(headGrades);
+  const assistants = avg(assistantGrades);
+  if (head && assistants) {
+    const out: Record<string, any> = {};
+    const keys = new Set([...Object.keys(head), ...Object.keys(assistants)]);
+    for (const key of keys) {
+      if (key === "notes" || key === "suggestedPositions")
+        out[key] = head[key] ?? assistants[key];
+      else {
+        const hv = head[key];
+        const av = assistants[key];
+        if (typeof hv === "number" && typeof av === "number")
+          out[key] = Math.round((hv + av) / 2);
+        else out[key] = hv ?? av;
+      }
+    }
+    return out;
+  }
+  return head || assistants;
+};
+
+export const evaluatorTryoutGradeForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+  evaluatorId: string | null | undefined,
+  date?: string,
+): any | null => {
+  if (!signupId || !evaluatorId) return null;
+  const session = (sessions || [])
+    .filter((s: any) => !date || s.date === date)
+    .sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .find((s: any) => s.gradesByEvaluator?.[evaluatorId]?.grades?.[signupId]);
+  return session?.gradesByEvaluator?.[evaluatorId]?.grades?.[signupId] || null;
+};
