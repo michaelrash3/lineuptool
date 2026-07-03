@@ -953,6 +953,50 @@ describe("FinancesTab", () => {
     });
   });
 
+  it("refuses to save a ledger edit with a cleared date (keep editing until valid)", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Edit entry Baseballs"));
+    fireEvent.change(screen.getByLabelText("Edit date for Baseballs"), {
+      target: { value: "" },
+    });
+    fireEvent.click(screen.getByLabelText("Save entry Baseballs"));
+    // No write happened and the row is still in edit mode.
+    expect(teamValue.updateFinances).not.toHaveBeenCalled();
+    expect(
+      screen.getByLabelText("Edit date for Baseballs"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows archived unpaid dues under Past years (finding 3.6 snapshot)", () => {
+    const withOutstanding: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        pastSeasons: [
+          {
+            season: "through Spring 2026",
+            collected: 1200,
+            otherIncome: 300,
+            spent: 1100,
+            closingBalance: 400,
+            outstanding: [
+              { playerId: "gone1", name: "Cal", owed: 40 },
+              { playerId: "gone2", name: "Dee", owed: 100 },
+            ],
+          },
+        ],
+      },
+    };
+    renderWithProviders(<FinancesTab />, { team: { team: withOutstanding } });
+    expect(
+      screen.getByText(/Closed with \$140 unpaid \(2 families\)/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cal: $40")).toBeInTheDocument();
+    expect(screen.getByText("Dee: $100")).toBeInTheDocument();
+  });
+
   it("renders the empty state without a finances object at all", () => {
     renderWithProviders(<FinancesTab />, {
       team: { team: { players: [], games: [] } },

@@ -11,7 +11,9 @@ import {
   recordPitchingOuting,
   stripPitchingStatsForFormat,
   genId,
+  dateToIsoLocal,
 } from "../utils/helpers";
+import { sanitizeBackup } from "../utils/backupSanitizer";
 import { getLocalDateString } from "../constants/ui";
 import type { ConfirmContextValue, ToastContextValue } from "../types";
 
@@ -765,11 +767,30 @@ export const useImportExportFlows = ({
           if (!looksLikeBackup) {
             throw new Error("This file doesn't look like a LineupTool backup.");
           }
+          // Strip ACL keys (a restore replaces content, never access control)
+          // and repair malformed finance-entry dates — the restore path was
+          // the one vector that could write undated money records.
+          const { data: sanitized, repairedFinanceDates } = sanitizeBackup(
+            data as Record<string, unknown>,
+            dateToIsoLocal(new Date()),
+          );
           // allowEmptyPlayers: restoring a backup is an explicitly-confirmed
           // full replace, so the persistTeam roster-wipe guard must defer to
           // whatever the backup file says — even an empty roster.
-          updateTeam(data, { allowEmptyPlayers: true });
-          toast.push({ kind: "success", title: "Backup restored" });
+          updateTeam(sanitized, { allowEmptyPlayers: true });
+          toast.push({
+            kind: "success",
+            title: "Backup restored",
+            ...(repairedFinanceDates > 0
+              ? {
+                  message: `${repairedFinanceDates} finance ${
+                    repairedFinanceDates === 1 ? "entry" : "entries"
+                  } had an invalid date and ${
+                    repairedFinanceDates === 1 ? "was" : "were"
+                  } set to today.`,
+                }
+              : {}),
+          });
         } catch (err: any) {
           toast.push({
             kind: "error",

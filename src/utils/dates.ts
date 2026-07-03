@@ -176,6 +176,13 @@ export const isoToLocalDate = (s: string): Date => {
   return new Date(y, (m || 1) - 1, d || 1);
 };
 
+// True for a real calendar date in strict "YYYY-MM-DD" form. The regex alone
+// would accept 2026-02-31; the local-date roundtrip rejects it.
+export const isValidIsoDate = (s: unknown): boolean => {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  return dateToIsoLocal(isoToLocalDate(s)) === s;
+};
+
 export const sameLocalDay = (a: Date, b: Date): boolean => {
   return (
     a.getFullYear() === b.getFullYear() &&

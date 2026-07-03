@@ -40,6 +40,7 @@ import {
   transactionLedger,
   dateToIsoLocal,
   genId,
+  isValidIsoDate,
   parseMoneyInput,
   round2,
 } from "../utils/helpers";
@@ -691,7 +692,9 @@ export const FinancesTab = memo(() => {
     if (!txnLabel.trim() || amount == null) return;
     const entry = {
       id: newId(txnDir === "in" ? "inc" : "exp"),
-      date: txnDate || dateToIsoLocal(new Date()),
+      // A cleared/malformed date input falls back to today rather than
+      // writing an undated entry (audit finding 3.4).
+      date: isValidIsoDate(txnDate) ? txnDate : dateToIsoLocal(new Date()),
       label: txnLabel.trim(),
       amount,
     };
@@ -774,7 +777,10 @@ export const FinancesTab = memo(() => {
   const saveLedgerEdit = () => {
     if (!editRow) return;
     const { source, id } = editRow;
-    const date = editDraft.date || dateToIsoLocal(new Date());
+    // A cleared date input keeps the row in edit mode — same "keep editing
+    // until valid" stance as the amount and label below (audit finding 3.4).
+    if (!isValidIsoDate(editDraft.date)) return;
+    const date = editDraft.date;
     if (source === "payment") {
       const amount = parseAmount(editDraft.amount);
       if (amount == null || amount < 0) return; // keep editing until valid
@@ -1453,20 +1459,30 @@ export const FinancesTab = memo(() => {
                     </thead>
                     <tbody className="divide-y divide-line">
                       {sortedLedger.map((row, idx) => {
-                        const monthKey = row.date.slice(0, 7);
+                        // Undated legacy rows sort to the bottom and group
+                        // under one "No date" header.
+                        const monthKey = isValidIsoDate(row.date)
+                          ? row.date.slice(0, 7)
+                          : "undated";
                         // Month group headers only make sense in date order.
+                        const prevRow = idx > 0 ? sortedLedger[idx - 1] : null;
+                        const prevMonthKey = !prevRow
+                          ? null
+                          : isValidIsoDate(prevRow.date)
+                            ? prevRow.date.slice(0, 7)
+                            : "undated";
                         const newMonth =
                           ledgerSort.key === "date" &&
-                          (idx === 0 ||
-                            sortedLedger[idx - 1].date.slice(0, 7) !==
-                              monthKey);
+                          prevMonthKey !== monthKey;
                         const monthHeader = newMonth ? (
                           <tr key={`m-${monthKey}`} className="bg-app">
                             <td
                               colSpan={6}
                               className="px-2 py-1 t-eyebrow text-ink-3"
                             >
-                              {monthLabel(monthKey)}
+                              {monthKey === "undated"
+                                ? "No date"
+                                : monthLabel(monthKey)}
                             </td>
                           </tr>
                         ) : null;
@@ -1634,7 +1650,9 @@ export const FinancesTab = memo(() => {
                             {monthHeader}
                             <tr className="hover:bg-surface-2">
                               <td className="p-2 tabular-nums font-bold text-ink-2">
-                                {row.date}
+                                {isValidIsoDate(row.date)
+                                  ? row.date
+                                  : "No date"}
                               </td>
                               <td className="p-2 t-body-bold text-ink">
                                 <span
@@ -1724,22 +1742,49 @@ export const FinancesTab = memo(() => {
                     {(finances.pastSeasons || []).map((ps) => (
                       <li
                         key={ps.season}
-                        className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold text-ink-2 tabular-nums"
+                        className="text-sm font-bold text-ink-2 tabular-nums"
                       >
-                        <span className="text-ink">{ps.season}</span>
-                        <span>
-                          in {formatCurrency(ps.collected + ps.otherIncome)} ·
-                          out {formatCurrency(ps.spent)} · ended{" "}
-                          <span
-                            className={
-                              ps.closingBalance < 0
-                                ? "text-loss font-black"
-                                : "text-ink font-black"
-                            }
-                          >
-                            {formatCurrency(ps.closingBalance)}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-ink">{ps.season}</span>
+                          <span>
+                            in {formatCurrency(ps.collected + ps.otherIncome)} ·
+                            out {formatCurrency(ps.spent)} · ended{" "}
+                            <span
+                              className={
+                                ps.closingBalance < 0
+                                  ? "text-loss font-black"
+                                  : "text-ink font-black"
+                              }
+                            >
+                              {formatCurrency(ps.closingBalance)}
+                            </span>
                           </span>
-                        </span>
+                        </div>
+                        {(ps.outstanding?.length ?? 0) > 0 && (
+                          <details className="mt-0.5 text-xs text-ink-3">
+                            <summary className="cursor-pointer select-none">
+                              Closed with{" "}
+                              {formatCurrency(
+                                (ps.outstanding || []).reduce(
+                                  (sum, o) => sum + o.owed,
+                                  0,
+                                ),
+                              )}{" "}
+                              unpaid ({(ps.outstanding || []).length}{" "}
+                              {(ps.outstanding || []).length === 1
+                                ? "family"
+                                : "families"}
+                              )
+                            </summary>
+                            <ul className="mt-1 pl-4 space-y-0.5">
+                              {(ps.outstanding || []).map((o) => (
+                                <li key={o.playerId}>
+                                  {o.name}: {formatCurrency(o.owed)}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        )}
                       </li>
                     ))}
                   </ul>

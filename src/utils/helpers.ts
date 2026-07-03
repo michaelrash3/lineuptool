@@ -27,6 +27,7 @@ import {
   buildMonthGrid,
   dateToIsoLocal,
   isoToLocalDate,
+  isValidIsoDate,
   MS_PER_DAY,
 } from "./dates";
 export {
@@ -36,6 +37,7 @@ export {
   calculateBaseballAge,
   buildMonthGrid,
   dateToIsoLocal,
+  isValidIsoDate,
 };
 
 // Availability / scheduled-absence helpers now live in ./availability,
