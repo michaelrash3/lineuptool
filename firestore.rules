@@ -27,8 +27,24 @@ service cloud.firestore {
         return isSignedIn() && resource.data.ownerId == request.auth.uid;
       }
 
+      // Head coach = the current owner OR a member the owner promoted to
+      // 'head' via coachRoles (setCoachRole in useTeamMembership). Owner-only
+      // would break promoted co-heads. Always evaluated against resource.data
+      // (the PRE-write roles), so a write can never grant itself the very
+      // privilege it needs.
+      function isHeadCoach() {
+        return isSignedIn() && (
+          resource.data.ownerId == request.auth.uid ||
+          resource.data.get('coachRoles', {}).get(request.auth.uid, '') == 'head'
+        );
+      }
+
       function changedKeys() {
         return request.resource.data.diff(resource.data).affectedKeys();
+      }
+
+      function untouched(key) {
+        return !changedKeys().hasAny([key]);
       }
 
       // Hard ceiling on public signup arrays — bounds the cost/DoS surface of
@@ -98,9 +114,14 @@ service cloud.firestore {
         // role-resolution logic would silently ignore or that could be
         // used to smuggle a bogus privilege value. Mirrors the client
         // guard in useTeamMembership.setCoachRole.
+        // The legit client join path (useInviteFlows.joinTeamByCode) only
+        // ever sets 'assistant'. Allowing 'head' here let any code-holder —
+        // or any EXISTING member reusing this OR'd clause — self-promote to
+        // head; promotion to 'head' is the owner's/heads' act through the
+        // base update rule.
         return nextCoachRoles().diff(prevCoachRoles()).affectedKeys()
                  .hasOnly([request.auth.uid])
-          && nextCoachRoles()[request.auth.uid] in ['head', 'assistant'];
+          && nextCoachRoles()[request.auth.uid] == 'assistant';
       }
 
       function selfRemoveOnly() {
@@ -135,7 +156,16 @@ service cloud.firestore {
       allow read: if isMember(resource.data);
       allow update: if isMember(resource.data)
                     && (ownerIdUnchanged() || isCurrentOwner() || isLegitimateAutoClaim())
-                    && (membersAppendOnly() || isCurrentOwner() || selfRemoveOnly());
+                    && (membersAppendOnly() || isCurrentOwner() || selfRemoveOnly())
+                    // finances is head-coach-only (docs/FINANCES-AUDIT.md
+                    // finding 3.1). Reads cannot be field-gated on a single
+                    // doc, so assistants can still READ finances — a
+                    // documented, accepted residual.
+                    && (untouched('finances') || isHeadCoach())
+                    // Without this, any member could self-promote to 'head'
+                    // with a plain coachRoles write and then sail through the
+                    // finances gate above.
+                    && (untouched('coachRoles') || isHeadCoach());
 
       // Only the current owner can delete the team document.
       allow delete: if isCurrentOwner();
@@ -164,6 +194,10 @@ service cloud.firestore {
                          .affectedKeys()
                          .hasOnly(['members', 'coachRoles'])
                     && membersAppendOnly()
+                    // The caller may add exactly themselves — never smuggle
+                    // extra uids into members in the same write.
+                    && nextMembers().toSet().difference(prevMembers().toSet())
+                         .hasOnly([request.auth.uid])
                     && request.auth.uid in nextMembers()
                     && coachRolesSelfJoinValid();
 

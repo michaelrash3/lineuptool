@@ -31,8 +31,13 @@ const PROJECT_ID = "coachs-card-rules-test";
 
 const OWNER = "owner-uid";
 const ASSISTANT = "assistant-uid";
+// A non-owner member the owner promoted to 'head' via setCoachRole — has full
+// head privileges (incl. finances) without being ownerId.
+const COHEAD = "cohead-uid";
 const OUTSIDER = "outsider-uid";
 const JOINER = "joiner-uid";
+// Sole member of a legacy unclaimed team (no ownerId) — the auto-claim path.
+const SOLO = "solo-uid";
 
 let testEnv: RulesTestEnvironment;
 
@@ -67,13 +72,29 @@ beforeEach(async () => {
     await setDoc(doc(db, ...teamPath("team-1")), {
       name: "Hawks",
       ownerId: OWNER,
-      members: [OWNER, ASSISTANT],
-      coachRoles: { [OWNER]: "head", [ASSISTANT]: "assistant" },
+      members: [OWNER, ASSISTANT, COHEAD],
+      coachRoles: {
+        [OWNER]: "head",
+        [ASSISTANT]: "assistant",
+        [COHEAD]: "head",
+      },
       joinCode: "ABC234",
       tryoutsOpen: true,
       tryoutShareId: "share-1",
       tryoutSignups: [{ id: "s1", firstName: "Existing" }],
       interestSignups: [{ id: "i1", firstName: "Lead" }],
+      finances: {
+        clubFee: 500,
+        payments: [
+          { id: "pay-1", playerId: "p1", date: "2026-03-01", amount: 250 },
+        ],
+      },
+    });
+    // Legacy unclaimed team (no ownerId, no coachRoles): the sole member's
+    // auto-claim write must keep working under the new guards.
+    await setDoc(doc(db, ...teamPath("team-legacy")), {
+      name: "Legacy",
+      members: [SOLO],
     });
     await setDoc(doc(db, ...mirrorPath("team-1")), {
       name: "Hawks",
@@ -168,6 +189,142 @@ describe("owner / assistant constraints", () => {
   it("denies a non-owner deleting the team", async () => {
     await assertFails(deleteDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1"))));
   });
+
+  it("lets the sole member of a legacy unclaimed team auto-claim it", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(SOLO), ...teamPath("team-legacy")), {
+        ownerId: SOLO,
+      }),
+    );
+  });
+});
+
+// docs/FINANCES-AUDIT.md finding 3.1: writes touching `finances` are
+// head-coach-only (owner or a coachRoles-promoted 'head'). Reads cannot be
+// field-gated on a single doc, so assistant READ access remains — accepted.
+describe("finances head-gate", () => {
+  const financesPatch = {
+    finances: { clubFee: 750, payments: [] },
+  };
+
+  it("lets the owner rewrite finances", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), financesPatch),
+    );
+  });
+
+  it("lets the owner write finances via setDoc merge (persistTeam shape)", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-1")), financesPatch, {
+        merge: true,
+      }),
+    );
+  });
+
+  it("lets a promoted co-head rewrite finances", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(COHEAD), ...teamPath("team-1")), financesPatch),
+    );
+  });
+
+  it("lets a co-head append a payment via dotted-path arrayUnion", async () => {
+    // The concurrency-safe write shape (updateFinances): only `finances`
+    // lands in affectedKeys, exactly what the gate expects.
+    await assertSucceeds(
+      updateDoc(doc(dbFor(COHEAD), ...teamPath("team-1")), {
+        "finances.payments": arrayUnion({
+          id: "pay-2",
+          playerId: "p2",
+          date: "2026-03-02",
+          amount: 100,
+        }),
+      }),
+    );
+  });
+
+  it("denies an assistant rewriting finances", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), financesPatch),
+    );
+  });
+
+  it("denies an assistant dotted-path finances append", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        "finances.expenses": arrayUnion({
+          id: "exp-1",
+          date: "2026-03-02",
+          label: "Sneaky",
+          amount: 1,
+        }),
+      }),
+    );
+  });
+
+  it("denies an assistant bundling finances with an allowed field", async () => {
+    // The whole write is denied — matching the client's optimistic-revert UX.
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        name: "Hawks Renamed",
+        ...financesPatch,
+      }),
+    );
+  });
+
+  it("still lets an assistant write non-finance fields", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        name: "Hawks Renamed",
+      }),
+    );
+  });
+});
+
+// Prerequisites for the finances gate: without these, a member self-promotes
+// to 'head' and sails through it.
+describe("coachRoles escalation", () => {
+  it("denies an assistant self-promoting via a plain coachRoles write", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        [`coachRoles.${ASSISTANT}`]: "head",
+      }),
+    );
+  });
+
+  it("denies an assistant self-promoting through the self-join clause shape", async () => {
+    // Touches only members+coachRoles (own entry) like a join write would —
+    // the tightened coachRolesSelfJoinValid must reject 'head'.
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        members: arrayUnion(ASSISTANT),
+        [`coachRoles.${ASSISTANT}`]: "head",
+      }),
+    );
+  });
+
+  it("lets the owner promote a member to head", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        [`coachRoles.${ASSISTANT}`]: "head",
+      }),
+    );
+  });
+
+  it("lets a co-head change roles (mirrors SettingsTab access)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(COHEAD), ...teamPath("team-1")), {
+        [`coachRoles.${ASSISTANT}`]: "head",
+      }),
+    );
+  });
+
+  it("denies an assistant changing another member's role", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        [`coachRoles.${COHEAD}`]: "assistant",
+      }),
+    );
+  });
 });
 
 describe("sanitized invite lookup + self-join", () => {
@@ -189,6 +346,24 @@ describe("sanitized invite lookup + self-join", () => {
       updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
         members: arrayUnion(JOINER),
         [`coachRoles.${JOINER}`]: "superadmin",
+      }),
+    );
+  });
+
+  it("denies a self-join that grants 'head' (promotion is a head's act)", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
+        members: arrayUnion(JOINER),
+        [`coachRoles.${JOINER}`]: "head",
+      }),
+    );
+  });
+
+  it("denies a self-join smuggling a second uid into members", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(JOINER), ...teamPath("team-1")), {
+        members: arrayUnion(JOINER, "someone-else"),
+        [`coachRoles.${JOINER}`]: "assistant",
       }),
     );
   });
