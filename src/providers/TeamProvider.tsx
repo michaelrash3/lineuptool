@@ -24,7 +24,9 @@ import {
   onSnapshot,
   deleteDoc,
   updateDoc,
+  arrayUnion,
   arrayRemove,
+  deleteField,
   DocumentSnapshot,
   FirestoreError,
 } from "firebase/firestore";
@@ -68,6 +70,12 @@ import {
   bumpAgeTier,
   computeNextSeason,
 } from "../constants/ui";
+import {
+  applyFinanceUpdate,
+  buildFinancePayload,
+  withFinanceKeyDeletes,
+  type FinanceUpdate,
+} from "../utils/financeUpdates";
 import { useTeamMembership } from "../hooks/useTeamMembership";
 import { useInviteFlows } from "../hooks/useInviteFlows";
 import { useImportExportFlows } from "../hooks/useImportExportFlows";
@@ -805,6 +813,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           }),
         };
       }
+      // setDoc(..., {merge:true}) DEEP-MERGES nested maps, so finance keys a
+      // caller drops by omission (the season roll destructures away
+      // nextClubFee / feeExemptIds / sponsorships / ...) would survive
+      // server-side and resurrect on the next snapshot. Convert vanished
+      // top-level finance keys into explicit deletes; teamDataRef still holds
+      // the pre-write committed doc at this point.
+      if (toPersist.finances && teamDataRef.current?.finances) {
+        const adjusted = withFinanceKeyDeletes(
+          teamDataRef.current.finances,
+          toPersist.finances,
+          deleteField,
+        );
+        if (adjusted !== toPersist.finances) {
+          toPersist = { ...toPersist, finances: adjusted as Team["finances"] };
+        }
+      }
       // Scrub any undefined values from the tree — Firestore rejects them.
       toPersist = scrubUndefined(toPersist) as Partial<Team>;
 
@@ -1038,6 +1062,78 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       });
     },
     [persistTeam, toast],
+  );
+
+  // Concurrency-safe finance mutation (docs/FINANCES-AUDIT.md finding 3.2).
+  // Unlike updateTeam's whole-object merge, each op becomes the narrowest
+  // possible updateDoc — appends are arrayUnion (two coaches recording money
+  // simultaneously both land), removes are arrayRemove of the exact entry,
+  // edits replace one array computed from the LATEST committed state, and
+  // scalars are per-field dotted paths. Optimistic apply + revert-on-failure
+  // mirror updateTeam. Offline, updateDoc queues in the SDK buffer just like
+  // setDoc — the Saving indicator resolves on reconnect.
+  const updateFinances = useCallback(
+    (update: FinanceUpdate) => {
+      if (!activeTeamId) return;
+      const prevFinances = (teamDataRef.current?.finances ||
+        {}) as import("../types").TeamFinances;
+      const nextFinances = applyFinanceUpdate(prevFinances, update);
+      setTeamData((p: any) => ({ ...p, finances: nextFinances })); // optimistic
+      const payload = buildFinancePayload(prevFinances, update, {
+        arrayUnion,
+        arrayRemove,
+        deleteField,
+        scrub: scrubUndefined,
+      });
+      if (!payload) return; // resolved as a no-op (e.g. id already removed)
+      setSyncStatus("Saving");
+      const ref = doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "teams",
+        activeTeamId,
+      );
+      updateDoc(ref, payload).then(
+        () => {
+          setSyncStatus("Synced");
+          setTimeout(() => setSyncStatus(""), 1500);
+          lastPersistErrorRef.current = null;
+        },
+        (e) => {
+          setSyncStatus("");
+          const code = errCode(e);
+          const message = errMessage(e);
+          lastPersistErrorRef.current = { code, message };
+          console.error("[updateFinances] write failed", code, message);
+          // Revert only if the user hasn't since changed finances again —
+          // same guarded rollback updateTeam uses.
+          setTeamData((cur: any) =>
+            revertOptimisticUpdate(
+              cur,
+              { finances: nextFinances },
+              { finances: prevFinances },
+            ),
+          );
+          const detail = ` (${code || "error"}${message ? ": " + message : ""})`;
+          toast.push({
+            kind: "error",
+            title: "Save failed — change reverted",
+            message: `We couldn't save that change. Check your connection and try again.${detail}`,
+            duration: 0,
+            action: {
+              // Retrying re-resolves the op against then-current state; a
+              // retried append that actually landed is deduped by arrayUnion.
+              label: "Retry",
+              onClick: () => updateFinances(update),
+            },
+          });
+        },
+      );
+    },
+    [activeTeamId, toast],
   );
 
   // One-time reclaim: player photos were removed from the app. Any team saved
@@ -2274,6 +2370,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       resyncPublicMirror,
       // actions
       updateTeam,
+      updateFinances,
       addPlayer,
       updatePlayer,
       updatePlayerNested,
@@ -2369,6 +2466,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       mirrorStale,
       resyncPublicMirror,
       updateTeam,
+      updateFinances,
       addPlayer,
       updatePlayer,
       updatePlayerNested,

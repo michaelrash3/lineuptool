@@ -1,12 +1,13 @@
 import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { FinancesTab } from "./FinancesTab";
+import { applyFinanceUpdate } from "../utils/financeUpdates";
 
 // Head-coach-only Finances screen. The money math itself is covered in
 // helpers.test.js — these tests pin the screen wiring: tiles render the
 // summary, the budget planner's quantity mode plans count × unit cost,
 // Collections reflects per-player paid/owed state, and every action writes
-// through updateTeam.
+// through an updateFinances op (see utils/financeUpdates.ts).
 
 const baseTeam: any = {
   players: [
@@ -35,6 +36,15 @@ const baseTeam: any = {
   },
 };
 
+// Mutations are captured as narrow updateFinances ops. Applying the captured
+// op to the render's fixture finances reconstructs the resulting finances
+// object — equivalent to the whole-object patch the old updateTeam call
+// carried, so assertions read the same values as before.
+const appliedFinances = (teamValue: any, callIdx = 0): any => {
+  const calls = (teamValue.updateFinances as jest.Mock).mock.calls;
+  return applyFinanceUpdate(teamValue.team?.finances || {}, calls[callIdx][0]);
+};
+
 describe("FinancesTab", () => {
   it("renders the P&L tiles from the finance summary, sponsorships included", () => {
     renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
@@ -46,13 +56,13 @@ describe("FinancesTab", () => {
     expect(screen.getByText("$180")).toBeInTheDocument(); // 80 + 100 owed
   });
 
-  it("shows quantity budget items as count × unit and steps the count through updateTeam", () => {
+  it("shows quantity budget items as count × unit and steps the count through an updateFinances op", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },
     });
     expect(screen.getByText("× $100")).toBeInTheDocument(); // 4 × $100 row
     fireEvent.click(screen.getByLabelText("More Tournaments"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.budgetItems[0]).toMatchObject({
       qty: 5,
       unitAmount: 100,
@@ -80,7 +90,7 @@ describe("FinancesTab", () => {
       team: { team: oneLeft },
     });
     fireEvent.click(screen.getByLabelText("Fewer Tournaments"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.budgetItems[0]).toMatchObject({
       qty: 1,
       amount: 100,
@@ -102,7 +112,7 @@ describe("FinancesTab", () => {
     // now sits at the bottom of the tab, so its Add is last.
     const addButtons = screen.getAllByRole("button", { name: /Add$/ });
     fireEvent.click(addButtons[addButtons.length - 1]);
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     const items = patch.finances.budgetItems;
     const added = items[items.length - 1];
     expect(added).toMatchObject({
@@ -129,11 +139,11 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ nextClubFee: 150 }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ nextClubFee: 150 }),
+    );
     // The CURRENT season's collections fee is untouched by planning.
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.clubFee).toBe(100);
   });
 
@@ -148,7 +158,7 @@ describe("FinancesTab", () => {
       target: { value: "250" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Add Sponsor/ }));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.sponsorships[0]).toMatchObject({
       sponsor: "Smith Hardware",
       amount: 250,
@@ -167,8 +177,7 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByLabelText("Remove sponsorship from Smith Hardware"),
     );
-    const removePatch = (second.teamValue.updateTeam as jest.Mock).mock
-      .calls[0][0];
+    const removePatch = { finances: appliedFinances(second.teamValue) };
     expect(removePatch.finances.sponsorships).toEqual([]);
   });
 
@@ -186,7 +195,7 @@ describe("FinancesTab", () => {
     });
     fireEvent.click(screen.getByLabelText("This sponsor reduces team fees"));
     fireEvent.click(screen.getByRole("button", { name: /Add Sponsor/ }));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.sponsorships[0]).toMatchObject({
       sponsor: "Iron Rig Fitness",
       amount: 500,
@@ -210,7 +219,7 @@ describe("FinancesTab", () => {
         name: /Iron Rig Fitness: held as club income/,
       }),
     );
-    const flip = (second.teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const flip = { finances: appliedFinances(second.teamValue) };
     expect(flip.finances.sponsorships[0].reducesFees).toBe(true);
   });
 
@@ -243,7 +252,7 @@ describe("FinancesTab", () => {
         name: /Kasselmann McDonald's: reduces team fees/,
       }),
     );
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     const flipped = patch.finances.incomes.find((i: any) => i.id === "i2");
     expect(flipped.sponsor).toBe(true);
     expect(flipped.fundraising).toBeUndefined();
@@ -263,7 +272,7 @@ describe("FinancesTab", () => {
       target: { value: "300" },
     });
     fireEvent.click(screen.getByRole("button", { name: /Add Sponsor/ }));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     // Posts to the income ledger as fundraising (lowers current dues), not to
     // next season's sponsorships.
     expect(patch.finances.sponsorships).toBeUndefined();
@@ -289,8 +298,7 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByLabelText("Remove this-season sponsor Smith Hardware"),
     );
-    const removePatch = (second.teamValue.updateTeam as jest.Mock).mock
-      .calls[0][0];
+    const removePatch = { finances: appliedFinances(second.teamValue) };
     // The sponsor income is gone; unrelated seed income is untouched.
     expect(removePatch.finances.incomes.some((i: any) => i.sponsor)).toBe(
       false,
@@ -305,9 +313,9 @@ describe("FinancesTab", () => {
       team: { team: baseTeam },
     });
     fireEvent.click(screen.getByLabelText("Waive fee for Ben"));
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ feeExemptIds: ["kid2"] }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ feeExemptIds: ["kid2"] }),
+    );
   });
 
   it("renders waived players without payment controls and excludes them from Still owed", () => {
@@ -330,9 +338,9 @@ describe("FinancesTab", () => {
       team: { team: baseTeam },
     });
     fireEvent.click(screen.getByLabelText("Fee buffer $25"));
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ feeBufferIncrement: 25 }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ feeBufferIncrement: 25 }),
+    );
   });
 
   it("buffered suggestion rounds the next-season fee up to a clean number", () => {
@@ -351,9 +359,9 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ nextClubFee: 175 }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ nextClubFee: 175 }),
+    );
   });
 
   it("sales tax: percent commits on blur and the +tax toggle flags an item", () => {
@@ -363,13 +371,14 @@ describe("FinancesTab", () => {
     const taxField = screen.getByLabelText("Sales tax percent");
     fireEvent.change(taxField, { target: { value: "8.25" } });
     fireEvent.blur(taxField);
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ salesTaxPct: 8.25 }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ salesTaxPct: 8.25 }),
+    );
     fireEvent.click(screen.getByLabelText("Toggle sales tax on Tournaments"));
-    const calls = (teamValue.updateTeam as jest.Mock).mock.calls;
-    const patch = calls[calls.length - 1][0];
-    expect(patch.finances.budgetItems[0]).toMatchObject({ taxable: true });
+    const calls = (teamValue.updateFinances as jest.Mock).mock.calls;
+    expect(
+      appliedFinances(teamValue, calls.length - 1).budgetItems[0],
+    ).toMatchObject({ taxable: true });
   });
 
   it("taxed items raise the budget and the suggested fee", () => {
@@ -398,9 +407,9 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
     );
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ nextClubFee: 270 }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ nextClubFee: 270 }),
+    );
   });
 
   it("edits an expense ledger entry in place", () => {
@@ -415,7 +424,7 @@ describe("FinancesTab", () => {
       target: { value: "Game baseballs" },
     });
     fireEvent.click(screen.getByLabelText("Save entry Baseballs"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.expenses[0]).toMatchObject({
       id: "e1",
       label: "Game baseballs",
@@ -437,7 +446,7 @@ describe("FinancesTab", () => {
       target: { value: "120" },
     });
     fireEvent.click(screen.getByLabelText("Save entry Team fee — Ava"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.payments[0]).toMatchObject({
       id: "p1",
       date: "2026-03-10",
@@ -450,7 +459,7 @@ describe("FinancesTab", () => {
       team: { team: baseTeam },
     });
     fireEvent.click(screen.getByLabelText("Delete entry Team fee — Ava"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.payments.some((p: any) => p.id === "p1")).toBe(false);
   });
 
@@ -469,7 +478,7 @@ describe("FinancesTab", () => {
     });
     // Ledger now precedes the planner — its Add button is first.
     fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     const exp = patch.finances.expenses[patch.finances.expenses.length - 1];
     expect(exp).toMatchObject({
       label: "Memorial Day entry",
@@ -588,7 +597,7 @@ describe("FinancesTab", () => {
       target: { value: "40" },
     });
     fireEvent.click(screen.getByLabelText("Record payment for Ben"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.payments).toHaveLength(2);
     expect(patch.finances.payments[1]).toMatchObject({
       playerId: "kid2",
@@ -601,7 +610,7 @@ describe("FinancesTab", () => {
       team: { team: baseTeam },
     });
     fireEvent.click(screen.getByLabelText("Mark Ben paid in full"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.payments[1]).toMatchObject({
       playerId: "kid2",
       amount: 100,
@@ -639,7 +648,7 @@ describe("FinancesTab", () => {
     });
     // Ledger now precedes the planner — its Add button is first.
     fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes).toHaveLength(2);
     expect(patch.finances.incomes[1]).toMatchObject({
       label: "Car wash fundraiser",
@@ -687,7 +696,7 @@ describe("FinancesTab", () => {
       target: { value: "120" },
     });
     fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes[1]).toMatchObject({
       label: "Raffle night",
       amount: 120,
@@ -702,9 +711,9 @@ describe("FinancesTab", () => {
     const input = screen.getByLabelText("Anticipated players next season");
     fireEvent.change(input, { target: { value: "10" } });
     fireEvent.blur(input);
-    expect(teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ plannedPlayerCount: 10 }),
-    });
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ plannedPlayerCount: 10 }),
+    );
     // With the override stored: budget 500 / 10 anticipated players = 50.
     const planned: any = {
       ...baseTeam,
@@ -718,9 +727,9 @@ describe("FinancesTab", () => {
       name: /Set as next season's fee/i,
     });
     fireEvent.click(setFeeButtons[setFeeButtons.length - 1]);
-    expect(second.teamValue.updateTeam).toHaveBeenCalledWith({
-      finances: expect.objectContaining({ nextClubFee: 50 }),
-    });
+    expect(appliedFinances(second.teamValue)).toEqual(
+      expect.objectContaining({ nextClubFee: 50 }),
+    );
     expect(screen.getByText(/× 10 anticipated players/)).toBeInTheDocument();
   });
 
@@ -740,7 +749,7 @@ describe("FinancesTab", () => {
       target: { value: "Spring tournaments" },
     });
     fireEvent.click(screen.getByLabelText("Save Tournaments"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.budgetItems[0]).toMatchObject({
       id: "b1",
       label: "Spring tournaments",
@@ -766,7 +775,7 @@ describe("FinancesTab", () => {
     });
     // $80 unplanned spend rounds up to a clean $100 starting point.
     fireEvent.click(screen.getByLabelText("Seed budget from this season"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.budgetItems).toHaveLength(1);
     expect(patch.finances.budgetItems[0]).toMatchObject({
       label: "Other (unplanned this season)",
@@ -812,9 +821,9 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByLabelText("Apply carryover as team-fee discount"),
     );
-    expect(teamValue.updateTeam).not.toHaveBeenCalled();
+    expect(teamValue.updateFinances).not.toHaveBeenCalled();
     fireEvent.click(screen.getByLabelText("Confirm apply carryover discount"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes[0]).toMatchObject({
       id: "carry-2026-08-01-abc123",
       fundraising: true,
@@ -841,10 +850,10 @@ describe("FinancesTab", () => {
     });
     // First No swaps to the confirm message without writing.
     fireEvent.click(screen.getByLabelText("Skip carryover discount"));
-    expect(teamValue.updateTeam).not.toHaveBeenCalled();
+    expect(teamValue.updateFinances).not.toHaveBeenCalled();
     // Confirming No flags the entry dismissed (stays in the bank, not applied).
     fireEvent.click(screen.getByLabelText("Confirm skip carryover discount"));
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes[0]).toMatchObject({
       id: "carry-2026-08-01-abc123",
       dismissed: true,
@@ -935,7 +944,7 @@ describe("FinancesTab", () => {
     fireEvent.click(
       screen.getByLabelText("Reverse carryover team-fee discount"),
     );
-    const patch = (teamValue.updateTeam as jest.Mock).mock.calls[0][0];
+    const patch = { finances: appliedFinances(teamValue) };
     // The carryover entry flips back to a plain (non-fundraising) income, so
     // the surplus no longer discounts dues.
     expect(patch.finances.incomes[0]).toMatchObject({

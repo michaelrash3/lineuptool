@@ -35,6 +35,7 @@ export const makeTeam = (
     currentRole: "head",
     realRole: "head",
     updateTeam: jest.fn(),
+    updateFinances: jest.fn(),
     switchTeam: jest.fn(),
     createTeam: jest.fn(),
     team: { players: [], games: [] },
