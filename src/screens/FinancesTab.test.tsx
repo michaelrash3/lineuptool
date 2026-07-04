@@ -1,4 +1,4 @@
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { FinancesTab } from "./FinancesTab";
 import { applyFinanceUpdate } from "../utils/financeUpdates";
@@ -1036,6 +1036,42 @@ describe("FinancesTab", () => {
     expect(
       screen.queryByRole("button", { name: /Show all/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("records a refund for a settled family via the prompt (capped at paid)", async () => {
+    // No ConfirmProvider in tests — useConfirm falls back to window.prompt.
+    const prompt = jest.spyOn(window, "prompt").mockReturnValue("40");
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    // Ava is settled (paid 100) — her row offers Refund.
+    fireEvent.click(screen.getByLabelText("Refund Ava"));
+    await waitFor(() => expect(teamValue.updateFinances).toHaveBeenCalled());
+    const patch = { finances: appliedFinances(teamValue) };
+    const added = patch.finances.payments[patch.finances.payments.length - 1];
+    expect(added).toMatchObject({ playerId: "kid1", amount: 40, refund: true });
+    prompt.mockRestore();
+  });
+
+  it("rejects a refund larger than what the family has paid", async () => {
+    const prompt = jest.spyOn(window, "prompt").mockReturnValue("150");
+    const { teamValue, toastValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Refund Ava"));
+    await waitFor(() =>
+      expect(toastValue.push).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Refund exceeds what they've paid" }),
+      ),
+    );
+    expect(teamValue.updateFinances).not.toHaveBeenCalled();
+    prompt.mockRestore();
+  });
+
+  it("does not offer Refund to a family that has paid nothing", () => {
+    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    // Ben has paid $0 — no refund control on his row.
+    expect(screen.queryByLabelText("Refund Ben")).not.toBeInTheDocument();
   });
 
   it("renders the empty state without a finances object at all", () => {

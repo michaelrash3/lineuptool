@@ -618,6 +618,11 @@ export interface PaymentEntry extends FinanceAttribution {
   playerId: PlayerId;
   date: string; // ISO yyyy-mm-dd
   amount: number;
+  // Money returned to this family (drop-out, overpayment, returned deposit).
+  // The amount stays POSITIVE — all math treats a refund as negative, so a
+  // refunded family's paid total shrinks and their owed balance grows back.
+  // Faking refunds as expenses corrupted category spend (audit §3.5/§4).
+  refund?: boolean;
 }
 
 // Compact per-season money summary kept when the season is advanced — the

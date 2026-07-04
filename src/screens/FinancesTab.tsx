@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI, useToast } from "../contexts";
+import { useTeam, useUI, useToast, useConfirm } from "../contexts";
 import {
   Button,
   EmptyState,
@@ -207,6 +207,7 @@ export const FinancesTab = memo(() => {
     [finances, players],
   );
   const toast = useToast();
+  const { promptText } = useConfirm();
   const budget = budgetTotal(finances);
   // Next-season planning is deliberately isolated from this year's ledger:
   // only sponsorships pledged for the coming year offset the suggested fee.
@@ -711,6 +712,50 @@ export const FinancesTab = memo(() => {
       },
     });
     setPayInputs((cur) => ({ ...cur, [playerId]: "" }));
+  };
+
+  // Money returned to a family (drop-out, overpayment, returned deposit).
+  // Recorded as a payment with `refund: true` — a positive amount that all
+  // math treats as negative — never as a fake expense, which would corrupt
+  // the budget's category spend. Capped at what the family has net-paid.
+  const recordRefund = async (playerId: string, name: string, paid: number) => {
+    const raw = await promptText({
+      title: `Refund ${name}`,
+      message: `They've paid ${formatCurrency(paid)} so far. The refund shows in the ledger as money out and raises what they owe.`,
+      label: "Refund amount",
+      placeholder: String(paid),
+      confirmLabel: "Record refund",
+    });
+    if (raw == null) return;
+    const amount = parseMoneyInput(raw);
+    if (amount == null) {
+      toast.push({ kind: "error", title: "Enter a valid refund amount" });
+      return;
+    }
+    if (round2(amount - paid) > 0) {
+      toast.push({
+        kind: "error",
+        title: "Refund exceeds what they've paid",
+        message: `${name} has paid ${formatCurrency(paid)} — refund that much or less.`,
+      });
+      return;
+    }
+    updateFinances({
+      op: "append",
+      key: "payments",
+      entry: {
+        id: newId("ref"),
+        playerId,
+        date: dateToIsoLocal(new Date()),
+        amount,
+        refund: true,
+        ...recordedStamp(),
+      },
+    });
+    toast.push({
+      kind: "success",
+      title: `Refunded ${formatCurrency(amount)} to ${name}`,
+    });
   };
 
   const addTransaction = (e?: React.FormEvent) => {
@@ -1241,9 +1286,21 @@ export const FinancesTab = memo(() => {
                           </button>
                         </>
                       ) : settled ? (
-                        <span className="text-xs font-black uppercase tracking-widest text-win">
-                          Paid full ✓
-                        </span>
+                        <>
+                          <span className="text-xs font-black uppercase tracking-widest text-win">
+                            Paid full ✓
+                          </span>
+                          <button
+                            type="button"
+                            aria-label={`Refund ${p.name}`}
+                            onClick={() =>
+                              void recordRefund(p.id, p.name, paid)
+                            }
+                            className="text-xs font-bold underline text-ink-3 hover:text-ink"
+                          >
+                            Refund
+                          </button>
+                        </>
                       ) : (
                         <>
                           <span className="tabular-nums text-sm font-bold text-loss">
@@ -1293,6 +1350,18 @@ export const FinancesTab = memo(() => {
                           >
                             Waive
                           </button>
+                          {paid > 0 && (
+                            <button
+                              type="button"
+                              aria-label={`Refund ${p.name}`}
+                              onClick={() =>
+                                void recordRefund(p.id, p.name, paid)
+                              }
+                              className="text-xs font-bold underline text-ink-3 hover:text-ink"
+                            >
+                              Refund
+                            </button>
+                          )}
                         </>
                       )}
                     </li>
