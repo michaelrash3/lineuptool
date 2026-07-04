@@ -346,6 +346,46 @@ describe("team-array granular writes (updateTeamArrays shapes)", () => {
       }),
     );
   });
+
+  // Tryout-season arrays: the anonymous portal lanes stay append-only (see
+  // "public signup append constraints"), while members get the full granular
+  // shapes — append, exact-entry arrayRemove, and whole-array rewrite.
+  it("lets a member use the granular shapes on tryoutSignups", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        tryoutSignups: arrayUnion({ id: "ts-new", firstName: "Coach-added" }),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        tryoutSignups: arrayRemove({ id: "s1", firstName: "Existing" }),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        availabilitySubmissions: [],
+      }),
+    );
+  });
+
+  it("lets a member convert an interest lead in one updateDoc (append + arrayRemove)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        tryoutSignups: arrayUnion({ id: "ts-conv", firstName: "Lead" }),
+        interestSignups: arrayRemove({ id: "i1", firstName: "Lead" }),
+      }),
+    );
+  });
+
+  it("denies a non-member the coach-side tryout shapes (arrayRemove)", async () => {
+    // A single arrayUnion append can legitimately ride the public lane while
+    // tryouts are open — removal/rewrite must not.
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        tryoutSignups: arrayRemove({ id: "s1", firstName: "Existing" }),
+      }),
+    );
+  });
 });
 
 // Prerequisites for the finances gate: without these, a member self-promotes
