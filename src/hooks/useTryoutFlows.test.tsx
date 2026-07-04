@@ -1,9 +1,10 @@
 import { renderHook, act } from "@testing-library/react";
 import { useTryoutFlows } from "./useTryoutFlows";
-import { makeToast } from "../test-utils";
+import { applyTeamOps, makeToast } from "../test-utils";
 
 const setup = (teamOver: any = {}, user: any = { uid: "u1" }) => {
   const updateTeam = jest.fn();
+  const updateTeamArrays = jest.fn();
   const toast = makeToast();
   const teamData = {
     tryoutSignups: [],
@@ -17,12 +18,13 @@ const setup = (teamOver: any = {}, user: any = { uid: "u1" }) => {
     useTryoutFlows({
       teamData,
       updateTeam,
+      updateTeamArrays,
       toast,
       user,
       activeTeamId: "team-1",
     }),
   );
-  return { result, updateTeam, toast };
+  return { result, teamData, updateTeam, updateTeamArrays, toast };
 };
 
 describe("useTryoutFlows", () => {
@@ -93,53 +95,76 @@ describe("useTryoutFlows", () => {
     });
   });
 
-  it("updateTryoutSignup patches the matching signup", () => {
-    const { result, updateTeam } = setup({
+  it("appendTryoutSignup emits an append (concurrency-safe with the portal lane)", () => {
+    const { result, updateTeamArrays } = setup();
+    let entry: any;
+    act(() => {
+      entry = result.current.appendTryoutSignup({ firstName: "Ava" });
+    });
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "append", key: "tryoutSignups" });
+    expect(op.entries[0]).toMatchObject({
+      id: entry.id,
+      firstName: "Ava",
+      status: "tryout",
+    });
+  });
+
+  it("updateTryoutSignup patches the matching signup via mapEntries", () => {
+    const { result, teamData, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "s1", status: "tryout" }],
     });
     act(() => result.current.updateTryoutSignup("s1", { status: "reviewed" }));
-    expect(updateTeam.mock.calls[0][0].tryoutSignups[0]).toMatchObject({
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSignups" });
+    expect(applyTeamOps(teamData, op).tryoutSignups[0]).toMatchObject({
       id: "s1",
       status: "reviewed",
     });
   });
 
   it("acceptTryout (default) holds the signup for next season without adding a player", () => {
-    const { result, updateTeam, toast } = setup({
+    const { result, teamData, updateTeamArrays, toast } = setup({
       tryoutSignups: [
         { id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true },
       ],
     });
     act(() => result.current.acceptTryout("s1"));
-    const patch = updateTeam.mock.calls[0][0];
-    expect(patch.tryoutSignups[0].status).toBe("accepted");
-    // No current-season player is created — they join on Advance Season.
-    expect(patch.players).toBeUndefined();
+    const op = updateTeamArrays.mock.calls[0][0];
+    // Single tryoutSignups op — no current-season player is created; they
+    // join on Advance Season.
+    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSignups" });
+    expect(applyTeamOps(teamData, op).tryoutSignups[0].status).toBe("accepted");
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "success" }),
     );
   });
 
-  it("acceptTryout('current') pulls the player onto the current roster and consumes the signup", () => {
-    const { result, updateTeam } = setup({
+  it("acceptTryout('current') emits ONE atomic op list: consume signup + append player", () => {
+    const { result, teamData, updateTeamArrays } = setup({
       tryoutSignups: [
         { id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true },
       ],
       players: [],
     });
     act(() => result.current.acceptTryout("s1", "current"));
-    const patch = updateTeam.mock.calls[0][0];
-    // Signup is removed (they're a roster player now, not a tryout).
-    expect(patch.tryoutSignups).toEqual([]);
-    expect(patch.players[0]).toMatchObject({
+    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+      ["removeById", "tryoutSignups"],
+      ["append", "players"],
+    ]);
+    const next = applyTeamOps(teamData, ops);
+    expect(next.tryoutSignups).toEqual([]);
+    expect(next.players[0]).toMatchObject({
       name: "Ava Rivera",
       playerStatus: "returning",
     });
-    expect(patch.players[0].comfortablePositions).toContain("C");
+    expect(next.players[0].comfortablePositions).toContain("C");
   });
 
   it("saveTryoutEvaluation records a date-grouped tryout session", () => {
-    const { result, updateTeam } = setup({
+    const { result, teamData, updateTeamArrays } = setup({
       tryoutSignups: [
         { id: "s1", tryoutDate: "2026-06-18" },
         { id: "s2", tryoutDate: "2026-06-18" },
@@ -148,7 +173,9 @@ describe("useTryoutFlows", () => {
     act(() =>
       result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"),
     );
-    const session = updateTeam.mock.calls[0][0].tryoutSessions[0];
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSessions" });
+    const session = applyTeamOps(teamData, op).tryoutSessions[0];
     expect(session).toMatchObject({
       id: "tryout-2026-06-18",
       date: "2026-06-18",
@@ -160,8 +187,33 @@ describe("useTryoutFlows", () => {
     expect(session.gradesByEvaluator.u1.grades.s1).toEqual({ fielding: 4 });
   });
 
+  it("saveTryoutEvaluation upserts against the LATEST sessions — a concurrent evaluator's session survives", () => {
+    // The map re-runs against fresh state: another coach's session (created
+    // after this screen rendered) must ride through the rewrite.
+    const { result, updateTeamArrays } = setup({
+      tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }],
+      tryoutSessions: [],
+    });
+    act(() =>
+      result.current.saveTryoutEvaluation("s1", { fielding: 4 }, "Head"),
+    );
+    const op = updateTeamArrays.mock.calls[0][0];
+    const concurrent = {
+      id: "tryout-2026-06-25",
+      date: "2026-06-25",
+      label: "Tryout · 2026-06-25",
+      signupIds: ["s9"],
+      gradesByEvaluator: {},
+    };
+    const next = applyTeamOps({ tryoutSessions: [concurrent] }, op);
+    expect(next.tryoutSessions.map((s: any) => s.id).sort()).toEqual([
+      "tryout-2026-06-18",
+      "tryout-2026-06-25",
+    ]);
+  });
+
   it("saveTryoutEvaluations saves multiple kids into one date session in one write", () => {
-    const { result, updateTeam } = setup({
+    const { result, teamData, updateTeamArrays } = setup({
       tryoutSignups: [
         { id: "s1", tryoutDate: "2026-06-18" },
         { id: "s2", tryoutDate: "2026-06-18" },
@@ -176,8 +228,9 @@ describe("useTryoutFlows", () => {
         "Head",
       ),
     );
-    expect(updateTeam).toHaveBeenCalledTimes(1);
-    const session = updateTeam.mock.calls[0][0].tryoutSessions[0];
+    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
+    const session = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0])
+      .tryoutSessions[0];
     expect(session.signupIds).toEqual(["s1", "s2"]);
     expect(session.gradesByEvaluator.u1.grades).toMatchObject({
       s1: { fielding: 4 },
@@ -185,34 +238,69 @@ describe("useTryoutFlows", () => {
     });
   });
 
-  it("convertInterestToTryout moves a lead into tryoutSignups", () => {
-    const { result, updateTeam } = setup({
+  it("convertInterestToTryout emits ONE atomic op list: append signup + remove lead", () => {
+    const { result, teamData, updateTeamArrays } = setup({
       interestSignups: [{ id: "i1", firstName: "Mia", lastName: "Stone" }],
     });
     act(() => result.current.convertInterestToTryout("i1"));
-    const patch = updateTeam.mock.calls[0][0];
-    expect(patch.interestSignups).toEqual([]);
-    expect(patch.tryoutSignups[0]).toMatchObject({
+    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+      ["append", "tryoutSignups"],
+      ["removeById", "interestSignups"],
+    ]);
+    const next = applyTeamOps(teamData, ops);
+    expect(next.interestSignups).toEqual([]);
+    expect(next.tryoutSignups[0]).toMatchObject({
       firstName: "Mia",
       lastName: "Stone",
     });
   });
 
-  it("deleteTryoutSignup removes a single signup", () => {
-    const { result, updateTeam } = setup({
+  it("deleteTryoutSignup emits removeById", () => {
+    const { result, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "a" }, { id: "b" }, { id: "c" }],
     });
     act(() => result.current.deleteTryoutSignup("b"));
-    expect(updateTeam).toHaveBeenCalledWith({
-      tryoutSignups: [{ id: "a" }, { id: "c" }],
+    expect(updateTeamArrays).toHaveBeenCalledWith({
+      op: "removeById",
+      key: "tryoutSignups",
+      id: "b",
     });
+  });
+
+  it("a parent signup that landed AFTER the coach's snapshot survives a coach delete", () => {
+    // THE race this migration exists to close: tryouts are open, a parent's
+    // portal submission (arrayUnion, not in the coach's rendered list) lands,
+    // then the coach deletes a different signup. The old whole-array write
+    // rebuilt tryoutSignups from the stale snapshot and silently erased the
+    // parent's kid. removeById only touches the targeted entry.
+    const { result, updateTeamArrays } = setup({
+      tryoutSignups: [{ id: "a" }, { id: "b" }], // what the coach sees
+    });
+    act(() => result.current.deleteTryoutSignup("b"));
+    const op = updateTeamArrays.mock.calls[0][0];
+    // Actual server state includes the parent's fresh signup the coach
+    // never saw.
+    const serverState = {
+      tryoutSignups: [
+        { id: "a" },
+        { id: "b" },
+        { id: "parent-new", firstName: "Sam" },
+      ],
+    };
+    const next = applyTeamOps(serverState, op);
+    expect(next.tryoutSignups.map((s: any) => s.id)).toEqual([
+      "a",
+      "parent-new",
+    ]);
   });
 
   it("deleteTryoutSignups removes ALL given ids in a single write", () => {
     // Regression guard: looping deleteTryoutSignup over no-shows only removed
     // the last one (each call filtered the same stale array, and the optimistic
     // merge kept the last write). The bulk helper must drop every id at once.
-    const { result, updateTeam } = setup({
+    const { result, teamData, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
     });
     let removed = 0;
@@ -220,14 +308,17 @@ describe("useTryoutFlows", () => {
       removed = result.current.deleteTryoutSignups(["b", "d"]);
     });
     expect(removed).toBe(2);
-    expect(updateTeam).toHaveBeenCalledTimes(1);
-    expect(updateTeam).toHaveBeenCalledWith({
-      tryoutSignups: [{ id: "a" }, { id: "c" }],
-    });
+    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSignups" });
+    expect(applyTeamOps(teamData, op).tryoutSignups).toEqual([
+      { id: "a" },
+      { id: "c" },
+    ]);
   });
 
   it("deleteTryoutSignups is a no-op (no write) when nothing matches", () => {
-    const { result, updateTeam } = setup({
+    const { result, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "a" }],
     });
     let removed = -1;
@@ -235,6 +326,108 @@ describe("useTryoutFlows", () => {
       removed = result.current.deleteTryoutSignups(["zzz"]);
     });
     expect(removed).toBe(0);
-    expect(updateTeam).not.toHaveBeenCalled();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+  });
+
+  it("applyAvailabilityToPlayer unions against the LATEST roster record", () => {
+    const { result, updateTeamArrays } = setup({
+      players: [{ id: "p1", name: "Ava", absences: ["2026-07-01"] }],
+      availabilitySubmissions: [
+        { id: "sub1", firstName: "Ava", dates: ["2026-07-04"] },
+      ],
+    });
+    act(() => result.current.applyAvailabilityToPlayer("sub1", "p1"));
+    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+      ["mapEntries", "players"],
+      ["mapEntries", "availabilitySubmissions"],
+    ]);
+    // Another coach added an absence AFTER this screen rendered — the union
+    // runs over the latest record, so both survive alongside the submission.
+    const serverState = {
+      players: [
+        { id: "p1", name: "Ava", absences: ["2026-07-01", "2026-07-02"] },
+      ],
+      availabilitySubmissions: [
+        { id: "sub1", firstName: "Ava", dates: ["2026-07-04"] },
+      ],
+    };
+    const next = applyTeamOps(serverState, ops);
+    expect(next.players[0].absences).toEqual([
+      "2026-07-01",
+      "2026-07-02",
+      "2026-07-04",
+    ]);
+    expect(next.availabilitySubmissions[0]).toMatchObject({
+      appliedToPlayerId: "p1",
+    });
+  });
+
+  it("autoApplyAvailability applies confident matches in one atomic write", () => {
+    const { result, teamData, updateTeamArrays } = setup({
+      players: [
+        { id: "p1", name: "Ava Rivera", dob: "2017-04-01" },
+        { id: "p2", name: "Mia Stone" },
+      ],
+      availabilitySubmissions: [
+        {
+          id: "sub1",
+          firstName: "Ava",
+          lastName: "Rivera",
+          dob: "2017-04-01",
+          dates: ["2026-07-10"],
+        },
+        // No DOB + no unique name match → left for manual handling.
+        { id: "sub2", firstName: "Zoe", lastName: "Nguyen", dates: [] },
+      ],
+    });
+    let applied = 0;
+    act(() => {
+      applied = result.current.autoApplyAvailability();
+    });
+    expect(applied).toBe(1);
+    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    expect(next.players[0].absences).toEqual(["2026-07-10"]);
+    expect(next.availabilitySubmissions[0]).toMatchObject({
+      appliedToPlayerId: "p1",
+    });
+    expect(next.availabilitySubmissions[1].appliedToPlayerId).toBeUndefined();
+  });
+
+  it("applyPlayerInfoToPlayer fills gaps against the LATEST roster record", () => {
+    const { result, updateTeamArrays } = setup({
+      players: [{ id: "p1", name: "Ava" }], // no dob in the snapshot
+      playerInfoSubmissions: [
+        {
+          id: "sub1",
+          firstName: "Ava",
+          dob: "2017-04-01",
+          shirtSize: "YM",
+          submittedAt: "2026-07-01T00:00:00.000Z",
+        },
+      ],
+    });
+    act(() => result.current.applyPlayerInfoToPlayer("sub1", "p1"));
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+      ["mapEntries", "players"],
+      ["mapEntries", "playerInfoSubmissions"],
+    ]);
+    // The coach set a DOB after the screen rendered — the gap-fill check runs
+    // against the latest record, so the curated DOB wins over the submission.
+    const serverState = {
+      players: [{ id: "p1", name: "Ava", dob: "2017-04-02" }],
+      playerInfoSubmissions: [
+        { id: "sub1", firstName: "Ava", dob: "2017-04-01", shirtSize: "YM" },
+      ],
+    };
+    const next = applyTeamOps(serverState, ops);
+    expect(next.players[0].dob).toBe("2017-04-02"); // not clobbered
+    expect(next.players[0].shirtSize).toBe("YM"); // always-set field applied
+    expect(next.playerInfoSubmissions[0]).toMatchObject({
+      appliedToPlayerId: "p1",
+    });
   });
 });

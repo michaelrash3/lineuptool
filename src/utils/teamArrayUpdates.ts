@@ -21,7 +21,17 @@
 // sentinels (arrayUnion/arrayRemove) via ArrayFieldOps so the payload shapes
 // are unit-testable without an emulator.
 
-import type { EvaluationEvent, Game, Player, Practice } from "../types";
+import type {
+  AvailabilitySubmission,
+  EvaluationEvent,
+  Game,
+  InterestSignup,
+  Player,
+  PlayerInfoSubmission,
+  Practice,
+  TryoutSession,
+  TryoutSignup,
+} from "../types";
 import { scrubUndefined, slimGame } from "./helpers";
 
 /* ============================================================================
@@ -119,6 +129,14 @@ export interface TeamArrayTypes {
   games: Game;
   evaluationEvents: EvaluationEvent;
   practices: Practice;
+  // Tryout-season arrays. The anonymous portals append to the first four via
+  // their own rules lanes (arrayUnion, append-only) — coach-side ops here are
+  // what keep a coach's edit from erasing a parent's in-flight submission.
+  tryoutSignups: TryoutSignup;
+  interestSignups: InterestSignup;
+  playerInfoSubmissions: PlayerInfoSubmission;
+  availabilitySubmissions: AvailabilitySubmission;
+  tryoutSessions: TryoutSession;
 }
 
 export type TeamArrayKey = keyof TeamArrayTypes;

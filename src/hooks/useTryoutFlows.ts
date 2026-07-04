@@ -11,23 +11,78 @@ import {
 // share tokens, but every character is now uniformly drawn from a CSPRNG and the
 // length is exact (the old slice(2, N) could occasionally come up short).
 const SLUG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
-import type { ToastContextValue } from "../types";
+import type {
+  Player,
+  PlayerInfoSubmission,
+  ToastContextValue,
+  TryoutSession,
+  TryoutSignup,
+} from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Tryout + interest-signup flows extracted from App.tsx's TeamProvider.
 // Share-link generation, open/close state, signup/lead CRUD, tryout
-// evaluations, and accept-to-roster. Pure persistence via updateTeam; no
-// engine or UI-bridge coupling. Mirrors the useGameCrud/usePlayerCrud pattern.
+// evaluations, and accept-to-roster. Array mutations go through the injected
+// updateTeamArrays — the anonymous portals append signups/submissions
+// concurrently via their own rules lanes, so a coach-side whole-array write
+// here would erase any parent submission that landed after the coach's
+// snapshot. Scalar/config writes (share links, open/close, roster cap) stay
+// on updateTeam. No engine or UI-bridge coupling.
 interface UseTryoutFlowsArgs {
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   user: { uid: string } | null | undefined;
   activeTeamId: string | null;
 }
 
+// Union a submission's absence dates + time/reason blocks into a player,
+// deduped (blocks by date+start+end, preferring an entry that carries a
+// reason). Pure add over whatever the player already has, so it can run
+// against the LATEST roster item inside a mapEntries map — a parent
+// re-submitting, or another coach's concurrent edit, only ever accumulates.
+const mergeAvailabilityIntoPlayer = (
+  player: Player,
+  dates: string[],
+  blocks: any[],
+  submittedAt: string,
+): Player => {
+  const mergedAbsences = [
+    ...new Set([...(player.absences || []), ...dates]),
+  ].sort();
+  const blockKey = (b: any) =>
+    `${String(b?.date).slice(0, 10)}|${b?.startTime || ""}|${b?.endTime || ""}`;
+  const blockMap = new Map<string, any>();
+  for (const b of [...(player.availabilityBlocks || []), ...blocks]) {
+    if (!b?.date) continue;
+    const key = blockKey(b);
+    if (!blockMap.has(key) || (b.reason && !blockMap.get(key)?.reason)) {
+      blockMap.set(key, { ...b, date: String(b.date).slice(0, 10) });
+    }
+  }
+  const mergedBlocks = [...blockMap.values()].sort((a, b) =>
+    a.date.localeCompare(b.date),
+  );
+  return {
+    ...player,
+    absences: mergedAbsences,
+    availabilityBlocks: mergedBlocks,
+    availabilitySubmittedAt: submittedAt,
+  };
+};
+
+const submissionDates = (sub: any): string[] =>
+  Array.isArray(sub?.dates) ? sub.dates : [];
+const submissionBlocks = (sub: any): any[] =>
+  Array.isArray(sub?.blocks)
+    ? sub.blocks
+    : submissionDates(sub).map((date: string) => ({ date }));
+
 export const useTryoutFlows = ({
   teamData,
   updateTeam,
+  updateTeamArrays,
   toast,
   user,
   activeTeamId,
@@ -104,50 +159,62 @@ export const useTryoutFlows = ({
         status: signup.status || "tryout",
         ...signup,
       };
-      const next = [...(teamData.tryoutSignups || []), entry];
-      updateTeam({ tryoutSignups: next });
+      updateTeamArrays({
+        op: "append",
+        key: "tryoutSignups",
+        entries: [entry],
+      });
       return entry;
     },
-    [teamData.tryoutSignups, updateTeam],
+    [updateTeamArrays],
   );
 
   const updateTryoutSignup = useCallback(
     (id: any, patch: any) => {
-      const next = (teamData.tryoutSignups || []).map((s: any) =>
-        s.id === id ? { ...s, ...patch } : s,
-      );
-      updateTeam({ tryoutSignups: next });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "tryoutSignups",
+        map: (items: TryoutSignup[]) =>
+          items.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+      });
     },
-    [teamData.tryoutSignups, updateTeam],
+    [updateTeamArrays],
   );
 
   const deleteTryoutSignup = useCallback(
     (id: any) => {
       if (!id) return;
       // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
-      const next = (teamData.tryoutSignups || []).filter(
-        (s: any) => s.id !== id,
-      );
-      updateTeam({ tryoutSignups: next });
+      // removeById → arrayRemove of the exact entry, so a parent signup that
+      // landed after this coach's snapshot survives the delete.
+      updateTeamArrays({ op: "removeById", key: "tryoutSignups", id });
     },
-    [teamData.tryoutSignups, updateTeam],
+    [updateTeamArrays],
   );
 
   // Bulk-remove signups in a SINGLE write. Calling deleteTryoutSignup() in a
   // loop is buggy: each call filters the same closure-captured array and the
   // optimistic merge keeps only the last write — so all-but-one survive. This
-  // filters every id out at once. Returns the number actually removed.
+  // filters every id out at once. Returns the number actually removed
+  // (estimated from the rendered snapshot; the write itself resolves against
+  // the latest state).
   const deleteTryoutSignups = useCallback(
     (ids: any[]) => {
       const toRemove = new Set((ids || []).filter(Boolean));
       if (toRemove.size === 0) return 0;
       const current = teamData.tryoutSignups || [];
-      const next = current.filter((s: any) => !toRemove.has(s.id));
-      const removed = current.length - next.length;
-      if (removed > 0) updateTeam({ tryoutSignups: next });
+      const removed = current.filter((s: any) => toRemove.has(s.id)).length;
+      if (removed > 0) {
+        updateTeamArrays({
+          op: "mapEntries",
+          key: "tryoutSignups",
+          map: (items: TryoutSignup[]) =>
+            items.filter((s) => !toRemove.has(s.id)),
+        });
+      }
       return removed;
     },
-    [teamData.tryoutSignups, updateTeam],
+    [teamData.tryoutSignups, updateTeamArrays],
   );
 
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
@@ -155,18 +222,15 @@ export const useTryoutFlows = ({
   const deleteInterestSignup = useCallback(
     (id: any) => {
       if (!id) return;
-      const next = (teamData.interestSignups || []).filter(
-        (s: any) => s.id !== id,
-      );
-      updateTeam({ interestSignups: next });
+      updateTeamArrays({ op: "removeById", key: "interestSignups", id });
     },
-    [teamData.interestSignups, updateTeam],
+    [updateTeamArrays],
   );
 
   // Promote an interest-survey lead into a real tryout signup. Useful
   // when tryouts open and the HC wants to seed the signup list from
   // standing interest. Copies fields, marks status:"tryout", removes
-  // the source lead from interestSignups in the same write.
+  // the source lead from interestSignups in the same (atomic) write.
   const convertInterestToTryout = useCallback(
     (id: any) => {
       if (!id) return;
@@ -198,21 +262,19 @@ export const useTryoutFlows = ({
           ...(lead.canCatch === true || lead.isCatcher === true ? ["C"] : []),
         ],
         notes: lead.notes || "",
-        status: "tryout",
+        status: "tryout" as const,
       };
-      updateTeam({
-        tryoutSignups: [...(teamData.tryoutSignups || []), signup],
-        interestSignups: (teamData.interestSignups || []).filter(
-          (s: any) => s.id !== id,
-        ),
-      });
+      updateTeamArrays([
+        { op: "append", key: "tryoutSignups", entries: [signup] },
+        { op: "removeById", key: "interestSignups", id },
+      ]);
       toast.push({
         kind: "success",
         title: "Moved to tryouts",
         message: `${lead.firstName} ${lead.lastName}`.trim(),
       });
     },
-    [teamData.interestSignups, teamData.tryoutSignups, updateTeam, toast],
+    [teamData.interestSignups, updateTeamArrays, toast],
   );
 
   // Drop a parent-submitted player-info entry. Coach-only; the two-tap
@@ -220,19 +282,16 @@ export const useTryoutFlows = ({
   const deletePlayerInfoSubmission = useCallback(
     (id: any) => {
       if (!id) return;
-      const next = (teamData.playerInfoSubmissions || []).filter(
-        (s: any) => s.id !== id,
-      );
-      updateTeam({ playerInfoSubmissions: next });
+      updateTeamArrays({ op: "removeById", key: "playerInfoSubmissions", id });
     },
-    [teamData.playerInfoSubmissions, updateTeam],
+    [updateTeamArrays],
   );
 
   // Apply a parent-submitted player-info entry onto a matching roster player.
   // Writes the sizing + school + emergency-contact fields onto the chosen
   // Player (only fields the parent actually filled in — never blanking
   // existing roster data) and stamps the submission as handled in the same
-  // write so the inbox can show it as applied.
+  // atomic write so the inbox can show it as applied.
   const applyPlayerInfoToPlayer = useCallback(
     (submissionId: any, playerId: any) => {
       if (!submissionId || !playerId) return;
@@ -264,25 +323,46 @@ export const useTryoutFlows = ({
       put("parent2Name", sub.parent2Name || sub.emergencyName);
       put("parent2Phone", sub.parent2Phone || sub.emergencyPhone);
       put("parent2Email", sub.parent2Email);
-      // DOB + parent/guardian 1 contact only fill gaps — don't clobber what the
-      // coach may have already curated on the roster.
-      if (!player.dob) put("dob", sub.dob);
-      if (!player.parentName) put("parentName", sub.parentName);
-      if (!player.email) put("email", sub.email);
-      if (!player.phone) put("phone", sub.phone);
 
       const now = new Date().toISOString();
-      const nextPlayers = (teamData.players || []).map((p: any) =>
-        p.id === playerId
-          ? { ...p, ...patch, playerInfoSubmittedAt: sub.submittedAt || now }
-          : p,
-      );
-      const nextSubs = (teamData.playerInfoSubmissions || []).map((s: any) =>
-        s.id === submissionId
-          ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
-          : s,
-      );
-      updateTeam({ players: nextPlayers, playerInfoSubmissions: nextSubs });
+      updateTeamArrays([
+        {
+          op: "mapEntries",
+          key: "players",
+          map: (items: Player[]) =>
+            items.map((p) => {
+              if (p.id !== playerId) return p;
+              // DOB + parent/guardian 1 contact only fill gaps — evaluated
+              // against the LATEST roster record so this never clobbers what
+              // a coach curated after this screen rendered.
+              const gaps: Record<string, unknown> = {};
+              const fill = (key: string, value: unknown) => {
+                const v = String(value ?? "").trim();
+                if (v && !(p as any)[key]) gaps[key] = v;
+              };
+              fill("dob", sub.dob);
+              fill("parentName", sub.parentName);
+              fill("email", sub.email);
+              fill("phone", sub.phone);
+              return {
+                ...p,
+                ...patch,
+                ...gaps,
+                playerInfoSubmittedAt: sub.submittedAt || now,
+              };
+            }),
+        },
+        {
+          op: "mapEntries",
+          key: "playerInfoSubmissions",
+          map: (items: PlayerInfoSubmission[]) =>
+            items.map((s) =>
+              s.id === submissionId
+                ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
+                : s,
+            ),
+        },
+      ]);
       toast.push({
         kind: "success",
         title: "Player info applied",
@@ -290,7 +370,7 @@ export const useTryoutFlows = ({
           `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || player.name,
       });
     },
-    [teamData.playerInfoSubmissions, teamData.players, updateTeam, toast],
+    [teamData.playerInfoSubmissions, teamData.players, updateTeamArrays, toast],
   );
 
   // Drop a parent-submitted availability entry. Coach-only; the two-tap confirm
@@ -298,19 +378,21 @@ export const useTryoutFlows = ({
   const deleteAvailabilitySubmission = useCallback(
     (id: any) => {
       if (!id) return;
-      const next = (teamData.availabilitySubmissions || []).filter(
-        (s: any) => s.id !== id,
-      );
-      updateTeam({ availabilitySubmissions: next });
+      updateTeamArrays({
+        op: "removeById",
+        key: "availabilitySubmissions",
+        id,
+      });
     },
-    [teamData.availabilitySubmissions, updateTeam],
+    [updateTeamArrays],
   );
 
   // Merge a parent-submitted availability entry onto a roster player: union the
   // submitted dates into player.absences (deduped + sorted), stamp the player's
   // availabilitySubmittedAt (drives the completion tracker), and mark the
-  // submission handled — all in one write. Pure union, so re-applying or a
-  // parent re-submitting more dates is always safe.
+  // submission handled — all in one atomic write. Pure union over the LATEST
+  // roster record, so re-applying, a parent re-submitting more dates, or a
+  // concurrent absence edit is always additive.
   const applyAvailabilityToPlayer = useCallback(
     (submissionId: any, playerId: any, opts?: { silent?: boolean }) => {
       if (!submissionId || !playerId) return;
@@ -322,50 +404,36 @@ export const useTryoutFlows = ({
       );
       if (!sub || !player) return;
 
-      const dates = Array.isArray(sub.dates) ? sub.dates : [];
-      const blocks = Array.isArray(sub.blocks)
-        ? sub.blocks
-        : dates.map((date: string) => ({ date }));
-      const mergedAbsences = [
-        ...new Set([...(player.absences || []), ...dates]),
-      ].sort();
-      // Union the submission's time/reason blocks, deduped by date+start+end so
-      // re-submitting the same block is a no-op. Pure add — a parent re-filing
-      // the form only ever appends, never overwrites.
-      const blockKey = (b: any) =>
-        `${String(b?.date).slice(0, 10)}|${b?.startTime || ""}|${b?.endTime || ""}`;
-      const blockMap = new Map<string, any>();
-      for (const b of [...(player.availabilityBlocks || []), ...blocks]) {
-        if (!b?.date) continue;
-        const key = blockKey(b);
-        // Prefer an entry that carries a reason when merging duplicates.
-        if (!blockMap.has(key) || (b.reason && !blockMap.get(key)?.reason)) {
-          blockMap.set(key, { ...b, date: String(b.date).slice(0, 10) });
-        }
-      }
-      const mergedBlocks = [...blockMap.values()].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      );
+      const dates = submissionDates(sub);
+      const blocks = submissionBlocks(sub);
       const now = new Date().toISOString();
-      const nextPlayers = (teamData.players || []).map((p: any) =>
-        p.id === playerId
-          ? {
-              ...p,
-              absences: mergedAbsences,
-              availabilityBlocks: mergedBlocks,
-              availabilitySubmittedAt: sub.submittedAt || now,
-            }
-          : p,
-      );
-      const nextSubs = (teamData.availabilitySubmissions || []).map((s: any) =>
-        s.id === submissionId
-          ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
-          : s,
-      );
-      updateTeam({
-        players: nextPlayers,
-        availabilitySubmissions: nextSubs,
-      });
+      updateTeamArrays([
+        {
+          op: "mapEntries",
+          key: "players",
+          map: (items: Player[]) =>
+            items.map((p) =>
+              p.id === playerId
+                ? mergeAvailabilityIntoPlayer(
+                    p,
+                    dates,
+                    blocks,
+                    sub.submittedAt || now,
+                  )
+                : p,
+            ),
+        },
+        {
+          op: "mapEntries",
+          key: "availabilitySubmissions",
+          map: (items) =>
+            items.map((s) =>
+              s.id === submissionId
+                ? { ...s, appliedToPlayerId: playerId, appliedAt: now }
+                : s,
+            ),
+        },
+      ]);
       if (!opts?.silent) {
         toast.push({
           kind: "success",
@@ -376,15 +444,20 @@ export const useTryoutFlows = ({
         });
       }
     },
-    [teamData.availabilitySubmissions, teamData.players, updateTeam, toast],
+    [
+      teamData.availabilitySubmissions,
+      teamData.players,
+      updateTeamArrays,
+      toast,
+    ],
   );
 
   // Auto-apply every un-applied availability submission whose name + DOB
   // uniquely identify one non-departed roster player. Ambiguous or unmatched
   // submissions are left for the coach to match by hand. Runs on the coach
   // client (only members can write players) — typically when the Availability
-  // tab mounts. Batches all confident matches into a SINGLE write so the
-  // optimistic merge doesn't drop all-but-one. Returns the number applied.
+  // tab mounts. Matching runs on the rendered snapshot; the merges run over
+  // the LATEST arrays in one atomic write. Returns the number applied.
   const autoApplyAvailability = useCallback(() => {
     const subs = teamData.availabilitySubmissions || [];
     const players = teamData.players || [];
@@ -418,56 +491,70 @@ export const useTryoutFlows = ({
     };
 
     const now = new Date().toISOString();
-    const playersById = new Map<string, any>(
-      players.map((p: any) => [p.id, { ...p }]),
-    );
+    // playerId → the submissions that matched it (usually one).
+    const appliesByPlayer = new Map<string, any[]>();
     const appliedSubIds = new Map<string, string>(); // subId → playerId
     for (const sub of pending) {
       const player = matchPlayer(sub);
       if (!player) continue;
-      const target = playersById.get(player.id);
-      const dates = Array.isArray(sub.dates) ? sub.dates : [];
-      const blocks = Array.isArray(sub.blocks)
-        ? sub.blocks
-        : dates.map((date: string) => ({ date }));
-      target.absences = [
-        ...new Set([...(target.absences || []), ...dates]),
-      ].sort();
-      // Union time/reason blocks, deduped by date+start+end (pure add).
-      const wKey = (w: any) =>
-        `${String(w?.date).slice(0, 10)}|${w?.startTime || ""}|${w?.endTime || ""}`;
-      const wMap = new Map<string, any>();
-      for (const w of [...(target.availabilityBlocks || []), ...blocks]) {
-        if (!w?.date) continue;
-        const key = wKey(w);
-        if (!wMap.has(key) || (w.reason && !wMap.get(key)?.reason)) {
-          wMap.set(key, { ...w, date: String(w.date).slice(0, 10) });
-        }
-      }
-      target.availabilityBlocks = [...wMap.values()].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      );
-      target.availabilitySubmittedAt = sub.submittedAt || now;
+      appliesByPlayer.set(player.id, [
+        ...(appliesByPlayer.get(player.id) || []),
+        sub,
+      ]);
       appliedSubIds.set(sub.id, player.id);
     }
     if (appliedSubIds.size === 0) return 0;
 
-    const nextPlayers = players.map((p: any) => playersById.get(p.id) || p);
-    const nextSubs = subs.map((s: any) =>
-      appliedSubIds.has(s.id)
-        ? { ...s, appliedToPlayerId: appliedSubIds.get(s.id), appliedAt: now }
-        : s,
-    );
-    updateTeam({ players: nextPlayers, availabilitySubmissions: nextSubs });
+    updateTeamArrays([
+      {
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => {
+            const mySubs = appliesByPlayer.get(p.id);
+            if (!mySubs) return p;
+            let next = p;
+            for (const sub of mySubs) {
+              next = mergeAvailabilityIntoPlayer(
+                next,
+                submissionDates(sub),
+                submissionBlocks(sub),
+                sub.submittedAt || now,
+              );
+            }
+            return next;
+          }),
+      },
+      {
+        op: "mapEntries",
+        key: "availabilitySubmissions",
+        map: (items) =>
+          items.map((s) =>
+            appliedSubIds.has(s.id)
+              ? {
+                  ...s,
+                  appliedToPlayerId: appliedSubIds.get(s.id),
+                  appliedAt: now,
+                }
+              : s,
+          ),
+      },
+    ]);
     return appliedSubIds.size;
-  }, [teamData.availabilitySubmissions, teamData.players, updateTeam]);
+  }, [teamData.availabilitySubmissions, teamData.players, updateTeamArrays]);
 
   // Tryout grades live in date-grouped tryoutSessions, separate from the
   // roster evaluationEvents collection. Each date has one session; each
   // evaluator owns a grades map keyed by signup id inside that session.
+  // The upsert runs inside a mapEntries map against the LATEST sessions —
+  // two evaluators grading simultaneously each rewrite only this one array,
+  // resolved from fresh state. normalizeTryoutSessions still folds in legacy
+  // grades stored on evaluationEvents; those come from the rendered snapshot
+  // (legacy data is static, so a snapshot read is safe).
   const saveTryoutEvaluation = useCallback(
     (signupId: any, grades: any, coachRole: any, rawDate?: any) => {
       if (!user || !signupId) return;
+      const uid = user.uid;
       const signup = (teamData.tryoutSignups || []).find(
         (s: any) => s.id === signupId,
       );
@@ -475,103 +562,139 @@ export const useTryoutFlows = ({
         rawDate || signup?.tryoutDate || new Date().toISOString().slice(0, 10),
       );
       const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-      const sessions = normalizeTryoutSessions(teamData);
-      const existing = sessions.find((s: any) => s.id === sessionId);
+      const legacyAux = {
+        evaluationEvents: teamData.evaluationEvents,
+        tryoutSignups: teamData.tryoutSignups,
+      };
       const now = Date.now();
-      const session = existing || {
-        id: sessionId,
-        date,
-        label: `Tryout · ${date}`,
-        createdAt: now,
-        signupIds: [],
-        gradesByEvaluator: {},
-      };
-      const evaluator = session.gradesByEvaluator?.[user.uid] || {
-        coachRole: coachRole || "Assistant",
-        evaluatorId: user.uid,
-        grades: {},
-      };
-      const nextSession = {
-        ...session,
-        updatedAt: now,
-        signupIds: Array.from(
-          new Set([...(session.signupIds || []), signupId]),
-        ),
-        gradesByEvaluator: {
-          ...(session.gradesByEvaluator || {}),
-          [user.uid]: {
-            ...evaluator,
-            coachRole: coachRole || evaluator.coachRole || "Assistant",
-            evaluatorId: user.uid,
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "tryoutSessions",
+        map: (items: TryoutSession[]) => {
+          const sessions = normalizeTryoutSessions({
+            ...legacyAux,
+            tryoutSessions: items,
+          });
+          const existing = sessions.find((s: any) => s.id === sessionId);
+          const session = existing || {
+            id: sessionId,
+            date,
+            label: `Tryout · ${date}`,
+            createdAt: now,
+            signupIds: [],
+            gradesByEvaluator: {},
+          };
+          const evaluator = session.gradesByEvaluator?.[uid] || {
+            coachRole: coachRole || "Assistant",
+            evaluatorId: uid,
+            grades: {},
+          };
+          const nextSession = {
+            ...session,
             updatedAt: now,
-            grades: { ...(evaluator.grades || {}), [signupId]: { ...grades } },
-          },
+            signupIds: Array.from(
+              new Set([...(session.signupIds || []), signupId]),
+            ),
+            gradesByEvaluator: {
+              ...(session.gradesByEvaluator || {}),
+              [uid]: {
+                ...evaluator,
+                coachRole: coachRole || evaluator.coachRole || "Assistant",
+                evaluatorId: uid,
+                updatedAt: now,
+                grades: {
+                  ...(evaluator.grades || {}),
+                  [signupId]: { ...grades },
+                },
+              },
+            },
+          };
+          return existing
+            ? sessions.map((s: any) => (s.id === sessionId ? nextSession : s))
+            : [...sessions, nextSession];
         },
-      };
-      const next = existing
-        ? sessions.map((s: any) => (s.id === sessionId ? nextSession : s))
-        : [...sessions, nextSession];
-      updateTeam({ tryoutSessions: next });
+      });
     },
-    [user, teamData, updateTeam],
+    [user, teamData, updateTeamArrays],
   );
 
   const saveTryoutEvaluations = useCallback(
     (entries: any[], coachRole: any) => {
       if (!user) return;
-      const sessions = normalizeTryoutSessions(teamData);
-      const byId = new Map(
-        sessions.map((session: any) => [session.id, session]),
-      );
-      const now = Date.now();
-      for (const entry of entries || []) {
-        if (!entry?.signupId) continue;
-        const signup = (teamData.tryoutSignups || []).find(
-          (s: any) => s.id === entry.signupId,
-        );
-        const date = String(
-          entry.date ||
-            signup?.tryoutDate ||
-            new Date().toISOString().slice(0, 10),
-        );
-        const sessionId = `tryout-${date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-        const session: any = byId.get(sessionId) || {
-          id: sessionId,
-          date,
-          label: `Tryout · ${date}`,
-          createdAt: now,
-          signupIds: [],
-          gradesByEvaluator: {},
-        };
-        const evaluator = session.gradesByEvaluator?.[user.uid] || {
-          coachRole: coachRole || "Assistant",
-          evaluatorId: user.uid,
-          grades: {},
-        };
-        byId.set(sessionId, {
-          ...session,
-          updatedAt: now,
-          signupIds: Array.from(
-            new Set([...(session.signupIds || []), entry.signupId]),
-          ),
-          gradesByEvaluator: {
-            ...(session.gradesByEvaluator || {}),
-            [user.uid]: {
-              ...evaluator,
-              coachRole: coachRole || evaluator.coachRole || "Assistant",
-              evaluatorId: user.uid,
-              updatedAt: now,
-              grades: {
-                ...(evaluator.grades || {}),
-                [entry.signupId]: { ...(entry.grades || {}) },
-              },
-            },
-          },
+      const uid = user.uid;
+      const legacyAux = {
+        evaluationEvents: teamData.evaluationEvents,
+        tryoutSignups: teamData.tryoutSignups,
+      };
+      // Resolve each entry's session date from the snapshot signup list —
+      // input mapping, not state derivation.
+      const resolved = (entries || [])
+        .filter((entry: any) => entry?.signupId)
+        .map((entry: any) => {
+          const signup = (teamData.tryoutSignups || []).find(
+            (s: any) => s.id === entry.signupId,
+          );
+          const date = String(
+            entry.date ||
+              signup?.tryoutDate ||
+              new Date().toISOString().slice(0, 10),
+          );
+          return { ...entry, date };
         });
-      }
-      updateTeam({ tryoutSessions: [...byId.values()] });
+      if (resolved.length === 0) return;
+      const now = Date.now();
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "tryoutSessions",
+        map: (items: TryoutSession[]) => {
+          const sessions = normalizeTryoutSessions({
+            ...legacyAux,
+            tryoutSessions: items,
+          });
+          const byId = new Map(
+            sessions.map((session: any) => [session.id, session]),
+          );
+          for (const entry of resolved) {
+            const sessionId = `tryout-${entry.date.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+            const session: any = byId.get(sessionId) || {
+              id: sessionId,
+              date: entry.date,
+              label: `Tryout · ${entry.date}`,
+              createdAt: now,
+              signupIds: [],
+              gradesByEvaluator: {},
+            };
+            const evaluator = session.gradesByEvaluator?.[uid] || {
+              coachRole: coachRole || "Assistant",
+              evaluatorId: uid,
+              grades: {},
+            };
+            byId.set(sessionId, {
+              ...session,
+              updatedAt: now,
+              signupIds: Array.from(
+                new Set([...(session.signupIds || []), entry.signupId]),
+              ),
+              gradesByEvaluator: {
+                ...(session.gradesByEvaluator || {}),
+                [uid]: {
+                  ...evaluator,
+                  coachRole: coachRole || evaluator.coachRole || "Assistant",
+                  evaluatorId: uid,
+                  updatedAt: now,
+                  grades: {
+                    ...(evaluator.grades || {}),
+                    [entry.signupId]: { ...(entry.grades || {}) },
+                  },
+                },
+              },
+            });
+          }
+          return [...byId.values()];
+        },
+      });
     },
-    [user, teamData, updateTeam],
+    [user, teamData, updateTeamArrays],
   );
 
   // Accept-offer flow. Tryout accepts are oriented to the NEXT season by
@@ -609,17 +732,15 @@ export const useTryoutFlows = ({
           email: signup.email || "",
           phone: signup.phone || "",
           present: true,
-          playerStatus: "returning",
+          playerStatus: "returning" as const,
           stats: blankStats(),
           pitching: { recentPitches: 0, lastPitchDate: null },
           tryoutSignupId: signup.id,
         };
-        updateTeam({
-          tryoutSignups: (teamData.tryoutSignups || []).filter(
-            (s: any) => s.id !== id,
-          ),
-          players: [...(teamData.players || []), player],
-        });
+        updateTeamArrays([
+          { op: "removeById", key: "tryoutSignups", id },
+          { op: "append", key: "players", entries: [player] },
+        ]);
         toast.push({
           kind: "success",
           title: `${name} added to current roster`,
@@ -629,17 +750,21 @@ export const useTryoutFlows = ({
 
       // Default: accept for NEXT season. Keep them in the Tryouts tab marked
       // "accepted"; advanceSeason brings them onto the roster.
-      const nextSignups = (teamData.tryoutSignups || []).map((s: any) =>
-        s.id === id ? { ...s, status: "accepted" } : s,
-      );
-      updateTeam({ tryoutSignups: nextSignups });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "tryoutSignups",
+        map: (items: TryoutSignup[]) =>
+          items.map((s) =>
+            s.id === id ? { ...s, status: "accepted" as const } : s,
+          ),
+      });
       toast.push({
         kind: "success",
         title: `${name} accepted`,
         message: "Joins the roster automatically when you Advance Season.",
       });
     },
-    [teamData.tryoutSignups, teamData.players, updateTeam, toast],
+    [teamData.tryoutSignups, updateTeamArrays, toast],
   );
 
   return {

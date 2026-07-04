@@ -2059,7 +2059,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     saveTryoutEvaluation,
     saveTryoutEvaluations,
     acceptTryout,
-  } = useTryoutFlows({ teamData, updateTeam, toast, user, activeTeamId });
+  } = useTryoutFlows({
+    teamData,
+    updateTeam,
+    updateTeamArrays,
+    toast,
+    user,
+    activeTeamId,
+  });
 
   const { setCoachRole } = useTeamMembership({ teamData, updateTeam, user });
   const { regenerateJoinCode, joinTeamByCode } = useInviteFlows({
