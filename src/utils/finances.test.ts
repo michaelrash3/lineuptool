@@ -8,6 +8,7 @@ import {
   feeOffsetSponsorshipTotal,
   teamFeesStatus,
   transactionLedger,
+  budgetActuals,
   ledgerCsv,
   budgetItemAmount,
   budgetTotal,
@@ -461,5 +462,61 @@ describe("ledger attribution passthrough", () => {
     expect(rows[0].recordedAt).toBe("2026-03-01T12:00:00.000Z");
     // Rows predating the stamps simply lack the fields.
     expect("recordedBy" in rows[1]).toBe(false);
+  });
+});
+
+// --- Refunds (approved feature, docs/FINANCES-AUDIT.md §4) ---
+
+describe("refunds", () => {
+  const finances: TeamFinances = {
+    clubFee: 100,
+    payments: [
+      { id: "pay1", playerId: "p1", date: "2026-03-01", amount: 100 },
+      {
+        id: "ref1",
+        playerId: "p1",
+        date: "2026-04-01",
+        amount: 40,
+        refund: true,
+      },
+    ],
+  };
+
+  it("nets refunds out of collected and the family's paid total", () => {
+    const s = financeSummary(finances, [{ id: "p1" }]);
+    expect(s.collected).toBe(60);
+    expect(s.paidByPlayer.p1).toBe(60);
+    // The refunded slice is owed again.
+    expect(s.stillOwed).toBe(40);
+    expect(s.balanceNow).toBe(60);
+  });
+
+  it("shows a refund as money OUT in the ledger with its own label", () => {
+    const rows = transactionLedger(finances, [{ id: "p1", name: "Ava" }]);
+    expect(rows[0]).toMatchObject({
+      label: "Team fee — Ava",
+      direction: "in",
+      balanceAfter: 100,
+    });
+    expect(rows[1]).toMatchObject({
+      label: "Refund — Ava",
+      direction: "out",
+      amount: 40,
+      balanceAfter: 60,
+    });
+  });
+
+  it("keeps refunds out of expense/category math", () => {
+    // budgetActuals reads expenses only — a refund never pollutes a budget
+    // category or the unplanned bucket.
+    const actuals = budgetActuals(finances);
+    expect(actuals.unplanned).toBe(0);
+    expect(Object.keys(actuals.byItem)).toHaveLength(0);
+  });
+
+  it("teamFeesStatus counts the refunded family as owing again", () => {
+    const st = teamFeesStatus(finances, [{ id: "p1" }]);
+    expect(st.fullOwedCount).toBe(1);
+    expect(st.stillOwed).toBe(40);
   });
 });

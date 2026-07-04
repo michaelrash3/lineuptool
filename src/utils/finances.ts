@@ -324,7 +324,9 @@ export const financeSummary = (
   const paidByPlayer: Record<string, number> = {};
   let collected = 0;
   for (const pay of finances?.payments || []) {
-    const amt = money(pay?.amount);
+    // Refunds carry a positive amount but count NEGATIVE: the family's paid
+    // total shrinks and their owed balance grows back.
+    const amt = pay?.refund ? -money(pay?.amount) : money(pay?.amount);
     collected += amt;
     const pid = String(pay?.playerId || "");
     if (pid) paidByPlayer[pid] = (paidByPlayer[pid] || 0) + amt;
@@ -501,9 +503,12 @@ export const transactionLedger = (
     rows.push({
       id: pay.id,
       date: String(pay.date || ""),
-      label: `Team fee — ${nameOf(String(pay.playerId || ""))}`,
+      label: pay.refund
+        ? `Refund — ${nameOf(String(pay.playerId || ""))}`
+        : `Team fee — ${nameOf(String(pay.playerId || ""))}`,
       amount: money(pay.amount),
-      direction: "in",
+      // A refund is money OUT of the club back to the family.
+      direction: pay.refund ? "out" : "in",
       source: "payment",
       ...attribution(pay),
     });
