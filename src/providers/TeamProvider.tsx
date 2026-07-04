@@ -76,6 +76,12 @@ import {
   withFinanceKeyDeletes,
   type FinanceUpdate,
 } from "../utils/financeUpdates";
+import {
+  applyTeamArrayUpdate,
+  buildTeamArrayPayload,
+  resolveTeamArrayUpdate,
+  type TeamArrayUpdate,
+} from "../utils/teamArrayUpdates";
 import { useTeamMembership } from "../hooks/useTeamMembership";
 import { useInviteFlows } from "../hooks/useInviteFlows";
 import { useImportExportFlows } from "../hooks/useImportExportFlows";
@@ -1136,6 +1142,133 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     [activeTeamId, toast],
   );
 
+  // Concurrency-safe mutations for the top-level team arrays (players / games
+  // / evaluationEvents / practices) — updateFinances's pattern generalized via
+  // src/utils/teamArrayUpdates.ts, so two coaches editing near-simultaneously
+  // (the live-eval double-submit, a lineup save racing a roster add) can't
+  // erase each other. Accepts one op or a list; a list becomes ONE merged
+  // updateDoc so multi-array cascades (remove player → strip from games and
+  // eval grades) stay atomic. No doc-size warning on this path (parity with
+  // updateFinances — persistTeam still warns on the remaining whole-doc
+  // writes); the accepted gap is bulk appends growing the doc unwarned.
+  const updateTeamArrays = useCallback(
+    (input: TeamArrayUpdate | TeamArrayUpdate[]) => {
+      if (!activeTeamId) return;
+      const updates = Array.isArray(input) ? input : [input];
+      if (updates.length === 0) return;
+      // One op per key per call — two ops on the same key would collide on
+      // the same dotted payload path. A violation is a programming error, not
+      // a user action, so it just logs and drops.
+      const keys = updates.map((u) => u.key);
+      if (new Set(keys).size !== keys.length) {
+        console.error("[updateTeamArrays] duplicate key in op list:", keys);
+        return;
+      }
+      const teamLoaded = loadedTeamIdRef.current === activeTeamId;
+      // mapEntries over placeholder/default state is the "all my players were
+      // deleted" class of bug — the map would rewrite the array from
+      // DEFAULT_TEAM_DATA instead of the real doc. Appends and removes are
+      // inherently safe pre-load (removeById resolves to a no-op).
+      if (!teamLoaded && updates.some((u) => u.op === "mapEntries")) {
+        const message =
+          "This team's data hasn't finished loading on this device yet. Try again in a moment.";
+        lastPersistErrorRef.current = { code: "team-not-loaded", message };
+        console.error("[updateTeamArrays] blocked pre-load mapEntries");
+        toast.push({ kind: "error", title: "Save blocked", message });
+        return;
+      }
+      const prevTeam = teamDataRef.current || {};
+      // Fold the ops into the optimistic patch and the merged payload, both
+      // resolved against the LATEST committed state.
+      const patch: Record<string, unknown> = {};
+      const prevValues: Record<string, unknown> = {};
+      const payload: Record<string, unknown> = {};
+      let hasPayload = false;
+      for (const rawUpdate of updates) {
+        // Run each mapEntries map exactly once — it feeds both the optimistic
+        // patch and the payload, and a non-deterministic map (fresh genId)
+        // must not produce two different arrays.
+        const update = resolveTeamArrayUpdate(prevTeam, rawUpdate);
+        patch[update.key] = applyTeamArrayUpdate(prevTeam, update)[update.key];
+        prevValues[update.key] = prevTeam[update.key];
+        const p = buildTeamArrayPayload(prevTeam, update, {
+          arrayUnion,
+          arrayRemove,
+          scrub: scrubUndefined,
+        });
+        if (p) {
+          Object.assign(payload, p);
+          hasPayload = true;
+        }
+      }
+      // Same roster-wipe guard as persistTeam: refuse a players rewrite that
+      // would empty a non-empty roster. removeById is exempt — deliberately
+      // removing the last player is a real action, not placeholder leakage.
+      if (updates.some((u) => u.key === "players" && u.op === "mapEntries")) {
+        const wipeReason = blockedRosterWipeReason(
+          { players: patch.players },
+          prevTeam.players,
+          teamLoaded,
+        );
+        if (wipeReason) {
+          const message = `Refused to save an empty roster because ${wipeReason}.`;
+          lastPersistErrorRef.current = {
+            code: "roster-wipe-blocked",
+            message,
+          };
+          console.error("[updateTeamArrays] roster wipe blocked:", message);
+          toast.push({ kind: "error", title: "Save blocked", message });
+          return;
+        }
+      }
+      setTeamData((p: any) => ({ ...p, ...patch })); // optimistic
+      if (!hasPayload) return; // resolved as a no-op (e.g. id already removed)
+      setSyncStatus("Saving");
+      const ref = doc(
+        db,
+        "artifacts",
+        appId,
+        "public",
+        "data",
+        "teams",
+        activeTeamId,
+      );
+      updateDoc(ref, payload).then(
+        () => {
+          setSyncStatus("Synced");
+          setTimeout(() => setSyncStatus(""), 1500);
+          lastPersistErrorRef.current = null;
+        },
+        (e) => {
+          setSyncStatus("");
+          const code = errCode(e);
+          const message = errMessage(e);
+          lastPersistErrorRef.current = { code, message };
+          console.error("[updateTeamArrays] write failed", code, message);
+          // Revert only the keys the user hasn't since changed again — same
+          // guarded rollback updateTeam uses.
+          setTeamData((cur: any) =>
+            revertOptimisticUpdate(cur, patch, prevValues),
+          );
+          const detail = ` (${code || "error"}${message ? ": " + message : ""})`;
+          toast.push({
+            kind: "error",
+            title: "Save failed — change reverted",
+            message: `We couldn't save that change. Check your connection and try again.${detail}`,
+            duration: 0,
+            action: {
+              // Retrying re-resolves the ops against then-current state; a
+              // retried append that actually landed is deduped by arrayUnion.
+              label: "Retry",
+              onClick: () => updateTeamArrays(input),
+            },
+          });
+        },
+      );
+    },
+    [activeTeamId, toast],
+  );
+
   // One-time reclaim: player photos were removed from the app. Any team saved
   // before that still carries the old inline base64 photoUrl on its roster —
   // the single biggest contributor to the team doc's size. Strip them once per
@@ -1247,7 +1380,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
-    usePlayerCrud({ teamData, updateTeam, toast, confirm });
+    usePlayerCrud({ teamData, updateTeamArrays, toast, confirm });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
   const {
@@ -1255,7 +1388,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     updatePastSeason,
     removePastSeason,
     bulkAddPastSeasons,
-  } = usePastSeasonCrud({ teamData, updateTeam, confirm });
+  } = usePastSeasonCrud({ updateTeamArrays, confirm });
 
   // ----- Coach actions -----
   const addCoach = useCallback(
@@ -1282,7 +1415,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
-    useGameCrud({ teamData, updateTeam, toast, confirm });
+    useGameCrud({ teamData, updateTeamArrays, toast, confirm });
 
   // ----- Practice CRUD ----- (src/hooks/usePracticeCrud.ts)
   const {
@@ -1293,7 +1426,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     addDrillToLibrary,
     updateDrillInLibrary,
     removeDrillFromLibrary,
-  } = usePracticeCrud({ teamData, updateTeam, toast, confirm });
+  } = usePracticeCrud({
+    teamData,
+    updateTeam,
+    updateTeamArrays,
+    toast,
+    confirm,
+  });
 
   // ----- Lineup actions ----- (extracted to src/hooks/useLineupActions.ts)
   const {
@@ -1798,6 +1937,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   } = useImportExportFlows({
     teamData,
     updateTeam,
+    updateTeamArrays,
     activeTeamId,
     toast,
     confirm,
@@ -1892,7 +2032,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ----- Evaluation CRUD ----- (extracted to src/hooks/useEvaluationCrud.ts)
   const { saveTeamEvaluation, saveAssistantEvaluation, deleteEvaluation } =
-    useEvaluationCrud({ teamData, updateTeam, toast, user, uiBridge });
+    useEvaluationCrud({ teamData, updateTeamArrays, toast, user, uiBridge });
 
   // ─── Tryouts (PR M) ───────────────────────────────────────────────
   // Public sign-up flow lives at /tryouts/:shareId and writes to
@@ -2381,6 +2521,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // actions
       updateTeam,
       updateFinances,
+      updateTeamArrays,
       addPlayer,
       updatePlayer,
       updatePlayerNested,
@@ -2477,6 +2618,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       resyncPublicMirror,
       updateTeam,
       updateFinances,
+      updateTeamArrays,
       addPlayer,
       updatePlayer,
       updatePlayerNested,

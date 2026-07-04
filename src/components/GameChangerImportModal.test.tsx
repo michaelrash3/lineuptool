@@ -6,6 +6,7 @@ const baseProps = () => ({
   open: true,
   onClose: jest.fn(),
   updateTeam: jest.fn(),
+  updateTeamArrays: jest.fn(),
   toast: { push: jest.fn() },
 });
 

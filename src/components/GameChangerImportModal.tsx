@@ -7,6 +7,8 @@ import {
   mergeGcEventsIntoPractices,
 } from "../utils/gcSync";
 import { A11yDialog } from "./shared";
+import type { Game, Practice } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Import / sync a team's schedule from its GameChanger .ics calendar feed.
 // Flow: paste the feed URL -> Preview (fetched through /api/gc-schedule, which
@@ -25,7 +27,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   team: any;
+  // Scalar config (the saved feed URL) persists via updateTeam; the merged
+  // games/practices arrays go through the concurrency-safe updateTeamArrays.
   updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: { push: (t: any) => void };
 }
 
@@ -34,6 +39,7 @@ export const GameChangerImportModal: React.FC<Props> = ({
   onClose,
   team,
   updateTeam,
+  updateTeamArrays,
   toast,
 }) => {
   const existingGames: any[] = useMemo(
@@ -80,31 +86,42 @@ export const GameChangerImportModal: React.FC<Props> = ({
   const doImport = () => {
     if (!candidates) return;
     const events = candidates.map((c) => c.event);
-    const {
-      games: nextGames,
-      added: gamesAdded,
-      updated: gamesUpdated,
-    } = mergeGcEventsIntoGames(existingGames, events, {
+    const defaults = {
       leagueRuleSet: team.leagueRuleSet,
       pitchingFormat: team.pitchingFormat,
       defenseSize: team.defenseSize,
       battingSize: team.battingSize,
       positionLock: team.positionLock,
-    });
+    };
+    // Dry-run the merges against the rendered snapshot for the toast counts;
+    // the actual write re-merges against the LATEST arrays via mapEntries so
+    // a concurrent edit isn't clobbered by a whole-array rewrite.
+    const { added: gamesAdded, updated: gamesUpdated } = mergeGcEventsIntoGames(
+      existingGames,
+      events,
+      defaults,
+    );
     const existingPractices: any[] = Array.isArray(team?.practices)
       ? team.practices
       : [];
-    const {
-      practices: nextPractices,
-      added: practicesAdded,
-      updated: practicesUpdated,
-    } = mergeGcEventsIntoPractices(existingPractices, events);
+    const { added: practicesAdded, updated: practicesUpdated } =
+      mergeGcEventsIntoPractices(existingPractices, events);
 
-    updateTeam({
-      games: nextGames,
-      practices: nextPractices,
-      gcCalendarUrl: url.trim(),
-    });
+    updateTeamArrays([
+      {
+        op: "mapEntries",
+        key: "games",
+        map: (items: Game[]) =>
+          mergeGcEventsIntoGames(items, events, defaults).games,
+      },
+      {
+        op: "mapEntries",
+        key: "practices",
+        map: (items: Practice[]) =>
+          mergeGcEventsIntoPractices(items, events).practices,
+      },
+    ]);
+    updateTeam({ gcCalendarUrl: url.trim() });
     const addedTotal = gamesAdded + practicesAdded;
     const updatedTotal = gamesUpdated + practicesUpdated;
     toast.push({

@@ -15,9 +15,12 @@
 // updateDoc/arrayUnion queue in the SDK's offline buffer — matching this
 // offline-first PWA (same pattern as the anonymous portal appends).
 //
-// This module is Firebase-free and pure. The provider injects the SDK
-// sentinels (arrayUnion/arrayRemove/deleteField) via FinanceFieldOps so the
-// payload shapes are unit-testable without an emulator.
+// The array ops delegate to the generic core in src/utils/teamArrayUpdates.ts
+// (the same machinery, generalized to the top-level team arrays) with the
+// "finances." dotted-path prefix; the finance-only `set` op and the
+// merge-vs-delete repair live here. This module is Firebase-free and pure —
+// the provider injects the SDK sentinels via FinanceFieldOps so the payload
+// shapes are unit-testable without an emulator.
 
 import type {
   BudgetItem,
@@ -27,6 +30,12 @@ import type {
   SponsorshipEntry,
   TeamFinances,
 } from "../types";
+import {
+  applyArrayOp,
+  buildArrayOpPayload,
+  type ArrayFieldOps,
+  type ArrayOp,
+} from "./teamArrayUpdates";
 
 // key → element type of that finances array, so ops are fully typed at the
 // call site (a budgetItems map sees BudgetItem, not a generic bag).
@@ -75,15 +84,18 @@ export type FinanceUpdate =
     }[FinanceArrayKey]
   | { op: "set"; fields: FinanceSetFields };
 
-type AnyEntry = { id: string } & Record<string, unknown>;
+// The Firestore mutation sentinels, injected by the provider so this module
+// stays SDK-free. Extends the generic bag with the deleteField the `set` op
+// needs (null clears a scalar).
+export interface FinanceFieldOps extends ArrayFieldOps {
+  deleteField: () => unknown;
+}
 
-const entriesOf = (
-  finances: TeamFinances | null | undefined,
-  key: FinanceArrayKey,
-): AnyEntry[] =>
-  ((finances as Record<string, unknown> | null | undefined)?.[key] as
-    | AnyEntry[]
-    | undefined) || [];
+// Finance appends carry a single entry; the generic core takes a list.
+const toArrayOp = (update: Exclude<FinanceUpdate, { op: "set" }>): ArrayOp =>
+  (update.op === "append"
+    ? { op: "append", key: update.key, entries: [update.entry] }
+    : update) as unknown as ArrayOp;
 
 // Apply an update to an in-memory finances object — drives the optimistic
 // local state and mirrors exactly what the server-side payload does.
@@ -91,24 +103,7 @@ export const applyFinanceUpdate = (
   finances: TeamFinances,
   update: FinanceUpdate,
 ): TeamFinances => {
-  if (update.op === "append") {
-    return {
-      ...finances,
-      [update.key]: [...entriesOf(finances, update.key), update.entry],
-    };
-  }
-  if (update.op === "removeById") {
-    return {
-      ...finances,
-      [update.key]: entriesOf(finances, update.key).filter(
-        (x) => x?.id !== update.id,
-      ),
-    };
-  }
-  if (update.op === "mapEntries") {
-    const map = update.map as unknown as (items: AnyEntry[]) => AnyEntry[];
-    return { ...finances, [update.key]: map(entriesOf(finances, update.key)) };
-  }
+  if (update.op !== "set") return applyArrayOp(finances, toArrayOp(update));
   const next: Record<string, unknown> = { ...finances };
   for (const [k, v] of Object.entries(update.fields)) {
     if (v === null) delete next[k];
@@ -116,15 +111,6 @@ export const applyFinanceUpdate = (
   }
   return next as TeamFinances;
 };
-
-// The Firestore mutation sentinels, injected by the provider so this module
-// stays SDK-free. `scrub` removes undefined values (Firestore rejects them).
-export interface FinanceFieldOps {
-  arrayUnion: (value: unknown) => unknown;
-  arrayRemove: (value: unknown) => unknown;
-  deleteField: () => unknown;
-  scrub: (value: unknown) => unknown;
-}
 
 // Build the narrow updateDoc payload for an update, resolved against the
 // LATEST committed finances (`prev`). Returns null when the write is a
@@ -136,27 +122,8 @@ export const buildFinancePayload = (
   update: FinanceUpdate,
   ops: FinanceFieldOps,
 ): Record<string, unknown> | null => {
-  if (update.op === "append") {
-    return {
-      [`finances.${update.key}`]: ops.arrayUnion(ops.scrub(update.entry)),
-    };
-  }
-  if (update.op === "removeById") {
-    // arrayRemove needs the exact stored entry; resolve by id against the
-    // latest snapshot state. If a concurrent edit changed the entry the
-    // remove matches nothing and the next snapshot resurrects the row —
-    // conservative for a genuine edit/delete race.
-    const existing = entriesOf(prev, update.key).find(
-      (x) => x?.id === update.id,
-    );
-    if (!existing) return null;
-    return { [`finances.${update.key}`]: ops.arrayRemove(existing) };
-  }
-  if (update.op === "mapEntries") {
-    const map = update.map as unknown as (items: AnyEntry[]) => AnyEntry[];
-    return {
-      [`finances.${update.key}`]: ops.scrub(map(entriesOf(prev, update.key))),
-    };
+  if (update.op !== "set") {
+    return buildArrayOpPayload(prev, toArrayOp(update), "finances.", ops);
   }
   const payload: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(update.fields)) {

@@ -1,69 +1,79 @@
 import { useCallback } from "react";
 import { blankStats, genId } from "../utils/helpers";
-import type { ConfirmContextValue } from "../types";
+import type { ConfirmContextValue, Player } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Past-season entry CRUD extracted from App.tsx's TeamProvider. Pure
-// persistence over the per-player `pastSeasons` array (add/update/remove/bulk),
-// no engine or UI coupling — mirrors useGameCrud / usePlayerCrud.
+// persistence over the per-player `pastSeasons` array (add/update/remove/bulk)
+// via the injected updateTeamArrays, no engine or UI coupling — mirrors
+// useGameCrud / usePlayerCrud. New entries (and their ids) are built OUTSIDE
+// the mapEntries maps: maps must be deterministic because the provider may
+// re-run them against fresher state.
 interface UsePastSeasonCrudArgs {
-  teamData: any;
-  updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   confirm: ConfirmContextValue["confirm"];
 }
 
 export const usePastSeasonCrud = ({
-  teamData,
-  updateTeam,
+  updateTeamArrays,
   confirm,
 }: UsePastSeasonCrudArgs) => {
   // Add a past-season entry to a single player.
   const addPastSeason = useCallback(
     (playerId: any, entry: any) => {
-      const next = teamData.players.map((p: any) => {
-        if (p.id !== playerId) return p;
-        const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
-        const newEntry = {
-          id: genId("ps"),
-          season: entry.season || "",
-          ageGroup: entry.ageGroup || "",
-          pitchingFormat: entry.pitchingFormat || "Kid Pitch",
-          record: entry.record || {
-            wins: 0,
-            losses: 0,
-            ties: 0,
-            runsScored: 0,
-            runsAllowed: 0,
-          },
-          stats: { ...blankStats(), ...(entry.stats || {}) },
-        };
-        past.push(newEntry);
-        return { ...p, pastSeasons: past };
+      const newEntry = {
+        id: genId("ps"),
+        season: entry.season || "",
+        ageGroup: entry.ageGroup || "",
+        pitchingFormat: entry.pitchingFormat || "Kid Pitch",
+        record: entry.record || {
+          wins: 0,
+          losses: 0,
+          ties: 0,
+          runsScored: 0,
+          runsAllowed: 0,
+        },
+        stats: { ...blankStats(), ...(entry.stats || {}) },
+      };
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => {
+            if (p.id !== playerId) return p;
+            const past = Array.isArray(p.pastSeasons) ? [...p.pastSeasons] : [];
+            past.push(newEntry);
+            return { ...p, pastSeasons: past };
+          }),
       });
-      updateTeam({ players: next });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   const updatePastSeason = useCallback(
     (playerId: any, entryId: any, patch: any) => {
-      const next = teamData.players.map((p: any) => {
-        if (p.id !== playerId) return p;
-        const past = (p.pastSeasons || []).map((e: any) => {
-          if (e.id !== entryId) return e;
-          // Stats merge field-by-field; everything else replaces
-          return {
-            ...e,
-            ...patch,
-            stats: patch.stats
-              ? { ...(e.stats || blankStats()), ...patch.stats }
-              : e.stats,
-          };
-        });
-        return { ...p, pastSeasons: past };
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => {
+            if (p.id !== playerId) return p;
+            const past = (p.pastSeasons || []).map((e: any) => {
+              if (e.id !== entryId) return e;
+              // Stats merge field-by-field; everything else replaces
+              return {
+                ...e,
+                ...patch,
+                stats: patch.stats
+                  ? { ...(e.stats || blankStats()), ...patch.stats }
+                  : e.stats,
+              };
+            });
+            return { ...p, pastSeasons: past };
+          }),
       });
-      updateTeam({ players: next });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   const removePastSeason = useCallback(
@@ -75,18 +85,22 @@ export const usePastSeasonCrud = ({
         danger: true,
       });
       if (!ok) return;
-      const next = teamData.players.map((p: any) => {
-        if (p.id !== playerId) return p;
-        return {
-          ...p,
-          pastSeasons: (p.pastSeasons || []).filter(
-            (e: any) => e.id !== entryId,
-          ),
-        };
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => {
+            if (p.id !== playerId) return p;
+            return {
+              ...p,
+              pastSeasons: (p.pastSeasons || []).filter(
+                (e: any) => e.id !== entryId,
+              ),
+            };
+          }),
       });
-      updateTeam({ players: next });
     },
-    [teamData.players, updateTeam, confirm],
+    [updateTeamArrays, confirm],
   );
 
   // Bulk add past-season entries from a CSV import. `assignments` is an array of
@@ -115,14 +129,18 @@ export const usePastSeasonCrud = ({
         });
         byPlayer.set(a.playerId, list);
       }
-      const next = teamData.players.map((p: any) => {
-        const adds = byPlayer.get(p.id);
-        if (!adds) return p;
-        return { ...p, pastSeasons: [...(p.pastSeasons || []), ...adds] };
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => {
+            const adds = byPlayer.get(p.id);
+            if (!adds) return p;
+            return { ...p, pastSeasons: [...(p.pastSeasons || []), ...adds] };
+          }),
       });
-      updateTeam({ players: next });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   return {

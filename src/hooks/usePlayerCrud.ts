@@ -1,20 +1,29 @@
 import { useCallback } from "react";
 import { blankStats, genId } from "../utils/helpers";
-import type { ConfirmContextValue, ToastContextValue } from "../types";
+import type {
+  ConfirmContextValue,
+  EvaluationEvent,
+  Game,
+  Player,
+  ToastContextValue,
+} from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Roster/player CRUD extracted from App.tsx's TeamProvider. Pure persistence
-// (add/update/remove a player) with no engine or UI-bridge coupling — reads
-// teamData and writes through the injected updateTeam, mirroring useGameCrud.
+// (add/update/remove a player) with no engine or UI-bridge coupling — writes
+// through the injected updateTeamArrays (narrow per-op Firestore writes so
+// concurrent edits by two coaches can't clobber each other), mirroring
+// useGameCrud.
 interface UsePlayerCrudArgs {
   teamData: any;
-  updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
 
 export const usePlayerCrud = ({
   teamData,
-  updateTeam,
+  updateTeamArrays,
   toast,
   confirm,
 }: UsePlayerCrudArgs) => {
@@ -39,30 +48,38 @@ export const usePlayerCrud = ({
         // Scheduled-absence dates (ISO yyyy-mm-dd), managed on the profile.
         absences: [],
       };
-      updateTeam({ players: [...teamData.players, newPlayer] });
+      updateTeamArrays({ op: "append", key: "players", entries: [newPlayer] });
       return id;
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   const updatePlayer = useCallback(
     (id: any, updates: any) => {
-      const next = teamData.players.map((p: any) =>
-        p.id === id ? { ...p, ...updates } : p,
-      );
-      updateTeam({ players: next });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+      });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   const updatePlayerNested = useCallback(
     (id: any, key: any, updates: any) => {
-      const next = teamData.players.map((p: any) =>
-        p.id === id ? { ...p, [key]: { ...(p[key] || {}), ...updates } } : p,
-      );
-      updateTeam({ players: next });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) =>
+            p.id === id
+              ? { ...p, [key]: { ...((p as any)[key] || {}), ...updates } }
+              : p,
+          ),
+      });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   const removePlayer = useCallback(
@@ -129,11 +146,21 @@ export const usePlayerCrud = ({
         return { ...ev, grades: rest };
       };
 
-      updateTeam({
-        players: prevPlayers.filter((p: any) => p.id !== id),
-        games: prevGames.map(stripFromGame),
-        evaluationEvents: prevEvents.map(stripFromEvent),
-      });
+      // One op list → one merged updateDoc, so the roster row and every
+      // reference to it disappear atomically.
+      updateTeamArrays([
+        { op: "removeById", key: "players", id },
+        {
+          op: "mapEntries",
+          key: "games",
+          map: (items: Game[]) => items.map(stripFromGame),
+        },
+        {
+          op: "mapEntries",
+          key: "evaluationEvents",
+          map: (items: EvaluationEvent[]) => items.map(stripFromEvent),
+        },
+      ]);
 
       toast.push({
         kind: "success",
@@ -144,12 +171,27 @@ export const usePlayerCrud = ({
         duration: 10000,
         action: {
           label: "Undo",
+          // Undo deliberately restores the captured snapshots wholesale —
+          // reverting to the pre-delete state IS its semantics, so the
+          // residual last-write-wins here is the intended outcome.
           onClick: () =>
-            updateTeam({
-              players: prevPlayers,
-              games: prevGames,
-              evaluationEvents: prevEvents,
-            }),
+            updateTeamArrays([
+              {
+                op: "mapEntries",
+                key: "players",
+                map: () => prevPlayers as Player[],
+              },
+              {
+                op: "mapEntries",
+                key: "games",
+                map: () => prevGames as Game[],
+              },
+              {
+                op: "mapEntries",
+                key: "evaluationEvents",
+                map: () => prevEvents as EvaluationEvent[],
+              },
+            ]),
         },
       } as any);
     },
@@ -157,7 +199,7 @@ export const usePlayerCrud = ({
       teamData.players,
       teamData.games,
       teamData.evaluationEvents,
-      updateTeam,
+      updateTeamArrays,
       toast,
       confirm,
     ],

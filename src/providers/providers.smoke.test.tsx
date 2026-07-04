@@ -64,6 +64,7 @@ const Probe = () => {
     !!team &&
     !!ui &&
     typeof toast.push === "function" &&
+    typeof team.updateTeamArrays === "function" &&
     typeof ui.setActiveTab === "function";
   return <div>providers:{ok ? "ok" : "missing"}</div>;
 };

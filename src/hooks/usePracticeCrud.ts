@@ -4,17 +4,22 @@ import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
 import type {
   ConfirmContextValue,
   DrillDefinition,
+  Practice,
   ToastContextValue,
 } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
-// Practice CRUD, mirroring useGameCrud's shape. Pure persistence (add / update /
-// delete a practice + save its attendance) writing through the injected
-// updateTeam. No coupling to the lineup engine.
+// Practice CRUD, mirroring useGameCrud's shape. Practice writes go through the
+// injected updateTeamArrays (narrow per-op Firestore writes so concurrent
+// edits by two coaches can't clobber each other); the drill library — team
+// config, not one of the concurrency-safe arrays — stays on updateTeam. No
+// coupling to the lineup engine.
 interface UsePracticeCrudArgs {
   // teamData carries more fields at runtime than the strict Team interface
   // models; typed permissively to mirror the App.tsx provider.
   teamData: any;
   updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
@@ -29,6 +34,7 @@ const libraryOf = (data: any): DrillDefinition[] =>
 export const usePracticeCrud = ({
   teamData,
   updateTeam,
+  updateTeamArrays,
   toast,
   confirm,
 }: UsePracticeCrudArgs) => {
@@ -43,7 +49,7 @@ export const usePracticeCrud = ({
         });
         return;
       }
-      const newPractice = {
+      const newPractice: Practice = {
         id: genId("p"),
         date: iso,
         startUtc: form?.startUtc ?? null,
@@ -56,9 +62,13 @@ export const usePracticeCrud = ({
         source: "manual",
         status: "scheduled",
       };
-      updateTeam({ practices: [...(teamData.practices || []), newPractice] });
+      updateTeamArrays({
+        op: "append",
+        key: "practices",
+        entries: [newPractice],
+      });
     },
-    [teamData.practices, updateTeam, toast],
+    [updateTeamArrays, toast],
   );
 
   const updatePractice = useCallback(
@@ -76,12 +86,15 @@ export const usePracticeCrud = ({
         }
       }
       if (!safePatch || Object.keys(safePatch).length === 0) return;
-      const next = (teamData.practices || []).map((p: any) =>
-        p.id === id ? { ...p, ...safePatch } : p,
-      );
-      updateTeam({ practices: next });
+      const finalPatch = safePatch;
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "practices",
+        map: (items: Practice[]) =>
+          items.map((p) => (p.id === id ? { ...p, ...finalPatch } : p)),
+      });
     },
-    [teamData.practices, updateTeam],
+    [updateTeamArrays],
   );
 
   const removePractice = useCallback(
@@ -95,7 +108,7 @@ export const usePracticeCrud = ({
       });
       if (!ok) return;
       const prev = teamData.practices || [];
-      updateTeam({ practices: prev.filter((p: any) => p.id !== id) });
+      updateTeamArrays({ op: "removeById", key: "practices", id });
       toast.push({
         kind: "success",
         title: "Practice deleted",
@@ -103,21 +116,32 @@ export const usePracticeCrud = ({
         duration: 10000,
         action: {
           label: "Undo",
-          onClick: () => updateTeam({ practices: prev }),
+          // Undo deliberately restores the captured snapshot wholesale —
+          // reverting to the pre-delete state IS its semantics.
+          onClick: () =>
+            updateTeamArrays({
+              op: "mapEntries",
+              key: "practices",
+              map: () => prev as Practice[],
+            }),
         },
       } as any);
     },
-    [teamData.practices, updateTeam, toast, confirm],
+    [teamData.practices, updateTeamArrays, toast, confirm],
   );
 
   const savePracticeAttendance = useCallback(
     (id: any, attendanceMap: Record<string, any>) => {
-      const next = (teamData.practices || []).map((p: any) =>
-        p.id === id ? { ...p, attendance: { ...attendanceMap } } : p,
-      );
-      updateTeam({ practices: next });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "practices",
+        map: (items: Practice[]) =>
+          items.map((p) =>
+            p.id === id ? { ...p, attendance: { ...attendanceMap } } : p,
+          ),
+      });
     },
-    [teamData.practices, updateTeam],
+    [updateTeamArrays],
   );
 
   // ----- Drill library (reusable, team-level) -----

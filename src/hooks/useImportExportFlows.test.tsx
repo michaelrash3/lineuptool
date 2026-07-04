@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { csvEscape, useImportExportFlows } from "./useImportExportFlows";
-import { makeToast } from "../test-utils";
+import { applyTeamOps, makeToast } from "../test-utils";
 
 describe("csvEscape", () => {
   it("passes through plain values untouched", () => {
@@ -22,7 +22,7 @@ describe("csvEscape", () => {
 });
 
 const setupScheduleImport = () => {
-  const updateTeam = jest.fn();
+  const updateTeamArrays = jest.fn();
   const toast = makeToast();
   const teamData = {
     games: [],
@@ -35,7 +35,7 @@ const setupScheduleImport = () => {
   const { result } = renderHook(() =>
     useImportExportFlows({
       teamData,
-      updateTeam,
+      updateTeamArrays,
       activeTeamId: "t1",
       toast,
     } as any),
@@ -46,12 +46,12 @@ const setupScheduleImport = () => {
       target: { files: [file], value: "" },
     } as any);
   };
-  return { run, updateTeam, toast };
+  return { run, teamData, updateTeamArrays, toast };
 };
 
 describe("uploadScheduleCsv", () => {
-  it("imports valid rows and surfaces rows with an unrecognized date", async () => {
-    const { run, updateTeam, toast } = setupScheduleImport();
+  it("imports valid rows (as ONE bulk append) and surfaces rows with an unrecognized date", async () => {
+    const { run, teamData, updateTeamArrays, toast } = setupScheduleImport();
     run(
       "Date,Opponent\n" +
         "2026-05-01,Rays\n" +
@@ -60,8 +60,10 @@ describe("uploadScheduleCsv", () => {
         ",NoDateRow\n" + // blank date -> ignored silently
         "\n", // trailing blank line -> ignored
     );
-    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
-    const games = updateTeam.mock.calls[0][0].games;
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "append", key: "games" });
+    const games = applyTeamOps(teamData, op).games;
     expect(games).toHaveLength(2);
     expect(games.map((g: any) => g.opponent)).toEqual(["Rays", "Cubs"]);
     expect(toast.push).toHaveBeenCalledWith(
@@ -74,16 +76,16 @@ describe("uploadScheduleCsv", () => {
   });
 
   it("omits the skipped message when every dated row parses", async () => {
-    const { run, updateTeam, toast } = setupScheduleImport();
+    const { run, updateTeamArrays, toast } = setupScheduleImport();
     run("Date,Opponent\n2026-05-01,Rays\n");
-    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Imported 1 game", message: undefined }),
     );
   });
 
   it("errors when no date column is present", async () => {
-    const { run, updateTeam, toast } = setupScheduleImport();
+    const { run, updateTeamArrays, toast } = setupScheduleImport();
     run("Team,Opponent\nUs,Them\n");
     await waitFor(() =>
       expect(toast.push).toHaveBeenCalledWith(
@@ -93,13 +95,13 @@ describe("uploadScheduleCsv", () => {
         }),
       ),
     );
-    expect(updateTeam).not.toHaveBeenCalled();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 });
 
 describe("uploadGameStatsCsv (per-game import)", () => {
   const setup = (gameOverrides: any = {}, teamOverrides: any = {}) => {
-    const updateTeam = jest.fn();
+    const updateTeamArrays = jest.fn();
     const toast = makeToast();
     const teamData = {
       games: [
@@ -115,7 +117,7 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     const { result } = renderHook(() =>
       useImportExportFlows({
         teamData,
-        updateTeam,
+        updateTeamArrays,
         activeTeamId: "t1",
         toast,
       } as any),
@@ -126,7 +128,10 @@ describe("uploadGameStatsCsv (per-game import)", () => {
         target: { files: [file], value: "" },
       } as any);
     };
-    return { run, updateTeam, toast };
+    // The write is one atomic list: games + players mapEntries.
+    const applied = () =>
+      applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    return { run, updateTeamArrays, toast, applied };
   };
 
   const csv =
@@ -135,10 +140,15 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     "Nobody,Known,4,1,.250,0,0,0,0\n";
 
   it("attaches matched lines to the game and re-derives season stats", async () => {
-    const { run, updateTeam } = setup();
+    const { run, updateTeamArrays, applied } = setup();
     run(csv);
-    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
-    const patch = updateTeam.mock.calls[0][0];
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+      ["mapEntries", "games"],
+      ["mapEntries", "players"],
+    ]);
+    const patch = applied();
     const g1 = patch.games.find((g: any) => g.id === "g1");
     expect(g1.playerStats.p1).toMatchObject({ ab: 3, h: 2, hr: 1, ip: 2 });
     expect(g1.statsImportedAt).toBeTruthy();
@@ -151,19 +161,19 @@ describe("uploadGameStatsCsv (per-game import)", () => {
   });
 
   it("strips pitching for a Machine Pitch game", async () => {
-    const { run, updateTeam } = setup({ pitchingFormat: "Machine Pitch" });
+    const { run, updateTeamArrays, applied } = setup({
+      pitchingFormat: "Machine Pitch",
+    });
     run(csv);
-    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
-    const g1 = updateTeam.mock.calls[0][0].games.find(
-      (g: any) => g.id === "g1",
-    );
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const g1 = applied().games.find((g: any) => g.id === "g1");
     expect(g1.playerStats.p1.ab).toBe(3);
     expect(g1.playerStats.p1.ip).toBeUndefined();
     expect(g1.playerStats.p1.era).toBeUndefined();
   });
 
   it("logs pitching (#P) and catching (fielding C) outings from the box score", async () => {
-    const { run, updateTeam } = setup();
+    const { run, updateTeamArrays, applied } = setup();
     // Two-row GameChanger header: #P in Pitching, C (innings caught) + Total in
     // Fielding. Sammy pitched 42; Frank caught 6.
     const gc =
@@ -172,8 +182,8 @@ describe("uploadGameStatsCsv (per-game import)", () => {
       "Sammy,Sosa,3,2,.667,42,2,0,7,.950\n" +
       "Frank,Thomas,2,1,.500,0,0,6,6,1.000\n";
     run(gc);
-    await waitFor(() => expect(updateTeam).toHaveBeenCalled());
-    const patch = updateTeam.mock.calls[0][0];
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const patch = applied();
     const p1 = patch.players.find((p: any) => p.id === "p1");
     const p2 = patch.players.find((p: any) => p.id === "p2");
     // Pitcher's arm-care log gets the outing, keyed by game id.
@@ -190,14 +200,14 @@ describe("uploadGameStatsCsv (per-game import)", () => {
   });
 
   it("errors clearly when no CSV row matches the roster", async () => {
-    const { run, updateTeam, toast } = setup();
+    const { run, updateTeamArrays, toast } = setup();
     run("First,Last,AB,H\nNo,Match,3,1\n");
     await waitFor(() =>
       expect(toast.push).toHaveBeenCalledWith(
         expect.objectContaining({ kind: "error" }),
       ),
     );
-    expect(updateTeam).not.toHaveBeenCalled();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 });
 
