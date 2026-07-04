@@ -46,6 +46,7 @@ import {
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
 import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
+import { downloadTreasurerReportPdf } from "../finances/treasurerReportPdf";
 import type { BudgetItem, Player, Team, TeamFinances } from "../types";
 import type { FinanceSetFields } from "../utils/financeUpdates";
 
@@ -1491,7 +1492,22 @@ export const FinancesTab = memo(() => {
                 </Button>
               </form>
               {ledger.length > 0 && (
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-4">
+                  <button
+                    type="button"
+                    aria-label="Download treasurer report PDF"
+                    onClick={() =>
+                      void downloadTreasurerReportPdf({
+                        team,
+                        finances,
+                        players,
+                        toast,
+                      })
+                    }
+                    className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+                  >
+                    Treasurer report
+                  </button>
                   <button
                     type="button"
                     aria-label="Export ledger CSV"
