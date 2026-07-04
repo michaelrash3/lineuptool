@@ -421,7 +421,12 @@ const SectionCard = ({
 );
 
 export const StatsTab = memo(() => {
-  const { team: teamRaw, currentRole, uploadStatsCsv, updateTeam } = useTeam();
+  const {
+    team: teamRaw,
+    currentRole,
+    uploadStatsCsv,
+    updateTeamArrays,
+  } = useTeam();
   const { confirm } = useConfirm();
   const { openPlayerProfile } = useUI();
   const canEdit = currentRole !== "assistant";
@@ -581,22 +586,35 @@ export const StatsTab = memo(() => {
       danger: true,
     });
     if (!ok) return;
-    const clearedPlayers = (team.players || []).map((p: Player) => ({
-      ...p,
-      stats: undefined,
-      statsHistory: undefined,
-    }));
-    const clearedGames = (team.games || []).map((g: Game) => {
-      if (!g.playerStats) return g;
-      const {
-        playerStats: _removed,
-        statsImportedAt: _ts,
-        ...rest
-      } = g as Game & { statsImportedAt?: string };
-      return rest;
-    });
-    updateTeam({ players: clearedPlayers, games: clearedGames });
-  }, [confirm, team, updateTeam]);
+    // One op list → one merged updateDoc; both maps re-run against the LATEST
+    // arrays so a stat wipe can't resurrect a concurrently-edited roster row.
+    updateTeamArrays([
+      {
+        op: "mapEntries",
+        key: "players",
+        map: (items) =>
+          items.map((p) => ({
+            ...p,
+            stats: undefined,
+            statsHistory: undefined,
+          })),
+      },
+      {
+        op: "mapEntries",
+        key: "games",
+        map: (items) =>
+          items.map((g) => {
+            if (!g.playerStats) return g;
+            const {
+              playerStats: _removed,
+              statsImportedAt: _ts,
+              ...rest
+            } = g as Game & { statsImportedAt?: string };
+            return rest;
+          }),
+      },
+    ]);
+  }, [confirm, updateTeamArrays]);
 
   // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
   const armAlerts = useMemo(() => {

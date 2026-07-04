@@ -111,7 +111,9 @@ export interface Player {
   pitching?: {
     log?: Array<{ date?: string; pitches?: number }>;
     recentPitches?: number;
-    lastPitchDate?: string;
+    // null (not just absent) is the stored "hasn't pitched" state — addPlayer
+    // writes it as null explicitly.
+    lastPitchDate?: string | null;
     topMph?: number;
   };
   // ISO yyyy-mm-dd dates the family already knows the kid is unavailable
@@ -171,8 +173,10 @@ export interface Game {
   time?: string;
   opponent?: string;
   status?: GameStatus;
-  lineup?: Inning[];
-  battingLineup?: SlimPlayer[];
+  // null (not just absent) is the stored "no lineup yet" state — addGame
+  // writes both as null explicitly.
+  lineup?: Inning[] | null;
+  battingLineup?: SlimPlayer[] | null;
   originalLineup?: Inning[];
   // Durable in-game manual position picks (field position → playerId). When the
   // coach moves a player to a spot during a game, that choice is remembered and
@@ -758,6 +762,14 @@ export interface TeamContextValue {
   // instead of whole-object merges) — see src/utils/financeUpdates.ts.
   updateFinances: (
     update: import("./utils/financeUpdates").FinanceUpdate,
+  ) => void;
+  // Concurrency-safe mutations for the top-level team arrays (players /
+  // games / evaluationEvents / practices) — see src/utils/teamArrayUpdates.ts.
+  // A list of ops becomes one merged updateDoc (atomic multi-array cascade).
+  updateTeamArrays: (
+    input:
+      | import("./utils/teamArrayUpdates").TeamArrayUpdate
+      | import("./utils/teamArrayUpdates").TeamArrayUpdate[],
   ) => void;
   switchTeam: (id: string) => void | Promise<void>;
   createTeam: (

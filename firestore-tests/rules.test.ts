@@ -280,6 +280,74 @@ describe("finances head-gate", () => {
   });
 });
 
+// The concurrency-safe team-array writes (updateTeamArrays) use bare-key
+// dotted updateDoc paths — players/games/evaluationEvents/practices are
+// deliberately member-writable, so these payload shapes must pass the base
+// member-update rule for any member and stay closed to outsiders.
+describe("team-array granular writes (updateTeamArrays shapes)", () => {
+  it("lets an assistant append a player via arrayUnion", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: arrayUnion({ id: "p-new", name: "Cai" }),
+      }),
+    );
+  });
+
+  it("lets an assistant append an eval round via arrayUnion (live-eval submit)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        evaluationEvents: arrayUnion({
+          id: "ev-1",
+          date: "2026-07-01",
+          coachRole: "Assistant",
+          evaluatorId: ASSISTANT,
+          grades: {},
+        }),
+      }),
+    );
+  });
+
+  it("lets an assistant remove a game via arrayRemove and rewrite games", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        games: arrayRemove({ id: "g-gone" }),
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        practices: [{ id: "pr-1", date: "2026-07-02" }],
+      }),
+    );
+  });
+
+  it("lets a member merge a multi-array cascade in one updateDoc (remove-player shape)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        players: arrayRemove({ id: "p1" }),
+        games: [],
+        evaluationEvents: [],
+      }),
+    );
+  });
+
+  it("denies an outsider the same append", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        players: arrayUnion({ id: "p-evil", name: "Nope" }),
+      }),
+    );
+  });
+
+  it("still denies an assistant smuggling finances into an array write", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: arrayUnion({ id: "p-new", name: "Cai" }),
+        "finances.payments": arrayUnion({ id: "pay-x", amount: 1 }),
+      }),
+    );
+  });
+});
+
 // Prerequisites for the finances gate: without these, a member self-promotes
 // to 'head' and sails through it.
 describe("coachRoles escalation", () => {

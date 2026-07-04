@@ -1078,7 +1078,8 @@ export function mostRecentDayPitches(
     | {
         log?: Array<{ date?: string; pitches?: number }>;
         recentPitches?: number;
-        lastPitchDate?: string;
+        // null is the stored "hasn't pitched" state (see Player.pitching).
+        lastPitchDate?: string | null;
       }
     | null
     | undefined,

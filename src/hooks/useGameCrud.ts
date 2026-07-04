@@ -1,26 +1,28 @@
 import { useCallback } from "react";
 import { normalizeDateToIso, genId } from "../utils/helpers";
 import { celebrateWin } from "../utils/celebrate";
-import type { ConfirmContextValue, ToastContextValue } from "../types";
+import type { ConfirmContextValue, Game, ToastContextValue } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
 // persistence (add/update/postpone/finalize/delete a game) with no coupling to
-// the lineup-generation engine or the UI bridge — it only reads teamData and
-// writes through the injected updateTeam. Lineup generation, templates, and
-// in-game player removal stay in App.tsx because they reach into the engine and
-// UI refs.
+// the lineup-generation engine or the UI bridge — it writes through the
+// injected updateTeamArrays (narrow per-op Firestore writes so concurrent
+// edits by two coaches can't clobber each other). Lineup generation,
+// templates, and in-game player removal stay in App.tsx because they reach
+// into the engine and UI refs.
 interface UseGameCrudArgs {
   // teamData carries more fields at runtime than the strict Team interface
   // models; typed permissively to mirror the App.tsx provider.
   teamData: any;
-  updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
 
 export const useGameCrud = ({
   teamData,
-  updateTeam,
+  updateTeamArrays,
   toast,
   confirm,
 }: UseGameCrudArgs) => {
@@ -34,7 +36,7 @@ export const useGameCrud = ({
         });
         return;
       }
-      const newGame = {
+      const newGame: Game = {
         id: genId("g"),
         date: form.date,
         opponent: form.opponent.trim(),
@@ -54,9 +56,9 @@ export const useGameCrud = ({
         teamScore: null,
         opponentScore: null,
       };
-      updateTeam({ games: [...teamData.games, newGame] });
+      updateTeamArrays({ op: "append", key: "games", entries: [newGame] });
     },
-    [teamData, updateTeam, toast],
+    [teamData, updateTeamArrays, toast],
   );
 
   const updateGame = useCallback(
@@ -77,12 +79,18 @@ export const useGameCrud = ({
         }
       }
       if (Object.keys(safeUpdates).length === 0) return;
-      const next = teamData.games.map((g: any) =>
-        g.id === gameId ? { ...g, ...safeUpdates } : g,
-      );
-      updateTeam({ games: next });
+      // mapEntries runs against the LATEST committed games, so a lineup save
+      // racing another coach's edit only clobbers this one array — and two
+      // edits to different games interleave cleanly on the next snapshot.
+      const patch = safeUpdates;
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "games",
+        map: (items: Game[]) =>
+          items.map((g) => (g.id === gameId ? { ...g, ...patch } : g)),
+      });
     },
-    [teamData.games, updateTeam],
+    [updateTeamArrays],
   );
 
   // Pitching and catching arm-care logs are committed at stats-import time now
@@ -95,19 +103,23 @@ export const useGameCrud = ({
     (gameId: any) => {
       const game = teamData.games.find((g: any) => g.id === gameId);
       if (!game) return;
-      const nextGames = teamData.games.map((g: any) =>
-        g.id === gameId
-          ? {
-              ...g,
-              status: "postponed",
-              teamScore: null,
-              opponentScore: null,
-            }
-          : g,
-      );
-      updateTeam({ games: nextGames });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "games",
+        map: (items: Game[]) =>
+          items.map((g) =>
+            g.id === gameId
+              ? {
+                  ...g,
+                  status: "postponed",
+                  teamScore: null,
+                  opponentScore: null,
+                }
+              : g,
+          ),
+      });
     },
-    [teamData.games, updateTeam],
+    [teamData.games, updateTeamArrays],
   );
 
   // Finalize a game: set score, mark final, and trim/restore the lineup to
@@ -186,7 +198,7 @@ export const useGameCrud = ({
       if (!ok) return;
       const prevGames = teamData.games;
       const removed = prevGames.find((g: any) => g.id === gameId);
-      updateTeam({ games: prevGames.filter((g: any) => g.id !== gameId) });
+      updateTeamArrays({ op: "removeById", key: "games", id: gameId });
       toast.push({
         kind: "success",
         title: "Game deleted",
@@ -196,11 +208,18 @@ export const useGameCrud = ({
         duration: 10000,
         action: {
           label: "Undo",
-          onClick: () => updateTeam({ games: prevGames }),
+          // Undo deliberately restores the captured snapshot wholesale —
+          // reverting to the pre-delete state IS its semantics.
+          onClick: () =>
+            updateTeamArrays({
+              op: "mapEntries",
+              key: "games",
+              map: () => prevGames as Game[],
+            }),
         },
       } as any);
     },
-    [teamData.games, updateTeam, toast, confirm],
+    [teamData.games, updateTeamArrays, toast, confirm],
   );
 
   return { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame };

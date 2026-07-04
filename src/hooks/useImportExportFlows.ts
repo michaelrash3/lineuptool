@@ -15,7 +15,8 @@ import {
 } from "../utils/helpers";
 import { sanitizeBackup } from "../utils/backupSanitizer";
 import { getLocalDateString } from "../constants/ui";
-import type { ConfirmContextValue, ToastContextValue } from "../types";
+import type { ConfirmContextValue, Player, ToastContextValue } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 export const csvEscape = (val: unknown): string => {
   if (val == null) return "";
@@ -29,10 +30,14 @@ export const csvEscape = (val: unknown): string => {
 // and meant to tighten as the data model is fully modeled in TS.
 interface UseImportExportFlowsArgs {
   teamData: any;
+  // Multi-key writes that mix arrays with scalars (season-CSV import, backup
+  // restore) stay on updateTeam; pure array writes go through the
+  // concurrency-safe updateTeamArrays.
   updateTeam: (
     patch: Record<string, unknown>,
     opts?: { allowEmptyPlayers?: boolean },
   ) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   activeTeamId: string | null;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
@@ -44,6 +49,7 @@ const fileText = (ev: ProgressEvent<FileReader>): string =>
 export const useImportExportFlows = ({
   teamData,
   updateTeam,
+  updateTeamArrays,
   activeTeamId,
   toast,
   confirm,
@@ -97,7 +103,11 @@ export const useImportExportFlows = ({
               opponentScore: null,
             });
           }
-          updateTeam({ games: [...teamData.games, ...newGames] });
+          // Bulk append → one variadic arrayUnion, so a big CSV import can't
+          // erase games another coach adds at the same time.
+          if (newGames.length > 0) {
+            updateTeamArrays({ op: "append", key: "games", entries: newGames });
+          }
           toast.push({
             kind: "success",
             title: `Imported ${newGames.length} game${
@@ -121,7 +131,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast],
+    [teamData, updateTeamArrays, toast],
   );
 
   const uploadStatsCsv = useCallback(
@@ -438,22 +448,22 @@ export const useImportExportFlows = ({
               "No rows matched your roster — check the player names in the CSV.",
             );
 
-          const nextGames = (teamData.games || []).map((g: any) =>
+          const importedAt = new Date().toISOString();
+          const attachLine = (g: any) =>
             g.id === gameId
-              ? {
-                  ...g,
-                  playerStats,
-                  statsImportedAt: new Date().toISOString(),
-                }
-              : g,
-          );
+              ? { ...g, playerStats, statsImportedAt: importedAt }
+              : g;
+          // Snapshot-merged games feed the season-totals derivation below; the
+          // actual write re-attaches the line against the LATEST games via
+          // mapEntries.
+          const nextGames = (teamData.games || []).map(attachLine);
           // Re-derive season totals from ALL game lines for the players this
           // import touched. Derived fields overwrite; anything not derivable
           // from game lines (e.g. velocity hand-entered) is preserved.
           // Prior stats are snapshotted into statsHistory first (same as the
           // season-CSV import) so Recent Movement tracks per-game imports too;
           // capped at 20 entries to stay under Firestore's 1 MB doc limit.
-          const nextPlayers = (teamData.players || []).map((p: any) => {
+          const applyLineToPlayer = (p: any) => {
             if (!touchedIds.has(p.id)) return p;
             const derived = deriveSeasonFromGameLines(nextGames, p.id);
             if (!derived) return p;
@@ -509,8 +519,22 @@ export const useImportExportFlows = ({
               pitching,
               catching,
             };
-          });
-          updateTeam({ games: nextGames, players: nextPlayers });
+          };
+          // One op list → one merged updateDoc; both arrays rewrite from the
+          // LATEST state so this import only races within games/players, not
+          // the whole team doc.
+          updateTeamArrays([
+            {
+              op: "mapEntries",
+              key: "games",
+              map: (items) => items.map(attachLine),
+            },
+            {
+              op: "mapEntries",
+              key: "players",
+              map: (items) => items.map(applyLineToPlayer),
+            },
+          ]);
           toast.push({
             kind: "success",
             title: "Game stats imported",
@@ -537,7 +561,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast],
+    [teamData, updateTeamArrays, toast],
   );
 
   const exportBackup = useCallback(() => {
@@ -705,12 +729,18 @@ export const useImportExportFlows = ({
   // setPlayerReturning below instead so it writes the explicit boolean.
   const setPlayerStatus = useCallback(
     (playerId: string, status: string) => {
-      const next = (teamData.players || []).map((p: any) =>
-        p.id === playerId ? { ...p, playerStatus: status } : p,
-      );
-      updateTeam({ players: next });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        map: (items: Player[]) =>
+          items.map((p) =>
+            p.id === playerId
+              ? { ...p, playerStatus: status as Player["playerStatus"] }
+              : p,
+          ),
+      });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   // Explicit Returning Y/N writer used by AdvanceSeasonModal. Writes
@@ -719,17 +749,23 @@ export const useImportExportFlows = ({
   // unchanged.
   const setPlayerReturning = useCallback(
     (playerId: string, value: boolean | null | undefined) => {
-      const next = (teamData.players || []).map((p: any) => {
-        if (p.id !== playerId) return p;
-        if (value == null) {
-          const { returning: _cleared, ...rest } = p;
-          return rest;
-        }
-        return { ...p, returning: value === true };
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "players",
+        // Clearing works because mapEntries replaces the whole array — the
+        // dropped `returning` key simply isn't in the stored copy anymore.
+        map: (items: Player[]) =>
+          items.map((p) => {
+            if (p.id !== playerId) return p;
+            if (value == null) {
+              const { returning: _cleared, ...rest } = p;
+              return rest;
+            }
+            return { ...p, returning: value === true };
+          }),
       });
-      updateTeam({ players: next });
     },
-    [teamData.players, updateTeam],
+    [updateTeamArrays],
   );
 
   const importBackup = useCallback(

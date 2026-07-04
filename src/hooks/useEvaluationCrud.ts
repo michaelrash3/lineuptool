@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { evalRoundDateForSave, dateToIsoLocal, genId } from "../utils/helpers";
-import type { ToastContextValue } from "../types";
+import type { EvaluationEvent, ToastContextValue } from "../types";
+import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Pull a display-able last name from a Firebase auth user. Eval rounds
 // are tagged with this at save time so the head's "Mike · 2026-05-23"
@@ -24,7 +25,7 @@ const lastNameOfUser = (u: any) => {
 // in), so this hook takes that ref alongside the usual persistence deps.
 interface UseEvaluationCrudArgs {
   teamData: any;
-  updateTeam: (patch: Record<string, unknown>) => void;
+  updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   user:
     | { uid: string; displayName?: string | null; email?: string | null }
@@ -35,7 +36,7 @@ interface UseEvaluationCrudArgs {
 
 export const useEvaluationCrud = ({
   teamData,
-  updateTeam,
+  updateTeamArrays,
   toast,
   user,
   uiBridge,
@@ -49,10 +50,12 @@ export const useEvaluationCrud = ({
     if (selectedRoundId) {
       // Editing an existing round — update its grades, keep its
       // label/date/id/evaluatorName intact.
-      const next = teamData.evaluationEvents.map((e: any) =>
-        e.id === selectedRoundId ? { ...e, grades } : e,
-      );
-      updateTeam({ evaluationEvents: next });
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "evaluationEvents",
+        map: (items: EvaluationEvent[]) =>
+          items.map((e) => (e.id === selectedRoundId ? { ...e, grades } : e)),
+      });
       toast.push({ kind: "success", title: "Eval updated" });
       return selectedRoundId;
     }
@@ -76,7 +79,7 @@ export const useEvaluationCrud = ({
       );
     const roundDate = dateTaken(snapped) ? today : snapped;
     const evaluatorName = lastNameOfUser(user);
-    const newEvent = {
+    const newEvent: EvaluationEvent = {
       id: genId("ev"),
       date: roundDate,
       // Wall-clock creation stamp — the unambiguous tiebreaker for "latest
@@ -87,8 +90,12 @@ export const useEvaluationCrud = ({
       evaluatorName,
       grades,
     };
-    updateTeam({
-      evaluationEvents: [...teamData.evaluationEvents, newEvent],
+    // append → arrayUnion: a simultaneous save by another coach lands too,
+    // instead of whichever write finished last erasing the other.
+    updateTeamArrays({
+      op: "append",
+      key: "evaluationEvents",
+      entries: [newEvent],
     });
     toast.push({
       kind: "success",
@@ -97,7 +104,7 @@ export const useEvaluationCrud = ({
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
-  }, [user, teamData.evaluationEvents, updateTeam, toast, uiBridge]);
+  }, [user, teamData.evaluationEvents, updateTeamArrays, toast, uiBridge]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
   // upsert behavior — the round is stamped with the calendar due date it
@@ -113,13 +120,15 @@ export const useEvaluationCrud = ({
           e.evaluatorId === user.uid &&
           e.date === roundDate,
       );
-      let nextEvents;
       if (existing) {
-        nextEvents = teamData.evaluationEvents.map((e: any) =>
-          e.id === existing.id ? { ...e, grades } : e,
-        );
+        updateTeamArrays({
+          op: "mapEntries",
+          key: "evaluationEvents",
+          map: (items: EvaluationEvent[]) =>
+            items.map((e) => (e.id === existing.id ? { ...e, grades } : e)),
+        });
       } else {
-        const newEvent = {
+        const newEvent: EvaluationEvent = {
           id: genId("ev"),
           date: roundDate,
           createdAt: Date.now(),
@@ -128,15 +137,21 @@ export const useEvaluationCrud = ({
           evaluatorName: lastNameOfUser(user),
           grades,
         };
-        nextEvents = [...(teamData.evaluationEvents || []), newEvent];
+        // append → arrayUnion: N assistants submitting during a live eval
+        // session all land. The old whole-array write silently dropped every
+        // submission but the last one to finish.
+        updateTeamArrays({
+          op: "append",
+          key: "evaluationEvents",
+          entries: [newEvent],
+        });
       }
-      updateTeam({ evaluationEvents: nextEvents });
       toast.push({
         kind: "success",
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, updateTeam, toast],
+    [user, teamData.evaluationEvents, updateTeamArrays, toast],
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach
@@ -145,16 +160,17 @@ export const useEvaluationCrud = ({
   const deleteEvaluation = useCallback(
     (roundId: any) => {
       if (!roundId) return;
-      const next = (teamData.evaluationEvents || []).filter(
-        (e: any) => e.id !== roundId,
-      );
-      updateTeam({ evaluationEvents: next });
+      updateTeamArrays({
+        op: "removeById",
+        key: "evaluationEvents",
+        id: roundId,
+      });
       toast.push({
         kind: "success",
         title: "Eval round deleted",
       });
     },
-    [teamData.evaluationEvents, updateTeam, toast],
+    [updateTeamArrays, toast],
   );
 
   return {

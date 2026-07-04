@@ -1,10 +1,11 @@
 import { renderHook, act } from "@testing-library/react";
 import { usePracticeCrud } from "./usePracticeCrud";
-import { makeConfirm, makeToast } from "../test-utils";
+import { applyTeamOps, makeConfirm, makeToast } from "../test-utils";
 import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
 
 const setup = (teamOver: any = {}) => {
   const updateTeam = jest.fn();
+  const updateTeamArrays = jest.fn();
   const toast = makeToast();
   const confirm = makeConfirm();
   const teamData = {
@@ -13,14 +14,14 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    usePracticeCrud({ teamData, updateTeam, toast, confirm }),
+    usePracticeCrud({ teamData, updateTeam, updateTeamArrays, toast, confirm }),
   );
-  return { result, updateTeam, toast, confirm };
+  return { result, teamData, updateTeam, updateTeamArrays, toast, confirm };
 };
 
 describe("usePracticeCrud — practices", () => {
-  it("addPractice appends a scheduled practice with an empty agenda", () => {
-    const { result, updateTeam } = setup();
+  it("addPractice emits an append with a scheduled practice and empty agenda", () => {
+    const { result, updateTeamArrays } = setup();
     act(() =>
       result.current.addPractice({
         date: "2026-05-01",
@@ -28,9 +29,10 @@ describe("usePracticeCrud — practices", () => {
         environment: "indoor",
       }),
     );
-    const practices = updateTeam.mock.calls[0][0].practices;
-    expect(practices).toHaveLength(1);
-    expect(practices[0]).toMatchObject({
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "append", key: "practices" });
+    expect(op.entries).toHaveLength(1);
+    expect(op.entries[0]).toMatchObject({
       date: "2026-05-01",
       location: "Cage",
       environment: "indoor",
@@ -40,24 +42,41 @@ describe("usePracticeCrud — practices", () => {
   });
 
   it("addPractice warns and does not persist without a date", () => {
-    const { result, updateTeam, toast } = setup();
+    const { result, updateTeamArrays, toast } = setup();
     act(() => result.current.addPractice({ date: "" }));
-    expect(updateTeam).not.toHaveBeenCalled();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "warn" }),
     );
   });
 
-  it("removePractice deletes and offers undo, gated by confirm", async () => {
-    const { result, updateTeam, confirm } = setup({
+  it("updatePractice patches one practice via mapEntries", () => {
+    const { result, teamData, updateTeamArrays } = setup({
+      practices: [{ id: "p1", date: "2026-05-01" }],
+    });
+    act(() => result.current.updatePractice("p1", { location: "Field 2" }));
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "practices" });
+    expect(applyTeamOps(teamData, op).practices[0]).toMatchObject({
+      id: "p1",
+      location: "Field 2",
+    });
+  });
+
+  it("removePractice emits removeById and offers undo, gated by confirm", async () => {
+    const { result, updateTeamArrays, confirm } = setup({
       practices: [{ id: "p1", date: "2026-05-01" }],
     });
     confirm.mockResolvedValueOnce(false);
     await act(async () => result.current.removePractice("p1"));
-    expect(updateTeam).not.toHaveBeenCalled(); // declined
+    expect(updateTeamArrays).not.toHaveBeenCalled(); // declined
 
     await act(async () => result.current.removePractice("p1"));
-    expect(updateTeam.mock.calls[0][0].practices).toEqual([]);
+    expect(updateTeamArrays.mock.calls[0][0]).toEqual({
+      op: "removeById",
+      key: "practices",
+      id: "p1",
+    });
   });
 });
 

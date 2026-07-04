@@ -21,6 +21,7 @@ import {
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
+import type { Game } from "../types";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { LineupGrid } from "./LineupGrid";
@@ -189,6 +190,7 @@ export const ScheduleTab = memo(() => {
     addGame,
     updateGame,
     updateTeam,
+    updateTeamArrays,
     finalizeGame,
     postponeGame,
     deleteSavedGame,
@@ -293,19 +295,29 @@ export const ScheduleTab = memo(() => {
         const events = await fetchGcEvents(gcFeedUrl);
         if (cancelled || events.length === 0) return;
         const current = team?.games || [];
-        const { games, added, updated } = mergeGcEventsIntoGames(
+        const defaults = {
+          leagueRuleSet: team.leagueRuleSet,
+          pitchingFormat: team.pitchingFormat,
+          defenseSize: team.defenseSize,
+          battingSize: team.battingSize,
+          positionLock: team.positionLock,
+        };
+        // Dry-run the merge against the rendered snapshot to decide whether
+        // anything changed (and for the toast counts); the actual write
+        // re-merges against the LATEST games via mapEntries so a concurrent
+        // edit isn't clobbered by this whole-array rewrite.
+        const { added, updated } = mergeGcEventsIntoGames(
           current,
           events,
-          {
-            leagueRuleSet: team.leagueRuleSet,
-            pitchingFormat: team.pitchingFormat,
-            defenseSize: team.defenseSize,
-            battingSize: team.battingSize,
-            positionLock: team.positionLock,
-          },
+          defaults,
         );
         if (cancelled || (added === 0 && updated === 0)) return;
-        updateTeam({ games });
+        updateTeamArrays({
+          op: "mapEntries",
+          key: "games",
+          map: (items: Game[]) =>
+            mergeGcEventsIntoGames(items, events, defaults).games,
+        });
         toast.push({
           kind: "success",
           title: "Schedule synced",
@@ -1449,6 +1461,7 @@ export const ScheduleTab = memo(() => {
         onClose={() => setGcImportOpen(false)}
         team={team}
         updateTeam={updateTeam}
+        updateTeamArrays={updateTeamArrays}
         toast={toast}
       />
       <Modal

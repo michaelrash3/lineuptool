@@ -1,9 +1,9 @@
 import { renderHook, act } from "@testing-library/react";
 import { useGameCrud } from "./useGameCrud";
-import { makeConfirm, makeToast } from "../test-utils";
+import { applyTeamOps, makeConfirm, makeToast } from "../test-utils";
 
 const setup = (teamOver: any = {}) => {
-  const updateTeam = jest.fn();
+  const updateTeamArrays = jest.fn();
   const toast = makeToast();
   const confirm = makeConfirm();
   const teamData = {
@@ -15,14 +15,14 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useGameCrud({ teamData, updateTeam, toast, confirm }),
+    useGameCrud({ teamData, updateTeamArrays, toast, confirm }),
   );
-  return { result, updateTeam, toast, confirm };
+  return { result, teamData, updateTeamArrays, toast, confirm };
 };
 
 describe("useGameCrud", () => {
-  it("addGame appends a scheduled game", () => {
-    const { result, updateTeam } = setup();
+  it("addGame emits an append (concurrency-safe) with a scheduled game", () => {
+    const { result, updateTeamArrays } = setup();
     act(() =>
       result.current.addGame({
         date: "2026-05-01",
@@ -31,9 +31,10 @@ describe("useGameCrud", () => {
         pitchingFormat: "Kid Pitch",
       }),
     );
-    const games = updateTeam.mock.calls[0][0].games;
-    expect(games).toHaveLength(1);
-    expect(games[0]).toMatchObject({
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "append", key: "games" });
+    expect(op.entries).toHaveLength(1);
+    expect(op.entries[0]).toMatchObject({
       date: "2026-05-01",
       opponent: "Rays",
       status: "scheduled",
@@ -41,7 +42,7 @@ describe("useGameCrud", () => {
   });
 
   it("addGame warns and does not persist when date/opponent missing", () => {
-    const { result, updateTeam, toast } = setup();
+    const { result, updateTeamArrays, toast } = setup();
     act(() =>
       result.current.addGame({
         date: "",
@@ -50,32 +51,33 @@ describe("useGameCrud", () => {
         pitchingFormat: "Kid Pitch",
       }),
     );
-    expect(updateTeam).not.toHaveBeenCalled();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "warn" }),
     );
   });
 
   it("updateGame normalizes a slash date and drops an unparseable one", () => {
-    const { result, updateTeam } = setup({
+    const { result, teamData, updateTeamArrays } = setup({
       games: [{ id: "g1", date: "2026-05-01" }],
     });
     act(() => result.current.updateGame("g1", { date: "05/08/2026" }));
-    expect(updateTeam.mock.calls[0][0].games[0].date).toBe("2026-05-08");
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    expect(next.games[0].date).toBe("2026-05-08");
 
-    updateTeam.mockClear();
+    updateTeamArrays.mockClear();
     act(() => result.current.updateGame("g1", { date: "garbage" }));
     // Only key was a bad date -> nothing to persist.
-    expect(updateTeam).not.toHaveBeenCalled();
+    expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
   it("finalizeGame sets score and final status", () => {
-    const { result, updateTeam } = setup({
+    const { result, teamData, updateTeamArrays } = setup({
       games: [{ id: "g1", date: "2026-05-01", lineup: null }],
     });
     act(() => result.current.finalizeGame("g1", 5, 3, 6));
-    const games = updateTeam.mock.calls[0][0].games;
-    expect(games[0]).toMatchObject({
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    expect(next.games[0]).toMatchObject({
       teamScore: 5,
       opponentScore: 3,
       status: "final",
@@ -83,7 +85,7 @@ describe("useGameCrud", () => {
   });
 
   it("finalizeGame no longer touches pitcher records (arm-care comes from imports)", () => {
-    const { result, updateTeam } = setup({
+    const { result, updateTeamArrays } = setup({
       games: [
         { id: "g1", date: "2026-05-01", lineup: null, pitchCounts: { p1: 40 } },
       ],
@@ -97,40 +99,51 @@ describe("useGameCrud", () => {
     });
     act(() => result.current.finalizeGame("g1", 1, 0, 6));
     // Finalize writes only the game (score/status); pitching is committed at
-    // stats-import time, so no players patch is produced here.
-    const patch = updateTeam.mock.calls[0][0];
-    expect(patch.players).toBeUndefined();
-    expect(patch.games[0]).toMatchObject({ status: "final" });
+    // stats-import time, so no players op is produced here.
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "games" });
   });
 
   it("postponeGame clears scores and marks postponed", () => {
-    const { result, updateTeam } = setup({
+    const { result, teamData, updateTeamArrays } = setup({
       games: [{ id: "g1", date: "2026-05-01", teamScore: 2, opponentScore: 1 }],
     });
     act(() => result.current.postponeGame("g1"));
-    const games = updateTeam.mock.calls[0][0].games;
-    expect(games[0]).toMatchObject({
+    const next = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
+    expect(next.games[0]).toMatchObject({
       status: "postponed",
       teamScore: null,
       opponentScore: null,
     });
   });
 
-  it("deleteSavedGame removes the game and offers undo, gated by confirm", async () => {
-    const { result, updateTeam, toast, confirm } = setup({
+  it("deleteSavedGame emits removeById and offers undo, gated by confirm", async () => {
+    const { result, updateTeamArrays, toast, confirm } = setup({
       games: [{ id: "g1", opponent: "Rays" }],
     });
     confirm.mockResolvedValueOnce(false);
     await act(async () => result.current.deleteSavedGame("g1"));
-    expect(updateTeam).not.toHaveBeenCalled(); // declined
+    expect(updateTeamArrays).not.toHaveBeenCalled(); // declined
 
     await act(async () => result.current.deleteSavedGame("g1"));
-    expect(updateTeam.mock.calls[0][0].games).toEqual([]);
+    expect(updateTeamArrays.mock.calls[0][0]).toEqual({
+      op: "removeById",
+      key: "games",
+      id: "g1",
+    });
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Game deleted",
         action: expect.objectContaining({ label: "Undo" }),
       }),
     );
+    // Undo restores the captured snapshot.
+    const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
+    act(() => undo.onClick());
+    const restored = applyTeamOps(
+      { games: [] },
+      updateTeamArrays.mock.calls[1][0],
+    );
+    expect(restored.games.map((g: any) => g.id)).toEqual(["g1"]);
   });
 });

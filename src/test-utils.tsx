@@ -13,6 +13,23 @@ import type {
   TeamContextValue,
   UIContextValue,
 } from "./types";
+import {
+  applyTeamArrayUpdate,
+  type TeamArrayUpdate,
+} from "./utils/teamArrayUpdates";
+
+// Fold the op(s) a hook emitted through updateTeamArrays over a fixture team,
+// yielding the resulting team state (sanitized exactly as it would be stored).
+// Lets tests keep asserting on outcomes — the shape the old whole-array
+// updateTeam patches exposed directly — instead of on op internals.
+export const applyTeamOps = (
+  team: any,
+  input: TeamArrayUpdate | TeamArrayUpdate[],
+): any =>
+  (Array.isArray(input) ? input : [input]).reduce(
+    (acc: any, u: TeamArrayUpdate) => applyTeamArrayUpdate(acc, u),
+    team,
+  );
 
 export const makeToast = (
   overrides: Partial<ToastContextValue> = {},
@@ -36,6 +53,7 @@ export const makeTeam = (
     realRole: "head",
     updateTeam: jest.fn(),
     updateFinances: jest.fn(),
+    updateTeamArrays: jest.fn(),
     switchTeam: jest.fn(),
     createTeam: jest.fn(),
     team: { players: [], games: [] },
