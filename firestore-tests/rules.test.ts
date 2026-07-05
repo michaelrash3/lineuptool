@@ -83,6 +83,17 @@ beforeEach(async () => {
       tryoutShareId: "share-1",
       tryoutSignups: [{ id: "s1", firstName: "Existing" }],
       interestSignups: [{ id: "i1", firstName: "Lead" }],
+      // A head-coach eval round, so finding-3.1 tests can target the head's
+      // private grades from an assistant context.
+      evaluationEvents: [
+        {
+          id: "ev-head",
+          date: "2026-06-01",
+          coachRole: "Head",
+          evaluatorId: OWNER,
+          grades: { p1: { contact: 5 } },
+        },
+      ],
       finances: {
         clubFee: 500,
         payments: [
@@ -385,6 +396,54 @@ describe("team-array granular writes (updateTeamArrays shapes)", () => {
         tryoutSignups: arrayRemove({ id: "s1", firstName: "Existing" }),
       }),
     );
+  });
+});
+
+// docs/EVALUATIONS-AUDIT.md finding 3.1: evaluationEvents is NOT
+// authorization-scoped. The UI shows an assistant only their own rounds, but
+// the rules layer grants every member full read + write on the array — so an
+// assistant can read AND destructively rewrite/delete the head coach's private
+// rounds through the SDK. This is accepted for now under the trusted-coach
+// threat model; these tests PIN the current reality so any future tightening
+// (a head-only write gate, or a per-uid submission subcollection) is a
+// deliberate, tested change rather than a silent regression. NONE of these
+// assertions should be read as endorsing the exposure — they document it.
+describe("evaluationEvents access (audit finding 3.1 — pinned, not endorsed)", () => {
+  it("an assistant can read the head's private eval grades (no field-scoped reads)", async () => {
+    // Reads are per-document, so a member read returns the whole team doc,
+    // evaluationEvents included — the assistant sees the head's grades.
+    await assertSucceeds(getDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1"))));
+  });
+
+  it("an assistant can OVERWRITE the whole evaluationEvents array (clobbering the head's round)", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        evaluationEvents: [{ id: "ev-assistant-only", coachRole: "Assistant" }],
+      }),
+    );
+  });
+
+  it("an assistant can arrayRemove the head coach's exact eval round", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        evaluationEvents: arrayRemove({
+          id: "ev-head",
+          date: "2026-06-01",
+          coachRole: "Head",
+          evaluatorId: OWNER,
+          grades: { p1: { contact: 5 } },
+        }),
+      }),
+    );
+  });
+
+  it("an outsider still cannot touch evaluationEvents", async () => {
+    await assertFails(
+      updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
+        evaluationEvents: arrayUnion({ id: "ev-evil" }),
+      }),
+    );
+    await assertFails(getDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1"))));
   });
 });
 
