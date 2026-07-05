@@ -257,7 +257,14 @@ export const combinedTryoutGradeForSignup = (
     if (eg.coachRole === "Head") headGrades.push(g);
     else assistantGrades.push(g);
   }
-  const avg = (grades: any[]) => {
+  // Per-group mean kept RAW (unrounded) — audit finding 3.3. The old code
+  // rounded each group's mean here and then rounded the head+assistant blend
+  // again, two rounding passes that could drift a full grade point from the
+  // true average. We defer all rounding to a single final pass (`rounded`
+  // below) so numbers round exactly once. The head/assistant 50/50 split is a
+  // deliberate weighting (the head's read counts as much as the whole assistant
+  // pool), so it's preserved — only the compounding rounding is removed.
+  const rawAvg = (grades: any[]) => {
     if (!grades.length) return null;
     const out: Record<string, any> = {};
     const keys = new Set<string>();
@@ -271,13 +278,21 @@ export const combinedTryoutGradeForSignup = (
       const vals = grades
         .map((g) => g?.[key])
         .filter((v) => typeof v === "number");
-      if (vals.length)
-        out[key] = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+      if (vals.length) out[key] = vals.reduce((a, b) => a + b, 0) / vals.length;
     }
     return out;
   };
-  const head = avg(headGrades);
-  const assistants = avg(assistantGrades);
+  // Round every numeric field once, at the very end. Non-numeric fields (notes,
+  // suggestedPositions) pass through untouched.
+  const rounded = (grade: Record<string, any> | null) => {
+    if (!grade) return grade;
+    const out: Record<string, any> = {};
+    for (const [key, val] of Object.entries(grade))
+      out[key] = typeof val === "number" ? Math.round(val) : val;
+    return out;
+  };
+  const head = rawAvg(headGrades);
+  const assistants = rawAvg(assistantGrades);
   if (head && assistants) {
     const out: Record<string, any> = {};
     const keys = new Set([...Object.keys(head), ...Object.keys(assistants)]);
@@ -288,13 +303,13 @@ export const combinedTryoutGradeForSignup = (
         const hv = head[key];
         const av = assistants[key];
         if (typeof hv === "number" && typeof av === "number")
-          out[key] = Math.round((hv + av) / 2);
+          out[key] = (hv + av) / 2;
         else out[key] = hv ?? av;
       }
     }
-    return out;
+    return rounded(out);
   }
-  return head || assistants;
+  return rounded(head || assistants);
 };
 
 export const evaluatorTryoutGradeForSignup = (

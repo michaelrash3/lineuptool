@@ -1,4 +1,8 @@
-import { migrateLegacyTryoutGrades, normalizeTryoutSessions } from "./tryouts";
+import {
+  combinedTryoutGradeForSignup,
+  migrateLegacyTryoutGrades,
+  normalizeTryoutSessions,
+} from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
 // evaluationEvents entry carrying a tryoutSignupId + grades.signup.
@@ -103,5 +107,88 @@ describe("migrateLegacyTryoutGrades", () => {
     const out = migrateLegacyTryoutGrades({});
     expect(out.evaluationEvents).toEqual([]);
     expect(out.tryoutSessions).toEqual([]);
+  });
+});
+
+describe("combinedTryoutGradeForSignup", () => {
+  const session = (gradesByEvaluator: any, over: any = {}) => ({
+    id: "tryout-2026-06-18",
+    date: "2026-06-18",
+    updatedAt: 100,
+    gradesByEvaluator,
+    ...over,
+  });
+
+  it("rounds the head+assistant blend once, not twice (finding 3.3)", () => {
+    // Head: one coach grades contact 4 → head group mean 4.0.
+    // Assistants: two coaches grade 5 and 4 → assistant group mean 4.5.
+    // Blend of the raw group means: (4.0 + 4.5) / 2 = 4.25 → rounds to 4.
+    // The old two-pass code rounded assistants to 5 first, then blended
+    // round((4 + 5) / 2) = round(4.5) = 5 — a full grade point too high.
+    const sessions = [
+      session({
+        h1: { coachRole: "Head", grades: { s1: { contact: 4 } } },
+        a1: { coachRole: "Assistant", grades: { s1: { contact: 5 } } },
+        a2: { coachRole: "Assistant", grades: { s1: { contact: 4 } } },
+      }),
+    ];
+    expect(combinedTryoutGradeForSignup(sessions, "s1")).toEqual({
+      contact: 4,
+    });
+  });
+
+  it("averages a single group with one rounding pass (head only)", () => {
+    const sessions = [
+      session({
+        h1: { coachRole: "Head", grades: { s1: { contact: 4, power: 5 } } },
+        h2: { coachRole: "Head", grades: { s1: { contact: 5, power: 5 } } },
+      }),
+    ];
+    // contact (4+5)/2 = 4.5 → 5;  power (5+5)/2 = 5.
+    expect(combinedTryoutGradeForSignup(sessions, "s1")).toEqual({
+      contact: 5,
+      power: 5,
+    });
+  });
+
+  it("blends assistants only when there is no head grade", () => {
+    const sessions = [
+      session({
+        a1: { coachRole: "Assistant", grades: { s1: { contact: 3 } } },
+        a2: { coachRole: "Assistant", grades: { s1: { contact: 4 } } },
+      }),
+    ];
+    // (3 + 4) / 2 = 3.5 → 4.
+    expect(combinedTryoutGradeForSignup(sessions, "s1")).toEqual({
+      contact: 4,
+    });
+  });
+
+  it("carries notes/suggestedPositions through without averaging", () => {
+    const sessions = [
+      session({
+        h1: {
+          coachRole: "Head",
+          grades: { s1: { contact: 4, notes: "strong arm" } },
+        },
+        a1: {
+          coachRole: "Assistant",
+          grades: { s1: { contact: 4, suggestedPositions: ["SS"] } },
+        },
+      }),
+    ];
+    const out = combinedTryoutGradeForSignup(sessions, "s1");
+    expect(out.contact).toBe(4);
+    expect(out.notes).toBe("strong arm");
+    expect(out.suggestedPositions).toEqual(["SS"]);
+  });
+
+  it("returns null with no signup id or no matching session", () => {
+    const sessions = [
+      session({ h1: { coachRole: "Head", grades: { s1: { contact: 4 } } } }),
+    ];
+    expect(combinedTryoutGradeForSignup(sessions, null)).toBeNull();
+    expect(combinedTryoutGradeForSignup(sessions, "nope")).toBeNull();
+    expect(combinedTryoutGradeForSignup(null, "s1")).toBeNull();
   });
 });
