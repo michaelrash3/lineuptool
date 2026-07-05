@@ -183,13 +183,14 @@ User settings docs are uid-scoped: `allow read, write: if request.auth.uid == ui
 
 ## EVAL schema migration ladder
 
-The evaluation system has migrated three times. The migration runs on read in the active-team subscription (`App.tsx` around line 471):
+The evaluation system has migrated repeatedly (currently through v11). The migration runs on read in the active-team subscription (`src/providers/TeamProvider.tsx`, the `handleSnap` schema-migration block). Representative steps:
 
-| From                             | To                                                     | Behavior                                                                                       |
-| -------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| v1 (6-category)                  | v3                                                     | Rounds are wiped — no clean mapping                                                            |
-| v2 (1–10, 11 categories)         | v3 (1–5, 11 categories)                                | Halve every numeric grade, preserve notes                                                      |
-| v3 (position via `restrictions`) | v4 (position via `comfortablePositions` + `isCatcher`) | Flip negative → positive model; engine still consults `restrictions` as a one-release fallback |
+| From                             | To                                                     | Behavior                                                                                                                                                           |
+| -------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| v1 (6-category)                  | v3                                                     | Rounds are wiped — no clean mapping                                                                                                                                |
+| v2 (1–10, 11 categories)         | v3 (1–5, 11 categories)                                | Halve every numeric grade, preserve notes                                                                                                                          |
+| v3 (position via `restrictions`) | v4 (position via `comfortablePositions` + `isCatcher`) | Flip negative → positive model; engine still consults `restrictions` as a one-release fallback                                                                     |
+| v10 (tryout grades on two docs)  | v11 (tryout grades only in `tryoutSessions`)           | Fold legacy `evaluationEvents` tryout grades into `tryoutSessions` once, drop them from `evaluationEvents` (`migrateLegacyTryoutGrades`; EVALUATIONS-AUDIT.md 3.2) |
 
 `EVAL_SCHEMA_VERSION` lives in `src/constants/ui.ts`. After migration the new shape is written back to Firestore so subsequent reads skip the upgrade.
 

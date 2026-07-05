@@ -45,6 +45,7 @@ import {
   blankStats,
   emailPromptStatus,
   restampEvalDueDates,
+  migrateLegacyTryoutGrades,
   buildPreseasonSeedRound,
   dateToIsoLocal,
   isReturning,
@@ -100,6 +101,7 @@ import type {
   EvaluationEvent,
   Player,
   TryoutSignup,
+  TryoutSession,
 } from "../types";
 
 // TeamProvider extracted from App.tsx: owns team state, Firebase auth +
@@ -689,9 +691,28 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               return { ...rest, present: true };
             });
           }
+          // v11 — legacy tryout-grade cleanup (EVALUATIONS-AUDIT.md finding
+          // 3.2). Fold tryout grades stored on evaluationEvents into
+          // tryoutSessions once, and drop them from evaluationEvents. Only
+          // include tryoutSessions in the write when it actually changed.
+          let migratedTryoutSessions: TryoutSession[] | undefined;
+          if (stored < 11) {
+            const beforeSessions = raw.tryoutSessions;
+            const folded = migrateLegacyTryoutGrades({
+              ...raw,
+              evaluationEvents: migratedEvents,
+            });
+            migratedEvents = folded.evaluationEvents;
+            if (folded.tryoutSessions !== beforeSessions) {
+              migratedTryoutSessions = folded.tryoutSessions;
+            }
+          }
           persistTeamRef.current?.({
             evaluationEvents: migratedEvents,
             players: migratedPlayers,
+            ...(migratedTryoutSessions !== undefined
+              ? { tryoutSessions: migratedTryoutSessions }
+              : {}),
             evalSchemaVersion: EVAL_SCHEMA_VERSION,
           });
           setTeamData({
