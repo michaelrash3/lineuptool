@@ -135,6 +135,11 @@ integer 1–5/1–10 grades. Display-only and within one grade point, but a
 single-pass mean over all raw grades would be truer. Bundle into any PR that
 touches the blend.
 
+**Resolved:** per-group means are now kept raw and rounded exactly once, at the
+final blend, so the value no longer drifts a grade point from the true average.
+The deliberate head/assistant 50/50 weighting is preserved (only the compounding
+rounding was removed), and the function is now unit-tested.
+
 ### 3.4 EvaluationTab monolith — Low (maintainability)
 
 `EvaluationTab.tsx` is ~2,920 lines: the main component (~1,190 lines) plus 7
@@ -195,6 +200,7 @@ Recommended order (each an independent PR):
 4. **Legacy tryout-grade migration** (finding 3.2) — schema-versioned one-time
    move off `evaluationEvents`.
 
-Opportunistic (bundle when touching the code): single-pass tryout blend (3.3).
+Opportunistic (bundle when touching the code): single-pass tryout blend (3.3) —
+**done**, rounds once at the final blend.
 
 Everything in "not planning" stays out of scope until a coach reopens it.
