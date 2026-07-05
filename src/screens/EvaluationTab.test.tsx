@@ -136,6 +136,78 @@ describe("EvaluationTab", () => {
     expect(saveTeamEvaluation).toHaveBeenCalledTimes(1);
   });
 
+  it("offers an Export CSV button for the selected saved round and downloads without throwing", () => {
+    // jsdom implements neither URL.createObjectURL nor revokeObjectURL; the
+    // handler calls both, so stub them. The anchor click itself is already
+    // short-circuited by setupTests for download links.
+    const createObjectURL = jest.fn(() => "blob:eval");
+    const revokeObjectURL = jest.fn();
+    (URL as unknown as { createObjectURL: unknown }).createObjectURL =
+      createObjectURL;
+    (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL =
+      revokeObjectURL;
+    renderWithProviders(<EvaluationTab />, {
+      team: {
+        team: {
+          name: "Hawks",
+          players: [{ id: "p1", name: "Sammy", number: "5" }],
+          primaryColor: "#1d4ed8",
+          evaluationEvents: [
+            {
+              id: "r1",
+              date: "2026-02-01",
+              coachRole: "Head",
+              evaluatorId: "u1",
+              evaluatorName: "Coach",
+              grades: { p1: { contact: 5, notes: "sharp" } },
+            },
+          ],
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        saveTeamEvaluation: jest.fn(),
+        deleteEvaluation: jest.fn(),
+      },
+      ui: {
+        teamEvalGrades: {},
+        setTeamEvalGrades: jest.fn(),
+        selectedRoundId: "r1",
+        setSelectedRoundId: jest.fn(),
+        evalTrendPlayerId: null,
+        setEvalTrendPlayerId: jest.fn(),
+      },
+    });
+    const btn = screen.getByRole("button", { name: /Export CSV/ });
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:eval");
+  });
+
+  it("hides the Export CSV button when composing a brand-new round", () => {
+    // No round selected → nothing saved to export yet.
+    renderWithProviders(<EvaluationTab />, {
+      team: {
+        team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
+        user: { uid: "u1" },
+        currentRole: "head",
+        saveTeamEvaluation: jest.fn(),
+        deleteEvaluation: jest.fn(),
+      },
+      ui: {
+        teamEvalGrades: {},
+        setTeamEvalGrades: jest.fn(),
+        selectedRoundId: null,
+        setSelectedRoundId: jest.fn(),
+        evalTrendPlayerId: null,
+        setEvalTrendPlayerId: jest.fn(),
+      },
+    });
+    expect(
+      screen.queryByRole("button", { name: /Export CSV/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("always offers starting a new round while editing one (no cadence gate)", () => {
     renderWithProviders(<EvaluationTab />, {
       team: {

@@ -46,6 +46,7 @@ import {
   playerTopMph,
 } from "../utils/evaluationScore";
 import { A11yDialog, EmptyState } from "../components/shared";
+import { evalRoundCsv, evalRoundCsvFilename } from "../utils/evalExport";
 import { EvalTrendModal } from "./evaluation/EvalTrendModal";
 import { RosterDecisionsPanel } from "./evaluation/RosterDecisionsPanel";
 import {
@@ -255,6 +256,22 @@ export const EvaluationTab = memo(() => {
     ? myRounds.find((r: EvalRound) => r.id === selectedRoundId)
     : null;
   const activeRoundName = activeRound ? formatRoundName(activeRound) : "";
+
+  // Export the selected saved round as a CSV grade grid (audit §4). The
+  // detached-anchor download is short-circuited under jsdom (see setupTests),
+  // so it's inert in tests; the CSV itself is built by the unit-tested
+  // evalRoundCsv.
+  const handleExportCsv = useCallback(() => {
+    if (!activeRound) return;
+    const csv = evalRoundCsv(activeRound, players, activeCategories);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = evalRoundCsvFilename(activeRound, team?.name);
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [activeRound, players, activeCategories, team?.name]);
 
   // The coach can explicitly start a new round at ANY time (the cadence prompt
   // is a nudge, never a gate). This flag records that explicit choice so the
@@ -519,6 +536,17 @@ export const EvaluationTab = memo(() => {
                 </>
               )}
             </span>
+            {activeRound && (
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="t-button px-4 py-3 rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 flex items-center justify-center gap-2"
+                title={`Download “${activeRoundName}” as a CSV grade grid`}
+              >
+                <Icons.FileText className="w-4 h-4" />
+                Export CSV
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSaveClick}
