@@ -26,25 +26,25 @@ Like the rest of the app, evaluations live client-side on the single team doc
 
 - **`evaluationEvents`** — the roster-eval rounds array. Each round:
   `{ id, date, createdAt, coachRole: "Head"|"Assistant", evaluatorId,
-  evaluatorName, grades: { [playerId]: GradeMap }, label? }`. Types at
+evaluatorName, grades: { [playerId]: GradeMap }, label? }`. Types at
   `src/types.ts` (`EvaluationEvent`, `GradeMap`).
 - **`tryoutSessions`** — date-grouped tryout grades, separate from roster
   rounds: `{ id, date, signupIds[], gradesByEvaluator: { [uid]: { coachRole,
-  grades: { [signupId]: GradeMap } } } }`. Legacy tryout grades also live as
+grades: { [signupId]: GradeMap } } } }`. Legacy tryout grades also live as
   `evaluationEvents` carrying a `tryoutSignupId` and are folded in on read by
   `normalizeTryoutSessions` (`src/utils/tryouts.ts:190`).
 - Two authenticated roles only (`head` / `assistant`); no player/parent users.
 
 **Core files**
 
-| File                                                    | Role                                                      |
-| ------------------------------------------------------- | -------------------------------------------------------- |
-| `src/screens/EvaluationTab.tsx` (~2,920 lines)          | Head-coach eval dashboard + 7 inline sub-components       |
-| `src/screens/AssistantEvalTab.tsx` (~350)               | Assistant grading surface (own rounds only)              |
-| `src/hooks/useEvaluationCrud.ts` (~180)                 | save/delete round persistence (concurrency-safe)          |
-| `src/utils/evaluations.ts` (~500)                       | Cadence, seeding, reminder-email gate (pure, unit-tested) |
-| `src/utils/tryouts.ts` (~310)                           | Tryout-session normalize + grade blending (pure)          |
-| `src/components/EvalGradeCard.tsx` (~300)               | Shared per-player grade card                              |
+| File                                           | Role                                                      |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| `src/screens/EvaluationTab.tsx` (~2,920 lines) | Head-coach eval dashboard + 7 inline sub-components       |
+| `src/screens/AssistantEvalTab.tsx` (~350)      | Assistant grading surface (own rounds only)               |
+| `src/hooks/useEvaluationCrud.ts` (~180)        | save/delete round persistence (concurrency-safe)          |
+| `src/utils/evaluations.ts` (~500)              | Cadence, seeding, reminder-email gate (pure, unit-tested) |
+| `src/utils/tryouts.ts` (~310)                  | Tryout-session normalize + grade blending (pure)          |
+| `src/components/EvalGradeCard.tsx` (~300)      | Shared per-player grade card                              |
 
 ## 2. What the Evaluations area does today
 
@@ -83,13 +83,13 @@ category sets (categories are fixed by pitching format).
 
 ## 3. Audit findings
 
-| #   | Severity   | Area          | Finding                                                                             |
-| --- | ---------- | ------------- | ----------------------------------------------------------------------------------- |
-| 1   | **Medium** | Security      | `evaluationEvents` is member-writable server-side; assistants can read/rewrite/delete ALL rounds, not just their own |
-| 2   | Low        | Data hygiene  | Legacy tryout grades on `evaluationEvents` are folded into sessions on every read but never migrated off — permanent dual storage + doc bloat |
-| 3   | Low        | Correctness   | Compounding `Math.round` in tryout-grade blending                                   |
-| 4   | Low        | Maintainability | `EvaluationTab.tsx` is a ~2,920-line file with 7 inline sub-components + 8 module-level helpers |
-| 5   | Low        | Test coverage | 5 of the 8 eval components are untested (RosterDecisions, Insights, RoundComparison, AssistantSubmissions, EvalTrendModal) |
+| #   | Severity   | Area            | Finding                                                                                                                                       |
+| --- | ---------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Medium** | Security        | `evaluationEvents` is member-writable server-side; assistants can read/rewrite/delete ALL rounds, not just their own                          |
+| 2   | Low        | Data hygiene    | Legacy tryout grades on `evaluationEvents` are folded into sessions on every read but never migrated off — permanent dual storage + doc bloat |
+| 3   | Low        | Correctness     | Compounding `Math.round` in tryout-grade blending                                                                                             |
+| 4   | Low        | Maintainability | `EvaluationTab.tsx` is a ~2,920-line file with 7 inline sub-components + 8 module-level helpers                                               |
+| 5   | Low        | Test coverage   | 5 of the 8 eval components are untested (RosterDecisions, Insights, RoundComparison, AssistantSubmissions, EvalTrendModal)                    |
 
 ### 3.1 `evaluationEvents` is not authorization-scoped — Medium
 
@@ -103,7 +103,7 @@ private roster decisions and other assistants' grades) and can rewrite or
 delete the whole array directly through the SDK. The per-assistant visibility
 is cosmetic — the same class as finances finding 3.1 before its fix.
 
-**The catch that makes this hard:** assistants must legitimately *append* their
+**The catch that makes this hard:** assistants must legitimately _append_ their
 own rounds (`saveAssistantEvaluation`), so a blanket `isCurrentOwner()` gate —
 the finances fix — would break the assistant flow. Firestore rules cannot
 cheaply express "append, or modify only array entries whose `evaluatorId`
@@ -164,18 +164,18 @@ scouting sheet offers that this doesn't. Feasibility judged against §1.
 
 ### Recommend approving
 
-| Feature                          | Why coaches want it                                                                 | Feasibility                                                                                   |
-| -------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Eval export (PDF/CSV)**        | Share roster decisions with a coaching staff / club board at season's end.          | Good fit. Reuse the lazy-jspdf pattern (`src/finances/feeSheetPdf.ts`) over `RosterDecisionsPanel` output + a round's grade grid. Pure client change. |
-| **Per-team custom categories**   | Different orgs weight different tools; today categories are fixed by pitching format.| Medium. A `evalCategoryOverrides` map on the team doc feeding `getEvalCategoriesForTeam`; touches grade seeding + migration. |
+| Feature                        | Why coaches want it                                                                   | Feasibility                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Eval export (PDF/CSV)**      | Share roster decisions with a coaching staff / club board at season's end.            | Good fit. Reuse the lazy-jspdf pattern (`src/finances/feeSheetPdf.ts`) over `RosterDecisionsPanel` output + a round's grade grid. Pure client change. |
+| **Per-team custom categories** | Different orgs weight different tools; today categories are fixed by pitching format. | Medium. A `evalCategoryOverrides` map on the team doc feeding `getEvalCategoriesForTeam`; touches grade seeding + migration.                          |
 
 ### Considered, recommend not planning
 
-| Feature                                   | Note                                                                                     |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Parent/player-facing eval summary         | Coach evals are deliberately private; the trusted-coach model (§3.1) assumes no player reads. Declined. |
-| Video / photo attachments on a grade      | No Cloud Storage (Spark), 1 MB doc cap. Poor fit — same call as finances receipt photos. |
-| External scout share link                 | Would need the anonymous-portal + `teamPublic` mirror pattern; exposes private evals. Declined. |
+| Feature                                   | Note                                                                                                                                |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Parent/player-facing eval summary         | Coach evals are deliberately private; the trusted-coach model (§3.1) assumes no player reads. Declined.                             |
+| Video / photo attachments on a grade      | No Cloud Storage (Spark), 1 MB doc cap. Poor fit — same call as finances receipt photos.                                            |
+| External scout share link                 | Would need the anonymous-portal + `teamPublic` mirror pattern; exposes private evals. Declined.                                     |
 | Weighted composite / auto-ranking overall | `RosterDecisionsPanel` buckets already approximate this; a single "overall score" invites over-trust in a subjective 1–5. Declined. |
 
 ## 5. Roadmap
