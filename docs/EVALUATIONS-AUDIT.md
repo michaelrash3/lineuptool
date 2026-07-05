@@ -167,6 +167,10 @@ the whole tab.
 Benchmark: what an eval/scouting workflow in TeamSnap, GameChanger, or a club
 scouting sheet offers that this doesn't. Feasibility judged against §1.
 
+**Shipped:** Eval export is done — a round's grade grid downloads as CSV (#514)
+for spreadsheets and as a formatted, landscape PDF grade grid for a printable
+staff/board handout (lazy `jspdf`, mirroring `feeSheetPdf`).
+
 ### Recommend approving
 
 | Feature                        | Why coaches want it                                                                   | Feasibility                                                                                                                                           |
