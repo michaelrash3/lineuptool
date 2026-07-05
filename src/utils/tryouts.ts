@@ -310,3 +310,41 @@ export const evaluatorTryoutGradeForSignup = (
     .find((s: any) => s.gradesByEvaluator?.[evaluatorId]?.grades?.[signupId]);
   return session?.gradesByEvaluator?.[evaluatorId]?.grades?.[signupId] || null;
 };
+
+// One-time migration (EVAL schema v11) — audit finding 3.2. Legacy tryout
+// grades were stored as `evaluationEvents` entries carrying a `tryoutSignupId`
+// + `grades.signup`; `normalizeTryoutSessions` folds those into the session map
+// on every read but never removed them, so they lived in two places, bloated
+// the doc, and were re-normalized on every load. This does that fold ONCE and
+// drops the folded entries from `evaluationEvents`, leaving `tryoutSessions` as
+// the single home for tryout grades. Pure.
+//
+// The drop condition is IDENTICAL to what normalizeTryoutSessions folds
+// (`tryoutSignupId && evaluatorId && grades.signup`), so nothing that wasn't
+// safely captured in a session is ever removed. Idempotent: once no legacy
+// entries remain, the inputs are returned unchanged (by reference) so the
+// caller writes nothing.
+export const migrateLegacyTryoutGrades = (
+  team: any,
+): { evaluationEvents: any[]; tryoutSessions: any[] } => {
+  const events = Array.isArray(team?.evaluationEvents)
+    ? team.evaluationEvents
+    : [];
+  const sessions = Array.isArray(team?.tryoutSessions)
+    ? team.tryoutSessions
+    : [];
+  const isFoldedTryoutGrade = (e: any) =>
+    !!(e && e.tryoutSignupId && e.evaluatorId && e.grades?.signup);
+  const legacy = events.filter(isFoldedTryoutGrade);
+  // No legacy entries → return the inputs untouched (same references) so an
+  // equality check upstream sees "nothing changed" and skips the write.
+  if (legacy.length === 0) {
+    return { evaluationEvents: events, tryoutSessions: sessions };
+  }
+  return {
+    // normalizeTryoutSessions reads team.evaluationEvents/tryoutSessions/
+    // tryoutSignups and returns the merged sessions (legacy grades folded in).
+    tryoutSessions: normalizeTryoutSessions(team),
+    evaluationEvents: events.filter((e: any) => !isFoldedTryoutGrade(e)),
+  };
+};

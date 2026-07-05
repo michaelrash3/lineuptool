@@ -105,6 +105,7 @@ export {
   resolveTryoutDateForSlug,
   buildPublicMirror,
   normalizeTryoutSessions,
+  migrateLegacyTryoutGrades,
   combinedTryoutGradeForSignup,
   evaluatorTryoutGradeForSignup,
 } from "./tryouts";

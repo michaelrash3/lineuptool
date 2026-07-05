@@ -245,7 +245,11 @@ export const getEvalCategoriesForPlayer = (
 // retired: a player is now either active or Departed. The v10 migration folds
 // every non-departed player back to active (present: true, no stale
 // rosterStatus), so legacy "inactive" kids rejoin lineups/stats/attendance.
-export const EVAL_SCHEMA_VERSION = 10;
+// v11 (2026-07) — legacy tryout-grade cleanup (EVALUATIONS-AUDIT.md finding
+// 3.2). Tryout grades stored as evaluationEvents (tryoutSignupId + grades.signup)
+// are folded into tryoutSessions once and dropped from evaluationEvents, so
+// they stop living in two places and re-normalizing on every read.
+export const EVAL_SCHEMA_VERSION = 11;
 
 // Display labels for the 1–5 grading scale (index 0 maps to 1).
 export const EVAL_SCALE_LABELS = [
