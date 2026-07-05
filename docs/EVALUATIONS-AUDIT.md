@@ -162,6 +162,22 @@ premium math is the highest-value untested logic), `InsightsPanel`,
 Extracting the scoring helpers (3.4) makes them unit-testable without rendering
 the whole tab.
 
+**Resolved:** the extracted eval sub-components now have render/behavior tests
+(`screens/evaluation/panels.test.tsx`, `RosterDecisionsPanel.test.tsx`,
+`EvalTrendModal.test.tsx`) covering the four roster-decision buckets + card→trend
+wiring, the round-over-round Insights flags, the side-by-side comparison deltas,
+assistant-submission display + two-tap delete, and the trend modal's empty /
+single-eval / own-rounds-only states. The scoring math itself was unit-tested in
+`utils/evalScoring.test.ts` (#507).
+
+_Observed while writing these (not fixed here — a candidate follow-up):
+`RosterDecisionsPanel` compares `latestEvalAvg` — a 0–100 score from
+`currentEvaluationScore100` — against 1–5-scale cutoffs (`>= 3.3`, `< 2.8`,
+`<= 2.5`) and an `evalDelta` against `0.2`/`0.5`. The bucket structure still
+holds up (the relative cut line does the real work off the 100-scale
+`decisionScore`), but the absolute eval-signal branches read as effectively
+always-above-bar. Worth a dedicated look before leaning on those branches._
+
 ## 4. Coach feature-gap check
 
 Benchmark: what an eval/scouting workflow in TeamSnap, GameChanger, or a club
