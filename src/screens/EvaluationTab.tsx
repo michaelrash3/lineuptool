@@ -40,13 +40,14 @@ import {
   getCombinedGrades,
   suggestPrimaryPosition,
 } from "../lineupEngine";
-import { useTeam, useUI } from "../contexts";
+import { useTeam, useUI, useToast } from "../contexts";
 import {
   currentEvaluationScore100,
   playerTopMph,
 } from "../utils/evaluationScore";
 import { A11yDialog, EmptyState } from "../components/shared";
 import { evalRoundCsv, evalRoundCsvFilename } from "../utils/evalExport";
+import { downloadEvalRoundPdf } from "../evaluation/evalRoundPdf";
 import { EvalTrendModal } from "./evaluation/EvalTrendModal";
 import { RosterDecisionsPanel } from "./evaluation/RosterDecisionsPanel";
 import {
@@ -103,6 +104,7 @@ export {
 export const EvaluationTab = memo(() => {
   const { team, user, saveTeamEvaluation, deleteEvaluation, currentRole } =
     useTeam();
+  const toast = useToast();
   const isAssistant = currentRole === "assistant";
   const {
     teamEvalGrades,
@@ -272,6 +274,22 @@ export const EvaluationTab = memo(() => {
     a.click();
     URL.revokeObjectURL(url);
   }, [activeRound, players, activeCategories, team?.name]);
+
+  // Export the selected round as a formatted PDF grade grid (audit §4) — the
+  // handout companion to the CSV. jspdf loads lazily inside downloadEvalRoundPdf
+  // and the detached-anchor download is short-circuited under jsdom, so this is
+  // inert in tests; the grid shape is built by the unit-tested buildEvalGradeGrid.
+  const handleExportPdf = useCallback(() => {
+    if (!activeRound) return;
+    void downloadEvalRoundPdf({
+      team,
+      round: activeRound,
+      roundName: activeRoundName,
+      players,
+      categories: activeCategories,
+      toast,
+    });
+  }, [activeRound, activeRoundName, players, activeCategories, team, toast]);
 
   // The coach can explicitly start a new round at ANY time (the cadence prompt
   // is a nudge, never a gate). This flag records that explicit choice so the
@@ -545,6 +563,17 @@ export const EvaluationTab = memo(() => {
               >
                 <Icons.FileText className="w-4 h-4" />
                 Export CSV
+              </button>
+            )}
+            {activeRound && (
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                className="t-button px-4 py-3 rounded-xl border border-line bg-surface text-ink hover:bg-surface-2 flex items-center justify-center gap-2"
+                title={`Download “${activeRoundName}” as a printable PDF grade grid`}
+              >
+                <Icons.Download className="w-4 h-4" />
+                Export PDF
               </button>
             )}
             <button

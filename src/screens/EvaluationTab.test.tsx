@@ -1,7 +1,18 @@
 import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
+import { vi } from "vitest";
 import { EvaluationTab } from "./EvaluationTab";
 import { renderWithProviders } from "../test-utils";
+
+// The PDF export lazy-loads jspdf and does real canvas work; mock the whole
+// renderer so the screen test only asserts the button wires through to it. The
+// grid shaping is covered by evalRoundPdf.test.ts.
+const { downloadEvalRoundPdfMock } = vi.hoisted(() => ({
+  downloadEvalRoundPdfMock: vi.fn(),
+}));
+vi.mock("../evaluation/evalRoundPdf", () => ({
+  downloadEvalRoundPdf: downloadEvalRoundPdfMock,
+}));
 
 describe("EvaluationTab", () => {
   it("renders the head-coach evaluation dashboard for an empty team", () => {
@@ -206,6 +217,47 @@ describe("EvaluationTab", () => {
     expect(
       screen.queryByRole("button", { name: /Export CSV/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("exports the selected round as a PDF through the lazy jspdf renderer", () => {
+    downloadEvalRoundPdfMock.mockClear();
+    renderWithProviders(<EvaluationTab />, {
+      team: {
+        team: {
+          name: "Hawks",
+          players: [{ id: "p1", name: "Sammy", number: "5" }],
+          primaryColor: "#1d4ed8",
+          evaluationEvents: [
+            {
+              id: "r1",
+              date: "2026-02-01",
+              coachRole: "Head",
+              evaluatorId: "u1",
+              evaluatorName: "Coach",
+              grades: { p1: { contact: 5, notes: "sharp" } },
+            },
+          ],
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        saveTeamEvaluation: jest.fn(),
+        deleteEvaluation: jest.fn(),
+      },
+      ui: {
+        teamEvalGrades: {},
+        setTeamEvalGrades: jest.fn(),
+        selectedRoundId: "r1",
+        setSelectedRoundId: jest.fn(),
+        evalTrendPlayerId: null,
+        setEvalTrendPlayerId: jest.fn(),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Export PDF/ }));
+    expect(downloadEvalRoundPdfMock).toHaveBeenCalledTimes(1);
+    const arg = downloadEvalRoundPdfMock.mock.calls[0][0];
+    expect(arg.round.id).toBe("r1");
+    expect(arg.roundName).toBeTruthy();
+    expect(arg.players.map((p: { id: string }) => p.id)).toContain("p1");
   });
 
   it("always offers starting a new round while editing one (no cadence gate)", () => {
