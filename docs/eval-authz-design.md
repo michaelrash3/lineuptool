@@ -1,14 +1,15 @@
 # Design: authorization-scoped evaluations (audit finding 3.1)
 
-_Status: **approved — Option A rollout in progress.** Steps 1–3 (rules, scoped
-read subscription, dual-write + backfill) are shipped. **Rollout phase 1 is now
-live: `EVAL_ROUNDS_DUAL_WRITE` is ON**, so the subcollection is being populated
-in production (backfill + ongoing dual-write) while reads still come from the
-legacy `evaluationEvents` array (`EVAL_ROUNDS_SUBCOLLECTION` still off) — the UX
-is unchanged and it's fully reversible. Reads flip (phase 2) only after the
-subcollection is confirmed complete on real data; the array is dropped last.
-The finding-3.1 "pinned, not endorsed" rules block (#511) still documents the
-current live exposure until the read cutover. Sequencing at the bottom._
+_Status: **approved — Option A rollout in progress.** Steps 1–3 shipped.
+**Both flags are now ON: reads come from the `evalRounds` subcollection**
+(phase 2 read cutover), after phase 1's soak populated it and was confirmed on
+real data. `handleSnap` no longer sources `evaluationEvents` from the array
+(the subcollection subscription owns it), and the lazy backfill migrates each
+team's raw array on load so a not-yet-soaked team fills itself instead of
+reading blank. Still reversible — flip `EVAL_ROUNDS_SUBCOLLECTION` back to false
+and reads return to the array (which dual-write keeps current). Remaining: drop
+the `evaluationEvents` array from the team doc (phase 3), then remove the flags
+and the finding-3.1 "pinned" rules block (step 5). Sequencing at the bottom._
 
 ## The problem, precisely
 
@@ -160,7 +161,11 @@ it's worth.
    the strict create rule is unchanged and future assistants backfill theirs on
    next load. Rollout is a two-flag cutover: flip dual-write → soak/backfill →
    flip `EVAL_ROUNDS_SUBCOLLECTION` (reads). Unit-tested; inert until flipped.
-4. Move the schema-migration ladder's eval steps to run per-round; drop
-   `evaluationEvents` from the team doc.
+4. ✅ **Read cutover done** — `EVAL_ROUNDS_SUBCOLLECTION` ON. `handleSnap`
+   preserves the subcollection subscription's `evaluationEvents` instead of
+   overwriting from the array; the backfill now migrates from the raw array
+   (`rawEvalEventsRef`) so a not-yet-soaked team fills on load rather than
+   reading blank. Still to do in this step: **drop `evaluationEvents` from the
+   team doc** and move the schema-ladder eval steps per-round (phase 3).
 5. Remove the flag and the finding-3.1 "pinned, not endorsed" rules block,
    replacing it with the new scoped-access assertions.

@@ -173,6 +173,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // which previously produced phantom "save failed" toasts (no activeTeamId yet)
   // and risked writing default values onto a real team mid-load.
   const loadedTeamIdRef = useRef<string | null>(null);
+  // The team's legacy `evaluationEvents` ARRAY as last read from the doc
+  // (post schema-migration). Held separately so the backfill can always migrate
+  // from the real array even once reads switch to the subcollection — otherwise
+  // a not-yet-soaked team would read its (empty) subcollection and never
+  // populate. Finding-3.1 step 4.
+  const rawEvalEventsRef = useRef<any[]>([]);
   // JSON of the last public-mirror projection we wrote, so we only re-upsert
   // the sanitized teamPublic doc when a mirrored field actually changes.
   const lastMirrorRef = useRef<string>("");
@@ -724,7 +730,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               : {}),
             evalSchemaVersion: EVAL_SCHEMA_VERSION,
           });
-          setTeamData({
+          rawEvalEventsRef.current = migratedEvents;
+          setTeamData((prev: any) => ({
             ...DEFAULT_TEAM_DATA,
             ...raw,
             // Coerce core collections to arrays: a malformed doc with
@@ -732,17 +739,29 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             // DEFAULT_TEAM_DATA [] and crash the many .map/.find call
             // sites downstream.
             games: Array.isArray(raw.games) ? raw.games : [],
-            evaluationEvents: migratedEvents,
+            // When reads come from the evalRounds subcollection, its
+            // subscription owns evaluationEvents — keep what it set rather than
+            // clobbering it with the (backup) array. Otherwise use the array.
+            evaluationEvents: EVAL_ROUNDS_SUBCOLLECTION
+              ? prev.evaluationEvents
+              : migratedEvents,
             players: migratedPlayers,
             evalSchemaVersion: EVAL_SCHEMA_VERSION,
-          });
+          }));
         } else {
-          setTeamData({
+          rawEvalEventsRef.current = Array.isArray(raw.evaluationEvents)
+            ? raw.evaluationEvents
+            : [];
+          setTeamData((prev: any) => ({
             ...DEFAULT_TEAM_DATA,
             ...raw,
             players: Array.isArray(raw.players) ? raw.players : [],
             games: Array.isArray(raw.games) ? raw.games : [],
-          });
+            // Subcollection owns evaluationEvents when reads are flipped.
+            ...(EVAL_ROUNDS_SUBCOLLECTION
+              ? { evaluationEvents: prev.evaluationEvents }
+              : {}),
+          }));
         }
         // Mark which team's data is now loaded so write-effects
         // (auto-correct, photo-strip) and the roster-wipe guard can safely
@@ -2228,13 +2247,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   }, [activeTeamId, user?.uid, roleResolved, realRole]);
 
   // Step 3 of the finding-3.1 fix: lazily backfill the CALLER'S OWN legacy
-  // rounds from teamData.evaluationEvents into the evalRounds subcollection, so
-  // the subcollection becomes complete without a server migration. Each coach
-  // mirrors only their own rounds (the create rule is self-stamped), which also
-  // covers future assistants — they backfill theirs on their next load. Runs
-  // once per team per session, best-effort. Gated behind EVAL_ROUNDS_DUAL_WRITE
-  // and OFF by default, so this is inert in production; the ongoing dual-write
-  // in useEvaluationCrud keeps the subcollection in sync after the backfill.
+  // rounds into the evalRounds subcollection, so it becomes complete without a
+  // server migration. Reads from the raw `evaluationEvents` ARRAY (via
+  // rawEvalEventsRef), NOT teamData.evaluationEvents — once reads are flipped to
+  // the subcollection, teamData holds the subcollection's value, so migrating
+  // from it would be circular and a not-yet-soaked team would never populate.
+  // Each coach mirrors only their own rounds (the create rule is self-stamped),
+  // which also covers future assistants. Once per team per session, best-effort.
+  // Gated behind EVAL_ROUNDS_DUAL_WRITE; the ongoing dual-write in
+  // useEvaluationCrud keeps the subcollection in sync after the backfill.
   const backfilledTeamsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!EVAL_ROUNDS_DUAL_WRITE) return;
@@ -2247,11 +2268,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       db,
       appId,
       activeTeamId,
-      teamData.evaluationEvents,
+      rawEvalEventsRef.current,
       user.uid,
     );
+    // Trigger on team-load completion (loadingActive true→false), NOT on
+    // teamData.evaluationEvents: once reads come from the subcollection, a
+    // not-yet-soaked team keeps an empty evaluationEvents that never changes, so
+    // it would never fire and never populate. loadingActive flips per load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTeamId, user?.uid, teamData.evaluationEvents]);
+  }, [activeTeamId, user?.uid, loadingActive]);
 
   // Auto-claim + persist legacy teams. Runs once per session per team
   // when ownerId is missing AND there is no plausible existing owner.
