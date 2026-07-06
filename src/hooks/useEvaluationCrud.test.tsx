@@ -3,19 +3,27 @@ import { vi } from "vitest";
 import { useEvaluationCrud } from "./useEvaluationCrud";
 import { applyTeamOps, makeToast } from "../test-utils";
 
-// Turn the dual-write flag ON for this file and stub the subcollection writers,
-// so the dual-write block below is exercised without a real Firestore. The
-// existing array-op tests pass no db/appId/teamId, so their mirror() calls are
-// gated off regardless — they never touch these mocks.
+// Both flags ON for this file (the finding-3.1 write cutover, phase 3) and stub
+// every subcollection writer, so the subcollection-primary block below is
+// exercised without a real Firestore. The array-op tests in the main describe
+// pass no db/appId/teamId, so subPrimary is false there regardless — they stay
+// on the legacy array path and never touch these mocks.
 vi.mock("../constants/flags", () => ({
   EVAL_ROUNDS_DUAL_WRITE: true,
-  EVAL_ROUNDS_SUBCOLLECTION: false,
+  EVAL_ROUNDS_SUBCOLLECTION: true,
 }));
 vi.mock("../utils/evalRounds", () => ({
   mirrorEvalRound: vi.fn(() => Promise.resolve()),
   removeEvalRoundDoc: vi.fn(() => Promise.resolve()),
+  saveEvalRound: vi.fn(() => Promise.resolve()),
+  deleteEvalRound: vi.fn(() => Promise.resolve()),
 }));
-import { mirrorEvalRound, removeEvalRoundDoc } from "../utils/evalRounds";
+import {
+  mirrorEvalRound,
+  removeEvalRoundDoc,
+  saveEvalRound,
+  deleteEvalRound,
+} from "../utils/evalRounds";
 
 const setup = (over: any = {}, inputs: any = {}, uid = "u1") => {
   const updateTeamArrays = jest.fn();
@@ -164,11 +172,14 @@ describe("useEvaluationCrud", () => {
   });
 });
 
-describe("useEvaluationCrud dual-write (flag on + Firestore handles)", () => {
-  // Same as setup(), but supplies db/appId/teamId so the dual-write path fires
-  // (the flag is mocked on at the top of this file).
-  const dwSetup = (over: any = {}, inputs: any = {}, uid = "u1") => {
+describe("useEvaluationCrud subcollection-primary (write cutover)", () => {
+  // Same as setup(), but supplies db/appId/teamId so subPrimary is true (both
+  // flags are mocked on at the top of this file). In this mode the subcollection
+  // is the authoritative home: writes go per-doc via saveEvalRound/deleteEvalRound
+  // (error-propagating), and the legacy `evaluationEvents` array is NOT written.
+  const cutSetup = (over: any = {}, inputs: any = {}, uid = "u1") => {
     const updateTeamArrays = jest.fn();
+    const toast = makeToast();
     const uiBridge = { current: { getInputs: () => inputs } };
     const teamData = { evaluationEvents: [], ...over };
     const user = { uid, displayName: "Mike Coach", email: "m@x.com" };
@@ -176,7 +187,7 @@ describe("useEvaluationCrud dual-write (flag on + Firestore handles)", () => {
       useEvaluationCrud({
         teamData,
         updateTeamArrays,
-        toast: makeToast(),
+        toast,
         user,
         uiBridge,
         db: {} as never,
@@ -184,29 +195,39 @@ describe("useEvaluationCrud dual-write (flag on + Firestore handles)", () => {
         teamId: "team1",
       }),
     );
-    return { result };
+    return { result, updateTeamArrays, toast };
   };
 
-  it("mirrors a new Head round to the subcollection on save", () => {
+  beforeEach(() => {
+    (saveEvalRound as any).mockClear();
+    (deleteEvalRound as any).mockClear();
     (mirrorEvalRound as any).mockClear();
-    const { result } = dwSetup(
+    (removeEvalRoundDoc as any).mockClear();
+  });
+
+  it("writes a new Head round to the subcollection and NOT the array", () => {
+    const { result, updateTeamArrays } = cutSetup(
       {},
       { teamEvalGrades: { p1: { hit: 3 } }, selectedRoundId: null },
     );
     act(() => result.current.saveTeamEvaluation());
-    expect(mirrorEvalRound).toHaveBeenCalledTimes(1);
-    const [, appId, teamId, round] = (mirrorEvalRound as any).mock.calls[0];
+    // The authoritative write is the per-doc setDoc; the legacy array is left
+    // untouched (no updateTeamArrays call at all).
+    expect(saveEvalRound).toHaveBeenCalledTimes(1);
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    const [, appId, teamId, round] = (saveEvalRound as any).mock.calls[0];
     expect([appId, teamId]).toEqual(["app1", "team1"]);
     expect(round).toMatchObject({
       coachRole: "Head",
       evaluatorId: "u1",
       grades: { p1: { hit: 3 } },
     });
+    // The best-effort mirror belongs to the pre-cutover soak — never fires now.
+    expect(mirrorEvalRound).not.toHaveBeenCalled();
   });
 
-  it("mirrors the edited round (grades applied) when updating in place", () => {
-    (mirrorEvalRound as any).mockClear();
-    const { result } = dwSetup(
+  it("writes the edited round (grades applied) and NOT the array on in-place save", () => {
+    const { result, updateTeamArrays } = cutSetup(
       {
         evaluationEvents: [
           { id: "r1", coachRole: "Head", evaluatorId: "u1", grades: {} },
@@ -215,7 +236,8 @@ describe("useEvaluationCrud dual-write (flag on + Firestore handles)", () => {
       { teamEvalGrades: { p1: { hit: 5 } }, selectedRoundId: "r1" },
     );
     act(() => result.current.saveTeamEvaluation());
-    expect(mirrorEvalRound).toHaveBeenCalledWith(
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    expect(saveEvalRound).toHaveBeenCalledWith(
       expect.anything(),
       "app1",
       "team1",
@@ -223,15 +245,59 @@ describe("useEvaluationCrud dual-write (flag on + Firestore handles)", () => {
     );
   });
 
-  it("removes the round's doc on delete", () => {
-    (removeEvalRoundDoc as any).mockClear();
-    const { result } = dwSetup({ evaluationEvents: [{ id: "r1" }] });
+  it("writes a new Assistant round to the subcollection and NOT the array", () => {
+    const { result, updateTeamArrays } = cutSetup();
+    act(() => result.current.saveAssistantEvaluation({ p1: { field: 4 } }));
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    expect(saveEvalRound).toHaveBeenCalledTimes(1);
+    const round = (saveEvalRound as any).mock.calls[0][3];
+    expect(round).toMatchObject({
+      coachRole: "Assistant",
+      evaluatorId: "u1",
+      grades: { p1: { field: 4 } },
+    });
+  });
+
+  it("deletes the round's doc and NOT via the array on delete", () => {
+    const { result, updateTeamArrays } = cutSetup({
+      evaluationEvents: [{ id: "r1" }],
+    });
     act(() => result.current.deleteEvaluation("r1"));
-    expect(removeEvalRoundDoc).toHaveBeenCalledWith(
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    expect(deleteEvalRound).toHaveBeenCalledWith(
       expect.anything(),
       "app1",
       "team1",
       "r1",
     );
+    expect(removeEvalRoundDoc).not.toHaveBeenCalled();
+  });
+
+  it("surfaces an error toast when the subcollection save rejects", async () => {
+    (saveEvalRound as any).mockRejectedValueOnce(new Error("offline"));
+    const { result, toast } = cutSetup(
+      {},
+      { teamEvalGrades: { p1: { hit: 3 } }, selectedRoundId: null },
+    );
+    await act(async () => {
+      result.current.saveTeamEvaluation();
+      // Let the rejected save's .catch microtask run.
+      await Promise.resolve();
+    });
+    expect(
+      (toast.push as any).mock.calls.some((c: any[]) => c[0]?.kind === "error"),
+    ).toBe(true);
+  });
+
+  it("surfaces an error toast when the subcollection delete rejects", async () => {
+    (deleteEvalRound as any).mockRejectedValueOnce(new Error("offline"));
+    const { result, toast } = cutSetup({ evaluationEvents: [{ id: "r1" }] });
+    await act(async () => {
+      result.current.deleteEvaluation("r1");
+      await Promise.resolve();
+    });
+    expect(
+      (toast.push as any).mock.calls.some((c: any[]) => c[0]?.kind === "error"),
+    ).toBe(true);
   });
 });

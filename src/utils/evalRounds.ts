@@ -123,6 +123,29 @@ export const removeEvalRoundDoc = async (
   }
 };
 
+// PRIMARY (error-propagating) subcollection writes for once reads AND writes
+// have cut over to the subcollection (finding-3.1 phase 3). Unlike the
+// best-effort mirror/remove above — which existed as a backup while the array
+// was authoritative — these REJECT on failure so the caller can surface an
+// error toast instead of silently losing the coach's grades.
+export const saveEvalRound = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  round: EvaluationEvent,
+): Promise<void> =>
+  setDoc(
+    evalRoundRef(db, appId, teamId, round.id),
+    scrubUndefined(round) as DocumentData,
+  );
+
+export const deleteEvalRound = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  roundId: string,
+): Promise<void> => deleteDoc(evalRoundRef(db, appId, teamId, roundId));
+
 // Lazily backfill the caller's OWN rounds from the legacy array into the
 // subcollection. Only rounds authored by `uid` are touched — the create rule
 // only permits self-stamped writes, so an assistant backfills their own and the
