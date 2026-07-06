@@ -188,15 +188,22 @@ onto the same 0–100 percentage scale (the ×20 equivalents, as named constants
 already correct; only these advisory bucket cutoffs were mis-scaled.
 
 **Refined (fluid cut):** the first scale fix left the "Cut / Drop a Division"
-recommendation firing on an _absolute_ score bar (`<= 50`). But every cut
-decision is meant to be **fluid** — relative to the team's own standard-deviation
-cut line — so a kid is never dropped for a low absolute number, only for sitting
-more than a standard deviation below _their team's_ mean. The over-matched call
-was moved into the relative-cut pass alongside the Cut Candidate line: among
-players below that line, the ones playing up (and not on the rise) are Cut / Drop
-a Division, the rest are Cut Candidates. `EVAL_DEEP_BELOW_BAR` is gone. Tests pin
-both directions — a weak playing-up kid on a spread-out team is dropped; the same
-kid on a uniformly-weak team is _not_ (no spread → no cut).
+recommendation firing on an _absolute_ score bar (`<= 50`). Cut decisions should
+be **fluid** — relative to the team's own standard-deviation cut line — so the
+over-matched call was moved into the relative-cut pass alongside the Cut
+Candidate line: among players below that line, the ones playing up (and not on
+the rise) are Cut / Drop a Division, the rest are Cut Candidates.
+
+**Refined again (absolute floor):** a purely-relative line has a hole — a
+uniformly-weak team has no spread, so it would clear _everyone_, which isn't
+fair. So the cut line is now a **hybrid**: a player is flagged if they are more
+than one SD below the team mean **OR** below an absolute competitive floor
+(`CUT_FLOOR_SCORE = 40/100`, tunable). The relative line catches the weakest on a
+strong team; the floor catches genuinely-weak players when there's no spread; a
+solid, tightly-bunched team trips neither and flags nobody. Tests pin all three:
+a weak playing-up kid among strong teammates is dropped (relative); a uniformly-
+weak team still surfaces its weakest (floor); a uniformly-average team flags
+nobody.
 
 ## 4. Coach feature-gap check
 

@@ -27,13 +27,21 @@ import type { Player } from "../../types";
 // eval signal reads correctly (a 3.3/5 "above average" bar is 66/100, etc.).
 //
 // NOTE these only shape the POSITIVE ("Strong Fit") side and the rationale
-// text. Every CUT decision — both "Cut Candidate" and "Cut / Drop a Division" —
-// is fluid, decided against the team's own standard-deviation cut line after
-// the per-player map, never a fixed bar (see the "Relative cut line" pass).
+// text. Cut decisions are driven by the "Relative cut line" pass below.
 const EVAL_ABOVE_BAR = 66; // was 3.3 / 5 — clearly above the average bar
 const EVAL_BELOW_BAR = 56; // was 2.8 / 5 — below the average bar (Strong gate)
 const EVAL_FLAT_BAND = 4; // was 0.2 / 5 — |Δ| under this reads as "flat"
 const EVAL_STRONG_IMPROVE = 10; // was 0.5 / 5 — Δ at/above this is "strongly up"
+
+// Absolute floor for a cut recommendation, out of 100. A player at or below
+// this score is flagged regardless of how the rest of the roster grades — so a
+// uniformly-weak team still surfaces its weakest instead of clearing everyone
+// on a flat distribution. The team-relative std-dev line (below) catches the
+// weakest on a STRONG team; this floor catches genuinely-weak players when
+// there's no spread. A player is flagged if they trip EITHER.
+//   ~40/100 ≈ grades averaging well under the neutral 3 — clearly below the
+//   competitive bar, not merely "a bit below average" (~50). Tune here.
+const CUT_FLOOR_SCORE = 40;
 
 export const RosterDecisionsPanel = memo(() => {
   const { team, user } = useTeam();
@@ -291,22 +299,24 @@ export const RosterDecisionsPanel = memo(() => {
       };
     });
 
-    // ---- Relative cut line (no fixed cap) ----
-    // The per-player pass above only *proposes* a "watch" bucket from
-    // absolute cutoffs, which over-flags a roster that's simply young or
-    // early in the season -- it once put 7 of 12 kids on the list. Temper it
-    // against the team's OWN spread instead: a player stays flagged as a Cut
-    // Candidate only if their Total Score (out of 100 — the same number the
-    // grading cards produce, blending eval grades and imported stats) is more
-    // than one standard deviation below the team mean. There is NO hard cap
-    // -- the distribution itself decides, so a tightly-bunched team can flag
-    // nobody and only genuine outliers ever surface. Anyone above the line
-    // becomes a "fit" (solid standing — they hold the team line without
-    // standing out); the earned "strong" tier is untouched. Among those BELOW
-    // the line, a kid who is also playing up and not on the rise is a Cut /
+    // ---- Cut line: fluid team-relative line + an absolute floor ----
+    // A player is flagged for a cut if they trip EITHER of two lines:
+    //   1) Relative — more than one standard deviation below the team mean
+    //      composite. This tempers a roster that's simply young or early in the
+    //      season (it once put 7 of 12 kids on the list) and, on a STRONG team,
+    //      surfaces the weakest links. No fixed cap: a tightly-bunched team
+    //      flags nobody on this line and only genuine outliers ever surface.
+    //   2) Absolute floor (CUT_FLOOR_SCORE) — a genuinely low score regardless
+    //      of the team's spread. Without this, a uniformly-weak team clears
+    //      EVERYONE (no spread → no outliers), which isn't fair or useful; the
+    //      floor makes sure the weakest still surface even when nobody stands
+    //      out. On a solid team the floor catches nobody and the relative line
+    //      does the work; the two together cover both a strong and a weak room.
+    // Anyone above BOTH lines is a "fit" (solid standing — they hold the team
+    // line without standing out); the earned "strong" tier is untouched. Among
+    // the flagged, a kid who is also playing up and not on the rise is a Cut /
     // Drop a Division (better matched to a younger division); everyone else
-    // below the line is a straight Cut Candidate. Both cut recommendations key
-    // off this one fluid line, never a fixed score.
+    // flagged is a straight Cut Candidate.
     //
     // Null standing when we have no eval AND no stats for the kid -- can't
     // call them low without data.
@@ -345,15 +355,21 @@ export const RosterDecisionsPanel = memo(() => {
       x.d.scoreVsTeam =
         x.c != null ? Math.round(x.d.totalScore - teamAvgScore) : null;
       if (x.d.bucket !== "watch") continue;
-      // Flagged only if genuinely below the team line AND we have data.
-      // Everyone else is a solid "Fit" — Strong Fit is earned above, so the
-      // middle of the roster lands here.
-      if (x.c != null && x.c < belowLine) {
-        const backNote = `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
-          (x.d.scoreVsTeam ?? 0) > 0 ? "+" : ""
-        }${x.d.scoreVsTeam}) — more than a standard deviation back`;
-        // A below-the-line kid who is playing up and not on the rise is better
-        // matched to a younger division; otherwise a straight Cut Candidate.
+      // Flagged if below the team's relative line OR below the absolute floor,
+      // and we have data. Everyone else is a solid "Fit" — Strong Fit is earned
+      // above, so the middle of the roster lands here.
+      const belowRelative = x.c != null && x.c < belowLine;
+      const belowFloor = x.c != null && x.c * 100 < CUT_FLOOR_SCORE;
+      if (belowRelative || belowFloor) {
+        // Prefer the vs-team framing when they're a relative outlier; otherwise
+        // say they're under the absolute competitive bar.
+        const backNote = belowRelative
+          ? `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
+              (x.d.scoreVsTeam ?? 0) > 0 ? "+" : ""
+            }${x.d.scoreVsTeam}) — more than a standard deviation back`
+          : `Score ${x.d.totalScore}/100 — below the ${CUT_FLOOR_SCORE} competitive floor`;
+        // A flagged kid who is playing up and not on the rise is better matched
+        // to a younger division; otherwise a straight Cut Candidate.
         const stronglyUp =
           x.d.evalTrend === "improving" &&
           x.d.evalDelta != null &&
