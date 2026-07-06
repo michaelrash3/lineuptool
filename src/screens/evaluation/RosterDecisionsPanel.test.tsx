@@ -123,11 +123,12 @@ describe("RosterDecisionsPanel", () => {
     expect(screen.getByText("Younger Kid")).toBeInTheDocument();
   });
 
-  it("does NOT drop a playing-up kid when the whole team scores alike (fluid, not absolute)", () => {
-    // Same weak playing-up kid, but now every teammate is equally weak — there
-    // is no spread, so nobody is a standard deviation back and the cut line
-    // flags no one. Proves the recommendation is relative to the team, not a
-    // fixed score bar (under the old absolute cutoff this kid was auto-dropped).
+  it("still surfaces the weakest on a uniformly-weak team via the absolute floor", () => {
+    // Every kid is genuinely weak (all-1 ≈ 18/100) — no spread, so the relative
+    // line alone would clear the whole roster. The absolute floor catches them
+    // anyway: the playing-up kid is a Cut / Drop a Division, the age-appropriate
+    // peers are Cut Candidates. (Under a purely-relative line, all three would
+    // wrongly be "Fit".)
     renderWithProviders(<RosterDecisionsPanel />, {
       team: {
         team: {
@@ -152,8 +153,42 @@ describe("RosterDecisionsPanel", () => {
       ui: { setEvalTrendPlayerId: jest.fn() },
     });
     expect(
+      screen.getByText(/^Cut \/ Drop a Division \(1\)$/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Cut Candidates \(2\)$/)).toBeInTheDocument();
+  });
+
+  it("does not flag anyone on a solid, tightly-bunched team", () => {
+    // A uniformly AVERAGE team (all-3 ≈ 51/100): no spread, and every kid is
+    // above the competitive floor — so neither line fires and nobody is a cut.
+    // Proves the floor catches only genuinely-weak rooms, not merely-average ones.
+    renderWithProviders(<RosterDecisionsPanel />, {
+      team: {
+        team: {
+          players: [
+            { id: "p1", name: "Kid One", dob: "2016-01-01" },
+            { id: "p2", name: "Kid Two" },
+            { id: "p3", name: "Kid Three" },
+          ],
+          primaryColor: "#1d4ed8",
+          currentSeason: "Spring 2026",
+          teamAge: "12U",
+          evaluationEvents: [
+            headRound({
+              p1: allGrades(3),
+              p2: allGrades(3),
+              p3: allGrades(3),
+            }),
+          ],
+        },
+        user: { uid: "u1" },
+      },
+      ui: { setEvalTrendPlayerId: jest.fn() },
+    });
+    expect(
       screen.getByText(/^Cut \/ Drop a Division \(0\)$/),
     ).toBeInTheDocument();
+    expect(screen.getByText(/^Cut Candidates \(0\)$/)).toBeInTheDocument();
   });
 
   it("credits a high-scoring player's eval as above the bar (Strong Fit)", () => {
