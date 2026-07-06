@@ -1,6 +1,21 @@
 import { renderHook, act } from "@testing-library/react";
+import { vi } from "vitest";
 import { useEvaluationCrud } from "./useEvaluationCrud";
 import { applyTeamOps, makeToast } from "../test-utils";
+
+// Turn the dual-write flag ON for this file and stub the subcollection writers,
+// so the dual-write block below is exercised without a real Firestore. The
+// existing array-op tests pass no db/appId/teamId, so their mirror() calls are
+// gated off regardless — they never touch these mocks.
+vi.mock("../constants/flags", () => ({
+  EVAL_ROUNDS_DUAL_WRITE: true,
+  EVAL_ROUNDS_SUBCOLLECTION: false,
+}));
+vi.mock("../utils/evalRounds", () => ({
+  mirrorEvalRound: vi.fn(() => Promise.resolve()),
+  removeEvalRoundDoc: vi.fn(() => Promise.resolve()),
+}));
+import { mirrorEvalRound, removeEvalRoundDoc } from "../utils/evalRounds";
 
 const setup = (over: any = {}, inputs: any = {}, uid = "u1") => {
   const updateTeamArrays = jest.fn();
@@ -146,5 +161,77 @@ describe("useEvaluationCrud", () => {
     } else {
       expect(secondEv.date).not.toBe(firstEv.date);
     }
+  });
+});
+
+describe("useEvaluationCrud dual-write (flag on + Firestore handles)", () => {
+  // Same as setup(), but supplies db/appId/teamId so the dual-write path fires
+  // (the flag is mocked on at the top of this file).
+  const dwSetup = (over: any = {}, inputs: any = {}, uid = "u1") => {
+    const updateTeamArrays = jest.fn();
+    const uiBridge = { current: { getInputs: () => inputs } };
+    const teamData = { evaluationEvents: [], ...over };
+    const user = { uid, displayName: "Mike Coach", email: "m@x.com" };
+    const { result } = renderHook(() =>
+      useEvaluationCrud({
+        teamData,
+        updateTeamArrays,
+        toast: makeToast(),
+        user,
+        uiBridge,
+        db: {} as never,
+        appId: "app1",
+        teamId: "team1",
+      }),
+    );
+    return { result };
+  };
+
+  it("mirrors a new Head round to the subcollection on save", () => {
+    (mirrorEvalRound as any).mockClear();
+    const { result } = dwSetup(
+      {},
+      { teamEvalGrades: { p1: { hit: 3 } }, selectedRoundId: null },
+    );
+    act(() => result.current.saveTeamEvaluation());
+    expect(mirrorEvalRound).toHaveBeenCalledTimes(1);
+    const [, appId, teamId, round] = (mirrorEvalRound as any).mock.calls[0];
+    expect([appId, teamId]).toEqual(["app1", "team1"]);
+    expect(round).toMatchObject({
+      coachRole: "Head",
+      evaluatorId: "u1",
+      grades: { p1: { hit: 3 } },
+    });
+  });
+
+  it("mirrors the edited round (grades applied) when updating in place", () => {
+    (mirrorEvalRound as any).mockClear();
+    const { result } = dwSetup(
+      {
+        evaluationEvents: [
+          { id: "r1", coachRole: "Head", evaluatorId: "u1", grades: {} },
+        ],
+      },
+      { teamEvalGrades: { p1: { hit: 5 } }, selectedRoundId: "r1" },
+    );
+    act(() => result.current.saveTeamEvaluation());
+    expect(mirrorEvalRound).toHaveBeenCalledWith(
+      expect.anything(),
+      "app1",
+      "team1",
+      expect.objectContaining({ id: "r1", grades: { p1: { hit: 5 } } }),
+    );
+  });
+
+  it("removes the round's doc on delete", () => {
+    (removeEvalRoundDoc as any).mockClear();
+    const { result } = dwSetup({ evaluationEvents: [{ id: "r1" }] });
+    act(() => result.current.deleteEvaluation("r1"));
+    expect(removeEvalRoundDoc).toHaveBeenCalledWith(
+      expect.anything(),
+      "app1",
+      "team1",
+      "r1",
+    );
   });
 });

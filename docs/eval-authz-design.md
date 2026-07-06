@@ -150,8 +150,14 @@ it's worth.
    off; old array still authoritative). Isolated flag-gated effect in
    `TeamProvider`; pure `buildEvalRoundsQuery` (role-scoped) + `assembleEvalRounds`
    in `src/utils/evalRounds.ts` with unit tests. Inert until the flag flips.
-3. Migrate writes (`useEvaluationCrud`) to per-doc; one-time data migration of
-   existing `evaluationEvents` → subcollection.
+3. ✅ **Done** — Dual-write + lazy backfill behind the `EVAL_ROUNDS_DUAL_WRITE`
+   flag (default off). `useEvaluationCrud` mirrors every save/delete to the
+   subcollection best-effort (`mirrorEvalRound` / `removeEvalRoundDoc`); a
+   once-per-session effect in `TeamProvider` backfills the caller's OWN legacy
+   rounds (`backfillOwnEvalRounds`). Each coach self-stamps their own rounds, so
+   the strict create rule is unchanged and future assistants backfill theirs on
+   next load. Rollout is a two-flag cutover: flip dual-write → soak/backfill →
+   flip `EVAL_ROUNDS_SUBCOLLECTION` (reads). Unit-tested; inert until flipped.
 4. Move the schema-migration ladder's eval steps to run per-round; drop
    `evaluationEvents` from the team doc.
 5. Remove the flag and the finding-3.1 "pinned, not endorsed" rules block,

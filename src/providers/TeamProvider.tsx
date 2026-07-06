@@ -39,8 +39,15 @@ import {
 } from "../auth/googleRedirect";
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildEvalReminderDraft, buildMailtoUrl } from "../utils/reminderDraft";
-import { EVAL_ROUNDS_SUBCOLLECTION } from "../constants/flags";
-import { buildEvalRoundsQuery, assembleEvalRounds } from "../utils/evalRounds";
+import {
+  EVAL_ROUNDS_SUBCOLLECTION,
+  EVAL_ROUNDS_DUAL_WRITE,
+} from "../constants/flags";
+import {
+  buildEvalRoundsQuery,
+  assembleEvalRounds,
+  backfillOwnEvalRounds,
+} from "../utils/evalRounds";
 import {
   slimGame,
   scrubUndefined,
@@ -2055,7 +2062,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
   // ----- Evaluation CRUD ----- (extracted to src/hooks/useEvaluationCrud.ts)
   const { saveTeamEvaluation, saveAssistantEvaluation, deleteEvaluation } =
-    useEvaluationCrud({ teamData, updateTeamArrays, toast, user, uiBridge });
+    useEvaluationCrud({
+      teamData,
+      updateTeamArrays,
+      toast,
+      user,
+      uiBridge,
+      db,
+      appId,
+      teamId: activeTeamId,
+    });
 
   // ─── Tryouts (PR M) ───────────────────────────────────────────────
   // Public sign-up flow lives at /tryouts/:shareId and writes to
@@ -2210,6 +2226,32 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     return unsub;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeamId, user?.uid, roleResolved, realRole]);
+
+  // Step 3 of the finding-3.1 fix: lazily backfill the CALLER'S OWN legacy
+  // rounds from teamData.evaluationEvents into the evalRounds subcollection, so
+  // the subcollection becomes complete without a server migration. Each coach
+  // mirrors only their own rounds (the create rule is self-stamped), which also
+  // covers future assistants — they backfill theirs on their next load. Runs
+  // once per team per session, best-effort. Gated behind EVAL_ROUNDS_DUAL_WRITE
+  // and OFF by default, so this is inert in production; the ongoing dual-write
+  // in useEvaluationCrud keeps the subcollection in sync after the backfill.
+  const backfilledTeamsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!EVAL_ROUNDS_DUAL_WRITE) return;
+    if (!activeTeamId || !user || loadedTeamIdRef.current !== activeTeamId) {
+      return;
+    }
+    if (backfilledTeamsRef.current.has(activeTeamId)) return;
+    backfilledTeamsRef.current.add(activeTeamId);
+    void backfillOwnEvalRounds(
+      db,
+      appId,
+      activeTeamId,
+      teamData.evaluationEvents,
+      user.uid,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId, user?.uid, teamData.evaluationEvents]);
 
   // Auto-claim + persist legacy teams. Runs once per session per team
   // when ownerId is missing AND there is no plausible existing owner.

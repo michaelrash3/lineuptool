@@ -7,14 +7,40 @@ vi.mock("firebase/firestore", () => ({
   collection: vi.fn((_db, ...path: string[]) => ({ __col: path.join("/") })),
   query: vi.fn((col, ...constraints) => ({ __query: col, constraints })),
   where: vi.fn((field, op, value) => ({ __where: [field, op, value] })),
+  doc: vi.fn((_db, ...path: string[]) => ({ __doc: path.join("/") })),
+  setDoc: vi.fn(() => Promise.resolve()),
+  deleteDoc: vi.fn(() => Promise.resolve()),
 }));
 
-import { buildEvalRoundsQuery, assembleEvalRounds } from "./evalRounds";
-import { collection, query, where } from "firebase/firestore";
+import {
+  buildEvalRoundsQuery,
+  assembleEvalRounds,
+  mirrorEvalRound,
+  removeEvalRoundDoc,
+  backfillOwnEvalRounds,
+} from "./evalRounds";
+import {
+  collection,
+  query,
+  where,
+  doc,
+  setDoc,
+  deleteDoc,
+} from "firebase/firestore";
+import type { EvaluationEvent } from "../types";
+
+const db = {} as never;
+const mkRound = (over: Partial<EvaluationEvent> = {}): EvaluationEvent =>
+  ({
+    id: "r1",
+    date: "2026-06-01",
+    evaluatorId: "u1",
+    coachRole: "Head",
+    grades: {},
+    ...over,
+  }) as EvaluationEvent;
 
 describe("buildEvalRoundsQuery", () => {
-  const db = {} as never;
-
   it("targets the team's evalRounds subcollection", () => {
     buildEvalRoundsQuery(db, "app1", "team1", "head", "u1");
     expect(collection).toHaveBeenCalledWith(
@@ -68,5 +94,89 @@ describe("assembleEvalRounds", () => {
     expect(assembleEvalRounds([])).toEqual([]);
     expect(assembleEvalRounds(null)).toEqual([]);
     expect(assembleEvalRounds(undefined)).toEqual([]);
+  });
+});
+
+describe("mirrorEvalRound", () => {
+  it("writes the round to its own subcollection doc", async () => {
+    (setDoc as unknown as { mockClear: () => void }).mockClear();
+    await mirrorEvalRound(db, "app1", "team1", mkRound({ id: "r7" }));
+    expect(doc).toHaveBeenCalledWith(
+      db,
+      "artifacts",
+      "app1",
+      "public",
+      "data",
+      "teams",
+      "team1",
+      "evalRounds",
+      "r7",
+    );
+    expect(setDoc).toHaveBeenCalledTimes(1);
+    expect((setDoc as any).mock.calls[0][1]).toMatchObject({
+      id: "r7",
+      evaluatorId: "u1",
+    });
+  });
+
+  it("skips a round with no id", async () => {
+    (setDoc as unknown as { mockClear: () => void }).mockClear();
+    await mirrorEvalRound(db, "app1", "team1", { grades: {} } as never);
+    expect(setDoc).not.toHaveBeenCalled();
+  });
+
+  it("swallows a write failure (best-effort — array stays authoritative)", async () => {
+    (
+      setDoc as unknown as { mockRejectedValueOnce: (e: unknown) => void }
+    ).mockRejectedValueOnce(new Error("denied"));
+    await expect(
+      mirrorEvalRound(db, "app1", "team1", mkRound()),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("removeEvalRoundDoc", () => {
+  it("deletes the round's subcollection doc", async () => {
+    (deleteDoc as unknown as { mockClear: () => void }).mockClear();
+    await removeEvalRoundDoc(db, "app1", "team1", "r9");
+    expect(deleteDoc).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips when no id is given, and swallows failures", async () => {
+    (deleteDoc as unknown as { mockClear: () => void }).mockClear();
+    await removeEvalRoundDoc(db, "app1", "team1", "");
+    expect(deleteDoc).not.toHaveBeenCalled();
+    (
+      deleteDoc as unknown as { mockRejectedValueOnce: (e: unknown) => void }
+    ).mockRejectedValueOnce(new Error("denied"));
+    await expect(
+      removeEvalRoundDoc(db, "app1", "team1", "r9"),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("backfillOwnEvalRounds", () => {
+  it("mirrors ONLY the caller's own rounds and returns the count", async () => {
+    (setDoc as unknown as { mockClear: () => void }).mockClear();
+    const n = await backfillOwnEvalRounds(
+      db,
+      "app1",
+      "team1",
+      [
+        mkRound({ id: "mine-1", evaluatorId: "u1" }),
+        mkRound({ id: "theirs", evaluatorId: "other" }),
+        mkRound({ id: "mine-2", evaluatorId: "u1" }),
+      ],
+      "u1",
+    );
+    expect(n).toBe(2);
+    expect(setDoc).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns 0 for an empty or missing array", async () => {
+    expect(await backfillOwnEvalRounds(db, "app1", "team1", [], "u1")).toBe(0);
+    expect(await backfillOwnEvalRounds(db, "app1", "team1", null, "u1")).toBe(
+      0,
+    );
   });
 });
