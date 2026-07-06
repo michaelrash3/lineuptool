@@ -1,5 +1,8 @@
 import { useCallback } from "react";
+import type { Firestore } from "firebase/firestore";
 import { evalRoundDateForSave, dateToIsoLocal, genId } from "../utils/helpers";
+import { EVAL_ROUNDS_DUAL_WRITE } from "../constants/flags";
+import { mirrorEvalRound, removeEvalRoundDoc } from "../utils/evalRounds";
 import type { EvaluationEvent, ToastContextValue } from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
@@ -32,6 +35,13 @@ interface UseEvaluationCrudArgs {
     | null
     | undefined;
   uiBridge: { current: any };
+  // Subcollection dual-write handles (step 3 of the finding-3.1 fix). Optional
+  // so non-provider callers (tests) can omit them; dual-write is additionally
+  // gated behind EVAL_ROUNDS_DUAL_WRITE, so it's a no-op unless both the flag is
+  // on AND these are supplied.
+  db?: Firestore;
+  appId?: string;
+  teamId?: string | null;
 }
 
 export const useEvaluationCrud = ({
@@ -40,7 +50,29 @@ export const useEvaluationCrud = ({
   toast,
   user,
   uiBridge,
+  db,
+  appId,
+  teamId,
 }: UseEvaluationCrudArgs) => {
+  // Best-effort mirror of a single round / a delete into the evalRounds
+  // subcollection, alongside the authoritative array write. Inert unless the
+  // dual-write flag is on and the Firestore handles are present.
+  const mirror = useCallback(
+    (round: EvaluationEvent) => {
+      if (EVAL_ROUNDS_DUAL_WRITE && db && appId && teamId) {
+        void mirrorEvalRound(db, appId, teamId, round);
+      }
+    },
+    [db, appId, teamId],
+  );
+  const unmirror = useCallback(
+    (roundId: string) => {
+      if (EVAL_ROUNDS_DUAL_WRITE && db && appId && teamId) {
+        void removeEvalRoundDoc(db, appId, teamId, roundId);
+      }
+    },
+    [db, appId, teamId],
+  );
   const saveTeamEvaluation = useCallback(() => {
     const inputs = uiBridge.current.getInputs?.();
     const grades = inputs?.teamEvalGrades || {};
@@ -56,6 +88,10 @@ export const useEvaluationCrud = ({
         map: (items: EvaluationEvent[]) =>
           items.map((e) => (e.id === selectedRoundId ? { ...e, grades } : e)),
       });
+      const edited = (teamData.evaluationEvents || []).find(
+        (e: EvaluationEvent) => e.id === selectedRoundId,
+      );
+      if (edited) mirror({ ...edited, grades });
       toast.push({ kind: "success", title: "Eval updated" });
       return selectedRoundId;
     }
@@ -97,6 +133,7 @@ export const useEvaluationCrud = ({
       key: "evaluationEvents",
       entries: [newEvent],
     });
+    mirror(newEvent);
     toast.push({
       kind: "success",
       title: "Eval saved",
@@ -104,7 +141,14 @@ export const useEvaluationCrud = ({
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
-  }, [user, teamData.evaluationEvents, updateTeamArrays, toast, uiBridge]);
+  }, [
+    user,
+    teamData.evaluationEvents,
+    updateTeamArrays,
+    toast,
+    uiBridge,
+    mirror,
+  ]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
   // upsert behavior — the round is stamped with the calendar due date it
@@ -127,6 +171,7 @@ export const useEvaluationCrud = ({
           map: (items: EvaluationEvent[]) =>
             items.map((e) => (e.id === existing.id ? { ...e, grades } : e)),
         });
+        mirror({ ...existing, grades });
       } else {
         const newEvent: EvaluationEvent = {
           id: genId("ev"),
@@ -145,13 +190,14 @@ export const useEvaluationCrud = ({
           key: "evaluationEvents",
           entries: [newEvent],
         });
+        mirror(newEvent);
       }
       toast.push({
         kind: "success",
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, updateTeamArrays, toast],
+    [user, teamData.evaluationEvents, updateTeamArrays, toast, mirror],
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach
@@ -165,12 +211,13 @@ export const useEvaluationCrud = ({
         key: "evaluationEvents",
         id: roundId,
       });
+      unmirror(roundId);
       toast.push({
         kind: "success",
         title: "Eval round deleted",
       });
     },
-    [updateTeamArrays, toast],
+    [updateTeamArrays, toast, unmirror],
   );
 
   return {

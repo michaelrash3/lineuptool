@@ -8,13 +8,17 @@
 
 import {
   collection,
+  doc,
+  deleteDoc,
   query,
+  setDoc,
   where,
   type Firestore,
   type Query,
   type DocumentData,
 } from "firebase/firestore";
 import { evalRoundRecency } from "./evaluations";
+import { scrubUndefined } from "./helpers";
 import type { EvaluationEvent } from "../types";
 
 // The role-scoped query for a team's evalRounds subcollection.
@@ -57,4 +61,84 @@ export const assembleEvalRounds = (
   return rounds
     .map((d) => ({ ...(d.data as object), id: d.id }) as EvaluationEvent)
     .sort(evalRoundRecency);
+};
+
+// ---- Write side (step 3 — dual-write / backfill) ---------------------------
+// The subcollection is POPULATED here while the legacy `evaluationEvents` array
+// stays authoritative. Every mirror is best-effort: the array write already
+// succeeded, so a subcollection failure must never throw or surface to the
+// coach. Failures are swallowed (the lazy backfill re-mirrors on next load).
+
+const evalRoundRef = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  roundId: string,
+) =>
+  doc(
+    db,
+    "artifacts",
+    appId,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "evalRounds",
+    roundId,
+  );
+
+// Mirror ONE round into the subcollection. The doc id IS the round id, and the
+// round carries its own `evaluatorId` — the create/update rules require it to
+// match the caller (self-stamped), so a coach only ever mirrors their own
+// rounds. undefined fields are scrubbed (setDoc rejects them).
+export const mirrorEvalRound = async (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  round: EvaluationEvent | null | undefined,
+): Promise<void> => {
+  if (!round?.id) return;
+  try {
+    await setDoc(
+      evalRoundRef(db, appId, teamId, round.id),
+      scrubUndefined(round) as DocumentData,
+    );
+  } catch {
+    // Best-effort: the array write is authoritative.
+  }
+};
+
+// Delete a round's subcollection doc alongside its removeById array write.
+export const removeEvalRoundDoc = async (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  roundId: string | null | undefined,
+): Promise<void> => {
+  if (!roundId) return;
+  try {
+    await deleteDoc(evalRoundRef(db, appId, teamId, roundId));
+  } catch {
+    // Best-effort.
+  }
+};
+
+// Lazily backfill the caller's OWN rounds from the legacy array into the
+// subcollection. Only rounds authored by `uid` are touched — the create rule
+// only permits self-stamped writes, so an assistant backfills their own and the
+// head theirs. Idempotent: setDoc overwrites, so re-running is a safe no-op-ish
+// refresh. Returns how many rounds were mirrored (0 when there's nothing of the
+// caller's to move).
+export const backfillOwnEvalRounds = async (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  rounds: EvaluationEvent[] | null | undefined,
+  uid: string,
+): Promise<number> => {
+  const own = (Array.isArray(rounds) ? rounds : []).filter(
+    (r) => r && r.id && r.evaluatorId === uid,
+  );
+  await Promise.all(own.map((r) => mirrorEvalRound(db, appId, teamId, r)));
+  return own.length;
 };

@@ -14,3 +14,13 @@
 // so the eval screens would read as blank. It exists now so the scoped read
 // subscription (step 2) can land and be reviewed without affecting production.
 export const EVAL_ROUNDS_SUBCOLLECTION = false;
+
+// The WRITE half of the same rollout (step 3). ON: every eval save/delete is
+// ALSO mirrored to the evalRounds subcollection (best-effort, by the round's
+// own author), and each coach lazily backfills their OWN existing rounds on
+// load. The legacy array stays authoritative — this only POPULATES the
+// subcollection so it's complete and in-sync before reads flip
+// (EVAL_ROUNDS_SUBCOLLECTION). Enabling this first, letting it soak, then
+// enabling reads is the safe two-flag cutover. OFF by default: no extra writes,
+// no backfill, production untouched.
+export const EVAL_ROUNDS_DUAL_WRITE = false;
