@@ -5,15 +5,19 @@
 // evaluation rounds in a subcollection) rolls out in stages. This gates the
 // staged read/write paths so each step can land inert before the cutover.
 //
-// OFF: evaluations read from and write to the legacy `evaluationEvents` array
-// on the team doc (today's behavior). ON: the app reads rounds from the
-// `teams/{teamId}/evalRounds` subcollection instead.
+// OFF: evaluations read from the legacy `evaluationEvents` array on the team
+// doc. ON: the app reads rounds from the `teams/{teamId}/evalRounds`
+// subcollection instead (TeamProvider's role-scoped subscription owns
+// teamData.evaluationEvents; handleSnap stops sourcing it from the array).
 //
-// KEEP THIS OFF until the per-doc write path AND the one-time data migration
-// have shipped (steps 3–4). With it on before then the subcollection is empty,
-// so the eval screens would read as blank. It exists now so the scoped read
-// subscription (step 2) can land and be reviewed without affecting production.
-export const EVAL_ROUNDS_SUBCOLLECTION = false;
+// NOW ON (rollout phase 2 — "read cutover"): reads come from the subcollection.
+// Safe because EVAL_ROUNDS_DUAL_WRITE has been populating it (phase 1 soak +
+// ongoing dual-write) and the lazy backfill still migrates each team's raw
+// array on load, so a not-yet-soaked team fills itself instead of reading
+// blank. Still reversible: flip back to false and reads return to the array
+// (which dual-write keeps current). The array is only DROPPED in phase 3, after
+// this is confirmed on real data.
+export const EVAL_ROUNDS_SUBCOLLECTION = true;
 
 // The WRITE half of the same rollout (step 3). ON: every eval save/delete is
 // ALSO mirrored to the evalRounds subcollection (best-effort, by the round's

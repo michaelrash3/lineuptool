@@ -5,10 +5,15 @@ import {
 } from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
-// evaluationEvents entry carrying a tryoutSignupId + grades.signup.
+// evaluationEvents entry carrying a tryoutSignupId + grades.signup. A fixed
+// `createdAt` is included so normalizeTryoutSessions stamps the folded session's
+// `updatedAt` from it deterministically instead of `Date.now()` — otherwise the
+// "preserves exactly what normalizeTryoutSessions would have folded" test flakes
+// when its two normalize calls straddle a millisecond boundary.
 const legacyGrade = (over: any = {}) => ({
   id: "ev-legacy",
   date: "2026-06-18",
+  createdAt: 1750000000000,
   tryoutSignupId: "sig-1",
   evaluatorId: "coach-1",
   coachRole: "Head",
