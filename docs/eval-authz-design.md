@@ -1,15 +1,18 @@
 # Design: authorization-scoped evaluations (audit finding 3.1)
 
 _Status: **approved — Option A rollout in progress.** Steps 1–3 shipped.
-**Both flags are now ON: reads come from the `evalRounds` subcollection**
-(phase 2 read cutover), after phase 1's soak populated it and was confirmed on
-real data. `handleSnap` no longer sources `evaluationEvents` from the array
-(the subcollection subscription owns it), and the lazy backfill migrates each
-team's raw array on load so a not-yet-soaked team fills itself instead of
-reading blank. Still reversible — flip `EVAL_ROUNDS_SUBCOLLECTION` back to false
-and reads return to the array (which dual-write keeps current). Remaining: drop
-the `evaluationEvents` array from the team doc (phase 3), then remove the flags
-and the finding-3.1 "pinned" rules block (step 5). Sequencing at the bottom._
+**Both flags are ON, and the subcollection is now PRIMARY for reads AND
+writes.** Reads come from the `evalRounds` subcollection (phase 2 read cutover)
+and writes go per-doc to it (phase 3 write cutover): `useEvaluationCrud` no
+longer writes the legacy `evaluationEvents` array when the subcollection is
+primary, and its per-doc `saveEvalRound`/`deleteEvalRound` REJECT on failure so
+a coach sees an error toast instead of silently losing grades (the old
+best-effort mirror swallowed errors). Still reversible — flip
+`EVAL_ROUNDS_SUBCOLLECTION` back to false and both reads and writes return to
+the array. Remaining: **drop** the now-unwritten `evaluationEvents` array from
+the team doc (phase 3b — irreversible, a tight follow-up once the write cutover
+is confirmed live), then remove the flags and the finding-3.1 "pinned" rules
+block (step 5). Sequencing at the bottom._
 
 ## The problem, precisely
 
@@ -161,11 +164,21 @@ it's worth.
    the strict create rule is unchanged and future assistants backfill theirs on
    next load. Rollout is a two-flag cutover: flip dual-write → soak/backfill →
    flip `EVAL_ROUNDS_SUBCOLLECTION` (reads). Unit-tested; inert until flipped.
-4. ✅ **Read cutover done** — `EVAL_ROUNDS_SUBCOLLECTION` ON. `handleSnap`
-   preserves the subcollection subscription's `evaluationEvents` instead of
-   overwriting from the array; the backfill now migrates from the raw array
-   (`rawEvalEventsRef`) so a not-yet-soaked team fills on load rather than
-   reading blank. Still to do in this step: **drop `evaluationEvents` from the
-   team doc** and move the schema-ladder eval steps per-round (phase 3).
-5. Remove the flag and the finding-3.1 "pinned, not endorsed" rules block,
+4. ✅ **Read + write cutover done** — `EVAL_ROUNDS_SUBCOLLECTION` ON.
+   - _Read (phase 2):_ `handleSnap` preserves the subcollection subscription's
+     `evaluationEvents` instead of overwriting from the array; the backfill now
+     migrates from the raw array (`rawEvalEventsRef`) so a not-yet-soaked team
+     fills on load rather than reading blank.
+   - _Write (phase 3):_ `useEvaluationCrud` computes `subPrimary` (flag ON +
+     db/appId/teamId present) and, when true, writes ONLY the subcollection —
+     every `updateTeamArrays` eval-array write is gated on `!subPrimary`. The
+     per-doc writes use the new error-propagating `saveEvalRound`/`deleteEvalRound`
+     (not the best-effort mirror), so a failed save/delete surfaces an error
+     toast rather than silently dropping grades. Firestore's local cache gives
+     the optimistic UI the array write used to.
+   - Still to do (**phase 3b**, a tight follow-up): **drop the now-unwritten
+     `evaluationEvents` array from the team doc** and move the schema-ladder eval
+     steps per-round. Deferred deliberately — it's irreversible, so it lands only
+     after the write cutover is confirmed live on real data.
+5. Remove the flags and the finding-3.1 "pinned, not endorsed" rules block,
    replacing it with the new scoped-access assertions.

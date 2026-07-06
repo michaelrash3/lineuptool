@@ -1,8 +1,16 @@
 import { useCallback } from "react";
 import type { Firestore } from "firebase/firestore";
 import { evalRoundDateForSave, dateToIsoLocal, genId } from "../utils/helpers";
-import { EVAL_ROUNDS_DUAL_WRITE } from "../constants/flags";
-import { mirrorEvalRound, removeEvalRoundDoc } from "../utils/evalRounds";
+import {
+  EVAL_ROUNDS_DUAL_WRITE,
+  EVAL_ROUNDS_SUBCOLLECTION,
+} from "../constants/flags";
+import {
+  mirrorEvalRound,
+  removeEvalRoundDoc,
+  saveEvalRound,
+  deleteEvalRound,
+} from "../utils/evalRounds";
 import type { EvaluationEvent, ToastContextValue } from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
@@ -54,24 +62,52 @@ export const useEvaluationCrud = ({
   appId,
   teamId,
 }: UseEvaluationCrudArgs) => {
-  // Best-effort mirror of a single round / a delete into the evalRounds
-  // subcollection, alongside the authoritative array write. Inert unless the
-  // dual-write flag is on and the Firestore handles are present.
-  const mirror = useCallback(
+  // Has the store cut over to the subcollection as the PRIMARY, authoritative
+  // home for eval rounds (finding-3.1 phase 3)? When true, writes go per-doc
+  // and errors are surfaced; the legacy array is no longer written (callers
+  // gate their updateTeamArrays on !subPrimary). When false we're still on the
+  // array (with a best-effort subcollection mirror during the dual-write soak).
+  const subPrimary = Boolean(
+    EVAL_ROUNDS_SUBCOLLECTION && db && appId && teamId,
+  );
+
+  // Persist a saved/edited round. Subcollection-primary path REJECTS on failure
+  // so we can tell the coach instead of silently dropping their grades; the
+  // legacy path keeps the best-effort mirror alongside the (authoritative)
+  // array write the caller performs.
+  const saveRound = useCallback(
     (round: EvaluationEvent) => {
-      if (EVAL_ROUNDS_DUAL_WRITE && db && appId && teamId) {
+      if (!db || !appId || !teamId) return;
+      if (subPrimary) {
+        saveEvalRound(db, appId, teamId, round).catch(() => {
+          toast.push({
+            kind: "error",
+            title: "Couldn't save that eval",
+            message: "Check your connection and try again.",
+          });
+        });
+      } else if (EVAL_ROUNDS_DUAL_WRITE) {
         void mirrorEvalRound(db, appId, teamId, round);
       }
     },
-    [db, appId, teamId],
+    [subPrimary, db, appId, teamId, toast],
   );
-  const unmirror = useCallback(
+  const deleteRound = useCallback(
     (roundId: string) => {
-      if (EVAL_ROUNDS_DUAL_WRITE && db && appId && teamId) {
+      if (!db || !appId || !teamId) return;
+      if (subPrimary) {
+        deleteEvalRound(db, appId, teamId, roundId).catch(() => {
+          toast.push({
+            kind: "error",
+            title: "Couldn't delete that eval",
+            message: "Check your connection and try again.",
+          });
+        });
+      } else if (EVAL_ROUNDS_DUAL_WRITE) {
         void removeEvalRoundDoc(db, appId, teamId, roundId);
       }
     },
-    [db, appId, teamId],
+    [subPrimary, db, appId, teamId, toast],
   );
   const saveTeamEvaluation = useCallback(() => {
     const inputs = uiBridge.current.getInputs?.();
@@ -82,16 +118,18 @@ export const useEvaluationCrud = ({
     if (selectedRoundId) {
       // Editing an existing round — update its grades, keep its
       // label/date/id/evaluatorName intact.
-      updateTeamArrays({
-        op: "mapEntries",
-        key: "evaluationEvents",
-        map: (items: EvaluationEvent[]) =>
-          items.map((e) => (e.id === selectedRoundId ? { ...e, grades } : e)),
-      });
+      if (!subPrimary) {
+        updateTeamArrays({
+          op: "mapEntries",
+          key: "evaluationEvents",
+          map: (items: EvaluationEvent[]) =>
+            items.map((e) => (e.id === selectedRoundId ? { ...e, grades } : e)),
+        });
+      }
       const edited = (teamData.evaluationEvents || []).find(
         (e: EvaluationEvent) => e.id === selectedRoundId,
       );
-      if (edited) mirror({ ...edited, grades });
+      if (edited) saveRound({ ...edited, grades });
       toast.push({ kind: "success", title: "Eval updated" });
       return selectedRoundId;
     }
@@ -127,13 +165,17 @@ export const useEvaluationCrud = ({
       grades,
     };
     // append → arrayUnion: a simultaneous save by another coach lands too,
-    // instead of whichever write finished last erasing the other.
-    updateTeamArrays({
-      op: "append",
-      key: "evaluationEvents",
-      entries: [newEvent],
-    });
-    mirror(newEvent);
+    // instead of whichever write finished last erasing the other. (Per-doc
+    // subcollection writes are inherently concurrency-safe, so no arrayUnion
+    // equivalent is needed once subPrimary.)
+    if (!subPrimary) {
+      updateTeamArrays({
+        op: "append",
+        key: "evaluationEvents",
+        entries: [newEvent],
+      });
+    }
+    saveRound(newEvent);
     toast.push({
       kind: "success",
       title: "Eval saved",
@@ -147,7 +189,8 @@ export const useEvaluationCrud = ({
     updateTeamArrays,
     toast,
     uiBridge,
-    mirror,
+    subPrimary,
+    saveRound,
   ]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
@@ -165,13 +208,15 @@ export const useEvaluationCrud = ({
           e.date === roundDate,
       );
       if (existing) {
-        updateTeamArrays({
-          op: "mapEntries",
-          key: "evaluationEvents",
-          map: (items: EvaluationEvent[]) =>
-            items.map((e) => (e.id === existing.id ? { ...e, grades } : e)),
-        });
-        mirror({ ...existing, grades });
+        if (!subPrimary) {
+          updateTeamArrays({
+            op: "mapEntries",
+            key: "evaluationEvents",
+            map: (items: EvaluationEvent[]) =>
+              items.map((e) => (e.id === existing.id ? { ...e, grades } : e)),
+          });
+        }
+        saveRound({ ...existing, grades });
       } else {
         const newEvent: EvaluationEvent = {
           id: genId("ev"),
@@ -185,19 +230,28 @@ export const useEvaluationCrud = ({
         // append → arrayUnion: N assistants submitting during a live eval
         // session all land. The old whole-array write silently dropped every
         // submission but the last one to finish.
-        updateTeamArrays({
-          op: "append",
-          key: "evaluationEvents",
-          entries: [newEvent],
-        });
-        mirror(newEvent);
+        if (!subPrimary) {
+          updateTeamArrays({
+            op: "append",
+            key: "evaluationEvents",
+            entries: [newEvent],
+          });
+        }
+        saveRound(newEvent);
       }
       toast.push({
         kind: "success",
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, updateTeamArrays, toast, mirror],
+    [
+      user,
+      teamData.evaluationEvents,
+      updateTeamArrays,
+      toast,
+      subPrimary,
+      saveRound,
+    ],
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach
@@ -206,18 +260,20 @@ export const useEvaluationCrud = ({
   const deleteEvaluation = useCallback(
     (roundId: any) => {
       if (!roundId) return;
-      updateTeamArrays({
-        op: "removeById",
-        key: "evaluationEvents",
-        id: roundId,
-      });
-      unmirror(roundId);
+      if (!subPrimary) {
+        updateTeamArrays({
+          op: "removeById",
+          key: "evaluationEvents",
+          id: roundId,
+        });
+      }
+      deleteRound(roundId);
       toast.push({
         kind: "success",
         title: "Eval round deleted",
       });
     },
-    [updateTeamArrays, toast, unmirror],
+    [updateTeamArrays, toast, subPrimary, deleteRound],
   );
 
   return {
