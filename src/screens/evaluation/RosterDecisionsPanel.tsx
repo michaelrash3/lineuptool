@@ -25,9 +25,13 @@ import type { Player } from "../../types";
 // were historically written on the raw 1–5 grade scale, which silently no-op'd
 // once the value became a 0–100 score; they are now the ×20 equivalents so the
 // eval signal reads correctly (a 3.3/5 "above average" bar is 66/100, etc.).
+//
+// NOTE these only shape the POSITIVE ("Strong Fit") side and the rationale
+// text. Every CUT decision — both "Cut Candidate" and "Cut / Drop a Division" —
+// is fluid, decided against the team's own standard-deviation cut line after
+// the per-player map, never a fixed bar (see the "Relative cut line" pass).
 const EVAL_ABOVE_BAR = 66; // was 3.3 / 5 — clearly above the average bar
-const EVAL_BELOW_BAR = 56; // was 2.8 / 5 — below the average bar
-const EVAL_DEEP_BELOW_BAR = 50; // was 2.5 / 5 — struggling / over-matched
+const EVAL_BELOW_BAR = 56; // was 2.8 / 5 — below the average bar (Strong gate)
 const EVAL_FLAT_BAND = 4; // was 0.2 / 5 — |Δ| under this reads as "flat"
 const EVAL_STRONG_IMPROVE = 10; // was 0.5 / 5 — Δ at/above this is "strongly up"
 
@@ -174,21 +178,22 @@ export const RosterDecisionsPanel = memo(() => {
         (baseballAge as number) < teamAgeNum;
 
       // ---- Bucket assignment (per-player PROPOSAL) ----
-      // This pass only *proposes* a bucket from absolute cutoffs; the
-      // relative pass after the .map (see "Relative cut line")
-      // tempers the proposed watch list against the team's own spread so
-      // average kids on an average team are never flagged. Default here is
+      // This pass only *proposes* Strong vs watch; the relative pass after the
+      // .map (see "Relative cut line") does every cut decision against the
+      // team's own spread, so average kids on an average team are never flagged
+      // and both cut buckets are fluid, not fixed bars. Default here is
       // **watch** — a kid earns Strong Fit with positive signal across the
-      // board, otherwise the relative pass decides whether they stay flagged.
+      // board, otherwise the relative pass decides whether they stay flagged
+      // and, if they're playing up, whether it's Cut / Drop a Division.
       //
       // Scale calibration (internal only — eval score is 0–100, a percentage
       // of the grading ceiling; stats expressed as OPS ratio vs team OPS avg,
       // 1.00 = at team avg):
       //   Strong : eval ≥ EVAL_ABOVE_BAR (66)  AND  not below on stats
       //                                         AND  not declining
-      //   Younger: playing up AND (eval ≤ EVAL_DEEP_BELOW_BAR (50)
-      //                            OR stats ratio ≤ 0.6) AND not strongly up
-      //   Watch  : everything else (proposal only — tempered below)
+      //   Cuts   : NOT set here — the std-dev cut line below flags anyone more
+      //            than one SD under the team mean; playing-up kids among them
+      //            become Cut / Drop a Division, the rest Cut Candidates.
       // The user-facing rationale never surfaces these cutoffs: cards lead with
       // the Total Score (out of 100) badge and the vs-team delta, so the
       // explanation text stays qualitative.
@@ -204,64 +209,44 @@ export const RosterDecisionsPanel = memo(() => {
         latestEvalScore != null && latestEvalScore >= EVAL_ABOVE_BAR;
       const evalBelowBar =
         latestEvalScore != null && latestEvalScore < EVAL_BELOW_BAR;
-      const evalDeepBelowBar =
-        latestEvalScore != null && latestEvalScore <= EVAL_DEEP_BELOW_BAR;
       const statsBelowBar = statsRatio != null && statsRatio < 0.8;
-      const statsWayBelowBar = statsRatio != null && statsRatio <= 0.6;
       const statsAbsent = statsRatio == null;
       const evalAbsent = latestEvalScore == null;
 
-      // 1) Cut / Drop a Division — playing up + clear struggle signal + not
-      //    on the rise. Age-driven: only kids younger than the team's tier
-      //    are eligible, and only when eval/stats say they're over-matched.
-      if (playingUp && !stronglyImproving) {
-        if (evalDeepBelowBar || statsWayBelowBar) {
-          bucket = "younger";
-          if (evalDeepBelowBar) {
-            rationale.push("Eval grades well below this tier — over-matched");
-          }
-          if (statsWayBelowBar) {
-            rationale.push(
-              `Stats ${Math.round((1 - (statsRatio as number)) * 100)}% below team OPS avg`,
-            );
-          }
+      // 1) Strong Fit — earn it with positive signal across the board. This is
+      //    the one ABSOLUTE tier: a standout stands out no matter how the rest
+      //    of the roster grades. Every cut decision below is instead relative
+      //    to the team's own spread (the std-dev cut line after the map), so
+      //    "younger" (Cut / Drop a Division) is assigned there, not here.
+      const noNegatives =
+        !evalBelowBar &&
+        !statsBelowBar &&
+        evalTrend !== "declining" &&
+        // With machine/coach-pitch batting stats available, do not call a
+        // below-team bat a Strong Fit solely because subjective evals are
+        // good. They can still be a Fit, but Strong is for clear standouts.
+        (statsRatio == null || statsRatio >= 1.0);
+      const positiveSignal =
+        stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
+      if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
+        bucket = "strong";
+        if (evalAboveBar) {
+          rationale.push("Eval grades above average");
+        }
+        if (stronglyImproving) {
+          rationale.push("Evals trending up round-over-round");
+        }
+        if (statsRatio != null && statsRatio >= 1.0) {
           rationale.push(
-            `Playing up at age ${baseballAge} — better matched to a younger division`,
+            `Stats +${Math.round(((statsRatio as number) - 1) * 100)}% vs team OPS avg`,
           );
         }
       }
 
-      // 2) Strong Fit — earn it with positive signal across the board.
-      if (bucket !== "younger") {
-        const noNegatives =
-          !evalBelowBar &&
-          !statsBelowBar &&
-          evalTrend !== "declining" &&
-          // With machine/coach-pitch batting stats available, do not call a
-          // below-team bat a Strong Fit solely because subjective evals are
-          // good. They can still be a Fit, but Strong is for clear standouts.
-          (statsRatio == null || statsRatio >= 1.0);
-        const positiveSignal =
-          stronglyImproving || (statsRatio != null && statsRatio >= 1.0);
-        if (noNegatives && positiveSignal && !(evalAbsent && statsAbsent)) {
-          bucket = "strong";
-          if (evalAboveBar) {
-            rationale.push("Eval grades above average");
-          }
-          if (stronglyImproving) {
-            rationale.push("Evals trending up round-over-round");
-          }
-          if (statsRatio != null && statsRatio >= 1.0) {
-            rationale.push(
-              `Stats +${Math.round(((statsRatio as number) - 1) * 100)}% vs team OPS avg`,
-            );
-          }
-        }
-      }
-
-      // 3) Watch proposal — anything that didn't earn Strong, with the
+      // 2) Watch proposal — anything that didn't earn Strong, with the
       //    dominant signal called out. The relative pass after the .map
-      //    decides which of these actually stay flagged.
+      //    decides which of these actually stay flagged (and whether a
+      //    playing-up kid is a Cut Candidate or a Cut / Drop a Division).
       if (bucket === "watch") {
         if (evalAbsent && statsAbsent) {
           rationale.push("No eval or stats yet — needs review");
@@ -315,10 +300,13 @@ export const RosterDecisionsPanel = memo(() => {
     // grading cards produce, blending eval grades and imported stats) is more
     // than one standard deviation below the team mean. There is NO hard cap
     // -- the distribution itself decides, so a tightly-bunched team can flag
-    // nobody and only genuine outliers ever surface. Anyone tempered off
+    // nobody and only genuine outliers ever surface. Anyone above the line
     // becomes a "fit" (solid standing — they hold the team line without
-    // standing out); the earned "strong" tier and the age-based "younger"
-    // (Cut / Drop a Division) bucket are untouched.
+    // standing out); the earned "strong" tier is untouched. Among those BELOW
+    // the line, a kid who is also playing up and not on the rise is a Cut /
+    // Drop a Division (better matched to a younger division); everyone else
+    // below the line is a straight Cut Candidate. Both cut recommendations key
+    // off this one fluid line, never a fixed score.
     //
     // Null standing when we have no eval AND no stats for the kid -- can't
     // call them low without data.
@@ -357,15 +345,28 @@ export const RosterDecisionsPanel = memo(() => {
       x.d.scoreVsTeam =
         x.c != null ? Math.round(x.d.totalScore - teamAvgScore) : null;
       if (x.d.bucket !== "watch") continue;
-      // Stays a Cut Candidate only if genuinely below the team line AND we
-      // have data. Everyone else is a solid "Fit" — Strong Fit is earned
-      // above, so the middle of the roster lands here.
+      // Flagged only if genuinely below the team line AND we have data.
+      // Everyone else is a solid "Fit" — Strong Fit is earned above, so the
+      // middle of the roster lands here.
       if (x.c != null && x.c < belowLine) {
-        x.d.rationale.unshift(
-          `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
-            (x.d.scoreVsTeam ?? 0) > 0 ? "+" : ""
-          }${x.d.scoreVsTeam}) — more than a standard deviation back`,
-        );
+        const backNote = `Score ${x.d.totalScore} vs team avg ${teamAvgScore} (${
+          (x.d.scoreVsTeam ?? 0) > 0 ? "+" : ""
+        }${x.d.scoreVsTeam}) — more than a standard deviation back`;
+        // A below-the-line kid who is playing up and not on the rise is better
+        // matched to a younger division; otherwise a straight Cut Candidate.
+        const stronglyUp =
+          x.d.evalTrend === "improving" &&
+          x.d.evalDelta != null &&
+          x.d.evalDelta >= EVAL_STRONG_IMPROVE;
+        if (x.d.playingUp && !stronglyUp) {
+          x.d.bucket = "younger";
+          x.d.rationale = [
+            backNote,
+            `Playing up at age ${x.d.baseballAge} — better matched to a younger division`,
+          ];
+        } else {
+          x.d.rationale.unshift(backNote);
+        }
         continue;
       }
       x.d.bucket = "fit";
