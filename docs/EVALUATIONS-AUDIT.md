@@ -181,15 +181,22 @@ score never dips to ≤ 2.5), so the absolute eval signal read as _always above
 bar_: the "Cut / Drop a Division" age branch could never fire on eval, and the
 trend was almost never "flat".
 
-**Fixed:** the value is renamed `latestEvalScore` and the cutoffs moved onto the
-same 0–100 percentage scale (the ×20 equivalents, as named constants):
-`EVAL_ABOVE_BAR = 66`, `EVAL_BELOW_BAR = 56`, `EVAL_DEEP_BELOW_BAR = 50`,
-`EVAL_FLAT_BAND = 4`, `EVAL_STRONG_IMPROVE = 10`. Characterization tests in
-`RosterDecisionsPanel.test.tsx` pin the now-reachable behavior (a playing-up kid
-with a weak eval is flagged Cut / Drop a Division; a high scorer reads above the
-bar) — both would fail under the old 1–5 cutoffs. The composite grading score
-and its display were already correct; only these advisory bucket cutoffs were
-mis-scaled.
+**Fixed (scale):** the value is renamed `latestEvalScore` and the cutoffs moved
+onto the same 0–100 percentage scale (the ×20 equivalents, as named constants):
+`EVAL_ABOVE_BAR = 66`, `EVAL_BELOW_BAR = 56`, `EVAL_FLAT_BAND = 4`,
+`EVAL_STRONG_IMPROVE = 10`. The composite grading score and its display were
+already correct; only these advisory bucket cutoffs were mis-scaled.
+
+**Refined (fluid cut):** the first scale fix left the "Cut / Drop a Division"
+recommendation firing on an _absolute_ score bar (`<= 50`). But every cut
+decision is meant to be **fluid** — relative to the team's own standard-deviation
+cut line — so a kid is never dropped for a low absolute number, only for sitting
+more than a standard deviation below _their team's_ mean. The over-matched call
+was moved into the relative-cut pass alongside the Cut Candidate line: among
+players below that line, the ones playing up (and not on the rise) are Cut / Drop
+a Division, the rest are Cut Candidates. `EVAL_DEEP_BELOW_BAR` is gone. Tests pin
+both directions — a weak playing-up kid on a spread-out team is dropped; the same
+kid on a uniformly-weak team is _not_ (no spread → no cut).
 
 ## 4. Coach feature-gap check
 

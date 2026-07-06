@@ -11,6 +11,20 @@ const headRound = (grades: Record<string, unknown>) => ({
   grades,
 });
 
+// Every universal category at one value, so a player's 0–100 score is easy to
+// reason about: all-1 ≈ 18/100, all-5 ≈ 84/100.
+const allGrades = (v: number) => ({
+  glove: v,
+  armStrength: v,
+  contact: v,
+  power: v,
+  speed: v,
+  baserunning: v,
+  baseballIQ: v,
+  coachability: v,
+  approach: v,
+});
+
 describe("RosterDecisionsPanel", () => {
   it("renders nothing when the roster is empty", () => {
     renderWithProviders(<RosterDecisionsPanel />, {
@@ -73,32 +87,29 @@ describe("RosterDecisionsPanel", () => {
     expect(setEvalTrendPlayerId).toHaveBeenCalledWith("p1");
   });
 
-  it("flags a playing-up kid with a weak eval as Cut / Drop a Division", () => {
-    // Baseball age 10 on a 12U team (playing up) with an all-1 eval — that
-    // scores ~18/100 and no stats. The over-matched signal is the deep-below
-    // cutoff, which only fires because the eval value is now read on the 0–100
-    // scale: the old 1–5 cutoff (score <= 2.5) could never be true for a 0–100
-    // score, so this kid used to fall through to "Fit".
+  it("flags a playing-up kid who is below the team's fluid cut line as Cut / Drop a Division", () => {
+    // A weak (all-1 ≈ 18/100), no-stats kid playing up (age 10 on 12U) sits far
+    // below three strong teammates (all-5 ≈ 84/100) — more than a standard
+    // deviation under the team mean — so the relative cut line flags them, and
+    // because they're playing up it's a Cut / Drop a Division, not a plain cut.
     renderWithProviders(<RosterDecisionsPanel />, {
       team: {
         team: {
-          players: [{ id: "p1", name: "Younger Kid", dob: "2016-01-01" }],
+          players: [
+            { id: "p1", name: "Younger Kid", dob: "2016-01-01" },
+            { id: "p2", name: "Star Two" },
+            { id: "p3", name: "Star Three" },
+            { id: "p4", name: "Star Four" },
+          ],
           primaryColor: "#1d4ed8",
           currentSeason: "Spring 2026",
           teamAge: "12U",
           evaluationEvents: [
             headRound({
-              p1: {
-                glove: 1,
-                armStrength: 1,
-                contact: 1,
-                power: 1,
-                speed: 1,
-                baserunning: 1,
-                baseballIQ: 1,
-                coachability: 1,
-                approach: 1,
-              },
+              p1: allGrades(1),
+              p2: allGrades(5),
+              p3: allGrades(5),
+              p4: allGrades(5),
             }),
           ],
         },
@@ -109,7 +120,40 @@ describe("RosterDecisionsPanel", () => {
     expect(
       screen.getByText(/^Cut \/ Drop a Division \(1\)$/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/^Strong Fit \(0\)$/)).toBeInTheDocument();
+    expect(screen.getByText("Younger Kid")).toBeInTheDocument();
+  });
+
+  it("does NOT drop a playing-up kid when the whole team scores alike (fluid, not absolute)", () => {
+    // Same weak playing-up kid, but now every teammate is equally weak — there
+    // is no spread, so nobody is a standard deviation back and the cut line
+    // flags no one. Proves the recommendation is relative to the team, not a
+    // fixed score bar (under the old absolute cutoff this kid was auto-dropped).
+    renderWithProviders(<RosterDecisionsPanel />, {
+      team: {
+        team: {
+          players: [
+            { id: "p1", name: "Younger Kid", dob: "2016-01-01" },
+            { id: "p2", name: "Peer Two" },
+            { id: "p3", name: "Peer Three" },
+          ],
+          primaryColor: "#1d4ed8",
+          currentSeason: "Spring 2026",
+          teamAge: "12U",
+          evaluationEvents: [
+            headRound({
+              p1: allGrades(1),
+              p2: allGrades(1),
+              p3: allGrades(1),
+            }),
+          ],
+        },
+        user: { uid: "u1" },
+      },
+      ui: { setEvalTrendPlayerId: jest.fn() },
+    });
+    expect(
+      screen.getByText(/^Cut \/ Drop a Division \(0\)$/),
+    ).toBeInTheDocument();
   });
 
   it("credits a high-scoring player's eval as above the bar (Strong Fit)", () => {
@@ -121,21 +165,7 @@ describe("RosterDecisionsPanel", () => {
           players: [{ id: "p1", name: "Star", stats: { ops: 0.9 } }],
           primaryColor: "#1d4ed8",
           currentSeason: "2026",
-          evaluationEvents: [
-            headRound({
-              p1: {
-                glove: 5,
-                armStrength: 5,
-                contact: 5,
-                power: 5,
-                speed: 5,
-                baserunning: 5,
-                baseballIQ: 5,
-                coachability: 5,
-                approach: 5,
-              },
-            }),
-          ],
+          evaluationEvents: [headRound({ p1: allGrades(5) })],
         },
         user: { uid: "u1" },
       },
