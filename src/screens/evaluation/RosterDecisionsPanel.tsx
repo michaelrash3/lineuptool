@@ -19,6 +19,18 @@ import {
 } from "../../utils/evalScoring";
 import type { Player } from "../../types";
 
+// Roster-decision signal thresholds, on the SAME 0–100 scale the panel actually
+// reads. `latestEvalScore` is currentEvaluationScore100 — a percentage of the
+// grading ceiling (5/5 across the board ≈ 100), not a 1–5 average. These cutoffs
+// were historically written on the raw 1–5 grade scale, which silently no-op'd
+// once the value became a 0–100 score; they are now the ×20 equivalents so the
+// eval signal reads correctly (a 3.3/5 "above average" bar is 66/100, etc.).
+const EVAL_ABOVE_BAR = 66; // was 3.3 / 5 — clearly above the average bar
+const EVAL_BELOW_BAR = 56; // was 2.8 / 5 — below the average bar
+const EVAL_DEEP_BELOW_BAR = 50; // was 2.5 / 5 — struggling / over-matched
+const EVAL_FLAT_BAND = 4; // was 0.2 / 5 — |Δ| under this reads as "flat"
+const EVAL_STRONG_IMPROVE = 10; // was 0.5 / 5 — Δ at/above this is "strongly up"
+
 export const RosterDecisionsPanel = memo(() => {
   const { team, user } = useTeam();
   const { setEvalTrendPlayerId } = useUI();
@@ -77,7 +89,7 @@ export const RosterDecisionsPanel = memo(() => {
 
     const decisionRows: DecisionRow[] = players.map((player: Player) => {
       // ---- Latest eval grade (average across categories) ----
-      let latestEvalAvg: number | null = null;
+      let latestEvalScore: number | null = null;
       const playerCats = getEvalCategoriesForPlayer(
         team?.pitchingFormat,
         player,
@@ -101,7 +113,7 @@ export const RosterDecisionsPanel = memo(() => {
         .filter((e): e is { date: string; label: string; avg: number } => !!e);
 
       if (evalsForPlayer.length > 0) {
-        latestEvalAvg = evalsForPlayer[evalsForPlayer.length - 1].avg;
+        latestEvalScore = evalsForPlayer[evalsForPlayer.length - 1].avg;
       }
 
       // ---- Eval trend (first vs latest) ----
@@ -110,9 +122,10 @@ export const RosterDecisionsPanel = memo(() => {
       if (evalsForPlayer.length >= 2) {
         const first = evalsForPlayer[0].avg;
         const last = evalsForPlayer[evalsForPlayer.length - 1].avg;
+        // Both are 0–100 scores, so the delta is in score points. A swing
+        // under EVAL_FLAT_BAND (≈ a 4% move) is noise, not a real trend.
         evalDelta = last - first;
-        // Halved from the 1–10 era; 0.2 ≈ small change in a 1–5 scale.
-        if (Math.abs(evalDelta) < 0.2) evalTrend = "flat";
+        if (Math.abs(evalDelta) < EVAL_FLAT_BAND) evalTrend = "flat";
         else if (evalDelta > 0) evalTrend = "improving";
         else evalTrend = "declining";
       }
@@ -168,29 +181,35 @@ export const RosterDecisionsPanel = memo(() => {
       // **watch** — a kid earns Strong Fit with positive signal across the
       // board, otherwise the relative pass decides whether they stay flagged.
       //
-      // Scale calibration (internal only — eval 1–5; stats expressed as OPS
-      // ratio vs team OPS avg, 1.00 = at team avg):
-      //   Strong : eval ≥ 3.3  AND  not below the watch line on stats
-      //                       AND  not declining
-      //   Younger: playing up AND (eval ≤ 2.5 OR stats ratio ≤ 0.6)
-      //                       AND not strongly improving
+      // Scale calibration (internal only — eval score is 0–100, a percentage
+      // of the grading ceiling; stats expressed as OPS ratio vs team OPS avg,
+      // 1.00 = at team avg):
+      //   Strong : eval ≥ EVAL_ABOVE_BAR (66)  AND  not below on stats
+      //                                         AND  not declining
+      //   Younger: playing up AND (eval ≤ EVAL_DEEP_BELOW_BAR (50)
+      //                            OR stats ratio ≤ 0.6) AND not strongly up
       //   Watch  : everything else (proposal only — tempered below)
-      // The user-facing rationale never surfaces these 1–5 cutoffs: cards
-      // lead with the Total Score (out of 100) badge and the vs-team delta,
-      // so the explanation text stays qualitative.
+      // The user-facing rationale never surfaces these cutoffs: cards lead with
+      // the Total Score (out of 100) badge and the vs-team delta, so the
+      // explanation text stays qualitative.
 
       let bucket: DecisionBucket = "watch"; // proposal — Strong Fit earned, watch tempered below
       const rationale: string[] = [];
 
       const stronglyImproving =
-        evalTrend === "improving" && evalDelta != null && evalDelta >= 0.5;
-      const evalAboveBar = latestEvalAvg != null && latestEvalAvg >= 3.3;
-      const evalBelowBar = latestEvalAvg != null && latestEvalAvg < 2.8;
-      const evalDeepBelowBar = latestEvalAvg != null && latestEvalAvg <= 2.5;
+        evalTrend === "improving" &&
+        evalDelta != null &&
+        evalDelta >= EVAL_STRONG_IMPROVE;
+      const evalAboveBar =
+        latestEvalScore != null && latestEvalScore >= EVAL_ABOVE_BAR;
+      const evalBelowBar =
+        latestEvalScore != null && latestEvalScore < EVAL_BELOW_BAR;
+      const evalDeepBelowBar =
+        latestEvalScore != null && latestEvalScore <= EVAL_DEEP_BELOW_BAR;
       const statsBelowBar = statsRatio != null && statsRatio < 0.8;
       const statsWayBelowBar = statsRatio != null && statsRatio <= 0.6;
       const statsAbsent = statsRatio == null;
-      const evalAbsent = latestEvalAvg == null;
+      const evalAbsent = latestEvalScore == null;
 
       // 1) Cut / Drop a Division — playing up + clear struggle signal + not
       //    on the rise. Age-driven: only kids younger than the team's tier
@@ -274,7 +293,7 @@ export const RosterDecisionsPanel = memo(() => {
         player,
         baseballAge,
         playingUp,
-        latestEvalAvg,
+        latestEvalScore,
         totalScore,
         decisionScore,
         evalTrend,
@@ -304,7 +323,7 @@ export const RosterDecisionsPanel = memo(() => {
     // Null standing when we have no eval AND no stats for the kid -- can't
     // call them low without data.
     const compositeOf = (d: DecisionRow): number | null =>
-      d.latestEvalAvg == null && d.statsRatio == null
+      d.latestEvalScore == null && d.statsRatio == null
         ? null
         : d.decisionScore / 100;
     const withComp = decisionRows.map((d: DecisionRow) => ({
@@ -324,7 +343,7 @@ export const RosterDecisionsPanel = memo(() => {
       : 0;
     const belowLine = mean - sd;
     const visibleScores = decisionRows
-      .filter((d) => d.latestEvalAvg != null || d.statsRatio != null)
+      .filter((d) => d.latestEvalScore != null || d.statsRatio != null)
       .map((d) => d.totalScore);
     const teamAvgScore = visibleScores.length
       ? Math.round(

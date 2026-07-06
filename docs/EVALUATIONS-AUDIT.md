@@ -170,13 +170,26 @@ assistant-submission display + two-tap delete, and the trend modal's empty /
 single-eval / own-rounds-only states. The scoring math itself was unit-tested in
 `utils/evalScoring.test.ts` (#507).
 
-_Observed while writing these (not fixed here — a candidate follow-up):
-`RosterDecisionsPanel` compares `latestEvalAvg` — a 0–100 score from
-`currentEvaluationScore100` — against 1–5-scale cutoffs (`>= 3.3`, `< 2.8`,
-`<= 2.5`) and an `evalDelta` against `0.2`/`0.5`. The bucket structure still
-holds up (the relative cut line does the real work off the 100-scale
-`decisionScore`), but the absolute eval-signal branches read as effectively
-always-above-bar. Worth a dedicated look before leaning on those branches._
+### 3.6 Roster-decision eval cutoffs on the wrong scale — Medium (fixed)
+
+Found while writing the 3.5 tests: `RosterDecisionsPanel` fed
+`currentEvaluationScore100` — a **0–100** score (a percentage of the grading
+ceiling) — into a variable named `latestEvalAvg` and then compared it against
+**1–5**-scale cutoffs (`>= 3.3`, `< 2.8`, `<= 2.5`), plus an `evalDelta` against
+`0.2`/`0.5`. On the 100 scale those below-bar branches were unreachable (a real
+score never dips to ≤ 2.5), so the absolute eval signal read as _always above
+bar_: the "Cut / Drop a Division" age branch could never fire on eval, and the
+trend was almost never "flat".
+
+**Fixed:** the value is renamed `latestEvalScore` and the cutoffs moved onto the
+same 0–100 percentage scale (the ×20 equivalents, as named constants):
+`EVAL_ABOVE_BAR = 66`, `EVAL_BELOW_BAR = 56`, `EVAL_DEEP_BELOW_BAR = 50`,
+`EVAL_FLAT_BAND = 4`, `EVAL_STRONG_IMPROVE = 10`. Characterization tests in
+`RosterDecisionsPanel.test.tsx` pin the now-reachable behavior (a playing-up kid
+with a weak eval is flagged Cut / Drop a Division; a high scorer reads above the
+bar) — both would fail under the old 1–5 cutoffs. The composite grading score
+and its display were already correct; only these advisory bucket cutoffs were
+mis-scaled.
 
 ## 4. Coach feature-gap check
 

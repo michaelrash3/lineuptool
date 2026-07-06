@@ -50,7 +50,9 @@ export interface DecisionRow {
   player: Player;
   baseballAge: number | null;
   playingUp: boolean;
-  latestEvalAvg: number | null;
+  // The player's most recent eval score on the 0–100 scale
+  // (currentEvaluationScore100), or null when they have no graded round.
+  latestEvalScore: number | null;
   totalScore: number;
   decisionScore: number;
   evalTrend: "improving" | "declining" | "flat" | null;
