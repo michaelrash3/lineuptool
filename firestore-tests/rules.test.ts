@@ -43,6 +43,17 @@ let testEnv: RulesTestEnvironment;
 
 const teamPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teams", teamId] as const;
+const evalRoundPath = (teamId: string, roundId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "evalRounds",
+    roundId,
+  ] as const;
 const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
@@ -100,6 +111,21 @@ beforeEach(async () => {
           { id: "pay-1", playerId: "p1", date: "2026-03-01", amount: 250 },
         ],
       },
+    });
+    // Per-author eval rounds in the evalRounds subcollection (finding 3.1,
+    // Option A). One authored by the head/owner, one by the assistant, so the
+    // scoping tests can target each from the other's context.
+    await setDoc(doc(db, ...evalRoundPath("team-1", "round-head")), {
+      evaluatorId: OWNER,
+      coachRole: "Head",
+      date: "2026-06-01",
+      grades: { p1: { contact: 5 } },
+    });
+    await setDoc(doc(db, ...evalRoundPath("team-1", "round-asst")), {
+      evaluatorId: ASSISTANT,
+      coachRole: "Assistant",
+      date: "2026-06-02",
+      grades: { p1: { contact: 3 } },
     });
     // Legacy unclaimed team (no ownerId, no coachRoles): the sole member's
     // auto-claim write must keep working under the new guards.
@@ -444,6 +470,157 @@ describe("evaluationEvents access (audit finding 3.1 — pinned, not endorsed)",
       }),
     );
     await assertFails(getDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1"))));
+  });
+});
+
+// docs/eval-authz-design.md, Option A — the REAL fix for finding 3.1. Rounds
+// move off the shared `evaluationEvents` array into per-author documents so
+// reads AND writes are authorization-scoped: a head coach manages every round,
+// an assistant only their own. These tests prove the scoping the array can't
+// express (contrast the "pinned, not endorsed" block above). Rules-only step —
+// no client writes here yet.
+const roundsCol = (uid: string) =>
+  collection(
+    dbFor(uid),
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    "team-1",
+    "evalRounds",
+  );
+
+describe("evalRounds subcollection scoping (audit finding 3.1 — Option A)", () => {
+  it("lets a head coach (owner) read any author's round", async () => {
+    await assertSucceeds(
+      getDoc(doc(dbFor(OWNER), ...evalRoundPath("team-1", "round-asst"))),
+    );
+  });
+
+  it("lets a promoted co-head read any author's round", async () => {
+    await assertSucceeds(
+      getDoc(doc(dbFor(COHEAD), ...evalRoundPath("team-1", "round-asst"))),
+    );
+  });
+
+  it("lets an assistant read their OWN round", async () => {
+    await assertSucceeds(
+      getDoc(doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-asst"))),
+    );
+  });
+
+  it("DENIES an assistant reading the head's private round (the core fix)", async () => {
+    await assertFails(
+      getDoc(doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-head"))),
+    );
+  });
+
+  it("denies an outsider reading any round", async () => {
+    await assertFails(
+      getDoc(doc(dbFor(OUTSIDER), ...evalRoundPath("team-1", "round-head"))),
+    );
+  });
+
+  it("lets an assistant create a round stamped with their own uid", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-asst-2")),
+        {
+          evaluatorId: ASSISTANT,
+          coachRole: "Assistant",
+          grades: {},
+        },
+      ),
+    );
+  });
+
+  it("denies planting a round under someone else's uid", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-spoof")), {
+        evaluatorId: OWNER,
+        coachRole: "Head",
+        grades: {},
+      }),
+    );
+  });
+
+  it("denies an outsider creating a round", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...evalRoundPath("team-1", "round-evil")), {
+        evaluatorId: OUTSIDER,
+        grades: {},
+      }),
+    );
+  });
+
+  it("lets an assistant update their own round", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-asst")),
+        {
+          grades: { p1: { contact: 4 } },
+        },
+      ),
+    );
+  });
+
+  it("DENIES an assistant rewriting the head's round (no more clobbering)", async () => {
+    await assertFails(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-head")),
+        {
+          grades: { p1: { contact: 1 } },
+        },
+      ),
+    );
+  });
+
+  it("denies reassigning a round to a different author (evaluatorId immutable)", async () => {
+    await assertFails(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-asst")),
+        {
+          evaluatorId: OWNER,
+        },
+      ),
+    );
+  });
+
+  it("lets the head update AND delete an assistant's round", async () => {
+    await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...evalRoundPath("team-1", "round-asst")), {
+        grades: { p1: { contact: 2 } },
+      }),
+    );
+    await assertSucceeds(
+      deleteDoc(doc(dbFor(COHEAD), ...evalRoundPath("team-1", "round-asst"))),
+    );
+  });
+
+  it("lets an assistant delete their own round but not the head's", async () => {
+    await assertFails(
+      deleteDoc(
+        doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-head")),
+      ),
+    );
+    await assertSucceeds(
+      deleteDoc(
+        doc(dbFor(ASSISTANT), ...evalRoundPath("team-1", "round-asst")),
+      ),
+    );
+  });
+
+  it("scopes list queries: head lists all, assistant only a self-filtered query", async () => {
+    await assertSucceeds(getDocs(query(roundsCol(OWNER))));
+    // An assistant cannot list the whole collection (would expose head rounds).
+    await assertFails(getDocs(query(roundsCol(ASSISTANT))));
+    // But a `where evaluatorId == me` query is provable and allowed.
+    await assertSucceeds(
+      getDocs(
+        query(roundsCol(ASSISTANT), where("evaluatorId", "==", ASSISTANT)),
+      ),
+    );
   });
 });
 

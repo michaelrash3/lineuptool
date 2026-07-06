@@ -1,10 +1,12 @@
 # Design: authorization-scoped evaluations (audit finding 3.1)
 
-_Status: **proposal, awaiting head-coach / owner decision.** Nothing here is
-built. `docs/EVALUATIONS-AUDIT.md` finding 3.1 is currently handled by
-disposition (c) — accept the residual under the trusted-coach model and pin the
-behavior with a rules test (shipped in #511). This doc lays out what a **real**
-fix costs so the decision to build one (or not) is informed._
+_Status: **approved — Option A is being built incrementally.** Step 1 (the
+`evalRounds` subcollection security rules + emulator tests, no client wired yet)
+is shipped; the remaining steps follow the sequencing at the bottom of this doc.
+Until the read/write paths and data migration land, the `evaluationEvents` array
+stays authoritative and the finding-3.1 "pinned, not endorsed" rules block
+(#511) still documents the current live exposure. This doc lays out the full
+cost and the step order._
 
 ## The problem, precisely
 
@@ -137,8 +139,12 @@ it's worth.
 
 ## If Option A is approved — suggested sequencing
 
-1. Rules + emulator tests for the `evalRounds` subcollection (no client wired
-   yet; prove the scoping).
+1. ✅ **Done** — Rules + emulator tests for the `evalRounds` subcollection (no
+   client wired yet; scoping proven). Rules in `firestore.rules`
+   (`teams/{teamId}/evalRounds/{roundId}`), 14 tests in
+   `firestore-tests/rules.test.ts`: head reads/manages all, assistant only their
+   own, create must be self-stamped, `evaluatorId` immutable, list queries
+   scoped.
 2. Dual read subscription assembling `teamData.evaluationEvents` from the
    subcollection (behind a flag; old array still authoritative).
 3. Migrate writes (`useEvaluationCrud`) to per-doc; one-time data migration of

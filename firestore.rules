@@ -256,6 +256,59 @@ service cloud.firestore {
                          .affectedKeys()
                          .hasOnly(['availabilitySubmissions'])
                     && appendsExactlyOne('availabilitySubmissions');
+
+      // ----- Per-author evaluation rounds (docs/eval-authz-design.md, Option
+      // A — the real fix for audit finding 3.1). Eval rounds live today as the
+      // `evaluationEvents` array on this shared doc, which no rule can
+      // field-scope: every member can read the head's private grades and can
+      // destructively rewrite the whole array. Moving rounds into per-author
+      // documents lets reads AND writes finally be authorization-scoped — an
+      // assistant sees and edits only their OWN rounds; a head coach (the owner
+      // or a coachRoles 'head') manages every round.
+      //
+      // This ships the rules + emulator tests FIRST, with no client wired yet,
+      // so the scoping is proven before the dual read subscription, the per-doc
+      // write path, and the one-time data migration land (see the design doc's
+      // sequencing). Until those steps, the `evaluationEvents` array remains the
+      // authoritative store and nothing writes here.
+      match /evalRounds/{roundId} {
+        function teamDoc() {
+          return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+        }
+        function isTeamMember() {
+          return isSignedIn() && (
+            teamDoc().ownerId == request.auth.uid ||
+            (teamDoc().members != null && request.auth.uid in teamDoc().members)
+          );
+        }
+        // Head coach = owner OR a member promoted to 'head' via coachRoles,
+        // matching isHeadCoach() on the team doc.
+        function isTeamHead() {
+          return isSignedIn() && (
+            teamDoc().ownerId == request.auth.uid ||
+            teamDoc().get('coachRoles', {}).get(request.auth.uid, '') == 'head'
+          );
+        }
+        // The signed-in caller authored this existing round.
+        function isOwnRound() {
+          return isSignedIn() && resource.data.evaluatorId == request.auth.uid;
+        }
+
+        // Head reads every round; an assistant reads only their own. This also
+        // scopes list queries: a head may list all, an assistant only a
+        // `where evaluatorId == me` query.
+        allow read: if isTeamHead() || isOwnRound();
+        // A member may create a round only when it is stamped with their own
+        // uid — nobody can plant a round under someone else's name.
+        allow create: if isTeamMember()
+                      && request.resource.data.evaluatorId == request.auth.uid;
+        // Head manages every round; an author manages their own. evaluatorId is
+        // immutable on update, so a round can never be reassigned to a
+        // different author (delete + recreate instead).
+        allow update: if (isTeamHead() || isOwnRound())
+                      && request.resource.data.evaluatorId == resource.data.evaluatorId;
+        allow delete: if isTeamHead() || isOwnRound();
+      }
     }
 
     // Sanitized public mirror of a team, maintained by the coach client
