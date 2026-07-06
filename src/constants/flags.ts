@@ -21,6 +21,11 @@ export const EVAL_ROUNDS_SUBCOLLECTION = false;
 // load. The legacy array stays authoritative — this only POPULATES the
 // subcollection so it's complete and in-sync before reads flip
 // (EVAL_ROUNDS_SUBCOLLECTION). Enabling this first, letting it soak, then
-// enabling reads is the safe two-flag cutover. OFF by default: no extra writes,
-// no backfill, production untouched.
-export const EVAL_ROUNDS_DUAL_WRITE = false;
+// enabling reads is the safe two-flag cutover.
+//
+// NOW ON (rollout phase 1 — "soak"): the subcollection is being populated in
+// production, but reads still come from the legacy array (EVAL_ROUNDS_
+// SUBCOLLECTION is still off), so the UX is unchanged and this is fully
+// reversible — flip back to false and the array is still authoritative. Reads
+// flip only after the subcollection is confirmed complete on real data.
+export const EVAL_ROUNDS_DUAL_WRITE = true;

@@ -1,12 +1,14 @@
 # Design: authorization-scoped evaluations (audit finding 3.1)
 
-_Status: **approved — Option A is being built incrementally.** Step 1 (the
-`evalRounds` subcollection security rules + emulator tests, no client wired yet)
-is shipped; the remaining steps follow the sequencing at the bottom of this doc.
-Until the read/write paths and data migration land, the `evaluationEvents` array
-stays authoritative and the finding-3.1 "pinned, not endorsed" rules block
-(#511) still documents the current live exposure. This doc lays out the full
-cost and the step order._
+_Status: **approved — Option A rollout in progress.** Steps 1–3 (rules, scoped
+read subscription, dual-write + backfill) are shipped. **Rollout phase 1 is now
+live: `EVAL_ROUNDS_DUAL_WRITE` is ON**, so the subcollection is being populated
+in production (backfill + ongoing dual-write) while reads still come from the
+legacy `evaluationEvents` array (`EVAL_ROUNDS_SUBCOLLECTION` still off) — the UX
+is unchanged and it's fully reversible. Reads flip (phase 2) only after the
+subcollection is confirmed complete on real data; the array is dropped last.
+The finding-3.1 "pinned, not endorsed" rules block (#511) still documents the
+current live exposure until the read cutover. Sequencing at the bottom._
 
 ## The problem, precisely
 
