@@ -145,8 +145,11 @@ it's worth.
    `firestore-tests/rules.test.ts`: head reads/manages all, assistant only their
    own, create must be self-stamped, `evaluatorId` immutable, list queries
    scoped.
-2. Dual read subscription assembling `teamData.evaluationEvents` from the
-   subcollection (behind a flag; old array still authoritative).
+2. ✅ **Done** — Dual read subscription assembling `teamData.evaluationEvents`
+   from the subcollection, behind the `EVAL_ROUNDS_SUBCOLLECTION` flag (default
+   off; old array still authoritative). Isolated flag-gated effect in
+   `TeamProvider`; pure `buildEvalRoundsQuery` (role-scoped) + `assembleEvalRounds`
+   in `src/utils/evalRounds.ts` with unit tests. Inert until the flag flips.
 3. Migrate writes (`useEvaluationCrud`) to per-doc; one-time data migration of
    existing `evaluationEvents` → subcollection.
 4. Move the schema-migration ladder's eval steps to run per-round; drop

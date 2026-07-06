@@ -39,6 +39,8 @@ import {
 } from "../auth/googleRedirect";
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildEvalReminderDraft, buildMailtoUrl } from "../utils/reminderDraft";
+import { EVAL_ROUNDS_SUBCOLLECTION } from "../constants/flags";
+import { buildEvalRoundsQuery, assembleEvalRounds } from "../utils/evalRounds";
 import {
   slimGame,
   scrubUndefined,
@@ -2177,6 +2179,37 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (realRole === "head" && viewAsRole === "assistant") return "assistant";
     return realRole;
   }, [realRole, viewAsRole]);
+
+  // Step 2 of the finding-3.1 fix (docs/eval-authz-design.md): a SECOND,
+  // role-scoped subscription to the per-author evalRounds subcollection that
+  // assembles teamData.evaluationEvents from those docs instead of the shared
+  // array. Deliberately isolated from the main team-doc subscription so the
+  // live read path is untouched, and gated behind EVAL_ROUNDS_SUBCOLLECTION —
+  // OFF by default, so this effect subscribes to nothing and never mutates
+  // teamData in production. It only becomes live once the write path + data
+  // migration land (steps 3-4) and the flag is flipped. Scoped by realRole (not
+  // the view-as override): an assistant MUST use the where-filtered query or the
+  // rules deny the read entirely. Errors here are swallowed — the array path
+  // stays authoritative until the cutover.
+  useEffect(() => {
+    if (!EVAL_ROUNDS_SUBCOLLECTION) return;
+    if (!activeTeamId || !user || !roleResolved) return;
+    const q = buildEvalRoundsQuery(db, appId, activeTeamId, realRole, user.uid);
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const assembled = assembleEvalRounds(
+          snap.docs.map((d) => ({ id: d.id, data: d.data() })),
+        );
+        setTeamData((prev: any) => ({ ...prev, evaluationEvents: assembled }));
+      },
+      () => {
+        // Non-fatal: keep the legacy array authoritative until the cutover.
+      },
+    );
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTeamId, user?.uid, roleResolved, realRole]);
 
   // Auto-claim + persist legacy teams. Runs once per session per team
   // when ownerId is missing AND there is no plausible existing owner.
