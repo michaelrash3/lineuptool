@@ -49,6 +49,14 @@ import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
 import { downloadTreasurerReportPdf } from "../finances/treasurerReportPdf";
 import type { BudgetItem, Player, Team, TeamFinances } from "../types";
 import type { FinanceSetFields } from "../utils/financeUpdates";
+import {
+  BUDGET_PRESETS,
+  BUDGET_PRESET_GROUPS,
+  EXPENSE_LABEL_SUGGESTIONS,
+  INCOME_LABEL_SUGGESTIONS,
+  DEPOSIT_QUICK_PICKS,
+  type BudgetPreset,
+} from "../constants/financeCategories";
 
 // Finances — head-coach-only money tracker for the club: what the season will
 // cost (Budget Planner with per-tournament / per-session quantity planning),
@@ -57,20 +65,6 @@ import type { FinanceSetFields } from "../utils/financeUpdates";
 // Everything lives under `team.finances` on the one team doc.
 
 const newId = (prefix: string) => genId(prefix);
-
-// Common youth-club cost categories. Tapping a chip prefills the add form;
-// quantity-mode presets plan as count × per-unit cost (8 tournaments × $450).
-// `qtyFromRoster` seeds the count with the roster size (uniforms).
-const BUDGET_PRESETS: Array<{
-  label: string;
-  unitNoun?: string;
-  qtyFromRoster?: boolean;
-}> = [
-  { label: "Tournaments", unitNoun: "per tournament" },
-  { label: "Uniforms", unitNoun: "per uniform", qtyFromRoster: true },
-  { label: "Field rental", unitNoun: "per session" },
-  { label: "Indoor facility", unitNoun: "per session" },
-];
 
 // Same section chrome the Stats tab uses, kept local to the screen.
 const SectionCard = ({
@@ -282,6 +276,9 @@ export const FinancesTab = memo(() => {
   const [budgetQty, setBudgetQty] = useState("");
   const [qtyMode, setQtyMode] = useState(false);
   const [unitNoun, setUnitNoun] = useState("per unit");
+  // Default the new item's `taxable` flag — seeded from a preset (physical
+  // goods / tournament entries quote pre-tax), toggleable before adding.
+  const [budgetTaxable, setBudgetTaxable] = useState(false);
   // ---- Sponsorships (next season) form state
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
@@ -544,13 +541,20 @@ export const FinancesTab = memo(() => {
     });
   };
 
-  const applyPreset = (preset: (typeof BUDGET_PRESETS)[number]) => {
+  const applyPreset = (preset: BudgetPreset) => {
     setBudgetLabel(preset.label);
-    setQtyMode(true);
+    // A preset with a per-unit noun plans as count × per-unit; one without is a
+    // single flat amount (insurance, registration). Only quantity mode seeds a
+    // roster count.
+    const qty = Boolean(preset.unitNoun);
+    setQtyMode(qty);
     setUnitNoun(preset.unitNoun || "per unit");
     setBudgetQty(
-      preset.qtyFromRoster && players.length > 0 ? String(players.length) : "",
+      qty && preset.qtyFromRoster && players.length > 0
+        ? String(players.length)
+        : "",
     );
+    setBudgetTaxable(Boolean(preset.taxable));
   };
 
   const addBudgetItem = (e?: React.FormEvent) => {
@@ -569,11 +573,17 @@ export const FinancesTab = memo(() => {
         qty,
         unitAmount: unit,
         amount: qty * unit,
+        ...(budgetTaxable ? { taxable: true } : {}),
       };
     } else {
       const amount = parseAmount(budgetAmount);
       if (amount == null) return;
-      item = { id: newId("b"), label: budgetLabel.trim(), amount };
+      item = {
+        id: newId("b"),
+        label: budgetLabel.trim(),
+        amount,
+        ...(budgetTaxable ? { taxable: true } : {}),
+      };
     }
     updateFinances({ op: "append", key: "budgetItems", entry: item });
     setBudgetLabel("");
@@ -581,6 +591,7 @@ export const FinancesTab = memo(() => {
     setBudgetQty("");
     setQtyMode(false);
     setUnitNoun("per unit");
+    setBudgetTaxable(false);
   };
 
   const removeBudgetItem = (id: string) =>
@@ -1425,9 +1436,27 @@ export const FinancesTab = memo(() => {
                       : "What was it for?"
                   }
                   aria-label="Transaction description"
+                  // Autocomplete from the youth-baseball catalog — the income
+                  // ways-to-raise list for money in, the spend catalog for money
+                  // out. Free text is still allowed; these are just suggestions.
+                  list={
+                    txnDir === "in"
+                      ? "ledger-income-suggestions"
+                      : "ledger-expense-suggestions"
+                  }
                   className={`${FORM_INPUT_CLASS} flex-1 sm:min-w-[12rem]`}
                   style={FORM_INPUT_RING_STYLE}
                 />
+                <datalist id="ledger-income-suggestions">
+                  {INCOME_LABEL_SUGGESTIONS.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+                <datalist id="ledger-expense-suggestions">
+                  {EXPENSE_LABEL_SUGGESTIONS.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
                 {txnDir === "out" &&
                   (finances.budgetItems || []).length > 0 && (
                     <select
@@ -2220,20 +2249,37 @@ export const FinancesTab = memo(() => {
               </Button>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {BUDGET_PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => applyPreset(preset)}
-                className="px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink-2 transition-colors"
-              >
-                + {preset.label}
-              </button>
+          {/* Quick-add catalog: tap a common youth-baseball line item to
+              prefill the add form. Grouped by spending area and scrollable so
+              the full catalog never dominates the tab. */}
+          <div className="space-y-2 max-h-56 overflow-y-auto rounded-xl border border-line bg-surface-2/40 p-3">
+            {BUDGET_PRESET_GROUPS.map((group) => (
+              <div key={group} className="space-y-1.5">
+                <div className="t-eyebrow text-ink-3">{group}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {BUDGET_PRESETS.filter((p) => p.group === group).map(
+                    (preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => applyPreset(preset)}
+                        className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-surface-2 hover:bg-line text-ink-2 transition-colors"
+                      >
+                        + {preset.label}
+                      </button>
+                    ),
+                  )}
+                </div>
+              </div>
             ))}
+          </div>
+          {/* Mode toggles for a manual add: quantity planning + a taxable
+              default (seeded by the preset, editable here before adding). */}
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               aria-label="Toggle count mode"
+              aria-pressed={qtyMode}
               onClick={() => setQtyMode((v) => !v)}
               className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
                 qtyMode
@@ -2250,6 +2296,20 @@ export const FinancesTab = memo(() => {
               }
             >
               × count
+            </button>
+            <button
+              type="button"
+              aria-label="Toggle sales tax on the new item"
+              aria-pressed={budgetTaxable}
+              title="Add this item's cost pre-tax; sales tax is applied in the planner totals."
+              onClick={() => setBudgetTaxable((v) => !v)}
+              className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
+                budgetTaxable
+                  ? "bg-win/10 text-win"
+                  : "bg-surface-2 hover:bg-line text-ink-3"
+              }`}
+            >
+              +tax
             </button>
           </div>
           <form
@@ -2547,7 +2607,7 @@ export const FinancesTab = memo(() => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
-            <label className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1">
               <span className="t-eyebrow text-ink-3">Next season deposit</span>
               {nextDepositInput == null ? (
                 <button
@@ -2578,7 +2638,29 @@ export const FinancesTab = memo(() => {
                   style={FORM_INPUT_RING_STYLE}
                 />
               )}
-            </label>
+              {/* One-tap common deposit slices — sets the amount immediately. */}
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
+                {DEPOSIT_QUICK_PICKS.map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    aria-label={`Set next season deposit to ${formatCurrency(amt)}`}
+                    aria-pressed={finances.nextDepositAmount === amt}
+                    onClick={() => {
+                      setNextDepositInput(null);
+                      setFinanceFields({ nextDepositAmount: amt });
+                    }}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums transition-colors ${
+                      finances.nextDepositAmount === amt
+                        ? "bg-win/10 text-win"
+                        : "bg-surface-2 hover:bg-line text-ink-3"
+                    }`}
+                  >
+                    {formatCurrency(amt)}
+                  </button>
+                ))}
+              </div>
+            </div>
             <label className="flex flex-col gap-1">
               <span className="t-eyebrow text-ink-3">
                 Next season deposit due
