@@ -97,11 +97,13 @@ describe("FinancesTab", () => {
     });
   });
 
-  it("preset chip prefills a quantity-mode item and Add writes count × unit", () => {
+  it("preset chip prefills a quantity-mode item and Add writes count × unit (taxable default carried)", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },
     });
-    fireEvent.click(screen.getByRole("button", { name: "+ Tournaments" }));
+    // "Tournament entry" is a per-tournament, taxable catalog preset — clicking
+    // it opens quantity mode AND seeds the +tax default.
+    fireEvent.click(screen.getByRole("button", { name: "+ Tournament entry" }));
     fireEvent.change(screen.getByLabelText("Count"), {
       target: { value: "8" },
     });
@@ -116,11 +118,55 @@ describe("FinancesTab", () => {
     const items = patch.finances.budgetItems;
     const added = items[items.length - 1];
     expect(added).toMatchObject({
-      label: "Tournaments",
+      label: "Tournament entry",
       qty: 8,
       unitAmount: 450,
       amount: 3600,
+      taxable: true,
     });
+  });
+
+  it("a flat (non-unit) catalog preset adds without quantity mode", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    // "Team insurance" has no unitNoun → flat amount, no Count field.
+    fireEvent.click(screen.getByRole("button", { name: "+ Team insurance" }));
+    expect(screen.queryByLabelText("Count")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Budget amount"), {
+      target: { value: "225" },
+    });
+    const addButtons = screen.getAllByRole("button", { name: /Add$/ });
+    fireEvent.click(addButtons[addButtons.length - 1]);
+    const items = appliedFinances(teamValue).budgetItems;
+    const added = items[items.length - 1];
+    expect(added).toMatchObject({ label: "Team insurance", amount: 225 });
+    expect(added.qty).toBeUndefined();
+    expect(added.taxable).toBeUndefined();
+  });
+
+  it("offers ledger autocomplete and one-tap deposit amounts from the catalog", () => {
+    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    // Expense datalist (money-out is the default ledger direction) carries the
+    // spend catalog; a deposit quick-pick sets the next-season deposit.
+    const expenseOpts = document
+      .getElementById("ledger-expense-suggestions")
+      ?.querySelectorAll("option");
+    expect(expenseOpts && expenseOpts.length).toBeGreaterThan(0);
+    const incomeOpts = document
+      .getElementById("ledger-income-suggestions")
+      ?.querySelectorAll("option");
+    expect(incomeOpts && incomeOpts.length).toBeGreaterThan(0);
+  });
+
+  it("a deposit quick-pick chip stores the next-season deposit", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByLabelText("Set next season deposit to $100"));
+    expect(appliedFinances(teamValue)).toEqual(
+      expect.objectContaining({ nextDepositAmount: 100 }),
+    );
   });
 
   it("suggests next season's fee from the budget minus pledged sponsorships and stores it as nextClubFee", () => {
