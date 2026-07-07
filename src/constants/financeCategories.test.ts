@@ -5,6 +5,10 @@ import {
   EXPENSE_LABEL_SUGGESTIONS,
   INCOME_LABEL_SUGGESTIONS,
   DEPOSIT_QUICK_PICKS,
+  FINANCE_CATEGORIES,
+  groupToCategory,
+  categoryLabel,
+  inferCategory,
 } from "./financeCategories";
 
 describe("BUDGET_PRESETS", () => {
@@ -63,5 +67,48 @@ describe("DEPOSIT_QUICK_PICKS", () => {
     expect([...DEPOSIT_QUICK_PICKS].sort((a, b) => a - b)).toEqual(
       DEPOSIT_QUICK_PICKS,
     );
+  });
+});
+
+describe("finance categories", () => {
+  it("maps every preset group to a category and labels every category", () => {
+    for (const g of BUDGET_PRESET_GROUPS) {
+      const cat = groupToCategory[g];
+      expect(cat).toBeTruthy();
+      // The group's own name is the category's label (they mirror each other).
+      expect(categoryLabel(cat)).toBe(g);
+    }
+    // Every catalog id resolves to a non-blank label.
+    for (const c of FINANCE_CATEGORIES) {
+      expect(categoryLabel(c.id)).toBe(c.label);
+    }
+  });
+
+  it("includes an 'other' catch-all not tied to any preset group", () => {
+    expect(FINANCE_CATEGORIES.some((c) => c.id === "other")).toBe(true);
+    expect(Object.values(groupToCategory)).not.toContain("other");
+  });
+});
+
+describe("inferCategory", () => {
+  it("resolves exact catalog labels to their group's category", () => {
+    expect(inferCategory("Umpire fees")).toBe("tournaments");
+    expect(inferCategory("game jerseys")).toBe("uniforms"); // case-insensitive
+    expect(inferCategory("Team insurance")).toBe("league-admin");
+  });
+
+  it("falls back to keyword heuristics for free text", () => {
+    expect(inferCategory("Hotel block for state finals")).toBe("travel");
+    expect(inferCategory("New catcher's mitt")).toBe("gear");
+    expect(inferCategory("Batting cage rental")).toBe("facilities"); // cage beats bat
+    expect(inferCategory("Spring registration")).toBe("league-admin");
+    expect(inferCategory("End of year trophies")).toBe("team-events");
+  });
+
+  it("returns 'other' for blank or unrecognizable labels", () => {
+    expect(inferCategory("")).toBe("other");
+    expect(inferCategory(null)).toBe("other");
+    expect(inferCategory("Misc widget 42")).toBe("team-events"); // 'misc' keyword
+    expect(inferCategory("zxcv")).toBe("other");
   });
 });

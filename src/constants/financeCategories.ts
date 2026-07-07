@@ -202,3 +202,188 @@ export const INCOME_LABEL_SUGGESTIONS: string[] = [
 // One-tap amounts for the next-season deposit field — the deposit slices a
 // travel team typically asks families to put down to hold a roster spot.
 export const DEPOSIT_QUICK_PICKS: number[] = [50, 75, 100, 150, 200];
+
+// ---- Structured categories (the by-category reporting layer) ----------------
+// PR2 of docs/finance-categories.md: budget items carry an optional category so
+// spending can be rolled up by area (budget-vs-actual per category, the
+// spending donut). Categories mirror the seven preset groups plus a catch-all,
+// and are stable slugs (the union is the source of truth in src/types.ts too).
+
+export type FinanceCategoryId =
+  | "tournaments"
+  | "facilities"
+  | "gear"
+  | "uniforms"
+  | "league-admin"
+  | "travel"
+  | "team-events"
+  | "other";
+
+// Declaration order = the order category rows/donut slices display in.
+export const FINANCE_CATEGORIES: Array<{
+  id: FinanceCategoryId;
+  label: string;
+}> = [
+  { id: "tournaments", label: "Tournaments & games" },
+  { id: "facilities", label: "Facilities & field" },
+  { id: "gear", label: "Gear & equipment" },
+  { id: "uniforms", label: "Uniforms & apparel" },
+  { id: "league-admin", label: "League & admin" },
+  { id: "travel", label: "Travel & lodging" },
+  { id: "team-events", label: "Team & events" },
+  { id: "other", label: "Other" },
+];
+
+// A preset's spending-area group maps 1:1 onto a category, so tapping a catalog
+// chip stamps the item's category for free.
+export const groupToCategory: Record<BudgetPresetGroup, FinanceCategoryId> = {
+  "Tournaments & games": "tournaments",
+  "Facilities & field": "facilities",
+  "Gear & equipment": "gear",
+  "Uniforms & apparel": "uniforms",
+  "League & admin": "league-admin",
+  "Travel & lodging": "travel",
+  "Team & events": "team-events",
+};
+
+const CATEGORY_LABELS: Record<FinanceCategoryId, string> = Object.fromEntries(
+  FINANCE_CATEGORIES.map((c) => [c.id, c.label]),
+) as Record<FinanceCategoryId, string>;
+
+export const categoryLabel = (id: FinanceCategoryId): string =>
+  CATEGORY_LABELS[id] || "Other";
+
+// Exact catalog-label → category, for the common case where a legacy free-text
+// item was typed to match a preset ("Umpire fees").
+const PRESET_LABEL_CATEGORY: Record<string, FinanceCategoryId> =
+  Object.fromEntries(
+    BUDGET_PRESETS.map((p) => [
+      p.label.toLowerCase(),
+      groupToCategory[p.group],
+    ]),
+  );
+
+// Keyword fallback for arbitrary typed labels. Order matters — the first
+// category with any matching substring wins — so more specific/less ambiguous
+// areas come first (facilities' "cage" before gear's "bat", so "batting cage"
+// reads as a facility, not a bat).
+const KEYWORD_RULES: Array<[FinanceCategoryId, string[]]> = [
+  [
+    "tournaments",
+    ["tournament", "umpire", "league game", "entry fee", "guest player"],
+  ],
+  [
+    "facilities",
+    [
+      "field",
+      "facility",
+      "cage",
+      "tunnel",
+      "mound",
+      "chalk",
+      "clay",
+      "turf",
+      "gym",
+      "lights",
+      "utility",
+    ],
+  ],
+  [
+    "uniforms",
+    [
+      "jersey",
+      "uniform",
+      "pants",
+      "hat",
+      "cap",
+      "sock",
+      "belt",
+      "apparel",
+      "warm",
+      "spirit",
+    ],
+  ],
+  [
+    "gear",
+    [
+      "ball",
+      "bat",
+      "helmet",
+      "catcher",
+      "screen",
+      "net",
+      "bucket",
+      "first aid",
+      "first-aid",
+      "machine",
+      "glove",
+      "equipment",
+    ],
+  ],
+  [
+    "travel",
+    [
+      "hotel",
+      "lodging",
+      "travel",
+      "transport",
+      "van",
+      "bus",
+      "fuel",
+      "gas",
+      "toll",
+      "per diem",
+      "per-diem",
+      "meal",
+    ],
+  ],
+  [
+    "league-admin",
+    [
+      "registration",
+      "insurance",
+      "background",
+      "stipend",
+      "software",
+      "website",
+      "banking",
+      "processing",
+      "sanction",
+      "dues",
+    ],
+  ],
+  [
+    "team-events",
+    [
+      "trophy",
+      "trophies",
+      "award",
+      "banquet",
+      "party",
+      "photo",
+      "senior night",
+      "gift",
+      "contingency",
+      "misc",
+    ],
+  ],
+];
+
+// Best-effort category for a free-text label — an exact catalog match first,
+// then keyword heuristics, then "other". Used to categorize legacy items and
+// unlinked expenses without a stored category (the non-destructive read
+// migration: nothing is rewritten, the category is derived on the fly).
+export const inferCategory = (
+  label: string | null | undefined,
+): FinanceCategoryId => {
+  const s = String(label || "")
+    .trim()
+    .toLowerCase();
+  if (!s) return "other";
+  const exact = PRESET_LABEL_CATEGORY[s];
+  if (exact) return exact;
+  for (const [cat, kws] of KEYWORD_RULES) {
+    if (kws.some((k) => s.includes(k))) return cat;
+  }
+  return "other";
+};

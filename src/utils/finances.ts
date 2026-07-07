@@ -13,6 +13,11 @@ import type {
 } from "../types";
 import { genId } from "./id";
 import { isValidIsoDate } from "./dates";
+import {
+  inferCategory,
+  FINANCE_CATEGORIES,
+  type FinanceCategoryId,
+} from "../constants/financeCategories";
 
 // ---------- Team finances (money math) ----------
 // Pure helpers behind the Finances tab. All amounts are dollars; display
@@ -591,6 +596,75 @@ export const budgetActuals = (
   }
   return { byItem, unplanned };
 };
+
+// ---- By-category reporting (docs/finance-categories.md PR2) -----------------
+
+// The spending area a budget item belongs to: its explicit category when set,
+// else inferred from the label. Legacy items (no category) still roll up — the
+// migration is read-side, nothing is rewritten.
+export const budgetItemCategory = (
+  item: BudgetItem | null | undefined,
+): FinanceCategoryId => item?.category ?? inferCategory(item?.label);
+
+// The category an expense counts toward: the linked budget item's category
+// (budget-vs-actual stays consistent with the plan), else inferred from the
+// expense's own label for unplanned spending.
+export const expenseCategory = (
+  expense: { budgetItemId?: string; label?: string } | null | undefined,
+  budgetItems: BudgetItem[] | null | undefined,
+): FinanceCategoryId => {
+  const link = expense?.budgetItemId;
+  if (link) {
+    const item = (budgetItems || []).find((b) => b.id === link);
+    if (item) return budgetItemCategory(item);
+  }
+  return inferCategory(expense?.label);
+};
+
+export interface CategoryBudgetRow {
+  category: FinanceCategoryId;
+  label: string;
+  planned: number;
+  spent: number;
+}
+
+// Budget-vs-actual rolled up by spending area: planned from the budget items in
+// each category, spent from every expense mapped to its category (linked items
+// follow the plan; unlinked spending is inferred from its label). Ordered by
+// the canonical category order; only areas with any planned or actual money.
+export const budgetByCategory = (
+  finances: TeamFinances | null | undefined,
+): CategoryBudgetRow[] => {
+  const items = finances?.budgetItems || [];
+  const byId = new Map(items.map((b) => [b.id, b]));
+  const planned: Partial<Record<FinanceCategoryId, number>> = {};
+  const spent: Partial<Record<FinanceCategoryId, number>> = {};
+  for (const b of items) {
+    const cat = budgetItemCategory(b);
+    planned[cat] =
+      (planned[cat] || 0) + budgetItemAmount(b, finances?.salesTaxPct);
+  }
+  for (const e of finances?.expenses || []) {
+    if (!e) continue;
+    const item = e.budgetItemId ? byId.get(e.budgetItemId) : undefined;
+    const cat = item ? budgetItemCategory(item) : inferCategory(e.label);
+    spent[cat] = (spent[cat] || 0) + money(e.amount);
+  }
+  return FINANCE_CATEGORIES.map((c) => ({
+    category: c.id,
+    label: c.label,
+    planned: round2(planned[c.id] || 0),
+    spent: round2(spent[c.id] || 0),
+  })).filter((r) => r.planned > 0 || r.spent > 0);
+};
+
+// Donut-ready actual spend per category (drops categories with no spend).
+export const spendingByCategory = (
+  finances: TeamFinances | null | undefined,
+): Array<{ label: string; value: number }> =>
+  budgetByCategory(finances)
+    .filter((r) => r.spent > 0)
+    .map((r) => ({ label: r.label, value: r.spent }));
 
 export interface YearComparisonRow {
   label: string;

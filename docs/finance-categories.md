@@ -1,10 +1,11 @@
 # Design: youth-baseball finance categories (staged)
 
-_Status: **PR1 shipped — a non-breaking preset catalog.** The Budget Planner and
-ledger now offer a curated set of the line items a travel/rec baseball team
-actually budgets, as quick-pick chips and free-text autocomplete. No schema
-change: entries still store a free-text `label`. **PR2 (structured categories)
-is planned, not built** — see the bottom._
+_Status: **PR1 + PR2 shipped.** PR1 added a non-breaking preset catalog (quick-pick
+chips + free-text autocomplete). PR2 adds a structured `category` on budget items
+and rolls spending up **by category** (budget-vs-actual per area, the spending
+donut). Still non-breaking: `category` is optional and inferred from the label
+when absent, so legacy items and untagged entries roll up without a migration
+write._
 
 ## The need
 
@@ -46,21 +47,36 @@ Tests: `src/constants/financeCategories.test.ts` (catalog integrity) and new
 cases in `src/screens/FinancesTab.test.tsx` (chip prefill + taxable default,
 flat preset, ledger datalists, deposit quick-pick).
 
-## PR2 — structured categories (planned, NOT built)
+## PR2 — structured categories (shipped)
 
-Promote the catalog from suggestions to structure so spending can be grouped and
-reported **by category**:
+Promotes the catalog from suggestions to structure so spending groups and reports
+**by category**.
 
-- Add an optional `category?: FinanceCategoryId` to `BudgetItem`, `ExpenseEntry`,
-  and `IncomeEntry` (`src/types.ts`), with a canonical id list in the catalog
-  module.
-- Group budget-vs-actual and the ledger by category; add a by-category breakdown
-  to the treasurer report and the cash-flow/spending viz
-  (`src/finances/treasurerReportPdf.ts`, `src/components/financeViz.tsx`).
-- Lazy, non-destructive migration: infer a category from an item's label via the
-  catalog on read; unmatched → "Other". Matches the app's existing read-migration
-  ladder rather than a bulk rewrite.
+- **`src/constants/financeCategories.ts`** — the taxonomy: `FinanceCategoryId`
+  (the seven spending areas + `other`), `FINANCE_CATEGORIES` (id → label, display
+  order), `groupToCategory` (preset group → category), `categoryLabel`, and
+  `inferCategory(label)` — an exact catalog-label match, then keyword heuristics,
+  then `other`.
+- **`src/types.ts`** — optional `BudgetItem.category?: FinanceCategoryId`.
+- **`src/utils/finances.ts`** — read helpers:
+  - `budgetItemCategory(item)` = stored category, else inferred from the label.
+  - `expenseCategory(expense, budgetItems)` = the linked item's category, else
+    inferred from the expense label.
+  - `budgetByCategory(finances)` = planned + actual rolled up per area (canonical
+    order, only areas with money).
+  - `spendingByCategory(finances)` = donut-ready actual spend per area.
+- **`src/screens/FinancesTab.tsx`** — a category `<select>` on the budget add
+  form (a preset preselects its area; "Auto" defers to inference) and in the
+  inline row editor; a category line under each budget row; a **By category**
+  budget-vs-actual rollup panel; and the spending donut now grouped by category
+  (its `aria-label` was already "Spending by category").
 
-Build PR2 when a coach wants spending rolled up by area (e.g. "Facilities: $2,400
-of $2,000 planned") rather than line by line. Until then the catalog stands on
-its own as PR1.
+**Migration is read-side and non-destructive:** `category` is optional; when
+absent it's inferred at read time, so legacy items and untagged entries roll up
+without ever rewriting the stored doc. A coach who wants a specific area just
+picks it; otherwise the inference keeps the rollup meaningful.
+
+**Deliberately out of scope:** income/fundraising keeps its existing structure
+(the `fundraising` / `sponsor` flags), so categories cover the spend side only.
+A future refinement could categorize income too if a by-source income report is
+wanted.
