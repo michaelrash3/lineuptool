@@ -1,4 +1,4 @@
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { FinancesTab } from "./FinancesTab";
 import { applyFinanceUpdate } from "../utils/financeUpdates";
@@ -167,6 +167,67 @@ describe("FinancesTab", () => {
     expect(appliedFinances(teamValue)).toEqual(
       expect.objectContaining({ nextDepositAmount: 100 }),
     );
+  });
+
+  it("stores the chosen spending category on a new budget item (PR2)", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.change(screen.getByLabelText("Budget item"), {
+      target: { value: "Extra nets" },
+    });
+    fireEvent.change(screen.getByLabelText("Budget amount"), {
+      target: { value: "60" },
+    });
+    fireEvent.change(screen.getByLabelText("New item category"), {
+      target: { value: "gear" },
+    });
+    const addButtons = screen.getAllByRole("button", { name: /Add$/ });
+    fireEvent.click(addButtons[addButtons.length - 1]);
+    const items = appliedFinances(teamValue).budgetItems;
+    expect(items[items.length - 1]).toMatchObject({
+      label: "Extra nets",
+      amount: 60,
+      category: "gear",
+    });
+  });
+
+  it("renders the by-category budget-vs-actual rollup", () => {
+    const categorized: any = {
+      players: [{ id: "k1", name: "A" }],
+      games: [],
+      finances: {
+        clubFee: 100,
+        budgetItems: [
+          {
+            id: "b1",
+            label: "Field time",
+            amount: 300,
+            category: "facilities",
+          },
+        ],
+        expenses: [
+          {
+            id: "e1",
+            date: "2026-03-01",
+            label: "March rental",
+            amount: 120,
+            budgetItemId: "b1",
+          },
+        ],
+      },
+    };
+    renderWithProviders(<FinancesTab />, { team: { team: categorized } });
+    // The rollup panel renders with its caption and the linked spend against
+    // the plan ($120 of $300 facilities). Scope the money lookup to the panel —
+    // $120 also shows in the ledger row.
+    expect(screen.getByText("spent / planned")).toBeInTheDocument();
+    const panel = screen
+      .getByText("By category")
+      .closest("div.rounded-xl") as HTMLElement;
+    expect(panel).toBeTruthy();
+    expect(within(panel).getByText("$120")).toBeInTheDocument();
+    expect(within(panel).getByText("$300")).toBeInTheDocument();
   });
 
   it("suggests next season's fee from the budget minus pledged sponsorships and stores it as nextClubFee", () => {

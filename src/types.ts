@@ -2,6 +2,10 @@
 // constructs these shapes ad-hoc; tightening them would cascade through
 // thousands of lines. Use `Partial<...>` or extend as needed.
 
+// Category taxonomy lives with the catalog it mirrors (type-only import — no
+// runtime cycle: the constants module imports nothing from here).
+import type { FinanceCategoryId } from "./constants/financeCategories";
+
 export type PlayerId = string;
 
 export interface PlayerStats {
@@ -548,6 +552,11 @@ export interface BudgetItem {
   // When true, finances.salesTaxPct is added on top of this item's cost in
   // all planner math (tournament entries are often pre-tax quotes).
   taxable?: boolean;
+  // Spending area for by-category reporting (docs/finance-categories.md PR2).
+  // Optional and non-breaking: when absent it's inferred from the label at read
+  // time (see budgetItemCategory in utils/finances.ts), so legacy items and
+  // items typed without a category still roll up.
+  category?: FinanceCategoryId;
 }
 
 // Who entered a money record and when (audit finding 3.7). Stamped at

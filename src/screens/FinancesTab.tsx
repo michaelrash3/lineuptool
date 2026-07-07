@@ -36,6 +36,9 @@ import {
   plannedPayerCount,
   buildPlayerFeeBreakdown,
   estimateBudgetFromSeason,
+  budgetItemCategory,
+  budgetByCategory,
+  spendingByCategory,
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
@@ -55,7 +58,11 @@ import {
   EXPENSE_LABEL_SUGGESTIONS,
   INCOME_LABEL_SUGGESTIONS,
   DEPOSIT_QUICK_PICKS,
+  FINANCE_CATEGORIES,
+  groupToCategory,
+  categoryLabel,
   type BudgetPreset,
+  type FinanceCategoryId,
 } from "../constants/financeCategories";
 
 // Finances — head-coach-only money tracker for the club: what the season will
@@ -279,6 +286,11 @@ export const FinancesTab = memo(() => {
   // Default the new item's `taxable` flag — seeded from a preset (physical
   // goods / tournament entries quote pre-tax), toggleable before adding.
   const [budgetTaxable, setBudgetTaxable] = useState(false);
+  // Spending area for the new item. "" = auto (inferred from the label at read
+  // time); a preset seeds its own category, and the coach can override.
+  const [budgetCategory, setBudgetCategory] = useState<FinanceCategoryId | "">(
+    "",
+  );
   // ---- Sponsorships (next season) form state
   const [sponsorName, setSponsorName] = useState("");
   const [sponsorAmount, setSponsorAmount] = useState("");
@@ -386,6 +398,9 @@ export const FinancesTab = memo(() => {
     });
   }, [finances.budgetItems, finances.salesTaxPct, actuals, budgetSort]);
 
+  // Budget-vs-actual rolled up by spending area (the by-category summary).
+  const categoryRows = useMemo(() => budgetByCategory(finances), [finances]);
+
   // ---- Inline budget-item editing (label + cost, keeping the item's mode).
   const [itemEdit, setItemEdit] = useState<{
     id: string;
@@ -394,6 +409,7 @@ export const FinancesTab = memo(() => {
     qty: string;
     unitAmount: string;
     amount: string;
+    category: FinanceCategoryId | "";
   } | null>(null);
   const startItemEdit = (item: BudgetItem) =>
     setItemEdit({
@@ -403,6 +419,8 @@ export const FinancesTab = memo(() => {
       qty: item.qty != null ? String(item.qty) : "",
       unitAmount: item.unitAmount != null ? String(item.unitAmount) : "",
       amount: item.amount != null ? String(item.amount) : "",
+      // "" = auto (fall back to inference); a stored category preselects.
+      category: item.category ?? "",
     });
   const saveItemEdit = () => {
     if (!itemEdit) return;
@@ -419,6 +437,9 @@ export const FinancesTab = memo(() => {
       if (amount == null) return;
       patch = { label, amount };
     }
+    // "" clears any stored category (reverts to inference); undefined is
+    // scrubbed by the finance sanitizer before it reaches Firestore.
+    patch.category = itemEdit.category || undefined;
     updateFinances({
       op: "mapEntries",
       key: "budgetItems",
@@ -555,6 +576,7 @@ export const FinancesTab = memo(() => {
         : "",
     );
     setBudgetTaxable(Boolean(preset.taxable));
+    setBudgetCategory(groupToCategory[preset.group]);
   };
 
   const addBudgetItem = (e?: React.FormEvent) => {
@@ -574,6 +596,7 @@ export const FinancesTab = memo(() => {
         unitAmount: unit,
         amount: qty * unit,
         ...(budgetTaxable ? { taxable: true } : {}),
+        ...(budgetCategory ? { category: budgetCategory } : {}),
       };
     } else {
       const amount = parseAmount(budgetAmount);
@@ -583,6 +606,7 @@ export const FinancesTab = memo(() => {
         label: budgetLabel.trim(),
         amount,
         ...(budgetTaxable ? { taxable: true } : {}),
+        ...(budgetCategory ? { category: budgetCategory } : {}),
       };
     }
     updateFinances({ op: "append", key: "budgetItems", entry: item });
@@ -592,6 +616,7 @@ export const FinancesTab = memo(() => {
     setQtyMode(false);
     setUnitNoun("per unit");
     setBudgetTaxable(false);
+    setBudgetCategory("");
   };
 
   const removeBudgetItem = (id: string) =>
@@ -1969,15 +1994,7 @@ export const FinancesTab = memo(() => {
             <SectionCard icon={Icons.Clipboard} title="Cash Flow">
               <div className="pt-4 space-y-6">
                 <CashflowChart months={months} />
-                <SpendingDonut
-                  slices={[
-                    ...(finances.budgetItems || []).map((b) => ({
-                      label: b.label,
-                      value: actuals.byItem[b.id] || 0,
-                    })),
-                    { label: "Unplanned", value: actuals.unplanned },
-                  ]}
-                />
+                <SpendingDonut slices={spendingByCategory(finances)} />
               </div>
             </SectionCard>
           )}
@@ -2122,6 +2139,31 @@ export const FinancesTab = memo(() => {
                               style={FORM_INPUT_RING_STYLE}
                             />
                           )}
+                          <select
+                            value={itemEdit.category}
+                            onChange={(e) =>
+                              setItemEdit((d) =>
+                                d
+                                  ? {
+                                      ...d,
+                                      category: e.target.value as
+                                        | FinanceCategoryId
+                                        | "",
+                                    }
+                                  : d,
+                              )
+                            }
+                            aria-label={`Edit category for ${item.label}`}
+                            className={`${FORM_INPUT_CLASS} sm:w-40 !py-1.5`}
+                            style={FORM_INPUT_RING_STYLE}
+                          >
+                            <option value="">Category: auto</option>
+                            {FINANCE_CATEGORIES.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.label}
+                              </option>
+                            ))}
+                          </select>
                           <Button
                             variant="primary"
                             size="sm"
@@ -2145,9 +2187,14 @@ export const FinancesTab = memo(() => {
                   return (
                     <li key={item.id} className="py-2">
                       <div className="flex items-center gap-3">
-                        <span className="t-body-bold text-ink flex-1 truncate">
-                          {item.label}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="t-body-bold text-ink truncate">
+                            {item.label}
+                          </div>
+                          <div className="t-meta text-ink-3">
+                            {categoryLabel(budgetItemCategory(item))}
+                          </div>
+                        </div>
                         {isQty && (
                           <span className="flex items-center gap-1.5 tabular-nums text-sm font-bold text-ink-2">
                             <button
@@ -2228,6 +2275,55 @@ export const FinancesTab = memo(() => {
                 })}
               </ul>
             </>
+          )}
+          {/* By-category rollup: planned vs actual spend per spending area, so
+              the coach sees where the money goes without scanning every line.
+              Legacy/untagged items are folded in by their inferred category. */}
+          {categoryRows.length > 0 && (
+            <div className="rounded-xl border border-line bg-surface-2/40 p-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="t-eyebrow text-ink-3">By category</div>
+                <div className="t-meta text-ink-3">spent / planned</div>
+              </div>
+              <ul className="space-y-2">
+                {categoryRows.map((r) => (
+                  <li key={r.category} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="font-bold text-ink truncate">
+                        {r.label}
+                      </span>
+                      <span className="tabular-nums whitespace-nowrap text-ink-3">
+                        {r.planned > 0 ? (
+                          <>
+                            <span
+                              className={
+                                r.spent > r.planned
+                                  ? "text-loss font-black"
+                                  : "text-ink-2 font-bold"
+                              }
+                            >
+                              {formatCurrency(r.spent)}
+                            </span>
+                            {" / "}
+                            <span>{formatCurrency(r.planned)}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-ink-2 font-bold">
+                              {formatCurrency(r.spent)}
+                            </span>
+                            {" unplanned"}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                    {r.planned > 0 && (
+                      <MoneyMeter value={r.spent} max={r.planned} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
           {/* Parent-facing handout: one player's fee spread across the
               expected expenses, as a printable/shareable PDF. */}
@@ -2352,6 +2448,24 @@ export const FinancesTab = memo(() => {
               className={`${FORM_INPUT_CLASS} sm:w-40 tabular-nums`}
               style={FORM_INPUT_RING_STYLE}
             />
+            {/* Spending area for by-category reporting. "Auto" leaves it to be
+                inferred from the name; a preset preselects its own area. */}
+            <select
+              value={budgetCategory}
+              onChange={(e) =>
+                setBudgetCategory(e.target.value as FinanceCategoryId | "")
+              }
+              aria-label="New item category"
+              className={`${FORM_INPUT_CLASS} sm:w-44`}
+              style={FORM_INPUT_RING_STYLE}
+            >
+              <option value="">Category: auto</option>
+              {FINANCE_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
             <Button type="submit" variant="secondary" size="md">
               <Icons.Plus className="w-4 h-4" /> Add
             </Button>

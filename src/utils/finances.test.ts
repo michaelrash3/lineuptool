@@ -14,6 +14,10 @@ import {
   budgetTotal,
   parseMoneyInput,
   MAX_MONEY_INPUT,
+  budgetItemCategory,
+  expenseCategory,
+  budgetByCategory,
+  spendingByCategory,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -518,5 +522,96 @@ describe("refunds", () => {
     const st = teamFeesStatus(finances, [{ id: "p1" }]);
     expect(st.fullOwedCount).toBe(1);
     expect(st.stillOwed).toBe(40);
+  });
+});
+
+describe("by-category reporting (PR2)", () => {
+  it("budgetItemCategory prefers the stored category, else infers from label", () => {
+    expect(
+      budgetItemCategory({
+        id: "b1",
+        label: "Anything",
+        amount: 1,
+        category: "travel",
+      }),
+    ).toBe("travel");
+    // No stored category → inferred from the label keyword.
+    expect(
+      budgetItemCategory({ id: "b2", label: "New helmets", amount: 1 }),
+    ).toBe("gear");
+  });
+
+  it("expenseCategory follows the linked budget item, else infers from its own label", () => {
+    const items = [
+      {
+        id: "b1",
+        label: "Field rental",
+        amount: 100,
+        category: "facilities" as const,
+      },
+    ];
+    // Linked → inherits the item's category, even if the expense label differs.
+    expect(
+      expenseCategory({ budgetItemId: "b1", label: "March invoice" }, items),
+    ).toBe("facilities");
+    // Unlinked → inferred from the expense label.
+    expect(expenseCategory({ label: "Hotel deposit" }, items)).toBe("travel");
+    // Dangling link (item deleted) falls back to inference too.
+    expect(
+      expenseCategory({ budgetItemId: "gone", label: "Umpires" }, items),
+    ).toBe("tournaments");
+  });
+
+  it("budgetByCategory rolls planned + actual up by area, in canonical order", () => {
+    const finances: TeamFinances = {
+      budgetItems: [
+        {
+          id: "b1",
+          label: "Tournament entry",
+          amount: 400,
+          category: "tournaments",
+        },
+        { id: "b2", label: "Game jerseys", amount: 300, category: "uniforms" },
+      ],
+      expenses: [
+        // Linked spend against the tournament plan.
+        {
+          id: "e1",
+          date: "2026-03-01",
+          label: "Spring Classic",
+          amount: 450,
+          budgetItemId: "b1",
+        },
+        // Unlinked spend inferred to travel — a category with no plan.
+        { id: "e2", date: "2026-03-05", label: "Hotel block", amount: 200 },
+      ],
+    };
+    const rows = budgetByCategory(finances);
+    expect(rows.map((r) => r.category)).toEqual([
+      "tournaments",
+      "uniforms",
+      "travel",
+    ]);
+    expect(rows[0]).toMatchObject({ planned: 400, spent: 450 }); // over plan
+    expect(rows[1]).toMatchObject({ planned: 300, spent: 0 }); // planned, unspent
+    expect(rows[2]).toMatchObject({ planned: 0, spent: 200 }); // spent, unplanned
+  });
+
+  it("spendingByCategory is donut-ready actual spend, categories with spend only", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b1", label: "Bats", amount: 100, category: "gear" }],
+      expenses: [
+        {
+          id: "e1",
+          date: "2026-03-01",
+          label: "Bats",
+          amount: 120,
+          budgetItemId: "b1",
+        },
+      ],
+    };
+    expect(spendingByCategory(finances)).toEqual([
+      { label: "Gear & equipment", value: 120 },
+    ]);
   });
 });
