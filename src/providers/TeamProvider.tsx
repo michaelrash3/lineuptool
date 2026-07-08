@@ -47,6 +47,10 @@ import {
   buildEvalRoundsQuery,
   assembleEvalRounds,
   backfillOwnEvalRounds,
+  allLegacyRoundsMigrated,
+  dropEvalEventsArray,
+  saveEvalRound,
+  deleteEvalRound,
 } from "../utils/evalRounds";
 import {
   slimGame,
@@ -723,7 +727,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
           persistTeamRef.current?.({
-            evaluationEvents: migratedEvents,
+            // Once the legacy array has been DROPPED from the doc (finding-3.1
+            // phase 3b), the ladder must not resurrect it as an empty field —
+            // only write the key while the doc still carries it.
+            ...(raw.evaluationEvents !== undefined
+              ? { evaluationEvents: migratedEvents }
+              : {}),
             players: migratedPlayers,
             ...(migratedTryoutSessions !== undefined
               ? { tryoutSessions: migratedTryoutSessions }
@@ -1429,7 +1438,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Roster actions -----
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
-    usePlayerCrud({ teamData, updateTeamArrays, toast, confirm });
+    usePlayerCrud({
+      teamData,
+      updateTeamArrays,
+      toast,
+      confirm,
+      db,
+      appId,
+      teamId: activeTeamId,
+    });
 
   // ----- Past-season CRUD ----- (extracted to src/hooks/usePastSeasonCrud.ts)
   const {
@@ -1875,6 +1892,34 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             }
           : undefined;
 
+      // Season reset of eval rounds. With the evalRounds subcollection primary
+      // (finding-3.1 phase 3), the reset happens per-doc: the closing season's
+      // rounds are deleted (the head may delete any round) and the preseason
+      // seed is written as a fresh subcollection doc — the legacy array key is
+      // omitted entirely so the advance never recreates the dropped field.
+      // Pre-cutover, the old whole-array replacement rides updateTeam below.
+      if (EVAL_ROUNDS_SUBCOLLECTION && activeTeamId) {
+        for (const ev of teamData.evaluationEvents || []) {
+          if (ev?.id) {
+            void deleteEvalRound(db, appId, activeTeamId, ev.id).catch(
+              () => {},
+            );
+          }
+        }
+        if (preseasonRound) {
+          void saveEvalRound(db, appId, activeTeamId, preseasonRound).catch(
+            () => {
+              toast.push({
+                kind: "error",
+                title: "Preseason eval seed didn't save",
+                message:
+                  "The season advanced, but the seeded eval round failed to write. Start a new eval round manually.",
+              });
+            },
+          );
+        }
+      }
+
       // allowEmptyPlayers: a roster where nobody returns (and no tryout
       // promotions) is legitimately empty after an explicitly-confirmed
       // advance — the persistTeam wipe guard must not block it.
@@ -1892,7 +1937,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // the Schedule auto-sync doesn't fire against the stale feed and the
           // import modal starts blank, prompting the coach for the new link.
           gcCalendarUrl: "",
-          evaluationEvents: preseasonRound ? [preseasonRound] : [],
+          ...(EVAL_ROUNDS_SUBCOLLECTION
+            ? {}
+            : { evaluationEvents: preseasonRound ? [preseasonRound] : [] }),
           tryoutSessions: [],
           tryoutSignups: [],
           tryoutsOpen: false,
@@ -1919,7 +1966,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             : ""),
       });
     },
-    [teamData, updateTeam, toast, confirm, user],
+    [teamData, updateTeam, toast, confirm, user, activeTeamId],
   );
 
   const uploadLogo = useCallback(
@@ -2277,6 +2324,47 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // it would never fire and never populate. loadingActive flips per load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeamId, user?.uid, loadingActive]);
+
+  // Finding-3.1 PHASE 3B — the one irreversible step: delete the legacy
+  // `evaluationEvents` ARRAY from the team doc once the subcollection provably
+  // holds every round. Guards, in order:
+  //   - flag: only after the read+write cutover (subcollection primary);
+  //   - HEAD ONLY: the head's subscription streams EVERY evalRounds doc, so
+  //     coverage is verifiable; an assistant sees only their own rounds and
+  //     could never prove the array is fully migrated;
+  //   - doc loaded: rawEvalEventsRef must belong to THIS team;
+  //   - coverage: every legacy round id present in the subcollection
+  //     (allLegacyRoundsMigrated returns false for an empty legacy array, so a
+  //     failed/empty read can never trigger a drop — and once dropped, the next
+  //     snapshot carries no array, emptying rawEvalEventsRef so this never
+  //     re-fires).
+  // Depends on teamData.evaluationEvents so the check re-runs when the
+  // subcollection snapshot lands (the async half of the coverage evidence).
+  // On write failure the guard clears so a later session retries.
+  const droppedArrayTeamsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!EVAL_ROUNDS_SUBCOLLECTION) return;
+    if (realRole !== "head") return;
+    if (!activeTeamId || !user || loadedTeamIdRef.current !== activeTeamId) {
+      return;
+    }
+    if (droppedArrayTeamsRef.current.has(activeTeamId)) return;
+    const subIds = (teamData.evaluationEvents || [])
+      .map((e: any) => e?.id)
+      .filter(Boolean);
+    if (!allLegacyRoundsMigrated(rawEvalEventsRef.current, subIds)) return;
+    droppedArrayTeamsRef.current.add(activeTeamId);
+    dropEvalEventsArray(db, appId, activeTeamId).catch(() => {
+      droppedArrayTeamsRef.current.delete(activeTeamId);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeTeamId,
+    user?.uid,
+    realRole,
+    loadingActive,
+    teamData.evaluationEvents,
+  ]);
 
   // Auto-claim + persist legacy teams. Runs once per session per team
   // when ownerId is missing AND there is no plausible existing owner.

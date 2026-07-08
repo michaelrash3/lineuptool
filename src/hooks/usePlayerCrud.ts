@@ -1,5 +1,8 @@
 import { useCallback } from "react";
+import type { Firestore } from "firebase/firestore";
 import { blankStats, genId } from "../utils/helpers";
+import { EVAL_ROUNDS_SUBCOLLECTION } from "../constants/flags";
+import { saveEvalRound } from "../utils/evalRounds";
 import type {
   ConfirmContextValue,
   EvaluationEvent,
@@ -19,6 +22,12 @@ interface UsePlayerCrudArgs {
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
+  // Subcollection handles for the removePlayer eval-grade strip once eval
+  // rounds live in evalRounds (finding-3.1 phase 3). Optional so non-provider
+  // callers (tests) can omit them — without them the legacy array path runs.
+  db?: Firestore;
+  appId?: string;
+  teamId?: string | null;
 }
 
 export const usePlayerCrud = ({
@@ -26,7 +35,20 @@ export const usePlayerCrud = ({
   updateTeamArrays,
   toast,
   confirm,
+  db,
+  appId,
+  teamId,
 }: UsePlayerCrudArgs) => {
+  // Eval rounds live in the evalRounds subcollection, not the legacy
+  // evaluationEvents array (finding-3.1 phase 3). CRITICAL: when true, the
+  // grade-strip cascade below must NOT emit an evaluationEvents array op —
+  // teamData.evaluationEvents is assembled from the subcollection, so writing
+  // it back would resurrect scoped rounds onto the shared team doc (reopening
+  // the very read exposure the subcollection fixed) and recreate the dropped
+  // field.
+  const subPrimary = Boolean(
+    EVAL_ROUNDS_SUBCOLLECTION && db && appId && teamId,
+  );
   const addPlayer = useCallback(
     (form: any) => {
       const id = form.id || genId("p");
@@ -147,7 +169,9 @@ export const usePlayerCrud = ({
       };
 
       // One op list → one merged updateDoc, so the roster row and every
-      // reference to it disappear atomically.
+      // reference to it disappear atomically. The eval-grade strip only rides
+      // this array write pre-cutover; with the subcollection primary it runs
+      // per-doc below instead.
       updateTeamArrays([
         { op: "removeById", key: "players", id },
         {
@@ -155,12 +179,29 @@ export const usePlayerCrud = ({
           key: "games",
           map: (items: Game[]) => items.map(stripFromGame),
         },
-        {
-          op: "mapEntries",
-          key: "evaluationEvents",
-          map: (items: EvaluationEvent[]) => items.map(stripFromEvent),
-        },
+        ...(subPrimary
+          ? []
+          : [
+              {
+                op: "mapEntries",
+                key: "evaluationEvents",
+                map: (items: EvaluationEvent[]) => items.map(stripFromEvent),
+              } as TeamArrayUpdate,
+            ]),
       ]);
+      if (subPrimary && db && appId && teamId) {
+        // Per-doc grade strip, best-effort hygiene: the rules let the head
+        // update any round but an assistant only their own, so a failure here
+        // (assistant removing a player graded by someone else) is swallowed —
+        // the orphaned grades are keyed by a now-unused player id and never
+        // surface anywhere.
+        for (const ev of prevEvents as EvaluationEvent[]) {
+          const stripped = stripFromEvent(ev);
+          if (stripped !== ev) {
+            void saveEvalRound(db, appId, teamId, stripped).catch(() => {});
+          }
+        }
+      }
 
       toast.push({
         kind: "success",
@@ -174,7 +215,7 @@ export const usePlayerCrud = ({
           // Undo deliberately restores the captured snapshots wholesale —
           // reverting to the pre-delete state IS its semantics, so the
           // residual last-write-wins here is the intended outcome.
-          onClick: () =>
+          onClick: () => {
             updateTeamArrays([
               {
                 op: "mapEntries",
@@ -186,12 +227,26 @@ export const usePlayerCrud = ({
                 key: "games",
                 map: () => prevGames as Game[],
               },
-              {
-                op: "mapEntries",
-                key: "evaluationEvents",
-                map: () => prevEvents as EvaluationEvent[],
-              },
-            ]),
+              ...(subPrimary
+                ? []
+                : [
+                    {
+                      op: "mapEntries",
+                      key: "evaluationEvents",
+                      map: () => prevEvents as EvaluationEvent[],
+                    } as TeamArrayUpdate,
+                  ]),
+            ]);
+            if (subPrimary && db && appId && teamId) {
+              // Restore the pre-delete grades per-doc (same permission scope
+              // as the strip above — best-effort for non-authored rounds).
+              for (const ev of prevEvents as EvaluationEvent[]) {
+                if (ev?.grades && id in ev.grades) {
+                  void saveEvalRound(db, appId, teamId, ev).catch(() => {});
+                }
+              }
+            }
+          },
         },
       } as any);
     },
@@ -202,6 +257,10 @@ export const usePlayerCrud = ({
       updateTeamArrays,
       toast,
       confirm,
+      subPrimary,
+      db,
+      appId,
+      teamId,
     ],
   );
 
