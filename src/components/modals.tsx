@@ -167,7 +167,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
           className="px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50 transition-opacity"
           style={{
             backgroundColor: "var(--team-primary)",
-            color: "var(--team-tertiary)",
+            color: "var(--team-on-primary)",
           }}
         >
           Add

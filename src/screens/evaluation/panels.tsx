@@ -593,7 +593,7 @@ export const GradeChipRow = memo(
               isActive
                 ? {
                     backgroundColor: "var(--team-primary)",
-                    color: "var(--team-tertiary)",
+                    color: "var(--team-on-primary)",
                     borderColor: "var(--team-primary)",
                   }
                 : {

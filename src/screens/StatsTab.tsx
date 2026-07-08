@@ -404,7 +404,7 @@ const SectionCard = ({
         className="p-2 rounded-full shrink-0"
         style={{ backgroundColor: "var(--team-primary-15)" }}
       >
-        <Icon className="w-5 h-5" style={{ color: "var(--team-primary)" }} />
+        <Icon className="w-5 h-5" style={{ color: "var(--team-ink)" }} />
       </div>
       <div className="min-w-0 flex-1">
         <h2 className="t-h2">{title}</h2>
@@ -829,7 +829,7 @@ export const StatsTab = memo(() => {
                     on
                       ? {
                           backgroundColor: "var(--team-primary)",
-                          color: "var(--team-tertiary)",
+                          color: "var(--team-on-primary)",
                           borderColor: "var(--team-primary)",
                         }
                       : undefined

@@ -445,7 +445,7 @@ export const RosterDecisionsPanel = memo(() => {
           className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
           style={{
             backgroundColor: "var(--team-primary)",
-            color: "var(--team-tertiary)",
+            color: "var(--team-on-primary)",
           }}
           title="Total Score (out of 100)"
         >

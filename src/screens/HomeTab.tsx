@@ -1667,7 +1667,7 @@ export const UpNextPanel = memo(
             className="text-[10px] font-black tabular-nums rounded-full px-1.5 min-w-[20px] h-5 grid place-items-center"
             style={{
               backgroundColor: "var(--team-primary)",
-              color: "var(--team-tertiary)",
+              color: "var(--team-on-primary)",
             }}
           >
             {visible.length}
@@ -1983,7 +1983,7 @@ export const HomeTab = memo(() => {
                       r === "W"
                         ? {
                             backgroundColor: "var(--team-primary)",
-                            color: "var(--team-tertiary)",
+                            color: "var(--team-on-primary)",
                           }
                         : undefined
                     }
@@ -2237,7 +2237,7 @@ const LeaderboardsSection = memo(
                     isActive
                       ? {
                           backgroundColor: "var(--team-secondary)",
-                          color: "var(--team-primary)",
+                          color: "var(--team-on-secondary)",
                           border: "1px solid var(--team-primary)",
                         }
                       : {}

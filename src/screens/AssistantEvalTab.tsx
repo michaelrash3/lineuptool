@@ -298,7 +298,7 @@ export const AssistantEvalTab = memo(() => {
                   isActive
                     ? {
                         backgroundColor: "var(--team-secondary)",
-                        color: "var(--team-primary)",
+                        color: "var(--team-on-secondary)",
                         borderColor: "var(--team-primary)",
                       }
                     : {}
@@ -343,7 +343,7 @@ export const AssistantEvalTab = memo(() => {
             onClick={handleSave}
             disabled={orderedPlayers.length === 0}
             className="btn-premium px-5 py-2.5 text-xs font-black uppercase tracking-widest rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ color: "var(--team-tertiary)" }}
+            style={{ color: "var(--team-on-primary)" }}
           >
             Save Evaluation
           </button>

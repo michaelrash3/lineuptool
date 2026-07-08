@@ -453,7 +453,7 @@ export const ScheduleTab = memo(() => {
                   <button
                     onClick={() => generateLineup()}
                     className="btn-premium shrink-0 py-3 px-6 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-transform hover:-translate-y-0.5 rounded-xl text-xs"
-                    style={{ color: "var(--team-tertiary)" }}
+                    style={{ color: "var(--team-on-primary)" }}
                   >
                     <Icons.Settings className="w-4 h-4" /> Build Lineup
                   </button>
@@ -1601,7 +1601,7 @@ export const ScheduleTab = memo(() => {
             className="font-black uppercase tracking-widest text-xs px-6 py-2.5 rounded-lg shadow-md transition-opacity hover:opacity-90 flex items-center justify-center gap-2"
             style={{
               backgroundColor: "var(--team-primary)",
-              color: "var(--team-tertiary)",
+              color: "var(--team-on-primary)",
             }}
           >
             <Icons.Save className="w-4 h-4" /> Save
@@ -1701,7 +1701,7 @@ export const ScheduleTab = memo(() => {
                             className="text-[8px] font-black uppercase tracking-widest py-0.5"
                             style={{
                               backgroundColor: "var(--team-primary)",
-                              color: "var(--team-tertiary)",
+                              color: "var(--team-on-primary)",
                             }}
                           >
                             {mo}
@@ -1717,7 +1717,7 @@ export const ScheduleTab = memo(() => {
                                 className="t-chip px-2 py-1 rounded-md text-white"
                                 style={{
                                   backgroundColor: "var(--team-primary)",
-                                  color: "var(--team-tertiary)",
+                                  color: "var(--team-on-primary)",
                                 }}
                               >
                                 Today
@@ -1798,7 +1798,7 @@ export const ScheduleTab = memo(() => {
                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded normal-case tracking-normal text-[10px] font-black"
                                 style={{
                                   backgroundColor: "var(--team-primary-15)",
-                                  color: "var(--team-primary)",
+                                  color: "var(--team-ink)",
                                 }}
                                 title="Part of a tournament (pool + bracket on the same weekend)"
                               >

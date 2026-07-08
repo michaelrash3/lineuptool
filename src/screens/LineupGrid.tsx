@@ -71,7 +71,7 @@ export const LineupGrid = memo(
                       isActive
                         ? {
                             backgroundColor: "var(--team-primary)",
-                            color: "var(--team-tertiary)",
+                            color: "var(--team-on-primary)",
                             borderColor: "var(--team-primary)",
                             boxShadow: "var(--shadow-md)",
                           }
@@ -121,7 +121,7 @@ export const LineupGrid = memo(
                       className="inline-flex items-center justify-center w-12 h-9 rounded-lg font-black text-sm tracking-tight shrink-0"
                       style={{
                         backgroundColor: "var(--team-primary-15)",
-                        color: "var(--team-primary)",
+                        color: "var(--team-ink)",
                       }}
                     >
                       {pos}

@@ -49,7 +49,7 @@ export const AppLoadingScreen = () => (
       >
         <Icons.Clipboard
           className="w-8 h-8"
-          style={{ color: "var(--team-tertiary)" }}
+          style={{ color: "var(--team-on-primary)" }}
         />
       </div>
       <div className="text-center">

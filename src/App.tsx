@@ -132,6 +132,7 @@ import { useInviteFlows } from "./hooks/useInviteFlows";
 import { useImportExportFlows } from "./hooks/useImportExportFlows";
 import { useScheduleReminders } from "./hooks/useScheduleReminders";
 import { useGameCrud } from "./hooks/useGameCrud";
+import { applyTeamInkVars } from "./utils/contrast";
 import { usePracticeCrud } from "./hooks/usePracticeCrud";
 import { usePlayerCrud } from "./hooks/usePlayerCrud";
 import { usePastSeasonCrud } from "./hooks/usePastSeasonCrud";
@@ -461,6 +462,15 @@ const MainShell = () => {
     if (team?.tertiaryColor) {
       root.style.setProperty("--team-tertiary", team.tertiaryColor);
     }
+    // Pick WHICH team color is legible as a font per background (--team-ink /
+    // --team-on-primary / --team-on-secondary). Colors are never altered —
+    // see utils/contrast.ts. Light/dark switching happens in CSS (--team-ink
+    // resolves to the light or dark pick), so no theme dependency here.
+    applyTeamInkVars(root, {
+      primaryColor: team?.primaryColor,
+      secondaryColor: team?.secondaryColor,
+      tertiaryColor: team?.tertiaryColor,
+    });
   }, [team?.primaryColor, team?.secondaryColor, team?.tertiaryColor]);
 
   if (!authReady || loading) {

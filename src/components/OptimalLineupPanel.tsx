@@ -111,10 +111,7 @@ export const OptimalLineupPanel = memo(() => {
           className="p-2 rounded-full"
           style={{ backgroundColor: "var(--team-primary-15)" }}
         >
-          <Icons.Bat
-            className="w-5 h-5"
-            style={{ color: "var(--team-primary)" }}
-          />
+          <Icons.Bat className="w-5 h-5" style={{ color: "var(--team-ink)" }} />
         </div>
         <div className="min-w-0">
           <h2 className="t-h2">Optimal Lineup — Next Game</h2>

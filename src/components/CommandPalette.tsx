@@ -292,7 +292,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
                     className="t-chip px-2 py-1 rounded-md shrink-0"
                     style={{
                       backgroundColor: "var(--team-primary-15)",
-                      color: "var(--team-primary)",
+                      color: "var(--team-ink)",
                     }}
                   >
                     {item.kind === "player"

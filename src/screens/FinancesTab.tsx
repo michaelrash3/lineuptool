@@ -87,10 +87,7 @@ const SectionCard = ({
 }) => (
   <section>
     <div className="pb-3 mb-1 border-b border-line-strong flex items-center gap-3">
-      <Icon
-        className="w-5 h-5 shrink-0"
-        style={{ color: "var(--team-primary)" }}
-      />
+      <Icon className="w-5 h-5 shrink-0" style={{ color: "var(--team-ink)" }} />
       <div className="min-w-0">
         <h2 className="t-h2">{title}</h2>
         {subtitle && <p className="t-eyebrow text-ink-3 mt-0.5">{subtitle}</p>}
@@ -2386,7 +2383,7 @@ export const FinancesTab = memo(() => {
                 qtyMode
                   ? {
                       backgroundColor: "var(--team-primary-15)",
-                      color: "var(--team-primary)",
+                      color: "var(--team-ink)",
                     }
                   : undefined
               }

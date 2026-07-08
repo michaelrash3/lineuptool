@@ -196,7 +196,7 @@ export const AdvanceSeasonModal = memo(
               >
                 <Icons.Forward
                   className="w-6 h-6"
-                  style={{ color: "var(--team-primary)" }}
+                  style={{ color: "var(--team-ink)" }}
                 />
               </div>
               <div className="min-w-0 flex-1">
@@ -285,7 +285,7 @@ export const AdvanceSeasonModal = memo(
                             style={{
                               backgroundColor: "var(--team-primary-15)",
                               borderColor: "var(--team-primary)",
-                              color: "var(--team-primary)",
+                              color: "var(--team-ink)",
                             }}
                           >
                             Tryout Accept

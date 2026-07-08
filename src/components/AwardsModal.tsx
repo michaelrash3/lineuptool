@@ -272,7 +272,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
                 </div>
                 <div
                   className="text-lg font-extrabold tracking-tight mt-1"
-                  style={{ color: "var(--team-primary)" }}
+                  style={{ color: "var(--team-ink)" }}
                 >
                   {w.label}
                 </div>

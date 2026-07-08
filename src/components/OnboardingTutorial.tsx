@@ -252,10 +252,7 @@ export const OnboardingTutorial = ({
               className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
               style={{ backgroundColor: "var(--team-primary-15)" }}
             >
-              <Icon
-                className="w-7 h-7"
-                style={{ color: "var(--team-primary)" }}
-              />
+              <Icon className="w-7 h-7" style={{ color: "var(--team-ink)" }} />
             </div>
             <div className="min-w-0 flex-1">
               <Eyebrow>{current.eyebrow}</Eyebrow>

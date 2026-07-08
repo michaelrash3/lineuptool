@@ -20,6 +20,7 @@ import {
   isSafeImageUrl,
   genId,
 } from "../utils/helpers";
+import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
 import { Icons } from "../icons";
@@ -89,9 +90,7 @@ const PhaseCard = ({ tone = "neutral", icon: Icon, title, children }: any) => {
       {title && (
         <h1
           className="t-card-title mb-3"
-          style={
-            tone === "success" ? { color: "var(--team-primary)" } : undefined
-          }
+          style={tone === "success" ? { color: "var(--team-ink)" } : undefined}
         >
           {title}
         </h1>
@@ -159,6 +158,14 @@ export const PlayerInfoPortal = () => {
         root.style.setProperty("--team-secondary", data.secondaryColor);
       if (isSafeCssColor(data.tertiaryColor))
         root.style.setProperty("--team-tertiary", data.tertiaryColor);
+      // Pick which team color reads as a FONT on this page's surfaces
+      // (--team-ink etc.) — the portal heading must stay legible even when
+      // the team's primary is dark on the dark theme.
+      applyTeamInkVars(root, {
+        primaryColor: data.primaryColor,
+        secondaryColor: data.secondaryColor,
+        tertiaryColor: data.tertiaryColor,
+      });
     };
     const init = async () => {
       try {
@@ -331,7 +338,7 @@ export const PlayerInfoPortal = () => {
           />
         )}
         <Eyebrow className="block mb-2 text-ink-3">Player Info</Eyebrow>
-        <h1 className="t-display" style={{ color: "var(--team-primary)" }}>
+        <h1 className="t-display" style={{ color: "var(--team-ink)" }}>
           {team?.name || "Team"} Player Info
         </h1>
         <p className="t-body mt-2 max-w-md mx-auto">

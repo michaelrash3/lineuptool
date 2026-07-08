@@ -213,7 +213,7 @@ const PlayerRow = memo(
           ) : stripped ? (
             <div className="grid place-items-center px-3 py-2.5 text-center">
               <div className="font-black text-sm tabular-nums text-ink">
-                <span style={{ color: "var(--team-primary)" }}>
+                <span style={{ color: "var(--team-ink)" }}>
                   {formatStat(player.stats?.avg)}
                 </span>
                 <span className="text-ink-3 mx-1">·</span>
@@ -231,13 +231,13 @@ const PlayerRow = memo(
               >
                 <div
                   className="t-eyebrow mb-1"
-                  style={{ fontSize: "8px", color: "var(--team-primary)" }}
+                  style={{ fontSize: "8px", color: "var(--team-ink)" }}
                 >
                   AVG
                 </div>
                 <div
                   className="font-black text-base tabular-nums"
-                  style={{ color: "var(--team-primary)" }}
+                  style={{ color: "var(--team-ink)" }}
                 >
                   {formatStat(player.stats?.avg)}
                 </div>
@@ -518,7 +518,7 @@ export const RosterTab = memo(() => {
               >
                 <Icons.Jersey
                   className="w-6 h-6"
-                  style={{ color: "var(--team-primary)" }}
+                  style={{ color: "var(--team-ink)" }}
                 />
               </div>
               <h1 className="t-h2 flex items-center gap-3">
@@ -527,7 +527,7 @@ export const RosterTab = memo(() => {
                   className="t-chip px-2.5 py-1 rounded-lg"
                   style={{
                     backgroundColor: "var(--team-secondary)",
-                    color: "var(--team-primary)",
+                    color: "var(--team-on-secondary)",
                   }}
                 >
                   {activeRosterCount} Active
@@ -547,7 +547,7 @@ export const RosterTab = memo(() => {
                   type="button"
                   onClick={() => setIsAddingPlayer(true)}
                   className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
-                  style={{ color: "var(--team-tertiary)" }}
+                  style={{ color: "var(--team-on-primary)" }}
                 >
                   <Icons.UserPlus className="w-4 h-4" /> Add Player
                 </button>
@@ -596,7 +596,7 @@ export const RosterTab = memo(() => {
                         isActive
                           ? {
                               backgroundColor: "var(--team-secondary)",
-                              color: "var(--team-primary)",
+                              color: "var(--team-ink)",
                               borderColor: "var(--team-primary)",
                             }
                           : {

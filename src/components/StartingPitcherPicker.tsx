@@ -139,7 +139,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           className="t-chip px-2 py-0.5 rounded-sm border border-line"
           style={{
             backgroundColor: "var(--team-primary-15)",
-            color: "var(--team-primary)",
+            color: "var(--team-ink)",
           }}
         >
           {ctx.label}
@@ -198,7 +198,7 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
                 isSel ? (
                   <Icons.Check
                     className="w-4 h-4 shrink-0"
-                    style={{ color: "var(--team-primary)" }}
+                    style={{ color: "var(--team-ink)" }}
                   />
                 ) : (
                   <span className="w-4 shrink-0" />
