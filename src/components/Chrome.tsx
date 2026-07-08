@@ -349,7 +349,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                   className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity"
                   style={{
                     backgroundColor: "var(--team-primary)",
-                    color: "var(--team-tertiary)",
+                    color: "var(--team-on-primary)",
                   }}
                   title="Join team"
                 >
@@ -401,7 +401,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
                   className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-40"
                   style={{
                     backgroundColor: "var(--team-primary)",
-                    color: "var(--team-tertiary)",
+                    color: "var(--team-on-primary)",
                   }}
                 >
                   <Icons.Check className="w-4 h-4" />
@@ -507,7 +507,9 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
 
 const activeTabStyle = {
   backgroundColor: "var(--team-secondary)",
-  color: "var(--team-primary)",
+  // Whichever team color reads on the secondary fill (see utils/contrast.ts)
+  // — a navy-on-navy triplet must not render an invisible active row.
+  color: "var(--team-on-secondary)",
   borderColor: "var(--team-primary)",
   boxShadow: "var(--glow-primary)",
 };

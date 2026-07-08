@@ -172,7 +172,7 @@ const PracticePlannerModal = ({
               onClose();
             }}
             className="btn-premium px-5 py-2.5 rounded-sm text-xs font-black uppercase tracking-widest disabled:opacity-50"
-            style={{ color: "var(--team-tertiary)" }}
+            style={{ color: "var(--team-on-primary)" }}
           >
             {existingCount > 0
               ? `Replace ${existingCount} drill${existingCount === 1 ? "" : "s"}`
@@ -374,7 +374,7 @@ const PracticeRow = memo(
               className="text-[8px] font-black uppercase tracking-widest py-0.5"
               style={{
                 backgroundColor: "var(--team-primary)",
-                color: "var(--team-tertiary)",
+                color: "var(--team-on-primary)",
               }}
             >
               {mo}
@@ -615,7 +615,7 @@ const PracticeRow = memo(
                     <button
                       type="submit"
                       className="btn-premium px-3 py-2 rounded-sm shrink-0"
-                      style={{ color: "var(--team-tertiary)" }}
+                      style={{ color: "var(--team-on-primary)" }}
                       aria-label="Add drill"
                     >
                       <Icons.Plus className="w-4 h-4" />
@@ -733,7 +733,7 @@ const AddPracticeForm = ({ onAdd, onClose }: any) => {
         <button
           type="submit"
           className="btn-premium px-4 py-2 rounded-sm font-black uppercase tracking-widest text-xs shrink-0"
-          style={{ color: "var(--team-tertiary)" }}
+          style={{ color: "var(--team-on-primary)" }}
         >
           Add
         </button>
@@ -887,7 +887,7 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
               <button
                 type="submit"
                 className="btn-premium px-3 py-2 rounded-sm shrink-0"
-                style={{ color: "var(--team-tertiary)" }}
+                style={{ color: "var(--team-on-primary)" }}
                 aria-label="Add drill to library"
               >
                 <Icons.Plus className="w-4 h-4" />
@@ -1049,7 +1049,7 @@ export const PracticesTab = memo(() => {
               type="button"
               onClick={() => setAdding(true)}
               className="btn-premium self-start sm:self-auto px-4 py-2.5 rounded-sm font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2"
-              style={{ color: "var(--team-tertiary)" }}
+              style={{ color: "var(--team-on-primary)" }}
             >
               <Icons.Plus className="w-4 h-4" /> Add Practice
             </button>

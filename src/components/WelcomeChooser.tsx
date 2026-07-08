@@ -132,7 +132,7 @@ export const WelcomeChooser = ({
             >
               <Icons.Clipboard
                 className="w-7 h-7"
-                style={{ color: "var(--team-primary)" }}
+                style={{ color: "var(--team-ink)" }}
               />
             </div>
             <div className="min-w-0 flex-1">
@@ -162,7 +162,7 @@ export const WelcomeChooser = ({
             <div className="flex items-start gap-2 mb-3">
               <Icons.Users
                 className="w-4 h-4 shrink-0 mt-0.5"
-                style={{ color: "var(--team-primary)" }}
+                style={{ color: "var(--team-ink)" }}
               />
               <div className="min-w-0">
                 <h3 className="t-h3 text-[13px] tracking-widest text-ink">
@@ -228,7 +228,7 @@ export const WelcomeChooser = ({
             <div className="flex items-start gap-2 mb-3">
               <Icons.Plus
                 className="w-4 h-4 shrink-0 mt-0.5"
-                style={{ color: "var(--team-primary)" }}
+                style={{ color: "var(--team-ink)" }}
               />
               <div className="min-w-0">
                 <h3 className="t-h3 text-[13px] tracking-widest text-ink">
@@ -364,7 +364,7 @@ export const WelcomeChooser = ({
                   disabled={signingOut}
                   onClick={performSignOut}
                   className="btn-premium px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
-                  style={{ color: "var(--team-tertiary)" }}
+                  style={{ color: "var(--team-on-primary)" }}
                 >
                   {signingOut ? (
                     <>

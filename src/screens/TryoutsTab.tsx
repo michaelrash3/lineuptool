@@ -531,7 +531,7 @@ const ReturningIntentPanel = memo(
                         decision === value
                           ? {
                               backgroundColor: "var(--team-primary)",
-                              color: "var(--team-tertiary)",
+                              color: "var(--team-on-primary)",
                               borderColor: "var(--team-primary)",
                             }
                           : undefined
@@ -1015,7 +1015,7 @@ export const TryoutsTab = memo(() => {
                   statusFilter === s
                     ? {
                         backgroundColor: "var(--team-primary)",
-                        color: "var(--team-tertiary)",
+                        color: "var(--team-on-primary)",
                         borderColor: "var(--team-primary)",
                       }
                     : undefined

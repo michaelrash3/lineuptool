@@ -40,7 +40,7 @@ export const GameLogPanel = memo(() => {
           >
             <Icons.Clipboard
               className="w-5 h-5"
-              style={{ color: "var(--team-primary)" }}
+              style={{ color: "var(--team-ink)" }}
             />
           </div>
           <h2 className="t-h2">Game Log</h2>

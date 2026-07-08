@@ -154,7 +154,7 @@ const DialogShell = ({
                   ? "text-white bg-[var(--danger-600)] hover:bg-[var(--danger-700)]"
                   : "btn-premium"
               }`}
-              style={danger ? undefined : { color: "var(--team-tertiary)" }}
+              style={danger ? undefined : { color: "var(--team-on-primary)" }}
             >
               {opts.confirmLabel || "Confirm"}
             </button>

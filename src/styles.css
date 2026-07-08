@@ -26,6 +26,20 @@
   /* A brighter sibling of the team color for gradients/sheens. */
   --team-primary-bright: color-mix(in srgb, var(--team-primary) 78%, #ffffff);
 
+  /* LEGIBLE TEAM TEXT — which existing team color to use as a FONT, per
+     background (never a modified color; see utils/contrast.ts). JS computes
+     the picks per team (applyTeamInkVars); these defaults keep today's exact
+     colors until it runs:
+       --team-ink          team text on the app surface (theme-switched below)
+       --team-on-primary   text on a team-primary fill
+       --team-on-secondary text on a team-secondary fill (active nav row) */
+  --team-ink-light: var(--team-primary);
+  --team-ink-dark: var(--team-primary);
+  --team-ink: var(--team-ink-light);
+  --team-on-primary: var(--team-tertiary);
+  --team-on-secondary: var(--team-primary);
+  --team-on-tertiary: var(--team-primary);
+
   /* ==========================================================================
      SEMANTIC SURFACE TOKENS — light values (dark overrides further down).
      ========================================================================== */
@@ -141,6 +155,8 @@
    restrained team-accent glows. Applied via <html data-theme="dark">.
    ============================================================================ */
 :root[data-theme="dark"] {
+  /* Team text switches to the dark-surface pick (see utils/contrast.ts). */
+  --team-ink: var(--team-ink-dark);
   --app-bg: #070a12;
   --surface: #0e1421;
   --surface-2: #151d2c;
@@ -455,8 +471,10 @@ body::before {
   background-color: var(--team-primary-15);
 }
 
+/* Team-colored TEXT routes through the legibility pick (--team-ink defaults
+   to the raw primary until computed) — fills/borders keep the raw colors. */
 .text-team-primary {
-  color: var(--team-primary);
+  color: var(--team-ink);
 }
 
 .bg-team-primary {
@@ -468,7 +486,9 @@ body::before {
 }
 
 .text-team-tertiary {
-  color: var(--team-tertiary);
+  /* Used exclusively for text ON team-primary fills — route through the
+     on-primary pick (defaults to the raw tertiary until computed). */
+  color: var(--team-on-primary);
 }
 
 .border-team-primary {

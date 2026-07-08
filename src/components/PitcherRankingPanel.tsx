@@ -120,7 +120,7 @@ export const PitcherRankingPanel = memo(() => {
           >
             <Icons.Pitch
               className="w-5 h-5"
-              style={{ color: "var(--team-primary)" }}
+              style={{ color: "var(--team-ink)" }}
             />
           </div>
           <h2 className="t-h2">Pitcher Ranking</h2>

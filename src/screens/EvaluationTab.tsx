@@ -526,7 +526,7 @@ export const EvaluationTab = memo(() => {
             >
               <Icons.Clipboard
                 className="w-6 h-6"
-                style={{ color: "var(--team-primary)" }}
+                style={{ color: "var(--team-ink)" }}
               />
             </div>
             <div>
@@ -584,7 +584,7 @@ export const EvaluationTab = memo(() => {
                 pendingUpdateConfirm ? "ring-2 ring-[var(--warn-fg)]" : ""
               }`}
               style={{
-                color: "var(--team-tertiary)",
+                color: "var(--team-on-primary)",
               }}
               title={
                 isCreatingNew
@@ -943,7 +943,7 @@ export const EvaluationTab = memo(() => {
                               className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md shrink-0"
                               style={{
                                 backgroundColor: "var(--team-primary)",
-                                color: "var(--team-tertiary)",
+                                color: "var(--team-on-primary)",
                               }}
                               title="Total Score (out of 100)"
                             >
@@ -1071,7 +1071,7 @@ export const EvaluationTab = memo(() => {
                                             ? {
                                                 backgroundColor:
                                                   "var(--team-primary)",
-                                                color: "var(--team-tertiary)",
+                                                color: "var(--team-on-primary)",
                                                 borderColor:
                                                   "var(--team-primary)",
                                               }
@@ -1164,7 +1164,7 @@ export const EvaluationTab = memo(() => {
                         className="text-xs font-black tabular-nums px-2 py-0.5 rounded-md"
                         style={{
                           backgroundColor: "var(--team-primary)",
-                          color: "var(--team-tertiary)",
+                          color: "var(--team-on-primary)",
                         }}
                       >
                         {row.totalScore}

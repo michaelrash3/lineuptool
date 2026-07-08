@@ -91,7 +91,7 @@ export const ArmCarePanel = memo(() => {
           >
             <Icons.Pitch
               className="w-5 h-5"
-              style={{ color: "var(--team-primary)" }}
+              style={{ color: "var(--team-ink)" }}
             />
           </div>
           <div>

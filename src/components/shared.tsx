@@ -288,7 +288,7 @@ export const PlayerAvatar = memo(
         className="absolute top-0 left-0 px-1 rounded-br-md text-[9px] font-black uppercase tracking-wider"
         style={{
           background: "var(--team-tertiary)",
-          color: "var(--team-primary)",
+          color: "var(--team-on-tertiary)",
           lineHeight: 1.2,
         }}
       >
@@ -569,7 +569,7 @@ const CHIP_VARIANTS: Record<
 > = {
   primary: {
     bg: "var(--team-primary)",
-    color: "var(--team-tertiary)",
+    color: "var(--team-on-primary)",
     border: "transparent",
   },
   success: {
@@ -629,7 +629,7 @@ const BUTTON_VARIANTS: Record<
 > = {
   primary: {
     className: "btn-premium hover:-translate-y-0.5",
-    style: { color: "var(--team-tertiary)" },
+    style: { color: "var(--team-on-primary)" },
   },
   secondary: {
     className:

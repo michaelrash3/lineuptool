@@ -330,7 +330,7 @@ const TryoutsSettingsPanel = memo(
                 className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md"
                 style={{
                   backgroundColor: "var(--team-primary)",
-                  color: "var(--team-tertiary)",
+                  color: "var(--team-on-primary)",
                 }}
               >
                 Complete Tryouts
@@ -425,7 +425,7 @@ const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
           className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-md"
           style={{
             backgroundColor: "var(--team-primary)",
-            color: "var(--team-tertiary)",
+            color: "var(--team-on-primary)",
           }}
         >
           Add Date
@@ -510,7 +510,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
               className="text-2xl font-black tracking-[0.25em] font-mono px-3 py-2 rounded-lg"
               style={{
                 backgroundColor: "var(--team-primary)",
-                color: "var(--team-tertiary)",
+                color: "var(--team-on-primary)",
               }}
             >
               {code}
@@ -564,7 +564,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
           className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
           style={{
             backgroundColor: "var(--team-primary)",
-            color: "var(--team-tertiary)",
+            color: "var(--team-on-primary)",
           }}
         >
           Generate Team Code
@@ -877,7 +877,7 @@ const GameRemindersPanel = memo(({ toast }: any) => {
               prefs.enabled
                 ? {
                     backgroundColor: "var(--team-primary)",
-                    color: "var(--team-tertiary)",
+                    color: "var(--team-on-primary)",
                   }
                 : undefined
             }
@@ -1704,7 +1704,7 @@ export const SettingsTab = memo(() => {
                           className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
                           style={{
                             backgroundColor: "var(--team-primary)",
-                            color: "var(--team-tertiary)",
+                            color: "var(--team-on-primary)",
                           }}
                         >
                           <Icons.Forward className="w-4 h-4" /> Advance Season
