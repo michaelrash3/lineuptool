@@ -14,10 +14,16 @@ import {
   formatDateDisplay,
   getReturningDecision,
   normalizeTryoutSessions,
-  combinedTryoutGradeForSignup,
   evaluatorTryoutGradeForSignup,
   nextTryoutNumber,
 } from "../utils/helpers";
+import { tryoutGradeWithMeasurements } from "../utils/tryouts";
+import {
+  scoreMeasurement,
+  scorePitchAccuracy,
+  basepathForAge,
+} from "../constants/showcaseBenchmarks";
+import type { TryoutMeasurements } from "../types";
 import { A11yDialog, EmptyState } from "../components/shared";
 import { TryoutControlsPanel } from "../components/TryoutControlsPanel";
 import { OfferLetterModal } from "../components/OfferLetterModal";
@@ -31,6 +37,177 @@ import type {
   TryoutSession,
   EvaluationEvent,
 } from "../types";
+
+// Showcase stations — the objective half of a tryout. Numbers live on the
+// SIGNUP (shared record): whichever coach holds the radar gun / stopwatch,
+// every evaluator sees the same values, and they are DEFINITIVE — exempt from
+// head-vs-assistant grade weighting, overriding the subjective blend for their
+// categories. Inputs commit on blur; clearing a field un-records the station
+// (a missing measurement never penalizes a player). Each measured station
+// shows its 1–5 band from the coach-provided per-age charts.
+const BAND_LABELS: Record<number, string> = {
+  1: "Poor",
+  2: "Below avg",
+  3: "Average",
+  4: "Above avg",
+  5: "Elite",
+};
+
+const BandChip = ({ grade }: { grade: number | null }) =>
+  grade == null ? null : (
+    <span
+      className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border ${
+        grade >= 4
+          ? "bg-win-bg text-win border-line"
+          : grade <= 2
+            ? "bg-loss-bg text-loss border-line"
+            : "bg-surface-2 text-ink-2 border-line"
+      }`}
+    >
+      {grade} · {BAND_LABELS[grade]}
+    </span>
+  );
+
+const ShowcasePanel = memo(
+  ({
+    signup,
+    teamAge,
+    onSave,
+  }: {
+    signup: TryoutSignup;
+    teamAge?: string;
+    onSave?: (
+      signupId: string,
+      patch: Record<string, number | undefined>,
+    ) => void;
+  }) => {
+    const m: TryoutMeasurements = signup.measurements || {};
+    // Local drafts so typing doesn't write per keystroke; commit on blur/Enter.
+    const [drafts, setDrafts] = useState<Record<string, string>>({});
+    const shown = (k: keyof TryoutMeasurements): string =>
+      drafts[k] !== undefined ? drafts[k] : m[k] != null ? String(m[k]) : "";
+    const commit = (k: keyof TryoutMeasurements) => {
+      if (drafts[k] === undefined) return; // untouched
+      const raw = drafts[k].trim();
+      const n = Number(raw);
+      // Empty clears the station; garbage reverts to the stored value.
+      if (raw !== "" && !Number.isFinite(n)) {
+        setDrafts((d) => {
+          const { [k]: _drop, ...rest } = d;
+          return rest;
+        });
+        return;
+      }
+      onSave?.(signup.id, { [k]: raw === "" ? undefined : n });
+      setDrafts((d) => {
+        const { [k]: _drop, ...rest } = d;
+        return rest;
+      });
+    };
+    const numInput = (
+      k: keyof TryoutMeasurements,
+      label: string,
+      placeholder: string,
+    ) => (
+      <label className="flex flex-col gap-1 min-w-0">
+        <span className="t-eyebrow text-ink-3 truncate">{label}</span>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={shown(k)}
+          onChange={(e) => setDrafts((d) => ({ ...d, [k]: e.target.value }))}
+          onBlur={() => commit(k)}
+          onKeyDown={(e) => e.key === "Enter" && commit(k)}
+          placeholder={placeholder}
+          aria-label={`${signup.firstName} ${signup.lastName} ${label}`}
+          className="w-full px-2 py-1.5 text-sm font-black tabular-nums bg-surface border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+        />
+      </label>
+    );
+    const gradeSelect = (
+      k: "fieldingGround" | "fieldingFly",
+      label: string,
+    ) => (
+      <label className="flex flex-col gap-1 min-w-0">
+        <span className="t-eyebrow text-ink-3 truncate">{label}</span>
+        <select
+          value={m[k] != null ? String(m[k]) : ""}
+          onChange={(e) =>
+            onSave?.(signup.id, {
+              [k]: e.target.value === "" ? undefined : Number(e.target.value),
+            })
+          }
+          aria-label={`${signup.firstName} ${signup.lastName} ${label}`}
+          className="w-full px-2 py-1.5 text-sm font-black bg-surface border border-line rounded-md outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+        >
+          <option value="">—</option>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <option key={n} value={n}>
+              {n} · {BAND_LABELS[n]}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+    return (
+      <div className="cc-card p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="font-black uppercase tracking-widest text-[10px] text-ink-3">
+            Showcase — measured, shared across all coaches
+          </div>
+          <span className="t-meta text-ink-3">
+            Home→1st over {basepathForAge(teamAge)} ft basepaths
+          </span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="space-y-1">
+            {numInput("pitchMph", "Pitch velo", "mph")}
+          </div>
+          <div className="space-y-1">
+            {numInput("runToFirstSec", "Home → 1st", "sec")}
+            <BandChip
+              grade={scoreMeasurement(
+                "runToFirstSec",
+                m.runToFirstSec,
+                teamAge,
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            {numInput("maxThrowVeloMph", "Max throw", "mph")}
+            <BandChip
+              grade={scoreMeasurement(
+                "maxThrowVeloMph",
+                m.maxThrowVeloMph,
+                teamAge,
+              )}
+            />
+          </div>
+          <div className="space-y-1">
+            {numInput("exitVeloMph", "Exit velo", "mph")}
+            <BandChip
+              grade={scoreMeasurement("exitVeloMph", m.exitVeloMph, teamAge)}
+            />
+          </div>
+          <div className="space-y-1">
+            {numInput("pitchStrikes", "Strikes of 10", "0–10")}
+            <BandChip
+              grade={scorePitchAccuracy(
+                m.pitchStrikes,
+                m.pitchAttempts,
+                teamAge,
+              )}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {gradeSelect("fieldingGround", "Field GB")}
+            {gradeSelect("fieldingFly", "Field FB")}
+          </div>
+        </div>
+      </div>
+    );
+  },
+);
 
 const STATUS_PILLS = {
   tryout: { label: "Tryout", className: "bg-surface-2 border-line text-ink" },
@@ -250,11 +427,7 @@ export const computeRosterProjection = (
   };
   returningYes.forEach((p) => addLockedPositions(p.comfortablePositions || []));
   acceptedSignups.forEach((s) => {
-    const grade = combinedTryoutGradeForSignup(
-      tryoutSessions,
-      s.id,
-      s.tryoutDate,
-    );
+    const grade = tryoutGradeWithMeasurements(tryoutSessions, s, team?.teamAge);
     addLockedPositions(positionsForTryout(grade, s));
   });
 
@@ -303,10 +476,10 @@ export const computeRosterProjection = (
       tooOld.push(signup);
       continue;
     }
-    const grade = combinedTryoutGradeForSignup(
+    const grade = tryoutGradeWithMeasurements(
       tryoutSessions,
-      signup.id,
-      signup.tryoutDate,
+      signup,
+      team?.teamAge,
     );
     const positions = positionsForTryout(grade, signup);
     const categories = getEvalCategoriesForPlayer(team?.pitchingFormat, {
@@ -405,10 +578,10 @@ const computeImpact = (
   // Tryout kid's eval score — only computed once a coach has graded them
   // in the date-grouped Tryouts session. Until grades exist we surface
   // "not graded yet".
-  const tryoutGrade: TryoutGrade | null = combinedTryoutGradeForSignup(
+  const tryoutGrade: TryoutGrade | null = tryoutGradeWithMeasurements(
     tryoutSessions,
-    signup.id,
-    signup.tryoutDate,
+    signup,
+    team?.teamAge,
   );
   const tryoutScore = tryoutGrade
     ? Object.values(tryoutGrade).reduce(
@@ -721,6 +894,7 @@ export const TryoutsTab = memo(() => {
     appendTryoutSignup,
     updateTryoutSignup,
     assignTryoutNumbers,
+    saveTryoutMeasurements,
     deleteTryoutSignup,
     deleteTryoutSignups,
     acceptTryout,
@@ -1344,6 +1518,14 @@ export const TryoutsTab = memo(() => {
                               </div>
                             </div>
                           )}
+
+                        {/* Objective stations first — any coach records; the
+                            numbers are shared and definitive. */}
+                        <ShowcasePanel
+                          signup={s}
+                          teamAge={teamAge}
+                          onSave={saveTryoutMeasurements}
+                        />
 
                         <div>
                           <EvalGradeCard

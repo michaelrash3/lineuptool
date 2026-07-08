@@ -124,3 +124,70 @@ describe("buildPreseasonSeedRound", () => {
     expect(round).toBeNull();
   });
 });
+
+describe("showcase-measurement overlay (C4)", () => {
+  it("promoted players' seeds carry DEFINITIVE measured grades over the tryout blend", () => {
+    // Head eyeballed power 2; the radar said exit velo 57 (10U → 5).
+    const sessions = [
+      {
+        id: "tryout-2026-08-01",
+        date: "2026-08-01",
+        updatedAt: 100,
+        gradesByEvaluator: {
+          h1: {
+            coachRole: "Head",
+            grades: { "sig-1": { power: 2, approach: 4 } },
+          },
+        },
+      },
+    ];
+    const round = buildPreseasonSeedRound(
+      [],
+      [],
+      [{ id: "p-new", tryoutSignupId: "sig-1" }],
+      {
+        date: "2027-02-01",
+        evaluatorId: "hc",
+        tryoutSessions: sessions,
+        tryoutSignups: [
+          {
+            id: "sig-1",
+            tryoutDate: "2026-08-01",
+            measurements: { exitVeloMph: 57, runToFirstSec: 4.0 },
+          },
+        ],
+        teamAge: "10U",
+      },
+    );
+    expect(round.grades["p-new"]).toMatchObject({
+      power: 5, // measured beats the eyeball 2
+      speed: 5, // measured
+      approach: 4, // subjective survives
+    });
+  });
+
+  it("falls back to the plain blend when the signup carries no measurements", () => {
+    const sessions = [
+      {
+        id: "tryout-2026-08-01",
+        date: "2026-08-01",
+        updatedAt: 100,
+        gradesByEvaluator: {
+          h1: { coachRole: "Head", grades: { "sig-1": { approach: 3 } } },
+        },
+      },
+    ];
+    const round = buildPreseasonSeedRound(
+      [],
+      [],
+      [{ id: "p-new", tryoutSignupId: "sig-1" }],
+      {
+        date: "2027-02-01",
+        tryoutSessions: sessions,
+        tryoutSignups: [{ id: "sig-1", tryoutDate: "2026-08-01" }],
+        teamAge: "10U",
+      },
+    );
+    expect(round.grades["p-new"]).toEqual({ approach: 3 });
+  });
+});

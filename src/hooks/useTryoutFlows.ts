@@ -195,6 +195,28 @@ export const useTryoutFlows = ({
     });
   }, [updateTeamArrays]);
 
+  // Record showcase-station measurements on a signup. The measurements live on
+  // the SIGNUP (one shared record) — not in any evaluator's grade map — so
+  // whichever coach runs the radar gun, every evaluator sees the same numbers
+  // and they stay exempt from head-vs-assistant grade weighting. Merges the
+  // patch over what's already recorded; pass undefined for a field to leave it
+  // untouched (the payload sanitizer scrubs undefined before Firestore).
+  const saveTryoutMeasurements = useCallback(
+    (signupId: any, patch: Record<string, number | undefined>) => {
+      updateTeamArrays({
+        op: "mapEntries",
+        key: "tryoutSignups",
+        map: (items: TryoutSignup[]) =>
+          items.map((s) =>
+            s.id === signupId
+              ? { ...s, measurements: { ...(s.measurements || {}), ...patch } }
+              : s,
+          ),
+      });
+    },
+    [updateTeamArrays],
+  );
+
   const deleteTryoutSignup = useCallback(
     (id: any) => {
       if (!id) return;
@@ -790,6 +812,7 @@ export const useTryoutFlows = ({
     appendTryoutSignup,
     updateTryoutSignup,
     assignTryoutNumbers,
+    saveTryoutMeasurements,
     deleteTryoutSignup,
     deleteTryoutSignups,
     deleteInterestSignup,

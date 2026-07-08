@@ -123,6 +123,37 @@ describe("useTryoutFlows", () => {
     });
   });
 
+  it("saveTryoutMeasurements merges the station patch into the signup's SHARED record", () => {
+    const { updateTeamArrays, result } = setup({
+      tryoutSignups: [
+        { id: "s1", measurements: { exitVeloMph: 50 } },
+        { id: "s2" },
+      ],
+    });
+    act(() =>
+      result.current.saveTryoutMeasurements("s1", {
+        runToFirstSec: 4.2,
+      }),
+    );
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSignups" });
+    const next = applyTeamOps(
+      {
+        tryoutSignups: [
+          { id: "s1", measurements: { exitVeloMph: 50 } },
+          { id: "s2" },
+        ],
+      },
+      op,
+    );
+    // Existing stations survive; the new one merges in; other signups untouched.
+    expect(next.tryoutSignups[0].measurements).toEqual({
+      exitVeloMph: 50,
+      runToFirstSec: 4.2,
+    });
+    expect(next.tryoutSignups[1].measurements).toBeUndefined();
+  });
+
   it("assignTryoutNumbers numbers the LATEST signups — a parent registration after the coach's snapshot still gets one", () => {
     const { result, updateTeamArrays } = setup({
       tryoutSignups: [

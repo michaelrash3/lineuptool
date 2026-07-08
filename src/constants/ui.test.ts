@@ -120,13 +120,12 @@ describe("getEvalCategoriesForPlayer", () => {
     expect(plain).toContain("composure");
   });
 
-  it("no stat-measurable tangibles remain coach-graded (v9)", () => {
+  it("stat-derived tangibles stay dropped; showcase-measured tools are back (C4)", () => {
     const all = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
-    // Velocity/Strikes/Off-Speed/Throwing are still stats-derived; Pitch
-    // Velocity (mph) is the one coach-entered pitching field.
+    // In-game stat lines (velocity/strikes/off-speed/throwing/game-calling and
+    // contact) remain stats-derived, never coach-graded.
     for (const dropped of [
       "contact",
-      "power",
       "fielding",
       "arm",
       "velocity",
@@ -137,9 +136,17 @@ describe("getEvalCategoriesForPlayer", () => {
     ]) {
       expect(all).not.toContain(dropped);
     }
+    // The measured-showcase tools returned to the card (tryout radar/stopwatch
+    // seeds them; they bridge until GameChanger samples accumulate): power
+    // (exit velo), glove (fielding stations), armStrength (max throw velo),
+    // armAccuracy (strikes-of-10).
     expect(all).toEqual(
       expect.arrayContaining([
         "approach",
+        "power",
+        "glove",
+        "armStrength",
+        "armAccuracy",
         "speed",
         "baserunning",
         "baseballIQ",

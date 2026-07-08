@@ -1834,6 +1834,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           date: dateToIsoLocal(new Date()),
           evaluatorId: user?.uid,
           tryoutSessions: teamData.tryoutSessions || [],
+          // Showcase measurements ride the signups — the seed overlays them
+          // as definitive values on top of the subjective tryout blend.
+          tryoutSignups: teamData.tryoutSignups || [],
+          teamAge: teamData.teamAge,
         },
       );
 
@@ -2153,6 +2157,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     appendTryoutSignup,
     updateTryoutSignup,
     assignTryoutNumbers,
+    saveTryoutMeasurements,
     deleteTryoutSignup,
     deleteTryoutSignups,
     deleteInterestSignup,
@@ -2795,6 +2800,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       appendTryoutSignup,
       updateTryoutSignup,
       assignTryoutNumbers,
+      saveTryoutMeasurements,
       deleteTryoutSignup,
       deleteTryoutSignups,
       deleteInterestSignup,
@@ -2893,6 +2899,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       appendTryoutSignup,
       updateTryoutSignup,
       assignTryoutNumbers,
+      saveTryoutMeasurements,
       deleteTryoutSignup,
       deleteTryoutSignups,
       deleteInterestSignup,
