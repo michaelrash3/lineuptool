@@ -18,6 +18,7 @@ import {
   evaluatorTryoutGradeForSignup,
 } from "../utils/helpers";
 import { A11yDialog, EmptyState } from "../components/shared";
+import { TryoutControlsPanel } from "../components/TryoutControlsPanel";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
 import type { OfferLetterKind } from "../constants/offerLetters";
@@ -984,6 +985,10 @@ export const TryoutsTab = memo(() => {
           )}
         </div>
       </div>
+
+      {/* Tryout operations live HERE, not in Settings: dates, the public
+          share link, intake open/close, lifecycle, roster cap. */}
+      {isHead && <TryoutControlsPanel />}
 
       {/* Desktop control-panel: signup list (main) + planning rail (right).
           The Returning Intent + Roster Projection panels are head-coach-only,

@@ -303,7 +303,6 @@ const PracticesTab = lazy(() =>
 /* ============================================================================
    SECTION 19 · Main App layout (consumes both contexts)
 ============================================================================ */
-// Tab order is computed below from team.tryoutsOpen so the Tryouts
 const MainShell = () => {
   const {
     team,
@@ -333,8 +332,6 @@ const MainShell = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isAssistant = currentRole === "assistant";
-  const tryoutsOpen = team?.tryoutsOpen === true;
-  const tryoutsVisible = tryoutsOpen || team?.tryoutsPhase === "intake_closed";
   const { tabOrder } = useMainShellRouting({
     activeTab,
     setActiveTab,
@@ -343,7 +340,6 @@ const MainShell = () => {
     selectedGameId,
     setSelectedGameId,
     isAssistant,
-    tryoutsOpen: tryoutsVisible,
     location,
     navigate,
   });
@@ -664,7 +660,7 @@ const MainShell = () => {
         { id: "practices", icon: Icons.Clock, label: "Practices" },
         { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
-        ...(tryoutsVisible ? [tryoutsButton] : []),
+        tryoutsButton,
         { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
       ]
     : [
@@ -674,7 +670,7 @@ const MainShell = () => {
         { id: "practices", icon: Icons.Clock, label: "Practices" },
         { id: "stats", icon: Icons.Chart, label: "Stats" },
         { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
-        ...(tryoutsVisible ? [tryoutsButton] : []),
+        tryoutsButton,
         ...(interestButton ? [interestButton] : []),
         ...(playerInfoButton ? [playerInfoButton] : []),
         ...(availabilityButton ? [availabilityButton] : []),
@@ -754,16 +750,7 @@ const MainShell = () => {
                   path="/evaluation/round/:roundId"
                   element={evalElement}
                 />
-                <Route
-                  path="/tryouts"
-                  element={
-                    tryoutsVisible ? (
-                      <TryoutsTab />
-                    ) : (
-                      <Navigate to="/" replace />
-                    )
-                  }
-                />
+                <Route path="/tryouts" element={<TryoutsTab />} />
                 <Route
                   path="/interest"
                   element={

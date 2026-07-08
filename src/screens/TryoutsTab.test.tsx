@@ -65,6 +65,49 @@ describe("TryoutsTab", () => {
     });
     expect(screen.getByText("Tryouts")).toBeInTheDocument();
   });
+
+  it("surfaces the in-tab tryout setup controls for the head (moved out of Settings)", () => {
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          tryoutSignups: [],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+          tryoutDates: [],
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation: jest.fn(),
+      },
+    });
+    expect(screen.getByText(/Tryout setup — dates, link/)).toBeInTheDocument();
+  });
+
+  it("hides the setup controls from assistants", () => {
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          tryoutSignups: [],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+        },
+        user: { uid: "u1" },
+        currentRole: "assistant",
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation: jest.fn(),
+      },
+    });
+    expect(
+      screen.queryByText(/Tryout setup — dates, link/),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("computeRosterProjection", () => {
