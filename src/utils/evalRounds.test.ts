@@ -10,6 +10,8 @@ vi.mock("firebase/firestore", () => ({
   doc: vi.fn((_db, ...path: string[]) => ({ __doc: path.join("/") })),
   setDoc: vi.fn(() => Promise.resolve()),
   deleteDoc: vi.fn(() => Promise.resolve()),
+  updateDoc: vi.fn(() => Promise.resolve()),
+  deleteField: vi.fn(() => ({ __deleteField: true })),
 }));
 
 import {
@@ -18,6 +20,8 @@ import {
   mirrorEvalRound,
   removeEvalRoundDoc,
   backfillOwnEvalRounds,
+  allLegacyRoundsMigrated,
+  dropEvalEventsArray,
 } from "./evalRounds";
 import {
   collection,
@@ -26,6 +30,7 @@ import {
   doc,
   setDoc,
   deleteDoc,
+  updateDoc,
 } from "firebase/firestore";
 import type { EvaluationEvent } from "../types";
 
@@ -177,6 +182,56 @@ describe("backfillOwnEvalRounds", () => {
     expect(await backfillOwnEvalRounds(db, "app1", "team1", [], "u1")).toBe(0);
     expect(await backfillOwnEvalRounds(db, "app1", "team1", null, "u1")).toBe(
       0,
+    );
+  });
+});
+
+describe("allLegacyRoundsMigrated (phase 3b drop gate)", () => {
+  it("true only when EVERY legacy round id is in the subcollection", () => {
+    const legacy = [mkRound({ id: "a" }), mkRound({ id: "b" })];
+    expect(allLegacyRoundsMigrated(legacy, ["a", "b", "extra"])).toBe(true);
+    // One round not yet mirrored (e.g. an assistant who hasn't logged in to
+    // backfill theirs) → the drop must wait.
+    expect(allLegacyRoundsMigrated(legacy, ["a"])).toBe(false);
+  });
+
+  it("false for an empty/missing legacy array — an empty or failed read can never trigger a drop", () => {
+    expect(allLegacyRoundsMigrated([], ["a", "b"])).toBe(false);
+    expect(allLegacyRoundsMigrated(null, ["a"])).toBe(false);
+    expect(allLegacyRoundsMigrated(undefined, [])).toBe(false);
+  });
+
+  it("ignores malformed legacy entries without an id", () => {
+    const legacy = [mkRound({ id: "a" }), { grades: {} } as never];
+    expect(allLegacyRoundsMigrated(legacy, ["a"])).toBe(true);
+  });
+});
+
+describe("dropEvalEventsArray", () => {
+  it("deletes the evaluationEvents field on the TEAM doc (not a subcollection doc)", async () => {
+    (doc as any).mockClear();
+    (updateDoc as any).mockClear();
+    await dropEvalEventsArray(db, "app1", "team1");
+    expect(doc).toHaveBeenCalledWith(
+      db,
+      "artifacts",
+      "app1",
+      "public",
+      "data",
+      "teams",
+      "team1",
+    );
+    expect(updateDoc).toHaveBeenCalledTimes(1);
+    // The payload must be the delete sentinel — never a value write.
+    expect((updateDoc as any).mock.calls[0][1]).toEqual({
+      evaluationEvents: { __deleteField: true },
+    });
+  });
+
+  it("REJECTS on failure so the caller can retry next session", async () => {
+    (updateDoc as any).mockRejectedValueOnce(new Error("offline"));
+    await expect(dropEvalEventsArray(db, "app1", "team1")).rejects.toThrow(
+      "offline",
     );
   });
 });

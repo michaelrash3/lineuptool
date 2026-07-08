@@ -10,8 +10,10 @@ import {
   collection,
   doc,
   deleteDoc,
+  deleteField,
   query,
   setDoc,
+  updateDoc,
   where,
   type Firestore,
   type Query,
@@ -145,6 +147,45 @@ export const deleteEvalRound = (
   teamId: string,
   roundId: string,
 ): Promise<void> => deleteDoc(evalRoundRef(db, appId, teamId, roundId));
+
+// ---- Phase 3b — dropping the legacy array (docs/eval-authz-design.md) -------
+// With reads AND writes cut over to the subcollection, the `evaluationEvents`
+// ARRAY on the team doc is a stale, unwritten leftover. Deleting it is the one
+// IRREVERSIBLE step of the rollout, so it's gated on PROOF of coverage: the
+// head's subscription streams every evalRounds doc, and only when every legacy
+// round id is present there does the drop fire.
+
+// Is every legacy array round present in the subcollection? Pure coverage
+// check. Deliberately conservative:
+//   - no legacy rounds → false ("nothing to drop" — the field is already gone
+//     or empty, and firing a delete write for an empty array is pointless);
+//   - an empty/failed subcollection read can therefore never trigger a drop;
+//   - any legacy round missing from the subcollection → false.
+export const allLegacyRoundsMigrated = (
+  legacyRounds: EvaluationEvent[] | null | undefined,
+  subcollectionIds: Iterable<string> | null | undefined,
+): boolean => {
+  const legacy = (Array.isArray(legacyRounds) ? legacyRounds : []).filter(
+    (r) => r && r.id,
+  );
+  if (legacy.length === 0) return false;
+  const ids = new Set(subcollectionIds || []);
+  return legacy.every((r) => ids.has(r.id));
+};
+
+// Delete the legacy `evaluationEvents` field from the team doc. REJECTS on
+// failure so the caller can retry next session (the guard ref is cleared).
+export const dropEvalEventsArray = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+): Promise<void> =>
+  updateDoc(
+    doc(db, "artifacts", appId, "public", "data", "teams", teamId),
+    // deleteField removes the key outright — after this, snapshots carry no
+    // evaluationEvents array and the drop condition can never re-arise.
+    { evaluationEvents: deleteField() },
+  );
 
 // Lazily backfill the caller's OWN rounds from the legacy array into the
 // subcollection. Only rounds authored by `uid` are touched — the create rule

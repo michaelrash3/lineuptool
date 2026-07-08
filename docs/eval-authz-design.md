@@ -1,18 +1,16 @@
 # Design: authorization-scoped evaluations (audit finding 3.1)
 
-_Status: **approved — Option A rollout in progress.** Steps 1–3 shipped.
-**Both flags are ON, and the subcollection is now PRIMARY for reads AND
-writes.** Reads come from the `evalRounds` subcollection (phase 2 read cutover)
-and writes go per-doc to it (phase 3 write cutover): `useEvaluationCrud` no
-longer writes the legacy `evaluationEvents` array when the subcollection is
-primary, and its per-doc `saveEvalRound`/`deleteEvalRound` REJECT on failure so
-a coach sees an error toast instead of silently losing grades (the old
-best-effort mirror swallowed errors). Still reversible — flip
-`EVAL_ROUNDS_SUBCOLLECTION` back to false and both reads and writes return to
-the array. Remaining: **drop** the now-unwritten `evaluationEvents` array from
-the team doc (phase 3b — irreversible, a tight follow-up once the write cutover
-is confirmed live), then remove the flags and the finding-3.1 "pinned" rules
-block (step 5). Sequencing at the bottom._
+_Status: **approved — Option A rollout in progress.** Steps 1–3 and phases 1–3b
+shipped. **The subcollection is PRIMARY for reads and writes, and the legacy
+`evaluationEvents` array is now DROPPED from the team doc** once its coverage
+is proven: a head-only, once-per-team effect deletes the field when every
+legacy round id is present in the subcollection (`allLegacyRoundsMigrated` —
+conservative: an empty/failed read can never trigger a drop). Every remaining
+array writer was retired with it: `useEvaluationCrud` (phase 3), the
+`removePlayer` grade-strip cascade (per-doc strips), the season-advance reset
+(per-doc delete + subcollection preseason seed), and the schema ladder (never
+recreates a dropped field). Remaining: remove the flags and the finding-3.1
+"pinned" rules block (step 5). Sequencing at the bottom._
 
 ## The problem, precisely
 
@@ -176,9 +174,19 @@ it's worth.
      (not the best-effort mirror), so a failed save/delete surfaces an error
      toast rather than silently dropping grades. Firestore's local cache gives
      the optimistic UI the array write used to.
-   - Still to do (**phase 3b**, a tight follow-up): **drop the now-unwritten
-     `evaluationEvents` array from the team doc** and move the schema-ladder eval
-     steps per-round. Deferred deliberately — it's irreversible, so it lands only
-     after the write cutover is confirmed live on real data.
+   - _Drop (phase 3b) ✅:_ a head-only, once-per-team effect in `TeamProvider`
+     deletes the `evaluationEvents` field (`dropEvalEventsArray`) once
+     `allLegacyRoundsMigrated` proves every legacy round id is present in the
+     subcollection. Head-only because only the head's subscription streams
+     every round (an assistant could never verify coverage); conservative
+     because an empty/failed read returns false, so the drop can never fire on
+     missing evidence. Rounds authored by an assistant hold the drop until that
+     assistant's own backfill has run. With the drop, every remaining array
+     writer was retired: the `removePlayer` grade-strip cascade strips per-doc
+     (best-effort — rules scope an assistant to their own rounds; orphaned
+     grades of a removed player never surface), season advance deletes rounds
+     per-doc and seeds the preseason round into the subcollection (the array
+     key is omitted entirely), and the schema ladder only writes
+     `evaluationEvents` while the doc still carries the field.
 5. Remove the flags and the finding-3.1 "pinned, not endorsed" rules block,
    replacing it with the new scoped-access assertions.

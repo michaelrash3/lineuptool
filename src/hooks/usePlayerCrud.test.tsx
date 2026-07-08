@@ -1,8 +1,17 @@
 import { renderHook, act } from "@testing-library/react";
+import { vi } from "vitest";
+
+// Stub the subcollection writer so the subcollection-primary describe below
+// runs without a real Firestore. The main describes pass no db/appId/teamId,
+// so subPrimary is false there — they stay on the legacy array path.
+vi.mock("../utils/evalRounds", () => ({
+  saveEvalRound: vi.fn(() => Promise.resolve()),
+}));
+import { saveEvalRound } from "../utils/evalRounds";
 import { usePlayerCrud } from "./usePlayerCrud";
 import { applyTeamOps, makeConfirm, makeToast } from "../test-utils";
 
-const setup = (teamOver: any = {}) => {
+const setup = (teamOver: any = {}, handles: any = {}) => {
   const updateTeamArrays = jest.fn();
   const toast = makeToast();
   const confirm = makeConfirm();
@@ -13,7 +22,7 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    usePlayerCrud({ teamData, updateTeamArrays, toast, confirm }),
+    usePlayerCrud({ teamData, updateTeamArrays, toast, confirm, ...handles }),
   );
   return { result, teamData, updateTeamArrays, toast, confirm };
 };
@@ -141,6 +150,49 @@ describe("usePlayerCrud", () => {
       // Restored games pass through the same slimming as any stored write.
       expect(restored.games[0].lineup[0].P).toMatchObject({ id: "p1" });
       expect(restored.evaluationEvents[0].grades.p1).toEqual({ hit: 3 });
+    });
+
+    describe("subcollection-primary (finding-3.1 write cutover)", () => {
+      const handles = { db: {} as never, appId: "app1", teamId: "team1" };
+
+      beforeEach(() => (saveEvalRound as any).mockClear());
+
+      it("emits NO evaluationEvents array op — writing the subcollection-derived rounds back to the shared doc would resurrect scoped data", async () => {
+        const { result, updateTeamArrays } = setup(team, handles);
+        await act(async () => result.current.removePlayer("p1"));
+        const ops = updateTeamArrays.mock.calls[0][0];
+        expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+          ["removeById", "players"],
+          ["mapEntries", "games"],
+        ]);
+      });
+
+      it("strips the removed player's grades per-doc, only touching rounds that graded them", async () => {
+        const twoRounds = {
+          ...team,
+          evaluationEvents: [
+            { id: "e1", grades: { p1: { hit: 3 }, p2: { hit: 4 } } },
+            { id: "e2", grades: { p2: { hit: 5 } } }, // never graded p1 → untouched
+          ],
+        };
+        const { result } = setup(twoRounds, handles);
+        await act(async () => result.current.removePlayer("p1"));
+        expect(saveEvalRound).toHaveBeenCalledTimes(1);
+        const [, appId, teamId, round] = (saveEvalRound as any).mock.calls[0];
+        expect([appId, teamId]).toEqual(["app1", "team1"]);
+        expect(round).toEqual({ id: "e1", grades: { p2: { hit: 4 } } });
+      });
+
+      it("Undo re-saves the pre-delete rounds per-doc", async () => {
+        const { result, toast } = setup(team, handles);
+        await act(async () => result.current.removePlayer("p1"));
+        (saveEvalRound as any).mockClear();
+        const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
+        act(() => undo.onClick());
+        expect(saveEvalRound).toHaveBeenCalledTimes(1);
+        const round = (saveEvalRound as any).mock.calls[0][3];
+        expect(round.grades.p1).toEqual({ hit: 3 });
+      });
     });
   });
 });
