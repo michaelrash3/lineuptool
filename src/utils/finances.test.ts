@@ -18,6 +18,8 @@ import {
   expenseCategory,
   budgetByCategory,
   spendingByCategory,
+  incomeCategory,
+  incomeByCategory,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -613,5 +615,67 @@ describe("by-category reporting (PR2)", () => {
     expect(spendingByCategory(finances)).toEqual([
       { label: "Gear & equipment", value: 120 },
     ]);
+  });
+});
+
+describe("by-source income reporting (PR3)", () => {
+  it("incomeCategory prefers the stored source, else infers from label", () => {
+    expect(incomeCategory({ label: "Anything", category: "grant" })).toBe(
+      "grant",
+    );
+    // No stored source → inferred from the label keyword.
+    expect(incomeCategory({ label: "Car wash" })).toBe("fundraiser");
+  });
+
+  it("incomeByCategory folds payments into dues (net of refunds) and buckets income by source", () => {
+    const finances: TeamFinances = {
+      payments: [
+        { id: "p1", playerId: "pl1", date: "2026-02-01", amount: 300 },
+        { id: "p2", playerId: "pl2", date: "2026-02-05", amount: 300 },
+        // A refund pulls dues back down — net collections, not gross.
+        {
+          id: "p3",
+          playerId: "pl1",
+          date: "2026-02-20",
+          amount: 100,
+          refund: true,
+        },
+      ],
+      incomes: [
+        // Stored source wins over whatever the label suggests.
+        {
+          id: "i1",
+          date: "2026-03-01",
+          label: "Car wash",
+          amount: 250,
+          category: "sponsorship",
+        },
+        // Untagged legacy entry → inferred from its label.
+        { id: "i2", date: "2026-03-05", label: "Bake sale", amount: 80.4 },
+        { id: "i3", date: "2026-03-06", label: "Raffle", amount: 60.35 },
+        // Unrecognizable → the other-income catch-all.
+        { id: "i4", date: "2026-03-07", label: "zxcv", amount: 10 },
+      ],
+    };
+    const rows = incomeByCategory(finances);
+    // Canonical taxonomy order, zero-amount sources dropped.
+    expect(rows.map((r) => r.category)).toEqual([
+      "dues",
+      "sponsorship",
+      "fundraiser",
+      "other-income",
+    ]);
+    expect(rows[0]).toMatchObject({
+      label: "Registration & dues",
+      amount: 500, // 300 + 300 - 100 refund
+    });
+    expect(rows[1].amount).toBe(250);
+    expect(rows[2].amount).toBe(140.75); // cent-exact 80.40 + 60.35
+    expect(rows[3].amount).toBe(10);
+  });
+
+  it("incomeByCategory is empty for an empty book", () => {
+    expect(incomeByCategory({})).toEqual([]);
+    expect(incomeByCategory(undefined)).toEqual([]);
   });
 });

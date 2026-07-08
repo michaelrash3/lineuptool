@@ -39,6 +39,7 @@ import {
   budgetItemCategory,
   budgetByCategory,
   spendingByCategory,
+  incomeByCategory,
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
@@ -61,8 +62,10 @@ import {
   FINANCE_CATEGORIES,
   groupToCategory,
   categoryLabel,
+  REVENUE_CATEGORIES,
   type BudgetPreset,
   type FinanceCategoryId,
+  type RevenueCategoryId,
 } from "../constants/financeCategories";
 
 // Finances — head-coach-only money tracker for the club: what the season will
@@ -313,6 +316,10 @@ export const FinancesTab = memo(() => {
   const [txnCategory, setTxnCategory] = useState("");
   // Money-in entries flagged as fundraising reduce each family's dues.
   const [txnFundraising, setTxnFundraising] = useState(false);
+  // Revenue source for money-in entries ("" = infer from the label).
+  const [txnRevenueCategory, setTxnRevenueCategory] = useState<
+    RevenueCategoryId | ""
+  >("");
   // Optional child a fundraising entry is credited to (blank = even split).
   const [txnCreditPlayerId, setTxnCreditPlayerId] = useState("");
 
@@ -397,6 +404,9 @@ export const FinancesTab = memo(() => {
 
   // Budget-vs-actual rolled up by spending area (the by-category summary).
   const categoryRows = useMemo(() => budgetByCategory(finances), [finances]);
+  // Accountant view of money in: every dollar of revenue attributed to a
+  // source (dues from the payment tracker, tagged or inferred ledger income).
+  const revenueRows = useMemo(() => incomeByCategory(finances), [finances]);
 
   // ---- Inline budget-item editing (label + cost, keeping the item's mode).
   const [itemEdit, setItemEdit] = useState<{
@@ -806,13 +816,16 @@ export const FinancesTab = memo(() => {
       ...recordedStamp(),
     };
     if (txnDir === "in") {
-      const incomeEntry = txnFundraising
-        ? {
-            ...entry,
-            fundraising: true,
-            ...(txnCreditPlayerId ? { playerId: txnCreditPlayerId } : {}),
-          }
-        : entry;
+      const incomeEntry = {
+        ...entry,
+        ...(txnRevenueCategory ? { category: txnRevenueCategory } : {}),
+        ...(txnFundraising
+          ? {
+              fundraising: true,
+              ...(txnCreditPlayerId ? { playerId: txnCreditPlayerId } : {}),
+            }
+          : {}),
+      };
       updateFinances({ op: "append", key: "incomes", entry: incomeEntry });
     } else {
       updateFinances({
@@ -824,6 +837,7 @@ export const FinancesTab = memo(() => {
     setTxnLabel("");
     setTxnAmount("");
     setTxnCategory("");
+    setTxnRevenueCategory("");
     setTxnFundraising(false);
     setTxnCreditPlayerId("");
   };
@@ -1497,6 +1511,27 @@ export const FinancesTab = memo(() => {
                     </select>
                   )}
                 {txnDir === "in" && (
+                  <select
+                    value={txnRevenueCategory}
+                    onChange={(e) =>
+                      setTxnRevenueCategory(
+                        e.target.value as RevenueCategoryId | "",
+                      )
+                    }
+                    aria-label="Revenue source"
+                    title="Where this money came from — feeds the by-source accounting rollup"
+                    className={`${FORM_INPUT_CLASS} sm:w-44`}
+                    style={FORM_INPUT_RING_STYLE}
+                  >
+                    <option value="">Source: auto</option>
+                    {REVENUE_CATEGORIES.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {txnDir === "in" && (
                   <label
                     className="flex items-center gap-1.5 self-center text-xs font-bold text-ink-2 whitespace-nowrap cursor-pointer"
                     title="Splits evenly across paying players and reduces each family's team fees"
@@ -1992,6 +2027,43 @@ export const FinancesTab = memo(() => {
               <div className="pt-4 space-y-6">
                 <CashflowChart months={months} />
                 <SpendingDonut slices={spendingByCategory(finances)} />
+                {/* Money in by source — the revenue half of the accounting
+                    picture. Dues flow in from the payment tracker (net of
+                    refunds); ledger income uses its tagged source, else the
+                    label-inferred one. */}
+                {revenueRows.length > 0 && (
+                  <div className="rounded-xl border border-line bg-surface-2/40 p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="t-eyebrow text-ink-3">
+                        Money in by source
+                      </div>
+                      <div className="t-meta text-ink-3 tabular-nums">
+                        {formatCurrency(
+                          revenueRows.reduce((sum, r) => sum + r.amount, 0),
+                        )}
+                      </div>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {revenueRows.map((r) => (
+                        <li
+                          key={r.category}
+                          className="flex items-center justify-between gap-2 text-sm"
+                        >
+                          <span className="font-bold text-ink truncate">
+                            {r.label}
+                          </span>
+                          <span
+                            className={`tabular-nums whitespace-nowrap font-bold ${
+                              r.amount < 0 ? "text-loss" : "text-ink-2"
+                            }`}
+                          >
+                            {formatCurrency(r.amount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </SectionCard>
           )}

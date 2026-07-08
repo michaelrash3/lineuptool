@@ -16,7 +16,10 @@ import { isValidIsoDate } from "./dates";
 import {
   inferCategory,
   FINANCE_CATEGORIES,
+  inferRevenueCategory,
+  REVENUE_CATEGORIES,
   type FinanceCategoryId,
+  type RevenueCategoryId,
 } from "../constants/financeCategories";
 
 // ---------- Team finances (money math) ----------
@@ -665,6 +668,44 @@ export const spendingByCategory = (
   budgetByCategory(finances)
     .filter((r) => r.spent > 0)
     .map((r) => ({ label: r.label, value: r.spent }));
+
+// The revenue source an income entry counts toward: stored category first,
+// else inferred from the label — read-side, nothing rewritten (the same
+// non-destructive pattern as budgetItemCategory).
+export const incomeCategory = (
+  entry: { category?: RevenueCategoryId; label?: string } | null | undefined,
+): RevenueCategoryId => entry?.category ?? inferRevenueCategory(entry?.label);
+
+export interface RevenueSourceRow {
+  category: RevenueCategoryId;
+  label: string;
+  amount: number;
+}
+
+// Money IN by source — the accountant's other half, beside the by-category
+// spend rollup. Club-fee payments post to "Registration & dues" (net of
+// refunds, exactly like financeSummary.collected); income entries bucket by
+// their stored-or-inferred source. Canonical order; only sources with money.
+export const incomeByCategory = (
+  finances: TeamFinances | null | undefined,
+): RevenueSourceRow[] => {
+  const totals: Partial<Record<RevenueCategoryId, number>> = {};
+  // Every family payment is dues revenue; refunds net out.
+  for (const pay of finances?.payments || []) {
+    const amt = pay?.refund ? -money(pay?.amount) : money(pay?.amount);
+    totals.dues = (totals.dues || 0) + amt;
+  }
+  for (const inc of finances?.incomes || []) {
+    if (!inc) continue;
+    const cat = incomeCategory(inc);
+    totals[cat] = (totals[cat] || 0) + money(inc.amount);
+  }
+  return REVENUE_CATEGORIES.map((c) => ({
+    category: c.id,
+    label: c.label,
+    amount: round2(totals[c.id] || 0),
+  })).filter((r) => r.amount !== 0);
+};
 
 export interface YearComparisonRow {
   label: string;
