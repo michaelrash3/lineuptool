@@ -2,6 +2,8 @@ import {
   combinedTryoutGradeForSignup,
   migrateLegacyTryoutGrades,
   normalizeTryoutSessions,
+  nextTryoutNumber,
+  applyMissingTryoutNumbers,
 } from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
@@ -195,5 +197,65 @@ describe("combinedTryoutGradeForSignup", () => {
     expect(combinedTryoutGradeForSignup(sessions, null)).toBeNull();
     expect(combinedTryoutGradeForSignup(sessions, "nope")).toBeNull();
     expect(combinedTryoutGradeForSignup(null, "s1")).toBeNull();
+  });
+});
+
+describe("tryout numbers", () => {
+  const s = (
+    id: string,
+    tryoutNumber?: string,
+    tryoutDate?: string,
+    submittedAt = "2026-07-01T10:00:00.000Z",
+  ) => ({ id, tryoutNumber, tryoutDate, submittedAt });
+
+  describe("nextTryoutNumber", () => {
+    it("starts at 1 and fills the lowest gap within the date pool", () => {
+      expect(nextTryoutNumber([], "2026-08-01")).toBe("1");
+      expect(
+        nextTryoutNumber(
+          [s("a", "1", "2026-08-01"), s("b", "3", "2026-08-01")],
+          "2026-08-01",
+        ),
+      ).toBe("2");
+    });
+
+    it("scopes numbers PER tryout date — two dates can both have a #1", () => {
+      const signups = [s("a", "1", "2026-08-01")];
+      expect(nextTryoutNumber(signups, "2026-08-08")).toBe("1");
+      // Undated signups share their own pool.
+      expect(nextTryoutNumber(signups, undefined)).toBe("1");
+    });
+
+    it("ignores malformed numbers", () => {
+      expect(
+        nextTryoutNumber(
+          [s("a", "abc", "2026-08-01"), s("b", "", "2026-08-01")],
+          "2026-08-01",
+        ),
+      ).toBe("1");
+    });
+  });
+
+  describe("applyMissingTryoutNumbers", () => {
+    it("fills only the missing numbers, in submission order, per date pool", () => {
+      const out = applyMissingTryoutNumbers([
+        s("late", undefined, "2026-08-01", "2026-07-02T00:00:00.000Z"),
+        s("kept", "2", "2026-08-01"),
+        s("early", undefined, "2026-08-01", "2026-07-01T00:00:00.000Z"),
+        s("otherDate", undefined, "2026-08-08"),
+      ]);
+      const byId = Object.fromEntries(out.map((x) => [x.id, x.tryoutNumber]));
+      // Existing #2 kept; earliest submitter takes 1, next takes 3 (2 is used).
+      expect(byId.kept).toBe("2");
+      expect(byId.early).toBe("1");
+      expect(byId.late).toBe("3");
+      // The other date's pool starts fresh at 1.
+      expect(byId.otherDate).toBe("1");
+    });
+
+    it("returns the SAME array reference when nothing is missing (no-op write)", () => {
+      const signups = [s("a", "1", "2026-08-01"), s("b", "2", "2026-08-01")];
+      expect(applyMissingTryoutNumbers(signups)).toBe(signups);
+    });
   });
 });

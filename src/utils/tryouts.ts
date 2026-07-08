@@ -363,3 +363,83 @@ export const migrateLegacyTryoutGrades = (
     evaluationEvents: events.filter((e: any) => !isFoldedTryoutGrade(e)),
   };
 };
+
+// ---- Tryout numbers ---------------------------------------------------------
+// Every kid at a tryout wears a number so evaluators know who is who. Numbers
+// are scoped PER TRYOUT DATE (two dates can both have a #1); signups without a
+// date share the undated pool. Stored as strings on TryoutSignup.tryoutNumber
+// (the field the coach can also hand-edit on the card).
+
+// The next free number within a tryout date's pool — for stamping a newly
+// added signup.
+export const nextTryoutNumber = (
+  signups: Array<{ tryoutDate?: string; tryoutNumber?: string }> | undefined,
+  tryoutDate?: string,
+): string => {
+  const scopeDate = String(tryoutDate || "");
+  const used = new Set<number>();
+  for (const s of signups || []) {
+    if (String(s?.tryoutDate || "") !== scopeDate) continue;
+    const n = parseInt(String(s?.tryoutNumber || ""), 10);
+    if (Number.isFinite(n) && n > 0) used.add(n);
+  }
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return String(n);
+};
+
+// Fill in a number for every signup that lacks one, per date pool, in
+// submission order (stable: the earlier a family registered, the lower the
+// number). Pure and deterministic — safe inside a mapEntries resolve-once
+// callback. Returns the SAME array reference when nothing was missing so the
+// caller can skip a no-op write.
+export const applyMissingTryoutNumbers = <
+  T extends {
+    id?: string;
+    submittedAt?: string;
+    tryoutDate?: string;
+    tryoutNumber?: string;
+  },
+>(
+  signups: T[],
+): T[] => {
+  const list = Array.isArray(signups) ? signups : [];
+  const usedByDate = new Map<string, Set<number>>();
+  const usedFor = (date: string): Set<number> => {
+    let set = usedByDate.get(date);
+    if (!set) {
+      set = new Set<number>();
+      usedByDate.set(date, set);
+    }
+    return set;
+  };
+  for (const s of list) {
+    const n = parseInt(String(s?.tryoutNumber || ""), 10);
+    if (Number.isFinite(n) && n > 0)
+      usedFor(String(s?.tryoutDate || "")).add(n);
+  }
+  const missing = list
+    .filter((s) => {
+      const n = parseInt(String(s?.tryoutNumber || ""), 10);
+      return !(Number.isFinite(n) && n > 0);
+    })
+    .sort(
+      (a, b) =>
+        new Date(a?.submittedAt || 0).getTime() -
+        new Date(b?.submittedAt || 0).getTime(),
+    );
+  if (missing.length === 0) return list;
+  const assigned = new Map<string, string>();
+  for (const s of missing) {
+    const pool = usedFor(String(s?.tryoutDate || ""));
+    let n = 1;
+    while (pool.has(n)) n += 1;
+    pool.add(n);
+    if (s?.id) assigned.set(s.id, String(n));
+  }
+  return list.map((s) =>
+    s?.id && assigned.has(s.id)
+      ? { ...s, tryoutNumber: assigned.get(s.id) }
+      : s,
+  );
+};

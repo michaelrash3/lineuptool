@@ -6,6 +6,7 @@ import {
   randomCode,
   genId,
 } from "../utils/helpers";
+import { applyMissingTryoutNumbers } from "../utils/tryouts";
 
 // Lowercase base36 — matches the look of the previous Math.random().toString(36)
 // share tokens, but every character is now uniformly drawn from a CSPRNG and the
@@ -180,6 +181,19 @@ export const useTryoutFlows = ({
     },
     [updateTeamArrays],
   );
+
+  // One-tap "everyone gets a number": fill a tryout number for every signup
+  // that lacks one, per tryout-date pool, in submission order. The assignment
+  // runs INSIDE the map over the LATEST signups (resolve-once contract), so a
+  // parent registration that landed after the coach's snapshot still gets a
+  // number and existing numbers are never reissued.
+  const assignTryoutNumbers = useCallback(() => {
+    updateTeamArrays({
+      op: "mapEntries",
+      key: "tryoutSignups",
+      map: (items: TryoutSignup[]) => applyMissingTryoutNumbers(items),
+    });
+  }, [updateTeamArrays]);
 
   const deleteTryoutSignup = useCallback(
     (id: any) => {
@@ -775,6 +789,7 @@ export const useTryoutFlows = ({
     setRosterCap,
     appendTryoutSignup,
     updateTryoutSignup,
+    assignTryoutNumbers,
     deleteTryoutSignup,
     deleteTryoutSignups,
     deleteInterestSignup,

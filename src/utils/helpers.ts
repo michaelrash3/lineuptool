@@ -108,6 +108,8 @@ export {
   migrateLegacyTryoutGrades,
   combinedTryoutGradeForSignup,
   evaluatorTryoutGradeForSignup,
+  nextTryoutNumber,
+  applyMissingTryoutNumbers,
 } from "./tryouts";
 export type { TryoutDateLink, PublicTeamMirror } from "./tryouts";
 
