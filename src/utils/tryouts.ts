@@ -234,38 +234,30 @@ export const normalizeTryoutSessions = (team: any): any[] => {
   return [...byId.values()];
 };
 
-export const combinedTryoutGradeForSignup = (
-  sessions: any[] | null | undefined,
-  signupId: string | null | undefined,
-  date?: string,
-): any | null => {
-  if (!signupId) return null;
-  const matches = (sessions || []).filter(
-    (s: any) =>
-      (!date || s.date === date) &&
-      Object.values(s.gradesByEvaluator || {}).some(
-        (eg: any) => eg?.grades?.[signupId],
-      ),
-  );
-  const session = matches.sort(
-    (a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0),
-  )[0];
-  if (!session) return null;
+// Round every numeric field once, at the very end of a blend (audit finding
+// 3.3 — a single rounding pass). Non-numeric fields (notes, suggestedPositions)
+// pass through untouched.
+const roundGrade = (grade: Record<string, any> | null) => {
+  if (!grade) return grade;
+  const out: Record<string, any> = {};
+  for (const [key, val] of Object.entries(grade))
+    out[key] = typeof val === "number" ? Math.round(val) : val;
+  return out;
+};
+
+// ONE session's head/assistant blend for a signup, kept RAW (unrounded) so
+// callers can keep averaging without compounding rounding error. Per-group
+// mean, then a 50/50 head-vs-assistant split — the head's read counts as much
+// as the whole assistant pool (deliberate weighting).
+const rawSessionBlend = (session: any, signupId: string): any | null => {
   const headGrades: any[] = [];
   const assistantGrades: any[] = [];
-  for (const eg of Object.values(session.gradesByEvaluator || {}) as any[]) {
+  for (const eg of Object.values(session?.gradesByEvaluator || {}) as any[]) {
     const g = eg?.grades?.[signupId];
     if (!g) continue;
     if (eg.coachRole === "Head") headGrades.push(g);
     else assistantGrades.push(g);
   }
-  // Per-group mean kept RAW (unrounded) — audit finding 3.3. The old code
-  // rounded each group's mean here and then rounded the head+assistant blend
-  // again, two rounding passes that could drift a full grade point from the
-  // true average. We defer all rounding to a single final pass (`rounded`
-  // below) so numbers round exactly once. The head/assistant 50/50 split is a
-  // deliberate weighting (the head's read counts as much as the whole assistant
-  // pool), so it's preserved — only the compounding rounding is removed.
   const rawAvg = (grades: any[]) => {
     if (!grades.length) return null;
     const out: Record<string, any> = {};
@@ -284,15 +276,6 @@ export const combinedTryoutGradeForSignup = (
     }
     return out;
   };
-  // Round every numeric field once, at the very end. Non-numeric fields (notes,
-  // suggestedPositions) pass through untouched.
-  const rounded = (grade: Record<string, any> | null) => {
-    if (!grade) return grade;
-    const out: Record<string, any> = {};
-    for (const [key, val] of Object.entries(grade))
-      out[key] = typeof val === "number" ? Math.round(val) : val;
-    return out;
-  };
   const head = rawAvg(headGrades);
   const assistants = rawAvg(assistantGrades);
   if (head && assistants) {
@@ -309,9 +292,68 @@ export const combinedTryoutGradeForSignup = (
         else out[key] = hv ?? av;
       }
     }
-    return rounded(out);
+    return out;
   }
-  return rounded(head || assistants);
+  return head || assistants;
+};
+
+// The sessions (newest first) where this signup was actually graded.
+const gradedSessionsFor = (
+  sessions: any[] | null | undefined,
+  signupId: string,
+  date?: string,
+): any[] =>
+  (sessions || [])
+    .filter(
+      (s: any) =>
+        (!date || s.date === date) &&
+        Object.values(s.gradesByEvaluator || {}).some(
+          (eg: any) => eg?.grades?.[signupId],
+        ),
+    )
+    .sort((a: any, b: any) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+export const combinedTryoutGradeForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+  date?: string,
+): any | null => {
+  if (!signupId) return null;
+  const session = gradedSessionsFor(sessions, signupId, date)[0];
+  if (!session) return null;
+  return roundGrade(rawSessionBlend(session, signupId));
+};
+
+// The MULTI-TRYOUT fold: a kid graded at several tryout dates gets ONE
+// combined grade — each session's head/assistant blend computed raw, then
+// averaged per category across sessions (every tryout counts equally), with a
+// single final rounding. Notes/positions come from the newest session carrying
+// them. With one session this degrades exactly to combinedTryoutGradeForSignup.
+export const unifiedTryoutGradeForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+): any | null => {
+  if (!signupId) return null;
+  const graded = gradedSessionsFor(sessions, signupId);
+  if (graded.length === 0) return null;
+  const blends = graded
+    .map((s) => rawSessionBlend(s, signupId))
+    .filter(Boolean) as Record<string, any>[];
+  if (blends.length === 0) return null;
+  const out: Record<string, any> = {};
+  const keys = new Set<string>();
+  blends.forEach((b) => Object.keys(b).forEach((k) => keys.add(k)));
+  for (const key of keys) {
+    if (key === "notes" || key === "suggestedPositions") {
+      // blends[] is newest-first — take the freshest note/position set.
+      const newest = blends.find((b) => b[key]);
+      if (newest) out[key] = newest[key];
+      continue;
+    }
+    const vals = blends.map((b) => b[key]).filter((v) => typeof v === "number");
+    if (vals.length) out[key] = vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+  return roundGrade(out);
 };
 
 export const evaluatorTryoutGradeForSignup = (
@@ -451,8 +493,11 @@ export const applyMissingTryoutNumbers = <
 // doesn't care who held it — so measurement-derived grades override the
 // subjective blend for their categories (and are exempt from head-vs-assistant
 // weighting by construction: they live on the signup, not in any evaluator's
-// grade map). Returns null only when there is neither a grade nor a
-// measurement.
+// grade map).
+//
+// By default the blend UNIFIES every tryout the kid attended (the multi-tryout
+// fold) — pass an explicit `date` to scope to a single tryout. Returns null
+// only when there is neither a grade nor a measurement.
 export const tryoutGradeWithMeasurements = (
   sessions: any[] | null | undefined,
   signup:
@@ -463,11 +508,9 @@ export const tryoutGradeWithMeasurements = (
   date?: string,
 ): any | null => {
   if (!signup?.id) return null;
-  const blend = combinedTryoutGradeForSignup(
-    sessions,
-    signup.id,
-    date ?? signup.tryoutDate,
-  );
+  const blend = date
+    ? combinedTryoutGradeForSignup(sessions, signup.id, date)
+    : unifiedTryoutGradeForSignup(sessions, signup.id);
   const measured = measurementGrades(signup.measurements, teamAge);
   if (Object.keys(measured).length === 0) return blend;
   return { ...(blend || {}), ...measured };

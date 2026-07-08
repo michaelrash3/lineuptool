@@ -5,6 +5,7 @@ import {
   nextTryoutNumber,
   applyMissingTryoutNumbers,
   tryoutGradeWithMeasurements,
+  unifiedTryoutGradeForSignup,
 } from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
@@ -317,5 +318,74 @@ describe("tryoutGradeWithMeasurements — the definitive overlay", () => {
     expect(
       tryoutGradeWithMeasurements(sessions, { id: "nobody" }, "10U"),
     ).toBeNull();
+  });
+});
+
+describe("unifiedTryoutGradeForSignup — the multi-tryout fold", () => {
+  const twoSessions = [
+    {
+      id: "tryout-2026-08-01",
+      date: "2026-08-01",
+      updatedAt: 100,
+      gradesByEvaluator: {
+        h1: { coachRole: "Head", grades: { s1: { approach: 2 } } },
+      },
+    },
+    {
+      id: "tryout-2026-08-08",
+      date: "2026-08-08",
+      updatedAt: 200,
+      gradesByEvaluator: {
+        h1: {
+          coachRole: "Head",
+          grades: { s1: { approach: 5, notes: "second look: much better" } },
+        },
+      },
+    },
+  ];
+
+  it("averages a kid's tryouts equally into one grade (single rounding)", () => {
+    // (2 + 5) / 2 = 3.5 → 4, rounded exactly once.
+    expect(unifiedTryoutGradeForSignup(twoSessions, "s1").approach).toBe(4);
+    // The per-date view still shows the single latest session (5).
+    expect(
+      combinedTryoutGradeForSignup(twoSessions, "s1", "2026-08-08").approach,
+    ).toBe(5);
+  });
+
+  it("takes notes from the newest session that has them", () => {
+    expect(unifiedTryoutGradeForSignup(twoSessions, "s1").notes).toBe(
+      "second look: much better",
+    );
+  });
+
+  it("degrades to the single-session blend when the kid attended one tryout", () => {
+    const one = [twoSessions[0]];
+    expect(unifiedTryoutGradeForSignup(one, "s1")).toEqual(
+      combinedTryoutGradeForSignup(one, "s1"),
+    );
+  });
+
+  it("feeds tryoutGradeWithMeasurements by default (no date → unified)", () => {
+    const grade = tryoutGradeWithMeasurements(
+      twoSessions,
+      { id: "s1", tryoutDate: "2026-08-01" },
+      "10U",
+    );
+    // Unified fold (4), NOT the signup's own date's session (2).
+    expect(grade.approach).toBe(4);
+    // Explicit date scopes to that tryout.
+    expect(
+      tryoutGradeWithMeasurements(
+        twoSessions,
+        { id: "s1", tryoutDate: "2026-08-01" },
+        "10U",
+        "2026-08-01",
+      ).approach,
+    ).toBe(2);
+  });
+
+  it("returns null for an ungraded kid", () => {
+    expect(unifiedTryoutGradeForSignup(twoSessions, "nobody")).toBeNull();
   });
 });
