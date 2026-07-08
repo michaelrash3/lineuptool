@@ -34,7 +34,6 @@ interface UseMainShellRoutingArgs {
   selectedGameId: string | null;
   setSelectedGameId: (id: string | null) => void;
   isAssistant: boolean;
-  tryoutsOpen: boolean;
   location: { pathname: string };
   navigate: (path: string) => void;
 }
@@ -47,64 +46,42 @@ export const useMainShellRouting = ({
   selectedGameId,
   setSelectedGameId,
   isAssistant,
-  tryoutsOpen,
   location,
   navigate,
 }: UseMainShellRoutingArgs) => {
+  // Tryouts is a standing destination — always in the order. `tryoutsOpen`
+  // only governs whether the PUBLIC form accepts submissions, never whether a
+  // coach can reach the tab (dates, share links, and intake controls live
+  // there year-round).
   const tabOrder = useMemo(
     () =>
       isAssistant
-        ? tryoutsOpen
-          ? [
-              "home",
-              "roster",
-              "schedule",
-              "practices",
-              "stats",
-              "depthChart",
-              "tryouts",
-              "evaluation",
-            ]
-          : [
-              "home",
-              "roster",
-              "schedule",
-              "practices",
-              "stats",
-              "depthChart",
-              "evaluation",
-            ]
-        : tryoutsOpen
-          ? [
-              "home",
-              "roster",
-              "schedule",
-              "practices",
-              "stats",
-              "depthChart",
-              "tryouts",
-              "interest",
-              "playerInfo",
-              "availability",
-              "evaluation",
-              "finances",
-              "settings",
-            ]
-          : [
-              "home",
-              "roster",
-              "schedule",
-              "practices",
-              "stats",
-              "depthChart",
-              "interest",
-              "playerInfo",
-              "availability",
-              "evaluation",
-              "finances",
-              "settings",
-            ],
-    [isAssistant, tryoutsOpen],
+        ? [
+            "home",
+            "roster",
+            "schedule",
+            "practices",
+            "stats",
+            "depthChart",
+            "tryouts",
+            "evaluation",
+          ]
+        : [
+            "home",
+            "roster",
+            "schedule",
+            "practices",
+            "stats",
+            "depthChart",
+            "tryouts",
+            "interest",
+            "playerInfo",
+            "availability",
+            "evaluation",
+            "finances",
+            "settings",
+          ],
+    [isAssistant],
   );
 
   useEffect(() => {

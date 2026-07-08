@@ -76,399 +76,108 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
   );
 });
 
-// Tryouts settings panel — head-only. Generate the public share link,
-// toggle the public form open/closed, and configure roster cap for
-// impact analysis comparisons.
-const TryoutsSettingsPanel = memo(
-  ({
-    team,
-    updateTeam,
-    generateTryoutShareId,
-    setTryoutsOpen,
-    completeTryouts,
-    setRosterCap,
-    mirrorStale,
-    resyncPublicMirror,
-    toast,
-  }: any) => {
-    const shareId = team.tryoutShareId;
-    const open = team.tryoutsOpen === true;
-    const phase = team.tryoutsPhase || (open ? "open" : "intake_closed");
-    const cap = team.rosterCap || 12;
-    const shareUrl =
-      shareId && typeof window !== "undefined"
-        ? `${window.location.origin}/tryouts-portal/${shareId}`
-        : null;
-    return (
-      <div>
-        <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
-          <Icons.Users className="w-4 h-4" /> Tryouts
-        </h3>
-        <p className="text-[11px] text-ink-3 font-medium mb-3">
-          Manage one year-round <strong>Player Interest Link</strong>. Add
-          tryout dates here and they appear as a dropdown on that same form; if
-          no future dates are set, families can still submit general interest.
-        </p>
-        <div className="mb-4 space-y-3">
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-              Head coach phone (for offer letters)
-            </label>
-            <input
-              type="tel"
-              value={team.headCoachPhone || ""}
-              onChange={(e) => updateTeam?.({ headCoachPhone: e.target.value })}
-              placeholder="(555) 123-4567"
-              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
-            />
-            <p className="text-[10px] text-ink-3 font-medium mt-1">
-              Filled into the offer-letter drafts. Stays private — never shown
-              on the public tryouts page.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-                Coach Venmo account name
-              </label>
-              <input
-                type="text"
-                value={team.coachVenmoAccountName || ""}
-                onChange={(e) =>
-                  updateTeam?.({ coachVenmoAccountName: e.target.value })
-                }
-                placeholder="@CoachVenmo"
-                className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-                Coach Venmo link
-              </label>
-              <input
-                type="url"
-                value={team.coachVenmoLink || ""}
-                onChange={(e) =>
-                  updateTeam?.({ coachVenmoLink: e.target.value })
-                }
-                placeholder="https://venmo.com/u/CoachVenmo"
-                className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-                Coach name (public)
-              </label>
-              <input
-                type="text"
-                value={team.headCoachName || ""}
-                onChange={(e) =>
-                  updateTeam?.({ headCoachName: e.target.value })
-                }
-                placeholder="Coach Smith"
-                className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-                Coach email (public)
-              </label>
-              <input
-                type="email"
-                value={team.headCoachPublicEmail || ""}
-                onChange={(e) =>
-                  updateTeam?.({ headCoachPublicEmail: e.target.value })
-                }
-                placeholder="coach@team.com"
-                className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
-              />
-            </div>
-          </div>
-          <p className="text-[10px] text-ink-3 font-medium">
-            Shown on your public tryouts/interest page so families can reach
-            out. Leave blank to hide. Resync the public page after editing.
-          </p>
-        </div>
-        <div className="space-y-3">
-          {shareId ? (
-            <div className="cc-card p-3 space-y-2">
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-                Player Interest Link
-              </div>
-              <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
-                {shareUrl}
-              </code>
-              <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg
-                  value={shareUrl || ""}
-                  size={120}
-                  downloadable
-                  filename={`${team.name || "team"}-player-interest-qr`}
-                />
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (navigator.clipboard && shareUrl) {
-                          navigator.clipboard.writeText(shareUrl);
-                          toast.push({ kind: "success", title: "Link copied" });
-                        }
-                      }}
-                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => generateTryoutShareId?.()}
-                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                    >
-                      Regenerate
-                    </button>
-                  </div>
-                  <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    Always opens the year-round Interest Survey — works whether
-                    tryouts are open or not.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => generateTryoutShareId?.()}
-              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md"
-              style={{ backgroundColor: "var(--team-primary)" }}
-            >
-              Generate Player Interest Link
-            </button>
-          )}
-
-          <TryoutDatesPanel team={team} updateTeam={updateTeam} toast={toast} />
-
-          {/* Public-page sync status + manual repair. The portal parents see is
-              a sanitized mirror written client-side; if that write fails the
-              coach's links/branding can go stale silently. Surface it and offer
-              a one-tap resync. */}
-          <div
-            className={`bg-surface border rounded-xl p-3 flex items-start gap-3 ${
-              mirrorStale ? "border-warnfg" : "border-line"
-            }`}
-          >
-            <Icons.Alert
-              className={`w-4 h-4 mt-0.5 shrink-0 ${
-                mirrorStale ? "text-warnfg" : "text-ink-3"
-              }`}
-            />
-            <div className="flex-1 min-w-0">
-              <div className="text-[11px] font-black uppercase tracking-widest text-ink">
-                Public page sync
-              </div>
-              <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                {mirrorStale
-                  ? "The public tryout/interest page may be out of date. Resync to push your latest branding and dates."
-                  : "Parents see a sanitized copy of your branding + future tryout dates. Resync if a link, logo, or date looks stale."}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => resyncPublicMirror?.()}
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 shrink-0"
-            >
-              Resync
-            </button>
-          </div>
-
-          <label className="flex items-center justify-between bg-surface border border-line rounded-xl p-3 cursor-pointer">
-            <div>
-              <div className="text-xs font-black uppercase tracking-widest text-ink">
-                Tryouts Open
-              </div>
-              <div className="text-[11px] text-ink-3 font-medium">
-                {open
-                  ? "Public form is accepting signups."
-                  : "Public form is closed. Existing signups stay visible."}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setTryoutsOpen?.(!open)}
-              className={`shrink-0 w-11 h-6 rounded-full transition-colors relative ${
-                open ? "" : "bg-line-strong"
-              }`}
-              style={
-                open ? { backgroundColor: "var(--team-primary)" } : undefined
-              }
-              aria-label="Toggle tryouts open"
-            >
-              <span
-                className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-all ${
-                  open ? "left-5" : "left-0.5"
-                }`}
-              />
-            </button>
-          </label>
-
-          <div className="cc-card p-3 space-y-2">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-              Tryout lifecycle
-            </div>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setTryoutsOpen?.(false)}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-              >
-                Close Signups
-              </button>
-              <button
-                type="button"
-                onClick={() => completeTryouts?.()}
-                className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-md"
-                style={{
-                  backgroundColor: "var(--team-primary)",
-                  color: "var(--team-on-primary)",
-                }}
-              >
-                Complete Tryouts
-              </button>
-            </div>
-            <div className="text-[11px] text-ink-3 font-medium">
-              Current phase: <strong>{phase}</strong>
-            </div>
-          </div>
-
-          <label className="cc-card flex items-center justify-between p-3">
-            <div className="flex-1 min-w-0">
-              <div className="text-xs font-black uppercase tracking-widest text-ink">
-                Roster Cap
-              </div>
-              <div className="text-[11px] text-ink-3 font-medium">
-                Used by Impact Analysis to compute the cutoff returner.
-              </div>
-            </div>
-            <input
-              type="number"
-              min={5}
-              max={30}
-              value={cap}
-              onChange={(e) => setRosterCap?.(e.target.value)}
-              className="shrink-0 w-16 text-center px-2 py-1 text-sm font-black bg-surface border border-line rounded-md"
-            />
-          </label>
-        </div>
-      </div>
-    );
-  },
-);
-
-const TryoutDatesPanel = memo(({ team, updateTeam, toast }: any) => {
-  const [date, setDate] = useState("");
-  const today = new Date().toISOString().slice(0, 10);
-  const dates: string[] = Array.isArray(team.tryoutDates)
-    ? Array.from(
-        new Set<string>(
-          team.tryoutDates
-            .map((d: any) => String(d || "").trim())
-            .filter(Boolean),
-        ),
-      ).sort()
-    : [];
-  const futureDates = dates.filter((d) => d >= today);
-
-  const saveDates = (nextDates: string[]) => {
-    const cleaned = Array.from(
-      new Set<string>(
-        nextDates.map((d) => String(d || "").trim()).filter(Boolean),
-      ),
-    ).sort();
-    updateTeam?.({ tryoutDates: cleaned });
-  };
-
+// Tryouts settings panel — head-only. Coach identity/contact used by offer
+// letters and the public page. The OPERATIONAL controls (share link, dates,
+// open/close, lifecycle, roster cap) live in the Tryouts tab
+// (components/TryoutControlsPanel.tsx).
+const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
   return (
-    <div className="cc-card p-3 space-y-3">
-      <div>
-        <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-          Tryout dates
-        </div>
-        <p className="text-[10px] font-medium text-ink-3 leading-snug mt-1">
-          Add one or more dates. Future dates appear in the Player Interest form
-          dropdown; past dates are hidden from families automatically.
-        </p>
-      </div>
-      <div className="flex gap-2 items-end">
-        <div className="flex-1">
+    <div>
+      <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+        <Icons.Users className="w-4 h-4" /> Tryouts
+      </h3>
+      <p className="text-[11px] text-ink-3 font-medium mb-3">
+        Coach contact used on offer letters and the public interest page.
+      </p>
+      <div className="mb-4 space-y-3">
+        <div>
           <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
-            Tryout Date
+            Head coach phone (for offer letters)
           </label>
           <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full px-3 py-2 bg-surface border border-line rounded-lg"
+            type="tel"
+            value={team.headCoachPhone || ""}
+            onChange={(e) => updateTeam?.({ headCoachPhone: e.target.value })}
+            placeholder="(555) 123-4567"
+            className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
           />
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (!date) {
-              toast.push({ kind: "warn", title: "Enter a tryout date first" });
-              return;
-            }
-            saveDates([...dates, date]);
-            setDate("");
-            toast.push({ kind: "success", title: "Tryout date added" });
-          }}
-          className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-md"
-          style={{
-            backgroundColor: "var(--team-primary)",
-            color: "var(--team-on-primary)",
-          }}
-        >
-          Add Date
-        </button>
-      </div>
-      {dates.length > 0 ? (
-        <div className="space-y-1.5">
-          {dates.map((d: any) => {
-            const isPast = String(d) < today;
-            return (
-              <div
-                key={d}
-                className="flex items-center gap-2 bg-app border border-line rounded-lg px-3 py-2"
-              >
-                <span className="text-xs font-black text-ink tabular-nums flex-1">
-                  {d}
-                </span>
-                <span
-                  className={`text-[9px] font-black uppercase tracking-widest ${isPast ? "text-ink-3" : "text-ok"}`}
-                >
-                  {isPast ? "Hidden" : "Visible"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => saveDates(dates.filter((x: any) => x !== d))}
-                  className="px-2 py-1 text-[10px] font-black uppercase tracking-widest text-loss hover:bg-loss-bg rounded-md"
-                >
-                  Remove
-                </button>
-              </div>
-            );
-          })}
-          <p className="text-[10px] text-ink-3 font-medium">
-            {futureDates.length} future date
-            {futureDates.length === 1 ? "" : "s"} will show on the public form.
+          <p className="text-[10px] text-ink-3 font-medium mt-1">
+            Filled into the offer-letter drafts. Stays private — never shown on
+            the public tryouts page.
           </p>
         </div>
-      ) : (
-        <div className="text-[11px] text-ink-3 font-medium bg-app border border-line rounded-lg p-3">
-          No tryout dates set. The Player Interest link still accepts general
-          interest submissions.
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+              Coach Venmo account name
+            </label>
+            <input
+              type="text"
+              value={team.coachVenmoAccountName || ""}
+              onChange={(e) =>
+                updateTeam?.({ coachVenmoAccountName: e.target.value })
+              }
+              placeholder="@CoachVenmo"
+              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+              Coach Venmo link
+            </label>
+            <input
+              type="url"
+              value={team.coachVenmoLink || ""}
+              onChange={(e) => updateTeam?.({ coachVenmoLink: e.target.value })}
+              placeholder="https://venmo.com/u/CoachVenmo"
+              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+            />
+          </div>
         </div>
-      )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+              Coach name (public)
+            </label>
+            <input
+              type="text"
+              value={team.headCoachName || ""}
+              onChange={(e) => updateTeam?.({ headCoachName: e.target.value })}
+              placeholder="Coach Smith"
+              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+              Coach email (public)
+            </label>
+            <input
+              type="email"
+              value={team.headCoachPublicEmail || ""}
+              onChange={(e) =>
+                updateTeam?.({ headCoachPublicEmail: e.target.value })
+              }
+              placeholder="coach@team.com"
+              className="w-full p-2.5 bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold"
+            />
+          </div>
+        </div>
+        <p className="text-[10px] text-ink-3 font-medium">
+          Shown on your public tryouts/interest page so families can reach out.
+          Leave blank to hide. Resync the public page after editing.
+        </p>
+      </div>
+      {/* Operational tryout controls (share link, dates, open/close,
+            lifecycle, roster cap) moved INTO the Tryouts tab so running a
+            tryout never detours through Settings. */}
+      <div className="bg-surface border border-line rounded-xl p-3 flex items-start gap-3">
+        <Icons.Users className="w-4 h-4 mt-0.5 shrink-0 text-ink-3" />
+        <p className="text-[11px] text-ink-3 font-medium leading-snug">
+          Tryout dates, the share link, and intake controls now live in the{" "}
+          <strong className="text-ink">Tryouts tab</strong> under “Tryout
+          setup”.
+        </p>
+      </div>
     </div>
   );
 });
@@ -1559,17 +1268,7 @@ export const SettingsTab = memo(() => {
               )}
 
               {settingsMenu === "tryouts" && (
-                <TryoutsSettingsPanel
-                  team={team}
-                  updateTeam={updateTeam}
-                  generateTryoutShareId={generateTryoutShareId}
-                  setTryoutsOpen={setTryoutsOpen}
-                  completeTryouts={completeTryouts}
-                  setRosterCap={setRosterCap}
-                  mirrorStale={mirrorStale}
-                  resyncPublicMirror={resyncPublicMirror}
-                  toast={toast}
-                />
+                <TryoutsSettingsPanel team={team} updateTeam={updateTeam} />
               )}
 
               {settingsMenu === "staff" && (

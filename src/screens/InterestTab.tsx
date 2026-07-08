@@ -5,6 +5,7 @@ import { calculateBaseballAge } from "../utils/helpers";
 import { OfferLetterModal } from "../components/OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
 import { EmptyState } from "../components/shared";
+import { PortalShareCard } from "../components/PortalShareCard";
 
 // Player Interest Survey leads (year-round). Head-only screen.
 // Each row carries the parent's contact info, the kid's positions
@@ -56,15 +57,26 @@ export const InterestTab = memo(() => {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <div className="border-b border-line pb-5">
-          <h1 className="t-h2 flex items-center gap-3">
-            <Icons.Users className="w-6 h-6" /> Player Interest
-          </h1>
-          <p className="text-xs text-ink-2 font-medium mt-1.5">
-            Parents who submitted the year-round interest survey on your team
-            page. When tryouts open, "Move to Tryouts" promotes a lead into the
-            active tryout list.
-          </p>
+        <div className="border-b border-line pb-5 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="t-h2 flex items-center gap-3">
+              <Icons.Users className="w-6 h-6" /> Player Interest
+            </h1>
+            <p className="text-xs text-ink-2 font-medium mt-1.5">
+              Parents who submitted the year-round interest survey on your team
+              page. When tryouts open, "Move to Tryouts" promotes a lead into
+              the active tryout list.
+            </p>
+          </div>
+          <PortalShareCard
+            team={team}
+            path="tryouts-portal"
+            eyebrow="Interest"
+            title="Player Interest Form"
+            buttonLabel="Interest Form"
+            description="Send to families year-round — general interest any time, plus a tryout-date dropdown whenever future dates are set."
+            filenameSuffix="player-interest"
+          />
         </div>
         <div className="pt-5 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">

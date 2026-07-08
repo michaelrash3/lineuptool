@@ -36,6 +36,14 @@ describe("InterestTab", () => {
     expect(screen.getByText(/no interest signups yet/i)).toBeInTheDocument();
   });
 
+  it("surfaces the Interest Form share link in the header", async () => {
+    const user = userEvent.setup();
+    setup({ interestSignups: [], tryoutShareId: "abc123" });
+    await user.click(screen.getByRole("button", { name: /interest form/i }));
+    // The modal shows the standing portal URL for this team.
+    expect(screen.getByText(/tryouts-portal\/abc123/)).toBeInTheDocument();
+  });
+
   it("hides the list from assistants (head-only screen)", () => {
     setup({ interestSignups: [lead()] }, { currentRole: "assistant" });
     expect(
