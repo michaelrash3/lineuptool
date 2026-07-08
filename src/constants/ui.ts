@@ -54,6 +54,40 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     weight: 2.5,
     description: "Pitch selection, two-strike battles, situational hitting.",
   },
+  // Power is measurable — the tryout showcase seeds it from exit velo
+  // (age-banded chart); coaches grade it by eye in regular rounds.
+  {
+    id: "power",
+    label: "Power",
+    group: "Hitting",
+    weight: 1.5,
+    description:
+      "Exit velocity / hard contact. Seeded from showcase exit velo.",
+  },
+  // Fielding tools — these ids were always in the grade schema (v2 card);
+  // re-surfaced so the tryout showcase's measured stations have a home.
+  {
+    id: "glove",
+    label: "Fielding",
+    group: "Fielding",
+    weight: 2.0,
+    description: "Ground balls and fly balls. Seeded from showcase fielding.",
+  },
+  {
+    id: "armStrength",
+    label: "Arm Strength",
+    group: "Fielding",
+    weight: 1.5,
+    description: "Throwing velocity. Seeded from showcase max throw velo.",
+  },
+  {
+    id: "armAccuracy",
+    label: "Accuracy",
+    group: "Fielding",
+    weight: 1.0,
+    description:
+      "On-target throws; for pitchers, seeded from showcase strikes-of-10.",
+  },
   // Athleticism — Speed and Base Running are graded SEPARATELY: raw foot speed
   // is a different tool than reads/instincts on the bases.
   {
@@ -160,6 +194,7 @@ export const velocityBenchmarkForAge = (teamAge?: string): VeloBenchmark =>
 
 export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Hitting",
+  "Fielding",
   "Baserunning",
   "Intangibles",
 ];

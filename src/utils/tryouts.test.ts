@@ -4,6 +4,7 @@ import {
   normalizeTryoutSessions,
   nextTryoutNumber,
   applyMissingTryoutNumbers,
+  tryoutGradeWithMeasurements,
 } from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
@@ -257,5 +258,64 @@ describe("tryout numbers", () => {
       const signups = [s("a", "1", "2026-08-01"), s("b", "2", "2026-08-01")];
       expect(applyMissingTryoutNumbers(signups)).toBe(signups);
     });
+  });
+});
+
+describe("tryoutGradeWithMeasurements — the definitive overlay", () => {
+  const sessions = [
+    {
+      id: "tryout-2026-08-01",
+      date: "2026-08-01",
+      updatedAt: 100,
+      gradesByEvaluator: {
+        h1: {
+          coachRole: "Head",
+          grades: { s1: { power: 2, approach: 4 } },
+        },
+      },
+    },
+  ];
+
+  it("measured stations OVERRIDE the subjective blend for their categories", () => {
+    const grade = tryoutGradeWithMeasurements(
+      sessions,
+      {
+        id: "s1",
+        tryoutDate: "2026-08-01",
+        // 10U exit velo 57 → power 5, beating the head's eyeballed 2.
+        measurements: { exitVeloMph: 57 },
+      },
+      "10U",
+    );
+    expect(grade.power).toBe(5);
+    // Non-measured categories keep the subjective blend.
+    expect(grade.approach).toBe(4);
+  });
+
+  it("returns the plain blend when nothing was measured", () => {
+    const grade = tryoutGradeWithMeasurements(
+      sessions,
+      { id: "s1", tryoutDate: "2026-08-01" },
+      "10U",
+    );
+    expect(grade).toEqual({ power: 2, approach: 4 });
+  });
+
+  it("grades an UNGRADED kid from measurements alone", () => {
+    const grade = tryoutGradeWithMeasurements(
+      sessions,
+      {
+        id: "walk-up",
+        measurements: { runToFirstSec: 4.0, maxThrowVeloMph: 56 },
+      },
+      "10U",
+    );
+    expect(grade).toEqual({ speed: 5, armStrength: 5 });
+  });
+
+  it("null when there is neither a grade nor a measurement", () => {
+    expect(
+      tryoutGradeWithMeasurements(sessions, { id: "nobody" }, "10U"),
+    ).toBeNull();
   });
 });

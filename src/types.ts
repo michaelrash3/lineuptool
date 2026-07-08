@@ -280,6 +280,22 @@ export interface Practice {
   status?: "scheduled" | "cancelled";
 }
 
+// Objective showcase measurements recorded at a tryout station. SHARED and
+// DEFINITIVE: they live on the signup itself (not inside any coach's grade
+// map), so whichever coach runs the radar gun / stopwatch, every evaluator
+// sees the same numbers and they are exempt from head-vs-assistant grade
+// weighting. All optional — an unrecorded station never penalizes a player.
+export interface TryoutMeasurements {
+  pitchMph?: number; // top fastball, radar
+  runToFirstSec?: number; // home-to-first over the age's basepath
+  maxThrowVeloMph?: number; // hardest throw, any position (not pitch velo)
+  exitVeloMph?: number; // hardest batted ball off the tee/toss
+  pitchStrikes?: number; // strikes thrown out of pitchAttempts
+  pitchAttempts?: number; // default 10
+  fieldingGround?: number; // coach 1–5 eyeball grade
+  fieldingFly?: number; // coach 1–5 eyeball grade
+}
+
 export interface TryoutSignup {
   id: string;
   submittedAt: string;
@@ -312,6 +328,9 @@ export interface TryoutSignup {
   // delete via the End Tryout flow). Missing → not yet marked.
   present?: boolean;
   tryoutNumber?: string;
+  // Objective showcase-station numbers (see TryoutMeasurements) — shared
+  // across all evaluators, definitive over subjective grade blending.
+  measurements?: TryoutMeasurements;
 }
 
 // Year-round "I might want to try out" interest. Separate collection

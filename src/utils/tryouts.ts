@@ -2,6 +2,8 @@
 // helpers.ts. Pure functions over the tryout/session/signup shapes — no
 // React, no Firestore.
 
+import { measurementGrades } from "../constants/showcaseBenchmarks";
+
 // Player Info submissions arrive from the public portal append-only (the
 // security rules forbid the anonymous client from replacing array entries), so
 // a parent who resubmits — e.g. to correct a shirt size — stacks a second entry
@@ -442,4 +444,31 @@ export const applyMissingTryoutNumbers = <
       ? { ...s, tryoutNumber: assigned.get(s.id) }
       : s,
   );
+};
+
+// The full tryout grade for a signup: the subjective HC/AC blend PLUS the
+// measured showcase overlay. Measured stations are DEFINITIVE — a radar gun
+// doesn't care who held it — so measurement-derived grades override the
+// subjective blend for their categories (and are exempt from head-vs-assistant
+// weighting by construction: they live on the signup, not in any evaluator's
+// grade map). Returns null only when there is neither a grade nor a
+// measurement.
+export const tryoutGradeWithMeasurements = (
+  sessions: any[] | null | undefined,
+  signup:
+    | { id?: string; tryoutDate?: string; measurements?: any }
+    | null
+    | undefined,
+  teamAge?: string,
+  date?: string,
+): any | null => {
+  if (!signup?.id) return null;
+  const blend = combinedTryoutGradeForSignup(
+    sessions,
+    signup.id,
+    date ?? signup.tryoutDate,
+  );
+  const measured = measurementGrades(signup.measurements, teamAge);
+  if (Object.keys(measured).length === 0) return blend;
+  return { ...(blend || {}), ...measured };
 };

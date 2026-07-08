@@ -12,6 +12,7 @@ import {
 import {
   combinedTryoutGradeForSignup,
   normalizeTryoutSessions,
+  tryoutGradeWithMeasurements,
 } from "./tryouts";
 
 // A compact objective-stat hint for an eval category, so a coach grades with
@@ -323,7 +324,15 @@ export const buildPreseasonSeedRound = (
   endingEvents: any[],
   returningPlayers: any[],
   promotedPlayers: any[],
-  meta: { date: string; evaluatorId?: string; tryoutSessions?: any[] },
+  meta: {
+    date: string;
+    evaluatorId?: string;
+    tryoutSessions?: any[];
+    // The tryout signups the promoted players came from — carries the shared
+    // showcase measurements that overlay the subjective grade blend.
+    tryoutSignups?: any[];
+    teamAge?: string;
+  },
 ): any | null => {
   const grades: Record<string, any> = {};
 
@@ -346,10 +355,22 @@ export const buildPreseasonSeedRound = (
   const tryoutSessions =
     meta.tryoutSessions ||
     normalizeTryoutSessions({ evaluationEvents: endingEvents });
+  const signupById = new Map(
+    (meta.tryoutSignups || [])
+      .filter((s: any) => s?.id)
+      .map((s: any) => [s.id, s]),
+  );
   for (const p of promotedPlayers || []) {
     const sid = p?.tryoutSignupId;
     if (!sid || !p?.id) continue;
-    const g = combinedTryoutGradeForSignup(tryoutSessions, sid);
+    // Subjective blend + the DEFINITIVE measured-showcase overlay (exit velo →
+    // power, run time → speed, max throw → armStrength, …). Measured values
+    // override the blend for their categories; the coach can still edit the
+    // seeded round afterward.
+    const signup = signupById.get(sid);
+    const g = signup
+      ? tryoutGradeWithMeasurements(tryoutSessions, signup, meta.teamAge)
+      : combinedTryoutGradeForSignup(tryoutSessions, sid);
     if (g && typeof g === "object" && Object.keys(g).length > 0) {
       grades[p.id] = { ...g };
     }

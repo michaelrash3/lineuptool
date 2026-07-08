@@ -140,6 +140,46 @@ describe("TryoutsTab", () => {
     );
   });
 
+  it("records a showcase measurement from the expanded card (shared, definitive)", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    const saveTryoutMeasurements = jest.fn();
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          tryoutSignups: [
+            {
+              id: "s1",
+              firstName: "Ava",
+              lastName: "Best",
+              submittedAt: "2026-07-01T00:00:00.000Z",
+              tryoutDate: "2026-08-01",
+            },
+          ],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+          teamAge: "10U",
+        },
+        user: { uid: "u1" },
+        currentRole: "assistant", // any coach records measured data
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation: jest.fn(),
+        saveTryoutMeasurements,
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    // 10U basepath context shows on the showcase header.
+    expect(screen.getByText(/over 65 ft basepaths/)).toBeInTheDocument();
+    const exit = screen.getByLabelText("Ava Best Exit velo");
+    fireEvent.change(exit, { target: { value: "57" } });
+    fireEvent.blur(exit);
+    expect(saveTryoutMeasurements).toHaveBeenCalledWith("s1", {
+      exitVeloMph: 57,
+    });
+  });
+
   it("hides the setup controls from assistants", () => {
     renderWithProviders(<TryoutsTab />, {
       team: {
