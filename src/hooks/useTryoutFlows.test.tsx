@@ -123,6 +123,45 @@ describe("useTryoutFlows", () => {
     });
   });
 
+  it("assignTryoutNumbers numbers the LATEST signups — a parent registration after the coach's snapshot still gets one", () => {
+    const { result, updateTeamArrays } = setup({
+      tryoutSignups: [
+        {
+          id: "s1",
+          tryoutDate: "2026-08-01",
+          submittedAt: "2026-07-01T00:00:00.000Z",
+        },
+      ],
+    });
+    act(() => result.current.assignTryoutNumbers());
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSignups" });
+    // Apply the emitted map over a LATER state that gained a portal signup the
+    // coach's snapshot never saw — both get numbered, resolve-once style.
+    const latest = applyTeamOps(
+      {
+        tryoutSignups: [
+          {
+            id: "s1",
+            tryoutDate: "2026-08-01",
+            submittedAt: "2026-07-01T00:00:00.000Z",
+          },
+          {
+            id: "portal-late",
+            tryoutDate: "2026-08-01",
+            submittedAt: "2026-07-02T00:00:00.000Z",
+          },
+        ],
+      },
+      op,
+    );
+    const byId = Object.fromEntries(
+      latest.tryoutSignups.map((s: any) => [s.id, s.tryoutNumber]),
+    );
+    expect(byId.s1).toBe("1");
+    expect(byId["portal-late"]).toBe("2");
+  });
+
   it("acceptTryout (default) holds the signup for next season without adding a player", () => {
     const { result, teamData, updateTeamArrays, toast } = setup({
       tryoutSignups: [

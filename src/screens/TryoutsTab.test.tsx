@@ -87,6 +87,59 @@ describe("TryoutsTab", () => {
     expect(screen.getByText(/Tryout setup — dates, link/)).toBeInTheDocument();
   });
 
+  it("coach-adds a walk-up with an auto-assigned tryout number", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    const appendTryoutSignup = jest.fn();
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          // #1 taken on this date → the walk-up gets #2.
+          tryoutSignups: [
+            {
+              id: "s1",
+              firstName: "A",
+              lastName: "B",
+              submittedAt: "2026-07-01T00:00:00.000Z",
+              tryoutDate: "2026-08-01",
+              tryoutNumber: "1",
+            },
+          ],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+          tryoutDates: ["2026-08-01"],
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        appendTryoutSignup,
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation: jest.fn(),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /\+ Add Player/i }));
+    fireEvent.change(screen.getByLabelText("First name"), {
+      target: { value: "Walk" },
+    });
+    fireEvent.change(screen.getByLabelText("Last name"), {
+      target: { value: "Up" },
+    });
+    fireEvent.change(screen.getByLabelText("Tryout date"), {
+      target: { value: "2026-08-01" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Add Player$/ }));
+    expect(appendTryoutSignup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstName: "Walk",
+        lastName: "Up",
+        tryoutDate: "2026-08-01",
+        tryoutNumber: "2",
+        present: true,
+      }),
+    );
+  });
+
   it("hides the setup controls from assistants", () => {
     renderWithProviders(<TryoutsTab />, {
       team: {

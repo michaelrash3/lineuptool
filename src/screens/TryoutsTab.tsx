@@ -16,6 +16,7 @@ import {
   normalizeTryoutSessions,
   combinedTryoutGradeForSignup,
   evaluatorTryoutGradeForSignup,
+  nextTryoutNumber,
 } from "../utils/helpers";
 import { A11yDialog, EmptyState } from "../components/shared";
 import { TryoutControlsPanel } from "../components/TryoutControlsPanel";
@@ -717,7 +718,9 @@ export const TryoutsTab = memo(() => {
     user,
     currentRole,
     updateFinances,
+    appendTryoutSignup,
     updateTryoutSignup,
+    assignTryoutNumbers,
     deleteTryoutSignup,
     deleteTryoutSignups,
     acceptTryout,
@@ -751,6 +754,54 @@ export const TryoutsTab = memo(() => {
   // The HC's day-of cleanup pattern — assign numbers to who showed,
   // mark the rest absent, then tap End Tryout to wipe no-shows.
   const [endTryoutOpen, setEndTryoutOpen] = useState(false);
+  // Coach walk-up entry: a kid shows up without registering through the
+  // portal. The coach adds them on the spot; a tryout number is stamped
+  // automatically (next free number in that date's pool).
+  const [addOpen, setAddOpen] = useState(false);
+  const blankAddForm = {
+    firstName: "",
+    lastName: "",
+    dob: "",
+    tryoutDate: "",
+    parentName: "",
+    phone: "",
+    notes: "",
+  };
+  const [addForm, setAddForm] = useState(blankAddForm);
+  const submitAddPlayer = () => {
+    const firstName = addForm.firstName.trim();
+    const lastName = addForm.lastName.trim();
+    if (!firstName || !lastName) {
+      toast.push({ kind: "warn", title: "First and last name are required" });
+      return;
+    }
+    const tryoutDate = addForm.tryoutDate || undefined;
+    const tryoutNumber = nextTryoutNumber(tryoutSignups || [], tryoutDate);
+    appendTryoutSignup?.({
+      firstName,
+      lastName,
+      dob: addForm.dob || undefined,
+      tryoutDate,
+      parentName: addForm.parentName.trim() || undefined,
+      phone: addForm.phone.trim() || undefined,
+      notes: addForm.notes.trim() || undefined,
+      // Walk-ups are physically here — mark present and number them now.
+      present: true,
+      tryoutNumber,
+    });
+    toast.push({
+      kind: "success",
+      title: `${firstName} ${lastName} added`,
+      message: `Tryout number #${tryoutNumber}`,
+    });
+    setAddForm(blankAddForm);
+    setAddOpen(false);
+  };
+  // Any signup still missing a number → offer the one-tap assigner.
+  const unnumberedCount = (tryoutSignups || []).filter((s: TryoutSignup) => {
+    const n = parseInt(String(s?.tryoutNumber || ""), 10);
+    return !(Number.isFinite(n) && n > 0);
+  }).length;
 
   const filtered = useMemo(() => {
     let list: TryoutSignup[] = tryoutSignups || [];
@@ -1029,6 +1080,37 @@ export const TryoutsTab = memo(() => {
                 {s}
               </button>
             ))}
+            {isHead && (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg shadow-sm"
+                style={{
+                  backgroundColor: "var(--team-primary)",
+                  color: "var(--team-on-primary)",
+                }}
+                title="Add a walk-up who didn't register through the portal"
+              >
+                + Add Player
+              </button>
+            )}
+            {isHead && unnumberedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  assignTryoutNumbers?.();
+                  toast.push({
+                    kind: "success",
+                    title: "Tryout numbers assigned",
+                    message: `${unnumberedCount} player${unnumberedCount === 1 ? "" : "s"} numbered`,
+                  });
+                }}
+                className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2"
+                title="Give every un-numbered signup the next free number for their tryout date"
+              >
+                Assign #s ({unnumberedCount})
+              </button>
+            )}
             {filtered.length > 0 && (
               <button
                 type="button"
@@ -1045,7 +1127,7 @@ export const TryoutsTab = memo(() => {
             <EmptyState
               glyph="⭐"
               title="No Signups Yet"
-              body="Share the public form link from Settings to start collecting tryout signups."
+              body="Share the public form link from Tryout setup above, or add walk-ups with + Add Player."
             />
           ) : (
             <div className="space-y-2">
@@ -1356,6 +1438,143 @@ export const TryoutsTab = memo(() => {
         )}
       </div>
       {/* end desktop grid */}
+
+      {addOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setAddOpen(false)}
+        >
+          <A11yDialog
+            label="Add tryout player"
+            onClose={() => setAddOpen(false)}
+            className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+          >
+            <div
+              className="p-1.5"
+              style={{ backgroundColor: "var(--team-primary)" }}
+            />
+            <div className="p-5 sm:p-6 space-y-3">
+              <div>
+                <h3 className="t-h3 mb-1">Add tryout player</h3>
+                <p className="text-xs text-ink-3 font-medium">
+                  For walk-ups who didn't register through the portal. A tryout
+                  number is assigned automatically.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={addForm.firstName}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, firstName: e.target.value }))
+                  }
+                  placeholder="First name *"
+                  aria-label="First name"
+                  className="px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                />
+                <input
+                  type="text"
+                  value={addForm.lastName}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, lastName: e.target.value }))
+                  }
+                  placeholder="Last name *"
+                  aria-label="Last name"
+                  className="px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+                    Date of birth
+                  </span>
+                  <input
+                    type="date"
+                    value={addForm.dob}
+                    onChange={(e) =>
+                      setAddForm((f) => ({ ...f, dob: e.target.value }))
+                    }
+                    aria-label="Date of birth"
+                    className="w-full px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                  />
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-black uppercase tracking-widest text-ink-3 mb-1">
+                    Tryout date
+                  </span>
+                  <select
+                    value={addForm.tryoutDate}
+                    onChange={(e) =>
+                      setAddForm((f) => ({ ...f, tryoutDate: e.target.value }))
+                    }
+                    aria-label="Tryout date"
+                    className="w-full px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                  >
+                    <option value="">No date</option>
+                    {(team.tryoutDates || []).map((d: string) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={addForm.parentName}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, parentName: e.target.value }))
+                  }
+                  placeholder="Parent name"
+                  aria-label="Parent name"
+                  className="px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                />
+                <input
+                  type="tel"
+                  value={addForm.phone}
+                  onChange={(e) =>
+                    setAddForm((f) => ({ ...f, phone: e.target.value }))
+                  }
+                  placeholder="Parent phone"
+                  aria-label="Parent phone"
+                  className="px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                />
+              </div>
+              <input
+                type="text"
+                value={addForm.notes}
+                onChange={(e) =>
+                  setAddForm((f) => ({ ...f, notes: e.target.value }))
+                }
+                placeholder="Notes (positions, where they came from…)"
+                aria-label="Notes"
+                className="w-full px-3 py-2 text-sm bg-surface border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+              />
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(false)}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={submitAddPlayer}
+                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: "var(--team-primary)",
+                    color: "var(--team-on-primary)",
+                  }}
+                >
+                  Add Player
+                </button>
+              </div>
+            </div>
+          </A11yDialog>
+        </div>
+      )}
 
       {endTryoutOpen && (
         <div
