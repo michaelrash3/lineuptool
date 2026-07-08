@@ -765,7 +765,8 @@ const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
     <div className="cc-card p-4 sm:p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
         <h3 className="t-h3 flex items-center gap-2">
-          <Icons.Clipboard className="w-4 h-4" /> Roster Projection
+          <Icons.Clipboard className="w-4 h-4" /> Roster Projection — all
+          tryouts
         </h3>
         <span className="t-eyebrow text-ink-3">
           {roster.returningYesCount} returning yes · {roster.returningNoCount}{" "}
@@ -776,6 +777,11 @@ const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
           · {roster.slotsRemaining} open of {roster.rosterCap}
         </span>
       </div>
+      <p className="t-meta text-ink-3">
+        One board across every tryout date: a kid graded at multiple tryouts
+        folds into a single row (each tryout counts equally; measured showcase
+        numbers stay definitive).
+      </p>
       {roster.returningUnknownCount > 0 && (
         <p className="text-xs text-warnfg font-bold bg-warn-bg border border-line rounded-lg px-3 py-2">
           Confirmed Yes returners and accepted tryouts are locked. Unknown
@@ -917,6 +923,8 @@ export const TryoutsTab = memo(() => {
     () => new Set(),
   );
   const [statusFilter, setStatusFilter] = useState("all");
+  // Per-tryout-date view of the signup list ("all" = the unified board).
+  const [dateFilter, setDateFilter] = useState("all");
   const [search, setSearch] = useState("");
   // Two-tap confirm on signup delete — the trash icon previously fired
   // deleteTryoutSignup on first click with no guard, which was a real
@@ -977,10 +985,27 @@ export const TryoutsTab = memo(() => {
     return !(Number.isFinite(n) && n > 0);
   }).length;
 
+  // The distinct tryout dates present in the signup list — the per-date view
+  // chips. Only offered when there's more than one date to switch between.
+  const signupDates = useMemo(
+    () =>
+      [
+        ...new Set(
+          (tryoutSignups || [])
+            .map((s: TryoutSignup) => String(s.tryoutDate || "").trim())
+            .filter(Boolean),
+        ),
+      ].sort(),
+    [tryoutSignups],
+  );
+
   const filtered = useMemo(() => {
     let list: TryoutSignup[] = tryoutSignups || [];
     if (statusFilter !== "all") {
       list = list.filter((s) => (s.status || "tryout") === statusFilter);
+    }
+    if (dateFilter !== "all") {
+      list = list.filter((s) => (s.tryoutDate || "") === dateFilter);
     }
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -998,7 +1023,7 @@ export const TryoutsTab = memo(() => {
           new Date(b.submittedAt || 0).getTime() -
           new Date(a.submittedAt || 0).getTime(),
       );
-  }, [tryoutSignups, statusFilter, search]);
+  }, [tryoutSignups, statusFilter, dateFilter, search]);
 
   const isHead = currentRole !== "assistant";
 
@@ -1254,6 +1279,30 @@ export const TryoutsTab = memo(() => {
                 {s}
               </button>
             ))}
+            {signupDates.length > 1 && (
+              <div className="flex items-center gap-1 flex-wrap">
+                {["all", ...signupDates].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDateFilter(d)}
+                    aria-pressed={dateFilter === d}
+                    title={
+                      d === "all"
+                        ? "All tryout dates (the unified board)"
+                        : `Only the ${d} tryout`
+                    }
+                    className={`px-2 py-1.5 text-[10px] font-black tabular-nums rounded-md border ${
+                      dateFilter === d
+                        ? "bg-surface-2 border-line-strong text-ink"
+                        : "bg-surface border-line text-ink-3 hover:bg-surface-2"
+                    }`}
+                  >
+                    {d === "all" ? "All dates" : d.slice(5)}
+                  </button>
+                ))}
+              </div>
+            )}
             {isHead && (
               <button
                 type="button"
