@@ -987,15 +987,15 @@ export const TryoutsTab = memo(() => {
 
   // The distinct tryout dates present in the signup list — the per-date view
   // chips. Only offered when there's more than one date to switch between.
-  const signupDates = useMemo(
+  const signupDates = useMemo<string[]>(
     () =>
-      [
-        ...new Set(
-          (tryoutSignups || [])
-            .map((s: TryoutSignup) => String(s.tryoutDate || "").trim())
+      Array.from(
+        new Set<string>(
+          ((tryoutSignups || []) as TryoutSignup[])
+            .map((s) => String(s.tryoutDate || "").trim())
             .filter(Boolean),
         ),
-      ].sort(),
+      ).sort(),
     [tryoutSignups],
   );
 
