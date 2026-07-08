@@ -387,3 +387,92 @@ export const inferCategory = (
   }
   return "other";
 };
+
+// ---- Revenue taxonomy (money IN) --------------------------------------------
+// docs/finance-categories.md PR3: a SEPARATE, accountant-grade list for where
+// money comes FROM, distinct from the spend categories above (where money
+// goes). Club-fee payments are implicitly "Registration & dues" — they're
+// tracked per player in Collections and never carry a picker; the taxonomy
+// applies to income entries (sponsorships, fundraisers, donations, …).
+
+export type RevenueCategoryId =
+  | "dues"
+  | "sponsorship"
+  | "fundraiser"
+  | "donation"
+  | "grant"
+  | "concessions"
+  | "merchandise"
+  | "winnings"
+  | "interest"
+  | "other-income";
+
+// Declaration order = display order of the by-source rollup.
+export const REVENUE_CATEGORIES: Array<{
+  id: RevenueCategoryId;
+  label: string;
+}> = [
+  { id: "dues", label: "Registration & dues" },
+  { id: "sponsorship", label: "Sponsorships" },
+  { id: "fundraiser", label: "Fundraisers" },
+  { id: "donation", label: "Donations" },
+  { id: "grant", label: "Grants" },
+  { id: "concessions", label: "Concessions & snack bar" },
+  { id: "merchandise", label: "Merchandise & spirit wear" },
+  { id: "winnings", label: "Tournament winnings" },
+  { id: "interest", label: "Interest income" },
+  { id: "other-income", label: "Other income" },
+];
+
+const REVENUE_LABELS: Record<RevenueCategoryId, string> = Object.fromEntries(
+  REVENUE_CATEGORIES.map((c) => [c.id, c.label]),
+) as Record<RevenueCategoryId, string>;
+
+export const revenueCategoryLabel = (id: RevenueCategoryId): string =>
+  REVENUE_LABELS[id] || "Other income";
+
+// Keyword inference for legacy/untagged income entries — mirrors
+// inferCategory on the spend side. First matching source wins; order puts
+// the more specific sources ahead of the generic ones.
+const REVENUE_KEYWORD_RULES: Array<[RevenueCategoryId, string[]]> = [
+  ["dues", ["dues", "registration", "team fee", "club fee", "deposit"]],
+  ["sponsorship", ["sponsor", "banner"]],
+  ["concessions", ["concession", "snack bar", "snack-bar"]],
+  [
+    "merchandise",
+    ["spirit wear", "spiritwear", "merch", "apparel sale", "t-shirt", "tshirt"],
+  ],
+  ["grant", ["grant"]],
+  ["winnings", ["winnings", "prize", "payout", "purse"]],
+  ["interest", ["interest"]],
+  [
+    "fundraiser",
+    [
+      "fundrais",
+      "car wash",
+      "carwash",
+      "raffle",
+      "50/50",
+      "bake sale",
+      "bottle",
+      "can drive",
+      "coupon",
+      "restaurant night",
+      "carried over", // season carryover rides in as prior-year money
+    ],
+  ],
+  ["donation", ["donat", "gift", "booster"]],
+];
+
+export const inferRevenueCategory = (
+  label: string | null | undefined,
+): RevenueCategoryId => {
+  const s = String(label || "")
+    .trim()
+    .toLowerCase();
+  if (!s) return "other-income";
+  for (const [cat, kws] of REVENUE_KEYWORD_RULES) {
+    if (kws.some((k) => s.includes(k))) return cat;
+  }
+  return "other-income";
+};

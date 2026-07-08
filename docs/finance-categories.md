@@ -1,11 +1,12 @@
 # Design: youth-baseball finance categories (staged)
 
-_Status: **PR1 + PR2 shipped.** PR1 added a non-breaking preset catalog (quick-pick
-chips + free-text autocomplete). PR2 adds a structured `category` on budget items
-and rolls spending up **by category** (budget-vs-actual per area, the spending
-donut). Still non-breaking: `category` is optional and inferred from the label
-when absent, so legacy items and untagged entries roll up without a migration
-write._
+_Status: **PR1 + PR2 + PR3 shipped.** PR1 added a non-breaking preset catalog
+(quick-pick chips + free-text autocomplete). PR2 adds a structured `category` on
+budget items and rolls spending up **by category** (budget-vs-actual per area,
+the spending donut). PR3 adds the other half of the books: a separate **revenue**
+taxonomy and a **money-in-by-source** rollup. All non-breaking: categories are
+optional and inferred from the label when absent, so legacy items and untagged
+entries roll up without a migration write._
 
 ## The need
 
@@ -76,7 +77,40 @@ absent it's inferred at read time, so legacy items and untagged entries roll up
 without ever rewriting the stored doc. A coach who wants a specific area just
 picks it; otherwise the inference keeps the rollup meaningful.
 
-**Deliberately out of scope:** income/fundraising keeps its existing structure
+~~**Deliberately out of scope:** income/fundraising keeps its existing structure
 (the `fundraising` / `sponsor` flags), so categories cover the spend side only.
 A future refinement could categorize income too if a by-source income report is
-wanted.
+wanted.~~ _That refinement is PR3, below._
+
+## PR3 — revenue taxonomy + by-source income accounting (shipped)
+
+The accounting ask: **two separate lists — a taxonomy for money in and one for
+money out** — so a year-end reader sees where every dollar came from and where
+every dollar went. Spend (PR2) is untouched; PR3 adds the revenue side.
+
+- **`src/constants/financeCategories.ts`** — the revenue taxonomy, deliberately
+  distinct from `FinanceCategoryId`: `RevenueCategoryId` + `REVENUE_CATEGORIES`
+  (display order) — Registration & dues, Sponsorships, Fundraisers, Donations,
+  Grants, Concessions & snack bar, Merchandise & spirit wear, Tournament
+  winnings, Interest income, Other income — plus `revenueCategoryLabel` and
+  `inferRevenueCategory(label)` (keyword heuristics mirroring `inferCategory`;
+  every `INCOME_LABEL_SUGGESTIONS` entry resolves to a real source).
+- **`src/types.ts`** — optional `IncomeEntry.category?: RevenueCategoryId`.
+  Club-fee `PaymentEntry` rows stay implicitly "Registration & dues" — no
+  per-payment picker; the tracker already knows what they are.
+- **`src/utils/finances.ts`** — read helpers, same non-destructive pattern:
+  - `incomeCategory(entry)` = stored source, else inferred from the label.
+  - `incomeByCategory(finances)` = money in per source (canonical order, only
+    sources with money). Family payments post to **dues net of refunds**;
+    income entries bucket by their stored-or-inferred source.
+- **`src/screens/FinancesTab.tsx`** — a **Revenue source** `<select>` on the
+  money-in ledger form ("Source: auto" defers to inference; resets after each
+  add) and a **Money in by source** panel in the Cash Flow column beside the
+  spending donut — the two accountant lists, in and out, side by side. The
+  source is available on every money-in entry regardless of what's on the
+  budget, so next season's books start categorized.
+
+Tests: revenue-catalog integrity + `inferRevenueCategory` in
+`financeCategories.test.ts`; `incomeCategory` / `incomeByCategory` (dues net of
+refunds, stored-vs-inferred, canonical order, empty book) in `finances.test.ts`;
+source tagging + picker reset + the by-source panel in `FinancesTab.test.tsx`.

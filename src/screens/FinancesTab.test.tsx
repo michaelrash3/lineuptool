@@ -811,6 +811,57 @@ describe("FinancesTab", () => {
     });
   });
 
+  it("tags a money-in entry with a revenue source; the picker resets after add", () => {
+    const { teamValue } = renderWithProviders(<FinancesTab />, {
+      team: { team: baseTeam },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Money in" }));
+    fireEvent.change(screen.getByLabelText("Revenue source"), {
+      target: { value: "grant" },
+    });
+    fireEvent.change(screen.getByLabelText("Transaction description"), {
+      target: { value: "County rec grant" },
+    });
+    fireEvent.change(screen.getByLabelText("Transaction amount"), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    const patch = { finances: appliedFinances(teamValue) };
+    expect(patch.finances.incomes[1]).toMatchObject({
+      label: "County rec grant",
+      amount: 500,
+      category: "grant",
+    });
+    // The picker snaps back to auto, so the next entry stores no source and
+    // falls through to label inference at read time.
+    expect(
+      (screen.getByLabelText("Revenue source") as HTMLSelectElement).value,
+    ).toBe("");
+    fireEvent.change(screen.getByLabelText("Transaction description"), {
+      target: { value: "Mystery money" },
+    });
+    fireEvent.change(screen.getByLabelText("Transaction amount"), {
+      target: { value: "10" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    const second = appliedFinances(teamValue, 1);
+    expect(second.incomes[1]).toMatchObject({ label: "Mystery money" });
+    expect(second.incomes[1].category).toBeUndefined();
+  });
+
+  it("cash flow rolls up money in by source — dues plus inferred income", () => {
+    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    // Ava's $100 team fee posts to dues; the untagged "Hardware sponsorship"
+    // income infers its source from the label.
+    const heading = screen.getByText("Money in by source");
+    const panel = heading.parentElement!.parentElement as HTMLElement;
+    expect(within(panel).getByText("Registration & dues")).toBeInTheDocument();
+    expect(within(panel).getByText("$100")).toBeInTheDocument();
+    expect(within(panel).getByText("Sponsorships")).toBeInTheDocument();
+    expect(within(panel).getByText("$60")).toBeInTheDocument();
+    expect(within(panel).getByText("$160")).toBeInTheDocument(); // total
+  });
+
   it("anticipated player count drives the suggested-fee split", () => {
     const { teamValue } = renderWithProviders(<FinancesTab />, {
       team: { team: baseTeam },

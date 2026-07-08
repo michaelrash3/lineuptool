@@ -2,9 +2,12 @@
 // constructs these shapes ad-hoc; tightening them would cascade through
 // thousands of lines. Use `Partial<...>` or extend as needed.
 
-// Category taxonomy lives with the catalog it mirrors (type-only import — no
-// runtime cycle: the constants module imports nothing from here).
-import type { FinanceCategoryId } from "./constants/financeCategories";
+// Category taxonomies live with the catalog they mirror (type-only import — no
+// runtime cycle: the constants module imports only types from here).
+import type {
+  FinanceCategoryId,
+  RevenueCategoryId,
+} from "./constants/financeCategories";
 
 export type PlayerId = string;
 
@@ -605,6 +608,11 @@ export interface IncomeEntry extends FinanceAttribution {
   date: string; // ISO yyyy-mm-dd
   label: string;
   amount: number;
+  // Revenue source for by-source accounting (docs/finance-categories.md PR3).
+  // Optional and non-breaking: absent entries infer from the label at read
+  // time (see incomeCategory in utils/finances.ts). Club-fee payments are
+  // implicitly "Registration & dues" and never carry this field.
+  category?: RevenueCategoryId;
   // Fundraising entries reduce what families still owe on THIS season's club
   // fee. Unattributed, they split evenly across paying players (a car wash that
   // nets $300 on a 12-payer roster knocks $25 off everyone's dues). Attributed

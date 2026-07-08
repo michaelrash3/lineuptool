@@ -9,6 +9,9 @@ import {
   groupToCategory,
   categoryLabel,
   inferCategory,
+  REVENUE_CATEGORIES,
+  revenueCategoryLabel,
+  inferRevenueCategory,
 } from "./financeCategories";
 
 describe("BUDGET_PRESETS", () => {
@@ -110,5 +113,50 @@ describe("inferCategory", () => {
     expect(inferCategory(null)).toBe("other");
     expect(inferCategory("Misc widget 42")).toBe("team-events"); // 'misc' keyword
     expect(inferCategory("zxcv")).toBe("other");
+  });
+});
+
+describe("revenue categories", () => {
+  it("is a separate list from the spend taxonomy with unique labelled ids", () => {
+    const ids = REVENUE_CATEGORIES.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of REVENUE_CATEGORIES) {
+      expect(revenueCategoryLabel(c.id)).toBe(c.label);
+    }
+    // No overlap with the spend-side ids — two lists, in vs out.
+    const spendIds = new Set(FINANCE_CATEGORIES.map((c) => c.id as string));
+    for (const id of ids) expect(spendIds.has(id)).toBe(false);
+    expect(ids).toContain("dues");
+    expect(ids[ids.length - 1]).toBe("other-income"); // catch-all last
+  });
+});
+
+describe("inferRevenueCategory", () => {
+  it("maps every income suggestion to a real source (never the catch-all)", () => {
+    for (const s of INCOME_LABEL_SUGGESTIONS) {
+      expect(inferRevenueCategory(s)).not.toBe("other-income");
+    }
+  });
+
+  it("resolves common income labels by keyword", () => {
+    expect(inferRevenueCategory("Team banner sponsor")).toBe("sponsorship");
+    expect(inferRevenueCategory("Spring registration")).toBe("dues");
+    expect(inferRevenueCategory("spirit wear sale")).toBe("merchandise"); // case-insensitive
+    expect(inferRevenueCategory("Concessions & snack bar")).toBe("concessions");
+    expect(inferRevenueCategory("Restaurant fundraiser night")).toBe(
+      "fundraiser",
+    );
+    expect(inferRevenueCategory("50/50 draw")).toBe("fundraiser");
+    expect(inferRevenueCategory("Booster club gift")).toBe("donation");
+    expect(inferRevenueCategory("Tournament prize payout")).toBe("winnings");
+    expect(inferRevenueCategory("Bank interest")).toBe("interest");
+    expect(inferRevenueCategory("County rec grant")).toBe("grant");
+  });
+
+  it("returns 'other-income' for blank or unrecognizable labels", () => {
+    expect(inferRevenueCategory("")).toBe("other-income");
+    expect(inferRevenueCategory(null)).toBe("other-income");
+    expect(inferRevenueCategory(undefined)).toBe("other-income");
+    expect(inferRevenueCategory("zxcv")).toBe("other-income");
   });
 });
