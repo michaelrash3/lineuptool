@@ -16,6 +16,7 @@ import {
 } from "../utils/helpers";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
+import { featureEnabled } from "../constants/features";
 import { useTeam, useUI } from "../contexts";
 import { LeaderboardCard, EmptyState } from "../components/shared";
 import { WeatherWidget } from "../components/WeatherWidget";
@@ -1591,7 +1592,12 @@ export const UpNextPanel = memo(
         }
 
         // ----- Team Fees: deposit + full fee -----
-        const fees = teamFeesStatus(finances, players);
+        // Suppressed when the Finances feature is switched off in Settings —
+        // the card's "Collect" CTA targets a tab that no longer exists, and a
+        // coach who turned money-tracking off doesn't want money nags.
+        const fees = featureEnabled(team, "finances")
+          ? teamFeesStatus(finances, players)
+          : teamFeesStatus(undefined, players);
         if (
           fees.depositAmount > 0 &&
           fees.depositOwedCount > 0 &&
@@ -1638,6 +1644,7 @@ export const UpNextPanel = memo(
       isHead,
       promptStatus,
       todayStr,
+      team,
       setActiveTab,
       setSelectedGameId,
       setOpponentName,
@@ -2061,7 +2068,9 @@ export const HomeTab = memo(() => {
 
       <UpcomingWeekSection
         games={games}
-        practices={practices}
+        // Practices switched off in Settings → the strip shows games only
+        // (a practice card would deep-link into a tab that no longer exists).
+        practices={featureEnabled(team, "practices") ? practices : []}
         todayStr={todayStr}
         onOpenGame={() => setActiveTab("schedule")}
         onOpenPractices={() => setActiveTab("practices")}

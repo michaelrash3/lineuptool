@@ -139,6 +139,62 @@ describe("HomeTab", () => {
     expect(screen.getByText("vs Bears")).toBeInTheDocument();
   });
 
+  it("suppresses dashboard surfaces that deep-link into disabled features", () => {
+    // A team with an in-window practice AND pressing unpaid team fees. With
+    // Practices/Finances switched off in Settings, the "This Week" practice
+    // card and the fee-nag Up Next card must both disappear — their CTAs
+    // would deep-link into tabs that no longer exist. Games stay.
+    const richTeam = (disabledFeatures?: string[]) => ({
+      ...emptyTeam,
+      ...(disabledFeatures ? { disabledFeatures } : {}),
+      players: [{ id: "p1", name: "Ava Rivera", stats: { ab: 4, h: 2 } }],
+      games: [
+        {
+          id: "g2",
+          date: "2026-06-19",
+          status: "draft",
+          opponent: "Bears",
+          time: "10:00",
+        },
+      ],
+      practices: [{ id: "pr1", date: "2026-06-18", location: "Field 4" }],
+      finances: {
+        clubFee: 100,
+        feeDueDate: "2026-06-25", // 7 days out → inside the 14-day nag window
+        payments: [],
+      },
+    });
+    const mount = (disabled?: string[]) =>
+      renderWithProviders(<HomeTab />, {
+        team: {
+          team: richTeam(disabled),
+          teams: [{ id: "t1", name: "Hawks" }],
+          activeTeamId: "t1",
+          record: { wins: 0, losses: 0, ties: 0 },
+          user: { uid: "u1" },
+          currentRole: "head",
+        },
+        ui: {
+          setIsAddingGame: jest.fn(),
+          setIsAddingPlayer: jest.fn(),
+          openPlayerProfile: jest.fn(),
+          setActiveTab: jest.fn(),
+        },
+      });
+
+    // Everything on: both surfaces render.
+    const first = mount();
+    expect(screen.getByText(/Practice · Field 4/)).toBeInTheDocument();
+    expect(screen.getByText(/in team fees outstanding/)).toBeInTheDocument();
+    first.unmount();
+
+    // Practices + Finances off: both surfaces gone, the game card stays.
+    mount(["practices", "finances"]);
+    expect(screen.queryByText(/Practice · Field 4/)).toBeNull();
+    expect(screen.queryByText(/in team fees outstanding/)).toBeNull();
+    expect(screen.getByText("vs Bears")).toBeInTheDocument();
+  });
+
   it("hides the split when only one format has games (no redundancy)", () => {
     renderWithProviders(<HomeTab />, {
       team: {
