@@ -5,7 +5,8 @@ import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList, getCombinedGrades } from "../lineupEngine";
 import {
   getEvalCategoriesForPlayer,
-  EVAL_SCALE_DEFAULT,
+  TRYOUT_GRADE_CATEGORIES,
+  EVAL_SCALE_LABELS,
   leftHandedPitcherRosterPremium,
   isLeftHandedThrower,
 } from "../constants/ui";
@@ -17,7 +18,11 @@ import {
   evaluatorTryoutGradeForSignup,
   nextTryoutNumber,
 } from "../utils/helpers";
-import { tryoutGradeWithMeasurements } from "../utils/tryouts";
+import {
+  tryoutGradeWithMeasurements,
+  evaluatorEntriesForSignup,
+  type TryoutEvaluatorEntry,
+} from "../utils/tryouts";
 import {
   scoreMeasurement,
   scorePitchAccuracy,
@@ -204,6 +209,64 @@ const ShowcasePanel = memo(
             {gradeSelect("fieldingFly", "Field FB")}
           </div>
         </div>
+      </div>
+    );
+  },
+);
+
+// Every coach's saved read on one kid, visible to the whole staff. At a real
+// tryout coaches split up by station and each records only what they saw —
+// tryoutSessions live on the shared team doc, so nothing is private here and
+// a coach who graded nothing still sees everyone else's numbers.
+const CoachEvalsPanel = memo(
+  ({
+    entries,
+    currentUid,
+  }: {
+    entries: TryoutEvaluatorEntry[];
+    currentUid?: string | null;
+  }) => {
+    if (!entries.length) return null;
+    return (
+      <div className="mt-2 rounded-lg border border-line bg-surface-2/40 p-2.5 space-y-1.5">
+        <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
+          Coach evals — shared across the staff
+        </div>
+        <ul className="space-y-1">
+          {entries.map((e) => {
+            const hitting = e.grade?.approach;
+            const who =
+              e.evaluatorName ||
+              (e.coachRole === "Head" ? "Head coach" : "Assistant");
+            return (
+              <li
+                key={`${e.evaluatorId}-${e.date || ""}`}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs"
+              >
+                <span className="font-black text-ink">
+                  {who}
+                  {e.evaluatorId === currentUid ? " (you)" : ""}
+                </span>
+                <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3">
+                  {e.coachRole}
+                </span>
+                {typeof hitting === "number" && (
+                  <span className="font-bold tabular-nums text-ink-2">
+                    Hitting {hitting}
+                    {EVAL_SCALE_LABELS[hitting - 1]
+                      ? ` · ${EVAL_SCALE_LABELS[hitting - 1]}`
+                      : ""}
+                  </span>
+                )}
+                {e.grade?.notes ? (
+                  <span className="italic text-ink-3">
+                    &ldquo;{e.grade.notes}&rdquo;
+                  </span>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
       </div>
     );
   },
@@ -1073,35 +1136,10 @@ export const TryoutsTab = memo(() => {
     () => getActivePositionList(defenseSize),
     [defenseSize],
   );
-  const evalPlayerForSignup = (
-    signup: TryoutSignup,
-    grade: TryoutGrade = {},
-  ) => ({
-    comfortablePositions:
-      Array.isArray(grade?.suggestedPositions) &&
-      grade.suggestedPositions.length
-        ? grade.suggestedPositions
-        : Array.isArray(signup?.comfortablePositions)
-          ? signup.comfortablePositions
-          : signup?.isCatcher
-            ? ["C"]
-            : [],
-  });
-  const activeCategoriesForSignup = (
-    signup: TryoutSignup,
-    grade: TryoutGrade = {},
-  ) =>
-    getEvalCategoriesForPlayer(
-      pitchingFormat,
-      evalPlayerForSignup(signup, grade),
-    );
-  const seedCategories = useMemo(
-    () =>
-      getEvalCategoriesForPlayer(pitchingFormat, {
-        comfortablePositions: ["P", "C"],
-      }),
-    [pitchingFormat],
-  );
+  // The tryout card hand-grades ONE thing: hitting. Everything measurable is
+  // recorded at the showcase stations (shared + definitive), and those band
+  // scores flow into the ranking and preseason seed on their own — so the old
+  // full-catalog grid was pure duplication of the stations right above it.
 
   const [localGradesBySignup, setLocalGradesBySignup] = useState<
     Record<string, TryoutGrade>
@@ -1122,12 +1160,13 @@ export const TryoutsTab = memo(() => {
             user.uid,
             signup.tryoutDate,
           ) ?? {};
+        // Seed ONLY what this coach actually recorded — no default filling.
+        // The old seed stamped a 3 into EVERY category, so a station coach
+        // who tapped Save recorded a wall of fake average grades for tools
+        // they never watched, dragging down the blend of coaches who did.
         const seeded: TryoutGrade = {};
-        for (const c of seedCategories)
-          seeded[c.id] =
-            c.inputKind === "mph"
-              ? seed[c.id]
-              : (seed[c.id] ?? EVAL_SCALE_DEFAULT);
+        for (const c of TRYOUT_GRADE_CATEGORIES)
+          if (seed[c.id] != null) seeded[c.id] = seed[c.id];
         if (seed.notes) seeded.notes = seed.notes;
         if (Array.isArray(seed.suggestedPositions))
           seeded.suggestedPositions = seed.suggestedPositions;
@@ -1135,7 +1174,7 @@ export const TryoutsTab = memo(() => {
       }
       return next;
     });
-  }, [user, tryoutSignups, tryoutSessions, seedCategories]);
+  }, [user, tryoutSignups, tryoutSessions]);
 
   const updateLocalSignupGrades = (
     signupId: string,
@@ -1163,11 +1202,33 @@ export const TryoutsTab = memo(() => {
       };
     });
 
+  // Only what the coach actually recorded gets saved: null/blank entries are
+  // dropped, and a save with nothing recorded writes nothing — a station coach
+  // can never stamp phantom grades onto a kid they didn't watch.
+  const compactGrade = (grade: TryoutGrade | undefined): TryoutGrade => {
+    const out: TryoutGrade = {};
+    for (const [key, val] of Object.entries(grade || {})) {
+      if (val == null || val === "") continue;
+      if (Array.isArray(val) && val.length === 0) continue;
+      out[key] = val;
+    }
+    return out;
+  };
+
   const saveTryoutEval = (signup: TryoutSignup) => {
     if (!signup) return;
+    const grades = compactGrade(localGradesBySignup[signup.id]);
+    if (Object.keys(grades).length === 0) {
+      toast.push({
+        kind: "info",
+        title: "Nothing recorded yet",
+        message: "Grade hitting, add a note, or tag positions first.",
+      });
+      return;
+    }
     saveTryoutEvaluation?.(
       signup.id,
-      localGradesBySignup[signup.id] || {},
+      grades,
       isHead ? "Head" : "Assistant",
       signup.tryoutDate,
     );
@@ -1175,17 +1236,21 @@ export const TryoutsTab = memo(() => {
   };
 
   const saveVisibleTryoutEvals = () => {
-    saveTryoutEvaluations?.(
-      filtered.map((signup) => ({
+    const entries = filtered
+      .map((signup) => ({
         signupId: signup.id,
         date: signup.tryoutDate,
-        grades: localGradesBySignup[signup.id] || {},
-      })),
-      isHead ? "Head" : "Assistant",
-    );
+        grades: compactGrade(localGradesBySignup[signup.id]),
+      }))
+      .filter((e) => Object.keys(e.grades).length > 0);
+    if (entries.length === 0) {
+      toast.push({ kind: "info", title: "Nothing recorded yet" });
+      return;
+    }
+    saveTryoutEvaluations?.(entries, isHead ? "Head" : "Assistant");
     toast.push({
       kind: "success",
-      title: `${filtered.length} tryout eval${filtered.length === 1 ? "" : "s"} saved`,
+      title: `${entries.length} tryout eval${entries.length === 1 ? "" : "s"} saved`,
     });
   };
 
@@ -1584,15 +1649,25 @@ export const TryoutsTab = memo(() => {
                               number: s.number,
                             }}
                             grades={localGradesBySignup[s.id] || {}}
-                            activeCategories={activeCategoriesForSignup(
-                              s,
-                              localGradesBySignup[s.id] || {},
-                            )}
+                            activeCategories={TRYOUT_GRADE_CATEGORIES}
                             positions={activePositions}
                             teamAge={teamAge}
+                            allowUnset
                             onGradeChange={setLocalGrade}
                             onPositionToggle={toggleLocalPos}
                             onNotesChange={setLocalNotes}
+                          />
+                          {/* Every coach's saved read on this kid — at a real
+                              tryout each coach works a station and records
+                              only what they saw, so the numbers transfer to
+                              the whole staff. */}
+                          <CoachEvalsPanel
+                            entries={evaluatorEntriesForSignup(
+                              tryoutSessions,
+                              s.id,
+                              s.tryoutDate,
+                            )}
+                            currentUid={user?.uid}
                           />
                           <div className="flex justify-end gap-2 mt-2">
                             <button

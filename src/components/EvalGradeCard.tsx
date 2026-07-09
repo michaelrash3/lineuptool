@@ -26,7 +26,7 @@ const EVAL_SUGGESTED_POSITIONS = [
 ];
 
 interface GradeChipRowProps {
-  value: number;
+  value: number | null;
   onChange: (n: number) => void;
   ariaLabel?: string;
 }
@@ -110,6 +110,10 @@ interface EvalGradeCardProps {
   rightSlot?: React.ReactNode;
   positions?: string[];
   teamAge?: string;
+  // When true, an ungraded 1–5 category renders with NO chip selected instead
+  // of pre-selecting the default 3 — used by the tryout card so a coach who
+  // never watched a station can't accidentally record an average grade.
+  allowUnset?: boolean;
 }
 
 export const EvalGradeCard = memo(
@@ -127,6 +131,7 @@ export const EvalGradeCard = memo(
     // pass `getActivePositionList(team.defenseSize)` from lineupEngine.
     positions = EVAL_SUGGESTED_POSITIONS,
     teamAge,
+    allowUnset = false,
   }: EvalGradeCardProps) => {
     const playerGrades = grades || {};
     return (
@@ -150,7 +155,7 @@ export const EvalGradeCard = memo(
             // Measurement fields (mph) have no 1–5 default — blank until set.
             const value = isMph
               ? playerGrades[cat.id]
-              : (playerGrades[cat.id] ?? DEFAULT_GRADE);
+              : (playerGrades[cat.id] ?? (allowUnset ? null : DEFAULT_GRADE));
             const hint = evalStatHint(cat.id, player.stats, player.pitching);
             const hasMph =
               value != null && value !== "" && Number.isFinite(Number(value));
@@ -191,6 +196,8 @@ export const EvalGradeCard = memo(
                         <span className="text-ink-3">—</span>
                       )}
                     </div>
+                  ) : value == null ? (
+                    <div className="text-xl font-black text-ink-3">—</div>
                   ) : (
                     <div className="text-xl font-black tabular-nums text-ink">
                       {value}

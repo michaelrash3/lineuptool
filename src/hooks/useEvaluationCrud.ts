@@ -1,25 +1,13 @@
 import { useCallback } from "react";
 import type { Firestore } from "firebase/firestore";
-import { evalRoundDateForSave, dateToIsoLocal, genId } from "../utils/helpers";
+import {
+  evalRoundDateForSave,
+  dateToIsoLocal,
+  genId,
+  coachLastNameOf,
+} from "../utils/helpers";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
 import type { EvaluationEvent, ToastContextValue } from "../types";
-
-// Pull a display-able last name from a Firebase auth user. Eval rounds
-// are tagged with this at save time so the head's "Mike · 2026-05-23"
-// label survives across devices and stale auth profiles. Falls back to
-// the email local-part, then to "Coach", before ever leaving the field
-// blank.
-const lastNameOfUser = (u: any) => {
-  const dn = (u?.displayName || "").trim();
-  if (dn) {
-    const parts = dn.split(/\s+/).filter(Boolean);
-    if (parts.length > 0) return parts[parts.length - 1];
-  }
-  const email = (u?.email || "").trim();
-  const local = email.split("@")[0];
-  if (local) return local;
-  return "Coach";
-};
 
 // Evaluation round CRUD extracted from App.tsx's TeamProvider. saveTeamEvaluation
 // reads the in-progress grades from the UI via the shared uiBridge ref (passed
@@ -116,7 +104,7 @@ export const useEvaluationCrud = ({
           e.coachRole === "Head" && e.evaluatorId === user.uid && e.date === d,
       );
     const roundDate = dateTaken(snapped) ? today : snapped;
-    const evaluatorName = lastNameOfUser(user);
+    const evaluatorName = coachLastNameOf(user);
     const newEvent: EvaluationEvent = {
       id: genId("ev"),
       date: roundDate,
@@ -163,7 +151,7 @@ export const useEvaluationCrud = ({
           createdAt: Date.now(),
           coachRole: "Assistant",
           evaluatorId: user.uid,
-          evaluatorName: lastNameOfUser(user),
+          evaluatorName: coachLastNameOf(user),
           grades,
         };
         // N assistants submitting during a live eval session all land — each
