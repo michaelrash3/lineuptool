@@ -22,27 +22,14 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog, PlayerAvatar } from "./shared";
 
-// Shell for the player profile: a full-page container when routed to
-// /player/:id (asPage), or the legacy centered dialog overlay otherwise.
-const ProfileShell = ({ asPage, onClose, children }: any) =>
-  asPage ? (
-    <div className="w-full max-w-2xl lg:max-w-none mx-auto flex flex-col">
-      {children}
-    </div>
-  ) : (
-    <div
-      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm overflow-y-auto"
-      onClick={onClose}
-    >
-      <A11yDialog
-        label="Player profile"
-        onClose={onClose}
-        className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
-      >
-        {children}
-      </A11yDialog>
-    </div>
-  );
+// Shell for the player profile page at /roster/:playerId. The profile is a
+// real routed page — the old centered dialog overlay is gone, so there is no
+// scrim, no dialog focus trap, and the document (not an inner box) scrolls.
+const ProfileShell = ({ children }: any) => (
+  <div className="w-full max-w-2xl lg:max-w-none mx-auto flex flex-col">
+    {children}
+  </div>
+);
 import {
   PROFILE_SECTIONS,
   STATS_TAB_KEYS,
@@ -555,7 +542,10 @@ const PastSeasonForm = memo(
    Shows a hand-rolled SVG line chart of that stat across seasons (current +
    any past-season entries that have data for it). For pitching stats, only
    plots seasons whose pitchingFormat === "Kid Pitch". */
-export const PlayerProfileModal = memo(({ asPage = false }: any) => {
+// The player profile — a routed PAGE (/roster/:playerId), not a modal. Every
+// open is a plain navigation, so browser/Android back, refresh, and deep
+// links all behave like any other page.
+const PlayerProfile = memo(() => {
   const navigate = useNavigate();
   const {
     team,
@@ -574,7 +564,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
   // Assistants only see this profile in view-only mode: edits, position
   // restrictions, and private contact info are head-only.
   const canEdit = currentRole !== "assistant";
-  const { viewingPlayerId, setViewingPlayerId } = useUI();
+  const { viewingPlayerId } = useUI();
   const toast = useToast();
   const {
     players,
@@ -821,18 +811,19 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
     setTrendStatKey(null);
     setShowReturningOffer(false);
     setShowNotReturning(false);
-    // In page mode the route owns the player id — navigate back to the roster;
-    // in dialog mode just clear the viewing id to dismiss the overlay.
-    if (asPage) {
-      navigate("/roster");
-    } else {
-      setViewingPlayerId(null);
-    }
+    // Real page semantics: go BACK to wherever the coach came from (roster,
+    // stats, a pitching panel…) instead of pushing a fresh /roster entry —
+    // pushing would leave the profile one Back-press away after closing,
+    // which is modal behavior. A deep link / fresh tab has no in-app history
+    // (react-router stamps state.idx = 0 on the first entry), so fall back
+    // to the roster.
+    if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
+    else navigate("/roster", { replace: true });
   };
 
   return (
     <>
-      <ProfileShell asPage={asPage} onClose={close}>
+      <ProfileShell>
         <div
           className="p-1.5"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -900,9 +891,14 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
           </div>
           <button
             onClick={close}
-            className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mr-2 -mt-2 absolute top-6 right-4 sm:relative sm:top-0 sm:right-0"
+            aria-label="Back"
+            title="Back"
+            className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mr-2 -mt-2 absolute top-6 right-4 sm:relative sm:top-0 sm:right-0 flex items-center gap-1"
           >
-            <Icons.X className="w-5 h-5" />
+            <Icons.ChevronLeft className="w-5 h-5" />
+            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">
+              Back
+            </span>
           </button>
         </div>
 
@@ -941,9 +937,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
 
         <div
           ref={scrollContainerRef}
-          className={`overflow-y-auto custom-scrollbar flex-1 ${
-            asPage ? "" : "bg-app/50"
-          }`}
+          className="overflow-y-auto custom-scrollbar flex-1"
         >
           {/* Desktop control-panel: the compact General Info becomes a right
               rail (lg:order-2) beside the data-dense main column; below lg
@@ -1949,7 +1943,7 @@ export const PlayerProfileModal = memo(({ asPage = false }: any) => {
               className="text-[10px] font-black uppercase tracking-widest text-white px-4 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
-              {asPage ? "Back to Roster" : "Close"}
+              Back
             </button>
           </div>
         </div>
@@ -2016,7 +2010,7 @@ export const PlayerProfilePage = memo(() => {
   }, [playerId, setViewingPlayerId]);
   return (
     <div className="w-full py-2">
-      <PlayerProfileModal asPage />
+      <PlayerProfile />
     </div>
   );
 });

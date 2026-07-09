@@ -419,7 +419,7 @@ export const StatTrendModal = memo(
 
 /* EvalTrendModal — see ./screens/EvaluationTab */
 
-// Compact per-stat trend grid for the PlayerProfileModal. One panel per
+// Compact per-stat trend grid for the player profile page. One panel per
 // tracked stat (AVG / OPS / OBP / H / RBI / HR) showing current value,
 // net delta over the last ~5 import snapshots, and a tiny sparkline.
 // Replaces the prior per-import row list, which surfaced every CSV upload

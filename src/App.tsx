@@ -281,7 +281,7 @@ const PracticesTab = lazy(() =>
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 15 · PlayerProfileModal — see ./components/modals.jsx
+   SECTION 15 · PlayerProfilePage — see ./components/modals.tsx
    SECTION 16 · AddPlayerModal     — see ./components/modals.jsx
 ============================================================================ */
 

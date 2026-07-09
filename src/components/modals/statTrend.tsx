@@ -1,5 +1,5 @@
 // Stat metadata + display formatting shared by the Season Stats tab, the
-// PlayerProfileModal, and the stat-trend charts. The chart components
+// player profile page, and the stat-trend charts. The chart components
 // themselves live in ./statTrendViz (lazy-loaded) so this module stays free
 // of the recharts dependency for the eager modals graph.
 export const PROFILE_SECTIONS = [
