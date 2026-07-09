@@ -253,8 +253,24 @@ describe("useTryoutFlows", () => {
     expect(session.gradesByEvaluator.u1).toMatchObject({
       evaluatorId: "u1",
       coachRole: "Head",
+      // Denormalized display name for the shared coach-evals panel; a bare
+      // uid-only auth user falls back to "Coach".
+      evaluatorName: "Coach",
     });
     expect(session.gradesByEvaluator.u1.grades.s1).toEqual({ fielding: 4 });
+  });
+
+  it("saveTryoutEvaluation stamps the coach's display last name for the staff panel", () => {
+    const { result, teamData, updateTeamArrays } = setup(
+      { tryoutSignups: [{ id: "s1", tryoutDate: "2026-06-18" }] },
+      { uid: "u1", displayName: "Mike Rash" },
+    );
+    act(() =>
+      result.current.saveTryoutEvaluation("s1", { approach: 4 }, "Head"),
+    );
+    const session = applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0])
+      .tryoutSessions[0];
+    expect(session.gradesByEvaluator.u1.evaluatorName).toBe("Rash");
   });
 
   it("saveTryoutEvaluation upserts against the LATEST sessions — a concurrent evaluator's session survives", () => {

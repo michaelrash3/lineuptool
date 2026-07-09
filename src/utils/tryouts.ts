@@ -356,6 +356,49 @@ export const unifiedTryoutGradeForSignup = (
   return roundGrade(out);
 };
 
+// Every evaluator's saved entry for a signup (optionally scoped to one tryout
+// date), newest session first, heads before assistants within a session. The
+// cross-coach visibility read: at a real tryout each coach works a station
+// and records only what they saw — this shows everyone's numbers to every
+// coach (tryoutSessions live on the shared team doc, so all members can read).
+export interface TryoutEvaluatorEntry {
+  evaluatorId: string;
+  coachRole: string;
+  evaluatorName?: string;
+  date?: string;
+  grade: Record<string, any>;
+}
+
+export const evaluatorEntriesForSignup = (
+  sessions: any[] | null | undefined,
+  signupId: string | null | undefined,
+  date?: string,
+): TryoutEvaluatorEntry[] => {
+  if (!signupId) return [];
+  const out: TryoutEvaluatorEntry[] = [];
+  for (const session of gradedSessionsFor(sessions, signupId, date)) {
+    const entries: TryoutEvaluatorEntry[] = [];
+    for (const eg of Object.values(session.gradesByEvaluator || {}) as any[]) {
+      const grade = eg?.grades?.[signupId];
+      if (!grade) continue;
+      entries.push({
+        evaluatorId: String(eg.evaluatorId || ""),
+        coachRole: eg.coachRole || "Assistant",
+        ...(eg.evaluatorName ? { evaluatorName: eg.evaluatorName } : {}),
+        date: session.date,
+        grade,
+      });
+    }
+    entries.sort(
+      (a, b) =>
+        Number(b.coachRole === "Head") - Number(a.coachRole === "Head") ||
+        (a.evaluatorName || "").localeCompare(b.evaluatorName || ""),
+    );
+    out.push(...entries);
+  }
+  return out;
+};
+
 export const evaluatorTryoutGradeForSignup = (
   sessions: any[] | null | undefined,
   signupId: string | null | undefined,

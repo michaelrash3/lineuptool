@@ -180,6 +180,162 @@ describe("TryoutsTab", () => {
     });
   });
 
+  it("hand-grades hitting ONLY — no duplicate rows for tools the showcase measures", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          tryoutSignups: [
+            {
+              id: "s1",
+              firstName: "Ava",
+              lastName: "Best",
+              submittedAt: "2026-07-01T00:00:00.000Z",
+              tryoutDate: "2026-08-01",
+            },
+          ],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+          teamAge: "10U",
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation: jest.fn(),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    // The single eye-test judgment.
+    expect(
+      screen.getByRole("radiogroup", { name: "Ava Best Hitting" }),
+    ).toBeInTheDocument();
+    // Everything measurable lives at the showcase stations — none of these
+    // may re-appear as hand grades (the old card duplicated all of them).
+    for (const dup of [
+      "Ava Best Power",
+      "Ava Best Speed",
+      "Ava Best Arm Strength",
+      "Ava Best Accuracy",
+      "Ava Best Fielding",
+      "Ava Best Base Running",
+      "Ava Best Baseball IQ",
+      "Ava Best Coachability",
+      "Ava Best Composure",
+    ]) {
+      expect(screen.queryByRole("radiogroup", { name: dup })).toBeNull();
+    }
+    // No second pitch-velo box outside the showcase panel.
+    expect(screen.queryByLabelText("Ava Best Pitch Velocity (mph)")).toBeNull();
+  });
+
+  it("saves ONLY what the coach recorded — an untouched card saves nothing", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    const saveTryoutEvaluation = jest.fn();
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          tryoutSignups: [
+            {
+              id: "s1",
+              firstName: "Ava",
+              lastName: "Best",
+              submittedAt: "2026-07-01T00:00:00.000Z",
+              tryoutDate: "2026-08-01",
+            },
+          ],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+          teamAge: "10U",
+        },
+        user: { uid: "u1" },
+        currentRole: "head",
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation,
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    // Nothing recorded → Save writes nothing (a station coach can never
+    // stamp phantom average grades onto a kid they didn't watch).
+    fireEvent.click(screen.getByRole("button", { name: "Save Eval" }));
+    expect(saveTryoutEvaluation).not.toHaveBeenCalled();
+    // Grade hitting → the save carries EXACTLY that (no default-3 flood).
+    fireEvent.click(
+      screen.getByRole("radio", { name: "Ava Best Hitting: 4 — Above Avg" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save Eval" }));
+    expect(saveTryoutEvaluation).toHaveBeenCalledWith(
+      "s1",
+      { approach: 4 },
+      "Head",
+      "2026-08-01",
+    );
+  });
+
+  it("shows every coach's saved eval on the card — station reads transfer to the whole staff", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    renderWithProviders(<TryoutsTab />, {
+      team: {
+        team: {
+          tryoutSignups: [
+            {
+              id: "s1",
+              firstName: "Ava",
+              lastName: "Best",
+              submittedAt: "2026-07-01T00:00:00.000Z",
+              tryoutDate: "2026-08-01",
+            },
+          ],
+          tryoutSessions: [
+            {
+              id: "tryout-2026-08-01",
+              date: "2026-08-01",
+              updatedAt: 2,
+              gradesByEvaluator: {
+                hc: {
+                  coachRole: "Head",
+                  evaluatorId: "hc",
+                  evaluatorName: "Rash",
+                  grades: { s1: { approach: 4, notes: "Barrels it" } },
+                },
+                ac: {
+                  coachRole: "Assistant",
+                  evaluatorId: "ac",
+                  evaluatorName: "Lee",
+                  grades: { s1: { approach: 2 } },
+                },
+              },
+            },
+          ],
+          evaluationEvents: [],
+          defenseSize: 9,
+          pitchingFormat: "Kid Pitch",
+          teamAge: "10U",
+        },
+        user: { uid: "ac" }, // the assistant sees the head's read too
+        currentRole: "assistant",
+        updateTryoutSignup: jest.fn(),
+        deleteTryoutSignup: jest.fn(),
+        acceptTryout: jest.fn(),
+        saveTryoutEvaluation: jest.fn(),
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+    expect(
+      screen.getByText("Coach evals — shared across the staff"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Rash")).toBeInTheDocument();
+    expect(screen.getByText("Lee (you)")).toBeInTheDocument();
+    expect(screen.getByText(/Hitting 4 · Above Avg/)).toBeInTheDocument();
+    expect(screen.getByText(/Hitting 2 · Below Avg/)).toBeInTheDocument();
+    expect(screen.getByText(/Barrels it/)).toBeInTheDocument();
+  });
+
   it("hides the setup controls from assistants", () => {
     renderWithProviders(<TryoutsTab />, {
       team: {

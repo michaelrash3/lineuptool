@@ -160,6 +160,24 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
   },
 ];
 
+// The TRYOUT card's hand-graded categories. Deliberately tiny: at a showcase
+// tryout every measurable tool (speed, power, arm strength, accuracy, pitch
+// velo, fielding GB/FB) is recorded at the measured stations — shared and
+// definitive — so the only eye-test judgment a coach records here is hitting.
+// Intangibles (base running, IQ, coachability, composure) belong to
+// regular-season eval rounds, not a one-day look. The id stays `approach` so
+// existing tryout grade maps and the preseason seed keep working unchanged.
+export const TRYOUT_GRADE_CATEGORIES: EvalCategory[] = [
+  {
+    id: "approach",
+    label: "Hitting",
+    group: "Hitting",
+    weight: 2.5,
+    description:
+      "Contact, approach, quality of at-bats — the eye test. Every measurable tool comes from the showcase stations above.",
+  },
+];
+
 // Youth pitch-velocity benchmarks by age (mph), based on the coach-provided
 // chart: recreational low end, competitive/travel high end, and the lower edge
 // of the elite-outlier band. The engine uses avgLow -> elite as the scoring

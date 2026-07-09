@@ -10,6 +10,7 @@ import {
   EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
+  TRYOUT_GRADE_CATEGORIES,
 } from "./ui";
 
 const ids = (cats: { id: string }[]) => cats.map((c) => c.id);
@@ -179,5 +180,24 @@ describe("pitcherRosterPremium", () => {
     expect(pitcherRosterPremium(W * 4, W)).toBe(
       Math.round(PITCHER_ROSTER_PREMIUM_MAX / 2),
     );
+  });
+});
+
+describe("TRYOUT_GRADE_CATEGORIES — the tryout card's hand grades", () => {
+  it("is hitting only — every measurable tool comes from the showcase stations", () => {
+    // The card grades ONE thing by eye. Speed, power, arm strength, accuracy,
+    // pitch velo, and fielding GB/FB are recorded at the measured stations
+    // (shared + definitive) and band-score into the ranking on their own;
+    // intangibles belong to regular-season rounds. Re-adding a row here means
+    // re-introducing the duplication this list exists to prevent.
+    expect(ids(TRYOUT_GRADE_CATEGORIES)).toEqual(["approach"]);
+    expect(TRYOUT_GRADE_CATEGORIES[0].label).toBe("Hitting");
+  });
+
+  it("reuses a real EVAL_CATEGORIES id so tryout grades flow into eval seeding unchanged", () => {
+    const catalogIds = new Set(EVAL_CATEGORIES.map((c) => c.id));
+    for (const c of TRYOUT_GRADE_CATEGORIES) {
+      expect(catalogIds.has(c.id)).toBe(true);
+    }
   });
 });

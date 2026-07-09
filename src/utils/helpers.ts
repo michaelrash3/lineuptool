@@ -262,6 +262,24 @@ export const scrubUndefined = (value: unknown): unknown => {
   return value;
 };
 
+// Pull a display-able last name from a Firebase auth user. Saved rounds and
+// tryout evals are tagged with this at write time so a "Mike · 2026-05-23"
+// label survives across devices and stale auth profiles. Falls back to the
+// email local-part, then to "Coach", before ever leaving the field blank.
+export const coachLastNameOf = (
+  u: { displayName?: string | null; email?: string | null } | null | undefined,
+): string => {
+  const dn = (u?.displayName || "").trim();
+  if (dn) {
+    const parts = dn.split(/\s+/).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  const email = (u?.email || "").trim();
+  const local = email.split("@")[0];
+  if (local) return local;
+  return "Coach";
+};
+
 // True when a SlimPlayer (or any { id, name } slot from game.lineup or a
 // bench list) refers to the given roster player. Primary check is on
 // id; fallback handles the orphan-id case where a roster player was

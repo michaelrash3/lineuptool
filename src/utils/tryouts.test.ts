@@ -6,6 +6,7 @@ import {
   applyMissingTryoutNumbers,
   tryoutGradeWithMeasurements,
   unifiedTryoutGradeForSignup,
+  evaluatorEntriesForSignup,
 } from "./tryouts";
 
 // A legacy tryout grade as it was stored before tryoutSessions existed: an
@@ -387,5 +388,73 @@ describe("unifiedTryoutGradeForSignup — the multi-tryout fold", () => {
 
   it("returns null for an ungraded kid", () => {
     expect(unifiedTryoutGradeForSignup(twoSessions, "nobody")).toBeNull();
+  });
+});
+
+describe("evaluatorEntriesForSignup — cross-coach visibility", () => {
+  const sessions = [
+    {
+      id: "tryout-2026-08-01",
+      date: "2026-08-01",
+      updatedAt: 2,
+      gradesByEvaluator: {
+        ac: {
+          coachRole: "Assistant",
+          evaluatorId: "ac",
+          evaluatorName: "Lee",
+          grades: { s1: { approach: 2 } },
+        },
+        hc: {
+          coachRole: "Head",
+          evaluatorId: "hc",
+          evaluatorName: "Rash",
+          grades: { s1: { approach: 4, notes: "Barrels it" } },
+        },
+        // Graded a DIFFERENT kid only — must not appear for s1.
+        other: {
+          coachRole: "Assistant",
+          evaluatorId: "other",
+          grades: { s2: { approach: 5 } },
+        },
+      },
+    },
+    {
+      id: "tryout-2026-07-01",
+      date: "2026-07-01",
+      updatedAt: 1,
+      gradesByEvaluator: {
+        hc: {
+          coachRole: "Head",
+          evaluatorId: "hc",
+          grades: { s1: { approach: 3 } },
+        },
+      },
+    },
+  ];
+
+  it("lists every evaluator who graded the kid, heads first, newest session first", () => {
+    const entries = evaluatorEntriesForSignup(sessions, "s1");
+    expect(entries.map((e) => [e.evaluatorId, e.coachRole, e.date])).toEqual([
+      ["hc", "Head", "2026-08-01"],
+      ["ac", "Assistant", "2026-08-01"],
+      ["hc", "Head", "2026-07-01"],
+    ]);
+    // The whole recorded read travels — grade AND notes.
+    expect(entries[0].evaluatorName).toBe("Rash");
+    expect(entries[0].grade).toEqual({ approach: 4, notes: "Barrels it" });
+  });
+
+  it("scopes to one tryout date when given", () => {
+    const entries = evaluatorEntriesForSignup(sessions, "s1", "2026-07-01");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].grade).toEqual({ approach: 3 });
+    // Legacy entries saved before name-stamping simply omit the field.
+    expect(entries[0].evaluatorName).toBeUndefined();
+  });
+
+  it("is empty for an ungraded kid or missing inputs", () => {
+    expect(evaluatorEntriesForSignup(sessions, "nobody")).toEqual([]);
+    expect(evaluatorEntriesForSignup(null, "s1")).toEqual([]);
+    expect(evaluatorEntriesForSignup(sessions, null)).toEqual([]);
   });
 });

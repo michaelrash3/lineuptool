@@ -5,6 +5,7 @@ import {
   isDepartedPlayer,
   randomCode,
   genId,
+  coachLastNameOf,
 } from "../utils/helpers";
 import { applyMissingTryoutNumbers } from "../utils/tryouts";
 
@@ -34,7 +35,10 @@ interface UseTryoutFlowsArgs {
   updateTeam: (patch: Record<string, unknown>) => void;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
-  user: { uid: string } | null | undefined;
+  user:
+    | { uid: string; displayName?: string | null; email?: string | null }
+    | null
+    | undefined;
   activeTeamId: string | null;
 }
 
@@ -637,6 +641,9 @@ export const useTryoutFlows = ({
                 ...evaluator,
                 coachRole: coachRole || evaluator.coachRole || "Assistant",
                 evaluatorId: uid,
+                // Denormalized so the shared coach-evals panel can show WHO
+                // recorded each read without an auth roundtrip.
+                evaluatorName: coachLastNameOf(user),
                 updatedAt: now,
                 grades: {
                   ...(evaluator.grades || {}),
@@ -717,6 +724,7 @@ export const useTryoutFlows = ({
                   ...evaluator,
                   coachRole: coachRole || evaluator.coachRole || "Assistant",
                   evaluatorId: uid,
+                  evaluatorName: coachLastNameOf(user),
                   updatedAt: now,
                   grades: {
                     ...(evaluator.grades || {}),
