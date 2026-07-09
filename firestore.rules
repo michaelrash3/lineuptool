@@ -165,14 +165,26 @@ service cloud.firestore {
                     // Without this, any member could self-promote to 'head'
                     // with a plain coachRoles write and then sail through the
                     // finances gate above.
-                    && (untouched('coachRoles') || isHeadCoach());
+                    && (untouched('coachRoles') || isHeadCoach())
+                    // evaluationEvents is a DROPPED legacy field (finding 3.1
+                    // — rounds live in the evalRounds subcollection below).
+                    // Ratchet: a doc still carrying the array may rewrite or
+                    // remove it (schema-ladder migration, the deleteField
+                    // drop), but once gone no write may recreate it — that
+                    // would put scoped eval data back on the shared doc.
+                    && (!('evaluationEvents' in request.resource.data)
+                        || ('evaluationEvents' in resource.data));
 
       // Only the current owner can delete the team document.
       allow delete: if isCurrentOwner();
 
       // Team bootstrap: signed-in creator can create a new team doc when
-      // ownerId is set to their UID.
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
+      // ownerId is set to their UID. A new doc can never be born with the
+      // dropped legacy evaluationEvents field (see the update-rule ratchet) —
+      // combined, the field can only ever disappear from the fleet.
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && !('evaluationEvents' in request.resource.data);
 
       // NOTE: there is deliberately NO "read if a join code exists" rule here.
       // The old `allow read: if isSignedIn() && resource.data.joinCode != null;`
@@ -258,19 +270,13 @@ service cloud.firestore {
                     && appendsExactlyOne('availabilitySubmissions');
 
       // ----- Per-author evaluation rounds (docs/eval-authz-design.md, Option
-      // A — the real fix for audit finding 3.1). Eval rounds live today as the
-      // `evaluationEvents` array on this shared doc, which no rule can
-      // field-scope: every member can read the head's private grades and can
-      // destructively rewrite the whole array. Moving rounds into per-author
-      // documents lets reads AND writes finally be authorization-scoped — an
-      // assistant sees and edits only their OWN rounds; a head coach (the owner
-      // or a coachRoles 'head') manages every round.
-      //
-      // This ships the rules + emulator tests FIRST, with no client wired yet,
-      // so the scoping is proven before the dual read subscription, the per-doc
-      // write path, and the one-time data migration land (see the design doc's
-      // sequencing). Until those steps, the `evaluationEvents` array remains the
-      // authoritative store and nothing writes here.
+      // A — the fix for audit finding 3.1). This subcollection is the SOLE
+      // home for eval rounds: reads and writes are authorization-scoped — an
+      // assistant sees and edits only their OWN rounds; a head coach (the
+      // owner or a coachRoles 'head') manages every round. The old
+      // `evaluationEvents` array on the shared team doc (which no rule could
+      // field-scope) has been dropped; the ratchet in the base update rule
+      // above keeps it from ever coming back.
       match /evalRounds/{roundId} {
         function teamDoc() {
           return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;

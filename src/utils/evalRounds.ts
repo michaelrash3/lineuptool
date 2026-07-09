@@ -65,11 +65,7 @@ export const assembleEvalRounds = (
     .sort(evalRoundRecency);
 };
 
-// ---- Write side (step 3 — dual-write / backfill) ---------------------------
-// The subcollection is POPULATED here while the legacy `evaluationEvents` array
-// stays authoritative. Every mirror is best-effort: the array write already
-// succeeded, so a subcollection failure must never throw or surface to the
-// coach. Failures are swallowed (the lazy backfill re-mirrors on next load).
+// ---- Write side -------------------------------------------------------------
 
 const evalRoundRef = (
   db: Firestore,
@@ -89,11 +85,13 @@ const evalRoundRef = (
     roundId,
   );
 
-// Mirror ONE round into the subcollection. The doc id IS the round id, and the
-// round carries its own `evaluatorId` — the create/update rules require it to
-// match the caller (self-stamped), so a coach only ever mirrors their own
-// rounds. undefined fields are scrubbed (setDoc rejects them).
-export const mirrorEvalRound = async (
+// Best-effort mirror of ONE round into the subcollection — used only by the
+// backfill below. The doc id IS the round id, and the round carries its own
+// `evaluatorId` — the create/update rules require it to match the caller
+// (self-stamped), so a coach only ever mirrors their own rounds. undefined
+// fields are scrubbed (setDoc rejects them). Failures are swallowed: the
+// backfill re-mirrors on next load.
+const mirrorEvalRound = async (
   db: Firestore,
   appId: string,
   teamId: string,
@@ -106,30 +104,13 @@ export const mirrorEvalRound = async (
       scrubUndefined(round) as DocumentData,
     );
   } catch {
-    // Best-effort: the array write is authoritative.
+    // Best-effort: re-attempted by the next session's backfill.
   }
 };
 
-// Delete a round's subcollection doc alongside its removeById array write.
-export const removeEvalRoundDoc = async (
-  db: Firestore,
-  appId: string,
-  teamId: string,
-  roundId: string | null | undefined,
-): Promise<void> => {
-  if (!roundId) return;
-  try {
-    await deleteDoc(evalRoundRef(db, appId, teamId, roundId));
-  } catch {
-    // Best-effort.
-  }
-};
-
-// PRIMARY (error-propagating) subcollection writes for once reads AND writes
-// have cut over to the subcollection (finding-3.1 phase 3). Unlike the
-// best-effort mirror/remove above — which existed as a backup while the array
-// was authoritative — these REJECT on failure so the caller can surface an
-// error toast instead of silently losing the coach's grades.
+// The PRIMARY (error-propagating) subcollection writes. These REJECT on
+// failure so the caller can surface an error toast instead of silently losing
+// the coach's grades.
 export const saveEvalRound = (
   db: Firestore,
   appId: string,
@@ -148,12 +129,16 @@ export const deleteEvalRound = (
   roundId: string,
 ): Promise<void> => deleteDoc(evalRoundRef(db, appId, teamId, roundId));
 
-// ---- Phase 3b — dropping the legacy array (docs/eval-authz-design.md) -------
-// With reads AND writes cut over to the subcollection, the `evaluationEvents`
-// ARRAY on the team doc is a stale, unwritten leftover. Deleting it is the one
-// IRREVERSIBLE step of the rollout, so it's gated on PROOF of coverage: the
-// head's subscription streams every evalRounds doc, and only when every legacy
-// round id is present there does the drop fire.
+// ---- Migration long tail (docs/eval-authz-design.md) ------------------------
+// The cutover is complete, but a team not opened since it shipped may still
+// carry the legacy `evaluationEvents` ARRAY on its doc. The helpers below are
+// the self-limiting cleanup: backfill the caller's own legacy rounds into the
+// subcollection, then (head only, coverage proven) delete the array field.
+// Deleting it is the one IRREVERSIBLE step, so it's gated on PROOF of
+// coverage: the head's subscription streams every evalRounds doc, and only
+// when every legacy round id is present there does the drop fire. The rules
+// permit removing/rewriting the field while a doc still has it, but reject any
+// write that would recreate it once gone.
 
 // Is every legacy array round present in the subcollection? Pure coverage
 // check. Deliberately conservative:

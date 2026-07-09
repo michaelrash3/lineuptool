@@ -40,10 +40,6 @@ import {
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildEvalReminderDraft, buildMailtoUrl } from "../utils/reminderDraft";
 import {
-  EVAL_ROUNDS_SUBCOLLECTION,
-  EVAL_ROUNDS_DUAL_WRITE,
-} from "../constants/flags";
-import {
   buildEvalRoundsQuery,
   assembleEvalRounds,
   backfillOwnEvalRounds,
@@ -79,6 +75,7 @@ import {
 } from "../utils/helpers";
 import {
   DEFAULT_TEAM_DATA,
+  NEW_TEAM_DOC,
   EVAL_SCHEMA_VERSION,
   isKidPitchFormat,
   bumpAgeTier,
@@ -243,7 +240,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         id,
       );
       await setDoc(teamRef, {
-        ...DEFAULT_TEAM_DATA,
+        ...NEW_TEAM_DOC,
         name: "My Team",
         ownerId: user.uid,
         members: [user.uid],
@@ -748,12 +745,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             // DEFAULT_TEAM_DATA [] and crash the many .map/.find call
             // sites downstream.
             games: Array.isArray(raw.games) ? raw.games : [],
-            // When reads come from the evalRounds subcollection, its
-            // subscription owns evaluationEvents — keep what it set rather than
-            // clobbering it with the (backup) array. Otherwise use the array.
-            evaluationEvents: EVAL_ROUNDS_SUBCOLLECTION
-              ? prev.evaluationEvents
-              : migratedEvents,
+            // The evalRounds subscription owns evaluationEvents — keep what it
+            // set rather than clobbering it with the legacy (backup) array.
+            evaluationEvents: prev.evaluationEvents,
             players: migratedPlayers,
             evalSchemaVersion: EVAL_SCHEMA_VERSION,
           }));
@@ -766,10 +760,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             ...raw,
             players: Array.isArray(raw.players) ? raw.players : [],
             games: Array.isArray(raw.games) ? raw.games : [],
-            // Subcollection owns evaluationEvents when reads are flipped.
-            ...(EVAL_ROUNDS_SUBCOLLECTION
-              ? { evaluationEvents: prev.evaluationEvents }
-              : {}),
+            // The evalRounds subscription owns evaluationEvents.
+            evaluationEvents: prev.evaluationEvents,
           }));
         }
         // Mark which team's data is now loaded so write-effects
@@ -1562,7 +1554,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           id,
         );
         await setDoc(teamRef, {
-          ...DEFAULT_TEAM_DATA,
+          ...NEW_TEAM_DOC,
           // The coach picks Rec (NKB) or Tournament (USSSA) at creation; this
           // drives the play-style (fairness vs competitive) and the rules
           // auto-config (defense size / pitching format).
@@ -1896,13 +1888,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
             }
           : undefined;
 
-      // Season reset of eval rounds. With the evalRounds subcollection primary
-      // (finding-3.1 phase 3), the reset happens per-doc: the closing season's
-      // rounds are deleted (the head may delete any round) and the preseason
-      // seed is written as a fresh subcollection doc — the legacy array key is
-      // omitted entirely so the advance never recreates the dropped field.
-      // Pre-cutover, the old whole-array replacement rides updateTeam below.
-      if (EVAL_ROUNDS_SUBCOLLECTION && activeTeamId) {
+      // Season reset of eval rounds, per-doc in the evalRounds subcollection:
+      // the closing season's rounds are deleted (the head may delete any
+      // round) and the preseason seed is written as a fresh subcollection
+      // doc — the legacy array key is omitted from updateTeam entirely so the
+      // advance never recreates the dropped field (the rules reject that).
+      if (activeTeamId) {
         for (const ev of teamData.evaluationEvents || []) {
           if (ev?.id) {
             void deleteEvalRound(db, appId, activeTeamId, ev.id).catch(
@@ -1941,9 +1932,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // the Schedule auto-sync doesn't fire against the stale feed and the
           // import modal starts blank, prompting the coach for the new link.
           gcCalendarUrl: "",
-          ...(EVAL_ROUNDS_SUBCOLLECTION
-            ? {}
-            : { evaluationEvents: preseasonRound ? [preseasonRound] : [] }),
           tryoutSessions: [],
           tryoutSignups: [],
           tryoutsOpen: false,
@@ -2134,7 +2122,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const { saveTeamEvaluation, saveAssistantEvaluation, deleteEvaluation } =
     useEvaluationCrud({
       teamData,
-      updateTeamArrays,
       toast,
       user,
       uiBridge,
@@ -2268,19 +2255,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     return realRole;
   }, [realRole, viewAsRole]);
 
-  // Step 2 of the finding-3.1 fix (docs/eval-authz-design.md): a SECOND,
-  // role-scoped subscription to the per-author evalRounds subcollection that
-  // assembles teamData.evaluationEvents from those docs instead of the shared
-  // array. Deliberately isolated from the main team-doc subscription so the
-  // live read path is untouched, and gated behind EVAL_ROUNDS_SUBCOLLECTION —
-  // OFF by default, so this effect subscribes to nothing and never mutates
-  // teamData in production. It only becomes live once the write path + data
-  // migration land (steps 3-4) and the flag is flipped. Scoped by realRole (not
-  // the view-as override): an assistant MUST use the where-filtered query or the
-  // rules deny the read entirely. Errors here are swallowed — the array path
-  // stays authoritative until the cutover.
+  // The eval-rounds read path (finding-3.1, docs/eval-authz-design.md): a
+  // SECOND, role-scoped subscription to the per-author evalRounds
+  // subcollection that assembles teamData.evaluationEvents from those docs.
+  // Deliberately isolated from the main team-doc subscription. Scoped by
+  // realRole (not the view-as override): an assistant MUST use the
+  // where-filtered query or the rules deny the read entirely.
   useEffect(() => {
-    if (!EVAL_ROUNDS_SUBCOLLECTION) return;
     if (!activeTeamId || !user || !roleResolved) return;
     const q = buildEvalRoundsQuery(db, appId, activeTeamId, realRole, user.uid);
     const unsub = onSnapshot(
@@ -2299,19 +2280,17 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeamId, user?.uid, roleResolved, realRole]);
 
-  // Step 3 of the finding-3.1 fix: lazily backfill the CALLER'S OWN legacy
-  // rounds into the evalRounds subcollection, so it becomes complete without a
-  // server migration. Reads from the raw `evaluationEvents` ARRAY (via
-  // rawEvalEventsRef), NOT teamData.evaluationEvents — once reads are flipped to
-  // the subcollection, teamData holds the subcollection's value, so migrating
-  // from it would be circular and a not-yet-soaked team would never populate.
-  // Each coach mirrors only their own rounds (the create rule is self-stamped),
-  // which also covers future assistants. Once per team per session, best-effort.
-  // Gated behind EVAL_ROUNDS_DUAL_WRITE; the ongoing dual-write in
-  // useEvaluationCrud keeps the subcollection in sync after the backfill.
+  // Migration long tail (finding-3.1): lazily backfill the CALLER'S OWN legacy
+  // rounds into the evalRounds subcollection, so a team not opened since the
+  // cutover still becomes complete without a server migration. Reads from the
+  // raw `evaluationEvents` ARRAY (via rawEvalEventsRef), NOT
+  // teamData.evaluationEvents — teamData holds the subcollection's value, so
+  // migrating from it would be circular and a not-yet-soaked team would never
+  // populate. Each coach mirrors only their own rounds (the create rule is
+  // self-stamped). Once per team per session, best-effort; self-limiting — a
+  // no-op once the doc no longer carries the array.
   const backfilledTeamsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!EVAL_ROUNDS_DUAL_WRITE) return;
     if (!activeTeamId || !user || loadedTeamIdRef.current !== activeTeamId) {
       return;
     }
@@ -2331,10 +2310,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeamId, user?.uid, loadingActive]);
 
-  // Finding-3.1 PHASE 3B — the one irreversible step: delete the legacy
-  // `evaluationEvents` ARRAY from the team doc once the subcollection provably
-  // holds every round. Guards, in order:
-  //   - flag: only after the read+write cutover (subcollection primary);
+  // Migration long tail (finding-3.1 phase 3b) — the one irreversible step:
+  // delete the legacy `evaluationEvents` ARRAY from the team doc once the
+  // subcollection provably holds every round. Self-limiting: a no-op for docs
+  // that no longer carry the array. Guards, in order:
   //   - HEAD ONLY: the head's subscription streams EVERY evalRounds doc, so
   //     coverage is verifiable; an assistant sees only their own rounds and
   //     could never prove the array is fully migrated;
@@ -2349,7 +2328,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // On write failure the guard clears so a later session retries.
   const droppedArrayTeamsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!EVAL_ROUNDS_SUBCOLLECTION) return;
     if (realRole !== "head") return;
     if (!activeTeamId || !user || loadedTeamIdRef.current !== activeTeamId) {
       return;

@@ -12,6 +12,7 @@ import {
   arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -318,28 +319,15 @@ describe("finances head-gate", () => {
 });
 
 // The concurrency-safe team-array writes (updateTeamArrays) use bare-key
-// dotted updateDoc paths — players/games/evaluationEvents/practices are
-// deliberately member-writable, so these payload shapes must pass the base
-// member-update rule for any member and stay closed to outsiders.
+// dotted updateDoc paths — players/games/practices are deliberately
+// member-writable, so these payload shapes must pass the base member-update
+// rule for any member and stay closed to outsiders. (Eval rounds are NOT in
+// this facade — they live per-doc in the evalRounds subcollection.)
 describe("team-array granular writes (updateTeamArrays shapes)", () => {
   it("lets an assistant append a player via arrayUnion", async () => {
     await assertSucceeds(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
         players: arrayUnion({ id: "p-new", name: "Cai" }),
-      }),
-    );
-  });
-
-  it("lets an assistant append an eval round via arrayUnion (live-eval submit)", async () => {
-    await assertSucceeds(
-      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
-        evaluationEvents: arrayUnion({
-          id: "ev-1",
-          date: "2026-07-01",
-          coachRole: "Assistant",
-          evaluatorId: ASSISTANT,
-          grades: {},
-        }),
       }),
     );
   });
@@ -362,7 +350,6 @@ describe("team-array granular writes (updateTeamArrays shapes)", () => {
       updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
         players: arrayRemove({ id: "p1" }),
         games: [],
-        evaluationEvents: [],
       }),
     );
   });
@@ -425,45 +412,83 @@ describe("team-array granular writes (updateTeamArrays shapes)", () => {
   });
 });
 
-// docs/EVALUATIONS-AUDIT.md finding 3.1: evaluationEvents is NOT
-// authorization-scoped. The UI shows an assistant only their own rounds, but
-// the rules layer grants every member full read + write on the array — so an
-// assistant can read AND destructively rewrite/delete the head coach's private
-// rounds through the SDK. This is accepted for now under the trusted-coach
-// threat model; these tests PIN the current reality so any future tightening
-// (a head-only write gate, or a per-uid submission subcollection) is a
-// deliberate, tested change rather than a silent regression. NONE of these
-// assertions should be read as endorsing the exposure — they document it.
-describe("evaluationEvents access (audit finding 3.1 — pinned, not endorsed)", () => {
-  it("an assistant can read the head's private eval grades (no field-scoped reads)", async () => {
-    // Reads are per-document, so a member read returns the whole team doc,
-    // evaluationEvents included — the assistant sees the head's grades.
-    await assertSucceeds(getDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1"))));
-  });
-
-  it("an assistant can OVERWRITE the whole evaluationEvents array (clobbering the head's round)", async () => {
+// docs/eval-authz-design.md step 5 — the finding-3.1 close-out. Eval rounds
+// live in the per-author evalRounds subcollection (next describe); the legacy
+// `evaluationEvents` array is DROPPED from the team doc. The base rules now
+// RATCHET the field: a straggler doc that still carries it may rewrite or
+// remove it (schema-ladder migration, the head's deleteField drop), but once
+// gone — or on a brand-new doc — no write may (re)create it, so scoped eval
+// data can never land back on the shared, member-readable doc. This block
+// replaces the old "pinned, not endorsed" exposure tests.
+describe("evaluationEvents legacy-field ratchet (finding 3.1 close-out)", () => {
+  it("a member may still rewrite the array while the doc carries it (schema-ladder migration)", async () => {
     await assertSucceeds(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
-        evaluationEvents: [{ id: "ev-assistant-only", coachRole: "Assistant" }],
+        evaluationEvents: [
+          {
+            id: "ev-head",
+            date: "2026-06-01",
+            coachRole: "Head",
+            evaluatorId: OWNER,
+            grades: { p1: { power: 5 } },
+          },
+        ],
       }),
     );
   });
 
-  it("an assistant can arrayRemove the head coach's exact eval round", async () => {
+  it("the head can drop the leftover field, and NOBODY can recreate it after", async () => {
     await assertSucceeds(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        evaluationEvents: deleteField(),
+      }),
+    );
+    // Once gone, recreation is denied for every member — assistant AND head.
+    await assertFails(
       updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
-        evaluationEvents: arrayRemove({
-          id: "ev-head",
-          date: "2026-06-01",
-          coachRole: "Head",
-          evaluatorId: OWNER,
-          grades: { p1: { contact: 5 } },
-        }),
+        evaluationEvents: [{ id: "ev-sneak", coachRole: "Assistant" }],
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(dbFor(OWNER), ...teamPath("team-1")), {
+        evaluationEvents: arrayUnion({ id: "ev-head-cannot-either" }),
       }),
     );
   });
 
-  it("an outsider still cannot touch evaluationEvents", async () => {
+  it("ordinary writes keep working on a doc without the legacy field", async () => {
+    // The ratchet must not collaterally block post-drop team-doc writes.
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        evaluationEvents: deleteField(),
+      });
+    });
+    await assertSucceeds(
+      updateDoc(doc(dbFor(ASSISTANT), ...teamPath("team-1")), {
+        players: arrayUnion({ id: "p-post-drop", name: "Cai" }),
+      }),
+    );
+  });
+
+  it("a new team doc cannot be born with the legacy field", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+        evaluationEvents: [],
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...teamPath("team-fresh")), {
+        name: "Fresh",
+        ownerId: OWNER,
+        members: [OWNER],
+      }),
+    );
+  });
+
+  it("an outsider still cannot touch the team doc at all", async () => {
     await assertFails(
       updateDoc(doc(dbFor(OUTSIDER), ...teamPath("team-1")), {
         evaluationEvents: arrayUnion({ id: "ev-evil" }),

@@ -430,13 +430,11 @@ export const RosterTab = memo(() => {
     exportPlayerInfoCsv,
   } = useTeam();
   const canEdit = currentRole !== "assistant";
-  const { setIsAddingPlayer, openPlayerProfile: recordProfileOpen } = useUI();
-  const openPlayerProfile = (id: string) => {
-    recordProfileOpen?.(id);
-    if (typeof window !== "undefined")
-      window.history.pushState(null, "", `/roster/${id}`);
-    window.dispatchEvent(new PopStateEvent("popstate"));
-  };
+  // openPlayerProfile is a plain router navigate to /roster/:id — ONE history
+  // entry, so the browser back button returns here in a single press. (An old
+  // hack double-pushed the URL with a raw history.pushState, which made the
+  // first back press a no-op — the profile read as a modal wearing a URL.)
+  const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
   const stripped = (team as any).statDisplay === "stripped";
 

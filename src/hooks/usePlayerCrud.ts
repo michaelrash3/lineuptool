@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import type { Firestore } from "firebase/firestore";
 import { blankStats, genId } from "../utils/helpers";
-import { EVAL_ROUNDS_SUBCOLLECTION } from "../constants/flags";
 import { saveEvalRound } from "../utils/evalRounds";
 import type {
   ConfirmContextValue,
@@ -22,9 +21,9 @@ interface UsePlayerCrudArgs {
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
-  // Subcollection handles for the removePlayer eval-grade strip once eval
-  // rounds live in evalRounds (finding-3.1 phase 3). Optional so non-provider
-  // callers (tests) can omit them — without them the legacy array path runs.
+  // Subcollection handles for the removePlayer eval-grade strip — eval rounds
+  // live per-author in evalRounds (finding-3.1). Optional so non-provider
+  // callers (tests) can omit them; without them the grade strip is skipped.
   db?: Firestore;
   appId?: string;
   teamId?: string | null;
@@ -39,16 +38,6 @@ export const usePlayerCrud = ({
   appId,
   teamId,
 }: UsePlayerCrudArgs) => {
-  // Eval rounds live in the evalRounds subcollection, not the legacy
-  // evaluationEvents array (finding-3.1 phase 3). CRITICAL: when true, the
-  // grade-strip cascade below must NOT emit an evaluationEvents array op —
-  // teamData.evaluationEvents is assembled from the subcollection, so writing
-  // it back would resurrect scoped rounds onto the shared team doc (reopening
-  // the very read exposure the subcollection fixed) and recreate the dropped
-  // field.
-  const subPrimary = Boolean(
-    EVAL_ROUNDS_SUBCOLLECTION && db && appId && teamId,
-  );
   const addPlayer = useCallback(
     (form: any) => {
       const id = form.id || genId("p");
@@ -169,9 +158,11 @@ export const usePlayerCrud = ({
       };
 
       // One op list → one merged updateDoc, so the roster row and every
-      // reference to it disappear atomically. The eval-grade strip only rides
-      // this array write pre-cutover; with the subcollection primary it runs
-      // per-doc below instead.
+      // reference to it disappear atomically. Eval grades live per-doc in the
+      // evalRounds subcollection — never in this shared-doc write (writing
+      // teamData.evaluationEvents back would resurrect scoped rounds onto the
+      // team doc and recreate the dropped legacy field, which the rules now
+      // reject).
       updateTeamArrays([
         { op: "removeById", key: "players", id },
         {
@@ -179,17 +170,8 @@ export const usePlayerCrud = ({
           key: "games",
           map: (items: Game[]) => items.map(stripFromGame),
         },
-        ...(subPrimary
-          ? []
-          : [
-              {
-                op: "mapEntries",
-                key: "evaluationEvents",
-                map: (items: EvaluationEvent[]) => items.map(stripFromEvent),
-              } as TeamArrayUpdate,
-            ]),
       ]);
-      if (subPrimary && db && appId && teamId) {
+      if (db && appId && teamId) {
         // Per-doc grade strip, best-effort hygiene: the rules let the head
         // update any round but an assistant only their own, so a failure here
         // (assistant removing a player graded by someone else) is swallowed —
@@ -227,17 +209,8 @@ export const usePlayerCrud = ({
                 key: "games",
                 map: () => prevGames as Game[],
               },
-              ...(subPrimary
-                ? []
-                : [
-                    {
-                      op: "mapEntries",
-                      key: "evaluationEvents",
-                      map: () => prevEvents as EvaluationEvent[],
-                    } as TeamArrayUpdate,
-                  ]),
             ]);
-            if (subPrimary && db && appId && teamId) {
+            if (db && appId && teamId) {
               // Restore the pre-delete grades per-doc (same permission scope
               // as the strip above — best-effort for non-authored rounds).
               for (const ev of prevEvents as EvaluationEvent[]) {
@@ -257,7 +230,6 @@ export const usePlayerCrud = ({
       updateTeamArrays,
       toast,
       confirm,
-      subPrimary,
       db,
       appId,
       teamId,
