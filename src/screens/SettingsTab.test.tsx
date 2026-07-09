@@ -61,4 +61,40 @@ describe("SettingsTab", () => {
     await userEvent.selectOptions(leagueSelect as HTMLSelectElement, "NKB");
     expect(teamValue.updateTeam).toHaveBeenCalledWith({ leagueRuleSet: "NKB" });
   });
+
+  it("turns a feature off and back on from the Features section", async () => {
+    const { teamValue } = renderWithProviders(<SettingsTab />, {
+      team: {
+        team: { ...teamData, disabledFeatures: ["tryouts"] },
+        currentRole: "head",
+        realRole: "head",
+        updateTeam: jest.fn(),
+      },
+      ui: {
+        isAddingCoach: false,
+        setIsAddingCoach: jest.fn(),
+        newCoachForm: {},
+        setNewCoachForm: jest.fn(),
+        setPastSeasonImport: jest.fn(),
+      },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Features/ }));
+    // Finances is on → unchecking it disables it ALONGSIDE the stored tryouts.
+    const finances = screen.getByRole("checkbox", {
+      name: "Finances feature",
+    });
+    expect(finances).toBeChecked();
+    await userEvent.click(finances);
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      disabledFeatures: ["tryouts", "finances"],
+    });
+    // Tryouts is stored as off → its switch reads unchecked, and re-checking
+    // it re-enables (leaving nothing disabled from THIS fixture's list).
+    const tryouts = screen.getByRole("checkbox", { name: "Tryouts feature" });
+    expect(tryouts).not.toBeChecked();
+    await userEvent.click(tryouts);
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({
+      disabledFeatures: [],
+    });
+  });
 });

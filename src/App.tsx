@@ -47,6 +47,7 @@ import {
   isRedirectLikelyStuck,
   redirectAttemptsExceeded,
 } from "./auth/googleRedirect";
+import { featureEnabled } from "./constants/features";
 import type {
   ToastInput,
   Team,
@@ -340,9 +341,13 @@ const MainShell = () => {
     selectedGameId,
     setSelectedGameId,
     isAssistant,
+    disabledFeatures: team?.disabledFeatures,
     location,
     navigate,
   });
+  // Settings-driven feature switches: a module the head turned off loses its
+  // tab AND its routes (direct URLs bounce home) for every member.
+  const featureOff = (id: string) => !featureEnabled(team, id);
 
   // Client-side game-day reminders while the app is open (opt-in via Settings).
   useScheduleReminders();
@@ -652,35 +657,39 @@ const MainShell = () => {
   const availabilityButton = !isAssistant
     ? { id: "availability", icon: Icons.Calendar, label: "Availability" }
     : null;
-  const navButtons = isAssistant
-    ? [
-        { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-        { id: "roster", icon: Icons.Users, label: "Roster" },
-        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
-        { id: "practices", icon: Icons.Clock, label: "Practices" },
-        { id: "stats", icon: Icons.Chart, label: "Stats" },
-        { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
-        tryoutsButton,
-        { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
-      ]
-    : [
-        { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
-        { id: "roster", icon: Icons.Users, label: "Roster" },
-        { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
-        { id: "practices", icon: Icons.Clock, label: "Practices" },
-        { id: "stats", icon: Icons.Chart, label: "Stats" },
-        { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
-        tryoutsButton,
-        ...(interestButton ? [interestButton] : []),
-        ...(playerInfoButton ? [playerInfoButton] : []),
-        ...(availabilityButton ? [availabilityButton] : []),
-        { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
-        // Money is the head coach's business alone — assistants never see
-        // the Finances tab (mirrors the Settings route gate below).
-        { id: "finances", icon: Icons.Wallet, label: "Finances" },
-        // Settings intentionally absent: it lives in the AppHeader next to
-        // theme/sign-out (account-level controls), not in the tab bar.
-      ];
+  const navButtons = (
+    isAssistant
+      ? [
+          { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
+          { id: "roster", icon: Icons.Users, label: "Roster" },
+          { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+          { id: "practices", icon: Icons.Clock, label: "Practices" },
+          { id: "stats", icon: Icons.Chart, label: "Stats" },
+          { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
+          tryoutsButton,
+          { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
+        ]
+      : [
+          { id: "home", icon: Icons.HomePlate, label: "Dashboard" },
+          { id: "roster", icon: Icons.Users, label: "Roster" },
+          { id: "schedule", icon: Icons.Calendar, label: "Schedule" },
+          { id: "practices", icon: Icons.Clock, label: "Practices" },
+          { id: "stats", icon: Icons.Chart, label: "Stats" },
+          { id: "depthChart", icon: Icons.Glove, label: "Depth Chart" },
+          tryoutsButton,
+          ...(interestButton ? [interestButton] : []),
+          ...(playerInfoButton ? [playerInfoButton] : []),
+          ...(availabilityButton ? [availabilityButton] : []),
+          { id: "evaluation", icon: Icons.Clipboard, label: "Evaluation" },
+          // Money is the head coach's business alone — assistants never see
+          // the Finances tab (mirrors the Settings route gate below).
+          { id: "finances", icon: Icons.Wallet, label: "Finances" },
+          // Settings intentionally absent: it lives in the AppHeader next to
+          // theme/sign-out (account-level controls), not in the tab bar.
+        ]
+  )
+    // Settings-driven feature switches hide their tabs for everyone.
+    .filter((b) => featureEnabled(team, b.id));
 
   // Shared by /evaluation and its /evaluation/round/:roundId page so the
   // assistant's read-only past-round view is a real, deep-linkable route
@@ -735,32 +744,72 @@ const MainShell = () => {
             <FadeSlideIn key={location.pathname}>
               <Routes>
                 <Route path="/" element={<HomeTab />} />
-                <Route path="/stats" element={<StatsTab />} />
+                <Route
+                  path="/stats"
+                  element={
+                    featureOff("stats") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <StatsTab />
+                    )
+                  }
+                />
                 <Route path="/roster" element={<RosterTab />} />
                 <Route
                   path="/roster/:playerId"
                   element={<PlayerProfilePage />}
                 />
-                <Route path="/depth-chart" element={<DepthChartTab />} />
+                <Route
+                  path="/depth-chart"
+                  element={
+                    featureOff("depthChart") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <DepthChartTab />
+                    )
+                  }
+                />
                 <Route path="/schedule" element={<ScheduleTab />} />
-                <Route path="/practices" element={<PracticesTab />} />
+                <Route
+                  path="/practices"
+                  element={
+                    featureOff("practices") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PracticesTab />
+                    )
+                  }
+                />
                 <Route path="/schedule/*" element={<ScheduleTab />} />
                 <Route path="/evaluation" element={evalElement} />
                 <Route
                   path="/evaluation/round/:roundId"
                   element={evalElement}
                 />
-                <Route path="/tryouts" element={<TryoutsTab />} />
+                <Route
+                  path="/tryouts"
+                  element={
+                    featureOff("tryouts") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <TryoutsTab />
+                    )
+                  }
+                />
                 <Route
                   path="/interest"
                   element={
-                    isAssistant ? <Navigate to="/" replace /> : <InterestTab />
+                    isAssistant || featureOff("interest") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <InterestTab />
+                    )
                   }
                 />
                 <Route
                   path="/player-info"
                   element={
-                    isAssistant ? (
+                    isAssistant || featureOff("playerInfo") ? (
                       <Navigate to="/" replace />
                     ) : (
                       <PlayerInfoTab />
@@ -770,7 +819,7 @@ const MainShell = () => {
                 <Route
                   path="/availability"
                   element={
-                    isAssistant ? (
+                    isAssistant || featureOff("availability") ? (
                       <Navigate to="/" replace />
                     ) : (
                       <AvailabilityTab />
@@ -780,7 +829,11 @@ const MainShell = () => {
                 <Route
                   path="/finances"
                   element={
-                    isAssistant ? <Navigate to="/" replace /> : <FinancesTab />
+                    isAssistant || featureOff("finances") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <FinancesTab />
+                    )
                   }
                 />
                 <Route

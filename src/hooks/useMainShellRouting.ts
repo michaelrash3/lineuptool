@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { featureEnabled } from "../constants/features";
 
 const TAB_TO_PATH: Record<string, string> = {
   home: "/",
@@ -34,6 +35,9 @@ interface UseMainShellRoutingArgs {
   selectedGameId: string | null;
   setSelectedGameId: (id: string | null) => void;
   isAssistant: boolean;
+  // The team's Settings-driven feature switches (team.disabledFeatures).
+  // Absent/empty = every module on.
+  disabledFeatures?: string[];
   location: { pathname: string };
   navigate: (path: string) => void;
 }
@@ -46,49 +50,59 @@ export const useMainShellRouting = ({
   selectedGameId,
   setSelectedGameId,
   isAssistant,
+  disabledFeatures,
   location,
   navigate,
 }: UseMainShellRoutingArgs) => {
-  // Tryouts is a standing destination — always in the order. `tryoutsOpen`
-  // only governs whether the PUBLIC form accepts submissions, never whether a
-  // coach can reach the tab (dates, share links, and intake controls live
-  // there year-round).
-  const tabOrder = useMemo(
-    () =>
-      isAssistant
-        ? [
-            "home",
-            "roster",
-            "schedule",
-            "practices",
-            "stats",
-            "depthChart",
-            "tryouts",
-            "evaluation",
-          ]
-        : [
-            "home",
-            "roster",
-            "schedule",
-            "practices",
-            "stats",
-            "depthChart",
-            "tryouts",
-            "interest",
-            "playerInfo",
-            "availability",
-            "evaluation",
-            "finances",
-            "settings",
-          ],
-    [isAssistant],
-  );
+  // Tryouts is a standing destination — in the order unless the head turned
+  // the feature off. `tryoutsOpen` only governs whether the PUBLIC form
+  // accepts submissions, never whether a coach can reach the tab (dates,
+  // share links, and intake controls live there year-round).
+  const tabOrder = useMemo(() => {
+    const team = { disabledFeatures };
+    const order = isAssistant
+      ? [
+          "home",
+          "roster",
+          "schedule",
+          "practices",
+          "stats",
+          "depthChart",
+          "tryouts",
+          "evaluation",
+        ]
+      : [
+          "home",
+          "roster",
+          "schedule",
+          "practices",
+          "stats",
+          "depthChart",
+          "tryouts",
+          "interest",
+          "playerInfo",
+          "availability",
+          "evaluation",
+          "finances",
+          "settings",
+        ];
+    return order.filter((t) => featureEnabled(team, t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAssistant, (disabledFeatures || []).join(",")]);
 
   useEffect(() => {
     if (!isAssistant) return;
     if (activeTab === "settings" || activeTab === "finances")
       setActiveTab("home");
   }, [isAssistant, activeTab, setActiveTab]);
+
+  // A tab whose feature was switched off (or a direct URL into one) bounces
+  // home — the same treatment as the assistant gate above.
+  useEffect(() => {
+    if (activeTab === "home") return;
+    if (!featureEnabled({ disabledFeatures }, activeTab)) setActiveTab("home");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, (disabledFeatures || []).join(","), setActiveTab]);
 
   useEffect(() => {
     const tabFromUrl = pathToTab(location.pathname);
