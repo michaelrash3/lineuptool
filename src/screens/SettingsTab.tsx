@@ -7,6 +7,11 @@ import {
   buildScheduleIcs,
 } from "../utils/helpers";
 import { computeNextSeason, leagueRuleSetLabel } from "../constants/ui";
+import {
+  TOGGLEABLE_FEATURES,
+  featureEnabled,
+  toggleFeature,
+} from "../constants/features";
 import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
@@ -80,6 +85,59 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
 // letters and the public page. The OPERATIONAL controls (share link, dates,
 // open/close, lifecycle, roster cap) live in the Tryouts tab
 // (components/TryoutControlsPanel.tsx).
+// Settings-driven feature switches. A toggle hides that module's tab and
+// routes for the WHOLE staff (head and assistants) until it's switched back
+// on; nothing is deleted — the data stays on the team doc, so re-enabling
+// picks up exactly where the module left off.
+const FeatureTogglesPanel = memo(({ team, updateTeam }: any) => (
+  <div>
+    <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
+      <Icons.Sparkles className="w-4 h-4" /> Features
+    </h3>
+    <p className="text-[11px] text-ink-3 font-medium mb-4">
+      Turn off the modules this team doesn&apos;t use — their tabs and pages
+      disappear for the whole staff until switched back on. Nothing is deleted,
+      and shared portal links (tryout signup, availability, player info) keep
+      working either way.
+    </p>
+    <div className="space-y-2">
+      {TOGGLEABLE_FEATURES.map((f) => {
+        const enabled = featureEnabled(team, f.id);
+        return (
+          <label
+            key={f.id}
+            className="flex items-start justify-between gap-3 bg-surface p-3 border border-line rounded-xl shadow-sm cursor-pointer"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-black text-ink uppercase">
+                {f.label}
+              </span>
+              <span className="text-[11px] text-ink-3 font-medium leading-snug">
+                {f.description}
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) =>
+                updateTeam({
+                  disabledFeatures: toggleFeature(
+                    team?.disabledFeatures,
+                    f.id,
+                    e.target.checked,
+                  ),
+                })
+              }
+              aria-label={`${f.label} feature`}
+              className="mt-1 w-5 h-5 accent-[var(--team-primary)] shrink-0"
+            />
+          </label>
+        );
+      })}
+    </div>
+  </div>
+));
+
 const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
   return (
     <div>
@@ -755,6 +813,7 @@ export const SettingsTab = memo(() => {
   }, [team?.currentSeason]);
   const settingsMenuItems = [
     { id: "team", label: "Team", icon: Icons.Settings },
+    { id: "features", label: "Features", icon: Icons.Sparkles },
     { id: "reminders", label: "Reminders", icon: Icons.Clock },
     { id: "tryouts", label: "Tryouts", icon: Icons.UserPlus },
     { id: "staff", label: "Staff", icon: Icons.Users },
@@ -1265,6 +1324,10 @@ export const SettingsTab = memo(() => {
                     </button>
                   )}
                 </div>
+              )}
+
+              {settingsMenu === "features" && (
+                <FeatureTogglesPanel team={team} updateTeam={updateTeam} />
               )}
 
               {settingsMenu === "tryouts" && (

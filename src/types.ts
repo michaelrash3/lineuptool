@@ -8,6 +8,7 @@ import type {
   FinanceCategoryId,
   RevenueCategoryId,
 } from "./constants/financeCategories";
+import type { TeamFeatureId } from "./constants/features";
 
 export type PlayerId = string;
 
@@ -464,6 +465,9 @@ export interface Team {
   // agenda. Seeded from DEFAULT_DRILL_LIBRARY for new teams; older teams fall
   // back to the seed for display until they edit it.
   drillLibrary?: DrillDefinition[];
+  // Optional feature modules the head turned OFF in Settings (absent/empty =
+  // everything on). See src/constants/features.ts for the toggleable catalog.
+  disabledFeatures?: TeamFeatureId[];
   // Tryouts (PR M)
   tryoutShareId?: string;
   tryoutsOpen?: boolean;
