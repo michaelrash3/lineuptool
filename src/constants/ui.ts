@@ -800,6 +800,9 @@ export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
   },
 ];
 
+// DEFAULT_TEAM_DATA seeds LOCAL team state (so screens can safely read
+// teamData.evaluationEvents et al. before a snapshot lands). It is NOT the
+// shape createTeam writes — see NEW_TEAM_DOC below.
 export const DEFAULT_TEAM_DATA = Object.freeze({
   players: [],
   coaches: [],
@@ -829,3 +832,12 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   // Stat-surface density across Home/Stats/Roster: "rich" or "stripped".
   statDisplay: "rich",
 });
+
+// The shape createTeam writes to a NEW team doc: DEFAULT_TEAM_DATA minus the
+// legacy `evaluationEvents` array. Rounds live in the evalRounds subcollection
+// (finding 3.1) and the rules reject any team-doc write that would (re)create
+// the dropped field — seeding it at create would plant a member-writable
+// leftover on every new team.
+export const NEW_TEAM_DOC = Object.freeze(
+  (({ evaluationEvents: _legacy, ...rest }) => rest)(DEFAULT_TEAM_DATA),
+);

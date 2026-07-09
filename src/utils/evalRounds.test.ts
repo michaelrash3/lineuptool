@@ -17,8 +17,6 @@ vi.mock("firebase/firestore", () => ({
 import {
   buildEvalRoundsQuery,
   assembleEvalRounds,
-  mirrorEvalRound,
-  removeEvalRoundDoc,
   backfillOwnEvalRounds,
   allLegacyRoundsMigrated,
   dropEvalEventsArray,
@@ -29,7 +27,6 @@ import {
   where,
   doc,
   setDoc,
-  deleteDoc,
   updateDoc,
 } from "firebase/firestore";
 import type { EvaluationEvent } from "../types";
@@ -102,64 +99,6 @@ describe("assembleEvalRounds", () => {
   });
 });
 
-describe("mirrorEvalRound", () => {
-  it("writes the round to its own subcollection doc", async () => {
-    (setDoc as unknown as { mockClear: () => void }).mockClear();
-    await mirrorEvalRound(db, "app1", "team1", mkRound({ id: "r7" }));
-    expect(doc).toHaveBeenCalledWith(
-      db,
-      "artifacts",
-      "app1",
-      "public",
-      "data",
-      "teams",
-      "team1",
-      "evalRounds",
-      "r7",
-    );
-    expect(setDoc).toHaveBeenCalledTimes(1);
-    expect((setDoc as any).mock.calls[0][1]).toMatchObject({
-      id: "r7",
-      evaluatorId: "u1",
-    });
-  });
-
-  it("skips a round with no id", async () => {
-    (setDoc as unknown as { mockClear: () => void }).mockClear();
-    await mirrorEvalRound(db, "app1", "team1", { grades: {} } as never);
-    expect(setDoc).not.toHaveBeenCalled();
-  });
-
-  it("swallows a write failure (best-effort — array stays authoritative)", async () => {
-    (
-      setDoc as unknown as { mockRejectedValueOnce: (e: unknown) => void }
-    ).mockRejectedValueOnce(new Error("denied"));
-    await expect(
-      mirrorEvalRound(db, "app1", "team1", mkRound()),
-    ).resolves.toBeUndefined();
-  });
-});
-
-describe("removeEvalRoundDoc", () => {
-  it("deletes the round's subcollection doc", async () => {
-    (deleteDoc as unknown as { mockClear: () => void }).mockClear();
-    await removeEvalRoundDoc(db, "app1", "team1", "r9");
-    expect(deleteDoc).toHaveBeenCalledTimes(1);
-  });
-
-  it("skips when no id is given, and swallows failures", async () => {
-    (deleteDoc as unknown as { mockClear: () => void }).mockClear();
-    await removeEvalRoundDoc(db, "app1", "team1", "");
-    expect(deleteDoc).not.toHaveBeenCalled();
-    (
-      deleteDoc as unknown as { mockRejectedValueOnce: (e: unknown) => void }
-    ).mockRejectedValueOnce(new Error("denied"));
-    await expect(
-      removeEvalRoundDoc(db, "app1", "team1", "r9"),
-    ).resolves.toBeUndefined();
-  });
-});
-
 describe("backfillOwnEvalRounds", () => {
   it("mirrors ONLY the caller's own rounds and returns the count", async () => {
     (setDoc as unknown as { mockClear: () => void }).mockClear();
@@ -176,6 +115,41 @@ describe("backfillOwnEvalRounds", () => {
     );
     expect(n).toBe(2);
     expect(setDoc).toHaveBeenCalledTimes(2);
+  });
+
+  it("writes each round to its OWN subcollection doc (doc id = round id)", async () => {
+    (setDoc as unknown as { mockClear: () => void }).mockClear();
+    await backfillOwnEvalRounds(
+      db,
+      "app1",
+      "team1",
+      [mkRound({ id: "r7", evaluatorId: "u1" })],
+      "u1",
+    );
+    expect(doc).toHaveBeenCalledWith(
+      db,
+      "artifacts",
+      "app1",
+      "public",
+      "data",
+      "teams",
+      "team1",
+      "evalRounds",
+      "r7",
+    );
+    expect((setDoc as any).mock.calls[0][1]).toMatchObject({
+      id: "r7",
+      evaluatorId: "u1",
+    });
+  });
+
+  it("swallows a per-round write failure (best-effort — retried next session)", async () => {
+    (
+      setDoc as unknown as { mockRejectedValueOnce: (e: unknown) => void }
+    ).mockRejectedValueOnce(new Error("denied"));
+    await expect(
+      backfillOwnEvalRounds(db, "app1", "team1", [mkRound()], "u1"),
+    ).resolves.toBe(1);
   });
 
   it("returns 0 for an empty or missing array", async () => {

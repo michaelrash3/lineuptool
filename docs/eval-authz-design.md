@@ -1,16 +1,16 @@
 # Design: authorization-scoped evaluations (audit finding 3.1)
 
-_Status: **approved — Option A rollout in progress.** Steps 1–3 and phases 1–3b
-shipped. **The subcollection is PRIMARY for reads and writes, and the legacy
-`evaluationEvents` array is now DROPPED from the team doc** once its coverage
-is proven: a head-only, once-per-team effect deletes the field when every
-legacy round id is present in the subcollection (`allLegacyRoundsMigrated` —
-conservative: an empty/failed read can never trigger a drop). Every remaining
-array writer was retired with it: `useEvaluationCrud` (phase 3), the
-`removePlayer` grade-strip cascade (per-doc strips), the season-advance reset
-(per-doc delete + subcollection preseason seed), and the schema ladder (never
-recreates a dropped field). Remaining: remove the flags and the finding-3.1
-"pinned" rules block (step 5). Sequencing at the bottom._
+_Status: **COMPLETE — Option A fully rolled out (steps 1–5).** The
+`evalRounds` subcollection is the sole home for eval rounds; the legacy
+`evaluationEvents` array is dropped from the team doc and the rules RATCHET it
+(a straggler doc may rewrite/remove the field, but no update may recreate it
+once gone and no new doc may be created with it). The `EVAL_ROUNDS_\*` flags
+are removed — the flag-free code paths are permanent. Deliberately retained
+as the self-limiting migration long tail: the lazy per-author backfill
+(`backfillOwnEvalRounds`) and the head-only, coverage-gated drop
+(`allLegacyRoundsMigrated`+`dropEvalEventsArray`) still run for any team not
+opened since the cutover, and the ratchet explicitly permits both. Sequencing
+at the bottom.\_
 
 ## The problem, precisely
 
@@ -188,5 +188,26 @@ it's worth.
      per-doc and seeds the preseason round into the subcollection (the array
      key is omitted entirely), and the schema ladder only writes
      `evaluationEvents` while the doc still carries the field.
-5. Remove the flags and the finding-3.1 "pinned, not endorsed" rules block,
-   replacing it with the new scoped-access assertions.
+5. ✅ **Done** — Flags removed, exposure closed.
+   - `EVAL_ROUNDS_SUBCOLLECTION` / `EVAL_ROUNDS_DUAL_WRITE` deleted
+     (`src/constants/flags.ts` removed); the cutover paths are now the only
+     paths. `useEvaluationCrud` writes per-doc only (no `updateTeamArrays`
+     dependency, no best-effort mirror branches), `usePlayerCrud`'s
+     remove-player cascade never emits an eval-array op, and
+     `evaluationEvents` left the `TeamArrayTypes` facade. `mirrorEvalRound` is
+     module-private to the backfill; `removeEvalRoundDoc` is deleted.
+   - **Rules ratchet** (`firestore.rules` base team rules): an update may
+     touch `evaluationEvents` only if the doc already carries it (straggler
+     schema-ladder rewrites and the head's `deleteField()` drop keep working),
+     and a create may never include it — so the dropped field can only ever
+     disappear from the fleet, never come back. `createTeam` writes
+     `NEW_TEAM_DOC` (DEFAULT_TEAM_DATA minus the legacy key) accordingly.
+   - The "pinned, not endorsed" exposure tests are replaced by the
+     `evaluationEvents legacy-field ratchet` suite (rewrite-while-present
+     allowed, post-drop recreation denied for assistant AND head, create-with-
+     field denied, outsider denied); the scoped-access assertions live in the
+     `evalRounds subcollection scoping` suite as before.
+   - The backfill + drop effects in `TeamProvider` and their helpers are
+     RETAINED as the self-limiting long tail for teams not opened since the
+     cutover; they no-op once the doc no longer carries the array and can be
+     deleted whenever confidence allows.

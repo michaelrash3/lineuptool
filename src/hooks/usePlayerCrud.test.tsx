@@ -1,9 +1,9 @@
 import { renderHook, act } from "@testing-library/react";
 import { vi } from "vitest";
 
-// Stub the subcollection writer so the subcollection-primary describe below
-// runs without a real Firestore. The main describes pass no db/appId/teamId,
-// so subPrimary is false there — they stay on the legacy array path.
+// Stub the subcollection writer so the eval-grade-strip describe below runs
+// without a real Firestore. The main describes pass no db/appId/teamId, so
+// the per-doc strip is skipped there.
 vi.mock("../utils/evalRounds", () => ({
   saveEvalRound: vi.fn(() => Promise.resolve()),
 }));
@@ -113,7 +113,11 @@ describe("usePlayerCrud", () => {
       expect(updateTeamArrays).not.toHaveBeenCalled();
     });
 
-    it("emits ONE atomic op list: removeById + games/evals mapEntries", async () => {
+    it("emits ONE atomic op list — removeById + games mapEntries, and NEVER an evaluationEvents array op", async () => {
+      // Eval rounds live per-doc in the evalRounds subcollection; writing the
+      // subcollection-derived rounds back to the shared doc would resurrect
+      // scoped data onto it (and recreate the dropped legacy field, which the
+      // rules reject).
       const { result, teamData, updateTeamArrays } = setup(team);
       await act(async () => result.current.removePlayer("p1"));
       expect(updateTeamArrays).toHaveBeenCalledTimes(1);
@@ -121,7 +125,6 @@ describe("usePlayerCrud", () => {
       expect(ops.map((u: any) => [u.op, u.key])).toEqual([
         ["removeById", "players"],
         ["mapEntries", "games"],
-        ["mapEntries", "evaluationEvents"],
       ]);
       const next = applyTeamOps(teamData, ops);
       expect(next.players.map((p: any) => p.id)).toEqual(["p2"]);
@@ -129,10 +132,9 @@ describe("usePlayerCrud", () => {
       expect(next.games[0].battingLineup.map((p: any) => p.id)).toEqual(["p2"]);
       expect(next.games[0].attendance).toEqual({ p2: false });
       expect(next.games[0].pitchCounts).toEqual({});
-      expect(next.evaluationEvents[0].grades).toEqual({ p2: { hit: 4 } });
     });
 
-    it("Undo restores all three snapshots", async () => {
+    it("Undo restores the roster and games snapshots", async () => {
       const { result, teamData, updateTeamArrays, toast } = setup(team);
       await act(async () => result.current.removePlayer("p1"));
       const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
@@ -149,22 +151,17 @@ describe("usePlayerCrud", () => {
       expect(restored.players.map((p: any) => p.id)).toEqual(["p1", "p2"]);
       // Restored games pass through the same slimming as any stored write.
       expect(restored.games[0].lineup[0].P).toMatchObject({ id: "p1" });
-      expect(restored.evaluationEvents[0].grades.p1).toEqual({ hit: 3 });
     });
 
-    describe("subcollection-primary (finding-3.1 write cutover)", () => {
+    describe("per-doc eval-grade strip (with Firestore handles)", () => {
       const handles = { db: {} as never, appId: "app1", teamId: "team1" };
 
       beforeEach(() => (saveEvalRound as any).mockClear());
 
-      it("emits NO evaluationEvents array op — writing the subcollection-derived rounds back to the shared doc would resurrect scoped data", async () => {
-        const { result, updateTeamArrays } = setup(team, handles);
+      it("skips the strip entirely when the handles are absent", async () => {
+        const { result } = setup(team);
         await act(async () => result.current.removePlayer("p1"));
-        const ops = updateTeamArrays.mock.calls[0][0];
-        expect(ops.map((u: any) => [u.op, u.key])).toEqual([
-          ["removeById", "players"],
-          ["mapEntries", "games"],
-        ]);
+        expect(saveEvalRound).not.toHaveBeenCalled();
       });
 
       it("strips the removed player's grades per-doc, only touching rounds that graded them", async () => {

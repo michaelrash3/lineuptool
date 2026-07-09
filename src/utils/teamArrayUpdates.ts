@@ -1,10 +1,9 @@
 // Concurrency-safe team-array mutations — the finance granular-write pattern
 // (docs/FINANCES-AUDIT.md finding 3.2) generalized to the top-level team-doc
-// arrays. Roster/schedule/eval/practice edits used to re-write a WHOLE array
+// arrays. Roster/schedule/practice edits used to re-write a WHOLE array
 // from screen-captured state (`updateTeam({ players: next })`) — two coaches
-// editing near-simultaneously silently dropped one side's change (e.g. two
-// assistants submitting eval scores during a live session). These ops narrow
-// each mutation to the smallest Firestore write instead:
+// editing near-simultaneously silently dropped one side's change. These ops
+// narrow each mutation to the smallest Firestore write instead:
 //   - append    → arrayUnion on one path (fully concurrency-safe; two
 //                 simultaneous appends both land). Takes a LIST of entries so
 //                 bulk imports are one safe write.
@@ -23,7 +22,6 @@
 
 import type {
   AvailabilitySubmission,
-  EvaluationEvent,
   Game,
   InterestSignup,
   Player,
@@ -127,7 +125,6 @@ export const buildArrayOpPayload = (
 export interface TeamArrayTypes {
   players: Player;
   games: Game;
-  evaluationEvents: EvaluationEvent;
   practices: Practice;
   // Tryout-season arrays. The anonymous portals append to the first four via
   // their own rules lanes (arrayUnion, append-only) — coach-side ops here are
