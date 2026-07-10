@@ -1,9 +1,32 @@
-import React, { memo, useMemo } from "react";
+import React, { memo, Suspense, useMemo } from "react";
 import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { getEvalCategoriesForTeam } from "../constants/ui";
 import { currentEvaluationScore100 } from "../utils/evaluationScore";
+import {
+  buildSeasonPositionVariety,
+  countsTowardStats,
+} from "../utils/helpers";
+
+// Chart pieces load lazily from PlayerDevelopmentViz so this eager module
+// (imported by modals.tsx) doesn't drag the recharts chunk into the startup
+// bundle — same contract as modals.tsx → modals/statTrendViz.
+const EvalTrajectoryChart = React.lazy(() =>
+  import("./PlayerDevelopmentViz").then((m) => ({
+    default: m.EvalTrajectoryChart,
+  })),
+);
+const SeasonStatTrendRow = React.lazy(() =>
+  import("./PlayerDevelopmentViz").then((m) => ({
+    default: m.SeasonStatTrendRow,
+  })),
+);
+const PositionInningsStrip = React.lazy(() =>
+  import("./PlayerDevelopmentViz").then((m) => ({
+    default: m.PositionInningsStrip,
+  })),
+);
 
 // Per-player development one-pager: this season's stat line, evaluation
 // (latest grade per category + within-season trend), season-over-season stat
@@ -132,6 +155,15 @@ const useEvalTrend = (
         }
       }
     }
+    // Per-round overall score, chronological — feeds the trajectory chart.
+    const series = rounds
+      .map((r: any) => ({
+        date: r.date || "",
+        score: overallOf(r.grades[playerId]),
+      }))
+      .filter((p: any): p is { date: string; score: number } =>
+        Number.isFinite(p.score),
+      );
     return {
       rounds: rounds.length,
       overallFirst: first,
@@ -139,6 +171,7 @@ const useEvalTrend = (
       delta:
         first !== undefined && last !== undefined ? last - first : undefined,
       latestByCat,
+      series,
     };
   }, [evaluationEvents, player, playerId, categories, teamAge]);
 
@@ -169,6 +202,41 @@ export const PlayerDevelopmentReport = memo(
     );
 
     const pitched = (read(player?.stats, "ip", "pIp") || 0) > 0;
+    // Stripped stat display suppresses every chart in the report; the text
+    // and table content is identical in both modes.
+    const rich = team?.statDisplay !== "stripped";
+
+    const positionInnings = useMemo(
+      () =>
+        (player?.id &&
+          buildSeasonPositionVariety(games).get(player.id)?.byPosition) ||
+        null,
+      [games, player?.id],
+    );
+    const gamesWithLines = useMemo(
+      () =>
+        (games || []).filter(
+          (g: any) => countsTowardStats(g) && g?.playerStats?.[player?.id],
+        ).length,
+      [games, player?.id],
+    );
+
+    // Archived per-season development summaries (written by Advance Season).
+    // Older archives predate the summary field and simply don't appear here.
+    const devSeasons = useMemo(
+      () =>
+        (Array.isArray(player?.pastSeasons) ? player.pastSeasons : [])
+          .filter((s: any) => s?.summary)
+          .map((s: any) => ({
+            label: s.season || "Past",
+            gp: num(s.summary.gamesWithLines),
+            att: num(s.summary.attendanceRate),
+            evalFirst: num(s.summary.evalFirst100),
+            evalLast: num(s.summary.evalLast100),
+            positions: num(s.summary.distinctPositions),
+          })),
+      [player],
+    );
 
     const attendance = useMemo(() => {
       const maps = [
@@ -346,6 +414,14 @@ export const PlayerDevelopmentReport = memo(
           )}
           <StatGrid title="Fielding" defs={FIELDING} stats={player.stats} />
 
+          {/* In-season batting trajectory from per-game imported lines. The
+              component renders nothing when there are under 2 data points. */}
+          {rich && gamesWithLines >= 2 && (
+            <Suspense fallback={null}>
+              <SeasonStatTrendRow games={games} playerId={player.id} />
+            </Suspense>
+          )}
+
           {/* Evaluation */}
           <div>
             <div className="t-eyebrow text-ink-3 mb-1.5">Evaluation</div>
@@ -403,9 +479,26 @@ export const PlayerDevelopmentReport = memo(
                     </div>
                   ))}
                 </div>
+                {rich && evalTrend.series.length >= 2 && (
+                  <Suspense fallback={null}>
+                    <EvalTrajectoryChart series={evalTrend.series} />
+                  </Suspense>
+                )}
               </div>
             )}
           </div>
+
+          {/* Where the innings actually went this season. */}
+          {rich && positionInnings && (
+            <div>
+              <div className="t-eyebrow text-ink-3 mb-1.5">
+                Defensive Innings by Position
+              </div>
+              <Suspense fallback={null}>
+                <PositionInningsStrip byPosition={positionInnings} />
+              </Suspense>
+            </div>
+          )}
 
           {/* Season-over-season growth */}
           {growth.columns.length > 1 && (
@@ -447,6 +540,72 @@ export const PlayerDevelopmentReport = memo(
                             </td>
                           );
                         })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Year-over-year development, from the summaries Advance Season
+              archives (positions, eval growth, attendance). Only renders once
+              at least one archived season carries a summary. */}
+          {devSeasons.length > 0 && (
+            <div>
+              <div className="t-eyebrow text-ink-3 mb-1.5">
+                Development by Season
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                      <th className="text-left p-1.5">Season</th>
+                      <th className="text-right p-1.5">GP</th>
+                      <th className="text-right p-1.5">Attend</th>
+                      <th className="text-right p-1.5 whitespace-nowrap">
+                        Eval (first → last)
+                      </th>
+                      <th className="text-right p-1.5">Positions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      ...devSeasons,
+                      {
+                        label: `${team?.currentSeason || "Now"} (current)`,
+                        gp: gamesWithLines || undefined,
+                        att: attendance?.rate,
+                        evalFirst: evalTrend?.overallFirst,
+                        evalLast: evalTrend?.overallLast,
+                        positions: positionInnings
+                          ? Object.keys(positionInnings).length
+                          : undefined,
+                      },
+                    ].map((row: any, i: number) => (
+                      <tr key={i} className="border-t border-line">
+                        <td className="p-1.5 font-bold text-ink-3 whitespace-nowrap">
+                          {row.label}
+                        </td>
+                        <td className="p-1.5 text-right tabular-nums font-bold text-ink">
+                          {row.gp !== undefined ? row.gp : "—"}
+                        </td>
+                        <td className="p-1.5 text-right tabular-nums font-bold text-ink">
+                          {row.att !== undefined
+                            ? `${Math.round(row.att * 100)}%`
+                            : "—"}
+                        </td>
+                        <td className="p-1.5 text-right tabular-nums font-bold text-ink whitespace-nowrap">
+                          {row.evalFirst !== undefined &&
+                          row.evalLast !== undefined
+                            ? `${Math.round(row.evalFirst)} → ${Math.round(row.evalLast)}`
+                            : row.evalLast !== undefined
+                              ? Math.round(row.evalLast)
+                              : "—"}
+                        </td>
+                        <td className="p-1.5 text-right tabular-nums font-bold text-ink">
+                          {row.positions !== undefined ? row.positions : "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

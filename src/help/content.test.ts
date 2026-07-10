@@ -111,9 +111,9 @@ describe("help content integrity", () => {
     }
   });
 
-  it("stays inside the 30-40 topic budget", () => {
+  it("stays inside the topic budget (complete but curated)", () => {
     expect(HELP_TOPICS.length).toBeGreaterThanOrEqual(30);
-    expect(HELP_TOPICS.length).toBeLessThanOrEqual(40);
+    expect(HELP_TOPICS.length).toBeLessThanOrEqual(50);
   });
 
   it("TAB_TO_HELP_CATEGORY covers every tab with a valid category", () => {

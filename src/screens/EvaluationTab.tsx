@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
+import { HelpTip } from "../components/help/HelpTip";
 import {
   calculateBaseballAge,
   evalStatHint,
@@ -531,7 +532,8 @@ export const EvaluationTab = memo(() => {
             </div>
             <div>
               <h2 className="t-h2 flex items-center gap-3">
-                Player Evaluation
+                Player Evaluation{" "}
+                <HelpTip topicId="eval-rounds" label="About evaluations" />
               </h2>
               <p className="t-eyebrow mt-1">Head Coach Dashboard</p>
             </div>
