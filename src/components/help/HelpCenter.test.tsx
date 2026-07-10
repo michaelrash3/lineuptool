@@ -199,8 +199,16 @@ describe("HelpCenter", () => {
   });
 
   it("hides topics and tours gated behind a disabled feature", () => {
+    // Both stats and depthChart topics live in the Stats & Analytics
+    // category — disable both so the emptied category leaves the rail.
     renderHelp({
-      team: { team: { players: [], games: [], disabledFeatures: ["stats"] } },
+      team: {
+        team: {
+          players: [],
+          games: [],
+          disabledFeatures: ["stats", "depthChart"],
+        },
+      },
     });
     expect(
       screen.queryByRole("button", { name: "Stats & Analytics" }),

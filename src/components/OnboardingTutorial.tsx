@@ -1,14 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { Icons } from "../icons";
-import { Button, Eyebrow } from "./shared";
 import { useTeam, useUI } from "../contexts";
 import { APP_NAME } from "../constants/ui";
+import { featureEnabled } from "../constants/features";
+import { TourModal, attachStepNumbers, type TourStep } from "./help/TourModal";
 
-// Bumped from v1 → v2 when the tour switched from passive descriptions to
-// action-oriented walkthrough with per-step CTAs. v3 adds the tryouts /
-// interest-survey step and makes step numbering dynamic so it can't drift
-// out of sync with the panel count again.
-const STORAGE_KEY = "lineuptool.onboardingComplete.v3";
+// v3 → v4: the tour grew from a 9-step quickstart into the full Orientation
+// Guide — chaptered coverage of every module (stats & season analytics, depth
+// chart, practices, parent portals, finances, season rollover, the help
+// center), skipping chapters the current role can't reach or the team has
+// switched off. Bumping the key replays it once for existing coaches so
+// nobody misses the new orientation; it stays one-click skippable.
+const STORAGE_KEY = "lineuptool.onboardingComplete.v4";
 
 export const onboardingHasBeenCompleted = () => {
   try {
@@ -26,82 +29,110 @@ const markOnboardingComplete = () => {
   }
 };
 
-// Each step's `cta` returns a list of { label, action } buttons. The action
-// receives the ctx (useUI bag) and runs setters that navigate / open modals.
-// A null cta means there's no jump-into-the-app affordance for that step.
-//
-// Step numbering is applied AFTER this array is built (see attachStepNumbers)
-// so the "Step N of M" eyebrows always match the actual numbered-step count —
-// no more hand-maintained "of 7" labels that drift when steps are added.
-const buildSteps = (ctx: any) => {
-  const { hasGameToday, hasPlayers, hasGames } = ctx;
-  return [
+interface OrientationCtx {
+  hasPlayers: boolean;
+  hasGames: boolean;
+  hasGameToday: boolean;
+  isAssistant: boolean;
+  featureOn: (id: string) => boolean;
+  setActiveTab: (tab: string) => void;
+  setIsAddingPlayer: (v: boolean) => void;
+  setIsAddingGame?: (v: boolean) => void;
+}
+
+// Every chapter of the orientation. Steps are filtered per role/feature
+// BEFORE numbering (attachStepNumbers), so "Step N of M" always reflects the
+// chapters this coach can actually see. A null entry = chapter skipped.
+const buildSteps = (ctx: OrientationCtx): TourStep[] => {
+  const {
+    hasGameToday,
+    hasPlayers,
+    hasGames,
+    isAssistant,
+    featureOn,
+    setActiveTab,
+    setIsAddingPlayer,
+    setIsAddingGame,
+  } = ctx;
+  const steps: Array<TourStep | null> = [
     {
       eyebrow: "Welcome",
       title: APP_NAME,
       icon: Icons.HomePlate,
-      body: "Lineups, in-game swaps, eval rounds, tryouts, season stats — all in one place. Each step below pushes you to actually do the thing.",
+      body: "Lineups, in-game swaps, eval rounds, tryouts, season analytics, finances — your whole season in one place. This orientation walks through every module; each step pushes you to actually do the thing. Replay it anytime from Help & Tutorials.",
     },
-    {
-      numbered: true,
-      title: "Set up your team",
-      icon: Icons.Settings,
-      body: "Open Settings to set the team name, age group, league rules, and pitching format. These drive every recommendation downstream. You can also set team colors and upload a logo here.",
-      cta: [
-        {
-          label: "Go to Settings",
-          primary: true,
-          run: () => ctx.setActiveTab("settings"),
+    isAssistant
+      ? null
+      : {
+          numbered: true,
+          title: "Set up your team",
+          icon: Icons.Settings,
+          body: "Open Settings to set the team name, age group, league rules, and pitching format. These drive every recommendation downstream. You can also set team colors, upload a logo, and switch off modules you don't need.",
+          cta: [
+            {
+              label: "Go to Settings",
+              primary: true,
+              run: () => setActiveTab("settings"),
+            },
+          ],
         },
-      ],
-    },
     {
       numbered: true,
       title: "Add your players",
       icon: Icons.UserPlus,
       body: hasPlayers
         ? "Roster is started. You can keep adding players one at a time, or bulk-import from a CSV."
-        : "Two ways: add players one at a time on the Roster tab, or import a CSV from GameChanger / TeamSnap in Settings.",
-      cta: [
-        {
-          label: "Add a player",
-          primary: true,
-          run: () => {
-            ctx.setActiveTab("roster");
-            ctx.setIsAddingPlayer(true);
-          },
-        },
-        {
-          label: "Import a CSV",
-          run: () => ctx.setActiveTab("settings"),
-        },
-      ],
+        : "Two ways: add players one at a time on the Roster tab, or import a CSV from GameChanger / TeamSnap in Settings. Set each kid's comfortable positions and catcher flag — the lineup engine leans on them.",
+      cta: isAssistant
+        ? [
+            {
+              label: "Open Roster",
+              primary: true,
+              run: () => setActiveTab("roster"),
+            },
+          ]
+        : [
+            {
+              label: "Add a player",
+              primary: true,
+              run: () => {
+                setActiveTab("roster");
+                setIsAddingPlayer(true);
+              },
+            },
+            {
+              label: "Import a CSV",
+              run: () => setActiveTab("settings"),
+            },
+          ],
     },
-    {
-      numbered: true,
-      title: "Recruit with tryouts & interest",
-      icon: Icons.Users,
-      body: "Settings → Tryouts gives you two shareable links (with downloadable QR codes for flyers): a year-round Player Interest survey, and per-date tryout signup forms. Signups land in the Tryouts tab where you can grade, take attendance, and project your roster. Interest leads collect in the Interest tab until you're ready.",
-      cta: [
-        {
-          label: "Set up tryouts",
-          primary: true,
-          run: () => ctx.setActiveTab("settings"),
+    isAssistant || !featureOn("tryouts")
+      ? null
+      : {
+          numbered: true,
+          title: "Recruit with tryouts & interest",
+          icon: Icons.Users,
+          body: "Settings → Tryouts gives you two shareable links (with downloadable QR codes for flyers): a year-round Player Interest survey, and per-date tryout signup forms. Signups land in the Tryouts tab where you can grade, take attendance, and project your roster.",
+          cta: [
+            {
+              label: "Set up tryouts",
+              primary: true,
+              run: () => setActiveTab("settings"),
+            },
+          ],
         },
-      ],
-    },
     {
       numbered: true,
       title: "Add a game",
       icon: Icons.Calendar,
-      body: "Schedule tab → Add Game. Pick the date and opponent. Flag a game as a Big Game ⭐ when you want primary-position-only fielding; otherwise Fair mode rotates kids through the positions they're comfortable playing.",
+      body: "Schedule tab → Add Game. Pick the date and opponent. Flag a game as a Big Game ⭐ when you want primary-position-only fielding; otherwise Fair mode rotates kids through the positions they're comfortable playing. Mark scrimmages so they stay out of the record and stats.",
       cta: [
         {
           label: "Go to Schedule",
           primary: true,
           run: () => {
-            ctx.setActiveTab("schedule");
-            ctx.setIsAddingGame?.(true);
+            setActiveTab("schedule");
+            setIsAddingGame?.(true);
           },
         },
       ],
@@ -110,13 +141,13 @@ const buildSteps = (ctx: any) => {
       numbered: true,
       title: "Generate a lineup",
       icon: Icons.Clipboard,
-      body: "Open a scheduled game and tap Generate. The engine fills positions inning-by-inning with season-long bench + position fairness, the catcher inning cap, pitch-eligibility rules, scarcity-aware ordering, and Big Game rules when flagged.",
+      body: "Open a scheduled game and tap Generate. The engine fills positions inning-by-inning with season-long bench + position fairness, the catcher inning cap, pitch-eligibility rules, scarcity-aware ordering, and Big Game rules when flagged. Lock any cell to pin a kid; print or export the card when it's right.",
       cta: hasGames
         ? [
             {
               label: "Open Schedule",
               primary: true,
-              run: () => ctx.setActiveTab("schedule"),
+              run: () => setActiveTab("schedule"),
             },
           ]
         : null,
@@ -131,7 +162,7 @@ const buildSteps = (ctx: any) => {
             {
               label: "Go to Home",
               primary: true,
-              run: () => ctx.setActiveTab("home"),
+              run: () => setActiveTab("home"),
             },
           ]
         : null,
@@ -145,31 +176,117 @@ const buildSteps = (ctx: any) => {
         {
           label: "Open Evaluation",
           primary: true,
-          run: () => ctx.setActiveTab("evaluation"),
+          run: () => setActiveTab("evaluation"),
         },
       ],
     },
+    !featureOn("stats")
+      ? null
+      : {
+          numbered: true,
+          title: "Track stats & season analytics",
+          icon: Icons.Chart,
+          body: "Import GameChanger CSVs — season-wide in Settings, or per-game from a finalized game — and the Stats tab lights up: sortable stat tables, Recent Form, Bench Equity, and Position Variety on the Overview, plus Season Trends (run differential, rolling win %) and Development (who's improving, steady, or declining across batting, evals, and position variety).",
+          cta: [
+            {
+              label: "Open Stats",
+              primary: true,
+              run: () => setActiveTab("stats"),
+            },
+          ],
+        },
+    !featureOn("depthChart")
+      ? null
+      : {
+          numbered: true,
+          title: "Check the depth chart",
+          icon: Icons.Glove,
+          body: "The Depth Chart auto-ranks your kids at every position from eval grades and actual reps, so you can spot thin spots before they bite you in a bracket game.",
+          cta: [
+            {
+              label: "Open Depth Chart",
+              primary: true,
+              run: () => setActiveTab("depthChart"),
+            },
+          ],
+        },
+    !featureOn("practices")
+      ? null
+      : {
+          numbered: true,
+          title: "Plan practices",
+          icon: Icons.Clock,
+          body: "Schedule practices, take attendance, and build plans from the drill library. Practice attendance feeds each kid's development report right alongside games.",
+          cta: [
+            {
+              label: "Open Practices",
+              primary: true,
+              run: () => setActiveTab("practices"),
+            },
+          ],
+        },
+    isAssistant || !(featureOn("availability") || featureOn("playerInfo"))
+      ? null
+      : {
+          numbered: true,
+          title: "Let parents do the paperwork",
+          icon: Icons.Link,
+          body: "Share links (with QR codes) let families submit absences to the Availability calendar and sizing/logistics to the Player Info inbox — no accounts needed. Known absences auto-mark kids out on game day so lineups start from reality.",
+          cta: [
+            {
+              label: featureOn("availability")
+                ? "Open Availability"
+                : "Open Player Info",
+              primary: true,
+              run: () =>
+                setActiveTab(
+                  featureOn("availability") ? "availability" : "playerInfo",
+                ),
+            },
+          ],
+        },
+    isAssistant || !featureOn("finances")
+      ? null
+      : {
+          numbered: true,
+          title: "Track the money",
+          icon: Icons.Wallet,
+          body: "Budget, team fees, payment tracking, and a full ledger live in Finances — head coach only. Log expenses as they happen and print the treasurer report for the parent meeting.",
+          cta: [
+            {
+              label: "Open Finances",
+              primary: true,
+              run: () => setActiveTab("finances"),
+            },
+          ],
+        },
+    isAssistant
+      ? null
+      : {
+          numbered: true,
+          title: "Advance the season",
+          icon: Icons.Refresh,
+          body: "When the season wraps, Settings → Advance Season archives every player's stats plus a development summary (positions played, eval growth, attendance), promotes accepted tryouts, and starts the new season clean. Year-over-year growth then shows up in each kid's development report.",
+          cta: [
+            {
+              label: "Go to Settings",
+              primary: true,
+              run: () => setActiveTab("settings"),
+            },
+          ],
+        },
     {
       eyebrow: "All Set",
       title: "You're ready",
       icon: Icons.Check,
-      body: "⌘K / Ctrl-K opens the command palette from anywhere. The ? button in the bottom corner replays this tour. Have a great season.",
+      body: "⌘K / Ctrl-K opens the command palette from anywhere. The ? button (or the ? key) opens Help & Tutorials — searchable how-tos for every screen, a glossary, keyboard shortcuts, and guided tours you can run anytime, including this orientation.",
     },
   ];
+  return steps.filter((s): s is TourStep => s !== null);
 };
 
-// Stamp "Step N of M" onto each numbered step. M is the count of numbered
-// steps, so adding/removing a step keeps the labels correct automatically.
-const attachStepNumbers = (steps: any[]) => {
-  const total = steps.filter((s: any) => s.numbered).length;
-  let n = 0;
-  return steps.map((s: any) => {
-    if (!s.numbered) return s;
-    n += 1;
-    return { ...s, eyebrow: `Step ${n} of ${total}` };
-  });
-};
-
+// The full-app Orientation Guide. Auto-opens once per device on first sign-in
+// (see the effect in App.tsx) and replays from Help & Tutorials or the ? FAB.
 export const OnboardingTutorial = ({
   open,
   onClose,
@@ -177,159 +294,41 @@ export const OnboardingTutorial = ({
   open: boolean;
   onClose: () => void;
 }) => {
-  const { team } = useTeam();
+  const { team, currentRole } = useTeam();
   const ui = useUI();
-  const [step, setStep] = useState(0);
 
-  useEffect(() => {
-    if (open) setStep(0);
-  }, [open]);
-
-  const close = useCallback(() => {
-    markOnboardingComplete();
-    onClose && onClose();
-  }, [onClose]);
-
-  // Action ctx for CTAs — re-derived on each render so it picks up
-  // current player/game counts.
-  const ctaCtx = useMemo(() => {
+  // Re-derived each render so chapters pick up current role, feature
+  // switches, and player/game counts.
+  const steps = useMemo(() => {
     const today = new Date().toISOString().split("T")[0];
     const games = team?.games || [];
     const players = team?.players || [];
-    return {
-      hasPlayers: players.length > 0,
-      hasGames: games.length > 0,
-      hasGameToday: games.some(
-        (g: any) =>
-          g.date === today && g.status !== "final" && g.status !== "postponed",
-      ),
-      setActiveTab: ui.setActiveTab,
-      setIsAddingPlayer: ui.setIsAddingPlayer,
-      setIsAddingGame: ui.setIsAddingGame,
-    };
-  }, [team, ui]);
+    return attachStepNumbers(
+      buildSteps({
+        hasPlayers: players.length > 0,
+        hasGames: games.length > 0,
+        hasGameToday: games.some(
+          (g: any) =>
+            g.date === today &&
+            g.status !== "final" &&
+            g.status !== "postponed",
+        ),
+        isAssistant: currentRole === "assistant",
+        featureOn: (id: string) => featureEnabled(team, id),
+        setActiveTab: ui.setActiveTab,
+        setIsAddingPlayer: ui.setIsAddingPlayer,
+        setIsAddingGame: ui.setIsAddingGame,
+      }),
+    );
+  }, [team, currentRole, ui]);
 
-  const steps = useMemo(() => attachStepNumbers(buildSteps(ctaCtx)), [ctaCtx]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        close();
-      } else if (e.key === "ArrowRight") {
-        setStep((s) => Math.min(steps.length - 1, s + 1));
-      } else if (e.key === "ArrowLeft") {
-        setStep((s) => Math.max(0, s - 1));
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, close, steps.length]);
-
-  if (!open) return null;
-
-  const current = steps[step];
-  const Icon = current.icon;
-  const isLast = step === steps.length - 1;
-  const runCta = (cta: any) => {
-    cta.run();
-    // CTA navigates somewhere; close the tour so the user actually sees
-    // the destination rather than the modal scrim over it.
-    close();
+  // Any exit — Done, Skip, Escape, or a CTA jump — counts as "seen": the
+  // guide should never re-open itself on the next visit (same contract the
+  // v3 tour had).
+  const close = () => {
+    markOnboardingComplete();
+    onClose && onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
-        <div
-          className="h-1.5 w-full"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-        <div className="p-7">
-          <div className="flex items-start gap-5 mb-6">
-            <div
-              className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center"
-              style={{ backgroundColor: "var(--team-primary-15)" }}
-            >
-              <Icon className="w-7 h-7" style={{ color: "var(--team-ink)" }} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <Eyebrow>{current.eyebrow}</Eyebrow>
-              <h2 className="t-card-title mt-1.5">{current.title}</h2>
-            </div>
-            <button
-              type="button"
-              onClick={close}
-              className="shrink-0 -mr-2 -mt-1 p-2 text-ink-3 hover:text-ink"
-              aria-label="Close tutorial"
-            >
-              <Icons.X className="w-5 h-5" />
-            </button>
-          </div>
-          <p className="t-body mb-5 leading-relaxed">{current.body}</p>
-          {current.cta && current.cta.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-7">
-              {current.cta.map((c: any) =>
-                c.primary ? (
-                  <Button key={c.label} onClick={() => runCta(c)}>
-                    {c.label}
-                  </Button>
-                ) : (
-                  <Button
-                    key={c.label}
-                    variant="secondary"
-                    onClick={() => runCta(c)}
-                  >
-                    {c.label}
-                  </Button>
-                ),
-              )}
-            </div>
-          )}
-          <div className="flex items-center justify-center gap-1.5 mb-6">
-            {steps.map((_: any, i: number) => (
-              <span
-                key={i}
-                className="h-1.5 rounded-full transition-all"
-                style={{
-                  width: i === step ? "24px" : "8px",
-                  backgroundColor:
-                    i === step ? "var(--team-primary)" : "var(--line-strong)",
-                }}
-              />
-            ))}
-          </div>
-          <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={close}
-              className="t-button text-ink-3 hover:text-ink"
-            >
-              Skip Tutorial
-            </button>
-            <div className="flex gap-2">
-              {step > 0 && (
-                <Button
-                  variant="secondary"
-                  onClick={() => setStep((s) => Math.max(0, s - 1))}
-                >
-                  <Icons.ChevronLeft className="w-4 h-4" /> Back
-                </Button>
-              )}
-              {!isLast ? (
-                <Button onClick={() => setStep((s) => s + 1)}>
-                  Next <Icons.ChevronRight className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button onClick={close}>
-                  Done <Icons.Check className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  return <TourModal open={open} onClose={close} steps={steps} />;
 };

@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
+import { HelpTip } from "../components/help/HelpTip";
 import { useTeam, useUI } from "../contexts";
 import {
   getActivePositionList,
@@ -417,7 +418,10 @@ export const DepthChartTab = memo(() => {
             />
           </div>
           <div>
-            <h1 className="t-h1">Depth Chart</h1>
+            <h1 className="t-h1 flex items-center gap-2">
+              Depth Chart{" "}
+              <HelpTip topicId="depth-chart" label="About the depth chart" />
+            </h1>
             <p className="t-body text-xs mt-0.5">
               Drag players into order, or use the arrow buttons for precise
               moves.

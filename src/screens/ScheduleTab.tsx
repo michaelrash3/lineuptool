@@ -1,5 +1,6 @@
 import React, { memo, useState, useMemo, useEffect } from "react";
 import { Icons } from "../icons";
+import { HelpTip } from "../components/help/HelpTip";
 import {
   formatStat,
   normalizeDateToIso,
@@ -1431,7 +1432,9 @@ export const ScheduleTab = memo(() => {
               style={{ color: primaryColor }}
             />
           </div>
-          <h2 className="t-h2 flex items-center gap-3">Schedule</h2>
+          <h2 className="t-h2 flex items-center gap-3">
+            Schedule <HelpTip topicId="add-games" label="About the schedule" />
+          </h2>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
           {(record.wins > 0 || record.losses > 0 || record.ties > 0) && (

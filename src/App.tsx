@@ -225,6 +225,11 @@ const InGameView = lazy(() =>
 const PracticesTab = lazy(() =>
   import("./screens/PracticesTab").then((m) => ({ default: m.PracticesTab })),
 );
+const HelpCenter = lazy(() =>
+  import("./components/help/HelpCenter").then((m) => ({
+    default: m.HelpCenter,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -868,6 +873,17 @@ const MainShell = () => {
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
       />
+      {/* Mounted only while open so the help chunk isn't fetched until the
+          first time a coach actually asks for it. */}
+      {helpOpen && (
+        <Suspense fallback={null}>
+          <HelpCenter
+            open
+            onClose={closeHelp}
+            onOpenTutorial={() => setTutorialOpen(true)}
+          />
+        </Suspense>
+      )}
       <WelcomeChooser
         open={needsWelcomeChooser}
         onCreate={createTeam}

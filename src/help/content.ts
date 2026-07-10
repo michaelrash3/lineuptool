@@ -727,6 +727,25 @@ export const HELP_TOPICS: HelpTopic[] = [
     featureId: "stats",
     cta: { label: "Open Stats", tab: "stats" },
   },
+  {
+    id: "depth-chart",
+    category: "stats-analytics",
+    title: "Depth chart",
+    summary:
+      "Auto-ranked position depth built from evaluation grades and actual reps.",
+    keywords: "depth chart position ranking backup starter thin bench order",
+    sections: [
+      {
+        body: "The Depth Chart ranks your roster at every position from evaluation grades and real playing time, so you can see at a glance who's next up at shortstop — and which positions are one twisted ankle from trouble.",
+      },
+      {
+        body: "Drag players into order (or use the arrow buttons) where the coach's eye disagrees with the numbers.",
+      },
+    ],
+    related: ["eval-rounds", "development-view"],
+    featureId: "depthChart",
+    cta: { label: "Open Depth Chart", tab: "depthChart" },
+  },
 
   // -------------------------------------------------------------- practices
   {

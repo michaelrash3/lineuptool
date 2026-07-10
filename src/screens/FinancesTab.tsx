@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
+import { HelpTip } from "../components/help/HelpTip";
 import { useTeam, useUI, useToast, useConfirm } from "../contexts";
 import {
   Button,
@@ -84,7 +85,7 @@ const SectionCard = ({
   children,
 }: {
   icon: ComponentType<{ className?: string; style?: CSSProperties }>;
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   children?: React.ReactNode;
 }) => (
@@ -1001,7 +1002,15 @@ export const FinancesTab = memo(() => {
         {/* Left column: Collections + Ledger */}
         <div className="lg:col-span-7 space-y-6">
           {/* Collections */}
-          <SectionCard icon={Icons.Users} title="Collections — this season">
+          <SectionCard
+            icon={Icons.Users}
+            title={
+              <>
+                Collections — this season{" "}
+                <HelpTip topicId="budget-fees" label="About finances" />
+              </>
+            }
+          >
             <div className="py-3 border-b border-line space-y-2">
               {carryoverPendingTotal > 0 && payerCount > 0 && (
                 <div className="flex flex-wrap items-center gap-3 py-2 pl-3 border-l-2 border-line-strong">

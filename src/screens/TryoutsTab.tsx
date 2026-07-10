@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
+import { HelpTip } from "../components/help/HelpTip";
 import { useTeam, useToast } from "../contexts";
 import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList, getCombinedGrades } from "../lineupEngine";
@@ -1276,7 +1277,8 @@ export const TryoutsTab = memo(() => {
         <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="t-h2 flex items-center gap-3">
-              <Icons.Users className="w-6 h-6" /> Tryouts
+              <Icons.Users className="w-6 h-6" /> Tryouts{" "}
+              <HelpTip topicId="tryout-setup" label="About tryouts" />
             </h1>
             <p className="t-eyebrow text-ink-3 mt-1">
               {(tryoutSignups || []).length} signup
