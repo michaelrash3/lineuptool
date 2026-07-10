@@ -44,6 +44,11 @@ import {
   BarChart3,
   Wallet,
   Menu,
+  HelpCircle,
+  BookOpen,
+  Search,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 
 type IconProps = SVGProps<SVGSVGElement>;
@@ -179,4 +184,9 @@ export const Icons: Record<string, IconComponent> = {
   Chart: BarChart3,
   Wallet: Wallet,
   Menu,
+  Help: HelpCircle,
+  Book: BookOpen,
+  Search,
+  TrendingUp,
+  TrendingDown,
 };

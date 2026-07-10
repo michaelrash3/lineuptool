@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { featureEnabled } from "../constants/features";
 
-const TAB_TO_PATH: Record<string, string> = {
+// Exported for help-content integrity tests (every help CTA must target a
+// real tab) — routing behavior itself only uses it internally.
+export const TAB_TO_PATH: Record<string, string> = {
   home: "/",
   schedule: "/schedule",
   practices: "/practices",

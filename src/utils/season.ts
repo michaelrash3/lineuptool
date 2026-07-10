@@ -100,7 +100,9 @@ export interface PositionVarietyEntry {
 
 // Maps each per-game fielding-innings field to its display position label.
 // GameChanger's "SF" column is right-center field, so fInnSF → RCF.
-const POSITION_INNINGS_FIELDS: Array<[keyof PlayerStats, string]> = [
+// Exported for the player-development trend engine, which reads distinct
+// positions per game line from the same actuals fields.
+export const POSITION_INNINGS_FIELDS: Array<[keyof PlayerStats, string]> = [
   ["fInnP", "P"],
   ["fInnC", "C"],
   ["fInn1B", "1B"],
