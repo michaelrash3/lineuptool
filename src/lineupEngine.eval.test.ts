@@ -362,6 +362,49 @@ describe("stat-derived tangible grades (v9)", () => {
     expect(combined.p2.glove).toBeUndefined();
   });
 
+  it("showcase-seeded data-driven tangibles bridge into combined grades until stats exist", async () => {
+    const { getCombinedGrades } = await import("./lineupEngine");
+    const players: any[] = [
+      { id: "p1", name: "SeededNoStats" },
+      {
+        id: "p2",
+        name: "SeededWithStats",
+        // Elite fielding sample → the stat overlay must beat the seed.
+        stats: { fFpct: 0.98, fTc: 24 },
+      },
+    ];
+    const events: any[] = [
+      {
+        id: "seed-1",
+        date: "2026-02-01",
+        coachRole: "Head",
+        // A preseason seed round carrying showcase-derived definitive values.
+        grades: {
+          p1: { approach: 3, power: 4, glove: 5, armStrength: 4 },
+          p2: { glove: 2 },
+        },
+      },
+      {
+        id: "ast-1",
+        date: "2026-03-01",
+        coachRole: "Assistant",
+        evaluatorId: "ac-1",
+        // Assistants have no way to hand-grade data-driven tangibles — their
+        // rounds simply lack the keys and must NOT dilute the seed toward 3.
+        grades: { p1: { approach: 1 } },
+      },
+    ];
+    const combined = getCombinedGrades(events, players, { teamAge: "10U" });
+    // No GameChanger data → the seed IS the grade, undiluted by averaging.
+    expect(combined.p1.power).toBe(4);
+    expect(combined.p1.glove).toBe(5);
+    expect(combined.p1.armStrength).toBe(4);
+    // Hand-graded intangibles still blend head/assistant as always.
+    expect(combined.p1.approach).toBe(2);
+    // Real stats exist → the stat overlay overrides the seeded value.
+    expect(combined.p2.glove).toBeCloseTo(5);
+  });
+
   it("coach grades for dropped tangible categories no longer flow through", async () => {
     const { getCombinedGrades } = await import("./lineupEngine");
     const players: any[] = [{ id: "p1", name: "Kid" }];

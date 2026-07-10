@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   getEvalCategoriesForPlayer,
+  handGradedCategoriesForPlayer,
+  handGradedCategoriesForTeam,
   playerIsPitcher,
   playerIsCatcher,
   pitcherRosterPremium,
@@ -48,15 +50,17 @@ describe("playerIsPitcher / playerIsCatcher", () => {
 });
 
 describe("eval category groups", () => {
-  it("every category's group is a navigable tab (no orphaned add-on group)", () => {
-    // The grading UIs render one tab per group; a category whose group isn't in
-    // the tab list would be unreachable (the bug when Pitch Velocity's Pitching
-    // group was dropped).
+  it("every HAND-GRADED category's group is a navigable tab (no orphaned add-on group)", () => {
+    // The grading UIs render one tab per group; a hand-graded category whose
+    // group isn't in the tab list would be unreachable (the bug when Pitch
+    // Velocity's Pitching group was dropped). dataDriven categories never
+    // render on the grading card, so their groups need no tab.
     const tabGroups = new Set<string>([
       ...EVAL_GROUPS_UNIVERSAL,
       ...EVAL_GROUPS_KID_PITCH_ADDONS,
     ]);
     for (const c of EVAL_CATEGORIES) {
+      if (c.dataDriven) continue;
       expect(tabGroups.has(c.group)).toBe(true);
     }
   });
@@ -121,7 +125,7 @@ describe("getEvalCategoriesForPlayer", () => {
     expect(plain).toContain("composure");
   });
 
-  it("stat-derived tangibles stay dropped; showcase-measured tools are back (C4)", () => {
+  it("measurable tangibles are DATA-DRIVEN — in the catalog for scoring, NEVER hand-graded (v9 restored)", () => {
     const all = ids(getEvalCategoriesForPlayer("Kid Pitch", dualThreat));
     // In-game stat lines (velocity/strikes/off-speed/throwing/game-calling and
     // contact) remain stats-derived, never coach-graded.
@@ -137,27 +141,36 @@ describe("getEvalCategoriesForPlayer", () => {
     ]) {
       expect(all).not.toContain(dropped);
     }
-    // The measured-showcase tools returned to the card (tryout radar/stopwatch
-    // seeds them; they bridge until GameChanger samples accumulate): power
-    // (exit velo), glove (fielding stations), armStrength (max throw velo),
-    // armAccuracy (strikes-of-10).
+    // The showcase-seeded tools live in the FULL catalog so scoring, seeding,
+    // and reports carry them (bridge: showcase seed → GameChanger stats)…
     expect(all).toEqual(
-      expect.arrayContaining([
-        "approach",
-        "power",
-        "glove",
-        "armStrength",
-        "armAccuracy",
-        "speed",
-        "baserunning",
-        "baseballIQ",
-        "coachability",
-        "composure",
-        "pitchVelo",
-        "blocking",
-        "receiving",
-      ]),
+      expect.arrayContaining(["power", "glove", "armStrength", "armAccuracy"]),
     );
+    for (const id of ["power", "glove", "armStrength", "armAccuracy"]) {
+      expect(EVAL_CATEGORIES.find((c) => c.id === id)?.dataDriven).toBe(true);
+    }
+    // …but a coach's HAND-GRADED list must never grow because a measurable
+    // got a data source. Manual rating rows are the eye-test intangibles only.
+    const hand = ids(handGradedCategoriesForPlayer("Kid Pitch", dualThreat));
+    expect(hand).toEqual([
+      "approach",
+      "speed",
+      "baserunning",
+      "baseballIQ",
+      "coachability",
+      "composure",
+      "pitchVelo",
+      "blocking",
+      "receiving",
+    ]);
+    expect(ids(handGradedCategoriesForTeam("Machine Pitch"))).toEqual([
+      "approach",
+      "speed",
+      "baserunning",
+      "baseballIQ",
+      "coachability",
+      "composure",
+    ]);
   });
 });
 

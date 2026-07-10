@@ -18,8 +18,8 @@ import {
   EVAL_CATEGORIES,
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
-  getEvalCategoriesForTeam,
-  getEvalCategoriesForPlayer,
+  handGradedCategoriesForTeam,
+  handGradedCategoriesForPlayer,
   playerIsPitcher,
   playerIsCatcher,
   pitcherRosterPremium,
@@ -186,7 +186,7 @@ export const EvaluationTab = memo(() => {
   const lastSavedRef = useRef("");
 
   const activeCategories = useMemo(
-    () => getEvalCategoriesForTeam(pitchingFormat),
+    () => handGradedCategoriesForTeam(pitchingFormat),
     [pitchingFormat],
   );
   const includeKidPitchAddons = useMemo(
@@ -873,7 +873,7 @@ export const EvaluationTab = memo(() => {
                       // Only the categories that apply to this kid (universal + their
                       // pitching/catching specialty), so non-pitchers/non-catchers
                       // aren't shown — or scored on — spots that don't apply to them.
-                      const playerCats = getEvalCategoriesForPlayer(
+                      const playerCats = handGradedCategoriesForPlayer(
                         pitchingFormat,
                         player,
                       );

@@ -5,7 +5,7 @@ import { useTeam, useToast } from "../contexts";
 import {
   EVAL_GROUPS_UNIVERSAL,
   EVAL_GROUPS_KID_PITCH_ADDONS,
-  getEvalCategoriesForTeam,
+  handGradedCategoriesForTeam,
   isKidPitchFormat,
   playerIsPitcher,
   playerIsCatcher,
@@ -42,7 +42,7 @@ export const AssistantEvalTab = memo(() => {
   );
 
   const activeCategories = useMemo(
-    () => getEvalCategoriesForTeam(pitchingFormat),
+    () => handGradedCategoriesForTeam(pitchingFormat),
     [pitchingFormat],
   );
   const includeKidPitchAddons = useMemo(

@@ -353,6 +353,18 @@ const DEFAULT_GRADES: Readonly<GradeMap> = Object.freeze({
   coachability: 3,
 });
 
+// Grade keys that are DATA-DRIVEN, never hand-graded (constants/ui.ts marks
+// the matching card categories `dataDriven`). Rounds carry them as seeded
+// showcase values; getCombinedGrades treats them like pitchVelo (definitive,
+// no head/assistant averaging) and applyStatGrades overrides them once real
+// GameChanger samples exist.
+const DATA_DRIVEN_GRADE_KEYS = [
+  "power",
+  "glove",
+  "armStrength",
+  "armAccuracy",
+] as const;
+
 // Backwards-compat aliases — read the v3 field if present, fall back to the
 // v1 alias (e.g. `glove` ← `fielding`), defaulting to the mid-grade. Each
 // takes a possibly-undefined grade record (legacy callers pass {} or null).
@@ -497,6 +509,27 @@ export function getCombinedGrades(
         const v = numOrNull(ev.grades?.[p.id]?.pitchVelo);
         if (v != null) {
           grades.pitchVelo = v;
+          break;
+        }
+      }
+    }
+    // Data-driven tangibles (power / glove / armStrength / armAccuracy) are
+    // DEFINITIVE values seeded into rounds from the tryout showcase — no
+    // grading UI offers them as hand grades, so they are carried like
+    // pitchVelo (head's round first, else the newest assistant round), never
+    // averaged against coaches who had no way to grade them. The stat overlay
+    // below overrides them the moment real GameChanger samples exist — the
+    // bridge precedence is: GameChanger stats > showcase seed > neutral.
+    for (const key of DATA_DRIVEN_GRADE_KEYS) {
+      const hv = numOrNull(headG?.[key]);
+      if (hv != null) {
+        grades[key] = hv;
+        continue;
+      }
+      for (const ev of assistantEvals) {
+        const v = numOrNull(ev.grades?.[p.id]?.[key]);
+        if (v != null) {
+          grades[key] = v;
           break;
         }
       }
