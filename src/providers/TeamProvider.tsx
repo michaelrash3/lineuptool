@@ -2369,6 +2369,38 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     teamData.evaluationEvents,
   ]);
 
+  // Keep the team-switcher list's name in sync with the team doc. The doc is
+  // authoritative (Settings edits it via updateTeam); each member's settings
+  // doc carries its own {id, name} copy written at create/join time, so a
+  // rename self-heals here on their next load. Only writes when the names
+  // actually differ, so this never loops.
+  useEffect(() => {
+    if (!user || !activeTeamId) return;
+    if (loadedTeamIdRef.current !== activeTeamId) return;
+    const docName = String(teamData?.name || "").trim();
+    if (!docName) return;
+    const entry = teams.find((t) => t.id === activeTeamId);
+    if (!entry || entry.name === docName) return;
+    const next = teams.map((t) =>
+      t.id === activeTeamId ? { ...t, name: docName } : t,
+    );
+    setTeams(next);
+    const ref = doc(
+      db,
+      "artifacts",
+      appId,
+      "users",
+      user.uid,
+      "settings",
+      "teams",
+    );
+    void setDoc(ref, { teams: next }, { merge: true }).catch(() => {
+      // Best-effort: the local list already updated; the stored copy heals on
+      // a later load.
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamData?.name, activeTeamId, user?.uid, teams, loadingActive]);
+
   // Auto-claim + persist legacy teams. Runs once per session per team
   // when ownerId is missing AND there is no plausible existing owner.
   //

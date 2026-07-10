@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
 import {
@@ -22,14 +22,6 @@ import {
   StorageUsagePanel,
   TeamManagementPanel,
 } from "./settings/AdvancedSettingsPanel";
-import {
-  getReminderPrefs,
-  setReminderPrefs,
-  requestNotificationPermission,
-  notificationsSupported,
-  notificationPermission,
-  ReminderPrefs,
-} from "../hooks/useScheduleReminders";
 
 // One row per team color: swatch (native color picker) + hex text input.
 // Typing a valid #rrggbb commits on every keystroke; invalid input is
@@ -81,10 +73,6 @@ const TeamColorPicker = memo(({ colorKey, val, label, updateTeam }: any) => {
   );
 });
 
-// Tryouts settings panel — head-only. Coach identity/contact used by offer
-// letters and the public page. The OPERATIONAL controls (share link, dates,
-// open/close, lifecycle, roster cap) live in the Tryouts tab
-// (components/TryoutControlsPanel.tsx).
 // Settings-driven feature switches. A toggle hides that module's tab and
 // routes for the WHOLE staff (head and assistants) until it's switched back
 // on; nothing is deleted — the data stays on the team doc, so re-enabling
@@ -138,6 +126,58 @@ const FeatureTogglesPanel = memo(({ team, updateTeam }: any) => (
   </div>
 ));
 
+// Editable team name. Commits on blur/Enter (never per keystroke — each
+// updateTeam is a Firestore write); a blank draft snaps back to the stored
+// name so a rename can't erase it. The team-doc name is authoritative: the
+// switcher list and the public portal mirror sync from it automatically.
+const TeamNameField = memo(({ team, updateTeam }: any) => {
+  const stored = team?.name || "";
+  const [draft, setDraft] = useState(stored);
+  // Re-seed the draft when the stored name changes elsewhere (another device,
+  // team switch) and the field isn't mid-edit.
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setDraft(stored);
+  }, [stored, editing]);
+  const commit = () => {
+    setEditing(false);
+    const next = draft.trim();
+    if (!next || next === stored) {
+      setDraft(stored);
+      return;
+    }
+    updateTeam({ name: next });
+  };
+  return (
+    <div>
+      <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+        Team Name
+      </label>
+      <input
+        type="text"
+        value={draft}
+        maxLength={60}
+        onFocus={() => setEditing(true)}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLElement).blur();
+          if (e.key === "Escape") {
+            setDraft(stored);
+            setEditing(false);
+          }
+        }}
+        aria-label="Team name"
+        className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] rounded-xl shadow-sm transition-all"
+      />
+    </div>
+  );
+});
+
+// Tryouts settings panel — head-only. Coach identity/contact used by offer
+// letters and the public page. The OPERATIONAL controls (share link, dates,
+// open/close, lifecycle, roster cap) live in the Tryouts tab
+// (components/TryoutControlsPanel.tsx).
 const TryoutsSettingsPanel = memo(({ team, updateTeam }: any) => {
   return (
     <div>
@@ -510,202 +550,6 @@ const Row = ({ label, value, badge, badgeKind }: any) => (
   </div>
 );
 
-// Opt-in game-day reminders. Preferences live per-device in localStorage
-// (see useScheduleReminders); there's no backend, so reminders only fire while
-// the app is open. This panel just toggles the preference and walks the coach
-// through the browser permission prompt.
-const GameRemindersPanel = memo(({ toast }: any) => {
-  const { team } = useTeam();
-  const supported = notificationsSupported();
-  const [prefs, setPrefs] = useState<ReminderPrefs>(getReminderPrefs);
-  const [permission, setPermission] = useState<NotificationPermission>(
-    notificationPermission(),
-  );
-
-  const persist = useCallback((next: ReminderPrefs) => {
-    setPrefs(next);
-    setReminderPrefs(next);
-  }, []);
-
-  const ensurePermission = useCallback(async (): Promise<boolean> => {
-    const result = await requestNotificationPermission();
-    setPermission(result);
-    if (result !== "granted") {
-      toast.push({
-        kind: "warn",
-        title: "Notifications blocked",
-        message:
-          "Allow notifications for this site in your browser to get game reminders.",
-      });
-    }
-    return result === "granted";
-  }, [toast]);
-
-  const toggleEnabled = useCallback(async () => {
-    if (!prefs.enabled) {
-      if (permission !== "granted") {
-        const granted = await ensurePermission();
-        if (!granted) return;
-      }
-      persist({ ...prefs, enabled: true });
-      toast.push({ kind: "success", title: "Game reminders on" });
-    } else {
-      persist({ ...prefs, enabled: false });
-    }
-  }, [prefs, permission, ensurePermission, persist, toast]);
-
-  // Export the schedule as an .ics so coaches get reliable native calendar
-  // reminders even when the app is closed (works regardless of notification
-  // support, which is why it lives outside the supported/unsupported branch).
-  const exportCalendar = useCallback(() => {
-    const ics = buildScheduleIcs(team?.games, team?.name);
-    if (!ics.includes("BEGIN:VEVENT")) {
-      toast.push({
-        kind: "info",
-        title: "No upcoming games",
-        message: "Add games to the schedule first.",
-      });
-      return;
-    }
-    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(team?.name || "team")
-      .replace(/[^a-z0-9]+/gi, "-")
-      .toLowerCase()}-schedule.ics`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.push({
-      kind: "success",
-      title: "Calendar file downloaded",
-      message: "Open it to add your games to your calendar app.",
-    });
-  }, [team, toast]);
-
-  const calendarExport = (
-    <div className="pt-1">
-      <button
-        type="button"
-        onClick={exportCalendar}
-        className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-colors inline-flex items-center gap-2"
-      >
-        <Icons.Calendar className="w-3.5 h-3.5" /> Add games to calendar (.ics)
-      </button>
-      <p className="text-[11px] text-ink-3 font-medium mt-1.5 max-w-md">
-        Exports your upcoming games so your phone or desktop calendar can remind
-        you — even when the app is closed.
-      </p>
-    </div>
-  );
-
-  if (!supported) {
-    return (
-      <div>
-        <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
-          <Icons.Bell className="w-4 h-4" /> Game Reminders
-        </h3>
-        <p className="text-[12px] text-ink-3 font-medium mb-4">
-          This browser doesn't support notifications, but you can still add your
-          games to a calendar.
-        </p>
-        {calendarExport}
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
-        <Icons.Bell className="w-4 h-4" /> Game Reminders
-      </h3>
-      <div className="space-y-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-sm font-bold text-ink">
-              Remind me about upcoming games
-            </div>
-            <p className="text-[11px] text-ink-3 font-medium mt-0.5 max-w-md">
-              A notification fires while the app is open. Reminders are per
-              device and won't fire reliably when the app is fully closed
-              (especially on iPhone).
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={toggleEnabled}
-            aria-pressed={prefs.enabled}
-            className={`shrink-0 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors ${
-              prefs.enabled
-                ? "border-transparent"
-                : "bg-surface text-ink-2 border-line hover:bg-surface-2"
-            }`}
-            style={
-              prefs.enabled
-                ? {
-                    backgroundColor: "var(--team-primary)",
-                    color: "var(--team-on-primary)",
-                  }
-                : undefined
-            }
-          >
-            {prefs.enabled ? "On" : "Off"}
-          </button>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-            When to remind
-          </label>
-          <div className="flex gap-2">
-            {[
-              { id: "morning_of", label: "Morning of" },
-              { id: "day_before", label: "Day before" },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                disabled={!prefs.enabled}
-                onClick={() =>
-                  persist({
-                    ...prefs,
-                    leadTime: opt.id as ReminderPrefs["leadTime"],
-                  })
-                }
-                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  prefs.leadTime === opt.id
-                    ? "bg-surface-2 text-ink border-line-strong"
-                    : "bg-surface text-ink-2 border-line hover:bg-surface-2"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {permission === "denied" && (
-          <p className="text-[11px] text-loss font-semibold">
-            Notifications are blocked for this site. Re-enable them in your
-            browser's site settings to receive reminders.
-          </p>
-        )}
-        {permission === "default" && !prefs.enabled && (
-          <button
-            type="button"
-            onClick={ensurePermission}
-            className="px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-colors"
-          >
-            Enable notifications
-          </button>
-        )}
-
-        <div className="pt-3 border-t border-line/50">{calendarExport}</div>
-      </div>
-    </div>
-  );
-});
-
 export const SettingsTab = memo(() => {
   const {
     team,
@@ -814,7 +658,6 @@ export const SettingsTab = memo(() => {
   const settingsMenuItems = [
     { id: "team", label: "Team", icon: Icons.Settings },
     { id: "features", label: "Features", icon: Icons.Sparkles },
-    { id: "reminders", label: "Reminders", icon: Icons.Clock },
     { id: "tryouts", label: "Tryouts", icon: Icons.UserPlus },
     { id: "staff", label: "Staff", icon: Icons.Users },
     { id: "imports", label: "Imports", icon: Icons.FileText },
@@ -934,9 +777,6 @@ export const SettingsTab = memo(() => {
           </h2>
           <div className="space-y-10">
             <div className="space-y-10">
-              {settingsMenu === "reminders" && (
-                <GameRemindersPanel toast={toast} />
-              )}
               {settingsMenu === "team" && (
                 <div>
                   <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-5 border-b border-line/50 pb-3 flex items-center gap-2">
@@ -944,6 +784,7 @@ export const SettingsTab = memo(() => {
                     Configuration
                   </h3>
                   <div className="space-y-5">
+                    <TeamNameField team={team} updateTeam={updateTeam} />
                     <div className="grid grid-cols-2 gap-5">
                       <div>
                         <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
