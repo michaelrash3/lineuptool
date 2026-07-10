@@ -108,7 +108,9 @@ describe("buildOfferLetter", () => {
       coveredItems: ["USSSA sanctioning", "Game jerseys"],
       tournamentCount: 0,
     });
-    expect(body).toContain("These fees cover USSSA sanctioning and game jerseys.");
+    expect(body).toContain(
+      "These fees cover USSSA sanctioning and game jerseys.",
+    );
   });
 
   it("falls back to the stock covered-items copy when the planner is empty", () => {
