@@ -9,6 +9,7 @@ import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import { isGameFinalized, isDepartedPlayer } from "../utils/helpers";
 import { fuzzyScore } from "../utils/fuzzy";
+import { visibleHelpTopics } from "../help/content";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -24,6 +25,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     setSelectedGameId,
     setIsAddingPlayer,
     setAssistantEvalOpen,
+    openHelp,
   } = useUI();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
@@ -147,15 +149,31 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
       });
     }
 
+    // Help topics are searchable from the palette but stay out of the
+    // empty-query default list (the no-query branch below only samples
+    // nav/action/game/player kinds), so they never crowd out navigation.
+    for (const t of visibleHelpTopics(team, currentRole)) {
+      items.push({
+        kind: "help",
+        id: `help:${t.id}`,
+        label: t.title,
+        sublabel: t.summary,
+        searchKey: `${t.title} ${t.keywords}`,
+        action: () => openHelp(t.id),
+      });
+    }
+
     return items;
   }, [
     team,
     isAssistant,
+    currentRole,
     openPlayerProfile,
     setActiveTab,
     setSelectedGameId,
     setIsAddingPlayer,
     setAssistantEvalOpen,
+    openHelp,
   ]);
 
   const results = useMemo(() => {
@@ -280,7 +298,9 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
                         ? "Game"
                         : item.kind === "nav"
                           ? "Tab"
-                          : "Action"}
+                          : item.kind === "help"
+                            ? "Help"
+                            : "Action"}
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block t-body-bold truncate text-ink">

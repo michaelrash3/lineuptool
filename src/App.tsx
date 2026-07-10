@@ -329,6 +329,9 @@ const MainShell = () => {
     setSelectedGameId,
     inGameId,
     setInGameId,
+    helpOpen,
+    openHelp,
+    closeHelp,
   } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
@@ -387,10 +390,10 @@ const MainShell = () => {
   // Global keyboard shortcuts. Disabled while typing in form fields. Active
   // anywhere in the app:
   //   1-5 → switch primary tab
-  //   ?    → open the tutorial
+  //   ?    → open Help & Tutorials
   //   G    → regenerate lineup (only when a game is selected for editing)
   //   B    → regenerate batting order (same gate as G)
-  //   Esc  → close tutorial / does not handle modals here (each owns its own)
+  //   Esc  → close help/tour overlays own their own Escape handling
   useEffect(() => {
     if (!authReady || !user) return undefined;
     const onKey = (e: KeyboardEvent) => {
@@ -425,7 +428,7 @@ const MainShell = () => {
       }
       if (k === "?" || (k === "/" && e.shiftKey)) {
         e.preventDefault();
-        setTutorialOpen(true);
+        openHelp();
         return;
       }
       if ((k === "g" || k === "G") && selectedGameId) {
@@ -445,6 +448,7 @@ const MainShell = () => {
     authReady,
     user,
     setActiveTab,
+    openHelp,
     selectedGameId,
     regenerateLineup,
     regenerateBatting,
@@ -875,14 +879,14 @@ const MainShell = () => {
       />
       <m.button
         type="button"
-        onClick={() => setTutorialOpen(true)}
-        aria-label="Open tutorial"
+        onClick={() => openHelp()}
+        aria-label="Open help"
         whileHover={{ y: -2 }}
         whileTap={{ scale: 0.92 }}
         className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white font-black text-lg print:hidden"
         style={{ backgroundColor: "var(--team-primary)" }}
       >
-        ?
+        <Icons.Help className="w-6 h-6" aria-hidden="true" />
       </m.button>
       {genError && (
         <div className="fixed bottom-4 left-4 bg-red-600 text-white px-4 py-3 rounded-xl shadow-lg max-w-sm text-xs font-bold print:hidden">
