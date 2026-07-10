@@ -92,6 +92,44 @@ export interface PlayerStats {
   [key: string]: number | undefined;
 }
 
+// Compact per-season development summary archived by Advance Season. Derived
+// from the season's game-level data (which is cleared at rollover) so
+// year-over-year development views survive. Deliberately tiny — a few hundred
+// bytes per player per season — because the whole team lives in one ~1MB
+// Firestore doc; never archive raw game arrays here.
+export interface PlayerPastSeasonSummary {
+  // Finalized games that had an imported box-score line for this player.
+  gamesWithLines?: number;
+  // 0..1 across games + practices where attendance was recorded.
+  attendanceRate?: number;
+  evalRounds?: number;
+  // currentEvaluationScore100 at the first / last Head-coach round.
+  evalFirst100?: number;
+  evalLast100?: number;
+  // Defensive innings by position label (from the fInn* actuals fields).
+  positionInnings?: Record<string, number>;
+  distinctPositions?: number;
+}
+
+// One archived season on a player. Written by Advance Season (no `id`) and by
+// the manual past-season import wizard (with `id`); all fields optional for
+// back-compat with older docs.
+export interface PlayerPastSeason {
+  id?: string;
+  season?: string;
+  ageGroup?: string;
+  pitchingFormat?: string;
+  record?: {
+    wins: number;
+    losses: number;
+    ties: number;
+    runsScored: number;
+    runsAllowed: number;
+  };
+  stats?: PlayerStats;
+  summary?: PlayerPastSeasonSummary;
+}
+
 export interface Player {
   id: PlayerId;
   name: string;
@@ -112,7 +150,7 @@ export interface Player {
   // Per-season historical stats for multi-season stat blending. Each entry
   // carries a season label and the stats for that year; the engine uses the
   // two most recent past seasons when current-year AB count is low.
-  pastSeasons?: Array<{ season?: string; stats?: PlayerStats }>;
+  pastSeasons?: PlayerPastSeason[];
   // Legacy pitching log (pre-v5 schema). The canonical fields migrated to
   // PlayerStats (pTopMph, pTopMphDate); this sub-object still appears on
   // older player docs and is read by the pitching-plan engine.

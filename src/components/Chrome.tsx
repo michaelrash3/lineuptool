@@ -176,6 +176,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
     setNewTeamName,
     activeTab,
     setActiveTab,
+    openHelp,
   } = useUI();
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
@@ -245,6 +246,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
             subtitle={subtitle}
             showSettings={currentRole !== "assistant"}
             onSettings={() => setActiveTab?.("settings")}
+            onHelp={() => openHelp?.()}
             themeToggle={<ThemeToggle />}
             onSignOut={() => setSignOutOpen(true)}
           />
@@ -565,6 +567,7 @@ export const NavDrawer = memo(
     subtitle,
     showSettings,
     onSettings,
+    onHelp,
     themeToggle,
     onSignOut,
   }: any) => {
@@ -668,6 +671,14 @@ export const NavDrawer = memo(
                 </div>
 
                 <div className="border-t border-white/15 px-3 py-3 flex flex-col gap-2 bg-white/[0.04]">
+                  <NavRow
+                    icon={Icons.Help}
+                    label="Help & Tutorials"
+                    onClick={() => {
+                      setOpen(false);
+                      onHelp?.();
+                    }}
+                  />
                   {showSettings && (
                     <NavRow
                       icon={Icons.Settings}
