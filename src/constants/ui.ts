@@ -43,6 +43,11 @@ export interface EvalCategory {
   // input instead and is excluded from the 1–5 composite math (weight 0); it
   // feeds the pitcher score via age-relative velocity grading instead.
   inputKind?: "mph";
+  // NEVER hand-graded: the value comes from data (tryout showcase seed, then
+  // GameChanger stats). Kept in the catalog so scoring/reports carry it, but
+  // every grading UI must filter these out — a coach's manual rating list
+  // must not grow when a measurable gets a data source.
+  dataDriven?: boolean;
 }
 
 export const EVAL_CATEGORIES: EvalCategory[] = [
@@ -54,39 +59,46 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
     weight: 2.5,
     description: "Pitch selection, two-strike battles, situational hitting.",
   },
-  // Power is measurable — the tryout showcase seeds it from exit velo
-  // (age-banded chart); coaches grade it by eye in regular rounds.
+  // DATA-DRIVEN tangibles — never hand-graded (dataDriven filters them off
+  // every grading card). Their values are seeded from tryout showcase
+  // measurements and overridden by GameChanger stats as real samples
+  // accumulate; they stay in this catalog only so scoring, reports, and the
+  // grade schema keep carrying them.
   {
     id: "power",
     label: "Power",
     group: "Hitting",
     weight: 1.5,
+    dataDriven: true,
     description:
-      "Exit velocity / hard contact. Seeded from showcase exit velo.",
+      "Data-driven: showcase exit velo, then GameChanger hard-contact stats.",
   },
-  // Fielding tools — these ids were always in the grade schema (v2 card);
-  // re-surfaced so the tryout showcase's measured stations have a home.
   {
     id: "glove",
     label: "Fielding",
     group: "Fielding",
     weight: 2.0,
-    description: "Ground balls and fly balls. Seeded from showcase fielding.",
+    dataDriven: true,
+    description:
+      "Data-driven: showcase fielding stations, then GameChanger fielding %.",
   },
   {
     id: "armStrength",
     label: "Arm Strength",
     group: "Fielding",
     weight: 1.5,
-    description: "Throwing velocity. Seeded from showcase max throw velo.",
+    dataDriven: true,
+    description:
+      "Data-driven: showcase max throw velo, then GameChanger arm data.",
   },
   {
     id: "armAccuracy",
     label: "Accuracy",
     group: "Fielding",
     weight: 1.0,
+    dataDriven: true,
     description:
-      "On-target throws; for pitchers, seeded from showcase strikes-of-10.",
+      "Data-driven: showcase strikes-of-10, then GameChanger strike %.",
   },
   // Athleticism — Speed and Base Running are graded SEPARATELY: raw foot speed
   // is a different tool than reads/instincts on the bases.
@@ -210,9 +222,11 @@ export const ageFromTeamAge = (teamAge?: string): number => {
 export const velocityBenchmarkForAge = (teamAge?: string): VeloBenchmark =>
   AGE_VELOCITY_BENCHMARKS[ageFromTeamAge(teamAge)];
 
+// Grading-UI tab groups. "Fielding" is deliberately absent: every Fielding
+// category is dataDriven (showcase/GameChanger fed), so there is nothing for
+// a coach to hand-grade under it.
 export const EVAL_GROUPS_UNIVERSAL: EvalGroup[] = [
   "Hitting",
-  "Fielding",
   "Baserunning",
   "Intangibles",
 ];
@@ -231,6 +245,15 @@ export const getEvalCategoriesForTeam = (
   const includeAddOns = isKidPitchFormat(pitchingFormat);
   return EVAL_CATEGORIES.filter((c) => !c.addOn || includeAddOns);
 };
+
+// The categories a coach actually HAND-GRADES — the full catalog minus the
+// dataDriven tangibles. Grading UIs (EvaluationTab, AssistantEvalTab) use
+// these; scoring/aggregation keeps the full lists above so the data-driven
+// values still count.
+export const handGradedCategoriesForTeam = (
+  pitchingFormat?: string,
+): EvalCategory[] =>
+  getEvalCategoriesForTeam(pitchingFormat).filter((c) => !c.dataDriven);
 
 // Position membership for eval gating. Catcher is opt-in ("C" in the list);
 // pitcher is "P" in the list — same positive position model the Roster uses.
@@ -263,6 +286,15 @@ export const getEvalCategoriesForPlayer = (
     return true;
   });
 };
+
+// Per-player HAND-GRADED categories (see handGradedCategoriesForTeam).
+export const handGradedCategoriesForPlayer = (
+  pitchingFormat: string | undefined,
+  player: { comfortablePositions?: string[] } | undefined,
+): EvalCategory[] =>
+  getEvalCategoriesForPlayer(pitchingFormat, player).filter(
+    (c) => !c.dataDriven,
+  );
 
 // Current eval schema version. Used to migrate teams off older shapes.
 //   v1: 6-category grades (legacy, wiped)
