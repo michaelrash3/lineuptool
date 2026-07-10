@@ -1,5 +1,5 @@
 import React from "react";
-import { screen, within } from "@testing-library/react";
+import { screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsTab } from "./SettingsTab";
 import { renderWithProviders } from "../test-utils";
@@ -60,6 +60,52 @@ describe("SettingsTab", () => {
     expect(leagueSelect).toBeTruthy();
     await userEvent.selectOptions(leagueSelect as HTMLSelectElement, "NKB");
     expect(teamValue.updateTeam).toHaveBeenCalledWith({ leagueRuleSet: "NKB" });
+  });
+
+  it("renames the team from Settings (commit on blur, blank snaps back)", async () => {
+    const { teamValue } = renderWithProviders(<SettingsTab />, {
+      team: {
+        team: { ...teamData, name: "Hawks" },
+        currentRole: "head",
+        realRole: "head",
+        updateTeam: jest.fn(),
+      },
+      ui: {
+        isAddingCoach: false,
+        setIsAddingCoach: jest.fn(),
+        newCoachForm: {},
+        setNewCoachForm: jest.fn(),
+        setPastSeasonImport: jest.fn(),
+      },
+    });
+    const input = screen.getByLabelText("Team name");
+    expect(input).toHaveValue("Hawks");
+    await userEvent.clear(input);
+    await userEvent.type(input, "  River Hawks  ");
+    fireEvent.blur(input);
+    expect(teamValue.updateTeam).toHaveBeenCalledWith({ name: "River Hawks" });
+    // Blanking the field must never erase the stored name.
+    (teamValue.updateTeam as jest.Mock).mockClear();
+    await userEvent.clear(input);
+    fireEvent.blur(input);
+    expect(teamValue.updateTeam).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Hawks");
+  });
+
+  it("no longer offers a Reminders section", () => {
+    renderWithProviders(<SettingsTab />, {
+      team: { team: teamData, currentRole: "head", realRole: "head" },
+      ui: {
+        isAddingCoach: false,
+        setIsAddingCoach: jest.fn(),
+        newCoachForm: {},
+        setNewCoachForm: jest.fn(),
+        setPastSeasonImport: jest.fn(),
+      },
+    });
+    expect(
+      screen.queryByRole("button", { name: /Reminders/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("turns a feature off and back on from the Features section", async () => {

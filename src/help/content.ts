@@ -513,11 +513,15 @@ export const HELP_TOPICS: HelpTopic[] = [
     category: "evaluations",
     title: "Evaluation rounds",
     summary:
-      "Grade every player 1–5 across hitting, fielding, or pitching dimensions on a set cadence.",
+      "Hand-grade the eye-test dimensions 1–5 on a set cadence — hitting approach, speed, base running, and the intangibles.",
     keywords: "evaluate grade round 1-5 scale rating due date cadence notes",
     sections: [
       {
-        body: "Evaluation tab → New Round. Pick a category set (hitting / fielding / pitching), then grade each player 1–5 per dimension with optional notes. Save and every leaderboard and sparkline recomputes instantly.",
+        body: "Evaluation tab → New Round. Grade each player 1–5 on the eye-test dimensions (hitting approach, speed, base running, baseball IQ, coachability, composure — plus pitching and catching for kid-pitch specialists) with optional notes. Save and every leaderboard and sparkline recomputes instantly.",
+      },
+      {
+        heading: "Measurables grade themselves",
+        body: "Power, fielding, arm strength, and accuracy never appear as hand grades — they're data-driven, seeded from tryout showcase measurements and taken over by GameChanger stats as real games accumulate.",
       },
       {
         heading: "Cadence",
