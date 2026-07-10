@@ -39,6 +39,7 @@ import {
 } from "../auth/googleRedirect";
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildEvalReminderDraft, buildMailtoUrl } from "../utils/reminderDraft";
+import { buildPlayerSeasonSummaries } from "../utils/playerDevelopment";
 import {
   buildEvalRoundsQuery,
   assembleEvalRounds,
@@ -1740,6 +1741,20 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
       const nowIso = new Date().toISOString();
 
+      // Compact per-player development summaries (positions played, eval
+      // first/last, attendance rate, games with lines). Computed from the
+      // same pre-advance snapshot as seasonRecord because the inputs — games,
+      // practices, eval rounds — are all cleared below; this is the only
+      // development data that survives into pastSeasons. Bounded at a few
+      // hundred bytes per player per season (1MB team-doc cap).
+      const devSummaries = buildPlayerSeasonSummaries({
+        players: teamData.players,
+        games: teamData.games || [],
+        practices: teamData.practices || [],
+        evaluationEvents: teamData.evaluationEvents || [],
+        teamAge: teamData.teamAge,
+      });
+
       // Archive each player's current stats into pastSeasons[]; drop the
       // ones marked Released/Declined; reset surviving statuses to
       // "returning" so the next cycle starts clean.
@@ -1753,16 +1768,20 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           )
             ? [...(p.pastSeasons as Array<Record<string, unknown>>)]
             : [];
-          // Only archive if there's something meaningful (skip totally-empty stat objects)
+          // Only archive if there's something meaningful: a non-empty stat
+          // line, or a development summary (a kid can have eval rounds and
+          // attendance worth keeping even with no imported stats).
           const stats = p.stats || blankStats();
           const hasAnyData = Object.values(stats).some((v) => Number(v) > 0);
-          if (hasAnyData) {
+          const summary = devSummaries.get(p.id);
+          if (hasAnyData || summary) {
             past.push({
               season: archivedSeason,
               ageGroup: archivedAge,
               pitchingFormat: archivedFormat,
               record: seasonRecord,
               stats: { ...stats },
+              ...(summary ? { summary } : {}),
             });
           }
           return {
