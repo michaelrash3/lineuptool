@@ -7,6 +7,8 @@ const ctx: OfferLetterContext = {
   teamFees: "$1,200",
   deposit: "$300",
   depositDueDate: "2026-03-19",
+  coveredItems: ["Game jerseys", "Hats", "Indoor facility"],
+  tournamentCount: 6,
   coachName: "Coach Mike",
   coachEmail: "mike@example.com",
   coachPhone: "(555) 123-4567",
@@ -21,7 +23,9 @@ describe("buildOfferLetter", () => {
     expect(body).toContain("invite you back to the Trash Pandas Baseball Club");
     expect(body).toContain("$1,200");
     expect(body).toContain("deposit of $300 is required by March 19, 2026");
-    expect(body).toContain("three uniform tops");
+    expect(body).toContain(
+      "These fees cover game jerseys, hats, indoor facility, and 5 to 7 tournaments between the Fall and Spring seasons.",
+    );
     expect(body).toContain("within 48 hours");
     expect(body).toContain("call/text me at (555) 123-4567");
     expect(body).toContain("@CoachMike");
@@ -66,6 +70,57 @@ describe("buildOfferLetter", () => {
     const { body } = buildOfferLetter("newPlayer", { ...ctx, coachPhone: "" });
     expect(body).not.toContain("call me at");
     expect(body).toContain("reply to this message confirming your acceptance.");
+  });
+
+  it("quotes planned tournaments as a ±1 range in both offers", () => {
+    for (const kind of ["returning", "newPlayer"] as const) {
+      const { body } = buildOfferLetter(kind, { ...ctx, tournamentCount: 4 });
+      expect(body).toContain(
+        "3 to 5 tournaments between the Fall and Spring seasons",
+      );
+    }
+  });
+
+  it("floors the tournament range at 1 for a single planned tournament", () => {
+    const { body } = buildOfferLetter("returning", {
+      ...ctx,
+      tournamentCount: 1,
+    });
+    expect(body).toContain(
+      "1 to 2 tournaments between the Fall and Spring seasons",
+    );
+  });
+
+  it("lists covered items without a tournament clause when none are planned", () => {
+    const { body } = buildOfferLetter("returning", {
+      ...ctx,
+      tournamentCount: 0,
+    });
+    expect(body).toContain(
+      "These fees cover game jerseys, hats, and indoor facility.",
+    );
+    expect(body).not.toContain("tournaments between");
+  });
+
+  it("keeps acronym-leading planner labels as typed", () => {
+    const { body } = buildOfferLetter("returning", {
+      ...ctx,
+      coveredItems: ["USSSA sanctioning", "Game jerseys"],
+      tournamentCount: 0,
+    });
+    expect(body).toContain("These fees cover USSSA sanctioning and game jerseys.");
+  });
+
+  it("falls back to the stock covered-items copy when the planner is empty", () => {
+    const { body } = buildOfferLetter("returning", {
+      ...ctx,
+      coveredItems: [],
+      tournamentCount: 0,
+    });
+    expect(body).toContain("three uniform tops");
+    expect(body).toContain(
+      "3 to 5 tournaments between the Fall and Spring seasons",
+    );
   });
 });
 

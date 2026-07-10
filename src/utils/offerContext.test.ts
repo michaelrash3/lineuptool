@@ -47,4 +47,81 @@ describe("makeOfferLetterContext", () => {
     expect(ctx.venmoAccountName).toBe("");
     expect(ctx.venmoLink).toBe("");
   });
+
+  it("reads covered items and the tournament total from the Budget Planner", () => {
+    const ctx = makeOfferLetterContext(
+      {
+        name: "Trash Pandas",
+        finances: {
+          budgetItems: [
+            {
+              id: "b1",
+              label: "Fall tournaments",
+              amount: 0,
+              qty: 3,
+              unitAmount: 450,
+            },
+            {
+              id: "b2",
+              label: "Spring tournaments",
+              amount: 0,
+              qty: 4,
+              unitAmount: 450,
+            },
+            { id: "b3", label: "Game jerseys", amount: 600 },
+            { id: "b4", label: "Indoor facility", amount: 900 },
+            // Unpriced placeholder rows never show up in a letter.
+            { id: "b5", label: "Baseballs", amount: 0 },
+          ],
+        },
+      },
+      { displayName: "Coach", email: "coach@example.com" },
+      "Ava",
+    );
+    expect(ctx.coveredItems).toEqual(["Game jerseys", "Indoor facility"]);
+    expect(ctx.tournamentCount).toBe(7);
+  });
+
+  it("keeps a flat tournament item in the list when no quantity is planned", () => {
+    const ctx = makeOfferLetterContext(
+      {
+        name: "Trash Pandas",
+        finances: {
+          budgetItems: [
+            { id: "b1", label: "Tournament entry", amount: 1800 },
+            { id: "b2", label: "Game jerseys", amount: 600 },
+          ],
+        },
+      },
+      { displayName: "Coach", email: "coach@example.com" },
+      "Ava",
+    );
+    expect(ctx.coveredItems).toEqual(["Tournament entry", "Game jerseys"]);
+    expect(ctx.tournamentCount).toBe(0);
+  });
+
+  it("dedupes repeated planner labels and defaults to empty when unplanned", () => {
+    const dup = makeOfferLetterContext(
+      {
+        name: "Trash Pandas",
+        finances: {
+          budgetItems: [
+            { id: "b1", label: "Hotel", amount: 400 },
+            { id: "b2", label: "hotel", amount: 250 },
+          ],
+        },
+      },
+      { displayName: "Coach", email: "coach@example.com" },
+      "Ava",
+    );
+    expect(dup.coveredItems).toEqual(["Hotel"]);
+
+    const empty = makeOfferLetterContext(
+      { name: "Trash Pandas" },
+      { displayName: "Coach", email: "coach@example.com" },
+      "Ava",
+    );
+    expect(empty.coveredItems).toEqual([]);
+    expect(empty.tournamentCount).toBe(0);
+  });
 });

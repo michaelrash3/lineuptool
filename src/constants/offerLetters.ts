@@ -21,6 +21,12 @@ export interface OfferLetterContext {
   teamFees: string;
   deposit: string;
   depositDueDate: string;
+  // What the fees cover, from the Budget Planner: the planned line-item labels
+  // in planner order (tournament items excluded when their count is planned),
+  // plus the total planned Fall+Spring tournament count. Empty list + 0 count
+  // = planner not filled in yet; the letter falls back to stock wording.
+  coveredItems: string[];
+  tournamentCount: number;
   coachName: string;
   coachEmail: string;
   coachPhone: string;
@@ -52,8 +58,39 @@ const clubName = (ctx: OfferLetterContext): string =>
 const rosterOfferSubject = (ctx: OfferLetterContext): string =>
   `${ctx.teamName || "Our Team"} Baseball Roster Offer`;
 
-const coveredItems =
-  "These fees cover three uniform tops, two pairs of pants, two hats, a bat bag, access to an indoor facility for practices starting in January, and 3 to 5 tournaments between the Fall and Spring seasons. We will provide fundraising opportunities throughout the year to help reduce these costs.";
+// "a, b, and c" — Oxford-comma list for the covered-items sentence.
+const joinList = (items: string[]): string => {
+  if (items.length <= 1) return items[0] || "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+};
+
+// Planner labels are sentence-case ("Game jerseys"); mid-sentence they read
+// better lowercased. Labels leading with an acronym (USSSA) are left alone.
+const midSentence = (label: string): string =>
+  /^[A-Z][a-z]/.test(label) ? label[0].toLowerCase() + label.slice(1) : label;
+
+// Pre-planner stock wording, kept as the fallback so a letter drafted before
+// the Budget Planner is filled in still reads like a complete offer.
+const FALLBACK_COVERED =
+  "three uniform tops, two pairs of pants, two hats, a bat bag, access to an indoor facility for practices starting in January, and 3 to 5 tournaments between the Fall and Spring seasons";
+
+// What the fees cover: the Budget Planner's line items as a comma-separated
+// list, with the planned tournament total quoted as a ±1 range ("5 to 7
+// tournaments") — the letter promises a schedule, not an exact count.
+const coveredItems = (ctx: OfferLetterContext): string => {
+  const items = (ctx.coveredItems || [])
+    .map((label) => midSentence(label.trim()))
+    .filter(Boolean);
+  const count = Math.round(ctx.tournamentCount || 0);
+  if (count > 0) {
+    items.push(
+      `${Math.max(1, count - 1)} to ${count + 1} tournaments between the Fall and Spring seasons`,
+    );
+  }
+  const covered = items.length > 0 ? joinList(items) : FALLBACK_COVERED;
+  return `These fees cover ${covered}. We will provide fundraising opportunities throughout the year to help reduce these costs.`;
+};
 
 const formatOfferDate = (date: string): string => {
   const trimmed = date.trim();
@@ -107,7 +144,7 @@ export const buildOfferLetter = (
         "",
         `We are pleased to invite you back to the ${club} for the upcoming season. Your hard work and dedication continue to be a great asset to our team.`,
         "",
-        `The team fees for the upcoming season are ${ctx.teamFees}. ${coveredItems}`,
+        `The team fees for the upcoming season are ${ctx.teamFees}. ${coveredItems(ctx)}`,
         "",
         `Please let us know your decision within 48 hours of receiving this offer. To accept, please reply directly to this message confirming your acceptance${phoneClause(
           ctx,
@@ -130,7 +167,7 @@ export const buildOfferLetter = (
         "",
         `We are pleased to offer you a roster spot with the ${club} for the upcoming season. We were impressed with your performance at tryouts and believe you will be a great addition to our team.`,
         "",
-        `The team fees for the season are ${ctx.teamFees}. ${coveredItems}`,
+        `The team fees for the season are ${ctx.teamFees}. ${coveredItems(ctx)}`,
         "",
         `You have 48 hours to accept this offer. To accept, please reply to this message confirming your acceptance${phoneClause(
           ctx,
