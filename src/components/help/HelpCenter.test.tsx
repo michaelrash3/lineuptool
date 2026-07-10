@@ -229,7 +229,10 @@ describe("HelpCenter", () => {
     );
     expect(screen.getByText("Add your players")).toBeInTheDocument();
     expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // The tour is itself a dialog now; the HELP dialog specifically is gone.
+    expect(
+      screen.queryByRole("dialog", { name: "Help & Tutorials" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByLabelText("Search help articles"),
     ).not.toBeInTheDocument();

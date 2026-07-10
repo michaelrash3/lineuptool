@@ -12,6 +12,7 @@ import {
   type HelpTopic,
 } from "../../help/content";
 import { getCompletedTours, markTourComplete } from "../../help/helpPrefs";
+import { getLocalDateString } from "../../constants/ui";
 import { visibleTours, type Tour } from "../../help/tours";
 import { attachStepNumbers, TourModal, type TourCtaCtx } from "./TourModal";
 
@@ -98,8 +99,13 @@ export const HelpCenter = ({
   );
 
   const tourCtx = useMemo<TourCtaCtx>(() => {
-    const today = new Date().toISOString().split("T")[0];
+    // Local calendar day, not UTC — an evening game must still count as
+    // "today" for the game-day CTA.
+    const today = getLocalDateString();
     const games = team?.games || [];
+    // Add-flows are head-coach actions (their editors are role-gated at the
+    // destination); assistant CTAs still navigate but skip the editor flag.
+    const isAssistant = currentRole === "assistant";
     return {
       hasPlayers: (team?.players || []).length > 0,
       hasGames: games.length > 0,
@@ -108,10 +114,10 @@ export const HelpCenter = ({
           g.date === today && g.status !== "final" && g.status !== "postponed",
       ),
       setActiveTab,
-      setIsAddingPlayer,
-      setIsAddingGame,
+      setIsAddingPlayer: isAssistant ? () => {} : setIsAddingPlayer,
+      setIsAddingGame: isAssistant ? () => {} : setIsAddingGame,
     };
-  }, [team, setActiveTab, setIsAddingPlayer, setIsAddingGame]);
+  }, [team, currentRole, setActiveTab, setIsAddingPlayer, setIsAddingGame]);
 
   const tourSteps = useMemo(
     () => (activeTour ? attachStepNumbers(activeTour.buildSteps(tourCtx)) : []),
@@ -121,8 +127,9 @@ export const HelpCenter = ({
   if (!open) return null;
 
   // While a tour runs, the tour modal is the ONLY layer — rendering it over
-  // the help dialog would stack two focus traps. Closing the tour (skip, X,
-  // Escape, CTA, or Done) lands back on the help overlay.
+  // the help dialog would stack two focus traps. Skip/X/Escape/Done land back
+  // on the help overlay; a CTA exit closes Help entirely, since the CTA just
+  // navigated somewhere and the overlay would otherwise cover the destination.
   if (activeTour) {
     return (
       <TourModal
@@ -133,6 +140,10 @@ export const HelpCenter = ({
           setCompletedTours(getCompletedTours());
         }}
         onClose={() => setActiveTour(null)}
+        onCtaNavigate={() => {
+          setActiveTour(null);
+          onClose();
+        }}
       />
     );
   }
@@ -160,8 +171,12 @@ export const HelpCenter = ({
 
   const runCta = (cta: HelpCta) => {
     setActiveTab(cta.tab);
-    if (cta.uiAction === "addPlayer") setIsAddingPlayer(true);
-    if (cta.uiAction === "addGame") setIsAddingGame(true);
+    // Add-flows are head-coach actions (AddPlayerModal / ScheduleTab both
+    // role-gate their editors); for assistants the CTA just navigates.
+    if (currentRole !== "assistant") {
+      if (cta.uiAction === "addPlayer") setIsAddingPlayer(true);
+      if (cta.uiAction === "addGame") setIsAddingGame(true);
+    }
     onClose();
   };
 

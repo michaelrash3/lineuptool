@@ -433,7 +433,9 @@ const MainShell = () => {
       }
       if (k === "?" || (k === "/" && e.shiftKey)) {
         e.preventDefault();
-        openHelp();
+        // While the orientation tour is up (z-150), don't mount the Help
+        // Center beneath it (z-140) — the layered focus traps would fight.
+        if (!tutorialOpen) openHelp();
         return;
       }
       if ((k === "g" || k === "G") && selectedGameId) {
@@ -454,6 +456,7 @@ const MainShell = () => {
     user,
     setActiveTab,
     openHelp,
+    tutorialOpen,
     selectedGameId,
     regenerateLineup,
     regenerateBatting,

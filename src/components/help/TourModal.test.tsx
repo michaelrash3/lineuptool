@@ -68,7 +68,7 @@ describe("TourModal", () => {
 
   it("closes on Escape without completing", () => {
     const { onClose, onComplete } = setup();
-    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onComplete).not.toHaveBeenCalled();
   });

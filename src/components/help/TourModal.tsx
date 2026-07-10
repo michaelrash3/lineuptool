@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Icons } from "../../icons";
 import { Button, Eyebrow } from "../shared";
+import { useModalA11y } from "../../hooks/useModalA11y";
 
 // The multi-step tour shell extracted from OnboardingTutorial: scrim, accent
 // bar, icon chip, CTA row, progress, and keyboard navigation. Steps come in
@@ -48,25 +49,33 @@ export const TourModal = ({
   onClose,
   steps,
   onComplete,
+  onCtaNavigate,
 }: {
   open: boolean;
   onClose: () => void;
   steps: TourStep[];
   onComplete?: () => void;
+  // Called instead of onClose when the user exits via a CTA that navigates
+  // into the app. Lets a host that would normally reappear on close (the
+  // Help Center) get out of the way of the destination instead.
+  onCtaNavigate?: () => void;
 }) => {
   const [step, setStep] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) setStep(0);
   }, [open]);
 
+  // Focus trap + Escape via the shared stack-aware dialog hook, so a tour
+  // layered over (or launched from) another dialog resolves Escape/Tab on
+  // the top-most layer only.
+  useModalA11y(panelRef, { onClose, enabled: open && steps.length > 0 });
+
   useEffect(() => {
     if (!open) return undefined;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      } else if (e.key === "ArrowRight") {
+      if (e.key === "ArrowRight") {
         setStep((s) => Math.min(steps.length - 1, s + 1));
       } else if (e.key === "ArrowLeft") {
         setStep((s) => Math.max(0, s - 1));
@@ -74,27 +83,37 @@ export const TourModal = ({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose, steps.length]);
+  }, [open, steps.length]);
 
   if (!open || steps.length === 0) return null;
 
-  const current = steps[step];
+  // Clamp: the steps array can shrink while open (chapters are derived from
+  // live team state, which a remote sync can change under us).
+  const idx = Math.min(step, steps.length - 1);
+  const current = steps[idx];
   const Icon = current.icon;
-  const isLast = step === steps.length - 1;
+  const isLast = idx === steps.length - 1;
   const finish = () => {
     onComplete?.();
     onClose();
   };
   const runCta = (cta: TourStepCta) => {
     cta.run();
-    // CTA navigates somewhere; close the tour so the user actually sees
-    // the destination rather than the modal scrim over it.
-    onClose();
+    // CTA navigates somewhere; get the tour (and any host overlay) out of
+    // the way so the user actually sees the destination.
+    (onCtaNavigate || onClose)();
   };
 
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={current.title}
+        tabIndex={-1}
+        className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden"
+      >
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -147,15 +166,15 @@ export const TourModal = ({
                   key={i}
                   className="h-1.5 rounded-full transition-all"
                   style={{
-                    width: i === step ? "24px" : "8px",
+                    width: i === idx ? "24px" : "8px",
                     backgroundColor:
-                      i === step ? "var(--team-primary)" : "var(--line-strong)",
+                      i === idx ? "var(--team-primary)" : "var(--line-strong)",
                   }}
                 />
               ))
             ) : (
               <span className="t-eyebrow tabular-nums">
-                {`${step + 1} / ${steps.length}`}
+                {`${idx + 1} / ${steps.length}`}
               </span>
             )}
           </div>
@@ -168,16 +187,18 @@ export const TourModal = ({
               Skip Tour
             </button>
             <div className="flex gap-2">
-              {step > 0 && (
+              {idx > 0 && (
                 <Button
                   variant="secondary"
-                  onClick={() => setStep((s) => Math.max(0, s - 1))}
+                  onClick={() => setStep(Math.max(0, idx - 1))}
                 >
                   <Icons.ChevronLeft className="w-4 h-4" /> Back
                 </Button>
               )}
               {!isLast ? (
-                <Button onClick={() => setStep((s) => s + 1)}>
+                <Button
+                  onClick={() => setStep(Math.min(steps.length - 1, idx + 1))}
+                >
                   Next <Icons.ChevronRight className="w-4 h-4" />
                 </Button>
               ) : (

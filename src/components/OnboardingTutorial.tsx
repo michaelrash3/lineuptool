@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
-import { APP_NAME } from "../constants/ui";
+import { APP_NAME, getLocalDateString } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
 import { TourModal, attachStepNumbers, type TourStep } from "./help/TourModal";
 
@@ -300,9 +300,12 @@ export const OnboardingTutorial = ({
   // Re-derived each render so chapters pick up current role, feature
   // switches, and player/game counts.
   const steps = useMemo(() => {
-    const today = new Date().toISOString().split("T")[0];
+    // Local calendar day, not UTC — an evening game must still count as
+    // "today" for the in-game chapter's CTA.
+    const today = getLocalDateString();
     const games = team?.games || [];
     const players = team?.players || [];
+    const isAssistant = currentRole === "assistant";
     return attachStepNumbers(
       buildSteps({
         hasPlayers: players.length > 0,
@@ -313,11 +316,13 @@ export const OnboardingTutorial = ({
             g.status !== "final" &&
             g.status !== "postponed",
         ),
-        isAssistant: currentRole === "assistant",
+        isAssistant,
         featureOn: (id: string) => featureEnabled(team, id),
         setActiveTab: ui.setActiveTab,
-        setIsAddingPlayer: ui.setIsAddingPlayer,
-        setIsAddingGame: ui.setIsAddingGame,
+        // Add-flows are head-coach actions (their editors are role-gated at
+        // the destination); assistant CTAs navigate without the editor flag.
+        setIsAddingPlayer: isAssistant ? () => {} : ui.setIsAddingPlayer,
+        setIsAddingGame: isAssistant ? () => {} : ui.setIsAddingGame,
       }),
     );
   }, [team, currentRole, ui]);
