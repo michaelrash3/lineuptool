@@ -10,6 +10,7 @@ import { useTeam, useUI } from "../contexts";
 import { isGameFinalized, isDepartedPlayer } from "../utils/helpers";
 import { fuzzyScore } from "../utils/fuzzy";
 import { visibleHelpTopics } from "../help/content";
+import { featureEnabled } from "../constants/features";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -108,6 +109,16 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
         action: () => setActiveTab("schedule"),
       },
     );
+    if (featureEnabled(team, "tournaments")) {
+      items.push({
+        kind: "nav",
+        id: "nav:tournaments",
+        label: "Tournament Pitching Plan",
+        sublabel: "Weekend rotation on the Schedule tab",
+        searchKey: "tournament pitching weekend rotation arms plan",
+        action: () => setActiveTab("schedule"),
+      });
+    }
     if (!isAssistant) {
       items.push(
         {

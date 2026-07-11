@@ -7,6 +7,11 @@ import {
   calcPitcherScore,
   resolvePitchRuleSet,
 } from "../lineupEngine";
+import {
+  priorPlannedOutingsForGame,
+  withPlannedOutings,
+} from "../utils/tournamentPitching";
+import { featureEnabled } from "../constants/features";
 
 // Whether a present player is a pitching candidate: explicit "P" in their
 // comfortable positions, else (legacy) not restricted from P, else allow —
@@ -72,6 +77,45 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     [isKidPitch, evaluationEvents, players, teamAge, team],
   );
 
+  // Tournament context: the stored tournament this game belongs to (if any),
+  // its planned starter for THIS game, and the planned outings from the
+  // tournament's earlier games — folded into eligibility below so a Saturday
+  // game 2 picker already discounts the arm penciled in for game 1.
+  const tournamentsEnabled = featureEnabled(team, "tournaments");
+  const tournaments = useMemo(
+    () => (tournamentsEnabled ? team.tournaments || [] : []),
+    [tournamentsEnabled, team.tournaments],
+  );
+  const gameTournament = game
+    ? tournaments.find((t: any) => (t.gameIds || []).includes(game.id))
+    : null;
+  const plannedStartId =
+    gameTournament?.pitchPlan?.[game?.id]?.find((e: any) => e.role === "start")
+      ?.playerId || null;
+  const priorPlanned = useMemo(
+    () =>
+      game && gameTournament
+        ? priorPlannedOutingsForGame(
+            tournaments,
+            team.games || [],
+            players || [],
+            game.id,
+            teamAge,
+            pitchRules,
+          )
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      game,
+      gameTournament,
+      tournaments,
+      team.games,
+      players,
+      teamAge,
+      pitchRules,
+    ],
+  );
+
   const ranked = useMemo(() => {
     if (!isKidPitch || !combinedGrades || !game) return [];
     const dateStr = game.date;
@@ -90,10 +134,20 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           topMph: p.stats?.pTopMph ?? p.pitching?.topMph,
           teamAge,
         });
+        // Eligibility sees the tournament's earlier planned outings as if
+        // already thrown (hypothetical fold; nothing is persisted).
+        const eligibilityPlayer = priorPlanned?.size
+          ? withPlannedOutings(p, priorPlanned.get(p.id) || [])
+          : p;
         return {
           p,
           score,
-          eligible: checkPitchEligibility(p, dateStr, teamAge, pitchRules),
+          eligible: checkPitchEligibility(
+            eligibilityPlayer,
+            dateStr,
+            teamAge,
+            pitchRules,
+          ),
           recent: p.pitching?.recentPitches || 0,
         };
       })
@@ -106,19 +160,28 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     game,
     teamAge,
     pitchRules,
+    priorPlanned,
   ]);
 
   if (!isKidPitch || !game || ranked.length === 0) return null;
 
   const eligibleRanked = ranked.filter((r) => r.eligible);
-  // Recommended starter: bracket → the top eligible arm; pool/league → the next
-  // arm down (rest the ace) when there's depth, else the top eligible.
-  const recommendedId = eligibleRanked.length
-    ? ctx.spread
-      ? (eligibleRanked[1] || eligibleRanked[0]).p.id
-      : eligibleRanked[0].p.id
-    : null;
+  // Recommended starter: the tournament plan's starter wins when he's still
+  // eligible; otherwise bracket → the top eligible arm; pool/league → the
+  // next arm down (rest the ace) when there's depth, else the top eligible.
+  const plannedIsEligible =
+    !!plannedStartId && eligibleRanked.some((r) => r.p.id === plannedStartId);
+  const recommendedId = plannedIsEligible
+    ? plannedStartId
+    : eligibleRanked.length
+      ? ctx.spread
+        ? (eligibleRanked[1] || eligibleRanked[0]).p.id
+        : eligibleRanked[0].p.id
+      : null;
   const selectedId = firstInningLineup?.P || "";
+  const plannedPlayer = plannedStartId
+    ? (players || []).find((p: any) => p.id === plannedStartId)
+    : null;
 
   const pick = (id: string) => {
     setFirstInningLineup({ ...(firstInningLineup || {}), P: id });
@@ -145,6 +208,14 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           {ctx.label}
         </span>
       </div>
+      {/* One-way flow: picking a different starter never rewrites the
+          tournament plan — it just flags the drift. */}
+      {plannedPlayer && selectedId && selectedId !== plannedStartId && (
+        <p className="text-[11px] font-bold text-warnfg mt-1">
+          The tournament plan has {plannedPlayer.name} starting this game — your
+          pick here doesn't change that plan.
+        </p>
+      )}
 
       <div className="mt-3 flex flex-col">
         {ranked.map((r, idx) => {
@@ -186,11 +257,24 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
                   </span>
                 )}
               </span>
-              {isRec && r.eligible && (
-                <span className="t-chip px-2 py-0.5 rounded-sm bg-win-bg text-win border border-line shrink-0">
-                  Suggested
-                </span>
-              )}
+              {isRec &&
+                r.eligible &&
+                (plannedIsEligible && r.p.id === plannedStartId ? (
+                  <span
+                    className="t-chip px-2 py-0.5 rounded-sm border border-line shrink-0"
+                    style={{
+                      backgroundColor: "var(--team-primary-15)",
+                      color: "var(--team-ink)",
+                    }}
+                    title="The tournament plan has this arm starting this game."
+                  >
+                    Planned
+                  </span>
+                ) : (
+                  <span className="t-chip px-2 py-0.5 rounded-sm bg-win-bg text-win border border-line shrink-0">
+                    Suggested
+                  </span>
+                ))}
               <span className="t-stat-num-sm text-ink tabular-nums shrink-0 w-10 text-right">
                 {r.score.toFixed(1)}
               </span>

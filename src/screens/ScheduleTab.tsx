@@ -21,6 +21,8 @@ import {
 } from "../components/shared";
 import { GameChangerImportModal } from "../components/GameChangerImportModal";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
+import { TournamentsSection } from "../components/tournament/TournamentsSection";
+import { featureEnabled } from "../constants/features";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import type { Game } from "../types";
 import { isoInstantToLocalTime } from "../utils/icsParse";
@@ -356,15 +358,25 @@ export const ScheduleTab = memo(() => {
     [games],
   );
 
-  // Auto-detected tournaments (pool + bracket games on the same weekend), keyed
-  // by game id so each row can show which tournament it belongs to.
+  // Tournament label per game id for the row chip. Auto-detected weekend
+  // clusters (pool + bracket games on the same weekend) provide the fallback
+  // label; a stored tournament's NAME wins for its games. When the tournaments
+  // module is toggled off only the derived labels render — same as before the
+  // module existed.
+  const storedTournaments = team.tournaments;
   const tournamentByGameId = useMemo(() => {
     const map = new Map<string, string>();
     for (const t of deriveTournaments(games, leagueRuleSet)) {
       for (const id of t.gameIds) map.set(id, t.label);
     }
+    if (featureEnabled(team, "tournaments")) {
+      for (const t of storedTournaments || []) {
+        for (const id of t.gameIds || []) map.set(id, t.name);
+      }
+    }
     return map;
-  }, [games, leagueRuleSet]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [games, leagueRuleSet, storedTournaments]);
 
   const currentGame = games.find((g: any) => g.id === selectedGameId);
 
@@ -1617,6 +1629,8 @@ export const ScheduleTab = memo(() => {
           </button>
         </div>
       )}
+      {/* Stored tournaments + "name this tournament" suggestions. */}
+      <TournamentsSection />
       {/* Desktop control-panel: game list left + season-summary rail right.
           On lg+ the list is flex-1 and the rail is a fixed-width sidebar. */}
       <div className="lg:flex lg:items-start lg:gap-6 mt-4">

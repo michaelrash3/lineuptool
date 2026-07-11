@@ -146,4 +146,46 @@ describe("useGameCrud", () => {
     );
     expect(restored.games.map((g: any) => g.id)).toEqual(["g1"]);
   });
+
+  it("deleteSavedGame strips the game from tournaments in the same write, and Undo restores both", async () => {
+    const tournaments = [
+      {
+        id: "t1",
+        name: "Bash",
+        gameIds: ["g1", "g2"],
+        pitchPlan: {
+          g1: [{ playerId: "p1", role: "start" }],
+          g2: [{ playerId: "p2", role: "start" }],
+        },
+      },
+    ];
+    const { result, teamData, updateTeamArrays, toast } = setup({
+      games: [
+        { id: "g1", opponent: "Rays" },
+        { id: "g2", opponent: "Cubs" },
+      ],
+      tournaments,
+    });
+    await act(async () => result.current.deleteSavedGame("g1"));
+    // One call carrying BOTH ops (atomic multi-array cascade).
+    const ops = updateTeamArrays.mock.calls[0][0];
+    expect(Array.isArray(ops)).toBe(true);
+    expect(ops).toHaveLength(2);
+    const next = applyTeamOps(teamData, ops);
+    expect(next.games.map((g: any) => g.id)).toEqual(["g2"]);
+    expect(next.tournaments[0].gameIds).toEqual(["g2"]);
+    expect(next.tournaments[0].pitchPlan).toEqual({
+      g2: [{ playerId: "p2", role: "start" }],
+    });
+
+    // Undo restores games AND tournaments to their pre-delete snapshots.
+    const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
+    act(() => undo.onClick());
+    const restored = applyTeamOps(
+      { games: [], tournaments: [] },
+      updateTeamArrays.mock.calls[1][0],
+    );
+    expect(restored.games.map((g: any) => g.id)).toEqual(["g1", "g2"]);
+    expect(restored.tournaments).toEqual(tournaments);
+  });
 });

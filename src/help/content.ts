@@ -364,6 +364,32 @@ export const HELP_TOPICS: HelpTopic[] = [
     cta: { label: "Open Schedule", tab: "schedule" },
   },
   {
+    id: "tournament-weekends",
+    category: "schedule-games",
+    title: "Tournament weekends and the pitching plan",
+    summary:
+      "Group a weekend's games into a tournament and plan arms across all of them.",
+    keywords:
+      "tournament weekend rotation pitching plan arms rest pitch count cross-game doubleheader bracket pool",
+    featureId: "tournaments",
+    sections: [
+      {
+        heading: "Name the weekend",
+        body: "When the schedule has tournament games on the same weekend, the Schedule tab suggests grouping them — tap 'Name this tournament' to make it real, or edit any tournament to change which games it includes.",
+      },
+      {
+        heading: "Plan arms across games",
+        body: "Open a tournament card and pencil each game's pitchers in with a pitch budget. A planned outing in the opener counts against the daily max and rest-day rules for every later game — so the plan shows which arms are truly left for Sunday, not just who's rested today.",
+      },
+      {
+        heading: "When reality lands",
+        body: "Once a game is finalized or its box-score import records the real outing, that plan entry greys out and the real pitch count takes over. Rule problems — a double-booked arm, a blown daily max, short rest — show as warnings on the game they belong to.",
+      },
+    ],
+    related: ["game-types-and-flags", "add-games"],
+    cta: { label: "Open Schedule", tab: "schedule" },
+  },
+  {
     id: "scores-postponements",
     category: "schedule-games",
     title: "Scores, your record, and postponements",

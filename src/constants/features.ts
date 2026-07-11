@@ -8,11 +8,14 @@
 // (Dashboard, Roster, Schedule, Evaluation, Settings) are deliberately not in
 // this catalog and can never be turned off.
 //
-// Scope: a toggle hides the TAB and its routes. Shared portal links (tryout
-// signup, availability, player info) keep working — closing public intake is
-// its own control (e.g. tryoutsOpen), not this switch.
+// Scope: a toggle hides the TAB and its routes — or, for module-scoped
+// features like "tournaments", the panels/sections that make up the module
+// on a core tab. Shared portal links (tryout signup, availability, player
+// info) keep working — closing public intake is its own control (e.g.
+// tryoutsOpen), not this switch.
 
 export type TeamFeatureId =
+  | "tournaments"
   | "practices"
   | "stats"
   | "depthChart"
@@ -31,6 +34,12 @@ export interface ToggleableFeature {
 // Declaration order = display order of the Settings toggles (mirrors the tab
 // bar order so the list reads like the nav).
 export const TOGGLEABLE_FEATURES: ToggleableFeature[] = [
+  {
+    id: "tournaments",
+    label: "Tournament Ops",
+    description:
+      "Weekend game grouping and cross-game pitching plans on the Schedule tab. Off restores the plain auto-detected tournament chips.",
+  },
   {
     id: "practices",
     label: "Practices",
