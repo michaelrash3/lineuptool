@@ -132,3 +132,95 @@ describe("PracticesTab — Smart Practice Planner", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("PracticesTab — drill targets", () => {
+  const taggedLibrary = [
+    {
+      id: "d1",
+      name: "Two-strike battles",
+      category: "Hitting",
+      environment: "both",
+      evalCategory: "contact",
+    },
+  ];
+
+  const renderWithAssignment = (over: Record<string, unknown> = {}) =>
+    renderWithProviders(<PracticesTab />, {
+      team: {
+        team: {
+          ...DEFAULT_TEAM_DATA,
+          practices: [
+            {
+              ...practice,
+              drills: [
+                {
+                  id: "a1",
+                  name: "Two-strike battles",
+                  category: "Hitting",
+                  libraryId: "d1",
+                },
+              ],
+            },
+          ],
+          drillLibrary: taggedLibrary,
+          players: [
+            { id: "p1", name: "Ava", devPlan: { drillIds: ["d1"] } },
+            { id: "p2", name: "Sam", devPlan: { drillIds: ["d1"] } },
+          ],
+          ...over,
+        },
+        currentRole: "head",
+        realRole: "head",
+        addPractice: vi.fn(),
+        updatePractice: vi.fn(),
+        removePractice: vi.fn(),
+        savePracticeAttendance: vi.fn(),
+        addDrillToLibrary: vi.fn(),
+        removeDrillFromLibrary: vi.fn(),
+      },
+    });
+
+  it("annotates agenda drills with the players assigned to them", () => {
+    renderWithAssignment();
+    expandRow();
+    expect(screen.getByText("Targets: Ava, Sam")).toBeInTheDocument();
+  });
+
+  it("drops the annotation when the Development module is off", () => {
+    renderWithAssignment({ disabledFeatures: ["development"] });
+    expandRow();
+    expect(screen.queryByText(/Targets:/)).not.toBeInTheDocument();
+  });
+
+  it("lets the library form tag a drill with an eval category", () => {
+    const addDrillToLibrary = vi.fn();
+    renderWithProviders(<PracticesTab />, {
+      team: {
+        team: { ...DEFAULT_TEAM_DATA, practices: [practice] },
+        currentRole: "head",
+        realRole: "head",
+        addPractice: vi.fn(),
+        updatePractice: vi.fn(),
+        removePractice: vi.fn(),
+        savePracticeAttendance: vi.fn(),
+        addDrillToLibrary,
+        removeDrillFromLibrary: vi.fn(),
+      },
+    });
+    // Open the library manager, fill the form, tag Contact, submit.
+    fireEvent.click(screen.getByText(/Drill Library ·/));
+    fireEvent.change(screen.getByPlaceholderText("Drill name…"), {
+      target: { value: "Machine BP" },
+    });
+    fireEvent.change(
+      screen.getByLabelText(/Targets eval category/, { selector: "select" }),
+      { target: { value: "approach" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add drill to library" }),
+    );
+    expect(addDrillToLibrary).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Machine BP", evalCategory: "approach" }),
+    );
+  });
+});
