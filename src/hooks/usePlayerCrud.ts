@@ -8,6 +8,7 @@ import type {
   Game,
   Player,
   ToastContextValue,
+  Tournament,
 } from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
@@ -111,7 +112,32 @@ export const usePlayerCrud = ({
       const prevPlayers = teamData.players;
       const prevGames = teamData.games || [];
       const prevEvents = teamData.evaluationEvents || [];
+      const prevTournaments: Tournament[] = teamData.tournaments || [];
       const removedPlayer = prevPlayers.find((p: any) => p.id === id);
+      // Tournament pitch plans reference players by id — a removed player
+      // must leave every plan too, or the entry lingers invisibly (the plan
+      // panel filters unknown ids rather than rendering them).
+      const touchesTournaments = prevTournaments.some((t) =>
+        Object.values(t.pitchPlan || {}).some((entries) =>
+          (entries || []).some((e) => e.playerId === id),
+        ),
+      );
+      const stripFromTournament = (t: Tournament): Tournament => {
+        if (!t.pitchPlan) return t;
+        const pitchPlan: NonNullable<Tournament["pitchPlan"]> = {};
+        let changed = false;
+        for (const [gameId, entries] of Object.entries(t.pitchPlan)) {
+          const kept = (entries || []).filter((e) => e.playerId !== id);
+          if (kept.length !== (entries || []).length) changed = true;
+          if (kept.length > 0) pitchPlan[gameId] = kept;
+        }
+        if (!changed) return t;
+        if (Object.keys(pitchPlan).length === 0) {
+          const { pitchPlan: _drop, ...rest } = t;
+          return rest;
+        }
+        return { ...t, pitchPlan };
+      };
 
       // Strip the player out of every shape that holds player references.
       const stripFromInning = (inning: any) => {
@@ -170,6 +196,15 @@ export const usePlayerCrud = ({
           key: "games",
           map: (items: Game[]) => items.map(stripFromGame),
         },
+        ...(touchesTournaments
+          ? [
+              {
+                op: "mapEntries",
+                key: "tournaments",
+                map: (items: Tournament[]) => items.map(stripFromTournament),
+              } as const,
+            ]
+          : []),
       ]);
       if (db && appId && teamId) {
         // Per-doc grade strip, best-effort hygiene: the rules let the head
@@ -209,6 +244,15 @@ export const usePlayerCrud = ({
                 key: "games",
                 map: () => prevGames as Game[],
               },
+              ...(touchesTournaments
+                ? [
+                    {
+                      op: "mapEntries",
+                      key: "tournaments",
+                      map: () => prevTournaments,
+                    } as const,
+                  ]
+                : []),
             ]);
             if (db && appId && teamId) {
               // Restore the pre-delete grades per-doc (same permission scope
@@ -227,6 +271,7 @@ export const usePlayerCrud = ({
       teamData.players,
       teamData.games,
       teamData.evaluationEvents,
+      teamData.tournaments,
       updateTeamArrays,
       toast,
       confirm,
