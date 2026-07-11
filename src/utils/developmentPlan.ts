@@ -6,6 +6,7 @@
 // utils/availability.ts with the rest of the who's-out math.
 
 import type { EvalCategory, EvalGroup } from "../constants/ui";
+import { evalRoundRecency } from "./evaluations";
 import type {
   DevCheckIn,
   DrillDefinition,
@@ -74,6 +75,23 @@ export const suggestDrillsForFocus = (
   return [...exact, ...byGroup];
 };
 
+// What a development plan carries across a season rollover: focus areas,
+// assigned drills, and still-ACTIVE goals continue into the new season;
+// resolved goals (their outcome is archived into the pastSeasons summary —
+// see buildPlayerSeasonSummaries) and old-season dated check-ins do not.
+// Returns undefined when nothing carries, so the key drops off the doc.
+export const rolloverDevPlan = (
+  plan: import("../types").PlayerDevPlan | null | undefined,
+): import("../types").PlayerDevPlan | undefined => {
+  if (!plan) return undefined;
+  const next: import("../types").PlayerDevPlan = {};
+  if (plan.focusAreas?.length) next.focusAreas = plan.focusAreas;
+  const active = (plan.goals || []).filter((g) => g.status === "active");
+  if (active.length) next.goals = active;
+  if (plan.drillIds?.length) next.drillIds = plan.drillIds;
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
 // Newest-first, capped. Applied on every check-in write so the list can
 // never grow unbounded on the 1 MB team doc.
 export const capCheckIns = (
@@ -82,6 +100,42 @@ export const capCheckIns = (
   [...(list || [])]
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
     .slice(0, DEV_CHECKINS_CAP);
+
+// First→last grade movement for one player's focus areas, from the head
+// coach's rounds (oldest→newest — same selection as EvalTrendModal). Only
+// categories with two or more graded rounds appear; consumers decide whether
+// a flat first===last reading is worth showing. This is what closes the
+// loop: "you set Contact as a focus — it's gone 2→4 since."
+export const focusAreaDeltas = (
+  evaluationEvents:
+    | Array<{
+        coachRole?: string;
+        date?: string;
+        grades?: Record<string, GradeMap>;
+      }>
+    | null
+    | undefined,
+  playerId: string,
+  focusAreas: EvalCategoryId[] | null | undefined,
+): Partial<Record<EvalCategoryId, { first: number; last: number }>> => {
+  const out: Partial<Record<EvalCategoryId, { first: number; last: number }>> =
+    {};
+  if (!focusAreas?.length) return out;
+  const rounds = (evaluationEvents || [])
+    .filter((e) => e.coachRole === "Head")
+    .sort((a, b) => evalRoundRecency(b, a)); // oldest first
+  for (const id of focusAreas) {
+    const values: number[] = [];
+    for (const round of rounds) {
+      const grade = round.grades?.[playerId]?.[id];
+      if (typeof grade === "number" && Number.isFinite(grade))
+        values.push(grade);
+    }
+    if (values.length >= 2)
+      out[id] = { first: values[0], last: values[values.length - 1] };
+  }
+  return out;
+};
 
 // drill library id → names of players assigned that drill, roster order.
 // Drives the practice agenda's "Targets: Ava, Sam" annotations.

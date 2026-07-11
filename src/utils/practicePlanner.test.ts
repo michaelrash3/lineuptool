@@ -171,3 +171,39 @@ describe("generatePracticePlan variation (Reshuffle)", () => {
     }
   });
 });
+
+describe("generatePracticePlan assigned-drill preference", () => {
+  const profile = buildTeamSkillProfile({ evaluationEvents: [] });
+  const library = [
+    { id: "t1", name: "Situations A", category: "Team", environment: "both" },
+    { id: "t2", name: "Situations B", category: "Team", environment: "both" },
+    { id: "t3", name: "Situations C", category: "Team", environment: "both" },
+  ] as any;
+  const make = (assignedDrillIds?: Set<string>, variation?: number) =>
+    generatePracticePlan({
+      profile,
+      minutes: 60,
+      environment: "outdoor",
+      library,
+      variation,
+      assignedDrillIds,
+    });
+  const teamBlock = (plan: ReturnType<typeof make>) =>
+    plan.find((d) => d.category === "Team");
+
+  it("prefers a drill assigned on a development plan over earlier matches", () => {
+    expect(teamBlock(make())?.name).toBe("Situations A");
+    expect(teamBlock(make(new Set(["t2"])))?.name).toBe("Situations B");
+  });
+
+  it("rotates within the assigned band on Reshuffle", () => {
+    const assigned = new Set(["t2", "t3"]);
+    expect(teamBlock(make(assigned, 0))?.name).toBe("Situations B");
+    expect(teamBlock(make(assigned, 1))?.name).toBe("Situations C");
+    expect(teamBlock(make(assigned, 2))?.name).toBe("Situations B"); // wraps
+  });
+
+  it("falls back to the full category when nothing assigned matches it", () => {
+    expect(teamBlock(make(new Set(["unrelated"])))?.name).toBe("Situations A");
+  });
+});

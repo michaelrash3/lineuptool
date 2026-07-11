@@ -180,7 +180,13 @@ export const TournamentPitchPlanPanel = memo(
             const game = gameById.get(gameId);
             if (!game) return null;
             const entries = tournament.pitchPlan?.[gameId] || [];
-            const taken = new Set(entries.map((e) => e.playerId));
+            // Only known players count as "taken" — an orphaned entry (its
+            // player since removed) must not block re-adding a real arm.
+            const taken = new Set(
+              entries
+                .map((e) => e.playerId)
+                .filter((pid) => playerById.has(pid)),
+            );
             const ready = arms.filter((a) => a.status === "ready");
             const resting = arms.filter((a) => a.status === "resting");
             const maxed = arms.filter((a) => a.status === "maxed");

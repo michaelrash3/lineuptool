@@ -4,6 +4,7 @@ import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { EVAL_CATEGORIES, getEvalCategoriesForTeam } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
+import { focusAreaDeltas } from "../utils/developmentPlan";
 import { currentEvaluationScore100 } from "../utils/evaluationScore";
 import {
   buildSeasonPositionVariety,
@@ -663,13 +664,24 @@ export const PlayerDevelopmentReport = memo(
                   {(player.devPlan?.focusAreas || []).length > 0 && (
                     <p>
                       <span className="font-bold text-ink">Focus:</span>{" "}
-                      {(player.devPlan.focusAreas as string[])
-                        .map(
-                          (id) =>
-                            EVAL_CATEGORIES.find((c) => c.id === id)?.label ||
-                            id,
-                        )
-                        .join(", ")}
+                      {(() => {
+                        const deltas = focusAreaDeltas(
+                          evaluationEvents,
+                          player.id,
+                          player.devPlan.focusAreas,
+                        );
+                        return (player.devPlan.focusAreas as string[])
+                          .map((id) => {
+                            const label =
+                              EVAL_CATEGORIES.find((c) => c.id === id)?.label ||
+                              id;
+                            const d = deltas[id as keyof typeof deltas];
+                            return d && d.first !== d.last
+                              ? `${label} (${d.first}→${d.last})`
+                              : label;
+                          })
+                          .join(", ");
+                      })()}
                     </p>
                   )}
                   {(player.devPlan?.goals || []).filter(

@@ -153,6 +153,61 @@ describe("usePlayerCrud", () => {
       expect(restored.games[0].lineup[0].P).toMatchObject({ id: "p1" });
     });
 
+    it("strips the removed player from tournament pitch plans in the same write, and Undo restores them", async () => {
+      const tournaments = [
+        {
+          id: "t1",
+          name: "Bash",
+          gameIds: ["g1", "g2"],
+          pitchPlan: {
+            g1: [
+              { playerId: "p1", role: "start" },
+              { playerId: "p2", role: "relief" },
+            ],
+            g2: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
+          },
+        },
+      ];
+      const withTournaments = { ...team, tournaments };
+      const { result, teamData, updateTeamArrays, toast } =
+        setup(withTournaments);
+      await act(async () => result.current.removePlayer("p1"));
+      const ops = updateTeamArrays.mock.calls[0][0];
+      expect(ops.map((u: any) => [u.op, u.key])).toEqual([
+        ["removeById", "players"],
+        ["mapEntries", "games"],
+        ["mapEntries", "tournaments"],
+      ]);
+      const next = applyTeamOps(teamData, ops);
+      // p1 gone from g1's plan; g2's plan (p1 only) drops its key entirely.
+      expect(next.tournaments[0].pitchPlan).toEqual({
+        g1: [{ playerId: "p2", role: "relief" }],
+      });
+
+      const undo = (toast.push as jest.Mock).mock.calls[0][0].action;
+      act(() => undo.onClick());
+      const restored = applyTeamOps(next, updateTeamArrays.mock.calls[1][0]);
+      expect(restored.tournaments).toEqual(tournaments);
+    });
+
+    it("emits no tournaments op when the player is in no pitch plan", async () => {
+      const withTournaments = {
+        ...team,
+        tournaments: [
+          {
+            id: "t1",
+            name: "Bash",
+            gameIds: ["g1"],
+            pitchPlan: { g1: [{ playerId: "p2", role: "start" }] },
+          },
+        ],
+      };
+      const { result, updateTeamArrays } = setup(withTournaments);
+      await act(async () => result.current.removePlayer("p1"));
+      const ops = updateTeamArrays.mock.calls[0][0];
+      expect(ops.map((u: any) => u.key)).toEqual(["players", "games"]);
+    });
+
     describe("per-doc eval-grade strip (with Firestore handles)", () => {
       const handles = { db: {} as never, appId: "app1", teamId: "team1" };
 

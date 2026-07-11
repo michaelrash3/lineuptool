@@ -41,6 +41,7 @@ const renderPanel = (overrides: any = {}) => {
     setLineup: jest.fn(),
     setBattingLineup: jest.fn(),
     setCurrentGameAttendance: jest.fn(),
+    openPlayerProfile: jest.fn(),
   };
   const team = { ...baseTeam, ...(overrides.team || {}) };
   render(
@@ -135,6 +136,136 @@ describe("UpNextPanel", () => {
     expect(
       screen.queryByText(/team fees outstanding/i),
     ).not.toBeInTheDocument();
+  });
+
+  describe("tournament pitch-plan rows (Kid Pitch 9U+)", () => {
+    const kidPitch = {
+      teamAge: "10U",
+      pitchingFormat: "Kid Pitch",
+      players: [
+        { id: "k1", name: "Ava", comfortablePositions: ["P"], pitching: {} },
+        { id: "k2", name: "Ben", comfortablePositions: ["P"], pitching: {} },
+      ],
+      games: [
+        { id: "g1", opponent: "Rays", date: "2999-05-03", lineup: [{}] },
+        { id: "g2", opponent: "Cubs", date: "2999-05-04", lineup: [{}] },
+      ],
+      finances: { clubFee: 0 },
+    };
+
+    it("prompts to set the plan when the weekend has no arms penciled in", () => {
+      const ui = renderPanel({
+        team: {
+          ...kidPitch,
+          tournaments: [{ id: "t1", name: "Bash", gameIds: ["g1", "g2"] }],
+        },
+      });
+      // The whole row is one button — click through the title text.
+      fireEvent.click(screen.getByText(/set the pitch plan for bash/i));
+      expect(ui.setActiveTab).toHaveBeenCalledWith("schedule");
+    });
+
+    it("surfaces rest conflicts in a set plan", () => {
+      renderPanel({
+        team: {
+          ...kidPitch,
+          tournaments: [
+            {
+              id: "t1",
+              name: "Bash",
+              gameIds: ["g1", "g2"],
+              pitchPlan: {
+                g1: [{ playerId: "k1", role: "start", plannedPitches: 60 }],
+                g2: [{ playerId: "k1", role: "start", plannedPitches: 20 }],
+              },
+            },
+          ],
+        },
+      });
+      expect(
+        screen.getByText(/1 rest conflict in the Bash pitch plan/i),
+      ).toBeInTheDocument();
+    });
+
+    it("stays quiet when the plan is set and clean, or the module is off", () => {
+      const cleanPlan = {
+        ...kidPitch,
+        tournaments: [
+          {
+            id: "t1",
+            name: "Bash",
+            gameIds: ["g1", "g2"],
+            pitchPlan: {
+              g1: [{ playerId: "k1", role: "start", plannedPitches: 40 }],
+              g2: [{ playerId: "k2", role: "start", plannedPitches: 40 }],
+            },
+          },
+        ],
+      };
+      renderPanel({ team: cleanPlan });
+      expect(screen.queryByText(/pitch plan/i)).not.toBeInTheDocument();
+
+      renderPanel({
+        team: {
+          ...kidPitch,
+          disabledFeatures: ["tournaments"],
+          tournaments: [{ id: "t1", name: "Bash", gameIds: ["g1", "g2"] }],
+        },
+      });
+      expect(screen.queryByText(/set the pitch plan/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("injured-player rows", () => {
+    it("links a lone injured player straight to their profile", () => {
+      const ui = renderPanel({
+        team: {
+          games: [],
+          finances: { clubFee: 0 },
+          players: [
+            {
+              id: "k1",
+              name: "Ava",
+              health: { status: "out", expectedReturn: "2999-05-06" },
+            },
+            { id: "k2", name: "Ben" },
+          ],
+        },
+        promptStatus: { active: false },
+      });
+      expect(screen.getByText(/expected back/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByText(/ava is out injured/i));
+      expect(ui.openPlayerProfile).toHaveBeenCalledWith("k1");
+    });
+
+    it("aggregates several injured players into one roster-bound row", () => {
+      const ui = renderPanel({
+        team: {
+          games: [],
+          finances: { clubFee: 0 },
+          players: [
+            { id: "k1", name: "Ava", health: { status: "out" } },
+            { id: "k2", name: "Ben", health: { status: "out" } },
+          ],
+        },
+        promptStatus: { active: false },
+      });
+      fireEvent.click(screen.getByText(/2 players are out injured/i));
+      expect(ui.setActiveTab).toHaveBeenCalledWith("roster");
+    });
+
+    it("shows nothing when the development module is off", () => {
+      renderPanel({
+        team: {
+          games: [],
+          finances: { clubFee: 0 },
+          disabledFeatures: ["development"],
+          players: [{ id: "k1", name: "Ava", health: { status: "out" } }],
+        },
+        promptStatus: { active: false },
+      });
+      expect(screen.queryByText(/out injured/i)).not.toBeInTheDocument();
+    });
   });
 
   it("renders nothing when there is nothing to do", () => {

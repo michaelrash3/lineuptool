@@ -362,6 +362,19 @@ export const buildPlayerSeasonSummaries = (args: {
       summary.distinctPositions = entry.distinctPositions;
     }
 
+    // Development-plan outcomes. Goals resolve at rollover (achieved/dropped
+    // don't carry forward — see rolloverDevPlan), so the counts land here.
+    const plan = player.devPlan;
+    if (plan) {
+      const goals = plan.goals || [];
+      if (goals.length > 0) {
+        summary.goalsSet = goals.length;
+        const achieved = goals.filter((g) => g.status === "achieved").length;
+        if (achieved > 0) summary.goalsAchieved = achieved;
+      }
+      if (plan.focusAreas?.length) summary.focusAreas = [...plan.focusAreas];
+    }
+
     if (Object.keys(summary).length > 0) out.set(player.id, summary);
   }
   return out;

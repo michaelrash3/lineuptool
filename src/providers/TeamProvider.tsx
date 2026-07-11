@@ -40,6 +40,7 @@ import {
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildEvalReminderDraft, buildMailtoUrl } from "../utils/reminderDraft";
 import { buildPlayerSeasonSummaries } from "../utils/playerDevelopment";
+import { rolloverDevPlan } from "../utils/developmentPlan";
 import {
   buildEvalRoundsQuery,
   assembleEvalRounds,
@@ -1805,8 +1806,16 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
               ...(summary ? { summary } : {}),
             });
           }
+          // Injury statuses belong to the closed season — a stale "out"
+          // would silently bench a healthy kid next spring. The dev plan
+          // partially carries: focus areas, assigned drills, and still-active
+          // goals continue; resolved goals (archived in the summary above)
+          // and old-season check-ins are dropped (rolloverDevPlan).
+          const { health: _staleHealth, devPlan: _oldPlan, ...rest } = p;
+          const carriedPlan = rolloverDevPlan(p.devPlan);
           return {
-            ...p,
+            ...rest,
+            ...(carriedPlan ? { devPlan: carriedPlan } : {}),
             pastSeasons: past,
             stats: blankStats(),
             pitching: { recentPitches: 0, lastPitchDate: null },
@@ -1964,6 +1973,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           teamAge: newAgeGroup,
           players: [...updatedPlayers, ...promotedPlayers],
           games: [],
+          // Tournaments reference games by id; with games cleared they'd be
+          // zombie entries (dangling gameIds + pitch plans), so they reset
+          // with the schedule they described.
+          tournaments: [],
           // Practices belong to the season just closed — start the new season
           // with a clean slate rather than carrying last year's dates forward.
           practices: [],

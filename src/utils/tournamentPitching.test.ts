@@ -1,5 +1,6 @@
 import {
   assessTournamentPlan,
+  laterPlannedGamesForPlayer,
   orderedTournamentGames,
   planEntryStatus,
   plannedPitchesOf,
@@ -324,6 +325,35 @@ describe("priorPlannedOutingsForGame", () => {
     expect(
       priorPlannedOutingsForGame([t], GAMES, logged, "g3", AGE, RULES).size,
     ).toBe(0);
+  });
+});
+
+describe("laterPlannedGamesForPlayer", () => {
+  it("returns only the games after the current one where the player is planned", () => {
+    const t = tournament({
+      g1: [{ playerId: "p1", role: "start" }],
+      g3: [{ playerId: "p1", role: "start", plannedPitches: 40 }],
+    });
+    // From game 1: g3 is later and has p1 planned (g2 doesn't).
+    expect(
+      laterPlannedGamesForPlayer([t], GAMES, "p1", "g1").map((g) => g.id),
+    ).toEqual(["g3"]);
+    // From the last game there is nothing later.
+    expect(laterPlannedGamesForPlayer([t], GAMES, "p1", "g3")).toEqual([]);
+    // A player with no later plan gets nothing.
+    expect(laterPlannedGamesForPlayer([t], GAMES, "p2", "g1")).toEqual([]);
+  });
+
+  it("returns nothing for a game outside any tournament", () => {
+    const t = tournament({ g3: [{ playerId: "p1", role: "start" }] });
+    expect(
+      laterPlannedGamesForPlayer(
+        [t],
+        [...GAMES, { id: "solo", date: "2026-06-20" } as Game],
+        "p1",
+        "solo",
+      ),
+    ).toEqual([]);
   });
 });
 

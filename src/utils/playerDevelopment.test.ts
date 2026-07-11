@@ -469,6 +469,31 @@ describe("buildPlayerSeasonSummaries", () => {
     });
   });
 
+  it("archives development-plan outcomes: goal counts and focus areas", () => {
+    const withPlan = player("p1", "Ava", {
+      devPlan: {
+        focusAreas: ["approach", "speed"],
+        goals: [
+          { id: "g1", text: "a", status: "achieved", createdAt: "2026-04-01" },
+          { id: "g2", text: "b", status: "active", createdAt: "2026-04-01" },
+          { id: "g3", text: "c", status: "dropped", createdAt: "2026-04-01" },
+        ],
+        checkIns: [{ id: "c1", date: "2026-05-01", note: "n" }],
+      },
+    });
+    const summaries = buildPlayerSeasonSummaries({
+      players: [withPlan],
+      games: [],
+      practices: [],
+      evaluationEvents: [],
+    });
+    expect(summaries.get("p1")).toEqual({
+      goalsSet: 3,
+      goalsAchieved: 1,
+      focusAreas: ["approach", "speed"],
+    });
+  });
+
   it("includes departed players and omits players with nothing to archive", () => {
     const summaries = buildPlayerSeasonSummaries({
       players: [
