@@ -170,7 +170,9 @@ export const TournamentsSection = memo(() => {
             key={t.id}
             tournament={t}
             canEdit={canEdit}
-            onEditGames={(tournament) => setEditor({ mode: "edit", tournament })}
+            onEditGames={(tournament) =>
+              setEditor({ mode: "edit", tournament })
+            }
           />
         ))}
         {canEdit && suggestions.length > 0 && (
@@ -202,7 +204,9 @@ export const TournamentsSection = memo(() => {
         <TournamentEditorModal
           open
           title={
-            editor.mode === "create" ? "Name this tournament" : "Edit tournament"
+            editor.mode === "create"
+              ? "Name this tournament"
+              : "Edit tournament"
           }
           initialName={
             editor.mode === "create" ? editor.name : editor.tournament.name

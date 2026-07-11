@@ -90,9 +90,8 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     ? tournaments.find((t: any) => (t.gameIds || []).includes(game.id))
     : null;
   const plannedStartId =
-    gameTournament?.pitchPlan?.[game?.id]?.find(
-      (e: any) => e.role === "start",
-    )?.playerId || null;
+    gameTournament?.pitchPlan?.[game?.id]?.find((e: any) => e.role === "start")
+      ?.playerId || null;
   const priorPlanned = useMemo(
     () =>
       game && gameTournament
@@ -106,7 +105,15 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           )
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [game, gameTournament, tournaments, team.games, players, teamAge, pitchRules],
+    [
+      game,
+      gameTournament,
+      tournaments,
+      team.games,
+      players,
+      teamAge,
+      pitchRules,
+    ],
   );
 
   const ranked = useMemo(() => {
@@ -205,8 +212,8 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           tournament plan — it just flags the drift. */}
       {plannedPlayer && selectedId && selectedId !== plannedStartId && (
         <p className="text-[11px] font-bold text-warnfg mt-1">
-          The tournament plan has {plannedPlayer.name} starting this game —
-          your pick here doesn't change that plan.
+          The tournament plan has {plannedPlayer.name} starting this game — your
+          pick here doesn't change that plan.
         </p>
       )}
 

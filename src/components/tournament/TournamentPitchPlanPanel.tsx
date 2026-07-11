@@ -128,8 +128,7 @@ export const TournamentPitchPlanPanel = memo(
     const canEdit = currentRole === "head";
     const [addingFor, setAddingFor] = useState<string | null>(null);
 
-    const applies =
-      /kid/i.test(pitchingFormat || "") && ageNumOf(teamAge) >= 9;
+    const applies = /kid/i.test(pitchingFormat || "") && ageNumOf(teamAge) >= 9;
     const ruleSet = useMemo(() => resolvePitchRuleSet(team), [team]);
 
     const assessments = useMemo(

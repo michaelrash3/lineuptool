@@ -39,17 +39,13 @@ const baseTeam = (over: any = {}) => ({
 
 const withTournament = (pitchPlan: any) =>
   baseTeam({
-    tournaments: [
-      { id: "t1", name: "Bash", gameIds: ["g1", "g2"], pitchPlan },
-    ],
+    tournaments: [{ id: "t1", name: "Bash", gameIds: ["g1", "g2"], pitchPlan }],
   });
 
 describe("StartingPitcherPicker", () => {
   it("marks the tournament plan's starter as Planned instead of Suggested", () => {
     renderWithProviders(
-      <StartingPitcherPicker
-        game={{ ...g2, pitchingFormat: "Kid Pitch" }}
-      />,
+      <StartingPitcherPicker game={{ ...g2, pitchingFormat: "Kid Pitch" }} />,
       {
         team: {
           team: withTournament({
@@ -66,9 +62,7 @@ describe("StartingPitcherPicker", () => {
 
   it("discounts an arm planned for an earlier tournament game", () => {
     renderWithProviders(
-      <StartingPitcherPicker
-        game={{ ...g2, pitchingFormat: "Kid Pitch" }}
-      />,
+      <StartingPitcherPicker game={{ ...g2, pitchingFormat: "Kid Pitch" }} />,
       {
         team: {
           team: withTournament({
@@ -87,9 +81,7 @@ describe("StartingPitcherPicker", () => {
 
   it("keeps the heuristic recommendation when the game has no tournament plan", () => {
     renderWithProviders(
-      <StartingPitcherPicker
-        game={{ ...g1, pitchingFormat: "Kid Pitch" }}
-      />,
+      <StartingPitcherPicker game={{ ...g1, pitchingFormat: "Kid Pitch" }} />,
       {
         team: {
           team: baseTeam(),

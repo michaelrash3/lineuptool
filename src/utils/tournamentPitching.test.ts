@@ -48,11 +48,15 @@ const tournament = (pitchPlan: Tournament["pitchPlan"]): Tournament => ({
 describe("plannedPitchesOf", () => {
   it("uses the explicit budget when set, else the age daily max", () => {
     expect(
-      plannedPitchesOf({ playerId: "p1", role: "start", plannedPitches: 40 }, AGE, RULES),
+      plannedPitchesOf(
+        { playerId: "p1", role: "start", plannedPitches: 40 },
+        AGE,
+        RULES,
+      ),
     ).toBe(40);
-    expect(plannedPitchesOf({ playerId: "p1", role: "start" }, AGE, RULES)).toBe(
-      maxPitchesForAge(AGE, RULES),
-    );
+    expect(
+      plannedPitchesOf({ playerId: "p1", role: "start" }, AGE, RULES),
+    ).toBe(maxPitchesForAge(AGE, RULES));
   });
 
   it("respects a custom rule set's daily max as the default budget", () => {
@@ -60,7 +64,9 @@ describe("plannedPitchesOf", () => {
       pitchRuleSet: "custom",
       customPitchLimit: 30,
     });
-    expect(plannedPitchesOf({ playerId: "p1", role: "start" }, AGE, custom)).toBe(30);
+    expect(
+      plannedPitchesOf({ playerId: "p1", role: "start" }, AGE, custom),
+    ).toBe(30);
   });
 });
 
