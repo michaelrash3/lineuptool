@@ -51,10 +51,12 @@ const renderInGame = ({
   role = "head",
   game = makeGame(),
   ui = {},
+  team: teamOver = {},
 }: {
   role?: CoachRole;
   game?: ReturnType<typeof makeGame>;
   ui?: Record<string, unknown>;
+  team?: Record<string, unknown>;
 } = {}) => {
   const updateGame = vi.fn();
   const finalizeGame = vi.fn();
@@ -62,7 +64,7 @@ const renderInGame = ({
   const setPlayerHealth = vi.fn();
   const utils = renderWithProviders(<InGameView />, {
     team: {
-      team: { ...DEFAULT_TEAM_DATA, players, games: [game] },
+      team: { ...DEFAULT_TEAM_DATA, players, games: [game], ...teamOver },
       currentRole: role,
       realRole: role,
       updateGame,
@@ -192,6 +194,32 @@ describe("InGameView", () => {
     fireEvent.click(screen.getByLabelText("Edit live score"));
     fireEvent.click(screen.getByLabelText("Increase Us score"));
     expect(updateGame).toHaveBeenCalledWith("g1", { teamScore: 3 });
+  });
+
+  it("flags an available pitcher who is planned for a later tournament game", () => {
+    const game = makeGame({ date: "2026-07-01" });
+    renderInGame({
+      game,
+      team: {
+        teamAge: "10U",
+        pitchingFormat: "Kid Pitch",
+        games: [game, { id: "g2", date: "2026-07-02", opponent: "Cubs" }],
+        tournaments: [
+          {
+            id: "t1",
+            name: "Bash",
+            gameIds: ["g1", "g2"],
+            pitchPlan: {
+              g2: [{ playerId: "p5", role: "start", plannedPitches: 50 }],
+            },
+          },
+        ],
+      },
+    });
+    // Evan (bench, cleared) is penciled in for tomorrow — advisory, still tappable.
+    const evan = screen.getByRole("button", { name: /Evan.*planned/ });
+    expect(evan).toBeEnabled();
+    expect(evan.title).toMatch(/planned to pitch vs Cubs/);
   });
 
   it("injury removal also persists an Out health status by default", () => {

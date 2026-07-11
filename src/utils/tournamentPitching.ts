@@ -302,6 +302,31 @@ export function priorPlannedOutingsForGame(
   return acc;
 }
 
+// The games strictly AFTER `gameId` in its stored tournament where this
+// player carries a planned outing — the in-game "you planned this arm for
+// tomorrow" advisory. Later games can't have consumed entries while an
+// earlier one is still live, so no consumption filter is needed. Empty when
+// the game belongs to no stored tournament.
+export function laterPlannedGamesForPlayer(
+  tournaments: Tournament[] | null | undefined,
+  games: Game[] | null | undefined,
+  playerId: string,
+  gameId: string,
+): Game[] {
+  const tournament = (tournaments || []).find((t) =>
+    (t.gameIds || []).includes(gameId),
+  );
+  if (!tournament) return [];
+  const ordered = orderedTournamentGames(tournament, games);
+  const idx = ordered.findIndex((g) => g.id === gameId);
+  if (idx < 0) return [];
+  return ordered
+    .slice(idx + 1)
+    .filter((g) =>
+      (tournament.pitchPlan?.[g.id] || []).some((e) => e.playerId === playerId),
+    );
+}
+
 // Derived weekend clusters that no stored tournament has claimed — the
 // "Name this tournament" suggestion chips. A cluster is claimed by seedKey
 // (it was explicitly promoted, even if games were later unlinked) or by any

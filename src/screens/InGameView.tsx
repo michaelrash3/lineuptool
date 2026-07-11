@@ -17,6 +17,7 @@ import {
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { featureEnabled } from "../constants/features";
+import { laterPlannedGamesForPlayer } from "../utils/tournamentPitching";
 import { ScoreEditor } from "./ScheduleTab";
 
 // Durable manual position picks are tracked for FIELD positions only. P keeps
@@ -1026,6 +1027,19 @@ export const InGameView = memo(() => {
                 checkPitchEligibility(p, targetDate, ageGroup, pitchRules) &&
                 canPitchDual(p.id),
             );
+            // Advisory only: an arm penciled into a LATER game of this
+            // weekend's stored tournament stays selectable — using them now
+            // just burns tomorrow's plan, and the coach should see that at
+            // the decision moment.
+            const laterPlannedFor = (playerId: string) =>
+              featureEnabled(team, "tournaments")
+                ? laterPlannedGamesForPlayer(
+                    team.tournaments,
+                    team.games,
+                    playerId,
+                    game.id,
+                  )[0]
+                : undefined;
 
             return (
               <div className="bg-warn-bg border border-line rounded-xl p-3 mb-3">
@@ -1067,19 +1081,36 @@ export const InGameView = memo(() => {
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
-                      {availablePitchers.map((player: any) => (
-                        <button
-                          key={player.id}
-                          type="button"
-                          onClick={() => assignPitcher(player.id)}
-                          title={`Make ${player.name} the pitcher for inning ${
-                            currentInning + 1
-                          }`}
-                          className="text-[11px] font-bold text-win bg-surface border border-line rounded-md px-2 py-1 hover:bg-win-bg hover:border-line-strong active:scale-[0.97] transition-all cursor-pointer"
-                        >
-                          {player.name}
-                        </button>
-                      ))}
+                      {availablePitchers.map((player: any) => {
+                        const later = laterPlannedFor(player.id);
+                        return (
+                          <button
+                            key={player.id}
+                            type="button"
+                            onClick={() => assignPitcher(player.id)}
+                            title={
+                              later
+                                ? `${player.name} is planned to pitch ${
+                                    later.opponent
+                                      ? `vs ${later.opponent} `
+                                      : ""
+                                  }${formatGameDateDisplay(later.date)} — pitching now may burn that plan`
+                                : `Make ${player.name} the pitcher for inning ${
+                                    currentInning + 1
+                                  }`
+                            }
+                            className="text-[11px] font-bold text-win bg-surface border border-line rounded-md px-2 py-1 hover:bg-win-bg hover:border-line-strong active:scale-[0.97] transition-all cursor-pointer"
+                          >
+                            {player.name}
+                            {later && (
+                              <span className="text-warnfg font-black">
+                                {" "}
+                                · planned {formatGameDateDisplay(later.date)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
