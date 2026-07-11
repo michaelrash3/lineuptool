@@ -34,6 +34,18 @@ export interface HypotheticalOuting {
   pitches: number;
 }
 
+// Whether pitch-count planning applies at all: Kid Pitch, 9U and up —
+// younger divisions and machine/coach pitch have no pitch limits. Shared by
+// the tournament surfaces and the Home dashboard row.
+export const pitchLimitsApply = (
+  pitchingFormat: string | null | undefined,
+  teamAge: string | null | undefined,
+): boolean => {
+  const nums = (teamAge || "").match(/\d+/g);
+  const age = nums && nums.length ? parseInt(nums[nums.length - 1], 10) : 8;
+  return /kid/i.test(pitchingFormat || "") && age >= 9;
+};
+
 export interface PlanViolation {
   gameId: string;
   playerId: string;

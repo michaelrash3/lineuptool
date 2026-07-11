@@ -10,10 +10,16 @@ import {
   teamStatAverages,
   isGameFinalized,
   countsTowardStats,
+  isDepartedPlayer,
   recordWinningPercentage,
   latestGameLineMovement,
   teamFeesStatus,
 } from "../utils/helpers";
+import {
+  assessTournamentPlan,
+  orderedTournamentGames,
+  pitchLimitsApply,
+} from "../utils/tournamentPitching";
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { leagueRuleSetLabel } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
@@ -28,7 +34,7 @@ import {
 import { SeasonReportModal } from "../components/SeasonReportModal";
 import { AwardsModal } from "../components/AwardsModal";
 import { StaggerList, StaggerItem, AnimatedNumber } from "../components/motion";
-import { checkPitchEligibility } from "../lineupEngine";
+import { checkPitchEligibility, resolvePitchRuleSet } from "../lineupEngine";
 
 /* ============================================================================
    Dashboard overhaul — info-rich, intuitive command center.
@@ -1465,6 +1471,7 @@ export const UpNextPanel = memo(
       setLineup,
       setBattingLineup,
       setCurrentGameAttendance,
+      openPlayerProfile,
     } = useUI();
     const { games, players, finances } = team;
     // Session-only per-row snooze (mirrors the old eval banner's dismiss). The
@@ -1591,6 +1598,123 @@ export const UpNextPanel = memo(
           }
         }
 
+        // ----- Tournament weekend: pitch plan missing / rule conflicts -----
+        // Only where pitch plans exist at all (Kid Pitch 9U+, module on). The
+        // soonest not-yet-finished tournament drives one row: no arms planned
+        // anywhere → prompt to plan; planned but rule-breaking → surface the
+        // conflicts. A set, clean plan earns no row — Up Next is for work.
+        if (
+          featureEnabled(team, "tournaments") &&
+          pitchLimitsApply(team.pitchingFormat, team.teamAge)
+        ) {
+          const upcomingTournament = (team.tournaments || [])
+            .map((t: any) => ({
+              t,
+              ordered: orderedTournamentGames(t, games || []),
+            }))
+            .filter(({ ordered }: any) => ordered.length > 0)
+            .filter(
+              ({ ordered }: any) =>
+                (ordered[ordered.length - 1].date ?? "") >= todayStr,
+            )
+            .sort((a: any, b: any) =>
+              (a.ordered[0].date ?? "").localeCompare(b.ordered[0].date ?? ""),
+            )[0];
+          if (upcomingTournament) {
+            const { t, ordered } = upcomingTournament;
+            const dd = daysUntil(ordered[0].date ?? null) ?? 99;
+            const hasPlan = Object.values(t.pitchPlan || {}).some(
+              (entries: any) => (entries || []).length > 0,
+            );
+            if (!hasPlan && dd <= 7) {
+              out.push({
+                id: "tournament-plan",
+                priority: dd <= 1 ? 85 : 72,
+                accent: dd <= 1 ? "danger" : "warn",
+                icon: Icons.Pitch,
+                title: `Set the pitch plan for ${t.name}`,
+                sub: `First game ${formatGameDateDisplay(ordered[0].date)} · ${
+                  ordered.length
+                } game${ordered.length === 1 ? "" : "s"}`,
+                tag: "Tournament",
+                ctaLabel: "Plan",
+                onClick: () => setActiveTab("schedule"),
+              });
+            } else if (hasPlan) {
+              const violations = assessTournamentPlan({
+                tournament: t,
+                games: games || [],
+                players: players || [],
+                teamAge: team.teamAge,
+                ruleSet: resolvePitchRuleSet(team),
+              }).flatMap((a) => a.violations);
+              if (violations.length > 0) {
+                out.push({
+                  id: "tournament-conflicts",
+                  priority: 78,
+                  accent: "danger",
+                  icon: Icons.Pitch,
+                  title: `${violations.length} rest conflict${
+                    violations.length === 1 ? "" : "s"
+                  } in the ${t.name} pitch plan`,
+                  sub: violations[0].message,
+                  tag: "Tournament",
+                  ctaLabel: "Review",
+                  onClick: () => setActiveTab("schedule"),
+                });
+              }
+            }
+          }
+        }
+
+        // ----- Injured players (Development module) -----
+        // One row, however many are out: a lone kid links straight to their
+        // profile (clear the status / set a return date); several link to the
+        // roster's injured view.
+        if (featureEnabled(team, "development")) {
+          const outInjured = (players || []).filter(
+            (p: Player) => p.health?.status === "out" && !isDepartedPlayer(p),
+          );
+          if (outInjured.length === 1) {
+            const p = outInjured[0];
+            const back = p.health?.expectedReturn;
+            out.push({
+              id: "injured",
+              priority: 45,
+              accent: back ? "info" : "warn",
+              icon: Icons.Alert,
+              title: `${p.name} is out injured`,
+              sub: back
+                ? `Expected back ${formatGameDateDisplay(back)}`
+                : "No return date — clear the status when they're ready",
+              tag: "Health",
+              ctaLabel: "Open",
+              onClick: () => openPlayerProfile(p.id),
+            });
+          } else if (outInjured.length > 1) {
+            out.push({
+              id: "injured",
+              priority: 45,
+              accent: "warn",
+              icon: Icons.Alert,
+              title: `${outInjured.length} players are out injured`,
+              sub: outInjured
+                .map(
+                  (p: Player) =>
+                    `${p.name}${
+                      p.health?.expectedReturn
+                        ? ` (back ${formatGameDateDisplay(p.health.expectedReturn)})`
+                        : ""
+                    }`,
+                )
+                .join(" · "),
+              tag: "Health",
+              ctaLabel: "Roster",
+              onClick: () => setActiveTab("roster"),
+            });
+          }
+        }
+
         // ----- Team Fees: deposit + full fee -----
         // Suppressed when the Finances feature is switched off in Settings —
         // the card's "Collect" CTA targets a tab that no longer exists, and a
@@ -1651,6 +1775,7 @@ export const UpNextPanel = memo(
       setLineup,
       setBattingLineup,
       setCurrentGameAttendance,
+      openPlayerProfile,
     ]);
 
     const visible = items.filter((i) => !snoozed.has(i.id));
