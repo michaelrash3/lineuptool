@@ -112,6 +112,7 @@ const PracticePlannerModal = ({
   library,
   environment,
   pitchingFormat,
+  assignedDrillIds,
   existingCount,
   onApply,
 }: {
@@ -121,6 +122,9 @@ const PracticePlannerModal = ({
   library: DrillDefinition[];
   environment: string;
   pitchingFormat?: string;
+  // Drill ids assigned on players' development plans — preferred by the
+  // generator so assigned homework actually lands on the agenda.
+  assignedDrillIds?: Set<string>;
   existingCount: number;
   onApply: (drills: any[]) => void;
 }) => {
@@ -139,8 +143,17 @@ const PracticePlannerModal = ({
         library,
         pitchingFormat,
         variation,
+        assignedDrillIds,
       }),
-    [skillProfile, minutes, env, library, pitchingFormat, variation],
+    [
+      skillProfile,
+      minutes,
+      env,
+      library,
+      pitchingFormat,
+      variation,
+      assignedDrillIds,
+    ],
   );
   const total = plan.reduce((s, d) => s + (Number(d.minutes) || 0), 0);
   // Plan entries don't carry the (long) description — look it up from the
@@ -595,6 +608,11 @@ const PracticeRow = memo(
                     library={drillLibrary}
                     environment={env}
                     pitchingFormat={pitchingFormat}
+                    assignedDrillIds={
+                      targetsByDrill
+                        ? new Set(Object.keys(targetsByDrill))
+                        : undefined
+                    }
                     existingCount={drills.length}
                     onApply={(plan) =>
                       updatePractice(practice.id, { drills: plan })

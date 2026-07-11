@@ -153,6 +153,10 @@ export interface PlanInput {
   // increment rotates the selection so a coach running this weekly doesn't get
   // the identical practice every time. Deterministic for a given value.
   variation?: number;
+  // Drill ids assigned on players' development plans. Within a category these
+  // are preferred over unassigned drills (still rotated by `variation`), so a
+  // drill some kid is supposed to be working on actually makes the agenda.
+  assignedDrillIds?: Set<string>;
 }
 
 interface PlannedBlock {
@@ -169,16 +173,24 @@ export const generatePracticePlan = (input: PlanInput): DrillLogEntry[] => {
   const kidPitch = isKidPitchFormat(input.pitchingFormat);
 
   const variation = Math.max(0, Math.floor(input.variation || 0));
+  const assigned = input.assignedDrillIds;
   const pool = (library || []).filter((d) => envOk(d, environment));
   const used = new Set<string>();
   // Rotate through the matching drills by `variation` so "Reshuffle" varies the
-  // agenda; variation 0 picks the first match (the original behavior).
+  // agenda; variation 0 picks the first match (the original behavior). Drills
+  // assigned on development plans outrank the rest of their category — the
+  // rotation then runs within whichever band is non-empty, so Reshuffle still
+  // varies between assigned drills without ever dropping to unassigned ones.
   const pick = (category: DrillCategory): DrillDefinition | null => {
     const candidates = pool.filter(
       (d) => d.category === category && !used.has(d.id),
     );
     if (candidates.length === 0) return null;
-    const chosen = candidates[variation % candidates.length];
+    const preferred = assigned?.size
+      ? candidates.filter((d) => assigned.has(d.id))
+      : [];
+    const band = preferred.length > 0 ? preferred : candidates;
+    const chosen = band[variation % band.length];
     used.add(chosen.id);
     return chosen;
   };
