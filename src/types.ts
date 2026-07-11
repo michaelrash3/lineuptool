@@ -258,6 +258,42 @@ export interface Game {
   [key: string]: unknown;
 }
 
+// One planned pitching assignment inside a tournament game — who the coach
+// intends to put on the mound, before anything is logged. plannedPitches is
+// the coach's budget for the outing; when absent, consumers assume the age
+// group's full daily max so later-game availability never over-promises.
+export interface PlannedOuting {
+  playerId: PlayerId;
+  role: "start" | "relief";
+  plannedPitches?: number;
+}
+
+// A first-class tournament: an explicitly linked weekend of games plus the
+// coach's cross-game pitching plan. Stored on the team doc (tiny — a heavy
+// season of plans is ~14 KB). Distinct from the engine's per-game
+// TournamentPlan below, which scripts substitutions within ONE game.
+//
+// pitchPlan maps gameId → planned outings for that game. Planned outings in
+// EARLIER tournament games count against pitch-count daily maxes and rest-day
+// rules when assessing LATER games (see utils/tournamentPitching.ts) — that
+// cross-game folding is the whole point of the entity. A plan entry is
+// "consumed" once its game is finalized or a real pitching.log entry for that
+// game exists (the real log then carries the load instead).
+export interface Tournament {
+  id: string;
+  name: string;
+  // Explicit membership. Render-side consumers filter dangling ids (a deleted
+  // game also gets stripped at delete time — see useGameCrud.deleteSavedGame).
+  gameIds: string[];
+  pitchPlan?: Record<string, PlannedOuting[]>;
+  notes?: string;
+  createdAt?: string;
+  // The deriveTournaments cluster id this was promoted from, so the
+  // "Name this tournament" suggestion for that cluster stops showing even if
+  // the coach unlinked some of the cluster's games.
+  seedKey?: string;
+}
+
 // Skill bucket a drill works on. Mirrors the EvalGroup vocabulary
 // (src/constants/ui.ts) plus "Conditioning" and "Team" for warm-ups and
 // situational/scrimmage work that don't map onto a single eval group.
@@ -499,6 +535,10 @@ export interface Team {
   players?: Player[];
   games?: Game[];
   practices?: Practice[];
+  // Stored tournaments (explicit weekend game groupings + cross-game pitching
+  // plans). Absent/empty = the schedule falls back to the derived weekend
+  // clustering (deriveTournaments) for display, exactly as before this field.
+  tournaments?: Tournament[];
   // Reusable team drill library — coaches pick from this to plan a practice
   // agenda. Seeded from DEFAULT_DRILL_LIBRARY for new teams; older teams fall
   // back to the seed for display until they edit it.

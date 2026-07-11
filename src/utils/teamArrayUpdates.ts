@@ -27,6 +27,7 @@ import type {
   Player,
   PlayerInfoSubmission,
   Practice,
+  Tournament,
   TryoutSession,
   TryoutSignup,
 } from "../types";
@@ -126,6 +127,7 @@ export interface TeamArrayTypes {
   players: Player;
   games: Game;
   practices: Practice;
+  tournaments: Tournament;
   // Tryout-season arrays. The anonymous portals append to the first four via
   // their own rules lanes (arrayUnion, append-only) — coach-side ops here are
   // what keep a coach's edit from erasing a parent's in-flight submission.

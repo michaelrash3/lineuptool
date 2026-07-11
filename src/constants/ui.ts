@@ -858,6 +858,7 @@ export const DEFAULT_TEAM_DATA = Object.freeze({
   coaches: [],
   games: [],
   practices: [],
+  tournaments: [],
   drillLibrary: DEFAULT_DRILL_LIBRARY,
   evaluationEvents: [],
   evalSchemaVersion: EVAL_SCHEMA_VERSION,
