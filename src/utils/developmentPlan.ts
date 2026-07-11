@@ -74,6 +74,23 @@ export const suggestDrillsForFocus = (
   return [...exact, ...byGroup];
 };
 
+// What a development plan carries across a season rollover: focus areas,
+// assigned drills, and still-ACTIVE goals continue into the new season;
+// resolved goals (their outcome is archived into the pastSeasons summary —
+// see buildPlayerSeasonSummaries) and old-season dated check-ins do not.
+// Returns undefined when nothing carries, so the key drops off the doc.
+export const rolloverDevPlan = (
+  plan: import("../types").PlayerDevPlan | null | undefined,
+): import("../types").PlayerDevPlan | undefined => {
+  if (!plan) return undefined;
+  const next: import("../types").PlayerDevPlan = {};
+  if (plan.focusAreas?.length) next.focusAreas = plan.focusAreas;
+  const active = (plan.goals || []).filter((g) => g.status === "active");
+  if (active.length) next.goals = active;
+  if (plan.drillIds?.length) next.drillIds = plan.drillIds;
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
 // Newest-first, capped. Applied on every check-in write so the list can
 // never grow unbounded on the 1 MB team doc.
 export const capCheckIns = (

@@ -109,6 +109,11 @@ export interface PlayerPastSeasonSummary {
   // Defensive innings by position label (from the fInn* actuals fields).
   positionInnings?: Record<string, number>;
   distinctPositions?: number;
+  // Development-plan outcomes for the season (goals resolved at rollover are
+  // archived here; active goals carry into the new season instead).
+  goalsSet?: number;
+  goalsAchieved?: number;
+  focusAreas?: EvalCategoryId[];
 }
 
 // One archived season on a player. Written by Advance Season (no `id`) and by

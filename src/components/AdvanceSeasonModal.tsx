@@ -211,7 +211,10 @@ export const AdvanceSeasonModal = memo(
                   in season history). Use <strong>Offer</strong> on a returning
                   player to copy their offer letter (next season&apos;s dues +
                   deposit). Accepted tryouts are pre-checked below and ride into
-                  the new roster.
+                  the new roster. The schedule, tournament pitch plans, and
+                  injury statuses reset with the season; achieved goals are
+                  archived to each player&apos;s history, and focus areas plus
+                  any still-active goals carry forward.
                 </p>
               </div>
               {!busy && (

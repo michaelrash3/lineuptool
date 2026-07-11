@@ -2,6 +2,7 @@ import {
   DEV_CHECKINS_CAP,
   capCheckIns,
   drillAssignmentIndex,
+  rolloverDevPlan,
   suggestDrillsForFocus,
   suggestFocusAreas,
 } from "./developmentPlan";
@@ -72,6 +73,39 @@ describe("suggestDrillsForFocus", () => {
 
   it("returns nothing with no focus areas", () => {
     expect(suggestDrillsForFocus(library, [], CATS)).toEqual([]);
+  });
+});
+
+describe("rolloverDevPlan", () => {
+  it("carries focus areas, drills, and active goals; drops the rest", () => {
+    const carried = rolloverDevPlan({
+      focusAreas: ["approach"],
+      drillIds: ["d1"],
+      goals: [
+        { id: "g1", text: "keep", status: "active", createdAt: "2026-04-01" },
+        { id: "g2", text: "won", status: "achieved", createdAt: "2026-04-01" },
+        { id: "g3", text: "meh", status: "dropped", createdAt: "2026-04-01" },
+      ],
+      checkIns: [{ id: "c1", date: "2026-05-01", note: "old season" }],
+      updatedAt: "2026-05-01T00:00:00Z",
+    });
+    expect(carried).toEqual({
+      focusAreas: ["approach"],
+      drillIds: ["d1"],
+      goals: [
+        { id: "g1", text: "keep", status: "active", createdAt: "2026-04-01" },
+      ],
+    });
+  });
+
+  it("returns undefined when nothing carries", () => {
+    expect(rolloverDevPlan(undefined)).toBeUndefined();
+    expect(
+      rolloverDevPlan({
+        goals: [{ id: "g1", text: "won", status: "achieved", createdAt: "x" }],
+        checkIns: [{ id: "c1", date: "2026-05-01", note: "n" }],
+      }),
+    ).toBeUndefined();
   });
 });
 
