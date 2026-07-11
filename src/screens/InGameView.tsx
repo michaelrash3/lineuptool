@@ -16,6 +16,7 @@ import {
 } from "../lineup/inGameSwap";
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
+import { featureEnabled } from "../constants/features";
 import { ScoreEditor } from "./ScheduleTab";
 
 // Durable manual position picks are tracked for FIELD positions only. P keeps
@@ -49,8 +50,12 @@ export const InGameView = memo(() => {
     updateGame,
     finalizeGame,
     removePlayerMidGame: removePlayerMidGameAction,
+    setPlayerHealth,
     currentRole,
   } = useTeam();
+  // Whether the Development module is on — gates the "also mark Out"
+  // persistence hook on injury removals.
+  const devEnabled = featureEnabled(team, "development");
   // Assistants can view the running game (so they can shadow the coach
   // from the dugout) but can't swap players or take destructive actions.
   const canEdit = currentRole !== "assistant";
@@ -77,6 +82,10 @@ export const InGameView = memo(() => {
   const [pendingRestorePlayerId, setPendingRestorePlayerId] = useState<
     string | null
   >(null);
+  // Injury removals can also persist a health status on the profile so the
+  // NEXT game defaults the kid to absent — default on; the coach unticks it
+  // for a precautionary pull that isn't a real injury.
+  const [alsoMarkOut, setAlsoMarkOut] = useState(true);
 
   // ----- Coalesce in-game tap-swap writes -----
   // Each tap previously fired its own setDoc, so a flurry of swaps became
@@ -123,6 +132,7 @@ export const InGameView = memo(() => {
     if (!showRemoveModal) {
       setPendingRemovePlayerId(null);
       setPendingRestorePlayerId(null);
+      setAlsoMarkOut(true);
     }
   }, [showRemoveModal]);
 
@@ -280,6 +290,14 @@ export const InGameView = memo(() => {
       currentLineup: pendingLineup ?? game.lineup,
       currentBatting: game.battingLineup,
     });
+    // Optionally persist the injury on the profile so upcoming games default
+    // this kid to absent until the coach clears them (or sets a return date).
+    if (reason === "injury" && alsoMarkOut && devEnabled) {
+      setPlayerHealth?.(playerId, {
+        status: "out",
+        note: "Removed mid-game (injury)",
+      });
+    }
     setShowRemoveModal(false);
   };
 
@@ -1322,6 +1340,21 @@ export const InGameView = memo(() => {
                 Inning {currentInning + 1} of {totalInnings} — they'll be
                 removed from this inning onward
               </div>
+              {devEnabled && (
+                <label className="flex items-start gap-2 mb-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={alsoMarkOut}
+                    onChange={(e) => setAlsoMarkOut(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 accent-[var(--team-primary)]"
+                  />
+                  <span className="text-[11px] font-bold text-ink-2 leading-snug">
+                    Also mark them <span className="text-loss">Out</span>{" "}
+                    (injured) on their profile — upcoming games will default
+                    them to absent until you clear it.
+                  </span>
+                </label>
+              )}
               {eligibleForRemoval.length === 0 ? (
                 <div className="text-sm font-bold text-ink-3 italic text-center py-8">
                   No players to remove this inning.

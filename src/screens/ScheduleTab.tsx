@@ -9,6 +9,7 @@ import {
   isGameFinalized,
   deriveTournaments,
   isPlayerScheduledOut,
+  isPlayerHealthOut,
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
@@ -1051,6 +1052,7 @@ export const ScheduleTab = memo(() => {
                       p,
                       currentGame.date,
                     );
+                    const injuredOut = isPlayerHealthOut(p, currentGame.date);
                     return (
                       <button
                         key={p.id}
@@ -1072,10 +1074,16 @@ export const ScheduleTab = memo(() => {
                         <span className="truncate mr-2">
                           {p.number ? `#${p.number} ` : ""}
                           {p.name}
-                          {scheduledOut && (
-                            <span className="block text-[9px] font-bold text-warnfg normal-case tracking-normal">
-                              Scheduled out this date
+                          {injuredOut ? (
+                            <span className="block text-[9px] font-bold text-loss normal-case tracking-normal">
+                              Injured — marked Out
                             </span>
+                          ) : (
+                            scheduledOut && (
+                              <span className="block text-[9px] font-bold text-warnfg normal-case tracking-normal">
+                                Scheduled out this date
+                              </span>
+                            )
                           )}
                         </span>
                         {currentGameAttendance[p.id] !== false ? (
