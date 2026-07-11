@@ -90,6 +90,50 @@ export const isPlayerScheduledOut = (
   );
 };
 
+// Injury gate: true while the player's coach-set health status is "out" —
+// open-ended when no expectedReturn is set, else through the day BEFORE the
+// expected return date (the kid is back on the return day itself). "limited"
+// never gates; it's informational. A PARALLEL gate to scheduled absences on
+// purpose: "out until further notice" can't be a finite date list, and
+// clearing a healed player is one field write. Date compare is lexicographic
+// on ISO yyyy-mm-dd — same convention as the rest of this module.
+export const isPlayerHealthOut = (
+  player:
+    | { health?: { status?: string; expectedReturn?: string } }
+    | null
+    | undefined,
+  dateIso: string | null | undefined,
+): boolean => {
+  if (!dateIso || player?.health?.status !== "out") return false;
+  const ret = player.health.expectedReturn;
+  if (!ret) return true;
+  return String(dateIso).slice(0, 10) < String(ret).slice(0, 10);
+};
+
+// The one availability question game surfaces should ask: is this player out
+// on this date for ANY reason — scheduled absence, overlapping availability
+// block, or injury? Both gates short-circuit to false when their data is
+// absent, so a roster with no health/absence data behaves exactly as before.
+export const isPlayerUnavailable = (
+  player:
+    | {
+        absences?: string[];
+        availabilityBlocks?: Array<{
+          date?: string;
+          startTime?: string;
+          endTime?: string;
+        }>;
+        health?: { status?: string; expectedReturn?: string };
+      }
+    | null
+    | undefined,
+  dateIso: string | null | undefined,
+  eventTime?: string | null,
+  eventEndTime?: string | null,
+): boolean =>
+  isPlayerScheduledOut(player, dateIso, eventTime, eventEndTime) ||
+  isPlayerHealthOut(player, dateIso);
+
 // Walk an inclusive yyyy-mm-dd range via UTC parts (no local-TZ drift) and
 // merge each day into the existing absence list, deduped + sorted. Reversed
 // inputs are swapped; absurd ranges are capped at 60 days so a typo'd year
@@ -170,7 +214,7 @@ export const isDepartedPlayer = (
 ): boolean => player?.rosterStatus === "departed";
 
 // How many non-departed players are available on a date (i.e. NOT scheduled
-// out via their absences or an overlapping availability block).
+// out via their absences, an overlapping availability block, or an injury).
 export const countAvailableOnDate = (
   players:
     | Array<{ rosterStatus?: string; absences?: string[] }>
@@ -181,7 +225,7 @@ export const countAvailableOnDate = (
   if (!dateIso) return 0;
   const day = String(dateIso).slice(0, 10);
   return (players || []).filter(
-    (p) => !isDepartedPlayer(p) && !isPlayerScheduledOut(p, day),
+    (p) => !isDepartedPlayer(p) && !isPlayerUnavailable(p, day),
   ).length;
 };
 
@@ -197,8 +241,8 @@ export const isShortHandedOnDate = (
   minPlayers: number,
 ): boolean => countAvailableOnDate(players, dateIso) < minPlayers;
 
-// The non-departed players scheduled out on a date — drives the "who's out"
-// panel when the coach taps a day.
+// The non-departed players out on a date (scheduled OR injured) — drives the
+// "who's out" panel when the coach taps a day.
 export const playersOutOnDate = <
   T extends { rosterStatus?: string; absences?: string[] },
 >(
@@ -208,6 +252,6 @@ export const playersOutOnDate = <
   if (!dateIso) return [];
   const day = String(dateIso).slice(0, 10);
   return (players || []).filter(
-    (p) => !isDepartedPlayer(p) && isPlayerScheduledOut(p, day),
+    (p) => !isDepartedPlayer(p) && isPlayerUnavailable(p, day),
   );
 };
