@@ -16,6 +16,7 @@
 
 export type TeamFeatureId =
   | "tournaments"
+  | "development"
   | "practices"
   | "stats"
   | "depthChart"
@@ -39,6 +40,12 @@ export const TOGGLEABLE_FEATURES: ToggleableFeature[] = [
     label: "Tournament Ops",
     description:
       "Weekend game grouping and cross-game pitching plans on the Schedule tab. Off restores the plain auto-detected tournament chips.",
+  },
+  {
+    id: "development",
+    label: "Player Development",
+    description:
+      "Per-player goals, focus areas, assigned drills, and injury status. Safety exception: a player already marked Out keeps defaulting to absent for games even while this is off — the switch stops new edits, it never puts an injured kid back in a lineup.",
   },
   {
     id: "practices",
