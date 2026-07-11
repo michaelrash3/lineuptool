@@ -2,6 +2,7 @@ import {
   DEV_CHECKINS_CAP,
   capCheckIns,
   drillAssignmentIndex,
+  focusAreaDeltas,
   rolloverDevPlan,
   suggestDrillsForFocus,
   suggestFocusAreas,
@@ -73,6 +74,37 @@ describe("suggestDrillsForFocus", () => {
 
   it("returns nothing with no focus areas", () => {
     expect(suggestDrillsForFocus(library, [], CATS)).toEqual([]);
+  });
+});
+
+describe("focusAreaDeltas", () => {
+  const round = (
+    date: string,
+    grades: Record<string, Record<string, number>>,
+    over: any = {},
+  ) => ({ id: date, date, coachRole: "Head", grades, ...over });
+
+  it("returns first→last per focus area from head rounds, oldest first", () => {
+    const rounds = [
+      // Deliberately unsorted: recency ordering must handle it.
+      round("2026-06-01", { p1: { approach: 4, speed: 3 } }),
+      round("2026-04-01", { p1: { approach: 2, speed: 3 } }),
+      round("2026-05-01", { p1: { approach: 3 } }),
+    ];
+    expect(focusAreaDeltas(rounds, "p1", ["approach", "speed"])).toEqual({
+      approach: { first: 2, last: 4 },
+      speed: { first: 3, last: 3 },
+    });
+  });
+
+  it("needs two graded rounds and ignores assistant rounds", () => {
+    const rounds = [
+      round("2026-04-01", { p1: { approach: 2 } }),
+      round("2026-05-01", { p1: { approach: 5 } }, { coachRole: "Assistant" }),
+    ];
+    expect(focusAreaDeltas(rounds, "p1", ["approach"])).toEqual({});
+    expect(focusAreaDeltas(rounds, "p1", [])).toEqual({});
+    expect(focusAreaDeltas(null, "p1", ["approach"])).toEqual({});
   });
 });
 

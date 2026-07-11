@@ -6,6 +6,7 @@
 // utils/availability.ts with the rest of the who's-out math.
 
 import type { EvalCategory, EvalGroup } from "../constants/ui";
+import { evalRoundRecency } from "./evaluations";
 import type {
   DevCheckIn,
   DrillDefinition,
@@ -99,6 +100,42 @@ export const capCheckIns = (
   [...(list || [])]
     .sort((a, b) => (b.date || "").localeCompare(a.date || ""))
     .slice(0, DEV_CHECKINS_CAP);
+
+// First→last grade movement for one player's focus areas, from the head
+// coach's rounds (oldest→newest — same selection as EvalTrendModal). Only
+// categories with two or more graded rounds appear; consumers decide whether
+// a flat first===last reading is worth showing. This is what closes the
+// loop: "you set Contact as a focus — it's gone 2→4 since."
+export const focusAreaDeltas = (
+  evaluationEvents:
+    | Array<{
+        coachRole?: string;
+        date?: string;
+        grades?: Record<string, GradeMap>;
+      }>
+    | null
+    | undefined,
+  playerId: string,
+  focusAreas: EvalCategoryId[] | null | undefined,
+): Partial<Record<EvalCategoryId, { first: number; last: number }>> => {
+  const out: Partial<Record<EvalCategoryId, { first: number; last: number }>> =
+    {};
+  if (!focusAreas?.length) return out;
+  const rounds = (evaluationEvents || [])
+    .filter((e) => e.coachRole === "Head")
+    .sort((a, b) => evalRoundRecency(b, a)); // oldest first
+  for (const id of focusAreas) {
+    const values: number[] = [];
+    for (const round of rounds) {
+      const grade = round.grades?.[playerId]?.[id];
+      if (typeof grade === "number" && Number.isFinite(grade))
+        values.push(grade);
+    }
+    if (values.length >= 2)
+      out[id] = { first: values[0], last: values[values.length - 1] };
+  }
+  return out;
+};
 
 // drill library id → names of players assigned that drill, roster order.
 // Drives the practice agenda's "Targets: Ava, Sam" annotations.

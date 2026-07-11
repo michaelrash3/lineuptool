@@ -6,6 +6,7 @@ import { getEvalCategoriesForPlayer } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
 import {
   FOCUS_AREAS_CAP,
+  focusAreaDeltas,
   suggestDrillsForFocus,
   suggestFocusAreas,
 } from "../utils/developmentPlan";
@@ -87,6 +88,17 @@ export const DevelopmentPlanCard = memo(
       team.games,
       player.id,
     ]);
+    // First→last grade movement per focus area — the "is the focus working"
+    // read-back, shown on the chips once two rounds have graded a category.
+    const deltas = useMemo(
+      () =>
+        focusAreaDeltas(
+          team.evaluationEvents || [],
+          player.id,
+          player.devPlan?.focusAreas,
+        ),
+      [team.evaluationEvents, player.id, player.devPlan?.focusAreas],
+    );
 
     if (!featureEnabled(team, "development")) return null;
 
@@ -206,28 +218,42 @@ export const DevelopmentPlanCard = memo(
             Focus Areas
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {focus.map((id) => (
-              <span
-                key={id}
-                className="t-chip inline-flex items-center gap-1 px-2 py-1 rounded-md border border-line-strong bg-surface text-ink"
-              >
-                {labelOf.get(id) || id}
-                {canEdit && (
-                  <button
-                    type="button"
-                    aria-label={`Remove focus ${labelOf.get(id) || id}`}
-                    onClick={() =>
-                      updateDevPlan(player.id, {
-                        focusAreas: focus.filter((f) => f !== id),
-                      })
-                    }
-                    className="text-ink-3 hover:text-loss leading-none"
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            ))}
+            {focus.map((id) => {
+              const d = deltas[id];
+              const moved = d && d.first !== d.last;
+              return (
+                <span
+                  key={id}
+                  className="t-chip inline-flex items-center gap-1 px-2 py-1 rounded-md border border-line-strong bg-surface text-ink"
+                >
+                  {labelOf.get(id) || id}
+                  {moved && (
+                    <span
+                      className={`tabular-nums font-black ${
+                        d.last > d.first ? "text-win" : "text-loss"
+                      }`}
+                      title={`Graded ${d.first} on the first round, ${d.last} on the latest`}
+                    >
+                      {d.first}→{d.last}
+                    </span>
+                  )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      aria-label={`Remove focus ${labelOf.get(id) || id}`}
+                      onClick={() =>
+                        updateDevPlan(player.id, {
+                          focusAreas: focus.filter((f) => f !== id),
+                        })
+                      }
+                      className="text-ink-3 hover:text-loss leading-none"
+                    >
+                      ×
+                    </button>
+                  )}
+                </span>
+              );
+            })}
             {canEdit &&
               focus.length < FOCUS_AREAS_CAP &&
               suggestedFocus

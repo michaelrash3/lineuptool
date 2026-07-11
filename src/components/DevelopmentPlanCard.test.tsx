@@ -86,6 +86,38 @@ describe("DevelopmentPlanCard", () => {
     expect(a.addCheckIn).toHaveBeenCalledWith("p1", "Looked sharp");
   });
 
+  it("annotates focus chips with the first→last eval delta", () => {
+    renderWithProviders(
+      <DevelopmentPlanCard
+        player={player({ devPlan: { focusAreas: ["approach"] } })}
+        canEdit
+      />,
+      {
+        team: {
+          team: baseTeam({
+            evaluationEvents: [
+              {
+                id: "r1",
+                date: "2026-04-01",
+                coachRole: "Head",
+                grades: { p1: { approach: 2 } },
+              },
+              {
+                id: "r2",
+                date: "2026-05-01",
+                coachRole: "Head",
+                grades: { p1: { approach: 4 } },
+              },
+            ],
+          }),
+          currentRole: "head",
+          ...actions(),
+        },
+      },
+    );
+    expect(screen.getByText("2→4")).toBeInTheDocument();
+  });
+
   it("suggests drills matching the focus areas and assigns on tap", async () => {
     const a = actions();
     renderWithProviders(
