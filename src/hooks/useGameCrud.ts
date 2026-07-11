@@ -1,7 +1,12 @@
 import { useCallback } from "react";
 import { normalizeDateToIso, genId } from "../utils/helpers";
 import { celebrateWin } from "../utils/celebrate";
-import type { ConfirmContextValue, Game, ToastContextValue } from "../types";
+import type {
+  ConfirmContextValue,
+  Game,
+  ToastContextValue,
+  Tournament,
+} from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Game/schedule CRUD extracted from App.tsx's TeamProvider. This slice is pure
@@ -198,7 +203,42 @@ export const useGameCrud = ({
       if (!ok) return;
       const prevGames = teamData.games;
       const removed = prevGames.find((g: any) => g.id === gameId);
-      updateTeamArrays({ op: "removeById", key: "games", id: gameId });
+      // A deleted game must also leave any tournament that references it —
+      // both its membership and its planned pitching outings — in the SAME
+      // atomic write, so a mid-flight refresh can't observe a dangling link.
+      const prevTournaments: Tournament[] = teamData.tournaments || [];
+      const touchesTournaments = prevTournaments.some(
+        (t) => t.gameIds?.includes(gameId) || t.pitchPlan?.[gameId],
+      );
+      const removeOp: TeamArrayUpdate = {
+        op: "removeById",
+        key: "games",
+        id: gameId,
+      };
+      const ops: TeamArrayUpdate[] = [removeOp];
+      if (touchesTournaments) {
+        ops.push({
+          op: "mapEntries",
+          key: "tournaments",
+          map: (items: Tournament[]) =>
+            items.map((t) => {
+              const hasGame = t.gameIds?.includes(gameId);
+              const hasPlan = Boolean(t.pitchPlan?.[gameId]);
+              if (!hasGame && !hasPlan) return t;
+              const next: Tournament = {
+                ...t,
+                gameIds: (t.gameIds || []).filter((id) => id !== gameId),
+              };
+              if (hasPlan) {
+                const { [gameId]: _drop, ...pitchPlan } = t.pitchPlan || {};
+                if (Object.keys(pitchPlan).length) next.pitchPlan = pitchPlan;
+                else delete next.pitchPlan;
+              }
+              return next;
+            }),
+        });
+      }
+      updateTeamArrays(touchesTournaments ? ops : removeOp);
       toast.push({
         kind: "success",
         title: "Game deleted",
@@ -208,18 +248,31 @@ export const useGameCrud = ({
         duration: 10000,
         action: {
           label: "Undo",
-          // Undo deliberately restores the captured snapshot wholesale —
+          // Undo deliberately restores the captured snapshots wholesale —
           // reverting to the pre-delete state IS its semantics.
-          onClick: () =>
-            updateTeamArrays({
+          onClick: () => {
+            const restoreGames: TeamArrayUpdate = {
               op: "mapEntries",
               key: "games",
               map: () => prevGames as Game[],
-            }),
+            };
+            updateTeamArrays(
+              touchesTournaments
+                ? [
+                    restoreGames,
+                    {
+                      op: "mapEntries",
+                      key: "tournaments",
+                      map: () => prevTournaments,
+                    },
+                  ]
+                : restoreGames,
+            );
+          },
         },
       } as any);
     },
-    [teamData.games, updateTeamArrays, toast, confirm],
+    [teamData.games, teamData.tournaments, updateTeamArrays, toast, confirm],
   );
 
   return { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame };
