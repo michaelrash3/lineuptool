@@ -91,6 +91,21 @@ describe("TournamentsSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders nothing when the tournaments module is toggled off", () => {
+    const { container } = renderWithProviders(<TournamentsSection />, {
+      team: {
+        team: baseTeam({
+          disabledFeatures: ["tournaments"],
+          tournaments: [
+            { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
+          ],
+        }),
+        currentRole: "head",
+      },
+    });
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("renders nothing when there are no tournaments and no clusters", () => {
     const { container } = renderWithProviders(<TournamentsSection />, {
       team: {

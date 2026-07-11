@@ -81,9 +81,11 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
   // its planned starter for THIS game, and the planned outings from the
   // tournament's earlier games — folded into eligibility below so a Saturday
   // game 2 picker already discounts the arm penciled in for game 1.
-  const tournaments = featureEnabled(team, "tournaments")
-    ? team.tournaments || []
-    : [];
+  const tournamentsEnabled = featureEnabled(team, "tournaments");
+  const tournaments = useMemo(
+    () => (tournamentsEnabled ? team.tournaments || [] : []),
+    [tournamentsEnabled, team.tournaments],
+  );
   const gameTournament = game
     ? tournaments.find((t: any) => (t.gameIds || []).includes(game.id))
     : null;

@@ -128,8 +128,11 @@ const TournamentEditorModal = ({
 export const TournamentsSection = memo(() => {
   const { team, currentRole, addTournament, updateTournament } = useTeam();
   const canEdit = currentRole !== "assistant";
-  const games: Game[] = team.games || [];
-  const tournaments: Tournament[] = team.tournaments || [];
+  const games: Game[] = useMemo(() => team.games || [], [team.games]);
+  const tournaments: Tournament[] = useMemo(
+    () => team.tournaments || [],
+    [team.tournaments],
+  );
 
   // null = closed; a seed-shaped object = creating; a Tournament = editing.
   const [editor, setEditor] = useState<
