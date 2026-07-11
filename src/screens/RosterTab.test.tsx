@@ -161,4 +161,60 @@ describe("RosterTab", () => {
     await userEvent.click(screen.getByRole("button", { name: "Ava Rivera" }));
     expect(uiValue.openPlayerProfile).toHaveBeenCalledWith("p1");
   });
+
+  const injuredRoster = [
+    {
+      id: "p1",
+      name: "Ava Rivera",
+      number: "7",
+      health: { status: "out", note: "Rolled ankle" },
+    },
+    {
+      id: "p2",
+      name: "Mia Stone",
+      number: "12",
+      health: { status: "limited" },
+    },
+    { id: "p3", name: "Zoe Park", number: "3" },
+  ];
+
+  it("shows Out/Limited badges and an Injured filter", async () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: { players: injuredRoster, games: [] },
+        currentRole: "head",
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.getByText("Out")).toBeInTheDocument();
+    expect(screen.getByText("Limited")).toBeInTheDocument();
+    // The Injured filter narrows the list to the two flagged players.
+    await userEvent.click(screen.getByRole("button", { name: "Injured" }));
+    // Roster rows expose the player name as a profile button; the stats side
+    // panel still lists everyone, so scope the assertion to the row buttons.
+    expect(
+      screen.getByRole("button", { name: "Ava Rivera" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zoe Park" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides health badges and the Injured filter when Development is off", () => {
+    renderWithProviders(<RosterTab />, {
+      team: {
+        team: {
+          players: injuredRoster,
+          games: [],
+          disabledFeatures: ["development"],
+        },
+        currentRole: "head",
+      },
+      ui: { setIsAddingPlayer: jest.fn() },
+    });
+    expect(screen.queryByText("Out")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Injured" }),
+    ).not.toBeInTheDocument();
+  });
 });

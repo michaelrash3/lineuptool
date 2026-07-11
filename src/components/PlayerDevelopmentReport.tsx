@@ -2,7 +2,8 @@ import React, { memo, Suspense, useMemo } from "react";
 import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
-import { getEvalCategoriesForTeam } from "../constants/ui";
+import { EVAL_CATEGORIES, getEvalCategoriesForTeam } from "../constants/ui";
+import { featureEnabled } from "../constants/features";
 import { currentEvaluationScore100 } from "../utils/evaluationScore";
 import {
   buildSeasonPositionVariety,
@@ -629,6 +630,85 @@ export const PlayerDevelopmentReport = memo(
               </div>
             )}
           </div>
+          {/* Forward-looking development plan (read-only mirror of the
+              profile's Development Plan card; edits happen there). */}
+          {featureEnabled(team, "development") &&
+            (player.health?.status === "out" ||
+              player.health?.status === "limited" ||
+              (player.devPlan?.focusAreas || []).length > 0 ||
+              (player.devPlan?.goals || []).some(
+                (g: any) => g.status === "active",
+              ) ||
+              (player.devPlan?.drillIds || []).length > 0 ||
+              (player.devPlan?.checkIns || []).length > 0) && (
+              <div>
+                <div className="t-eyebrow text-ink-3 mb-1">
+                  Development Plan
+                </div>
+                <div className="t-body text-ink-2 space-y-1">
+                  {player.health?.status === "out" && (
+                    <p className="font-bold text-loss">
+                      Out{player.health?.note ? ` — ${player.health.note}` : ""}
+                      {player.health?.expectedReturn
+                        ? ` (back ${player.health.expectedReturn})`
+                        : ""}
+                    </p>
+                  )}
+                  {player.health?.status === "limited" && (
+                    <p className="font-bold text-warnfg">
+                      Limited
+                      {player.health?.note ? ` — ${player.health.note}` : ""}
+                    </p>
+                  )}
+                  {(player.devPlan?.focusAreas || []).length > 0 && (
+                    <p>
+                      <span className="font-bold text-ink">Focus:</span>{" "}
+                      {(player.devPlan.focusAreas as string[])
+                        .map(
+                          (id) =>
+                            EVAL_CATEGORIES.find((c) => c.id === id)?.label ||
+                            id,
+                        )
+                        .join(", ")}
+                    </p>
+                  )}
+                  {(player.devPlan?.goals || []).filter(
+                    (g: any) => g.status === "active",
+                  ).length > 0 && (
+                    <p>
+                      <span className="font-bold text-ink">Goals:</span>{" "}
+                      {(player.devPlan.goals as any[])
+                        .filter((g) => g.status === "active")
+                        .map((g) => g.text)
+                        .join("; ")}
+                    </p>
+                  )}
+                  {(player.devPlan?.drillIds || []).length > 0 && (
+                    <p>
+                      <span className="font-bold text-ink">Drills:</span>{" "}
+                      {(player.devPlan.drillIds as string[])
+                        .map(
+                          (id: string) =>
+                            (team?.drillLibrary || []).find(
+                              (d: any) => d.id === id,
+                            )?.name,
+                        )
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  )}
+                  {(player.devPlan?.checkIns || []).length > 0 && (
+                    <p>
+                      <span className="font-bold text-ink">
+                        Latest check-in:
+                      </span>{" "}
+                      {player.devPlan.checkIns[0].date} —{" "}
+                      {player.devPlan.checkIns[0].note}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           {player.notes && (
             <div>
               <div className="t-eyebrow text-ink-3 mb-1">Coach Notes</div>
