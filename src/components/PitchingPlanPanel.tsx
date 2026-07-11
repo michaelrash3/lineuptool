@@ -3,6 +3,11 @@ import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import { buildPitchingPlan, resolvePitchRuleSet } from "../lineupEngine";
 import { isGameFinalized, formatGameDateDisplay } from "../utils/helpers";
+import {
+  priorPlannedOutingsForGame,
+  withPlannedOutings,
+} from "../utils/tournamentPitching";
+import { featureEnabled } from "../constants/features";
 import { getLocalDateString } from "../constants/ui";
 
 const ageNumOf = (age: string | undefined): number => {
@@ -39,16 +44,39 @@ export const PitchingPlanPanel = memo(() => {
       .slice(0, 4);
   }, [eligible, games]);
 
-  // Each upcoming game's availability snapshot, based on every pitcher's CURRENT
-  // recorded rest state (last outing + pitch count vs the age rest rules).
+  // Each upcoming game's availability snapshot: every pitcher's recorded rest
+  // state (last outing + pitch count vs the age rest rules) PLUS any planned
+  // outings from earlier games of the same stored tournament — so an ace
+  // penciled in for Saturday's opener no longer shows "ready" for Saturday's
+  // nightcap and Sunday too. With no tournament plan (or the module off) the
+  // fold is empty and this is exactly the old per-date snapshot.
   const pitchRules = useMemo(() => resolvePitchRuleSet(team), [team]);
+  const tournaments = featureEnabled(team, "tournaments")
+    ? team.tournaments
+    : undefined;
   const rotation = useMemo(
     () =>
-      upcoming.map((g: any) => ({
-        game: g,
-        plan: buildPitchingPlan(players || [], g.date, teamAge, pitchRules),
-      })),
-    [upcoming, players, teamAge, pitchRules],
+      upcoming.map((g: any) => {
+        const prior = priorPlannedOutingsForGame(
+          tournaments || [],
+          games || [],
+          players || [],
+          g.id,
+          teamAge,
+          pitchRules,
+        );
+        const folded =
+          prior.size > 0
+            ? (players || []).map((p: any) =>
+                withPlannedOutings(p, prior.get(p.id) || []),
+              )
+            : players || [];
+        return {
+          game: g,
+          plan: buildPitchingPlan(folded, g.date, teamAge, pitchRules),
+        };
+      }),
+    [upcoming, players, games, teamAge, pitchRules, tournaments],
   );
 
   if (!eligible || rotation.length === 0 || rotation[0].plan.length === 0)

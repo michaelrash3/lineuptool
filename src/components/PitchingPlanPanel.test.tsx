@@ -75,6 +75,35 @@ describe("PitchingPlanPanel", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("deducts a tournament's planned outings from later games' ready lists", () => {
+    // Same weekend, two games. Ace is planned for 60 pitches in game 1 —
+    // without the fold he'd show "ready" for game 2 as well (the old flaw).
+    const g1 = { id: "g1", date: "2099-05-10", opponent: "Rays" };
+    const g2 = { id: "g2", date: "2099-05-11", opponent: "Cubs" };
+    renderWithProviders(<PitchingPlanPanel />, {
+      team: {
+        team: baseTeam({
+          games: [g1, g2],
+          tournaments: [
+            {
+              id: "t1",
+              name: "Bash",
+              gameIds: ["g1", "g2"],
+              pitchPlan: {
+                g1: [{ playerId: "p1", role: "start", plannedPitches: 60 }],
+              },
+            },
+          ],
+        }),
+        currentRole: "head",
+      },
+    });
+    // Game 1: Ace unaffected (his own game). Game 2: resting from the plan.
+    const aceChips = screen.getAllByText(/#1 Ace/);
+    expect(aceChips).toHaveLength(2);
+    expect(aceChips[1]).toHaveTextContent("#1 Ace · 3d");
+  });
+
   it("hides when there is no upcoming game", () => {
     const { container } = renderWithProviders(<PitchingPlanPanel />, {
       team: {
