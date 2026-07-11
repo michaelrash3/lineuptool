@@ -15,6 +15,7 @@ import { RosterStatsPanel } from "../components/RosterStatsPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
 import { downloadRosterDirectoryPdf } from "../roster/rosterDirectoryPdf";
 import { collectParentEmails } from "../utils/reminderDraft";
+import { featureEnabled } from "../constants/features";
 
 const INFIELD_POSITIONS = new Set(["1B", "2B", "3B", "SS"]);
 const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
@@ -22,6 +23,8 @@ const OUTFIELD_POSITIONS = new Set(["LF", "CF", "RF", "LCF", "RCF"]);
 const FILTER_CHIPS = [
   { id: "present", label: "Present" },
   { id: "departed", label: "Departed" },
+  // Hidden when the Player Development module is off (health lives there).
+  { id: "injured", label: "Injured" },
   { id: "pitchers", label: "Pitchers" },
   { id: "catchers", label: "Catchers" },
   { id: "infield", label: "Infield" },
@@ -58,6 +61,10 @@ const playerMatchesFilter = (player: any, filterId: any) => {
       return rosterStatus === "active";
     case "departed":
       return rosterStatus === "departed";
+    case "injured":
+      return (
+        player.health?.status === "out" || player.health?.status === "limited"
+      );
     case "pitchers":
       return playerComfortable(player, "P");
     case "catchers":
@@ -86,6 +93,7 @@ const PlayerRow = memo(
     onSelectStats,
     selectedForStats,
     showPositionTag,
+    showHealth,
     logoUrl,
     stripped,
   }: any) => {
@@ -195,6 +203,22 @@ const PlayerRow = memo(
               {hasDeparted && (
                 <span className="t-chip px-2 py-1 rounded-md border border-line bg-warn-bg text-warnfg">
                   Departed
+                </span>
+              )}
+              {showHealth && player.health?.status === "out" && (
+                <span
+                  className="t-chip px-2 py-1 rounded-md border border-line bg-loss-bg text-loss"
+                  title={player.health?.note || "Injured — marked Out"}
+                >
+                  Out
+                </span>
+              )}
+              {showHealth && player.health?.status === "limited" && (
+                <span
+                  className="t-chip px-2 py-1 rounded-md border border-line bg-warn-bg text-warnfg"
+                  title={player.health?.note || "Limited"}
+                >
+                  Limited
                 </span>
               )}
             </div>
@@ -437,6 +461,8 @@ export const RosterTab = memo(() => {
   const { setIsAddingPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
   const stripped = (team as any).statDisplay === "stripped";
+  // Health badges + the Injured filter belong to the Development module.
+  const devEnabled = featureEnabled(team, "development");
 
   // Gameday filter state — per-session, intentionally not persisted.
   const [searchQuery, setSearchQuery] = useState("");
@@ -581,7 +607,9 @@ export const RosterTab = memo(() => {
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                {FILTER_CHIPS.map((chip) => {
+                {FILTER_CHIPS.filter(
+                  (chip) => chip.id !== "injured" || devEnabled,
+                ).map((chip) => {
                   const isActive = activeFilters.has(chip.id);
                   return (
                     <button
@@ -664,6 +692,7 @@ export const RosterTab = memo(() => {
                           onSelectStats={setSelectedStatsId}
                           selectedForStats={player.id === selectedStatsId}
                           showPositionTag={canEdit}
+                          showHealth={devEnabled}
                           logoUrl={(team as any)?.logoUrl}
                           stripped={stripped}
                         />

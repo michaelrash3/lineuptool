@@ -9,7 +9,7 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { UIContext, useTeam, useToast } from "../contexts";
 import { APP_NAME, getLocalDateString } from "../constants/ui";
 import { applyLineupSwap } from "../utils/lineupSwap";
-import { isPlayerScheduledOut, evalRoundRecency } from "../utils/helpers";
+import { isPlayerUnavailable, evalRoundRecency } from "../utils/helpers";
 import type {
   EvaluationEvent,
   Game,
@@ -266,9 +266,10 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     if (inGameId && !ids.has(inGameId)) setInGameId(null);
   }, [team.team.games, selectedGameId, scoringGameId, inGameId]);
   // When players list changes, fill in attendance defaults. A kid defaults
-  // absent when inactive on the roster OR scheduled out on the game's date
-  // (absences entered ahead of time on the player profile) — the coach can
-  // still toggle them back in the Game Day Attendance grid.
+  // absent when inactive on the roster, scheduled out on the game's date
+  // (absences entered ahead of time on the player profile), OR injured-out
+  // (health status on the profile) — the coach can still toggle them back in
+  // the Game Day Attendance grid.
   useEffect(() => {
     const gameDate = team.team.games.find(
       (g: Game) => g.id === selectedGameId,
@@ -278,8 +279,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       let changed = false;
       for (const p of team.team.players) {
         if (next[p.id] === undefined) {
-          next[p.id] =
-            p.present !== false && !isPlayerScheduledOut(p, gameDate);
+          next[p.id] = p.present !== false && !isPlayerUnavailable(p, gameDate);
           changed = true;
         }
       }

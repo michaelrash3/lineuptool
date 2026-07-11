@@ -55,15 +55,23 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     );
     const games = team.games || [];
 
+    const devEnabled = featureEnabled(team, "development");
     for (const p of players) {
+      // Health flag rides the sublabel + searchKey so "out"/"limited" pulls
+      // up the injured kids directly. Development-module data; off = silent.
+      const health =
+        devEnabled &&
+        (p.health?.status === "out" || p.health?.status === "limited")
+          ? ` · ${p.health.status}`
+          : "";
       items.push({
         kind: "player",
         id: `player:${p.id}`,
         label: p.name || "Unnamed",
         sublabel: `#${p.number || "—"} · ${p.primaryPosition || "any"}${
           p.present === false ? " · absent" : ""
-        }`,
-        searchKey: `${p.name} ${p.number || ""} ${p.primaryPosition || ""}`,
+        }${health}`,
+        searchKey: `${p.name} ${p.number || ""} ${p.primaryPosition || ""}${health}`,
         action: () => openPlayerProfile(p.id),
       });
     }
@@ -117,6 +125,16 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
         sublabel: "Weekend rotation on the Schedule tab",
         searchKey: "tournament pitching weekend rotation arms plan",
         action: () => setActiveTab("schedule"),
+      });
+    }
+    if (devEnabled) {
+      items.push({
+        kind: "nav",
+        id: "nav:injured",
+        label: "Injured List",
+        sublabel: "Out / Limited players on the Roster tab",
+        searchKey: "injured list out limited health IL",
+        action: () => setActiveTab("roster"),
       });
     }
     if (!isAssistant) {

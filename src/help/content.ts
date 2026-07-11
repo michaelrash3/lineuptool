@@ -319,6 +319,54 @@ export const HELP_TOPICS: HelpTopic[] = [
     related: ["availability-portal", "season-rollover"],
     cta: { label: "Open Roster", tab: "roster" },
   },
+  {
+    id: "player-development-plans",
+    category: "roster",
+    title: "Player development plans",
+    summary:
+      "Per-player focus areas, goals, assigned drills, and progress check-ins.",
+    keywords:
+      "development plan goals focus areas drills assigned check-in progress improve weakness",
+    featureId: "development",
+    sections: [
+      {
+        heading: "Where it lives",
+        body: "Open a player's profile — the Development Plan card sits with the roster controls. Tap 'Suggest weakest' to seed focus areas from their lowest eval grades, add goals with an optional target date, and log dated check-ins as the season goes.",
+      },
+      {
+        heading: "Drills that match",
+        body: "Tag drills in the practice drill library with the eval category they train, and the plan suggests them for a player's focus areas. Assigned drills show up on the practice agenda as 'Targets: …' so you remember who each block is really for.",
+      },
+    ],
+    related: ["injury-status", "eval-rounds", "practices"],
+    cta: { label: "Open Roster", tab: "roster" },
+  },
+  {
+    id: "injury-status",
+    category: "roster",
+    title: "Injury status: Out and Limited",
+    summary:
+      "Mark a player Out and games default them to absent until they're back.",
+    keywords:
+      "injury injured out limited health return date IL unavailable hurt",
+    featureId: "development",
+    sections: [
+      {
+        heading: "Out vs Limited",
+        body: "Set health on the player's profile. Out gates availability: games default them to absent — until the expected return date if you set one, otherwise until you flip them back to Healthy. Limited is a visible flag only; it never benches anyone automatically.",
+      },
+      {
+        heading: "From game day",
+        body: "Removing a player mid-game for an injury offers to mark them Out in the same tap, so next week's lineup doesn't quietly include a kid in a sling. The roster tab shows Out/Limited badges and an Injured filter.",
+      },
+    ],
+    related: [
+      "player-development-plans",
+      "absences-departed",
+      "in-game-injury-undo",
+    ],
+    cta: { label: "Open Roster", tab: "roster" },
+  },
 
   // --------------------------------------------------------- schedule-games
   {

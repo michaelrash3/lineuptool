@@ -59,6 +59,7 @@ const renderInGame = ({
   const updateGame = vi.fn();
   const finalizeGame = vi.fn();
   const removePlayerMidGame = vi.fn();
+  const setPlayerHealth = vi.fn();
   const utils = renderWithProviders(<InGameView />, {
     team: {
       team: { ...DEFAULT_TEAM_DATA, players, games: [game] },
@@ -67,6 +68,7 @@ const renderInGame = ({
       updateGame,
       finalizeGame,
       removePlayerMidGame,
+      setPlayerHealth,
     },
     ui: {
       inGameId: game.id,
@@ -80,7 +82,13 @@ const renderInGame = ({
       ...ui,
     },
   });
-  return { ...utils, updateGame, finalizeGame, removePlayerMidGame };
+  return {
+    ...utils,
+    updateGame,
+    finalizeGame,
+    removePlayerMidGame,
+    setPlayerHealth,
+  };
 };
 
 describe("InGameView", () => {
@@ -184,5 +192,37 @@ describe("InGameView", () => {
     fireEvent.click(screen.getByLabelText("Edit live score"));
     fireEvent.click(screen.getByLabelText("Increase Us score"));
     expect(updateGame).toHaveBeenCalledWith("g1", { teamScore: 3 });
+  });
+
+  it("injury removal also persists an Out health status by default", () => {
+    const { removePlayerMidGame, setPlayerHealth } = renderInGame();
+    fireEvent.click(
+      screen.getByLabelText("Remove a player (injured / ill / left)"),
+    );
+    // Two-tap confirm on Bob's row.
+    const row = screen.getByRole("button", { name: /#2 Bob/ });
+    fireEvent.click(row);
+    fireEvent.click(row);
+    expect(removePlayerMidGame).toHaveBeenCalledWith(
+      "p2",
+      expect.objectContaining({ reason: "injury" }),
+    );
+    expect(setPlayerHealth).toHaveBeenCalledWith("p2", {
+      status: "out",
+      note: "Removed mid-game (injury)",
+    });
+  });
+
+  it("unticking the checkbox removes without touching health", () => {
+    const { removePlayerMidGame, setPlayerHealth } = renderInGame();
+    fireEvent.click(
+      screen.getByLabelText("Remove a player (injured / ill / left)"),
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    const row = screen.getByRole("button", { name: /#2 Bob/ });
+    fireEvent.click(row);
+    fireEvent.click(row);
+    expect(removePlayerMidGame).toHaveBeenCalled();
+    expect(setPlayerHealth).not.toHaveBeenCalled();
   });
 });

@@ -10,8 +10,10 @@ import {
 import { isoInstantToLocalTime } from "../utils/icsParse";
 import { StaggerList, StaggerItem } from "../components/motion";
 import { EmptyState, Modal } from "../components/shared";
-import { DEFAULT_DRILL_LIBRARY } from "../constants/ui";
-import type { DrillCategory, DrillDefinition } from "../types";
+import { DEFAULT_DRILL_LIBRARY, EVAL_CATEGORIES } from "../constants/ui";
+import { featureEnabled } from "../constants/features";
+import { drillAssignmentIndex } from "../utils/developmentPlan";
+import type { DrillCategory, DrillDefinition, EvalCategoryId } from "../types";
 import {
   buildTeamSkillProfile,
   generatePracticePlan,
@@ -275,6 +277,7 @@ const PracticeRow = memo(
     drillLibrary,
     skillProfile,
     pitchingFormat,
+    targetsByDrill,
     updatePractice,
     removePractice,
     savePracticeAttendance,
@@ -527,6 +530,15 @@ const PracticeRow = memo(
                             {d.minutes}m
                           </span>
                         ) : null}
+                        {d.libraryId &&
+                        targetsByDrill?.[d.libraryId]?.length ? (
+                          <span
+                            className="block text-[10px] font-bold text-ink-3 normal-case tracking-normal truncate"
+                            title="Players whose development plan assigns this drill"
+                          >
+                            Targets: {targetsByDrill[d.libraryId].join(", ")}
+                          </span>
+                        ) : null}
                       </span>
                       {isHead && (
                         <span className="flex items-center gap-1 shrink-0">
@@ -751,6 +763,10 @@ const AddPracticeForm = ({ onAdd, onClose }: any) => {
 
 // Collapsible manager for the reusable team drill library. Head coach builds
 // the menu here once; every practice's planner picks from it.
+// Eval categories a drill can be tagged with — real 1–5 graded skills only
+// (zero-weight radar readings aren't trainable targets in this sense).
+const DRILL_EVAL_TARGETS = EVAL_CATEGORIES.filter((c) => c.weight > 0);
+
 const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -760,6 +776,7 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
     "both",
   );
   const [description, setDescription] = useState("");
+  const [evalCategory, setEvalCategory] = useState<EvalCategoryId | "">("");
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -770,10 +787,12 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
       defaultMinutes: Number(minutes) || undefined,
       environment,
       description: description.trim() || undefined,
+      evalCategory: evalCategory || undefined,
     });
     setName("");
     setMinutes("");
     setDescription("");
+    setEvalCategory("");
   };
 
   return (
@@ -812,6 +831,17 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
                   {d.environment && d.environment !== "both" ? (
                     <span className="text-ink-3 text-[10px] uppercase tracking-widest">
                       {d.environment}
+                    </span>
+                  ) : null}
+                  {d.evalCategory ? (
+                    <span
+                      className="t-chip px-1.5 py-0.5 rounded-sm border border-line text-ink-2"
+                      style={{ backgroundColor: "var(--team-primary-15)" }}
+                      title="Suggested for players whose plan targets this eval category"
+                    >
+                      →{" "}
+                      {EVAL_CATEGORIES.find((c) => c.id === d.evalCategory)
+                        ?.label || d.evalCategory}
                     </span>
                   ) : null}
                   <button
@@ -893,7 +923,26 @@ const DrillLibraryManager = ({ library, onAdd, onRemove }: any) => {
                 <Icons.Plus className="w-4 h-4" />
               </button>
             </div>
-            <label className="block sm:col-span-2 lg:col-span-4">
+            <label className="block sm:col-span-2 lg:col-span-2">
+              <span className="t-eyebrow text-ink-3 block mb-1">
+                Targets eval category (optional)
+              </span>
+              <select
+                value={evalCategory}
+                onChange={(e) =>
+                  setEvalCategory(e.target.value as EvalCategoryId | "")
+                }
+                className="w-full px-2.5 py-2 text-sm bg-surface border border-line rounded-sm outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+              >
+                <option value="">None</option>
+                {DRILL_EVAL_TARGETS.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block sm:col-span-2 lg:col-span-2">
               <span className="t-eyebrow text-ink-3 block mb-1">
                 What it is (optional)
               </span>
@@ -946,6 +995,14 @@ export const PracticesTab = memo(() => {
         (p: any) => p && p.inactive !== true && !isDepartedPlayer(p),
       ),
     [team.players],
+  );
+
+  // drill library id → assigned player names, for the agenda's "Targets: …"
+  // annotations. Null when the Development module is off (annotation hidden).
+  const devEnabled = featureEnabled(team, "development");
+  const targetsByDrill = useMemo(
+    () => (devEnabled ? drillAssignmentIndex(players) : null),
+    [devEnabled, players],
   );
 
   // Upcoming first: the next/soonest practice on top, ascending by date; once a
@@ -1148,6 +1205,7 @@ export const PracticesTab = memo(() => {
                 drillLibrary={drillLibrary}
                 skillProfile={skillProfile}
                 pitchingFormat={team.pitchingFormat}
+                targetsByDrill={targetsByDrill}
                 updatePractice={updatePractice}
                 removePractice={removePractice}
                 savePracticeAttendance={savePracticeAttendance}

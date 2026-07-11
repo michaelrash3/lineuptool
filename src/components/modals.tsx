@@ -37,6 +37,7 @@ import {
   formatStatValue,
 } from "./modals/statTrend";
 import { PlayerDevelopmentReport } from "./PlayerDevelopmentReport";
+import { DevelopmentPlanCard } from "./DevelopmentPlanCard";
 import { OfferLetterModal } from "./OfferLetterModal";
 import { makeOfferLetterContext } from "../utils/offerContext";
 
@@ -1168,6 +1169,8 @@ const PlayerProfile = memo(() => {
                 player={player}
                 updatePlayer={updatePlayer}
               />
+
+              <DevelopmentPlanCard player={player} canEdit={canEdit} />
 
               {pitchingFormat === "Kid Pitch" && (
                 <div className="cc-card p-5">

@@ -162,6 +162,14 @@ export interface Player {
     lastPitchDate?: string | null;
     topMph?: number;
   };
+  // Coach-maintained injury/health status. "out" gates game availability the
+  // same way a scheduled absence does — until expectedReturn if set, else
+  // until the coach clears it (see isPlayerHealthOut in utils/availability).
+  // "limited" is informational only. Absent = healthy; nothing changes.
+  health?: PlayerHealth;
+  // Forward-looking development plan: focus areas (eval-category ids), goals,
+  // assigned drills, and dated check-ins. See utils/developmentPlan.ts.
+  devPlan?: PlayerDevPlan;
   // ISO yyyy-mm-dd dates the family already knows the kid is unavailable
   // (entered ahead of time on the profile). Games on these dates default
   // the kid to absent in Game Day Attendance; the coach can still toggle
@@ -258,6 +266,47 @@ export interface Game {
   [key: string]: unknown;
 }
 
+// Coach-maintained player health status. Deliberately a PARALLEL gate to the
+// scheduled-absence machinery (absences/availabilityBlocks): an open-ended
+// "out until further notice" can't be expressed as a finite date list, and
+// clearing a healed player is one field write instead of surgical date
+// deletion. isPlayerUnavailable in utils/availability.ts combines both gates.
+export interface PlayerHealth {
+  status: "healthy" | "limited" | "out";
+  note?: string; // clamped ~200 chars at write time
+  expectedReturn?: string; // ISO yyyy-mm-dd; absent = until the coach clears it
+  updatedAt?: string; // ISO instant
+}
+
+// One forward-looking development goal on a player's plan.
+export interface DevGoal {
+  id: string;
+  text: string; // clamped ~200 chars at write time
+  targetDate?: string; // ISO yyyy-mm-dd
+  status: "active" | "achieved" | "dropped";
+  createdAt: string; // ISO yyyy-mm-dd
+}
+
+// A dated coach note tracking progress against the plan. Capped (newest kept)
+// so a season of check-ins can't bloat the 1 MB team doc.
+export interface DevCheckIn {
+  id: string;
+  date: string; // ISO yyyy-mm-dd
+  note: string; // clamped ~500 chars at write time
+}
+
+// A player's development plan — the forward-looking counterpart to the
+// retrospective PlayerDevelopmentReport. Focus areas use the SAME ids as the
+// eval grade system (EvalCategoryId) so the weakest graded categories can
+// auto-suggest focus, and drills reference the team drill library by id.
+export interface PlayerDevPlan {
+  focusAreas?: EvalCategoryId[]; // soft cap 3
+  goals?: DevGoal[]; // soft cap 10
+  drillIds?: string[]; // DrillDefinition ids from team.drillLibrary
+  checkIns?: DevCheckIn[]; // hard cap 20, newest kept
+  updatedAt?: string; // ISO instant
+}
+
 // One planned pitching assignment inside a tournament game — who the coach
 // intends to put on the mound, before anything is logged. plannedPitches is
 // the coach's budget for the outing; when absent, consumers assume the age
@@ -319,6 +368,10 @@ export interface DrillDefinition {
   environment?: "indoor" | "outdoor" | "both";
   equipment?: string;
   description?: string;
+  // Optional link to ONE eval category this drill trains (finer than the
+  // coarse `category` group). Lets a player's weakest graded categories
+  // suggest matching drills for their development plan.
+  evalCategory?: EvalCategoryId;
 }
 
 // A single drill on a practice — both the plan (added before practice) and the

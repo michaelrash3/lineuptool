@@ -99,6 +99,7 @@ import { useInviteFlows } from "../hooks/useInviteFlows";
 import { useImportExportFlows } from "../hooks/useImportExportFlows";
 import { useGameCrud } from "../hooks/useGameCrud";
 import { useTournamentCrud } from "../hooks/useTournamentCrud";
+import { useDevelopmentCrud } from "../hooks/useDevelopmentCrud";
 import { usePracticeCrud } from "../hooks/usePracticeCrud";
 import { usePlayerCrud } from "../hooks/usePlayerCrud";
 import { usePastSeasonCrud } from "../hooks/usePastSeasonCrud";
@@ -1485,6 +1486,17 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     removeTournament,
   } = useTournamentCrud({ teamData, updateTeamArrays, toast, confirm });
 
+  // ----- Development plan / health CRUD ----- (src/hooks/useDevelopmentCrud.ts)
+  const {
+    setPlayerHealth,
+    updateDevPlan,
+    addGoal,
+    setGoalStatus,
+    removeGoal,
+    addCheckIn,
+    toggleAssignedDrill,
+  } = useDevelopmentCrud({ teamData, updateTeamArrays, toast });
+
   // ----- Practice CRUD ----- (src/hooks/usePracticeCrud.ts)
   const {
     addPractice,
@@ -2801,6 +2813,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateTournament,
       setPlannedOutings,
       removeTournament,
+      setPlayerHealth,
+      updateDevPlan,
+      addGoal,
+      setGoalStatus,
+      removeGoal,
+      addCheckIn,
+      toggleAssignedDrill,
       addPractice,
       updatePractice,
       removePractice,
@@ -2904,6 +2923,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       updateTournament,
       setPlannedOutings,
       removeTournament,
+      setPlayerHealth,
+      updateDevPlan,
+      addGoal,
+      setGoalStatus,
+      removeGoal,
+      addCheckIn,
+      toggleAssignedDrill,
       addPractice,
       updatePractice,
       removePractice,

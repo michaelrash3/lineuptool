@@ -45,6 +45,8 @@ export {
 export {
   availabilityBlockOverlapsEvent,
   isPlayerScheduledOut,
+  isPlayerHealthOut,
+  isPlayerUnavailable,
   addAbsenceDateRange,
   removeAbsenceDates,
   foldAbsenceRanges,
