@@ -153,5 +153,9 @@ vite.config.ts.timestamp-*
 
 # local repro scratch (contains private team data — never commit)
 src/__repro*
-.claude/
+# Claude Code: session-local files stay ignored, but the shared project
+# settings and hooks (SessionStart fix for the CCR stop hook) are committed.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 bundle-stats.html
