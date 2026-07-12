@@ -42,6 +42,10 @@ import { buildEvalReminderDraft, buildMailtoUrl } from "../utils/reminderDraft";
 import { buildPlayerSeasonSummaries } from "../utils/playerDevelopment";
 import { rolloverDevPlan } from "../utils/developmentPlan";
 import {
+  buildOpponentSeasonAggregates,
+  appendOpponentArchive,
+} from "../utils/opponentHistory";
+import {
   buildEvalRoundsQuery,
   assembleEvalRounds,
   backfillOwnEvalRounds,
@@ -1777,6 +1781,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         teamAge: teamData.teamAge,
       });
 
+      // Per-opponent W-L/runs aggregates from the closing season's games —
+      // the games array is wiped below, and this archive is what keeps the
+      // head-to-head history ("5-3 all-time vs the Cubs") alive across
+      // seasons. Bounded (oldest entries fall off) so it can't bloat the doc.
+      const opponentArchive = appendOpponentArchive(
+        teamData.opponentArchive,
+        buildOpponentSeasonAggregates(teamData.games || [], archivedSeason),
+      );
+
       // Archive each player's current stats into pastSeasons[]; drop the
       // ones marked Released/Declined; reset surviving statuses to
       // "returning" so the next cycle starts clean.
@@ -1977,6 +1990,9 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           // zombie entries (dangling gameIds + pitch plans), so they reset
           // with the schedule they described.
           tournaments: [],
+          // Head-to-head history survives the games wipe as per-opponent
+          // aggregates (built above from the closing season's results).
+          opponentArchive,
           // Practices belong to the season just closed — start the new season
           // with a clean slate rather than carrying last year's dates forward.
           practices: [],

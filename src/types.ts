@@ -220,6 +220,12 @@ export interface Inning {
 
 export type GameStatus = "draft" | "final" | "in_progress" | string;
 
+// The coach's read on the other team, set on the game editor. It never
+// changes the engine's lineup math — it shifts the coaching guidance: who
+// starts on the mound, how hard to chase tiebreaker currency, when to rest
+// arms. Absent = no read yet ("even" is an explicit choice, not the default).
+export type OpponentStrength = "weaker" | "even" | "stronger";
+
 // Tournament classification — drives engine pitcher pool sizes for 9U+
 // Kid Pitch. Pool = spread across the staff (top 5); Bracket = your aces
 // (top 3); League = regular season default (top 3). Independent of
@@ -268,6 +274,8 @@ export interface Game {
   // ISO instant of first pitch; drives the displayed time. null for all-day
   // feed events (no clock time shown).
   startUtc?: string | null;
+  // Coach's scouting read on this opponent (see OpponentStrength).
+  opponentStrength?: OpponentStrength;
   [key: string]: unknown;
 }
 
@@ -322,6 +330,36 @@ export interface PlannedOuting {
   plannedPitches?: number;
 }
 
+// How the tournament field is structured — the numbers that change how a
+// coach plays pool games. 16 teams in 4 pools with 6 advancing means pool
+// winners are safe and everyone else is fighting for 2 wildcard spots on
+// tiebreakers. All fields optional: coaches fill in what they know.
+export interface TournamentStructure {
+  teamCount?: number; // total teams in the event
+  poolCount?: number; // how many pools they're split into
+  advanceCount?: number; // teams that make the top (championship) bracket
+  // Whether each pool winner gets an automatic bid; the remaining
+  // advanceCount − poolCount spots become wildcards decided on tiebreakers.
+  poolWinnersAdvance?: boolean;
+}
+
+// Criteria a tournament uses to break pool-play ties, applied IN ORDER after
+// overall record. "h2h" conventionally applies to two-team ties only (three-way
+// ties skip to the next criterion) — the guidance copy says so.
+export type TiebreakerId =
+  | "h2h" // head-to-head result
+  | "runsAllowed" // fewest runs allowed
+  | "runDiff" // run differential (optionally capped per game)
+  | "runsScored" // most runs scored
+  | "coinFlip"; // organizer coin flip / draw
+
+export interface TiebreakerRule {
+  id: TiebreakerId;
+  // Per-game cap on the counted margin, only meaningful for runDiff
+  // (USSSA caps it at 8 — winning by more than 8 counts as +8).
+  cap?: number;
+}
+
 // A first-class tournament: an explicitly linked weekend of games plus the
 // coach's cross-game pitching plan. Stored on the team doc (tiny — a heavy
 // season of plans is ~14 KB). Distinct from the engine's per-game
@@ -346,6 +384,13 @@ export interface Tournament {
   // "Name this tournament" suggestion for that cluster stops showing even if
   // the coach unlinked some of the cluster's games.
   seedKey?: string;
+  // Field structure (pools / advancement) — drives the stakes guidance in
+  // utils/tournamentStakes.ts. The app coaches to the structure; it never
+  // computes standings (other pools' results aren't known to it).
+  structure?: TournamentStructure;
+  // Ordered tie-break ladder after overall record. Absent = the USSSA
+  // default ladder (see DEFAULT_TIEBREAKERS in utils/tournamentStakes.ts).
+  tiebreakers?: TiebreakerRule[];
 }
 
 // Skill bucket a drill works on. Mirrors the EvalGroup vocabulary
@@ -582,6 +627,19 @@ export interface TryoutSession {
   gradesByEvaluator?: Record<string, TryoutSessionEvaluatorGrades>;
 }
 
+// Per-opponent aggregate archived at season rollover. Games reset each
+// season, so "how have we done against these guys" survives here — the
+// game editor's head-to-head line combines this with the current season.
+export interface OpponentSeasonRecord {
+  season: string;
+  opponent: string; // display name exactly as scheduled that season
+  wins: number;
+  losses: number;
+  ties: number;
+  runsFor: number;
+  runsAgainst: number;
+}
+
 export interface Team {
   name?: string;
   primaryColor?: string;
@@ -597,6 +655,9 @@ export interface Team {
   // plans). Absent/empty = the schedule falls back to the derived weekend
   // clustering (deriveTournaments) for display, exactly as before this field.
   tournaments?: Tournament[];
+  // Per-opponent season aggregates written by advanceSeason (newest last).
+  // See OpponentSeasonRecord; utils/opponentHistory.ts builds and reads it.
+  opponentArchive?: OpponentSeasonRecord[];
   // Reusable team drill library — coaches pick from this to plan a practice
   // agenda. Seeded from DEFAULT_DRILL_LIBRARY for new teams; older teams fall
   // back to the seed for display until they edit it.
