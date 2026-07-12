@@ -307,6 +307,8 @@ const PlayerRow = memo(
 
 // Collapsible share card for the public Player Info form. Lives on the Roster
 // page (head-only) because it's about outfitting kids already on the roster.
+// Stays an overlay Modal per the approved share-link/QR popover exception to
+// the app-wide modals→pages rule.
 // Reuses the team's standing share id on the /player-info-portal/ path — the
 // same id the Tryouts/Interest link uses, so there's nothing extra to generate.
 

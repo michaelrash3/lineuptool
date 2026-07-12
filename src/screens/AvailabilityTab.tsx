@@ -28,7 +28,9 @@ const formatShort = (iso: string): string => {
 };
 
 // Collapsible share card for the public Availability form. Reuses the team's
-// standing share id on the /availability-portal/ path.
+// standing share id on the /availability-portal/ path. Stays an overlay Modal
+// per the approved share-link/QR popover exception to the app-wide
+// modals→pages rule.
 const ShareCard = memo(({ team }: any) => {
   const toast = useToast();
   const [open, setOpen] = useState(false);

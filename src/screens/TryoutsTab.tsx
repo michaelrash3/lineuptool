@@ -2,7 +2,7 @@ import React, { memo, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
-import { useTeam, useToast } from "../contexts";
+import { useConfirm, useTeam, useToast } from "../contexts";
 import { EvalGradeCard } from "../components/EvalGradeCard";
 import { getActivePositionList, getCombinedGrades } from "../lineupEngine";
 import {
@@ -970,6 +970,7 @@ export const TryoutsTab = memo(() => {
     setPlayerReturning,
   } = useTeam();
   const toast = useToast();
+  const { confirm } = useConfirm();
   const {
     tryoutSignups,
     evaluationEvents,
@@ -993,10 +994,6 @@ export const TryoutsTab = memo(() => {
   const [pendingDeleteSignupId, setPendingDeleteSignupId] = useState<
     string | null
   >(null);
-  // End-tryout modal: bulk-delete every signup marked present === false.
-  // The HC's day-of cleanup pattern — assign numbers to who showed,
-  // mark the rest absent, then tap End Tryout to wipe no-shows.
-  const [endTryoutOpen, setEndTryoutOpen] = useState(false);
   // Coach walk-up entry lives on /tryouts/add (see
   // screens/tryouts/TryoutAddPage) — the "+ Add Player" button navigates.
   // Any signup still missing a number → offer the one-tap assigner.
@@ -1088,6 +1085,31 @@ export const TryoutsTab = memo(() => {
       ).length,
     [tryoutSignups],
   );
+  // End tryout: bulk-delete every signup marked present === false. The HC's
+  // day-of cleanup pattern — assign numbers to who showed, mark the rest
+  // absent, then tap End Tryout to wipe no-shows. Confirmed through the
+  // app-wide confirm dialog (useConfirm).
+  const endTryout = async () => {
+    const ok = await confirm({
+      title: "End tryout — clear no-shows?",
+      message: `${noShowCount} signup${
+        noShowCount === 1 ? "" : "s"
+      } marked no-show will be permanently deleted. Their grades, if any, are kept for historical reference but the signup itself is removed. Anyone unmarked or marked present stays.`,
+      confirmLabel: "Delete No-Shows",
+      danger: true,
+    });
+    if (!ok) return;
+    const noShowIds = ((tryoutSignups || []) as TryoutSignup[])
+      .filter((sg) => sg.present === false)
+      .map((sg) => sg.id);
+    // Single bulk write — looping deleteTryoutSignup would only
+    // remove the last one (optimistic merge keeps last write).
+    const removed = deleteTryoutSignups?.(noShowIds) ?? 0;
+    toast.push({
+      kind: "success",
+      title: `${removed} no-show${removed === 1 ? "" : "s"} removed`,
+    });
+  };
 
   const activePositions = useMemo(
     () => getActivePositionList(defenseSize),
@@ -1245,7 +1267,7 @@ export const TryoutsTab = memo(() => {
           {isHead && noShowCount > 0 && (
             <button
               type="button"
-              onClick={() => setEndTryoutOpen(true)}
+              onClick={endTryout}
               className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-loss hover:opacity-90 rounded-lg transition-opacity"
               title={`Bulk-delete the ${noShowCount} no-show signup${noShowCount === 1 ? "" : "s"}`}
             >
@@ -1692,60 +1714,6 @@ export const TryoutsTab = memo(() => {
         )}
       </div>
       {/* end desktop grid */}
-
-      {endTryoutOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setEndTryoutOpen(false)}
-        >
-          <A11yDialog
-            label="End tryout — clear no-shows?"
-            onClose={() => setEndTryoutOpen(false)}
-            className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-          >
-            <div className="p-1.5 bg-loss" />
-            <div className="p-5 sm:p-6">
-              <h3 className="t-h3 mb-1">End tryout — clear no-shows?</h3>
-              <p className="text-sm text-ink-2 font-medium mb-4">
-                {noShowCount} signup{noShowCount === 1 ? "" : "s"} marked
-                no-show will be permanently deleted. Their grades, if any, are
-                kept for historical reference but the signup itself is removed.
-                Anyone unmarked or marked present stays.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEndTryoutOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const noShowIds = ((tryoutSignups || []) as TryoutSignup[])
-                      .filter((s) => s.present === false)
-                      .map((s) => s.id);
-                    // Single bulk write — looping deleteTryoutSignup would only
-                    // remove the last one (optimistic merge keeps last write).
-                    const removed = deleteTryoutSignups?.(noShowIds) ?? 0;
-                    setEndTryoutOpen(false);
-                    toast.push({
-                      kind: "success",
-                      title: `${removed} no-show${
-                        removed === 1 ? "" : "s"
-                      } removed`,
-                    });
-                  }}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-loss hover:opacity-90 text-white rounded-xl shadow-md transition-opacity"
-                >
-                  Delete No-Shows
-                </button>
-              </div>
-            </div>
-          </A11yDialog>
-        </div>
-      )}
 
       {acceptChoice && (
         <div

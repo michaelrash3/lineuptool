@@ -20,7 +20,7 @@ import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
-import { A11yDialog, PlayerAvatar } from "./shared";
+import { PlayerAvatar } from "./shared";
 
 // Shell for the player profile page at /roster/:playerId. The profile is a
 // real routed page — the old centered dialog overlay is gone, so there is no

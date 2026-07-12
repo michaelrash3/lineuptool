@@ -42,14 +42,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const toast = useToast();
   const navigateToRoute = useNavigate();
 
-  const [modal, setModal] = useState({
-    isOpen: false,
-    title: "",
-    message: "",
-    type: "alert",
-    onConfirm: null,
-  });
-
   // Schedule tab state
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [isAddingGame, setIsAddingGame] = useState(false);
@@ -442,8 +434,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
 
   const value = useMemo(
     () => ({
-      modal,
-      setModal,
       selectedGameId,
       setSelectedGameId,
       isAddingGame,
@@ -498,7 +488,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setSelectedRoundId,
     }),
     [
-      modal,
       selectedGameId,
       isAddingGame,
       newGameForm,

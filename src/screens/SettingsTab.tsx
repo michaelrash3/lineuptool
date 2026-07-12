@@ -13,10 +13,10 @@ import {
   featureEnabled,
   toggleFeature,
 } from "../constants/features";
-import { useTeam, useUI, useToast } from "../contexts";
+import { useConfirm, useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
-import { A11yDialog, extractLogoPalette } from "../components/shared";
+import { extractLogoPalette } from "../components/shared";
 import {
   StorageUsagePanel,
   TeamManagementPanel,
@@ -287,9 +287,18 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
     code && typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}?join=${code}`
       : "";
-  // In-app replacement for the window.confirm prompt that previously
-  // guarded code rotation. Modal matches the patterns in #131 / #132.
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  // Rotation is guarded by the app-wide confirm dialog (useConfirm) — the
+  // one overlay system destructive confirms are consolidated on.
+  const { confirm } = useConfirm();
+  const rotateCode = async () => {
+    const ok = await confirm({
+      title: "Rotate team code?",
+      message: `The current code ${code} will stop working immediately. Anyone you've already invited with the old code will need the new one to join.`,
+      confirmLabel: "Regenerate",
+      danger: true,
+    });
+    if (ok) regenerateJoinCode?.();
+  };
   const copy = async (text: any, label: any) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -344,7 +353,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
             </code>
             <button
               type="button"
-              onClick={() => setConfirmOpen(true)}
+              onClick={rotateCode}
               className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md"
             >
               Regenerate
@@ -375,49 +384,6 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
         >
           Generate Team Code
         </button>
-      )}
-
-      {confirmOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setConfirmOpen(false)}
-        >
-          <A11yDialog
-            label="Rotate team code?"
-            onClose={() => setConfirmOpen(false)}
-            className="bg-surface rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
-          >
-            <div className="p-1.5 bg-warnfg" />
-            <div className="p-5 sm:p-6">
-              <h3 className="t-h3 mb-1">Rotate team code?</h3>
-              <p className="text-sm text-ink-2 font-medium mb-5">
-                The current code{" "}
-                <code className="font-mono font-black text-ink">{code}</code>{" "}
-                will stop working immediately. Anyone you've already invited
-                with the old code will need the new one to join.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    regenerateJoinCode?.();
-                    setConfirmOpen(false);
-                  }}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg rounded-xl shadow-md transition-colors"
-                >
-                  Regenerate
-                </button>
-              </div>
-            </div>
-          </A11yDialog>
-        </div>
       )}
     </div>
   );

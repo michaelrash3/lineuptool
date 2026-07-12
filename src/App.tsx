@@ -71,7 +71,7 @@ import {
   useConfirm,
 } from "./contexts";
 import { ConfirmProvider } from "./components/ConfirmDialog";
-import { SharedModals, downscaleImageToDataURL } from "./components/shared";
+import { downscaleImageToDataURL } from "./components/shared";
 import {
   AppMotionProvider,
   AnimatePresence,
@@ -1089,7 +1089,7 @@ const MainShell = () => {
                     )
                   }
                 />
-                {/* In-Game renders standalone (no SharedModals scrim) below; the
+                {/* In-Game renders standalone below; the
               route just hides the main tab content while In-Game is active. */}
                 <Route
                   path="/in-game/:gameId"
@@ -1113,7 +1113,6 @@ const MainShell = () => {
           </ErrorBoundary>
         </Suspense>
       </main>
-      <SharedModals />
       <Suspense fallback={null}>
         <InGameView />
       </Suspense>

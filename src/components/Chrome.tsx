@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
-import { useTeam, useUI, useToast } from "../contexts";
-import { A11yDialog, RecordBadge, Eyebrow } from "./shared";
+import { useConfirm, useTeam, useUI, useToast } from "../contexts";
+import { RecordBadge, Eyebrow } from "./shared";
 import { useTheme } from "../hooks/useTheme";
 import { APP_NAME } from "../constants/ui";
 
@@ -185,15 +185,21 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
   const [newTeamType, setNewTeamType] = React.useState<"" | "NKB" | "USSSA">(
     "",
   );
-  // In-app sign-out confirmation. Replaces window.confirm + window.alert
-  // so an assistant on a demoted/locked-out team gets the same polished
-  // dialog as the rest of the app, not a 1995 native chrome.
-  const [signOutOpen, setSignOutOpen] = React.useState(false);
+  // Sign-out runs through the app-wide confirm dialog (useConfirm) — the
+  // one overlay system destructive confirms are consolidated on.
   const [signingOut, setSigningOut] = React.useState(false);
   const toast = useToast();
+  const { confirm } = useConfirm();
 
   const doSignOut = async () => {
     if (signingOut) return;
+    const ok = await confirm({
+      title: "Sign out?",
+      message:
+        "You'll need to sign in again on this device. Any in-progress data is already saved.",
+      confirmLabel: "Sign Out",
+    });
+    if (!ok) return;
     setSigningOut(true);
     try {
       if (typeof window !== "undefined") {
@@ -209,7 +215,6 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
       // Surface failure via toast instead of window.alert; let the user
       // decide whether to retry or reload manually.
       setSigningOut(false);
-      setSignOutOpen(false);
       toast.push({
         kind: "error",
         title: "Sign-out failed",
@@ -249,7 +254,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
             onSettings={() => setActiveTab?.("settings")}
             onHelp={() => navigate("/help", { state: { from: activeTab } })}
             themeToggle={<ThemeToggle />}
-            onSignOut={() => setSignOutOpen(true)}
+            onSignOut={doSignOut}
           />
           {team.logoUrl ? (
             <img
@@ -449,61 +454,6 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
           )}
         </div>
       </div>
-
-      {signOutOpen && (
-        <div
-          className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
-          onClick={() => !signingOut && setSignOutOpen(false)}
-        >
-          <A11yDialog
-            aria-labelledby="sign-out-title"
-            onClose={() => !signingOut && setSignOutOpen(false)}
-            className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
-          >
-            <div
-              className="h-1.5 w-full"
-              style={{ backgroundColor: "var(--team-primary)" }}
-            />
-            <div className="p-6">
-              <h3
-                id="sign-out-title"
-                className="text-lg font-extrabold tracking-tight text-ink mb-1"
-              >
-                Sign out?
-              </h3>
-              <p className="text-sm text-ink-2 font-medium mb-5">
-                You'll need to sign in again on this device. Any in-progress
-                data is already saved.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={signingOut}
-                  onClick={() => setSignOutOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={signingOut}
-                  onClick={doSignOut}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
-                >
-                  {signingOut ? (
-                    <>
-                      <Icons.Refresh className="w-4 h-4 animate-spin" />
-                      Signing out…
-                    </>
-                  ) : (
-                    "Sign Out"
-                  )}
-                </button>
-              </div>
-            </div>
-          </A11yDialog>
-        </div>
-      )}
     </header>
   );
 });
