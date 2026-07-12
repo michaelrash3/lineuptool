@@ -8,6 +8,7 @@ import {
   orderedTournamentGames,
   unclaimedTournamentSuggestions,
 } from "../../utils/tournamentPitching";
+import { summarizeStructure } from "../../utils/tournamentStakes";
 import type { Game, Tournament } from "../../types";
 
 // The Tournaments strip on the Schedule tab: stored tournaments render as
@@ -45,6 +46,17 @@ export const TournamentsSection = memo(() => {
             const last = formatGameDateDisplay(linked[linked.length - 1].date);
             return first === last ? first : `${first} – ${last}`;
           })();
+          // Compact stakes read on the row ("16 teams · top 6") — the full
+          // structure lives on the detail page.
+          const summary = summarizeStructure(t.structure);
+          const stakesLabel = summary
+            ? [
+                summary.teamCount ? `${summary.teamCount} teams` : null,
+                summary.advanceCount ? `top ${summary.advanceCount}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            : "";
           return (
             <Link
               key={t.id}
@@ -72,6 +84,7 @@ export const TournamentsSection = memo(() => {
                   <div className="t-eyebrow text-ink-3 mt-0.5">
                     {rangeLabel} · {linked.length}{" "}
                     {linked.length === 1 ? "game" : "games"}
+                    {stakesLabel ? ` · ${stakesLabel}` : ""}
                   </div>
                 </div>
                 <Icons.ChevronRight className="w-4 h-4 text-ink-3 shrink-0" />

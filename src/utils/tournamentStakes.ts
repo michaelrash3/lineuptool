@@ -397,3 +397,28 @@ export function tournamentForGame(
 ): Tournament | undefined {
   return (tournaments || []).find((t) => (t.gameIds || []).includes(gameId));
 }
+
+// Live in-game advisory for a pool game whose margin has reached the
+// ladder's run-diff cap: the moment extra runs stop buying tiebreaker
+// currency is exactly when the coach should pull starters, rest arms, and
+// run the bench. Null whenever there's nothing actionable — bracket games,
+// scrimmages, no cap in the ladder, or margin still under it.
+export function liveMarginAdvisory(
+  game: Game,
+  tournament: Tournament | null | undefined,
+): string | null {
+  if (!tournament || !(tournament.gameIds || []).includes(game.id)) return null;
+  if (!isPoolGame(game)) return null;
+  const ladder = normalizeTiebreakers(tournament.tiebreakers);
+  const cap = ladder.find((r) => r.id === "runDiff")?.cap;
+  if (cap == null) return null;
+  const margin = Number(game.teamScore ?? 0) - Number(game.opponentScore ?? 0);
+  if (!Number.isFinite(margin) || margin < cap) return null;
+  const runsAllowedCounts = ladder.some((r) => r.id === "runsAllowed");
+  return (
+    `Up ${margin} — margin past +${cap} doesn't count for tiebreakers. Rest arms and run the bench` +
+    (runsAllowedCounts
+      ? "; runs allowed still counts, so keep the defense honest."
+      : ".")
+  );
+}

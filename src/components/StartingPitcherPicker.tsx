@@ -11,6 +11,7 @@ import {
   priorPlannedOutingsForGame,
   withPlannedOutings,
 } from "../utils/tournamentPitching";
+import { opponentStrengthGuidance } from "../utils/tournamentStakes";
 import { featureEnabled } from "../constants/features";
 
 // Whether a present player is a pitching candidate: explicit "P" in their
@@ -191,6 +192,14 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
     generateLineup({ firstInningOverrides: { P: id } });
   };
 
+  // Strategy line: the coach's opponent-strength read (aware of the
+  // tournament's tiebreaker ladder) sharpens the generic game-type tip.
+  const stakesTip =
+    opponentStrengthGuidance(
+      game.opponentStrength,
+      gameTournament?.tiebreakers,
+    ) || ctx.tip;
+
   return (
     <div className="mb-6 pb-5 border-b border-line">
       <div className="flex items-center justify-between gap-3 mb-1">
@@ -208,6 +217,9 @@ export const StartingPitcherPicker = memo(({ game }: { game: any }) => {
           {ctx.label}
         </span>
       </div>
+      <p className="text-[11px] font-bold text-ink-2 leading-snug">
+        {stakesTip}
+      </p>
       {/* One-way flow: picking a different starter never rewrites the
           tournament plan — it just flags the drift. */}
       {plannedPlayer && selectedId && selectedId !== plannedStartId && (

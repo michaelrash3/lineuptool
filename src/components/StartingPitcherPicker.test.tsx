@@ -93,4 +93,39 @@ describe("StartingPitcherPicker", () => {
     expect(screen.getByText("Suggested")).toBeInTheDocument();
     expect(screen.queryByText("Planned")).not.toBeInTheDocument();
   });
+
+  it("shows the generic game-type tip without an opponent-strength read", () => {
+    renderWithProviders(
+      <StartingPitcherPicker game={{ ...g1, pitchingFormat: "Kid Pitch" }} />,
+      {
+        team: {
+          team: baseTeam(),
+          currentRole: "head",
+          generateLineup: jest.fn(),
+        },
+      },
+    );
+    expect(screen.getByText(/Spread the staff/)).toBeInTheDocument();
+  });
+
+  it("sharpens the tip with the coach's opponent-strength read", () => {
+    renderWithProviders(
+      <StartingPitcherPicker
+        game={{
+          ...g1,
+          pitchingFormat: "Kid Pitch",
+          opponentStrength: "stronger",
+        }}
+      />,
+      {
+        team: {
+          team: withTournament({}),
+          currentRole: "head",
+          generateLineup: jest.fn(),
+        },
+      },
+    );
+    expect(screen.getByText(/Stronger opponent/)).toBeInTheDocument();
+    expect(screen.queryByText(/Spread the staff/)).not.toBeInTheDocument();
+  });
 });

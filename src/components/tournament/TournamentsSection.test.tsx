@@ -56,6 +56,25 @@ describe("TournamentsSection", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a compact stakes read on the row when a structure is set", () => {
+    renderSection({
+      team: baseTeam({
+        tournaments: [
+          {
+            id: "t1",
+            name: "Memorial Bash",
+            gameIds: ["g1", "g2"],
+            structure: { teamCount: 16, poolCount: 4, advanceCount: 6 },
+          },
+        ],
+      }),
+      currentRole: "head",
+    });
+    expect(
+      screen.getByRole("link", { name: /Memorial Bash/ }),
+    ).toHaveTextContent(/16 teams · top 6/);
+  });
+
   it("assistants see tournament rows but no suggestion links", () => {
     renderSection({
       team: baseTeam({

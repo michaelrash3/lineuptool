@@ -18,6 +18,10 @@ import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { featureEnabled } from "../constants/features";
 import { laterPlannedGamesForPlayer } from "../utils/tournamentPitching";
+import {
+  liveMarginAdvisory,
+  tournamentForGame,
+} from "../utils/tournamentStakes";
 import { ScoreEditor } from "./ScheduleTab";
 
 // Durable manual position picks are tracked for FIELD positions only. P keeps
@@ -956,6 +960,22 @@ export const InGameView = memo(() => {
             </button>
           </div>
         )}
+        {/* Pool-play margin advisory: once the lead reaches the tournament's
+            run-diff cap, extra runs stop buying tiebreaker currency — the
+            moment to rest arms and run the bench. Advisory only. */}
+        {(() => {
+          if (!featureEnabled(team, "tournaments")) return null;
+          const advisory = liveMarginAdvisory(
+            game,
+            tournamentForGame(team.tournaments, game.id),
+          );
+          if (!advisory) return null;
+          return (
+            <div className="px-4 py-2 bg-warn-bg border-t border-line text-center text-[11px] font-bold text-warnfg leading-snug">
+              {advisory}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Inning navigator + score */}

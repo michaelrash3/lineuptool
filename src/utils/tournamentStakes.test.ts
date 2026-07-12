@@ -10,6 +10,7 @@ import {
   opponentStrengthGuidance,
   gameStakes,
   tournamentForGame,
+  liveMarginAdvisory,
 } from "./tournamentStakes";
 import type { TiebreakerRule, Tournament } from "../types";
 
@@ -323,5 +324,53 @@ describe("tournamentForGame", () => {
     expect(tournamentForGame([tournament], "g2")?.id).toBe("t1");
     expect(tournamentForGame([tournament], "nope")).toBeUndefined();
     expect(tournamentForGame(undefined, "g1")).toBeUndefined();
+  });
+});
+
+describe("liveMarginAdvisory", () => {
+  const live = (over: any = {}) =>
+    ({
+      id: "g1",
+      date: "2099-06-05",
+      opponent: "Rays",
+      teamScore: 10,
+      opponentScore: 1,
+      ...over,
+    }) as any;
+  const t: Tournament = { id: "t", name: "T", gameIds: ["g1"] };
+
+  it("fires once a pool-game lead reaches the ladder's cap", () => {
+    const msg = liveMarginAdvisory(live(), t);
+    expect(msg).toMatch(/Up 9/);
+    expect(msg).toMatch(/\+8/);
+    // Default ladder counts runs allowed too — keep the defense honest.
+    expect(msg).toMatch(/runs allowed/i);
+  });
+
+  it("stays quiet under the cap, in bracket games, and outside the tournament", () => {
+    expect(
+      liveMarginAdvisory(live({ teamScore: 8, opponentScore: 1 }), t),
+    ).toBeNull(); // margin 7 < 8
+    expect(liveMarginAdvisory(live({ gameType: "bracket" }), t)).toBeNull();
+    expect(liveMarginAdvisory(live({ isScrimmage: true }), t)).toBeNull();
+    expect(liveMarginAdvisory(live({ id: "other" }), t)).toBeNull();
+    expect(liveMarginAdvisory(live(), undefined)).toBeNull();
+  });
+
+  it("respects a custom or missing cap in the tournament's ladder", () => {
+    const capped12: Tournament = {
+      ...t,
+      tiebreakers: [{ id: "runDiff", cap: 12 }],
+    };
+    expect(liveMarginAdvisory(live(), capped12)).toBeNull(); // 9 < 12
+    expect(
+      liveMarginAdvisory(live({ teamScore: 13, opponentScore: 1 }), capped12),
+    ).toMatch(/\+12/);
+    // Ladder without runsAllowed drops the defense reminder.
+    expect(
+      liveMarginAdvisory(live({ teamScore: 13, opponentScore: 1 }), capped12),
+    ).not.toMatch(/runs allowed/i);
+    const uncapped: Tournament = { ...t, tiebreakers: [{ id: "runsScored" }] };
+    expect(liveMarginAdvisory(live(), uncapped)).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { featureEnabled } from "../../constants/features";
 import { formatGameDateDisplay, isGameFinalized } from "../../utils/helpers";
 import { orderedTournamentGames } from "../../utils/tournamentPitching";
 import { TournamentPitchPlanPanel } from "../../components/tournament/TournamentPitchPlanPanel";
+import { TournamentFormatCard } from "../../components/tournament/TournamentFormatCard";
 import type { Game, Tournament } from "../../types";
 
 // /schedule/tournaments/:tournamentId — one tournament as a real page:
@@ -198,6 +199,9 @@ export const TournamentDetailPage = memo(() => {
           </div>
         )}
       </div>
+
+      {/* Field structure, tiebreaker ladder, and the stakes they create */}
+      <TournamentFormatCard tournament={tournament} />
 
       {/* Weekend pitching plan */}
       <div className="cc-card overflow-hidden">

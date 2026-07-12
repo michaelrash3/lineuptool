@@ -18,6 +18,7 @@ import { useTeam, useUI, useToast, useConfirm } from "../contexts";
 import { RecordBadge, EmptyState } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
+import { GameStakesPanel } from "../components/tournament/GameStakesPanel";
 import { featureEnabled } from "../constants/features";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import type { Game } from "../types";
@@ -738,6 +739,11 @@ export const ScheduleTab = memo(() => {
               </select>
             </div>
           </div>
+
+          {/* Scouting & stakes — tournament games only: opponent-strength
+              read, head-to-head record, and the stakes framing when a stored
+              tournament claims this game. Assistants see it read-only. */}
+          <GameStakesPanel game={currentGame} />
 
           {canEdit && (
             <>
