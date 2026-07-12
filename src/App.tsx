@@ -281,6 +281,11 @@ const InterestOfferPage = lazy(() =>
     default: m.InterestOfferPage,
   })),
 );
+const GameFinalizePage = lazy(() =>
+  import("./screens/schedule/GameFinalizePage").then((m) => ({
+    default: m.GameFinalizePage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -885,6 +890,10 @@ const MainShell = () => {
                 <Route
                   path="/schedule/tournaments/:tournamentId"
                   element={<TournamentDetailPage />}
+                />
+                <Route
+                  path="/schedule/game/:gameId/final"
+                  element={<GameFinalizePage />}
                 />
                 <Route
                   path="/practices"

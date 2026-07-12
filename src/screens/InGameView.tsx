@@ -17,12 +17,12 @@ import {
 import { useTeam, useUI, useToast } from "../contexts";
 import { A11yDialog } from "../components/shared";
 import { featureEnabled } from "../constants/features";
+import { useNavigate } from "react-router-dom";
 import { laterPlannedGamesForPlayer } from "../utils/tournamentPitching";
 import {
   liveMarginAdvisory,
   tournamentForGame,
 } from "../utils/tournamentStakes";
-import { ScoreEditor } from "./ScheduleTab";
 
 // Durable manual position picks are tracked for FIELD positions only. P keeps
 // its pitch-count-governed rotation and C its catcher-block continuity, so we
@@ -50,10 +50,10 @@ const nextManualLocks = (
 };
 
 export const InGameView = memo(() => {
+  const navigate = useNavigate();
   const {
     team,
     updateGame,
-    finalizeGame,
     removePlayerMidGame: removePlayerMidGameAction,
     setPlayerHealth,
     currentRole,
@@ -75,7 +75,6 @@ export const InGameView = memo(() => {
     inGameUndoStack,
     setInGameUndoStack,
   } = useUI();
-  const [showEndGameScore, setShowEndGameScore] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [showScoreEditor, setShowScoreEditor] = useState(false);
   // Two-tap confirm for mid-game removal: first tap arms the row,
@@ -812,7 +811,6 @@ export const InGameView = memo(() => {
     setInGameId(null);
     setInGameSelection(null);
     setInGameUndoStack([]);
-    setShowEndGameScore(false);
   };
 
   const benchKids = inn.BENCH || [];
@@ -1156,7 +1154,7 @@ export const InGameView = memo(() => {
           </button>
           {canEdit && (
             <button
-              onClick={() => setShowEndGameScore(true)}
+              onClick={() => navigate(`/schedule/game/${game.id}/final`)}
               className="flex-1 py-3 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}
             >
@@ -1303,57 +1301,6 @@ export const InGameView = memo(() => {
           </div>
         )}
       </div>
-
-      {/* End Game / Score modal — overlays the in-game view */}
-      {showEndGameScore && (
-        <div
-          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4 backdrop-blur-sm"
-          onClick={() => setShowEndGameScore(false)}
-        >
-          <A11yDialog
-            label="End game"
-            onClose={() => setShowEndGameScore(false)}
-            className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col"
-          >
-            <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-            <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
-                  vs. {game.opponent}
-                </div>
-                <h3 className="t-h2">Final Score</h3>
-              </div>
-              <button
-                onClick={() => setShowEndGameScore(false)}
-                className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
-              >
-                <Icons.X className="w-5 h-5" />
-              </button>
-            </div>
-            {/* Pitch counts are no longer entered by hand — they're pulled from
-                the imported GameChanger box score after the game. */}
-            <ScoreEditor
-              game={game}
-              primaryColor={primaryColor}
-              tertiaryColor={tertiaryColor}
-              onSave={(ts: any, os: any, inningsPlayed: any) => {
-                finalizeGame(game.id, ts, os, inningsPlayed);
-                setShowEndGameScore(false);
-                close();
-              }}
-              onClear={() => {
-                updateGame(game.id, {
-                  teamScore: null,
-                  opponentScore: null,
-                  status: "scheduled",
-                });
-                setShowEndGameScore(false);
-              }}
-              onCancel={() => setShowEndGameScore(false)}
-            />
-          </A11yDialog>
-        </div>
-      )}
 
       {/* Mid-game removal modal — injury / illness / left site. */}
       {showRemoveModal && (
