@@ -239,6 +239,28 @@ export const EVAL_GROUPS_KID_PITCH_ADDONS: EvalGroup[] = [
 export const isKidPitchFormat = (pitchingFormat?: string): boolean =>
   (pitchingFormat || "").toLowerCase().includes("kid");
 
+// The pitching formats a team of this league + age may legally play. Single
+// source of truth for every format select and self-heal write. Order matters:
+// [0] is the fallback when a stored value becomes disallowed.
+// - 9U and older is ALWAYS kid pitch, regardless of league — checked first so
+//   it overrides both league branches. ageFromTeamAge handles the range tiers
+//   ("11U to 12U" → 12), which string equality cannot. The `teamAge &&` guard
+//   is load-bearing: ageFromTeamAge(undefined) defaults to 10, which would
+//   wrongly force Kid-only when the age is simply missing.
+// - The NKB branch keeps raw string membership, NOT ageFromTeamAge, because
+//   the helper clamps to >=7 and would fold "6U" into 7.
+export const allowedPitchingFormats = (
+  leagueRuleSet?: string,
+  teamAge?: string,
+): string[] => {
+  if (teamAge && ageFromTeamAge(teamAge) >= 9) return ["Kid Pitch"];
+  if (leagueRuleSet === "NKB" && ["6U", "7U", "8U"].includes(teamAge || ""))
+    return ["Machine Pitch"];
+  if (leagueRuleSet === "USSSA" && teamAge === "8U")
+    return ["Kid Pitch", "Coach Pitch"];
+  return ["Kid Pitch", "Coach Pitch", "Machine Pitch"];
+};
+
 export const getEvalCategoriesForTeam = (
   pitchingFormat?: string,
 ): EvalCategory[] => {

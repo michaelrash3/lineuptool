@@ -65,6 +65,7 @@ import {
   dateToIsoLocal,
   isReturning,
   countsTowardStats,
+  isGameFinalized,
   buildPublicMirror,
   revertOptimisticUpdate,
   estimateDocSizeBytes,
@@ -84,6 +85,7 @@ import {
   NEW_TEAM_DOC,
   EVAL_SCHEMA_VERSION,
   isKidPitchFormat,
+  allowedPitchingFormats,
   bumpAgeTier,
   computeNextSeason,
 } from "../constants/ui";
@@ -1408,8 +1410,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (leagueRuleSet === "NKB") {
       if (["6U", "7U", "8U"].includes(teamAge)) {
         if (defenseSize !== "10") updates.defenseSize = "10";
-        if (pitchingFormat !== "Machine Pitch")
-          updates.pitchingFormat = "Machine Pitch";
       } else if (teamAge === "10U") {
         if (defenseSize !== "10") updates.defenseSize = "10";
       } else if (teamAge !== "9U" && defenseSize !== "9") {
@@ -1417,8 +1417,35 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
     } else if (leagueRuleSet === "USSSA") {
       if (defenseSize !== "9") updates.defenseSize = "9";
-      if (teamAge === "8U" && pitchingFormat === "Machine Pitch") {
-        updates.pitchingFormat = "Kid Pitch";
+    }
+    // Format legality lives in one helper (9U+ is always Kid Pitch; NKB
+    // 6-8U is Machine; USSSA 8U is Kid/Coach) — heal a stored value the
+    // current league + age can't play.
+    const allowedFormats = allowedPitchingFormats(leagueRuleSet, teamAge);
+    if (!allowedFormats.includes(pitchingFormat)) {
+      updates.pitchingFormat = allowedFormats[0];
+    }
+    // When exactly one format is legal, per-game overrides that disagree are
+    // stale (e.g. a Machine game left over from before an age change). Heal
+    // upcoming games in the same pass; finalized games keep the format they
+    // were actually played under (HomeTab/StatsTab byFormat history). Games
+    // are read via teamDataRef and deliberately NOT in the deps — the scrub's
+    // own write can't re-run the effect, and once landed nothing is
+    // offending, so it self-extinguishes.
+    if (allowedFormats.length === 1) {
+      const offending = (g: Game) =>
+        !!g.pitchingFormat &&
+        !allowedFormats.includes(g.pitchingFormat) &&
+        !isGameFinalized(g);
+      if (((teamDataRef.current?.games || []) as Game[]).some(offending)) {
+        updateTeamArrays({
+          op: "mapEntries",
+          key: "games",
+          map: (games: Game[]) =>
+            games.map((g) =>
+              offending(g) ? { ...g, pitchingFormat: allowedFormats[0] } : g,
+            ),
+        });
       }
     }
     if (Object.keys(updates).length === 0) return;
@@ -1432,6 +1459,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     _defenseSize,
     _pitchingFormat,
     updateTeam,
+    updateTeamArrays,
     activeTeamId,
     loadingActive,
   ]);
@@ -1980,10 +2008,19 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // allowEmptyPlayers: a roster where nobody returns (and no tryout
       // promotions) is legitimately empty after an explicitly-confirmed
       // advance — the persistTeam wipe guard must not block it.
+      // The age bump can change what's legal to pitch (8U Machine/Coach →
+      // 9U is always Kid Pitch); correct the format in the same write.
+      const allowedNextFormats = allowedPitchingFormats(
+        teamData.leagueRuleSet,
+        newAgeGroup,
+      );
       updateTeam(
         {
           currentSeason: nextSeason,
           teamAge: newAgeGroup,
+          ...(allowedNextFormats.includes(teamData.pitchingFormat)
+            ? {}
+            : { pitchingFormat: allowedNextFormats[0] }),
           players: [...updatedPlayers, ...promotedPlayers],
           games: [],
           // Tournaments reference games by id; with games cleared they'd be
