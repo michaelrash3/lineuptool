@@ -71,7 +71,7 @@ import {
   useConfirm,
 } from "./contexts";
 import { ConfirmProvider } from "./components/ConfirmDialog";
-import { SharedModals, downscaleImageToDataURL } from "./components/shared";
+import { downscaleImageToDataURL } from "./components/shared";
 import {
   AppMotionProvider,
   AnimatePresence,
@@ -90,7 +90,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette";
-import { WelcomeChooser } from "./components/WelcomeChooser";
+import { WelcomePage } from "./screens/WelcomePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
@@ -286,6 +286,56 @@ const GameFinalizePage = lazy(() =>
     default: m.GameFinalizePage,
   })),
 );
+const EvalRoundsPage = lazy(() =>
+  import("./screens/evaluation/EvalRoundsPage").then((m) => ({
+    default: m.EvalRoundsPage,
+  })),
+);
+const EvalComparePage = lazy(() =>
+  import("./screens/evaluation/EvalComparePage").then((m) => ({
+    default: m.EvalComparePage,
+  })),
+);
+const EvalTrendPage = lazy(() =>
+  import("./screens/evaluation/EvalTrendModal").then((m) => ({
+    default: m.EvalTrendPage,
+  })),
+);
+const PracticePlanPage = lazy(() =>
+  import("./screens/practices/PracticePlanPage").then((m) => ({
+    default: m.PracticePlanPage,
+  })),
+);
+const PracticeAttendanceReportPage = lazy(() =>
+  import("./screens/practices/PracticeAttendanceReportPage").then((m) => ({
+    default: m.PracticeAttendanceReportPage,
+  })),
+);
+const AdvanceSeasonPage = lazy(() =>
+  import("./screens/settings/AdvanceSeasonPage").then((m) => ({
+    default: m.AdvanceSeasonPage,
+  })),
+);
+const LogoColorPage = lazy(() =>
+  import("./screens/settings/LogoColorPage").then((m) => ({
+    default: m.LogoColorPage,
+  })),
+);
+const SeasonReportPage = lazy(() =>
+  import("./screens/home/SeasonReportPage").then((m) => ({
+    default: m.SeasonReportPage,
+  })),
+);
+const AwardsPage = lazy(() =>
+  import("./screens/home/AwardsPage").then((m) => ({
+    default: m.AwardsPage,
+  })),
+);
+const TryoutAddPage = lazy(() =>
+  import("./screens/tryouts/TryoutAddPage").then((m) => ({
+    default: m.TryoutAddPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -432,8 +482,8 @@ const MainShell = () => {
   }, [user]);
 
   // Only auto-open the onboarding tour once the user actually has a team to
-  // see — otherwise the WelcomeChooser (which is non-dismissible) and the
-  // tutorial scrim end up stacked on top of each other on first sign-in.
+  // see — otherwise the tutorial scrim would open on top of the /welcome
+  // page (which is inescapable until a team exists) on first sign-in.
   useEffect(() => {
     if (
       authReady &&
@@ -705,6 +755,17 @@ const MainShell = () => {
     );
   }
 
+  // First-run: a signed-in user with zero teams lives on the full-screen
+  // /welcome page — every other path redirects there until they join or
+  // create a team, and the wildcard route bounces /welcome home once a team
+  // exists (needsWelcomeChooser flips false).
+  if (needsWelcomeChooser) {
+    if (location.pathname !== "/welcome") {
+      return <Navigate to="/welcome" replace />;
+    }
+    return <WelcomePage onCreate={createTeam} onJoin={joinTeamByCode} />;
+  }
+
   const tryoutsButton = {
     id: "tryouts",
     icon: Icons.Users,
@@ -811,6 +872,8 @@ const MainShell = () => {
             <FadeSlideIn key={location.pathname}>
               <Routes>
                 <Route path="/" element={<HomeTab />} />
+                <Route path="/season-report" element={<SeasonReportPage />} />
+                <Route path="/awards" element={<AwardsPage />} />
                 <Route
                   path="/stats"
                   element={
@@ -905,11 +968,40 @@ const MainShell = () => {
                     )
                   }
                 />
+                <Route
+                  path="/practices/attendance-report"
+                  element={
+                    featureOff("practices") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PracticeAttendanceReportPage />
+                    )
+                  }
+                />
+                <Route
+                  path="/practices/:practiceId/plan"
+                  element={
+                    featureOff("practices") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PracticePlanPage />
+                    )
+                  }
+                />
                 <Route path="/schedule/*" element={<ScheduleTab />} />
                 <Route path="/evaluation" element={evalElement} />
                 <Route
                   path="/evaluation/round/:roundId"
                   element={evalElement}
+                />
+                <Route path="/evaluation/rounds" element={<EvalRoundsPage />} />
+                <Route
+                  path="/evaluation/compare"
+                  element={<EvalComparePage />}
+                />
+                <Route
+                  path="/evaluation/trend/:playerId"
+                  element={<EvalTrendPage />}
                 />
                 <Route
                   path="/tryouts"
@@ -918,6 +1010,16 @@ const MainShell = () => {
                       <Navigate to="/" replace />
                     ) : (
                       <TryoutsTab />
+                    )
+                  }
+                />
+                <Route
+                  path="/tryouts/add"
+                  element={
+                    featureOff("tryouts") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <TryoutAddPage />
                     )
                   }
                 />
@@ -967,7 +1069,27 @@ const MainShell = () => {
                     isAssistant ? <Navigate to="/" replace /> : <SettingsTab />
                   }
                 />
-                {/* In-Game renders standalone (no SharedModals scrim) below; the
+                <Route
+                  path="/settings/advance-season"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <AdvanceSeasonPage />
+                    )
+                  }
+                />
+                <Route
+                  path="/settings/logo-colors"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <LogoColorPage />
+                    )
+                  }
+                />
+                {/* In-Game renders standalone below; the
               route just hides the main tab content while In-Game is active. */}
                 <Route
                   path="/in-game/:gameId"
@@ -991,18 +1113,12 @@ const MainShell = () => {
           </ErrorBoundary>
         </Suspense>
       </main>
-      <SharedModals />
       <Suspense fallback={null}>
         <InGameView />
       </Suspense>
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
-      />
-      <WelcomeChooser
-        open={needsWelcomeChooser}
-        onCreate={createTeam}
-        onJoin={joinTeamByCode}
       />
       <CommandPalette
         open={paletteOpen}

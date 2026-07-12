@@ -1,4 +1,5 @@
 import React, { memo, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Player, Game, Practice } from "../types";
 import { Icons } from "../icons";
 import {
@@ -31,8 +32,6 @@ import {
   buildGameReminderDraft,
   collectParentEmails,
 } from "../utils/reminderDraft";
-import { SeasonReportModal } from "../components/SeasonReportModal";
-import { AwardsModal } from "../components/AwardsModal";
 import { StaggerList, StaggerItem, AnimatedNumber } from "../components/motion";
 import { checkPitchEligibility, resolvePitchRuleSet } from "../lineupEngine";
 
@@ -1881,8 +1880,7 @@ export const HomeTab = memo(() => {
   const { openPlayerProfile, setActiveTab, setIsAddingGame, openAddPlayer } =
     useUI();
   const isHead = currentRole !== "assistant";
-  const [showSeasonReport, setShowSeasonReport] = useState(false);
-  const [showAwards, setShowAwards] = useState(false);
+  const navigate = useNavigate();
   const promptStatus = useMemo(
     () => evalPromptStatus(team, user?.uid, isHead ? "Head" : "Assistant"),
     [team, user, isHead],
@@ -2078,14 +2076,14 @@ export const HomeTab = memo(() => {
                 <div className="flex flex-col items-end gap-1.5 mt-2">
                   <button
                     type="button"
-                    onClick={() => setShowSeasonReport(true)}
+                    onClick={() => navigate("/season-report")}
                     className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
                   >
                     <Icons.FileText className="w-3.5 h-3.5" /> Season Report
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowAwards(true)}
+                    onClick={() => navigate("/awards")}
                     className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-line bg-surface hover:bg-surface-2 text-ink transition-colors"
                   >
                     <Icons.Sparkles className="w-3.5 h-3.5" /> Awards
@@ -2272,17 +2270,6 @@ export const HomeTab = memo(() => {
           onPlayerClick={openPlayerProfile}
           stripped={stripped}
         />
-      )}
-
-      {showSeasonReport && (
-        <SeasonReportModal
-          open
-          onClose={() => setShowSeasonReport(false)}
-          team={team}
-        />
-      )}
-      {showAwards && (
-        <AwardsModal open onClose={() => setShowAwards(false)} team={team} />
       )}
     </div>
   );

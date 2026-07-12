@@ -79,12 +79,11 @@ describe("InsightsPanel", () => {
 });
 
 describe("RoundComparisonView", () => {
-  it("shows each player's newer grade, the delta, and closes", () => {
+  it("shows each player's newer grade and the delta", () => {
     const rounds = [
       round("2", { p1: { approach: 5 } }),
       round("1", { p1: { approach: 2 } }),
     ];
-    const onClose = vi.fn();
     const onPlayerClick = vi.fn();
     render(
       <RoundComparisonView
@@ -92,18 +91,12 @@ describe("RoundComparisonView", () => {
         players={[players[0]]}
         activeCategories={EVAL_CATEGORIES}
         onPlayerClick={onPlayerClick}
-        onClose={onClose}
       />,
     );
-    expect(screen.getByText("Side By Side")).toBeInTheDocument();
     // Avg Δ from older 2 to newer 5 is +3.
     expect(screen.getAllByText("+3").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Ava" }));
     expect(onPlayerClick).toHaveBeenCalledWith("p1");
-    fireEvent.click(
-      screen.getByRole("button", { name: /Close round comparison/ }),
-    );
-    expect(onClose).toHaveBeenCalled();
   });
 });
 

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
@@ -7,18 +7,16 @@ import {
   suggestPlayerMatch,
   buildScheduleIcs,
 } from "../utils/helpers";
-import { computeNextSeason, leagueRuleSetLabel } from "../constants/ui";
+import { leagueRuleSetLabel } from "../constants/ui";
 import {
   TOGGLEABLE_FEATURES,
   featureEnabled,
   toggleFeature,
 } from "../constants/features";
-import { useTeam, useUI, useToast } from "../contexts";
+import { useConfirm, useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
-import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
-import { LogoColorModal } from "../components/LogoColorModal";
-import { A11yDialog, extractLogoPalette } from "../components/shared";
+import { extractLogoPalette } from "../components/shared";
 import {
   StorageUsagePanel,
   TeamManagementPanel,
@@ -289,9 +287,18 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
     code && typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}?join=${code}`
       : "";
-  // In-app replacement for the window.confirm prompt that previously
-  // guarded code rotation. Modal matches the patterns in #131 / #132.
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  // Rotation is guarded by the app-wide confirm dialog (useConfirm) — the
+  // one overlay system destructive confirms are consolidated on.
+  const { confirm } = useConfirm();
+  const rotateCode = async () => {
+    const ok = await confirm({
+      title: "Rotate team code?",
+      message: `The current code ${code} will stop working immediately. Anyone you've already invited with the old code will need the new one to join.`,
+      confirmLabel: "Regenerate",
+      danger: true,
+    });
+    if (ok) regenerateJoinCode?.();
+  };
   const copy = async (text: any, label: any) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -346,7 +353,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
             </code>
             <button
               type="button"
-              onClick={() => setConfirmOpen(true)}
+              onClick={rotateCode}
               className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink hover:bg-surface-2 rounded-md"
             >
               Regenerate
@@ -377,49 +384,6 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
         >
           Generate Team Code
         </button>
-      )}
-
-      {confirmOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setConfirmOpen(false)}
-        >
-          <A11yDialog
-            label="Rotate team code?"
-            onClose={() => setConfirmOpen(false)}
-            className="bg-surface rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
-          >
-            <div className="p-1.5 bg-warnfg" />
-            <div className="p-5 sm:p-6">
-              <h3 className="t-h3 mb-1">Rotate team code?</h3>
-              <p className="text-sm text-ink-2 font-medium mb-5">
-                The current code{" "}
-                <code className="font-mono font-black text-ink">{code}</code>{" "}
-                will stop working immediately. Anyone you've already invited
-                with the old code will need the new one to join.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirmOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    regenerateJoinCode?.();
-                    setConfirmOpen(false);
-                  }}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg rounded-xl shadow-md transition-colors"
-                >
-                  Regenerate
-                </button>
-              </div>
-            </div>
-          </A11yDialog>
-        </div>
       )}
     </div>
   );
@@ -558,12 +522,8 @@ export const SettingsTab = memo(() => {
     user,
     activeTeamId,
     updateTeam,
-    updateFinances,
-    advanceSeason,
     exportRosterCsv,
     exportNewPlayersCsv,
-    setPlayerStatus,
-    setPlayerReturning,
     generateTryoutShareId,
     setTryoutsOpen,
     completeTryouts,
@@ -612,46 +572,34 @@ export const SettingsTab = memo(() => {
   const [settingsMenu, setSettingsMenu] = useState("team");
   // Mobile drill-in: false = show the category list, true = show the panel.
   const [mobilePanel, setMobilePanel] = useState(false);
-  const [advanceSeasonOpen, setAdvanceSeasonOpen] = useState(false);
-  // Colors pulled from the logo, surfaced in LogoColorModal so the coach can
-  // assign them to Primary / Secondary / Tertiary.
-  const [logoColors, setLogoColors] = useState<{
-    open: boolean;
-    palette: string[];
-  }>({ open: false, palette: [] });
-
   // Wrap the existing uploadLogo: keep all its size-limit guards, then pull
-  // the logo's dominant colors and (if any) open the color-assignment modal.
-  // Extraction failures must never block the upload — extractLogoPalette
-  // resolves to [] rather than throwing.
+  // the logo's dominant colors and (if any) hand them to the
+  // /settings/logo-colors page via navigation state so the coach can assign
+  // them to Primary / Secondary / Tertiary. Extraction failures must never
+  // block the upload — extractLogoPalette resolves to [] rather than
+  // throwing.
   const handleLogoUpload = useCallback(
     (e: any) => {
       uploadLogo(e);
       const file = e.target.files?.[0];
       if (!file) return;
       extractLogoPalette(file).then((palette) => {
-        if (palette.length > 0) setLogoColors({ open: true, palette });
+        if (palette.length > 0)
+          navigate("/settings/logo-colors", { state: { palette } });
       });
     },
-    [uploadLogo],
+    [uploadLogo, navigate],
   );
 
-  // Re-run extraction on the already-saved logo for the manual trigger.
+  // Re-run extraction on the already-saved logo for the manual trigger. An
+  // empty palette still navigates — the page explains extraction found
+  // nothing distinct.
   const pullColorsFromLogo = useCallback(() => {
     if (!logoUrl) return;
     extractLogoPalette(logoUrl).then((palette) => {
-      setLogoColors({ open: true, palette });
+      navigate("/settings/logo-colors", { state: { palette } });
     });
-  }, [logoUrl]);
-
-  // Pre-compute the next-season label so the modal header can render
-  // it without the user pressing the button first. computeNextSeason
-  // returns null when the current label can't be parsed (e.g. blank),
-  // which the modal renders as "Next Season".
-  const nextSeasonLabel = useMemo(() => {
-    const next = computeNextSeason(team?.currentSeason);
-    return next?.nextSeason || "Next Season";
-  }, [team?.currentSeason]);
+  }, [logoUrl, navigate]);
   const settingsMenuItems = [
     { id: "team", label: "Team", icon: Icons.Settings },
     { id: "features", label: "Features", icon: Icons.Sparkles },
@@ -1304,7 +1252,7 @@ export const SettingsTab = memo(() => {
                       </div>
                       <div className="flex items-end">
                         <button
-                          onClick={() => setAdvanceSeasonOpen(true)}
+                          onClick={() => navigate("/settings/advance-season")}
                           className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
                           style={{
                             backgroundColor: "var(--team-primary)",
@@ -1580,41 +1528,6 @@ export const SettingsTab = memo(() => {
           </div>
         </div>
       </div>
-
-      <AdvanceSeasonModal
-        open={advanceSeasonOpen}
-        players={team.players || []}
-        tryoutSignups={team.tryoutSignups || []}
-        currentSeason={team.currentSeason}
-        nextSeasonLabel={nextSeasonLabel}
-        team={team}
-        user={user}
-        updateFinances={updateFinances}
-        setPlayerStatus={setPlayerStatus}
-        setPlayerReturning={setPlayerReturning}
-        onClose={() => setAdvanceSeasonOpen(false)}
-        onConfirm={({
-          tryoutsToPromote = [],
-          tryoutDepositPayments = {},
-        } = {}) => {
-          setAdvanceSeasonOpen(false);
-          advanceSeason({
-            skipConfirm: true,
-            tryoutsToPromote,
-            tryoutDepositPayments,
-          });
-        }}
-      />
-
-      {/* Suggest team colors pulled from the uploaded logo */}
-      <LogoColorModal
-        open={logoColors.open}
-        onClose={() => setLogoColors((p) => ({ ...p, open: false }))}
-        logoUrl={logoUrl}
-        palette={logoColors.palette}
-        current={{ primaryColor, secondaryColor, tertiaryColor }}
-        onApply={(colors) => updateTeam(colors)}
-      />
     </div>
   );
 });

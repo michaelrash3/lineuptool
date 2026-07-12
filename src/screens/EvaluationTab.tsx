@@ -6,12 +6,14 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
 import {
   calculateBaseballAge,
   evalStatHint,
   evalRoundRecency,
+  headEvalRounds,
   isDepartedPlayer,
 } from "../utils/helpers";
 import {
@@ -46,10 +48,9 @@ import {
   currentEvaluationScore100,
   playerTopMph,
 } from "../utils/evaluationScore";
-import { A11yDialog, EmptyState } from "../components/shared";
+import { EmptyState } from "../components/shared";
 import { evalRoundCsv, evalRoundCsvFilename } from "../utils/evalExport";
 import { downloadEvalRoundPdf } from "../evaluation/evalRoundPdf";
-import { EvalTrendModal } from "./evaluation/EvalTrendModal";
 import { RosterDecisionsPanel } from "./evaluation/RosterDecisionsPanel";
 import {
   AssistantSubmissionsPanel,
@@ -112,9 +113,8 @@ export const EvaluationTab = memo(() => {
     setTeamEvalGrades,
     selectedRoundId,
     setSelectedRoundId,
-    evalTrendPlayerId,
-    setEvalTrendPlayerId,
   } = useUI();
+  const navigate = useNavigate();
   const {
     players: rawPlayers,
     primaryColor,
@@ -152,21 +152,14 @@ export const EvaluationTab = memo(() => {
 
   const [saveState, setSaveState] = useState("idle");
   const [activeGroup, setActiveGroup] = useState("Hitting");
-  const [comparisonOpen, setComparisonOpen] = useState(false);
   // Two-tap confirm for the head's own round delete — arms the trash
   // button on first tap, commits on second. Replaces window.confirm.
   const [pendingRoundDelete, setPendingRoundDelete] = useState(false);
   // Two-tap confirm for overwriting an existing round — first tap names the
   // round being written, second tap commits. Creating a new round skips this.
   const [pendingUpdateConfirm, setPendingUpdateConfirm] = useState(false);
-  // Manage Rounds modal: lists every saved round so the head can switch
-  // or delete any of them without first selecting from the dropdown.
-  // `pendingModalDeleteId` is the per-row armed-state id for the
-  // modal's two-tap confirm.
-  const [manageOpen, setManageOpen] = useState(false);
-  const [pendingModalDeleteId, setPendingModalDeleteId] = useState<
-    string | null
-  >(null);
+  // Manage Rounds and Compare are routed pages now: /evaluation/rounds and
+  // /evaluation/compare (app-wide modals→pages rule).
   // Player cards are collapsed by default — the eval grid was too tall
   // to scan a 12-kid roster without scrolling for days. Each card now
   // shows a single header row (name + jersey + total + chevron); tap
@@ -214,17 +207,10 @@ export const EvaluationTab = memo(() => {
 
   // Eval rounds belonging to this head coach, newest first (createdAt breaks
   // same-date ties so the genuinely newest round leads).
-  const myRounds = useMemo(() => {
-    return ((evaluationEvents || []) as EvalRound[])
-      .filter(
-        (e: EvalRound) =>
-          !e.tryoutSignupId &&
-          !e.tryoutSessionId &&
-          e.coachRole === "Head" &&
-          (!user || e.evaluatorId === user.uid),
-      )
-      .sort(evalRoundRecency);
-  }, [evaluationEvents, user]);
+  const myRounds = useMemo(
+    () => headEvalRounds((evaluationEvents || []) as EvalRound[], user?.uid),
+    [evaluationEvents, user],
+  );
 
   // Each assistant's most-recent submission (newest first), surfaced inline
   // under every player so the head sees their grades + all assistant grades
@@ -715,7 +701,7 @@ export const EvaluationTab = memo(() => {
               {myRounds.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setManageOpen(true)}
+                  onClick={() => navigate("/evaluation/rounds")}
                   className="shrink-0 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 transition-colors flex items-center gap-1.5"
                   title="View, switch between, and delete saved rounds"
                   aria-label="Manage saved eval rounds"
@@ -727,7 +713,7 @@ export const EvaluationTab = memo(() => {
               {myRounds.length >= 2 && (
                 <button
                   type="button"
-                  onClick={() => setComparisonOpen(true)}
+                  onClick={() => navigate("/evaluation/compare")}
                   className="t-button px-3 py-2 rounded-lg border bg-surface border-line text-ink hover:bg-surface-2 flex items-center gap-1.5 shrink-0"
                   title="Compare any two saved rounds side by side"
                 >
@@ -777,7 +763,9 @@ export const EvaluationTab = memo(() => {
               rounds={myRounds}
               players={players}
               activeCategories={activeCategories}
-              onPlayerClick={setEvalTrendPlayerId}
+              onPlayerClick={(id: string) =>
+                navigate(`/evaluation/trend/${id}`)
+              }
             />
 
             {/* Head-only: read-only view of every assistant's most recent eval
@@ -1107,7 +1095,9 @@ export const EvaluationTab = memo(() => {
                               />
                               <button
                                 type="button"
-                                onClick={() => setEvalTrendPlayerId(player.id)}
+                                onClick={() =>
+                                  navigate(`/evaluation/trend/${player.id}`)
+                                }
                                 className="text-[10px] font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
                               >
                                 View trend →
@@ -1186,169 +1176,6 @@ export const EvaluationTab = memo(() => {
           eval trends, current performance, and age eligibility.
           Head-coach-only; assistants don't make roster decisions. */}
       {!isAssistant && <RosterDecisionsPanel />}
-
-      {/* Side-by-side round comparison modal */}
-      {comparisonOpen && (
-        <RoundComparisonView
-          rounds={myRounds}
-          players={players}
-          activeCategories={activeCategories}
-          primaryColor={primaryColor}
-          onPlayerClick={(id: string) => {
-            setComparisonOpen(false);
-            setEvalTrendPlayerId(id);
-          }}
-          onClose={() => setComparisonOpen(false)}
-        />
-      )}
-
-      {/* Trend modal — opens when a player name is clicked */}
-      {evalTrendPlayerId && (
-        <EvalTrendModal
-          player={players.find((p: Player) => p.id === evalTrendPlayerId)}
-          evaluationEvents={evaluationEvents}
-          userUid={user?.uid}
-          primaryColor={primaryColor}
-          onClose={() => setEvalTrendPlayerId(null)}
-        />
-      )}
-
-      {/* Manage Rounds modal — lists every saved round with per-row
-          delete (two-tap armed) and a Select link. Lets the head jump
-          to or remove any round without first selecting it from the
-          dropdown. */}
-      {manageOpen && (
-        <div
-          className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center bg-black/60 p-0 sm:p-4 backdrop-blur-sm"
-          onClick={() => {
-            setManageOpen(false);
-            setPendingModalDeleteId(null);
-          }}
-        >
-          <A11yDialog
-            label="Your saved rounds"
-            onClose={() => {
-              setManageOpen(false);
-              setPendingModalDeleteId(null);
-            }}
-            className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full max-h-[85vh] overflow-hidden flex flex-col"
-          >
-            <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-            <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-3">
-              <div>
-                <h3 className="t-h3">Your Saved Rounds</h3>
-                <p className="text-[12px] text-ink-3 font-medium mt-1">
-                  Select a round to review or edit, or delete one saved by
-                  mistake.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setManageOpen(false);
-                  setPendingModalDeleteId(null);
-                }}
-                className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
-                aria-label="Close"
-              >
-                <Icons.X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 sm:p-5 overflow-y-auto flex-1">
-              {myRounds.length === 0 ? (
-                <div className="text-sm font-bold text-ink-3 italic text-center py-8">
-                  No saved rounds yet.
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {myRounds.map((r: EvalRound) => {
-                    const armed = pendingModalDeleteId === r.id;
-                    const isActive = r.id === selectedRoundId;
-                    return (
-                      <div
-                        key={r.id}
-                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-colors ${
-                          isActive
-                            ? "bg-app border-line-strong"
-                            : "bg-surface border-line"
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-black text-ink truncate">
-                            {formatRoundName(r)}
-                          </div>
-                          {isActive && (
-                            <div className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mt-0.5">
-                              Currently editing
-                            </div>
-                          )}
-                        </div>
-                        {!isActive && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedRoundId(r.id);
-                              setManageOpen(false);
-                              setPendingModalDeleteId(null);
-                            }}
-                            className="shrink-0 text-[10px] font-black uppercase tracking-widest text-ink hover:text-ink px-2 py-1 rounded hover:bg-surface-2 transition-colors"
-                          >
-                            Select
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (armed) {
-                              deleteEvaluation?.(r.id);
-                              setPendingModalDeleteId(null);
-                              if (r.id === selectedRoundId) {
-                                setSelectedRoundId(null);
-                                lastSavedRef.current = "";
-                                setSaveState("idle");
-                              }
-                            } else {
-                              setPendingModalDeleteId(r.id);
-                            }
-                          }}
-                          onBlur={() => {
-                            if (armed) setPendingModalDeleteId(null);
-                          }}
-                          className={`shrink-0 flex items-center gap-1 rounded-md transition-colors ${
-                            armed
-                              ? "px-2 py-1 bg-loss-bg text-loss ring-2 ring-[var(--loss)]"
-                              : "p-1.5 text-ink-3 hover:text-loss hover:bg-loss-bg"
-                          }`}
-                          title={
-                            armed
-                              ? "Tap again to delete this round"
-                              : "Delete this round"
-                          }
-                          aria-label={
-                            armed
-                              ? `Confirm delete ${formatRoundName(r)}`
-                              : `Delete ${formatRoundName(r)}`
-                          }
-                        >
-                          <Icons.Trash className="w-3.5 h-3.5" />
-                          {armed && (
-                            <span className="text-[10px] font-black uppercase tracking-widest">
-                              Confirm
-                            </span>
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </A11yDialog>
-        </div>
-      )}
     </div>
   );
 });
-// EvalTrendModal was extracted to ./evaluation/EvalTrendModal (it is the only
-// eval surface that pulls in recharts). Re-exported for backward compat.
-export { EvalTrendModal } from "./evaluation/EvalTrendModal";

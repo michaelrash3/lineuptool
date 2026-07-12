@@ -8,7 +8,6 @@ import { memo, useMemo, useState } from "react";
 import { Icons } from "../../icons";
 import { evalRoundRecency } from "../../utils/helpers";
 import { EVAL_SCALE_LABELS, type EvalCategory } from "../../constants/ui";
-import { A11yDialog } from "../../components/shared";
 import {
   avgUniversal,
   computeFlags,
@@ -142,14 +141,15 @@ export const InsightsPanel = memo(
 );
 
 // Side-by-side round comparison view. Lists every player with the per-category
-// delta between two saved rounds (left = older, right = newer).
+// delta between two saved rounds (left = older, right = newer). Chrome-
+// agnostic content — the routed /evaluation/compare page (EvalComparePage)
+// wraps it in PageShell; converted from an A11yDialog overlay per the
+// app-wide modals→pages rule.
 interface RoundComparisonViewProps {
   rounds: EvalRound[];
   players: Player[];
   activeCategories: EvalCategory[];
   onPlayerClick: (playerId: string) => void;
-  onClose: () => void;
-  primaryColor?: string;
 }
 
 export const RoundComparisonView = memo(
@@ -158,152 +158,124 @@ export const RoundComparisonView = memo(
     players,
     activeCategories,
     onPlayerClick,
-    onClose,
   }: RoundComparisonViewProps) => {
     const [leftId, setLeftId] = useState(rounds[1]?.id || "");
     const [rightId, setRightId] = useState(rounds[0]?.id || "");
     const left = rounds.find((r: EvalRound) => r.id === leftId);
     const right = rounds.find((r: EvalRound) => r.id === rightId);
     return (
-      <div
-        className="fixed inset-0 z-[120] bg-slate-900/60 backdrop-blur-sm p-4 flex items-end sm:items-center justify-center"
-        onClick={onClose}
-      >
-        <A11yDialog
-          label="Round comparison"
-          onClose={onClose}
-          className="bg-surface rounded-t-2xl sm:rounded-2xl max-w-5xl w-full max-h-[92vh] shadow-2xl overflow-hidden flex flex-col"
-        >
-          <div
-            className="h-1.5"
-            style={{ backgroundColor: "var(--team-primary)" }}
-          />
-          <div className="px-6 py-4 border-b border-line flex items-center justify-between gap-3">
-            <div>
-              <div className="t-eyebrow">Round Comparison</div>
-              <h3 className="t-card-title">Side By Side</h3>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-ink-3 hover:text-ink hover:bg-surface-2 rounded-lg"
-              aria-label="Close round comparison"
+      <div className="cc-card overflow-hidden">
+        <div className="px-6 py-3 border-b border-line flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <span className="t-eyebrow shrink-0">From:</span>
+            <select
+              value={leftId}
+              onChange={(e) => setLeftId(e.target.value)}
+              className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
             >
-              <Icons.X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="px-6 py-3 border-b border-line flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <span className="t-eyebrow shrink-0">From:</span>
-              <select
-                value={leftId}
-                onChange={(e) => setLeftId(e.target.value)}
-                className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
-              >
-                {rounds.map((r: EvalRound) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label || r.date} — {r.date}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 flex-1 min-w-[200px]">
-              <span className="t-eyebrow shrink-0">To:</span>
-              <select
-                value={rightId}
-                onChange={(e) => setRightId(e.target.value)}
-                className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
-              >
-                {rounds.map((r: EvalRound) => (
-                  <option key={r.id} value={r.id}>
-                    {r.label || r.date} — {r.date}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="overflow-auto flex-1">
-            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
-              <thead className="bg-app sticky top-0 z-10">
-                <tr>
-                  <th className="p-3 t-eyebrow text-left w-48 sticky left-0 bg-app z-20 border-r border-line">
-                    Player
+              {rounds.map((r: EvalRound) => (
+                <option key={r.id} value={r.id}>
+                  {r.label || r.date} — {r.date}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 flex-1 min-w-[200px]">
+            <span className="t-eyebrow shrink-0">To:</span>
+            <select
+              value={rightId}
+              onChange={(e) => setRightId(e.target.value)}
+              className="flex-1 text-xs font-bold border border-line bg-surface text-ink px-3 py-2 rounded-lg cursor-pointer outline-none"
+            >
+              {rounds.map((r: EvalRound) => (
+                <option key={r.id} value={r.id}>
+                  {r.label || r.date} — {r.date}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="overflow-auto flex-1">
+          <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+            <thead className="bg-app sticky top-0 z-10">
+              <tr>
+                <th className="p-3 t-eyebrow text-left w-48 sticky left-0 bg-app z-20 border-r border-line">
+                  Player
+                </th>
+                {activeCategories.map((cat: EvalCategory) => (
+                  <th key={cat.id} className="p-3 t-eyebrow text-center">
+                    {cat.label}
                   </th>
-                  {activeCategories.map((cat: EvalCategory) => (
-                    <th key={cat.id} className="p-3 t-eyebrow text-center">
-                      {cat.label}
-                    </th>
-                  ))}
-                  <th className="p-3 t-eyebrow text-center bg-surface-2 border-l border-line">
-                    Avg Δ
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {players.map((p: Player) => {
-                  const lg = left?.grades?.[p.id];
-                  const rg = right?.grades?.[p.id];
-                  const la = avgUniversal(lg);
-                  const ra = avgUniversal(rg);
-                  const avgDelta = la != null && ra != null ? ra - la : null;
-                  return (
-                    <tr key={p.id} className="hover:bg-surface-2">
-                      <td className="p-3 sticky left-0 bg-surface z-10 border-r border-line max-w-[200px]">
-                        <button
-                          type="button"
-                          onClick={() => onPlayerClick(p.id)}
-                          className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
-                        >
-                          {p.name}
-                        </button>
-                      </td>
-                      {activeCategories.map((cat: EvalCategory) => {
-                        const v1 = Number(lg?.[cat.id]);
-                        const v2 = Number(rg?.[cat.id]);
-                        const has1 = Number.isFinite(v1);
-                        const has2 = Number.isFinite(v2);
-                        const delta = has1 && has2 ? v2 - v1 : null;
-                        return (
-                          <td key={cat.id} className="p-2 text-center">
-                            <div className="flex flex-col items-center leading-none gap-0.5">
-                              <span className="text-sm font-black text-ink tabular-nums">
-                                {has2 ? v2 : "—"}
+                ))}
+                <th className="p-3 t-eyebrow text-center bg-surface-2 border-l border-line">
+                  Avg Δ
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {players.map((p: Player) => {
+                const lg = left?.grades?.[p.id];
+                const rg = right?.grades?.[p.id];
+                const la = avgUniversal(lg);
+                const ra = avgUniversal(rg);
+                const avgDelta = la != null && ra != null ? ra - la : null;
+                return (
+                  <tr key={p.id} className="hover:bg-surface-2">
+                    <td className="p-3 sticky left-0 bg-surface z-10 border-r border-line max-w-[200px]">
+                      <button
+                        type="button"
+                        onClick={() => onPlayerClick(p.id)}
+                        className="t-body-bold text-ink hover:text-team-primary uppercase tracking-tight text-left truncate"
+                      >
+                        {p.name}
+                      </button>
+                    </td>
+                    {activeCategories.map((cat: EvalCategory) => {
+                      const v1 = Number(lg?.[cat.id]);
+                      const v2 = Number(rg?.[cat.id]);
+                      const has1 = Number.isFinite(v1);
+                      const has2 = Number.isFinite(v2);
+                      const delta = has1 && has2 ? v2 - v1 : null;
+                      return (
+                        <td key={cat.id} className="p-2 text-center">
+                          <div className="flex flex-col items-center leading-none gap-0.5">
+                            <span className="text-sm font-black text-ink tabular-nums">
+                              {has2 ? v2 : "—"}
+                            </span>
+                            {delta != null && delta !== 0 && (
+                              <span
+                                className={`text-[10px] font-black tabular-nums ${
+                                  delta > 0 ? "text-win" : "text-loss"
+                                }`}
+                              >
+                                {fmtDelta(delta)}
                               </span>
-                              {delta != null && delta !== 0 && (
-                                <span
-                                  className={`text-[10px] font-black tabular-nums ${
-                                    delta > 0 ? "text-win" : "text-loss"
-                                  }`}
-                                >
-                                  {fmtDelta(delta)}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                      <td className="p-2 text-center bg-app border-l border-line">
-                        <span
-                          className={`text-sm font-black tabular-nums ${
-                            avgDelta == null
-                              ? "text-ink-3"
-                              : avgDelta > 0
-                                ? "text-win"
-                                : avgDelta < 0
-                                  ? "text-loss"
-                                  : "text-ink-3"
-                          }`}
-                        >
-                          {avgDelta != null ? fmtDelta(avgDelta) : "—"}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </A11yDialog>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    })}
+                    <td className="p-2 text-center bg-app border-l border-line">
+                      <span
+                        className={`text-sm font-black tabular-nums ${
+                          avgDelta == null
+                            ? "text-ink-3"
+                            : avgDelta > 0
+                              ? "text-win"
+                              : avgDelta < 0
+                                ? "text-loss"
+                                : "text-ink-3"
+                        }`}
+                      >
+                        {avgDelta != null ? fmtDelta(avgDelta) : "—"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   },

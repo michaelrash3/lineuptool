@@ -25,7 +25,7 @@ if (!("ResizeObserver" in globalThis)) {
 
 // jsdom can't navigate. Several components call window.location.reload() after
 // destructive actions (sign-out, team reset — see ErrorBoundary, Chrome,
-// WelcomeChooser, SettingsTab). Under jsdom that logs a noisy "Not implemented:
+// WelcomePage, SettingsTab). Under jsdom that logs a noisy "Not implemented:
 // navigation to another Document" stack on every run and, in some CI sandboxes,
 // stalls the worker waiting on a navigation that never resolves. The Location
 // instance's methods are non-configurable, so swap the whole `window.location`

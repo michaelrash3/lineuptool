@@ -34,7 +34,6 @@ const renderPalette = ({
       team: { team: fixtureTeam, ...team },
       ui: {
         openAddPlayer: jest.fn(),
-        setAssistantEvalOpen: jest.fn(),
         ...ui,
       },
     },

@@ -679,7 +679,7 @@ export const Button = ({
 // with bespoke layouts that don't fit <Modal>). Renders the panel div with
 // dialog semantics + useModalA11y behaviors; the caller keeps its own scrim
 // and layout classes. `label` feeds aria-label; pass onClose to enable
-// Escape (omit it for non-dismissible flows like WelcomeChooser).
+// Escape (omit it for non-dismissible flows).
 export const A11yDialog = ({
   onClose,
   label,
@@ -807,53 +807,3 @@ export const Modal = ({
     </m.div>
   );
 };
-
-export const SharedModals = memo(() => {
-  const { modal, setModal } = useUI();
-  const { team } = useTeam();
-  if (!modal.isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
-      <A11yDialog
-        label={modal.title}
-        onClose={() => setModal({ ...modal, isOpen: false })}
-        className="bg-surface rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden border border-line"
-      >
-        <div
-          className="h-1.5 w-full"
-          style={{ backgroundColor: team.primaryColor }}
-        />
-        <div className="p-6 sm:p-7">
-          <h3 className="t-card-title mb-2">{modal.title}</h3>
-          <p className="t-body mb-6 leading-relaxed whitespace-pre-line">
-            {modal.message}
-          </p>
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
-            {modal.type === "confirm" && (
-              <button
-                onClick={() => setModal({ ...modal, isOpen: false })}
-                className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
-              >
-                Cancel
-              </button>
-            )}
-            <button
-              onClick={() => {
-                if (modal.onConfirm) modal.onConfirm();
-                setModal({ ...modal, isOpen: false });
-              }}
-              className="px-5 py-2.5 font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
-              style={{
-                backgroundColor: team.primaryColor,
-                color: team.tertiaryColor,
-              }}
-            >
-              {modal.type === "confirm" ? "Confirm" : "OK"}
-            </button>
-          </div>
-        </div>
-      </A11yDialog>
-    </div>
-  );
-});
