@@ -70,14 +70,8 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   } | null>(null); // first tap of a swap pair
   const [inGameUndoStack, setInGameUndoStack] = useState<unknown[]>([]); // last swap undo data
   const [activeTab, setActiveTab] = useState("home");
-  // null when closed; the in-progress past-season import wizard state when open.
-  const [pastSeasonImport, setPastSeasonImport] = useState<{
-    rows: unknown[];
-    season: string;
-    ageGroup: string;
-    pitchingFormat: string;
-    assignments: Record<string, string>;
-  } | null>(null);
+  // The past-season import review lives at /roster/import/past-season; the
+  // parsed rows travel via navigation state, not provider state.
   const [currentGameAttendance, setCurrentGameAttendance] = useState<
     Record<string, boolean>
   >({});
@@ -464,8 +458,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setScoringGameId,
       activeTab,
       setActiveTab,
-      pastSeasonImport,
-      setPastSeasonImport,
       inGameId,
       setInGameId,
       inGameInning,
@@ -520,7 +512,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       newGameForm,
       scoringGameId,
       activeTab,
-      pastSeasonImport,
       inGameId,
       inGameInning,
       inGameSelection,

@@ -1,4 +1,5 @@
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import { StatsTab } from "./StatsTab";
 import { renderWithProviders } from "../test-utils";
@@ -42,9 +43,14 @@ const team = {
 
 describe("StatsTab", () => {
   it("shows an empty state when there are no players (no header card)", () => {
-    renderWithProviders(<StatsTab />, {
-      team: { team: { players: [], games: [] } },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team: { players: [], games: [] } },
+      },
+    );
     expect(
       screen.getByText(/Add players and import stats/i),
     ).toBeInTheDocument();
@@ -53,21 +59,36 @@ describe("StatsTab", () => {
   });
 
   it("offers Import Stats at the bottom for head coaches", () => {
-    renderWithProviders(<StatsTab />, {
-      team: { team, currentRole: "head", uploadStatsCsv: jest.fn() },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team, currentRole: "head", uploadStatsCsv: jest.fn() },
+      },
+    );
     expect(screen.getByText("Import Stats")).toBeInTheDocument();
   });
 
   it("hides Import Stats from assistant coaches", () => {
-    renderWithProviders(<StatsTab />, {
-      team: { team, currentRole: "assistant" },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team, currentRole: "assistant" },
+      },
+    );
     expect(screen.queryByText("Import Stats")).not.toBeInTheDocument();
   });
 
   it("renders the batting table with players and sortable headers", () => {
-    renderWithProviders(<StatsTab />, { team: { team } });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
     expect(screen.getByRole("button", { name: /OPS/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Overall/ })).toBeInTheDocument();
     // Player appears at least in the table (and possibly leader cards).
@@ -82,7 +103,12 @@ describe("StatsTab", () => {
   });
 
   it("switches to the pitching view and reveals advanced pitching columns", () => {
-    renderWithProviders(<StatsTab />, { team: { team } });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Pitching" }));
     expect(screen.getByRole("button", { name: /WHIP/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /SM%/ })).toBeInTheDocument();
@@ -90,17 +116,27 @@ describe("StatsTab", () => {
   });
 
   it("does not render the removed Game Log or Leaders sections", () => {
-    renderWithProviders(<StatsTab />, { team: { team } });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
     expect(screen.queryByText("Leaders")).toBeNull();
     expect(screen.queryByText(/Season Log|Recent Games|Game Log/i)).toBeNull();
   });
 
   it("opens the player profile when a name is tapped", () => {
     const openPlayerProfile = jest.fn();
-    renderWithProviders(<StatsTab />, {
-      team: { team },
-      ui: { openPlayerProfile },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team },
+        ui: { openPlayerProfile },
+      },
+    );
     fireEvent.click(screen.getAllByRole("button", { name: /Apex/ })[0]);
     expect(openPlayerProfile).toHaveBeenCalledWith("a");
   });
@@ -123,9 +159,14 @@ describe("StatsTab", () => {
         },
       ],
     };
-    const { container } = renderWithProviders(<StatsTab />, {
-      team: { team: withEvals },
-    });
+    const { container } = renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team: withEvals },
+      },
+    );
     // The sparkline is a fixed-size recharts AreaChart, which draws paths.
     expect(container.querySelector("svg .recharts-area-curve")).toBeTruthy();
   });
@@ -150,9 +191,14 @@ describe("StatsTab", () => {
         },
       ],
     };
-    renderWithProviders(<StatsTab />, {
-      team: { team: kidPitch, currentRole: "head" },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team: kidPitch, currentRole: "head" },
+      },
+    );
     expect(screen.getByText(/Arm Care/i)).toBeInTheDocument();
   });
 });

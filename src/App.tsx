@@ -94,7 +94,7 @@ import { WelcomeChooser } from "./components/WelcomeChooser";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
-import { PlayerProfilePage, PastSeasonImportModal } from "./components/modals";
+import { PlayerProfilePage } from "./components/modals";
 import {
   slimGame,
   scrubUndefined,
@@ -249,6 +249,21 @@ const TournamentDetailPage = lazy(() =>
 const AddPlayerPage = lazy(() =>
   import("./screens/roster/AddPlayerPage").then((m) => ({
     default: m.AddPlayerPage,
+  })),
+);
+const PlayerReportPage = lazy(() =>
+  import("./components/PlayerDevelopmentReport").then((m) => ({
+    default: m.PlayerReportPage,
+  })),
+);
+const StatTrendPage = lazy(() =>
+  import("./components/modals/statTrendViz").then((m) => ({
+    default: m.StatTrendPage,
+  })),
+);
+const PastSeasonImportPage = lazy(() =>
+  import("./screens/roster/PastSeasonImportPage").then((m) => ({
+    default: m.PastSeasonImportPage,
   })),
 );
 
@@ -789,8 +804,20 @@ const MainShell = () => {
                 <Route path="/roster" element={<RosterTab />} />
                 <Route path="/roster/new" element={<AddPlayerPage />} />
                 <Route
+                  path="/roster/import/past-season"
+                  element={<PastSeasonImportPage />}
+                />
+                <Route
                   path="/roster/:playerId"
                   element={<PlayerProfilePage />}
+                />
+                <Route
+                  path="/roster/:playerId/report"
+                  element={<PlayerReportPage />}
+                />
+                <Route
+                  path="/roster/:playerId/trend/:statKey"
+                  element={<StatTrendPage />}
                 />
                 <Route
                   path="/depth-chart"
@@ -917,7 +944,6 @@ const MainShell = () => {
         </Suspense>
       </main>
       <SharedModals />
-      <PastSeasonImportModal />
       <Suspense fallback={null}>
         <InGameView />
       </Suspense>

@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { DepthChartTab } from "./DepthChartTab";
@@ -33,7 +34,12 @@ const pitcherTeam: any = {
 
 describe("DepthChartTab", () => {
   it("ranks pitchers by their pitching stat line, not by name", () => {
-    renderWithProviders(<DepthChartTab />, { team: { team: pitcherTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      { team: { team: pitcherTeam } },
+    );
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent("Zane"); // strikes 5, sorts last by name
@@ -69,16 +75,26 @@ describe("DepthChartTab", () => {
       pitchingFormat: "Kid Pitch",
       defenseSize: "9",
     };
-    renderWithProviders(<DepthChartTab />, { team: { team: catcherTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      { team: { team: catcherTeam } },
+    );
     const items = screen.getAllByRole("listitem");
     expect(items).toHaveLength(2);
     expect(items[0]).toHaveTextContent("Yara"); // better catcher, sorts last
   });
 
   it("persists the new order to team.depthChart when a player is moved", () => {
-    const { teamValue } = renderWithProviders(<DepthChartTab />, {
-      team: { team: pitcherTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      {
+        team: { team: pitcherTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Move Zane down"));
     expect(teamValue.updateTeam).toHaveBeenCalledWith({
       depthChart: { P: ["p2", "p1"] },
@@ -86,9 +102,14 @@ describe("DepthChartTab", () => {
   });
 
   it("respects a saved manual order over the auto ranking", () => {
-    renderWithProviders(<DepthChartTab />, {
-      team: { team: { ...pitcherTeam, depthChart: { P: ["p2", "p1"] } } },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      {
+        team: { team: { ...pitcherTeam, depthChart: { P: ["p2", "p1"] } } },
+      },
+    );
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Abel"); // pinned first despite the weaker stat line
     expect(items[1]).toHaveTextContent("Zane");
@@ -121,7 +142,12 @@ describe("DepthChartTab", () => {
       pitchingFormat: "Kid Pitch",
       defenseSize: "9",
     };
-    renderWithProviders(<DepthChartTab />, { team: { team } });
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
     // SS card is the 6th position card (P, C, 1B, 2B, 3B, SS, ...). Scope by
     // finding the SS heading's card.
     const items = screen.getAllByRole("listitem");
@@ -155,16 +181,26 @@ describe("DepthChartTab", () => {
       pitchingFormat: "Kid Pitch",
       defenseSize: "9",
     };
-    renderWithProviders(<DepthChartTab />, { team: { team } });
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
     const items = screen.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("Zane"); // better stat line leads despite Abel's P primary
     expect(items[1]).toHaveTextContent("Abel");
   });
 
   it("is read-only for assistant coaches (no reorder controls)", () => {
-    renderWithProviders(<DepthChartTab />, {
-      team: { team: pitcherTeam, currentRole: "assistant" },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      {
+        team: { team: pitcherTeam, currentRole: "assistant" },
+      },
+    );
     expect(screen.queryByLabelText(/^Move /)).toBeNull();
   });
 });
