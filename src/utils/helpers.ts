@@ -124,6 +124,7 @@ export {
   evalRoundDateForSave,
   restampEvalDueDates,
   evalRoundRecency,
+  headEvalRounds,
   buildPreseasonSeedRound,
   emailPromptStatus,
 } from "./evaluations";

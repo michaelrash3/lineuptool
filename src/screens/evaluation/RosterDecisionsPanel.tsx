@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { Icons } from "../../icons";
 import { calculateBaseballAge, evalRoundRecency } from "../../utils/helpers";
@@ -8,7 +9,7 @@ import {
 } from "../../constants/ui";
 import { calculateTotalScore } from "../../lineupEngine";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
-import { useTeam, useUI } from "../../contexts";
+import { useTeam } from "../../contexts";
 import {
   asGradeMap,
   DEFAULT_GRADES,
@@ -45,7 +46,7 @@ const CUT_FLOOR_SCORE = 40;
 
 export const RosterDecisionsPanel = memo(() => {
   const { team, user } = useTeam();
-  const { setEvalTrendPlayerId } = useUI();
+  const navigate = useNavigate();
   const { players, primaryColor, evaluationEvents, teamAge, currentSeason } =
     team;
 
@@ -426,7 +427,7 @@ export const RosterDecisionsPanel = memo(() => {
     <button
       key={d.player.id}
       type="button"
-      onClick={() => setEvalTrendPlayerId(d.player.id)}
+      onClick={() => navigate(`/evaluation/trend/${d.player.id}`)}
       className="w-full text-left border-b border-line px-1 py-2.5 hover:bg-surface transition-colors"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">

@@ -1,6 +1,9 @@
 import { memo } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import { Icons } from "../../icons";
-import { A11yDialog } from "../../components/shared";
+import { PageShell } from "../../components/PageShell";
+import { useBackOrFallback } from "../../hooks/usePageNav";
+import { useTeam } from "../../contexts";
 import { ChartFrame, ChartTooltip } from "../../components/charts/primitives";
 import {
   LineChart,
@@ -16,21 +19,20 @@ import type { EvalRound } from "../../utils/evalScoring";
 import type { Player } from "../../types";
 
 // Per-player evaluation trend: one line per category across the head coach's
-// rounds. Extracted from EvaluationTab (docs/EVALUATIONS-AUDIT.md finding 3.4);
-// this is the only eval surface that pulls in recharts.
-export const EvalTrendModal = memo(
+// rounds. Lives at /evaluation/trend/:playerId (see EvalTrendPage below) —
+// converted from an A11yDialog overlay per the app-wide modals→pages rule.
+// This is the only eval surface that pulls in recharts.
+export const EvalTrendView = memo(
   ({
     player,
     evaluationEvents,
     userUid,
-    primaryColor,
-    onClose,
+    onBack,
   }: {
     player?: Player;
     evaluationEvents?: EvalRound[];
     userUid?: string;
-    primaryColor?: string;
-    onClose: () => void;
+    onBack: () => void;
   }) => {
     if (!player) return null;
 
@@ -120,212 +122,203 @@ export const EvalTrendModal = memo(
     });
 
     return (
-      <div
-        className="fixed inset-0 z-[95] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-      >
-        <A11yDialog
-          label="Evaluation trend"
-          onClose={onClose}
-          className="bg-surface rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-        >
-          <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-          <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
-            <div>
-              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-0.5">
-                {player.name}
-              </div>
-              <h3 className="text-2xl font-extrabold tracking-tight text-ink">
-                Evaluation Trend
-              </h3>
-              <p className="text-[11px] text-ink-3 font-medium mt-0.5">
-                {evalCount === 0
-                  ? "No eval data yet."
-                  : evalCount === 1
-                    ? "1 eval recorded — add more to see trends."
-                    : `${evalCount} evals over time`}
+      <PageShell eyebrow={player.name} title="Evaluation Trend" onBack={onBack}>
+        <p className="text-[11px] text-ink-3 font-medium -mt-3 mb-4">
+          {evalCount === 0
+            ? "No eval data yet."
+            : evalCount === 1
+              ? "1 eval recorded — add more to see trends."
+              : `${evalCount} evals over time`}
+        </p>
+
+        <div>
+          {evalCount === 0 ? (
+            <div className="bg-app border border-line rounded-xl p-12 text-center">
+              <Icons.Clipboard className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+              <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
+                No Evals Recorded
+              </p>
+              <p className="text-xs text-ink-3 font-medium">
+                Save an eval round to start tracking this player&apos;s trends.
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
-            >
-              <Icons.X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="p-5 sm:p-7 overflow-y-auto custom-scrollbar flex-1">
-            {evalCount === 0 ? (
-              <div className="bg-app border border-line rounded-xl p-12 text-center">
-                <Icons.Clipboard className="w-10 h-10 text-ink-3 mx-auto mb-3" />
-                <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
-                  No Evals Recorded
-                </p>
-                <p className="text-xs text-ink-3 font-medium">
-                  Save an eval round to start tracking this player&apos;s
-                  trends.
-                </p>
+          ) : evalCount === 1 ? (
+            <div className="bg-app border border-line rounded-xl p-8 text-center">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
+                {xLabels[0].label}
               </div>
-            ) : evalCount === 1 ? (
-              <div className="bg-app border border-line rounded-xl p-8 text-center">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
-                  {xLabels[0].label}
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
-                  {categorySeries.map((cs, idx) => (
-                    <div key={cs.id} className="cc-card p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+                {categorySeries.map((cs, idx) => (
+                  <div key={cs.id} className="cc-card p-3">
+                    <div
+                      className="text-[10px] font-black uppercase tracking-widest mb-1"
+                      style={{ color: palette[idx % palette.length] }}
+                    >
+                      {cs.label}
+                    </div>
+                    <div className="text-2xl font-black tabular-nums text-ink">
+                      {cs.points[0]?.value ?? "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-ink-3 font-medium mt-4">
+                Add more eval rounds to see trends.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Chart */}
+              <div className="bg-app border border-line rounded-xl p-4 mb-4">
+                <ChartFrame label="Evaluation trend by category" height={320}>
+                  <LineChart
+                    data={chartRows}
+                    margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--line)"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="id"
+                      interval={0}
+                      height={evalCount > 4 ? 56 : 30}
+                      tickLine={false}
+                      axisLine={{ stroke: "var(--line)" }}
+                      tickFormatter={(id: string) =>
+                        shortLabel(labelById.get(id) || "")
+                      }
+                      tick={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        fill: "var(--ink-3)",
+                        ...(evalCount > 4
+                          ? { angle: -30, textAnchor: "end" }
+                          : {}),
+                      }}
+                    />
+                    <YAxis
+                      domain={[1, 5]}
+                      ticks={[1, 2, 3, 4, 5]}
+                      width={32}
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        fill: "var(--ink-3)",
+                        fontFamily: "ui-monospace, monospace",
+                      }}
+                    />
+                    <Tooltip
+                      content={
+                        <ChartTooltip
+                          labelFormatter={(id) =>
+                            labelById.get(String(id)) || String(id)
+                          }
+                        />
+                      }
+                      cursor={{
+                        stroke: "var(--line-strong)",
+                        strokeDasharray: "3 3",
+                      }}
+                    />
+                    {categorySeries.map((cs, idx) => {
+                      if (cs.points.length === 0) return null;
+                      const color = palette[idx % palette.length];
+                      return (
+                        <Line
+                          key={cs.id}
+                          dataKey={cs.id}
+                          name={cs.label}
+                          type="monotone"
+                          connectNulls
+                          stroke={color}
+                          strokeWidth={2.5}
+                          dot={{
+                            r: 3.5,
+                            fill: color,
+                            stroke: "var(--surface)",
+                            strokeWidth: 1.5,
+                          }}
+                          activeDot={{ r: 5 }}
+                          animationDuration={600}
+                        />
+                      );
+                    })}
+                  </LineChart>
+                </ChartFrame>
+              </div>
+
+              {/* Legend with trend summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {categorySeries.map((cs, idx) => {
+                  const trend = trends[idx];
+                  const color = palette[idx % palette.length];
+                  return (
+                    <div
+                      key={cs.id}
+                      className="cc-card p-2.5 flex items-center gap-2"
+                    >
                       <div
-                        className="text-[10px] font-black uppercase tracking-widest mb-1"
-                        style={{ color: palette[idx % palette.length] }}
-                      >
-                        {cs.label}
-                      </div>
-                      <div className="text-2xl font-black tabular-nums text-ink">
-                        {cs.points[0]?.value ?? "—"}
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-ink truncate">
+                          {cs.label}
+                        </div>
+                        {trend && (
+                          <div
+                            className={`text-[10px] font-black tabular-nums ${
+                              trend.change > 0
+                                ? "text-win"
+                                : trend.change < 0
+                                  ? "text-loss"
+                                  : "text-ink-3"
+                            }`}
+                          >
+                            {trend.change > 0
+                              ? "↑"
+                              : trend.change < 0
+                                ? "↓"
+                                : "—"}
+                            {trend.change !== 0
+                              ? ` ${Math.abs(trend.change)}`
+                              : " flat"}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-                <p className="text-xs text-ink-3 font-medium mt-4">
-                  Add more eval rounds to see trends.
-                </p>
+                  );
+                })}
               </div>
-            ) : (
-              <>
-                {/* Chart */}
-                <div className="bg-app border border-line rounded-xl p-4 mb-4">
-                  <ChartFrame label="Evaluation trend by category" height={320}>
-                    <LineChart
-                      data={chartRows}
-                      margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--line)"
-                        vertical={false}
-                      />
-                      <XAxis
-                        dataKey="id"
-                        interval={0}
-                        height={evalCount > 4 ? 56 : 30}
-                        tickLine={false}
-                        axisLine={{ stroke: "var(--line)" }}
-                        tickFormatter={(id: string) =>
-                          shortLabel(labelById.get(id) || "")
-                        }
-                        tick={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          fill: "var(--ink-3)",
-                          ...(evalCount > 4
-                            ? { angle: -30, textAnchor: "end" }
-                            : {}),
-                        }}
-                      />
-                      <YAxis
-                        domain={[1, 5]}
-                        ticks={[1, 2, 3, 4, 5]}
-                        width={32}
-                        tickLine={false}
-                        axisLine={false}
-                        tick={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fill: "var(--ink-3)",
-                          fontFamily: "ui-monospace, monospace",
-                        }}
-                      />
-                      <Tooltip
-                        content={
-                          <ChartTooltip
-                            labelFormatter={(id) =>
-                              labelById.get(String(id)) || String(id)
-                            }
-                          />
-                        }
-                        cursor={{
-                          stroke: "var(--line-strong)",
-                          strokeDasharray: "3 3",
-                        }}
-                      />
-                      {categorySeries.map((cs, idx) => {
-                        if (cs.points.length === 0) return null;
-                        const color = palette[idx % palette.length];
-                        return (
-                          <Line
-                            key={cs.id}
-                            dataKey={cs.id}
-                            name={cs.label}
-                            type="monotone"
-                            connectNulls
-                            stroke={color}
-                            strokeWidth={2.5}
-                            dot={{
-                              r: 3.5,
-                              fill: color,
-                              stroke: "var(--surface)",
-                              strokeWidth: 1.5,
-                            }}
-                            activeDot={{ r: 5 }}
-                            animationDuration={600}
-                          />
-                        );
-                      })}
-                    </LineChart>
-                  </ChartFrame>
-                </div>
-
-                {/* Legend with trend summary */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {categorySeries.map((cs, idx) => {
-                    const trend = trends[idx];
-                    const color = palette[idx % palette.length];
-                    return (
-                      <div
-                        key={cs.id}
-                        className="cc-card p-2.5 flex items-center gap-2"
-                      >
-                        <div
-                          className="w-3 h-3 rounded-full shrink-0"
-                          style={{ backgroundColor: color }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-ink truncate">
-                            {cs.label}
-                          </div>
-                          {trend && (
-                            <div
-                              className={`text-[10px] font-black tabular-nums ${
-                                trend.change > 0
-                                  ? "text-win"
-                                  : trend.change < 0
-                                    ? "text-loss"
-                                    : "text-ink-3"
-                              }`}
-                            >
-                              {trend.change > 0
-                                ? "↑"
-                                : trend.change < 0
-                                  ? "↓"
-                                  : "—"}
-                              {trend.change !== 0
-                                ? ` ${Math.abs(trend.change)}`
-                                : " flat"}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        </A11yDialog>
-      </div>
+            </>
+          )}
+        </div>
+      </PageShell>
     );
   },
 );
+
+// /evaluation/trend/:playerId — the routed page. Head-coach surface (the
+// chart plots the head's own rounds); assistants and unknown players land
+// back on the evaluation tab.
+export const EvalTrendPage = memo(() => {
+  const { playerId } = useParams();
+  const { team, user, currentRole } = useTeam();
+  const back = useBackOrFallback("/evaluation");
+  const player = (team.players || []).find((p: Player) => p.id === playerId);
+  if (currentRole === "assistant" || !player) {
+    return <Navigate to="/evaluation" replace />;
+  }
+  return (
+    <EvalTrendView
+      player={player}
+      evaluationEvents={team.evaluationEvents || []}
+      userUid={user?.uid}
+      onBack={back}
+    />
+  );
+});

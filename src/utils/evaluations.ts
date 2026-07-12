@@ -308,6 +308,33 @@ export const evalRoundRecency = (
   return (b?.createdAt || 0) - (a?.createdAt || 0);
 };
 
+// The head coach's own saved eval rounds, newest first — tryout rounds and
+// assistant submissions excluded. One selection rule shared by the eval
+// workspace and its routed sub-pages (/evaluation/rounds, /evaluation/compare)
+// so "your saved rounds" can never mean different lists on different screens.
+export const headEvalRounds = <
+  T extends {
+    tryoutSignupId?: unknown;
+    tryoutSessionId?: unknown;
+    coachRole?: string;
+    evaluatorId?: string;
+    date?: string;
+    createdAt?: number;
+  },
+>(
+  evaluationEvents: T[] | null | undefined,
+  uid: string | null | undefined,
+): T[] =>
+  (evaluationEvents || [])
+    .filter(
+      (e) =>
+        !e.tryoutSignupId &&
+        !e.tryoutSessionId &&
+        e.coachRole === "Head" &&
+        (!uid || e.evaluatorId === uid),
+    )
+    .sort(evalRoundRecency);
+
 // Advance-Season eval seeding. The new season starts with a single "Preseason"
 // eval round so coaches don't begin blind: each returning player carries their
 // MOST RECENT eval from the ending season, and each promoted tryout carries

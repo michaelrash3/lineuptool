@@ -21,13 +21,8 @@ interface CommandPaletteProps {
 export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
   const { team, currentRole } = useTeam();
   const isAssistant = currentRole === "assistant";
-  const {
-    setActiveTab,
-    openPlayerProfile,
-    setSelectedGameId,
-    openAddPlayer,
-    setAssistantEvalOpen,
-  } = useUI();
+  const { setActiveTab, openPlayerProfile, setSelectedGameId, openAddPlayer } =
+    useUI();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
@@ -173,7 +168,8 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
         label: "Submit Evaluation",
         sublabel: "Send your grades to the head coach",
         searchKey: "submit eval evaluation grades",
-        action: () => setAssistantEvalOpen(true),
+        // The assistant eval flow is the routed /evaluation screen.
+        action: () => navigate("/evaluation"),
       });
     }
 
@@ -200,7 +196,6 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     setActiveTab,
     setSelectedGameId,
     openAddPlayer,
-    setAssistantEvalOpen,
     navigate,
   ]);
 

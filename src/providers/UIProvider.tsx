@@ -101,7 +101,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // Header state
   const [isAddingTeam, setIsAddingTeam] = useState(false);
   const [newTeamName, setNewTeamName] = useState("");
-  const [assistantEvalOpen, setAssistantEvalOpen] = useState(false);
 
   // Roster/profile state. Adding a player is a routed page (/roster/new) —
   // see openAddPlayer below.
@@ -124,10 +123,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   // Eval round selection: null = creating a new round, otherwise = id of an
   // existing eval event being viewed/edited.
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
-  // Player whose eval trend modal is currently open (null = closed)
-  const [evalTrendPlayerId, setEvalTrendPlayerId] = useState<string | null>(
-    null,
-  );
+  // Eval trend lives at /evaluation/trend/:playerId (routed page).
 
   // Sync attendance/firstInning/lineup with the selected game
   const gamesRef = useRef(team.team.games);
@@ -488,8 +484,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setIsAddingTeam,
       newTeamName,
       setNewTeamName,
-      assistantEvalOpen,
-      setAssistantEvalOpen,
       openAddPlayer,
       viewingPlayerId,
       setViewingPlayerId,
@@ -502,8 +496,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setTeamEvalGrades,
       selectedRoundId,
       setSelectedRoundId,
-      evalTrendPlayerId,
-      setEvalTrendPlayerId,
     }),
     [
       modal,
@@ -531,7 +523,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       opponentName,
       isAddingTeam,
       newTeamName,
-      assistantEvalOpen,
       openAddPlayer,
       viewingPlayerId,
       openPlayerProfile,
@@ -539,7 +530,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       newCoachForm,
       teamEvalGrades,
       selectedRoundId,
-      evalTrendPlayerId,
     ],
   );
 

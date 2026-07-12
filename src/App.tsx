@@ -286,6 +286,21 @@ const GameFinalizePage = lazy(() =>
     default: m.GameFinalizePage,
   })),
 );
+const EvalRoundsPage = lazy(() =>
+  import("./screens/evaluation/EvalRoundsPage").then((m) => ({
+    default: m.EvalRoundsPage,
+  })),
+);
+const EvalComparePage = lazy(() =>
+  import("./screens/evaluation/EvalComparePage").then((m) => ({
+    default: m.EvalComparePage,
+  })),
+);
+const EvalTrendPage = lazy(() =>
+  import("./screens/evaluation/EvalTrendModal").then((m) => ({
+    default: m.EvalTrendPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -910,6 +925,15 @@ const MainShell = () => {
                 <Route
                   path="/evaluation/round/:roundId"
                   element={evalElement}
+                />
+                <Route path="/evaluation/rounds" element={<EvalRoundsPage />} />
+                <Route
+                  path="/evaluation/compare"
+                  element={<EvalComparePage />}
+                />
+                <Route
+                  path="/evaluation/trend/:playerId"
+                  element={<EvalTrendPage />}
                 />
                 <Route
                   path="/tryouts"
