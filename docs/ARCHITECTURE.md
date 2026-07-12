@@ -89,7 +89,7 @@ to keep inline bytes small rather than offload them.
 1. **Context providers wrap the shell.**
    - `ToastProvider` — at the very top so tryouts portal can post toasts without a team
    - `TeamProvider` — owns team state, Firebase subscriptions, every mutation action
-   - `UIProvider` — local UI state (selected game, open modals, attendance toggles), bridged to `TeamProvider` via a `uiBridge` ref so generate/save actions can read selections without putting them in Firestore
+   - `UIProvider` — local UI state (selected game, in-game session, attendance toggles), bridged to `TeamProvider` via a `uiBridge` ref so generate/save actions can read selections without putting them in Firestore
    - All three live in `App.tsx`; consumer hooks (`useTeam`, `useUI`, `useToast`) live in `src/contexts.ts` so screens import only the hook.
 
 2. **Screen components live in `src/screens/`** and consume `useTeam()` / `useUI()`. Each tab is a single file:
@@ -105,12 +105,12 @@ to keep inline bytes small rather than offload them.
 
 4. **Reusable components under `src/components/`:**
    - `Chrome.tsx` — `LoginScreen`, `AppHeader`, `TabBarNav`
-   - `shared.tsx` — `Button`, `Chip`, `GlassCard`, `Eyebrow`, `StatTile`, `PlayerAvatar`, `RecordBadge`, `LeaderboardCard`, `SharedModals`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
-   - `modals.tsx` — `PlayerProfileModal`, `AddPlayerModal`, `PastSeasonImportModal` (large; one file per concern would be nicer but isn't worth the churn yet)
+   - `shared.tsx` — `Button`, `Chip`, `Eyebrow`, `PlayerAvatar`, `RecordBadge`, `Modal`, `A11yDialog`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
+   - `PlayerProfilePage.tsx` — the routed player profile (`/roster/:playerId`); every former modal is a routed page under `src/screens/` per the app-wide modals→pages rule
    - `OnboardingTutorial.tsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
-   - `WelcomeChooser.tsx` — first-run modal that asks Join vs Create instead of auto-creating "My Team"
    - `CommandPalette.tsx` — ⌘K
-   - `PitcherRankingPanel.tsx`, `EvalGradeCard.tsx` — eval surfaces
+   - `EvalGradeCard.tsx` — eval grading card
+   - (first-run Join-vs-Create lives at `src/screens/WelcomePage.tsx`, the routed `/welcome` page)
 
 ## Desktop layout (control-panel spec)
 
@@ -196,7 +196,7 @@ The evaluation system has migrated repeatedly (currently through v11). The migra
 
 ## First-run UX
 
-A brand-new signed-in user has no team yet. Instead of auto-creating "My Team" (which produced throwaway teams for anyone whose intent was to join via a code), `TeamProvider` exposes `needsWelcomeChooser` and `MainShell` renders `<WelcomeChooser>` with both Join and Create paths visible. The chooser is non-dismissible until one action succeeds; it auto-closes when `teams.length > 0`. `?join=<code>` URLs still bypass the chooser entirely — those land in the join redemption effect which can also fall back to `bootstrapDefaultTeam()` on lookup failure.
+A brand-new signed-in user has no team yet. Instead of auto-creating "My Team" (which produced throwaway teams for anyone whose intent was to join via a code), `TeamProvider` exposes `needsWelcomeChooser` and `MainShell` redirects every path to the full-screen `/welcome` page (`WelcomePage`) with both Join and Create paths visible. The page is inescapable until one action succeeds; once `teams.length > 0` the wildcard route bounces `/welcome` home. `?join=<code>` URLs still bypass the welcome page entirely — those land in the join redemption effect which can also fall back to `bootstrapDefaultTeam()` on lookup failure.
 
 ## Where things are NOT
 

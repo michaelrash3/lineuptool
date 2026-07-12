@@ -36,8 +36,8 @@ const PositionInningsStrip = React.lazy(() =>
 // (latest grade per category + within-season trend), season-over-season stat
 // growth (from archived pastSeasons), attendance, and coach notes. Read-only;
 // shareable via Copy and printable. Doubles as the banquet per-kid card.
-// Lives at /roster/:playerId/report (see PlayerReportPage below) — converted
-// from a Modal overlay per the app-wide modals→pages rule.
+// Lives at /roster/:playerId/report (see PlayerReportPage below), a routed
+// page per the app-wide modals→pages rule.
 
 type Kind = "int" | "dec2" | "dec3" | "pct" | "ip";
 

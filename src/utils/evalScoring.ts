@@ -99,7 +99,7 @@ export const pitcherPremium = (
 // 11 standard positions surfaced as a per-player chip row so the coach
 // can flag spots they think this kid should play. Stored on the eval
 // round as `grades[playerId].suggestedPositions`. Same vocabulary as
-// AssistantEvalModal so head + assistant inputs share a shape.
+// the assistant eval tab so head + assistant inputs share a shape.
 // Canonical 3-outfielder model — evaluations never split center into LCF/RCF;
 // the lineup engine maps a CF-graded player onto those field slots when a
 // 10-fielder game is played.

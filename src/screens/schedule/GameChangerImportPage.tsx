@@ -13,8 +13,8 @@ import { useBackOrFallback } from "../../hooks/usePageNav";
 import type { Game, Practice } from "../../types";
 
 // /schedule/import/gamechanger — import / sync the schedule from the team's
-// GameChanger .ics calendar feed. Converted from GameChangerImportModal to a
-// routed page (deep-linkable, refresh-safe, real Back). Flow: paste the feed
+// GameChanger .ics calendar feed. A routed page per the app-wide
+// modals→pages rule (deep-linkable, refresh-safe, real Back). Flow: paste the feed
 // URL → Preview (fetched through /api/gc-schedule, which proxies the
 // CORS-less calendar host) → review the parsed games → Import. Games match
 // existing ones by the feed's stable UID (game.gcUid), so re-syncing updates

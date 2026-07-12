@@ -6,7 +6,7 @@ import { WelcomePage } from "./WelcomePage";
 vi.mock("../firebase", () => ({ auth: {}, db: {}, appId: "test-app" }));
 vi.mock("firebase/auth", () => ({ signOut: vi.fn().mockResolvedValue(null) }));
 
-// The /welcome first-run page (converted from the WelcomeChooser overlay).
+// The /welcome first-run page (routed, not an overlay).
 // Join/create flow behavior lives in useInviteFlows tests; this covers the
 // page's form wiring and inline error surfacing. It renders standalone (no
 // providers needed — ConfirmContext falls back to window.confirm).

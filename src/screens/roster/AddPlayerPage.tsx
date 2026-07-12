@@ -6,8 +6,8 @@ import { useBackOrFallback } from "../../hooks/usePageNav";
 import { PlayerAvatar } from "../../components/shared";
 
 // /roster/new — add a player as a real page (deep-linkable, refresh-safe,
-// back-button friendly). Converted from AddPlayerModal per the app-wide
-// modals→pages rule. Head-coach only: assistants bounce to the roster.
+// back-button friendly) per the app-wide modals→pages rule. Head-coach
+// only: assistants bounce to the roster.
 export const AddPlayerPage = memo(() => {
   const { team, addPlayer, currentRole } = useTeam();
   const back = useBackOrFallback("/roster");

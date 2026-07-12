@@ -8,8 +8,8 @@ import { formatGameDateDisplay, isGameFinalized } from "../../utils/helpers";
 import { unclaimedTournamentSuggestions } from "../../utils/tournamentPitching";
 import type { Game, Tournament } from "../../types";
 
-// /schedule/tournaments/new — name a tournament and pick its games. Replaces
-// the TournamentEditorModal's create mode per the app-wide modals→pages rule.
+// /schedule/tournaments/new — name a tournament and pick its games, as a
+// routed page per the app-wide modals→pages rule.
 // A "Name this tournament" suggestion chip links here with ?seed=<clusterId>
 // so the derived weekend's games arrive pre-checked (and the stored entry
 // remembers the seed, which retires that suggestion).

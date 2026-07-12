@@ -11,8 +11,8 @@ import { OFFER_LETTER_LABELS } from "../../constants/offerLetters";
 import { computeNextSeason } from "../../constants/ui";
 
 // /settings/advance-season — the two-step "Advance to next season" wizard as
-// a routed page (converted from AdvanceSeasonModal per the app-wide
-// modals→pages rule). The head marks every player Returning / Released in one
+// a routed page per the app-wide modals→pages rule. The head marks every
+// player Returning / Released in one
 // pass (with bulk affordances), checks which tryout signups ride onto the new
 // roster, and confirms to kick off the actual advanceSeason() write.
 //

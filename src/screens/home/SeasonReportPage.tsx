@@ -10,7 +10,7 @@ import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 // /season-report — End-of-Season team report: record + run diff + streak, top
 // performers, attendance leaders, and biggest eval improvers. Read-only;
 // shareable via Copy and printable. Built entirely from data already on the
-// team. Converted from SeasonReportModal per the app-wide modals→pages rule.
+// team. A routed page per the app-wide modals→pages rule.
 
 type Kind = "int" | "dec2" | "dec3" | "pct" | "ip";
 

@@ -8,8 +8,8 @@ import { Button } from "../../components/shared";
 // /settings/logo-colors — after a coach uploads a logo we extract its
 // dominant colors (see extractLogoPalette in shared.tsx) and Settings
 // navigates here so they can say which of those colors should be the team's
-// Primary, Secondary, and Tertiary. Converted from LogoColorModal per the
-// app-wide modals→pages rule. The palette travels via navigation state (it's
+// Primary, Secondary, and Tertiary. A routed page per the app-wide
+// modals→pages rule. The palette travels via navigation state (it's
 // ephemeral extraction output, not addressable data), so a refresh or cold
 // deep link bounces back to Settings where the upload lives. Manual hex
 // editing still lives in the TeamColorPicker on the Settings page — this is

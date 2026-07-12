@@ -17,13 +17,13 @@ click Sign In ─────────→ Google popup
                          │                          ↓
                          │                       teams=[], needsWelcomeChooser=true
                          │                          ↓
-                         │                       <WelcomeChooser open>
+                         │                       /welcome (WelcomePage)
 click Create Team ─────────────────────────→ createTeam(name) ─→ setDoc teams/{id}
                                                               ─→ setDoc users/{uid}/settings/teams
                          │                          ↓
                          │                       snapshot fires, teams=[{id,name}]
                          │                          ↓
-                         │                       WelcomeChooser auto-closes
+                         │                       wildcard route bounces /welcome home
                          │                          ↓
                          │                       OnboardingTutorial opens (first time only)
 ```
@@ -40,7 +40,7 @@ Failure modes:
 
 Two entrypoints lead to the same effect:
 
-1. **Via WelcomeChooser** (the brand-new user case above): code field + Join Team button.
+1. **Via the /welcome page** (the brand-new user case above): code field + Join Team button.
 2. **Via the header** (a user who already has a team): `AppHeader` → "Join Team" → 6-char input.
 
 Both routes call `joinTeamByCode(rawCode)` in `src/hooks/useInviteFlows.js`:
@@ -66,7 +66,7 @@ The legacy `?invite=` token flow was retired (PR #117); only the durable 6-char 
 ```
 ?join=ABC234 in URL
   └─ App.tsx puts ABC234 into sessionStorage("pendingJoin")
-     and bypasses the WelcomeChooser (needsWelcomeChooser=false)
+     and bypasses the /welcome page (needsWelcomeChooser=false)
   ↓
 sign in
   ↓

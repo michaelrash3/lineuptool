@@ -95,7 +95,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RouteAlias } from "./components/RouteAlias";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
-import { PlayerProfilePage } from "./components/modals";
+import { PlayerProfilePage } from "./components/PlayerProfilePage";
 import {
   slimGame,
   scrubUndefined,
@@ -258,7 +258,7 @@ const PlayerReportPage = lazy(() =>
   })),
 );
 const StatTrendPage = lazy(() =>
-  import("./components/modals/statTrendViz").then((m) => ({
+  import("./components/statTrend/statTrendViz").then((m) => ({
     default: m.StatTrendPage,
   })),
 );
@@ -298,7 +298,7 @@ const EvalComparePage = lazy(() =>
   })),
 );
 const EvalTrendPage = lazy(() =>
-  import("./screens/evaluation/EvalTrendModal").then((m) => ({
+  import("./screens/evaluation/EvalTrendPage").then((m) => ({
     default: m.EvalTrendPage,
   })),
 );
@@ -394,7 +394,7 @@ const TryoutAddPage = lazy(() =>
 ============================================================================ */
 
 /* ============================================================================
-   SECTION 15 · PlayerProfilePage — see ./components/modals.tsx
+   SECTION 15 · PlayerProfilePage — see ./components/PlayerProfilePage.tsx
    SECTION 16 · AddPlayerPage     — see ./screens/roster/AddPlayerPage.tsx
 ============================================================================ */
 

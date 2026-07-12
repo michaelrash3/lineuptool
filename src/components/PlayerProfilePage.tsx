@@ -35,14 +35,14 @@ import {
   STATS_TAB_KEYS,
   STAT_META,
   formatStatValue,
-} from "./modals/statTrend";
+} from "./statTrend/statTrend";
 import { DevelopmentPlanCard } from "./DevelopmentPlanCard";
 
-// The chart-bearing components load lazily from ./modals/statTrendViz so this
+// The chart-bearing components load lazily from ./statTrend/statTrendViz so this
 // eager module doesn't drag the recharts chunk into the startup bundle. The
 // per-stat trend itself is a routed page (/roster/:playerId/trend/:statKey).
 const RecentMovementPanel = React.lazy(() =>
-  import("./modals/statTrendViz").then((mod) => ({
+  import("./statTrend/statTrendViz").then((mod) => ({
     default: mod.RecentMovementPanel,
   })),
 );
@@ -161,7 +161,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
   );
 });
 
-// PastSeasonImportModal became the /settings/import/past-season page —
+// Past-season imports live on the /settings/import/past-season page —
 // see screens/roster/PastSeasonImportPage.
 
 /* PastSeasonForm — used inline for Add and Edit of a single past-season entry. */
@@ -297,10 +297,11 @@ const PastSeasonForm = memo(
   },
 );
 
-/* StatTrendModal — overlays the player profile when a stat is tapped.
-   Shows a hand-rolled SVG line chart of that stat across seasons (current +
-   any past-season entries that have data for it). For pitching stats, only
-   plots seasons whose pitchingFormat === "Kid Pitch". */
+/* Stat trends — tapping a stat routes to /roster/:playerId/trend/:statKey
+   (see ./statTrend/statTrendViz), a hand-rolled SVG line chart of that stat
+   across seasons (current + any past-season entries that have data for it).
+   For pitching stats, only seasons whose pitchingFormat === "Kid Pitch"
+   are plotted. */
 // The player profile — a routed PAGE (/roster/:playerId), not a modal. Every
 // open is a plain navigation, so browser/Android back, refresh, and deep
 // links all behave like any other page.
@@ -343,7 +344,7 @@ const PlayerProfile = memo(() => {
   // player's trend charts and Recent Movement sparklines.
   const teamAverages = useMemo(() => teamStatAverages(players), [players]);
 
-  // Scroll-spy: as the user scrolls the modal body, highlight the section
+  // Scroll-spy: as the user scrolls the profile body, highlight the section
   // nav chip for whichever section is currently nearest the top.
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -405,7 +406,7 @@ const PlayerProfile = memo(() => {
       };
 
     // Look up the player record on the current roster so we can use the
-    // orphan-id-aware matcher. If the modal is open for an id that no
+    // orphan-id-aware matcher. If the profile is open for an id that no
     // longer exists on the roster (rare), fall back to a minimal stub.
     const currentPlayer = (players || []).find((p: any) => p.id === pid) || {
       id: pid,
@@ -1731,4 +1732,4 @@ export const PlayerProfilePage = memo(() => {
   );
 });
 
-// AddPlayerModal became the /roster/new page — see screens/roster/AddPlayerPage.
+// Adding a player lives on the /roster/new page — see screens/roster/AddPlayerPage.

@@ -59,7 +59,7 @@ Substantially complete for a multi-coach, cadence-driven eval workflow:
   (strong/fit/watch/younger buckets + pitcher-premium scoring),
   `InsightsPanel`, `RoundComparisonView` (two-round diff),
   `AssistantSubmissionsPanel` + `PlayerAssistantEvals` (head sees each
-  assistant's grades inline under a player), `GradeChipRow`, `EvalTrendModal`
+  assistant's grades inline under a player), `GradeChipRow`, `EvalTrendPage`
   (per-player trend across rounds).
 - **Assistant surface** (`AssistantEvalTab`) — grade the roster; see only your
   own past rounds; Submit appends via `saveAssistantEvaluation` (arrayUnion —
@@ -89,7 +89,7 @@ category sets (categories are fixed by pitching format).
 | 2   | Low        | Data hygiene    | Legacy tryout grades on `evaluationEvents` are folded into sessions on every read but never migrated off — permanent dual storage + doc bloat |
 | 3   | Low        | Correctness     | Compounding `Math.round` in tryout-grade blending                                                                                             |
 | 4   | Low        | Maintainability | `EvaluationTab.tsx` is a ~2,920-line file with 7 inline sub-components + 8 module-level helpers                                               |
-| 5   | Low        | Test coverage   | 5 of the 8 eval components are untested (RosterDecisions, Insights, RoundComparison, AssistantSubmissions, EvalTrendModal)                    |
+| 5   | Low        | Test coverage   | 5 of the 8 eval components are untested (RosterDecisions, Insights, RoundComparison, AssistantSubmissions, EvalTrendPage)                     |
 
 ### 3.1 `evaluationEvents` is not authorization-scoped — Medium
 
@@ -145,7 +145,7 @@ rounding was removed), and the function is now unit-tested.
 `EvaluationTab.tsx` is ~2,920 lines: the main component (~1,190 lines) plus 7
 `memo`'d sub-components (`RosterDecisionsPanel`, `InsightsPanel`,
 `RoundComparisonView`, `AssistantSubmissionsPanel`, `PlayerAssistantEvals`,
-`GradeChipRow`, `EvalTrendModal`) and 8 module-level helpers (`pitcherPremium`,
+`GradeChipRow`, `EvalTrendPage`) and 8 module-level helpers (`pitcherPremium`,
 `avgUniversal`, `computeFlags`, `sanitizeGrades`, `formatRoundName`,
 `DEFAULT_GRADES`, …). The sub-components have clean seams (each is `memo`'d with
 an explicit props interface), so an extraction into `screens/evaluation/*` +
@@ -158,13 +158,13 @@ subject of the split PR that follows this audit.**
 inline display, save labeling, and the two-tap overwrite. `AssistantEvalTab` was
 covered in #504. Untested: `RosterDecisionsPanel` (the bucketing + pitcher-
 premium math is the highest-value untested logic), `InsightsPanel`,
-`RoundComparisonView`, `AssistantSubmissionsPanel`, `EvalTrendModal`.
+`RoundComparisonView`, `AssistantSubmissionsPanel`, `EvalTrendPage`.
 Extracting the scoring helpers (3.4) makes them unit-testable without rendering
 the whole tab.
 
 **Resolved:** the extracted eval sub-components now have render/behavior tests
 (`screens/evaluation/panels.test.tsx`, `RosterDecisionsPanel.test.tsx`,
-`EvalTrendModal.test.tsx`) covering the four roster-decision buckets + card→trend
+`EvalTrendPage.test.tsx`) covering the four roster-decision buckets + card→trend
 wiring, the round-over-round Insights flags, the side-by-side comparison deltas,
 assistant-submission display + two-tap delete, and the trend modal's empty /
 single-eval / own-rounds-only states. The scoring math itself was unit-tested in
@@ -235,8 +235,8 @@ staff/board handout (lazy `jspdf`, mirroring `feeSheetPdf`).
 Recommended order (each an independent PR):
 
 1. **Test the eval sub-components** — cover `RosterDecisionsPanel` scoring,
-   `RoundComparisonView`, `EvalTrendModal`, plus `AvailabilityTab` and
-   `components/modals.tsx` (the last untested surfaces). Do this **before** the
+   `RoundComparisonView`, `EvalTrendPage`, plus `AvailabilityTab` and
+   `components/PlayerProfilePage.tsx` (the last untested surfaces). Do this **before** the
    split so the refactor is guarded.
 2. **Split `EvaluationTab.tsx`** (finding 3.4) — extract the 7 sub-components
    into `src/screens/evaluation/` and the scoring helpers into

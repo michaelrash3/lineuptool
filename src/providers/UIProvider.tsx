@@ -19,7 +19,7 @@ import type {
   TournamentPlan,
 } from "../types";
 
-// UIProvider extracted from App.tsx: local UI state (modals, selections,
+// UIProvider extracted from App.tsx: local UI state (selections,
 // in-game session, attendance) exposed through UIContext.
 
 const TAB_TITLE_LABELS: Record<string, string> = {

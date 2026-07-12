@@ -10,7 +10,7 @@ import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 // straight from the team's data; the coach can override per award (persisted
 // on the team as seasonAwards: { [awardId]: playerId | "__none__" }) and
 // print certificates (an in-page view mode, toggled by the footer buttons).
-// Converted from AwardsModal per the app-wide modals→pages rule.
+// A routed page per the app-wide modals→pages rule.
 
 type Kind = "int" | "dec2" | "dec3" | "pct";
 
