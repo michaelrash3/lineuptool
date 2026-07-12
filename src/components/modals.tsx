@@ -37,8 +37,6 @@ import {
   formatStatValue,
 } from "./modals/statTrend";
 import { DevelopmentPlanCard } from "./DevelopmentPlanCard";
-import { OfferLetterModal } from "./OfferLetterModal";
-import { makeOfferLetterContext } from "../utils/offerContext";
 
 // The chart-bearing components load lazily from ./modals/statTrendViz so this
 // eager module doesn't drag the recharts chunk into the startup bundle. The
@@ -376,8 +374,7 @@ const PlayerProfile = memo(() => {
   }, []);
 
   const [editingContact, setEditingContact] = useState(false);
-  const [showReturningOffer, setShowReturningOffer] = useState(false);
-  const [showNotReturning, setShowNotReturning] = useState(false);
+  // Offer letters live at /roster/:playerId/offer/:kind (routed pages).
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -568,8 +565,6 @@ const PlayerProfile = memo(() => {
     setActiveSection("general");
     setEditingContact(false);
     setEditingPlayerName(false);
-    setShowReturningOffer(false);
-    setShowNotReturning(false);
     // Real page semantics: go BACK to wherever the coach came from (roster,
     // stats, a pitching panel…) instead of pushing a fresh /roster entry —
     // pushing would leave the profile one Back-press away after closing,
@@ -1628,14 +1623,18 @@ const PlayerProfile = memo(() => {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowReturningOffer(true)}
+                  onClick={() =>
+                    navigate(`/roster/${player.id}/offer/returning`)
+                  }
                   className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Returning Offer
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowNotReturning(true)}
+                  onClick={() =>
+                    navigate(`/roster/${player.id}/offer/not-returning`)
+                  }
                   className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Not Returning
@@ -1711,27 +1710,6 @@ const PlayerProfile = memo(() => {
           </div>
         </div>
       </ProfileShell>
-      {showReturningOffer && (
-        <OfferLetterModal
-          open
-          onClose={() => setShowReturningOffer(false)}
-          kind="returning"
-          recipientEmail={player.email}
-          ctx={makeOfferLetterContext(team, user, player.name)}
-          onSaveNextSeasonMoney={(patch) =>
-            updateFinances?.({ op: "set", fields: patch })
-          }
-        />
-      )}
-      {showNotReturning && (
-        <OfferLetterModal
-          open
-          onClose={() => setShowNotReturning(false)}
-          kind="notReturning"
-          recipientEmail={player.email}
-          ctx={makeOfferLetterContext(team, user, player.name)}
-        />
-      )}
     </>
   );
 });

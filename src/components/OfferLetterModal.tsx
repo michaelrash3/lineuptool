@@ -11,9 +11,7 @@ import {
   type OfferLetterContext,
 } from "../constants/offerLetters";
 
-interface OfferLetterModalProps {
-  open: boolean;
-  onClose: () => void;
+export interface OfferLetterViewProps {
   kind: OfferLetterKind;
   ctx: OfferLetterContext;
   // Family email for the optional "Open in email" link (mailto:). When absent
@@ -29,17 +27,18 @@ interface OfferLetterModalProps {
 }
 
 // Read-only draft of a recruiting letter the coach copies (or opens pre-filled
-// in their own mail app). The app deliberately does NOT send it.
-export const OfferLetterModal = memo(
+// in their own mail app). The app deliberately does NOT send it. Chrome-
+// agnostic: the routed offer pages (screens/OfferLetterPages) wrap this in
+// PageShell; the Advance Season wizard still hosts it in a Modal so the
+// wizard's own state survives writing an offer mid-flow.
+export const OfferLetterView = memo(
   ({
-    open,
-    onClose,
     kind,
     ctx,
     recipientEmail,
     onDelivered,
     onSaveNextSeasonMoney,
-  }: OfferLetterModalProps) => {
+  }: OfferLetterViewProps) => {
     const [depositInput, setDepositInput] = useState("");
     const [dueDateInput, setDueDateInput] = useState("");
     const toast = useToast();
@@ -94,120 +93,129 @@ export const OfferLetterModal = memo(
     };
 
     return (
-      <Modal
-        open={open}
-        onClose={onClose}
-        eyebrow="Recruiting draft"
-        title={OFFER_LETTER_LABELS[kind]}
-        size="lg"
-        footer={
-          <div className="flex items-center justify-end gap-2">
-            {recipientEmail && (
-              <button
-                type="button"
-                onClick={openEmail}
-                className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
-              >
-                <Icons.Forward className="w-4 h-4" /> Open in email
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={copy}
-              className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
-              style={{ backgroundColor: "var(--team-primary)" }}
-            >
-              <Icons.Clipboard className="w-4 h-4" /> Copy draft
-            </button>
-          </div>
-        }
-      >
-        <div className="space-y-3">
-          {missingMoney && (
-            <div className="space-y-2 text-xs font-bold text-warnfg bg-warn-bg border border-line rounded-lg px-3 py-2">
-              <p>
-                Set next season&apos;s team fee, deposit, and deposit due date
-                in the Budget Planner so the offer fills in automatically.
-              </p>
-              {onSaveNextSeasonMoney &&
-                (!ctx.deposit || !ctx.depositDueDate) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                    {!ctx.deposit && (
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-widest">
-                          Deposit
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={depositInput}
-                          onChange={(e) => setDepositInput(e.target.value)}
-                          aria-label="Next season deposit amount"
-                          className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-                        />
-                      </label>
-                    )}
-                    {!ctx.depositDueDate && (
-                      <label className="flex flex-col gap-1">
-                        <span className="text-[10px] uppercase tracking-widest">
-                          Due date
-                        </span>
-                        <input
-                          type="date"
-                          value={dueDateInput}
-                          onChange={(e) => setDueDateInput(e.target.value)}
-                          aria-label="Next season deposit due date"
-                          className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
-                        />
-                      </label>
-                    )}
-                    <button
-                      type="button"
-                      onClick={saveNextSeasonMoney}
-                      className="px-3 py-2 rounded-lg text-white bg-ink font-black uppercase tracking-widest text-[10px]"
-                    >
-                      Save
-                    </button>
-                  </div>
+      <div className="space-y-3">
+        {missingMoney && (
+          <div className="space-y-2 text-xs font-bold text-warnfg bg-warn-bg border border-line rounded-lg px-3 py-2">
+            <p>
+              Set next season&apos;s team fee, deposit, and deposit due date in
+              the Budget Planner so the offer fills in automatically.
+            </p>
+            {onSaveNextSeasonMoney && (!ctx.deposit || !ctx.depositDueDate) && (
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                {!ctx.deposit && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-widest">
+                      Deposit
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={depositInput}
+                      onChange={(e) => setDepositInput(e.target.value)}
+                      aria-label="Next season deposit amount"
+                      className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                    />
+                  </label>
                 )}
-            </div>
-          )}
-          <div>
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1">
-              Subject
-            </div>
-            <div className="text-sm font-bold text-ink bg-surface-2 border border-line rounded-lg px-3 py-2">
-              {draft.subject}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1">
-              Message
-            </div>
-            <textarea
-              readOnly
-              value={draft.body}
-              rows={16}
-              aria-label="Offer letter draft"
-              onFocus={(e) => e.currentTarget.select()}
-              className="w-full p-3 text-sm bg-surface text-ink border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] resize-y leading-relaxed"
-            />
-            {ctx.venmoLink && draft.body.includes(ctx.venmoLink) && (
-              <div className="mt-2 text-xs font-bold text-ink-2 bg-surface-2 border border-line rounded-lg px-3 py-2">
-                Venmo link:{" "}
-                <a
-                  href={ctx.venmoLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-team-primary underline underline-offset-2"
+                {!ctx.depositDueDate && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[10px] uppercase tracking-widest">
+                      Due date
+                    </span>
+                    <input
+                      type="date"
+                      value={dueDateInput}
+                      onChange={(e) => setDueDateInput(e.target.value)}
+                      aria-label="Next season deposit due date"
+                      className="px-3 py-2 rounded-lg border border-line bg-surface text-ink outline-none focus:ring-2 focus:ring-[var(--team-primary)]"
+                    />
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={saveNextSeasonMoney}
+                  className="px-3 py-2 rounded-lg text-white bg-ink font-black uppercase tracking-widest text-[10px]"
                 >
-                  {ctx.venmoLink}
-                </a>
+                  Save
+                </button>
               </div>
             )}
           </div>
+        )}
+        <div>
+          <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1">
+            Subject
+          </div>
+          <div className="text-sm font-bold text-ink bg-surface-2 border border-line rounded-lg px-3 py-2">
+            {draft.subject}
+          </div>
         </div>
-      </Modal>
+        <div>
+          <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1">
+            Message
+          </div>
+          <textarea
+            readOnly
+            value={draft.body}
+            rows={16}
+            aria-label="Offer letter draft"
+            onFocus={(e) => e.currentTarget.select()}
+            className="w-full p-3 text-sm bg-surface text-ink border border-line rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] resize-y leading-relaxed"
+          />
+          {ctx.venmoLink && draft.body.includes(ctx.venmoLink) && (
+            <div className="mt-2 text-xs font-bold text-ink-2 bg-surface-2 border border-line rounded-lg px-3 py-2">
+              Venmo link:{" "}
+              <a
+                href={ctx.venmoLink}
+                target="_blank"
+                rel="noreferrer"
+                className="text-team-primary underline underline-offset-2"
+              >
+                {ctx.venmoLink}
+              </a>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center justify-end gap-2 pt-1">
+          {recipientEmail && (
+            <button
+              type="button"
+              onClick={openEmail}
+              className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Icons.Forward className="w-4 h-4" /> Open in email
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={copy}
+            className="px-4 py-2 text-xs font-black uppercase tracking-widest text-white rounded-lg shadow-md inline-flex items-center gap-1.5"
+            style={{ backgroundColor: "var(--team-primary)" }}
+          >
+            <Icons.Clipboard className="w-4 h-4" /> Copy draft
+          </button>
+        </div>
+      </div>
     );
   },
+);
+
+// The Modal-hosted variant. Only the Advance Season wizard still uses this —
+// navigating away to a page there would drop the wizard's marking state.
+export const OfferLetterModal = memo(
+  ({
+    open,
+    onClose,
+    ...viewProps
+  }: OfferLetterViewProps & { open: boolean; onClose: () => void }) => (
+    <Modal
+      open={open}
+      onClose={onClose}
+      eyebrow="Recruiting draft"
+      title={OFFER_LETTER_LABELS[viewProps.kind]}
+      size="lg"
+    >
+      <OfferLetterView {...viewProps} />
+    </Modal>
+  ),
 );

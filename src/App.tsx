@@ -266,6 +266,21 @@ const PastSeasonImportPage = lazy(() =>
     default: m.PastSeasonImportPage,
   })),
 );
+const RosterOfferPage = lazy(() =>
+  import("./screens/OfferLetterPages").then((m) => ({
+    default: m.RosterOfferPage,
+  })),
+);
+const TryoutOfferPage = lazy(() =>
+  import("./screens/OfferLetterPages").then((m) => ({
+    default: m.TryoutOfferPage,
+  })),
+);
+const InterestOfferPage = lazy(() =>
+  import("./screens/OfferLetterPages").then((m) => ({
+    default: m.InterestOfferPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -818,6 +833,30 @@ const MainShell = () => {
                 <Route
                   path="/roster/:playerId/trend/:statKey"
                   element={<StatTrendPage />}
+                />
+                <Route
+                  path="/roster/:playerId/offer/:kind"
+                  element={<RosterOfferPage />}
+                />
+                <Route
+                  path="/tryouts/offer/:signupId/:kind"
+                  element={
+                    featureOff("tryouts") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <TryoutOfferPage />
+                    )
+                  }
+                />
+                <Route
+                  path="/interest/offer/:leadId"
+                  element={
+                    isAssistant || featureOff("interest") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <InterestOfferPage />
+                    )
+                  }
                 />
                 <Route
                   path="/depth-chart"
