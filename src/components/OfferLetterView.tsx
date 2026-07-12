@@ -1,12 +1,10 @@
 import React, { memo, useMemo, useState } from "react";
-import { Modal } from "./shared";
 import { Icons } from "../icons";
 import { useToast } from "../contexts";
 import { buildMailtoUrl } from "../utils/reminderDraft";
 import { parseMoneyInput } from "../utils/helpers";
 import {
   buildOfferLetter,
-  OFFER_LETTER_LABELS,
   type OfferLetterKind,
   type OfferLetterContext,
 } from "../constants/offerLetters";
@@ -29,8 +27,8 @@ export interface OfferLetterViewProps {
 // Read-only draft of a recruiting letter the coach copies (or opens pre-filled
 // in their own mail app). The app deliberately does NOT send it. Chrome-
 // agnostic: the routed offer pages (screens/OfferLetterPages) wrap this in
-// PageShell; the Advance Season wizard still hosts it in a Modal so the
-// wizard's own state survives writing an offer mid-flow.
+// PageShell, and the Advance Season page hosts it inline as a sub-view so the
+// wizard's own marking state survives writing an offer mid-flow.
 export const OfferLetterView = memo(
   ({
     kind,
@@ -198,24 +196,4 @@ export const OfferLetterView = memo(
       </div>
     );
   },
-);
-
-// The Modal-hosted variant. Only the Advance Season wizard still uses this —
-// navigating away to a page there would drop the wizard's marking state.
-export const OfferLetterModal = memo(
-  ({
-    open,
-    onClose,
-    ...viewProps
-  }: OfferLetterViewProps & { open: boolean; onClose: () => void }) => (
-    <Modal
-      open={open}
-      onClose={onClose}
-      eyebrow="Recruiting draft"
-      title={OFFER_LETTER_LABELS[viewProps.kind]}
-      size="lg"
-    >
-      <OfferLetterView {...viewProps} />
-    </Modal>
-  ),
 );

@@ -3,7 +3,7 @@ import { Navigate, useParams } from "react-router-dom";
 import { useTeam } from "../contexts";
 import { PageShell } from "../components/PageShell";
 import { useBackOrFallback } from "../hooks/usePageNav";
-import { OfferLetterView } from "../components/OfferLetterModal";
+import { OfferLetterView } from "../components/OfferLetterView";
 import { makeOfferLetterContext } from "../utils/offerContext";
 import {
   OFFER_LETTER_LABELS,
@@ -11,7 +11,7 @@ import {
 } from "../constants/offerLetters";
 
 // Routed offer-letter drafts — one page per audience, converted from the
-// OfferLetterModal overlays per the app-wide modals→pages rule. All three
+// offer-letter modal overlays per the app-wide modals→pages rule. All three
 // are head-coach surfaces (they quote money and family contact info).
 
 // URL slug → letter kind. Slugs stay kebab-case in the address bar.

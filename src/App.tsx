@@ -311,6 +311,16 @@ const PracticeAttendanceReportPage = lazy(() =>
     default: m.PracticeAttendanceReportPage,
   })),
 );
+const AdvanceSeasonPage = lazy(() =>
+  import("./screens/settings/AdvanceSeasonPage").then((m) => ({
+    default: m.AdvanceSeasonPage,
+  })),
+);
+const LogoColorPage = lazy(() =>
+  import("./screens/settings/LogoColorPage").then((m) => ({
+    default: m.LogoColorPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -1019,6 +1029,26 @@ const MainShell = () => {
                   path="/settings"
                   element={
                     isAssistant ? <Navigate to="/" replace /> : <SettingsTab />
+                  }
+                />
+                <Route
+                  path="/settings/advance-season"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <AdvanceSeasonPage />
+                    )
+                  }
+                />
+                <Route
+                  path="/settings/logo-colors"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <LogoColorPage />
+                    )
                   }
                 />
                 {/* In-Game renders standalone (no SharedModals scrim) below; the

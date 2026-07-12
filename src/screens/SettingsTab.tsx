@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
@@ -7,7 +7,7 @@ import {
   suggestPlayerMatch,
   buildScheduleIcs,
 } from "../utils/helpers";
-import { computeNextSeason, leagueRuleSetLabel } from "../constants/ui";
+import { leagueRuleSetLabel } from "../constants/ui";
 import {
   TOGGLEABLE_FEATURES,
   featureEnabled,
@@ -16,8 +16,6 @@ import {
 import { useTeam, useUI, useToast } from "../contexts";
 import { auth } from "../firebase";
 import { signOut } from "firebase/auth";
-import { AdvanceSeasonModal } from "../components/AdvanceSeasonModal";
-import { LogoColorModal } from "../components/LogoColorModal";
 import { A11yDialog, extractLogoPalette } from "../components/shared";
 import {
   StorageUsagePanel,
@@ -558,12 +556,8 @@ export const SettingsTab = memo(() => {
     user,
     activeTeamId,
     updateTeam,
-    updateFinances,
-    advanceSeason,
     exportRosterCsv,
     exportNewPlayersCsv,
-    setPlayerStatus,
-    setPlayerReturning,
     generateTryoutShareId,
     setTryoutsOpen,
     completeTryouts,
@@ -612,46 +606,34 @@ export const SettingsTab = memo(() => {
   const [settingsMenu, setSettingsMenu] = useState("team");
   // Mobile drill-in: false = show the category list, true = show the panel.
   const [mobilePanel, setMobilePanel] = useState(false);
-  const [advanceSeasonOpen, setAdvanceSeasonOpen] = useState(false);
-  // Colors pulled from the logo, surfaced in LogoColorModal so the coach can
-  // assign them to Primary / Secondary / Tertiary.
-  const [logoColors, setLogoColors] = useState<{
-    open: boolean;
-    palette: string[];
-  }>({ open: false, palette: [] });
-
   // Wrap the existing uploadLogo: keep all its size-limit guards, then pull
-  // the logo's dominant colors and (if any) open the color-assignment modal.
-  // Extraction failures must never block the upload — extractLogoPalette
-  // resolves to [] rather than throwing.
+  // the logo's dominant colors and (if any) hand them to the
+  // /settings/logo-colors page via navigation state so the coach can assign
+  // them to Primary / Secondary / Tertiary. Extraction failures must never
+  // block the upload — extractLogoPalette resolves to [] rather than
+  // throwing.
   const handleLogoUpload = useCallback(
     (e: any) => {
       uploadLogo(e);
       const file = e.target.files?.[0];
       if (!file) return;
       extractLogoPalette(file).then((palette) => {
-        if (palette.length > 0) setLogoColors({ open: true, palette });
+        if (palette.length > 0)
+          navigate("/settings/logo-colors", { state: { palette } });
       });
     },
-    [uploadLogo],
+    [uploadLogo, navigate],
   );
 
-  // Re-run extraction on the already-saved logo for the manual trigger.
+  // Re-run extraction on the already-saved logo for the manual trigger. An
+  // empty palette still navigates — the page explains extraction found
+  // nothing distinct.
   const pullColorsFromLogo = useCallback(() => {
     if (!logoUrl) return;
     extractLogoPalette(logoUrl).then((palette) => {
-      setLogoColors({ open: true, palette });
+      navigate("/settings/logo-colors", { state: { palette } });
     });
-  }, [logoUrl]);
-
-  // Pre-compute the next-season label so the modal header can render
-  // it without the user pressing the button first. computeNextSeason
-  // returns null when the current label can't be parsed (e.g. blank),
-  // which the modal renders as "Next Season".
-  const nextSeasonLabel = useMemo(() => {
-    const next = computeNextSeason(team?.currentSeason);
-    return next?.nextSeason || "Next Season";
-  }, [team?.currentSeason]);
+  }, [logoUrl, navigate]);
   const settingsMenuItems = [
     { id: "team", label: "Team", icon: Icons.Settings },
     { id: "features", label: "Features", icon: Icons.Sparkles },
@@ -1304,7 +1286,7 @@ export const SettingsTab = memo(() => {
                       </div>
                       <div className="flex items-end">
                         <button
-                          onClick={() => setAdvanceSeasonOpen(true)}
+                          onClick={() => navigate("/settings/advance-season")}
                           className="p-3 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-transform hover:-translate-y-0.5 w-full sm:w-auto h-[46px] rounded-xl shadow-md"
                           style={{
                             backgroundColor: "var(--team-primary)",
@@ -1580,41 +1562,6 @@ export const SettingsTab = memo(() => {
           </div>
         </div>
       </div>
-
-      <AdvanceSeasonModal
-        open={advanceSeasonOpen}
-        players={team.players || []}
-        tryoutSignups={team.tryoutSignups || []}
-        currentSeason={team.currentSeason}
-        nextSeasonLabel={nextSeasonLabel}
-        team={team}
-        user={user}
-        updateFinances={updateFinances}
-        setPlayerStatus={setPlayerStatus}
-        setPlayerReturning={setPlayerReturning}
-        onClose={() => setAdvanceSeasonOpen(false)}
-        onConfirm={({
-          tryoutsToPromote = [],
-          tryoutDepositPayments = {},
-        } = {}) => {
-          setAdvanceSeasonOpen(false);
-          advanceSeason({
-            skipConfirm: true,
-            tryoutsToPromote,
-            tryoutDepositPayments,
-          });
-        }}
-      />
-
-      {/* Suggest team colors pulled from the uploaded logo */}
-      <LogoColorModal
-        open={logoColors.open}
-        onClose={() => setLogoColors((p) => ({ ...p, open: false }))}
-        logoUrl={logoUrl}
-        palette={logoColors.palette}
-        current={{ primaryColor, secondaryColor, tertiaryColor }}
-        onApply={(colors) => updateTeam(colors)}
-      />
     </div>
   );
 });

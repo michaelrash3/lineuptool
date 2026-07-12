@@ -1750,10 +1750,10 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         `\n\n` +
         `This cannot be undone.`;
 
-      // The AdvanceSeasonModal already walked the head through every
+      // The Advance Season page already walked the head through every
       // marking and showed a full summary, so the confirm here is a
       // duplicate gate when the call came from the wizard. Direct
-      // callers (anywhere besides the modal) still see the confirm
+      // callers (anywhere besides that page) still see the confirm
       // dialog.
       if (!skipConfirm) {
         const ok = await confirm({

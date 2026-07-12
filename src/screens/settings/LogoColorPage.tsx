@@ -1,13 +1,19 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
-import { Modal, Button } from "./shared";
+import React, { memo, useState } from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useTeam } from "../../contexts";
+import { PageShell } from "../../components/PageShell";
+import { useBackOrFallback } from "../../hooks/usePageNav";
+import { Button } from "../../components/shared";
 
-// After a coach uploads a logo we extract its dominant colors (see
-// extractLogoPalette in shared.tsx) and open this modal so they can say
-// which of those colors should be the team's Primary, Secondary, and
-// Tertiary. It pre-fills the top three extracted colors and lets the coach
-// reassign any role by tapping a swatch, with a live preview of the combo.
-// Manual hex editing still lives in the TeamColorPicker on the Settings
-// page — this is the quick "match my logo" path, not a replacement.
+// /settings/logo-colors — after a coach uploads a logo we extract its
+// dominant colors (see extractLogoPalette in shared.tsx) and Settings
+// navigates here so they can say which of those colors should be the team's
+// Primary, Secondary, and Tertiary. Converted from LogoColorModal per the
+// app-wide modals→pages rule. The palette travels via navigation state (it's
+// ephemeral extraction output, not addressable data), so a refresh or cold
+// deep link bounces back to Settings where the upload lives. Manual hex
+// editing still lives in the TeamColorPicker on the Settings page — this is
+// the quick "match my logo" path, not a replacement.
 
 type RoleColors = {
   primaryColor: string;
@@ -32,76 +38,55 @@ const seedAssignments = (
   tertiaryColor: palette[2] || current.tertiaryColor,
 });
 
-export const LogoColorModal = memo(
-  ({
-    open,
-    onClose,
-    logoUrl,
-    palette = [],
-    current,
-    onApply,
-  }: {
-    open: boolean;
-    onClose: () => void;
-    logoUrl?: string;
-    palette?: string[];
-    current: RoleColors;
-    onApply: (colors: RoleColors) => void;
-  }) => {
-    const [assignments, setAssignments] = useState<RoleColors>(() =>
-      seedAssignments(palette, current),
-    );
+export const LogoColorPage = memo(() => {
+  const { team, currentRole, updateTeam } = useTeam();
+  const location = useLocation();
+  const back = useBackOrFallback("/settings");
+  const payload = (location.state || null) as { palette?: string[] } | null;
+  const palette =
+    payload && Array.isArray(payload.palette) ? payload.palette : null;
 
-    // Re-seed whenever the modal opens with a fresh palette (a new logo or a
-    // manual "Pull colors" re-run) so stale picks don't linger.
-    useEffect(() => {
-      if (open) setAssignments(seedAssignments(palette, current));
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, palette]);
+  const { primaryColor, secondaryColor, tertiaryColor, logoUrl } = team;
+  const [assignments, setAssignments] = useState<RoleColors>(() =>
+    seedAssignments(palette || [], {
+      primaryColor,
+      secondaryColor,
+      tertiaryColor,
+    }),
+  );
 
-    const hasPalette = palette.length > 0;
+  // No payload = refresh / cold deep link; the extraction output is gone, so
+  // bounce back to Settings where the logo upload and "Pull colors" live.
+  if (!palette) {
+    return <Navigate to="/settings" replace />;
+  }
+  if (currentRole === "assistant") {
+    return <Navigate to="/" replace />;
+  }
 
-    const setRole = (key: keyof RoleColors, color: string) =>
-      setAssignments((prev) => ({ ...prev, [key]: color }));
+  // An empty palette is still a real arrival: the manual "Pull colors"
+  // trigger navigates here even when extraction found nothing distinct.
+  const hasPalette = palette.length > 0;
 
-    const footer = useMemo(
-      () =>
-        hasPalette ? (
-          <>
-            <Button variant="secondary" onClick={onClose}>
-              Skip
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                onApply(assignments);
-                onClose();
-              }}
-            >
-              Apply colors
-            </Button>
-          </>
-        ) : (
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
-        ),
-      [hasPalette, assignments, onApply, onClose],
-    );
+  const setRole = (key: keyof RoleColors, color: string) =>
+    setAssignments((prev) => ({ ...prev, [key]: color }));
 
-    return (
-      <Modal
-        open={open}
-        onClose={onClose}
-        eyebrow="Team Branding"
-        title="Set colors from your logo"
-        size="md"
-        footer={footer}
-      >
+  const apply = () => {
+    updateTeam(assignments);
+    back();
+  };
+
+  return (
+    <PageShell
+      eyebrow="Team Branding"
+      title="Set colors from your logo"
+      onBack={back}
+    >
+      <div className="cc-card p-5">
         {!hasPalette ? (
-          <p className="leading-relaxed">
+          <p className="t-body leading-relaxed">
             We couldn't read distinct colors from this logo. You can set your
-            team colors manually with the color pickers below.
+            team colors manually with the color pickers on the Settings page.
           </p>
         ) : (
           <div className="space-y-5">
@@ -191,7 +176,24 @@ export const LogoColorModal = memo(
             </div>
           </div>
         )}
-      </Modal>
-    );
-  },
-);
+
+        <div className="mt-5 flex justify-end gap-2">
+          {hasPalette ? (
+            <>
+              <Button variant="secondary" onClick={back}>
+                Skip
+              </Button>
+              <Button variant="primary" onClick={apply}>
+                Apply colors
+              </Button>
+            </>
+          ) : (
+            <Button variant="secondary" onClick={back}>
+              Close
+            </Button>
+          )}
+        </div>
+      </div>
+    </PageShell>
+  );
+});
