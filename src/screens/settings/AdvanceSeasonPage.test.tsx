@@ -115,6 +115,32 @@ describe("AdvanceSeasonPage", () => {
     expect(screen.getByText("2 of 2 selected")).toBeInTheDocument();
   });
 
+  it("buckets a declined player as not returning, matching advanceSeason", () => {
+    // Regression: the wizard previously read only playerStatus==="released",
+    // so a "declined" player DISPLAYED as returning while the actual season
+    // advance (isReturning) dropped them.
+    const { setPlayerReturning } = renderPage({
+      team: {
+        currentSeason: "Spring 2026",
+        players: [
+          { id: "p1", name: "Ava", returning: true },
+          { id: "pd", name: "Dee", playerStatus: "declined" },
+        ],
+        tryoutSignups: [],
+      },
+    });
+    expect(screen.getByText("1 yes · 1 no · 0 tryout")).toBeInTheDocument();
+    const deeGroup = screen.getByRole("group", {
+      name: "Dee returning next season",
+    });
+    expect(
+      within(deeGroup).getByRole("button", { name: "No" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // All Yes flips Dee through the boolean writer.
+    fireEvent.click(screen.getByRole("button", { name: "All Yes" }));
+    expect(setPlayerReturning).toHaveBeenCalledWith("pd", true);
+  });
+
   it("redirects assistants home", () => {
     renderPage({ currentRole: "assistant" });
     expect(screen.getByText("HOME")).toBeInTheDocument();

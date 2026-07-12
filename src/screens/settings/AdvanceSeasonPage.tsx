@@ -9,6 +9,7 @@ import { OfferLetterView } from "../../components/OfferLetterView";
 import { makeOfferLetterContext } from "../../utils/offerContext";
 import { OFFER_LETTER_LABELS } from "../../constants/offerLetters";
 import { computeNextSeason } from "../../constants/ui";
+import { isReturning } from "../../utils/season";
 
 // /settings/advance-season — the two-step "Advance to next season" wizard as
 // a routed page per the app-wide modals→pages rule. The head marks every
@@ -31,17 +32,13 @@ const STATUS_ACCEPTED = "accepted";
 
 const isAccepted = (p: any) => p?.playerStatus === STATUS_ACCEPTED;
 
-// Resolve the player's Returning Y/N answer with the same fallback
-// logic as isReturning() in helpers — the explicit `returning` boolean
-// wins, then legacy playerStatus. Yields STATUS_RETURNING /
-// STATUS_RELEASED / STATUS_ACCEPTED for downstream bucket counting.
+// Bucket a player for the wizard: accepted tryouts are locked in, then the
+// canonical isReturning() answers Yes/No — the same helper advanceSeason()
+// itself uses, so what the wizard SHOWS always matches what the advance
+// DOES (notably: a "declined" player buckets as No, not Yes).
 const effectiveStatus = (p: any) => {
   if (isAccepted(p)) return STATUS_ACCEPTED;
-  if (p?.returning === false) return STATUS_RELEASED;
-  if (p?.returning === true) return STATUS_RETURNING;
-  return p?.playerStatus === STATUS_RELEASED
-    ? STATUS_RELEASED
-    : STATUS_RETURNING;
+  return isReturning(p) ? STATUS_RETURNING : STATUS_RELEASED;
 };
 
 export const AdvanceSeasonPage = memo(() => {
