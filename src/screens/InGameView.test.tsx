@@ -253,4 +253,39 @@ describe("InGameView", () => {
     expect(removePlayerMidGame).toHaveBeenCalled();
     expect(setPlayerHealth).not.toHaveBeenCalled();
   });
+
+  it("shows the run-diff cap advisory once a tournament pool lead hits the cap", () => {
+    const game = makeGame({
+      gameType: "pool",
+      teamScore: 10,
+      opponentScore: 1,
+    });
+    renderInGame({
+      game,
+      team: {
+        tournaments: [{ id: "t1", name: "Bash", gameIds: ["g1"] }],
+      },
+    });
+    expect(
+      screen.getByText(/margin past \+8 doesn't count/i),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the advisory quiet under the cap and outside a stored tournament", () => {
+    renderInGame({
+      game: makeGame({ gameType: "pool", teamScore: 6, opponentScore: 1 }),
+      team: { tournaments: [{ id: "t1", name: "Bash", gameIds: ["g1"] }] },
+    });
+    expect(
+      screen.queryByText(/doesn't count for tiebreakers/i),
+    ).not.toBeInTheDocument();
+
+    // Same blowout, but the game isn't claimed by any tournament.
+    renderInGame({
+      game: makeGame({ gameType: "pool", teamScore: 10, opponentScore: 1 }),
+    });
+    expect(
+      screen.queryByText(/doesn't count for tiebreakers/i),
+    ).not.toBeInTheDocument();
+  });
 });

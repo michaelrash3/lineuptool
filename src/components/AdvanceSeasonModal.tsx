@@ -213,8 +213,9 @@ export const AdvanceSeasonModal = memo(
                   deposit). Accepted tryouts are pre-checked below and ride into
                   the new roster. The schedule, tournament pitch plans, and
                   injury statuses reset with the season; achieved goals are
-                  archived to each player&apos;s history, and focus areas plus
-                  any still-active goals carry forward.
+                  archived to each player&apos;s history, focus areas plus any
+                  still-active goals carry forward, and this season&apos;s
+                  results are archived per opponent for head-to-head history.
                 </p>
               </div>
               {!busy && (
