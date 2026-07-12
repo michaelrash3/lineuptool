@@ -100,3 +100,45 @@ describe("useMainShellRouting — feature switches", () => {
     expect(setActiveTab).not.toHaveBeenCalledWith("home");
   });
 });
+
+describe("useMainShellRouting — standalone (non-tab) pages", () => {
+  it("maps hyphenated tab segments through the derived map", () => {
+    const setActiveTab = jest.fn();
+    renderHook(() =>
+      useMainShellRouting(
+        baseArgs({ setActiveTab, location: { pathname: "/depth-chart" } }),
+      ),
+    );
+    expect(setActiveTab).toHaveBeenCalledWith("depthChart");
+  });
+
+  it("yields a phantom id for a standalone page without feature-bouncing it", () => {
+    const setActiveTab = jest.fn();
+    renderHook(() =>
+      useMainShellRouting(
+        baseArgs({
+          activeTab: "season-report",
+          setActiveTab,
+          // Every feature off — a phantom id must still never bounce home.
+          disabledFeatures: ["stats", "practices", "tryouts", "finances"],
+          location: { pathname: "/season-report" },
+        }),
+      ),
+    );
+    expect(setActiveTab).not.toHaveBeenCalledWith("home");
+  });
+
+  it("never navigates away from a standalone page (phantom id has no tab path)", () => {
+    const navigate = jest.fn();
+    renderHook(() =>
+      useMainShellRouting(
+        baseArgs({
+          activeTab: "help",
+          navigate,
+          location: { pathname: "/help/lineup-generator" },
+        }),
+      ),
+    );
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});

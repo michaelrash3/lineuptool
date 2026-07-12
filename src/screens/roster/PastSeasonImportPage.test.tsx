@@ -24,13 +24,13 @@ const renderPage = (state: any = payload, ctxOver: any = {}) => {
   const bulkAddPastSeasons = jest.fn();
   const utils = renderWithProviders(
     <MemoryRouter
-      initialEntries={[{ pathname: "/roster/import/past-season", state }]}
+      initialEntries={[{ pathname: "/settings/import/past-season", state }]}
     >
       <Routes>
+        <Route path="/" element={<div>HOME</div>} />
         <Route path="/settings" element={<div>SETTINGS PAGE</div>} />
-        <Route path="/roster" element={<div>ROSTER LIST</div>} />
         <Route
-          path="/roster/import/past-season"
+          path="/settings/import/past-season"
           element={<PastSeasonImportPage />}
         />
       </Routes>
@@ -97,8 +97,8 @@ describe("PastSeasonImportPage", () => {
     expect(screen.getByText("SETTINGS PAGE")).toBeInTheDocument();
   });
 
-  it("redirects assistants to the roster", () => {
+  it("redirects assistants home, like the rest of /settings", () => {
     renderPage(payload, { currentRole: "assistant" });
-    expect(screen.getByText("ROSTER LIST")).toBeInTheDocument();
+    expect(screen.getByText("HOME")).toBeInTheDocument();
   });
 });

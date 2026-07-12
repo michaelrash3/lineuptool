@@ -19,14 +19,25 @@ export const TAB_TO_PATH: Record<string, string> = {
   settings: "/settings",
 };
 
+// First URL segment → tab id, derived from TAB_TO_PATH so the two maps can
+// never drift (e.g. depth-chart → depthChart, player-info → playerInfo).
+const SEGMENT_TO_TAB: Record<string, string> = Object.fromEntries(
+  Object.entries(TAB_TO_PATH).map(([tab, path]) => [
+    path.split("/")[1] || "",
+    tab,
+  ]),
+);
+
 const pathToTab = (pathname: string): string => {
-  if (!pathname || pathname === "/") return "home";
   const first = pathname.split("/").filter(Boolean)[0];
+  if (!first) return "home";
+  // The live game is schedule work — it rides the schedule tab.
   if (first === "in-game") return "schedule";
-  if (first === "depth-chart") return "depthChart";
-  if (first === "player-info") return "playerInfo";
-  if (first === "availability") return "availability";
-  return first || "home";
+  // Standalone pages with no tab of their own (/help, /season-report,
+  // /awards, /welcome, …) yield their segment as a PHANTOM tab id: it
+  // matches no nav button (nothing highlights) and the effects below
+  // explicitly skip non-tab ids rather than forcing a navigation.
+  return SEGMENT_TO_TAB[first] || first;
 };
 
 interface UseMainShellRoutingArgs {
@@ -99,9 +110,13 @@ export const useMainShellRouting = ({
   }, [isAssistant, activeTab, setActiveTab]);
 
   // A tab whose feature was switched off (or a direct URL into one) bounces
-  // home — the same treatment as the assistant gate above.
+  // home — the same treatment as the assistant gate above. Phantom ids from
+  // standalone pages are not tabs and are never feature-bounced; without this
+  // guard they'd only survive because featureEnabled happens to pass unknown
+  // ids today.
   useEffect(() => {
     if (activeTab === "home") return;
+    if (!(activeTab in TAB_TO_PATH)) return;
     if (!featureEnabled({ disabledFeatures }, activeTab)) setActiveTab("home");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, (disabledFeatures || []).join(","), setActiveTab]);
@@ -114,6 +129,8 @@ export const useMainShellRouting = ({
 
   useEffect(() => {
     if (location.pathname.startsWith("/in-game/")) return;
+    // Phantom ids have no path — the URL already IS the page; never yank the
+    // user off a standalone route.
     const target = TAB_TO_PATH[activeTab];
     if (target == null) return;
     const path = target || "/";

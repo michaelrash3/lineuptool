@@ -92,6 +92,7 @@ import {
 import { CommandPalette } from "./components/CommandPalette";
 import { WelcomePage } from "./screens/WelcomePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { RouteAlias } from "./components/RouteAlias";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
 import { PlayerProfilePage } from "./components/modals";
@@ -266,19 +267,19 @@ const PastSeasonImportPage = lazy(() =>
     default: m.PastSeasonImportPage,
   })),
 );
-const RosterOfferPage = lazy(() =>
-  import("./screens/OfferLetterPages").then((m) => ({
-    default: m.RosterOfferPage,
+const RosterLetterPage = lazy(() =>
+  import("./screens/LetterPages").then((m) => ({
+    default: m.RosterLetterPage,
   })),
 );
-const TryoutOfferPage = lazy(() =>
-  import("./screens/OfferLetterPages").then((m) => ({
-    default: m.TryoutOfferPage,
+const TryoutLetterPage = lazy(() =>
+  import("./screens/LetterPages").then((m) => ({
+    default: m.TryoutLetterPage,
   })),
 );
-const InterestOfferPage = lazy(() =>
-  import("./screens/OfferLetterPages").then((m) => ({
-    default: m.InterestOfferPage,
+const InterestLetterPage = lazy(() =>
+  import("./screens/LetterPages").then((m) => ({
+    default: m.InterestLetterPage,
   })),
 );
 const GameFinalizePage = lazy(() =>
@@ -886,9 +887,14 @@ const MainShell = () => {
                 />
                 <Route path="/roster" element={<RosterTab />} />
                 <Route path="/roster/new" element={<AddPlayerPage />} />
+                {/* Legacy alias: the import review moved to
+                    /settings/import/past-season (the flow starts and ends in
+                    Settings → Imports). */}
                 <Route
                   path="/roster/import/past-season"
-                  element={<PastSeasonImportPage />}
+                  element={
+                    <RouteAlias to={() => "/settings/import/past-season"} />
+                  }
                 />
                 <Route
                   path="/roster/:playerId"
@@ -903,27 +909,52 @@ const MainShell = () => {
                   element={<StatTrendPage />}
                 />
                 <Route
-                  path="/roster/:playerId/offer/:kind"
-                  element={<RosterOfferPage />}
+                  path="/roster/:playerId/letter/:kind"
+                  element={<RosterLetterPage />}
                 />
                 <Route
-                  path="/tryouts/offer/:signupId/:kind"
+                  path="/tryouts/letter/:signupId/:kind"
                   element={
                     featureOff("tryouts") ? (
                       <Navigate to="/" replace />
                     ) : (
-                      <TryoutOfferPage />
+                      <TryoutLetterPage />
                     )
+                  }
+                />
+                <Route
+                  path="/interest/letter/:leadId"
+                  element={
+                    isAssistant || featureOff("interest") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <InterestLetterPage />
+                    )
+                  }
+                />
+                {/* Legacy aliases from the offer→letter rename — these pages
+                    also draft rejection / not-returning letters, which read
+                    as a contradiction under an "offer" segment. */}
+                <Route
+                  path="/roster/:playerId/offer/:kind"
+                  element={
+                    <RouteAlias
+                      to={(p) => `/roster/${p.playerId}/letter/${p.kind}`}
+                    />
+                  }
+                />
+                <Route
+                  path="/tryouts/offer/:signupId/:kind"
+                  element={
+                    <RouteAlias
+                      to={(p) => `/tryouts/letter/${p.signupId}/${p.kind}`}
+                    />
                   }
                 />
                 <Route
                   path="/interest/offer/:leadId"
                   element={
-                    isAssistant || featureOff("interest") ? (
-                      <Navigate to="/" replace />
-                    ) : (
-                      <InterestOfferPage />
-                    )
+                    <RouteAlias to={(p) => `/interest/letter/${p.leadId}`} />
                   }
                 />
                 <Route
@@ -1086,6 +1117,16 @@ const MainShell = () => {
                       <Navigate to="/" replace />
                     ) : (
                       <LogoColorPage />
+                    )
+                  }
+                />
+                <Route
+                  path="/settings/import/past-season"
+                  element={
+                    isAssistant ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PastSeasonImportPage />
                     )
                   }
                 />

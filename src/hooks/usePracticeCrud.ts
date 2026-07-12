@@ -50,7 +50,7 @@ export const usePracticeCrud = ({
         return;
       }
       const newPractice: Practice = {
-        id: genId("p"),
+        id: genId("pr"),
         date: iso,
         startUtc: form?.startUtc ?? null,
         endUtc: form?.endUtc ?? null,

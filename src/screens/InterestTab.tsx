@@ -22,7 +22,7 @@ export const InterestTab = memo(() => {
   } = useTeam();
   const isHead = currentRole !== "assistant";
   // Copyable "interest / tryout invite" draft for a selected lead.
-  // Invite drafts live at /interest/offer/:leadId (routed page).
+  // Invite drafts live at /interest/letter/:leadId (routed page).
   const leads = useMemo(() => {
     return [...(team?.interestSignups || [])].sort(
       (a: any, b: any) =>
@@ -194,7 +194,7 @@ export const InterestTab = memo(() => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/interest/offer/${lead.id}`)}
+                        onClick={() => navigate(`/interest/letter/${lead.id}`)}
                         className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-ink border border-line bg-surface rounded-md hover:bg-surface-2 transition-colors whitespace-nowrap inline-flex items-center justify-center gap-1"
                         title="Copy a tryout-invite message for this lead"
                       >

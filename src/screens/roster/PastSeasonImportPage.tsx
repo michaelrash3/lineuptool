@@ -18,7 +18,7 @@ interface ImportPayload {
   assignments: Record<string, string>;
 }
 
-// /roster/import/past-season — review a parsed GameChanger season CSV and
+// /settings/import/past-season — review a parsed GameChanger season CSV and
 // assign each row to a roster player before committing. Converted from
 // PastSeasonImportModal per the app-wide modals→pages rule; the CSV is
 // parsed in Settings, which navigates here with the rows as state.
@@ -42,7 +42,7 @@ export const PastSeasonImportPage = memo(() => {
     return <Navigate to="/settings" replace />;
   }
   if (currentRole === "assistant") {
-    return <Navigate to="/roster" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const { rows } = payload;
