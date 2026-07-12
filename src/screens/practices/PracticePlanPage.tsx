@@ -18,8 +18,8 @@ import type { DrillDefinition } from "../../types";
 // /practices/:practiceId/plan — the Smart Practice Planner as a routed page.
 // Proposes a time-budgeted agenda weighted to the team's weakest eval areas,
 // drawn from the drill library; the coach picks a length, eyeballs the
-// preview, and applies it to the practice. Converted from the
-// PracticePlannerModal per the app-wide modals→pages rule.
+// preview, and applies it to the practice. A routed page per the app-wide
+// modals→pages rule.
 const PLAN_LENGTHS = [60, 75, 90, 105, 120];
 
 export const PracticePlanPage = memo(() => {

@@ -37,7 +37,6 @@ describe("SettingsTab", () => {
           setIsAddingCoach: jest.fn(),
           newCoachForm: {},
           setNewCoachForm: jest.fn(),
-          setPastSeasonImport: jest.fn(),
         },
       },
     );
@@ -61,7 +60,6 @@ describe("SettingsTab", () => {
           setIsAddingCoach: jest.fn(),
           newCoachForm: {},
           setNewCoachForm: jest.fn(),
-          setPastSeasonImport: jest.fn(),
         },
       },
     );
@@ -90,7 +88,6 @@ describe("SettingsTab", () => {
           setIsAddingCoach: jest.fn(),
           newCoachForm: {},
           setNewCoachForm: jest.fn(),
-          setPastSeasonImport: jest.fn(),
         },
       },
     );
@@ -120,7 +117,6 @@ describe("SettingsTab", () => {
           setIsAddingCoach: jest.fn(),
           newCoachForm: {},
           setNewCoachForm: jest.fn(),
-          setPastSeasonImport: jest.fn(),
         },
       },
     );
@@ -146,7 +142,6 @@ describe("SettingsTab", () => {
           setIsAddingCoach: jest.fn(),
           newCoachForm: {},
           setNewCoachForm: jest.fn(),
-          setPastSeasonImport: jest.fn(),
         },
       },
     );

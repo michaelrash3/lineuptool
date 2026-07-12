@@ -28,8 +28,8 @@ const buildEmptyGrades = (players: any, categories: any) => {
   return out;
 };
 
-// Full-tab assistant evaluation surface. Replaces the prior modal at
-// `src/components/AssistantEvalModal.jsx`. Visibility is preserved —
+// Full-tab assistant evaluation surface (was an overlay before the
+// modals→pages conversion). Visibility is preserved —
 // assistants only ever see their own rounds in the "Your Past Rounds"
 // list; head + other assistants' rounds remain hidden.
 export const AssistantEvalTab = memo(() => {

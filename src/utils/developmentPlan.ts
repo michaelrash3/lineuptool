@@ -102,7 +102,7 @@ export const capCheckIns = (
     .slice(0, DEV_CHECKINS_CAP);
 
 // First→last grade movement for one player's focus areas, from the head
-// coach's rounds (oldest→newest — same selection as EvalTrendModal). Only
+// coach's rounds (oldest→newest — same selection as EvalTrendPage). Only
 // categories with two or more graded rounds appear; consumers decide whether
 // a flat first===last reading is worth showing. This is what closes the
 // loop: "you set Contact as a focus — it's gone 2→4 since."

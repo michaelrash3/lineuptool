@@ -1,7 +1,7 @@
 import { screen, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { EvalTrendView, EvalTrendPage } from "./EvalTrendModal";
+import { EvalTrendView, EvalTrendPage } from "./EvalTrendPage";
 import { renderWithProviders } from "../../test-utils";
 import type { EvalRound } from "../../utils/evalScoring";
 import type { Player } from "../../types";

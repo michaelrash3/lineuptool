@@ -43,7 +43,6 @@ export {
 // Availability / scheduled-absence helpers now live in ./availability,
 // re-exported so existing `from "./helpers"` import sites are unchanged.
 export {
-  availabilityBlockOverlapsEvent,
   isPlayerScheduledOut,
   isPlayerHealthOut,
   isPlayerUnavailable,
@@ -108,10 +107,7 @@ export {
   buildPublicMirror,
   normalizeTryoutSessions,
   migrateLegacyTryoutGrades,
-  combinedTryoutGradeForSignup,
   evaluatorTryoutGradeForSignup,
-  nextTryoutNumber,
-  applyMissingTryoutNumbers,
 } from "./tryouts";
 export type { TryoutDateLink, PublicTeamMirror } from "./tryouts";
 

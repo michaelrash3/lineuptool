@@ -11,8 +11,8 @@ import {
 } from "../components/shared";
 
 // /welcome — first-run page shown when a signed-in user has no teams yet
-// (converted from the WelcomeChooser overlay per the app-wide modals→pages
-// rule). Replaces the previous "auto-create My Team" bootstrap so a coach who
+// (a routed page per the app-wide modals→pages rule). Replaces the previous
+// "auto-create My Team" bootstrap so a coach who
 // meant to join via a 6-char code can do so without first cleaning up an
 // unwanted default team.
 //

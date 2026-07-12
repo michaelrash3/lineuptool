@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { attIsPresent, attIsAbsent } from "../utils/attendance";
 import type { Player, Game, Practice } from "../types";
 import { Icons } from "../icons";
 import {
@@ -1248,8 +1249,6 @@ const RunStreakTile = memo(({ games }: RunStreakTileProps) => {
 });
 
 // ===== Attendance overview (games + practices) =====
-const attIsPresent = (v: unknown) => v === true || v === "present";
-const attIsAbsent = (v: unknown) => v === false || v === "absent"; // "excused" excluded
 
 interface AttendanceTileProps {
   players: Player[];

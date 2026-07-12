@@ -423,7 +423,7 @@ export const StatTrendPage = memo(() => {
   );
 });
 
-/* EvalTrendModal — see ./screens/EvaluationTab */
+/* Eval trends live at screens/evaluation/EvalTrendPage. */
 
 // Compact per-stat trend grid for the player profile page. One panel per
 // tracked stat (AVG / OPS / OBP / H / RBI / HR) showing current value,

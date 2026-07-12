@@ -242,7 +242,7 @@ export function isPositionBlocked(
 // seat a kid out of their usual spot — but must still respect a hard
 // restriction. (`isPositionBlocked` conflates this with the soft
 // comfortable-positions preference, which a manual pick is allowed to ignore.)
-export function isHardRestricted(
+function isHardRestricted(
   p: { comfortablePositions?: string[]; restrictions?: string[] },
   pos: string,
 ): boolean {
@@ -1345,9 +1345,7 @@ export function analyzePitchingWorkload(
 // migration folds the old `control`+`command` grades into it), so we weight
 // `strikes` here — the previous control/command keys no longer exist on graded
 // players and were silently scored as zero.
-// Single source of truth — consumed by both the engine's P-slot picker
-// (D4) and the Roster-tab `PitcherRankingPanel` so the UI rank and the
-// engine pick never drift.
+// Single source of truth for the engine's P-slot picker (D4).
 export const PITCHER_SCORE_WEIGHTS: Record<string, number> = {
   velocity: 1.5,
   strikes: 3.5,

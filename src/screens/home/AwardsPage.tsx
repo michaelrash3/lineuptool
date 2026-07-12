@@ -5,40 +5,23 @@ import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
 import { getEvalCategoriesForTeam } from "../../constants/ui";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
+import { attIsPresent, attIsAbsent } from "../../utils/attendance";
+import {
+  readStat,
+  formatStatDisplay,
+  type StatDisplayKind,
+} from "../../utils/stats";
 
 // /awards — auto season awards / superlatives. Each award nominates a winner
 // straight from the team's data; the coach can override per award (persisted
 // on the team as seasonAwards: { [awardId]: playerId | "__none__" }) and
 // print certificates (an in-page view mode, toggled by the footer buttons).
-// Converted from AwardsModal per the app-wide modals→pages rule.
+// A routed page per the app-wide modals→pages rule.
 
-type Kind = "int" | "dec2" | "dec3" | "pct";
-
-const num = (v: any): number | undefined =>
-  typeof v === "number" && Number.isFinite(v) ? v : undefined;
-const read = (stats: any, ...keys: string[]): number | undefined => {
-  for (const k of keys) {
-    const n = num(stats?.[k]);
-    if (n !== undefined) return n;
-  }
-  return undefined;
-};
-const fmt = (n: number | undefined, kind: Kind): string => {
-  if (n === undefined) return "";
-  switch (kind) {
-    case "int":
-      return Math.round(n).toString();
-    case "dec2":
-      return n.toFixed(2);
-    case "dec3":
-      return n > 0 && n < 1 ? n.toFixed(3).replace(/^0/, "") : n.toFixed(3);
-    case "pct":
-      return `${(n <= 1 ? n * 100 : n).toFixed(1)}%`;
-  }
-};
-
-const attIsPresent = (v: any) => v === true || v === "present";
-const attIsAbsent = (v: any) => v === false || v === "absent";
+// Stat display readers are shared with the season report page; awards
+// render missing values as an empty string (the chip is simply omitted).
+const read = readStat;
+const fmt = formatStatDisplay;
 
 const NONE = "__none__";
 
@@ -141,7 +124,7 @@ export const AwardsPage = memo(() => {
   const leaderBy = (
     get: (s: any) => number | undefined,
     hi: boolean,
-    kind: Kind,
+    kind: StatDisplayKind,
     needsIp?: boolean,
   ) => {
     let best: any = null;

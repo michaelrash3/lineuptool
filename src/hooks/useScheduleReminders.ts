@@ -59,16 +59,6 @@ export const setReminderPrefs = (prefs: ReminderPrefs): void => {
   }
 };
 
-export const requestNotificationPermission =
-  async (): Promise<NotificationPermission> => {
-    if (!notificationsSupported()) return "denied";
-    try {
-      return await Notification.requestPermission();
-    } catch {
-      return Notification.permission;
-    }
-  };
-
 // Map of game id -> the game date we last notified for. Keying on the date
 // means a reminder fires once per game-date: if a game is rescheduled the
 // token changes and it re-arms, but it never double-fires for the same day.

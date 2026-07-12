@@ -9,10 +9,11 @@ import { OfferLetterView } from "../../components/OfferLetterView";
 import { makeOfferLetterContext } from "../../utils/offerContext";
 import { OFFER_LETTER_LABELS } from "../../constants/offerLetters";
 import { computeNextSeason } from "../../constants/ui";
+import { isReturning } from "../../utils/season";
 
 // /settings/advance-season — the two-step "Advance to next season" wizard as
-// a routed page (converted from AdvanceSeasonModal per the app-wide
-// modals→pages rule). The head marks every player Returning / Released in one
+// a routed page per the app-wide modals→pages rule. The head marks every
+// player Returning / Released in one
 // pass (with bulk affordances), checks which tryout signups ride onto the new
 // roster, and confirms to kick off the actual advanceSeason() write.
 //
@@ -31,17 +32,13 @@ const STATUS_ACCEPTED = "accepted";
 
 const isAccepted = (p: any) => p?.playerStatus === STATUS_ACCEPTED;
 
-// Resolve the player's Returning Y/N answer with the same fallback
-// logic as isReturning() in helpers — the explicit `returning` boolean
-// wins, then legacy playerStatus. Yields STATUS_RETURNING /
-// STATUS_RELEASED / STATUS_ACCEPTED for downstream bucket counting.
+// Bucket a player for the wizard: accepted tryouts are locked in, then the
+// canonical isReturning() answers Yes/No — the same helper advanceSeason()
+// itself uses, so what the wizard SHOWS always matches what the advance
+// DOES (notably: a "declined" player buckets as No, not Yes).
 const effectiveStatus = (p: any) => {
   if (isAccepted(p)) return STATUS_ACCEPTED;
-  if (p?.returning === false) return STATUS_RELEASED;
-  if (p?.returning === true) return STATUS_RETURNING;
-  return p?.playerStatus === STATUS_RELEASED
-    ? STATUS_RELEASED
-    : STATUS_RETURNING;
+  return isReturning(p) ? STATUS_RETURNING : STATUS_RELEASED;
 };
 
 export const AdvanceSeasonPage = memo(() => {
@@ -51,7 +48,6 @@ export const AdvanceSeasonPage = memo(() => {
     currentRole,
     advanceSeason,
     updateFinances,
-    setPlayerStatus, // legacy; kept as the fallback writer
     setPlayerReturning,
   } = useTeam();
   const navigate = useNavigate();
@@ -143,26 +139,17 @@ export const AdvanceSeasonPage = memo(() => {
     return <Navigate to="/" replace />;
   }
 
-  // Bulk-set the Returning Y/N answer. Writes the explicit boolean
-  // via setPlayerReturning when available; falls back to the legacy
-  // setPlayerStatus("returning"/"released") string-writer otherwise.
+  // Bulk-set the Returning Y/N answer via the explicit boolean writer;
+  // isReturning() handles legacy playerStatus reads at read-time.
   const setAll = (status: string) => {
     for (const p of togglablePlayers) {
       if (effectiveStatus(p) !== status) {
-        if (setPlayerReturning) {
-          setPlayerReturning(p.id, status === STATUS_RETURNING);
-        } else {
-          setPlayerStatus?.(p.id, status);
-        }
+        setPlayerReturning(p.id, status === STATUS_RETURNING);
       }
     }
   };
   const setOne = (id: string, status: string) => {
-    if (setPlayerReturning) {
-      setPlayerReturning(id, status === STATUS_RETURNING);
-    } else {
-      setPlayerStatus?.(id, status);
-    }
+    setPlayerReturning(id, status === STATUS_RETURNING);
   };
 
   const toggleSignup = (id: string) => {

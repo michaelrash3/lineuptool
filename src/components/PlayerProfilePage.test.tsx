@@ -1,7 +1,7 @@
 import React from "react";
 import { screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { PlayerProfilePage } from "./modals";
+import { PlayerProfilePage } from "./PlayerProfilePage";
 import { renderWithProviders } from "../test-utils";
 
 // The player profile is a routed PAGE at /roster/:playerId — not a modal.

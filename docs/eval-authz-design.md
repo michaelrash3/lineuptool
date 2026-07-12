@@ -78,7 +78,7 @@ me`. `teamData.evaluationEvents` gets assembled from that stream.
   `updateTeamArrays` to per-doc `setDoc`/`deleteDoc`. The concurrency-safe
   array ops (#502) no longer apply — but per-doc writes are inherently
   concurrency-safe, so that's a wash.
-- **Ripple**: `RosterDecisionsPanel`, `InsightsPanel`, `EvalTrendModal`,
+- **Ripple**: `RosterDecisionsPanel`, `InsightsPanel`, `EvalTrendPage`,
   `AssistantSubmissionsPanel`, the cadence helpers (`evalPromptStatus`,
   `emailPromptStatus`), `buildPreseasonSeedRound`, `restampEvalDueDates`, the
   `removePlayer` eval-grade-strip cascade, and the whole EVAL schema-migration
