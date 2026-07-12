@@ -301,6 +301,16 @@ const EvalTrendPage = lazy(() =>
     default: m.EvalTrendPage,
   })),
 );
+const PracticePlanPage = lazy(() =>
+  import("./screens/practices/PracticePlanPage").then((m) => ({
+    default: m.PracticePlanPage,
+  })),
+);
+const PracticeAttendanceReportPage = lazy(() =>
+  import("./screens/practices/PracticeAttendanceReportPage").then((m) => ({
+    default: m.PracticeAttendanceReportPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -917,6 +927,26 @@ const MainShell = () => {
                       <Navigate to="/" replace />
                     ) : (
                       <PracticesTab />
+                    )
+                  }
+                />
+                <Route
+                  path="/practices/attendance-report"
+                  element={
+                    featureOff("practices") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PracticeAttendanceReportPage />
+                    )
+                  }
+                />
+                <Route
+                  path="/practices/:practiceId/plan"
+                  element={
+                    featureOff("practices") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <PracticePlanPage />
                     )
                   }
                 />
