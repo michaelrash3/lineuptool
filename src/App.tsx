@@ -225,9 +225,9 @@ const InGameView = lazy(() =>
 const PracticesTab = lazy(() =>
   import("./screens/PracticesTab").then((m) => ({ default: m.PracticesTab })),
 );
-const HelpCenter = lazy(() =>
-  import("./components/help/HelpCenter").then((m) => ({
-    default: m.HelpCenter,
+const HelpPage = lazy(() =>
+  import("./screens/HelpPage").then((m) => ({
+    default: m.HelpPage,
   })),
 );
 const ScheduleImportPage = lazy(() =>
@@ -354,9 +354,6 @@ const MainShell = () => {
     setSelectedGameId,
     inGameId,
     setInGameId,
-    helpOpen,
-    openHelp,
-    closeHelp,
   } = useUI();
   const location = useLocation();
   const navigate = useNavigate();
@@ -453,9 +450,10 @@ const MainShell = () => {
       }
       if (k === "?" || (k === "/" && e.shiftKey)) {
         e.preventDefault();
-        // While the orientation tour is up (z-150), don't mount the Help
-        // Center beneath it (z-140) — the layered focus traps would fight.
-        if (!tutorialOpen) openHelp();
+        // While the orientation tour is up (z-150), don't navigate to Help
+        // beneath it — the tour points at the page it opened over. The
+        // origin tab rides along so Help opens on a contextual category.
+        if (!tutorialOpen) navigate("/help", { state: { from: activeTab } });
         return;
       }
       if ((k === "g" || k === "G") && selectedGameId) {
@@ -475,7 +473,8 @@ const MainShell = () => {
     authReady,
     user,
     setActiveTab,
-    openHelp,
+    activeTab,
+    navigate,
     tutorialOpen,
     selectedGameId,
     regenerateLineup,
@@ -897,6 +896,18 @@ const MainShell = () => {
                   path="/in-game/:gameId"
                   element={<div className="hidden" />}
                 />
+                <Route
+                  path="/help"
+                  element={
+                    <HelpPage onOpenTutorial={() => setTutorialOpen(true)} />
+                  }
+                />
+                <Route
+                  path="/help/:topicId"
+                  element={
+                    <HelpPage onOpenTutorial={() => setTutorialOpen(true)} />
+                  }
+                />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </FadeSlideIn>
@@ -913,17 +924,6 @@ const MainShell = () => {
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
       />
-      {/* Mounted only while open so the help chunk isn't fetched until the
-          first time a coach actually asks for it. */}
-      {helpOpen && (
-        <Suspense fallback={null}>
-          <HelpCenter
-            open
-            onClose={closeHelp}
-            onOpenTutorial={() => setTutorialOpen(true)}
-          />
-        </Suspense>
-      )}
       <WelcomeChooser
         open={needsWelcomeChooser}
         onCreate={createTeam}
@@ -935,7 +935,7 @@ const MainShell = () => {
       />
       <m.button
         type="button"
-        onClick={() => openHelp()}
+        onClick={() => navigate("/help", { state: { from: activeTab } })}
         aria-label="Open help"
         whileHover={{ y: -2 }}
         whileTap={{ scale: 0.92 }}

@@ -1,7 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Icons } from "../../icons";
-import { useTeam, useUI } from "../../contexts";
-import { A11yDialog, Button, Eyebrow } from "../shared";
+import {
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import { Icons } from "../icons";
+import { useTeam, useUI } from "../contexts";
+import { Button, Eyebrow } from "../components/shared";
+import { PageShell } from "../components/PageShell";
+import { useBackOrFallback } from "../hooks/usePageNav";
 import {
   HELP_CATEGORIES,
   TAB_TO_HELP_CATEGORY,
@@ -10,47 +18,51 @@ import {
   type HelpCategoryId,
   type HelpCta,
   type HelpTopic,
-} from "../../help/content";
-import { getCompletedTours, markTourComplete } from "../../help/helpPrefs";
-import { getLocalDateString } from "../../constants/ui";
-import { visibleTours, type Tour } from "../../help/tours";
-import { attachStepNumbers, TourModal, type TourCtaCtx } from "./TourModal";
+} from "../help/content";
+import { getCompletedTours, markTourComplete } from "../help/helpPrefs";
+import { getLocalDateString } from "../constants/ui";
+import { visibleTours, type Tour } from "../help/tours";
+import {
+  attachStepNumbers,
+  TourModal,
+  type TourCtaCtx,
+} from "../components/help/TourModal";
 
-// The Help Center overlay: browse-by-category, search, article reading, and
-// guided-tour launching in one dialog. All content comes from help/content.ts
-// and help/tours.ts (already filtered per viewer); this file is only the
-// shell. Layout is two-pane on sm+ (rail | content) and single-pane on
-// mobile with back-button navigation between the panes.
+// Help & Tutorials as a routed page — /help browses by category, /help/:topicId
+// reads one article (deep-linkable, refresh-safe, back-button friendly).
+// Converted from the HelpCenter overlay per the app-wide modals→pages rule.
+// Guided tours remain an overlay (TourModal) — tours are an approved
+// exception: they exist to point at the UI underneath them.
 
 const CATEGORY_LABELS = new Map<string, string>(
   HELP_CATEGORIES.map((c) => [c.id, c.label]),
 );
 const labelFor = (id: string) => CATEGORY_LABELS.get(id) || id;
 
-export const HelpCenter = ({
-  open,
-  onClose,
+export const HelpPage = ({
   onOpenTutorial,
 }: {
-  open: boolean;
-  onClose: () => void;
   onOpenTutorial: () => void;
 }) => {
   const { team, currentRole } = useTeam();
-  const {
-    helpTopicId,
-    activeTab,
-    setActiveTab,
-    setIsAddingPlayer,
-    setIsAddingGame,
-  } = useUI();
+  const { setActiveTab, setIsAddingPlayer, setIsAddingGame } = useUI();
+  const { topicId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const back = useBackOrFallback("/");
 
   const [query, setQuery] = useState("");
-  const [categoryId, setCategoryId] =
-    useState<HelpCategoryId>("getting-started");
-  const [topicId, setTopicId] = useState<string | null>(null);
+  // Callers pass the tab they came from via navigation state so the browse
+  // view opens on a contextual category ("?" on the Roster tab lands on
+  // Roster help); a cold deep link starts at Getting Started.
+  const [categoryId, setCategoryId] = useState<HelpCategoryId>(() => {
+    const from = (location.state as { from?: string } | null)?.from;
+    return (from && TAB_TO_HELP_CATEGORY[from]) || "getting-started";
+  });
   const [activeTour, setActiveTour] = useState<Tour | null>(null);
-  const [completedTours, setCompletedTours] = useState<string[]>([]);
+  const [completedTours, setCompletedTours] = useState<string[]>(() =>
+    getCompletedTours(),
+  );
   // Mobile is single-pane: false shows the rail, true the topic/article pane.
   const [mobileContent, setMobileContent] = useState(false);
 
@@ -68,29 +80,18 @@ export const HelpCenter = ({
     [topics],
   );
 
-  // Fresh state on every open. A preselected topic (openHelp("some-id"))
-  // jumps straight to its article; otherwise the active tab picks the
-  // default category. Deps stop at open/helpTopicId on purpose: a mid-read
-  // team sync must not reset the view or the search box.
+  // The URL owns the article. Keep the rail's category in step with it so
+  // landing on /help/:topicId highlights (and back-navigates to) the right
+  // category.
+  const activeTopic = topicId
+    ? topics.find((t) => t.id === topicId)
+    : undefined;
   useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setActiveTour(null);
-    setCompletedTours(getCompletedTours());
-    const preselected = helpTopicId
-      ? topics.find((t) => t.id === helpTopicId)
-      : undefined;
-    if (preselected) {
-      setCategoryId(preselected.category);
-      setTopicId(preselected.id);
+    if (activeTopic) {
+      setCategoryId(activeTopic.category);
       setMobileContent(true);
-    } else {
-      setCategoryId(TAB_TO_HELP_CATEGORY[activeTab] || "getting-started");
-      setTopicId(null);
-      setMobileContent(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, helpTopicId]);
+  }, [activeTopic]);
 
   const searching = query.trim().length > 0;
   const results = useMemo(
@@ -124,52 +125,32 @@ export const HelpCenter = ({
     [activeTour, tourCtx],
   );
 
-  if (!open) return null;
-
-  // While a tour runs, the tour modal is the ONLY layer — rendering it over
-  // the help dialog would stack two focus traps. Skip/X/Escape/Done land back
-  // on the help overlay; a CTA exit closes Help entirely, since the CTA just
-  // navigated somewhere and the overlay would otherwise cover the destination.
-  if (activeTour) {
-    return (
-      <TourModal
-        open
-        steps={tourSteps}
-        onComplete={() => {
-          markTourComplete(activeTour.id);
-          setCompletedTours(getCompletedTours());
-        }}
-        onClose={() => setActiveTour(null)}
-        onCtaNavigate={() => {
-          setActiveTour(null);
-          onClose();
-        }}
-      />
-    );
+  // A dead or role-hidden article link lands on the browse view instead of a
+  // blank page.
+  if (topicId && !activeTopic) {
+    return <Navigate to="/help" replace />;
   }
 
   const category = HELP_CATEGORIES.find((c) => c.id === categoryId);
   const categoryTopics = topics.filter((t) => t.category === categoryId);
-  const activeTopic = topicId
-    ? topics.find((t) => t.id === topicId)
-    : undefined;
-  const showContent = mobileContent || searching;
+  const showContent = mobileContent || searching || !!activeTopic;
 
   const openCategory = (id: HelpCategoryId) => {
     setCategoryId(id);
-    setTopicId(null);
     setQuery("");
     setMobileContent(true);
+    // Reading an article? The category tap returns to browse.
+    if (topicId) navigate("/help");
   };
 
   const openTopic = (t: HelpTopic) => {
-    setCategoryId(t.category);
-    setTopicId(t.id);
     setQuery("");
-    setMobileContent(true);
+    navigate(`/help/${t.id}`);
   };
 
   const runCta = (cta: HelpCta) => {
+    // setActiveTab routes to the tab (useMainShellRouting mirrors it), so
+    // the CTA is itself the navigation away from Help.
     setActiveTab(cta.tab);
     // Add-flows are head-coach actions (AddPlayerModal / ScheduleTab both
     // role-gate their editors); for assistants the CTA just navigates.
@@ -177,12 +158,11 @@ export const HelpCenter = ({
       if (cta.uiAction === "addPlayer") setIsAddingPlayer(true);
       if (cta.uiAction === "addGame") setIsAddingGame(true);
     }
-    onClose();
   };
 
   const goBack = () => {
     if (searching) setQuery("");
-    else if (topicId) setTopicId(null);
+    else if (topicId) navigate("/help");
     else setMobileContent(false);
   };
 
@@ -223,7 +203,7 @@ export const HelpCenter = ({
         <div className="flex items-center gap-1.5 mb-3">
           <button
             type="button"
-            onClick={() => setTopicId(null)}
+            onClick={() => navigate("/help")}
             className="t-eyebrow text-ink-3 hover:text-ink transition-colors"
           >
             {labelFor(activeTopic.category)}
@@ -300,31 +280,31 @@ export const HelpCenter = ({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[140] bg-slate-900/60 backdrop-blur-sm p-4 flex items-start justify-center pt-[8vh]"
-      onClick={onClose}
-    >
-      <A11yDialog
-        onClose={onClose}
-        label="Help & Tutorials"
-        className="bg-surface w-full max-w-3xl rounded-2xl shadow-2xl border border-line overflow-hidden flex flex-col max-h-[80vh]"
-      >
-        <div
-          className="h-1.5 shrink-0"
-          style={{ backgroundColor: "var(--team-primary)" }}
+    <PageShell eyebrow="Help" title="Help & Tutorials" onBack={back}>
+      {/* While a tour runs, the tour modal overlays the page and points at
+          the UI it walks through; Skip/X/Escape/Done land back here. */}
+      {activeTour && (
+        <TourModal
+          open
+          steps={tourSteps}
+          onComplete={() => {
+            markTourComplete(activeTour.id);
+            setCompletedTours(getCompletedTours());
+          }}
+          onClose={() => setActiveTour(null)}
+          onCtaNavigate={() => setActiveTour(null)}
         />
-        <div className="px-4 py-3 border-b border-line flex items-center gap-3 shrink-0">
+      )}
+
+      <div className="cc-card overflow-hidden">
+        <div className="px-4 py-3 border-b border-line flex items-center gap-3">
           <Icons.Book
             className="w-5 h-5 shrink-0"
             style={{ color: "var(--team-ink)" }}
           />
-          <h2 className="t-card-title whitespace-nowrap hidden sm:block">
-            Help & Tutorials
-          </h2>
           <div className="flex-1 min-w-0 flex items-center gap-2 bg-surface-2 border border-line rounded-xl px-3 py-2">
             <Icons.Search className="w-4 h-4 text-ink-3 shrink-0" />
             <input
-              data-autofocus
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -333,16 +313,8 @@ export const HelpCenter = ({
               className="flex-1 min-w-0 text-sm font-bold text-ink outline-none bg-transparent placeholder:text-ink-3"
             />
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close help"
-            className="shrink-0 -mr-1 p-2 text-ink-3 hover:text-ink transition-colors"
-          >
-            <Icons.X className="w-5 h-5" />
-          </button>
         </div>
-        <div className="flex flex-1 min-h-0">
+        <div className="flex min-h-[50vh]">
           <div
             className={`${
               showContent ? "hidden sm:flex" : "flex"
@@ -351,10 +323,7 @@ export const HelpCenter = ({
             <Eyebrow className="block px-4 mb-1.5">Guided Tours</Eyebrow>
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                onOpenTutorial();
-              }}
+              onClick={onOpenTutorial}
               className="w-full text-left px-4 py-2 min-h-[40px] flex items-center gap-2.5 hover:bg-surface-2 transition-colors"
             >
               <Icons.HomePlate
@@ -438,6 +407,7 @@ export const HelpCenter = ({
             <button
               type="button"
               onClick={goBack}
+              aria-label="Back to browse"
               className="sm:hidden shrink-0 w-full text-left px-4 py-2.5 flex items-center gap-1.5 t-eyebrow text-ink-3 hover:text-ink border-b border-line transition-colors"
             >
               <Icons.ChevronLeft className="w-4 h-4" /> Back
@@ -445,7 +415,7 @@ export const HelpCenter = ({
             {content}
           </div>
         </div>
-      </A11yDialog>
-    </div>
+      </div>
+    </PageShell>
   );
 };

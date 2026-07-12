@@ -1,21 +1,35 @@
 import React from "react";
 import { screen, fireEvent, within } from "@testing-library/react";
-import { HelpCenter } from "./HelpCenter";
-import { getCompletedTours } from "../../help/helpPrefs";
-import { renderWithProviders } from "../../test-utils";
-import type { TeamContextValue, UIContextValue } from "../../types";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { HelpPage } from "./HelpPage";
+import { getCompletedTours } from "../help/helpPrefs";
+import { renderWithProviders } from "../test-utils";
+import type { TeamContextValue, UIContextValue } from "../types";
 
 const renderHelp = ({
+  path = "/help" as string | { pathname: string; state?: unknown },
   ui,
   team,
 }: {
+  path?: string | { pathname: string; state?: unknown };
   ui?: Partial<UIContextValue>;
   team?: Partial<TeamContextValue>;
 } = {}) => {
-  const onClose = jest.fn();
   const onOpenTutorial = jest.fn();
   const utils = renderWithProviders(
-    <HelpCenter open onClose={onClose} onOpenTutorial={onOpenTutorial} />,
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/" element={<div>HOME PAGE</div>} />
+        <Route
+          path="/help"
+          element={<HelpPage onOpenTutorial={onOpenTutorial} />}
+        />
+        <Route
+          path="/help/:topicId"
+          element={<HelpPage onOpenTutorial={onOpenTutorial} />}
+        />
+      </Routes>
+    </MemoryRouter>,
     {
       ui: {
         setIsAddingPlayer: jest.fn(),
@@ -25,7 +39,7 @@ const renderHelp = ({
       team,
     },
   );
-  return { onClose, onOpenTutorial, ...utils };
+  return { onOpenTutorial, ...utils };
 };
 
 const searchBox = () =>
@@ -35,8 +49,8 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe("HelpCenter", () => {
-  it("renders visible categories and the pinned Guided Tours rail on open", () => {
+describe("HelpPage", () => {
+  it("renders visible categories and the pinned Guided Tours rail", () => {
     renderHelp();
     expect(screen.getByText("Guided Tours")).toBeInTheDocument();
     expect(
@@ -54,18 +68,16 @@ describe("HelpCenter", () => {
     for (const label of ["Getting Started", "Roster", "Finances", "Glossary"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
-    // activeTab defaults to "home" → contextual default category.
     expect(
       screen.getByRole("heading", { name: "Getting Started" }),
     ).toBeInTheDocument();
   });
 
-  it("Replay the orientation closes help and opens the orientation guide", () => {
-    const { onClose, onOpenTutorial } = renderHelp();
+  it("Replay the orientation opens the orientation guide over the page", () => {
+    const { onOpenTutorial } = renderHelp();
     fireEvent.click(
       screen.getByRole("button", { name: "Replay the orientation" }),
     );
-    expect(onClose).toHaveBeenCalledTimes(1);
     expect(onOpenTutorial).toHaveBeenCalledTimes(1);
   });
 
@@ -85,7 +97,7 @@ describe("HelpCenter", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("clicking a topic shows the article with breadcrumb and sections", () => {
+  it("clicking a topic routes to its article with breadcrumb and sections", () => {
     renderHelp();
     fireEvent.click(screen.getByRole("button", { name: "Roster" }));
     fireEvent.click(
@@ -118,14 +130,22 @@ describe("HelpCenter", () => {
     ).toBeInTheDocument();
   });
 
-  it("an article CTA switches tabs, runs its uiAction, and closes", () => {
-    const { onClose, uiValue } = renderHelp();
+  it("an article CTA switches tabs and runs its uiAction", () => {
+    const { uiValue } = renderHelp();
     fireEvent.click(screen.getByRole("button", { name: "Roster" }));
     fireEvent.click(screen.getByRole("button", { name: /Adding players/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add a player" }));
     expect(uiValue.setActiveTab).toHaveBeenCalledWith("roster");
     expect(uiValue.setIsAddingPlayer).toHaveBeenCalledWith(true);
-    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("assistant CTAs navigate but never flip head-only editor flags", () => {
+    const { uiValue } = renderHelp({ team: { currentRole: "assistant" } });
+    fireEvent.click(screen.getByRole("button", { name: "Roster" }));
+    fireEvent.click(screen.getByRole("button", { name: /Adding players/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add a player" }));
+    expect(uiValue.setActiveTab).toHaveBeenCalledWith("roster");
+    expect(uiValue.setIsAddingPlayer).not.toHaveBeenCalled();
   });
 
   it("search ranks a title match above a body-only match", () => {
@@ -151,18 +171,8 @@ describe("HelpCenter", () => {
     expect(screen.getByText("No matching articles")).toBeInTheDocument();
   });
 
-  it("closes on Escape and on scrim click, but not on panel clicks", () => {
-    const { onClose, container } = renderHelp();
-    fireEvent.click(screen.getByRole("dialog"));
-    expect(onClose).not.toHaveBeenCalled();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.click(container.firstChild as HTMLElement);
-    expect(onClose).toHaveBeenCalledTimes(2);
-  });
-
-  it("jumps straight to a preselected helpTopicId article", () => {
-    renderHelp({ ui: { helpTopicId: "lineup-generator" } });
+  it("deep-links straight to an article at /help/:topicId", () => {
+    renderHelp({ path: "/help/lineup-generator" });
     expect(
       screen.getByRole("heading", { name: "How the lineup generator works" }),
     ).toBeInTheDocument();
@@ -172,6 +182,27 @@ describe("HelpCenter", () => {
     expect(lineups.some((b) => b.getAttribute("aria-current") === "true")).toBe(
       true,
     );
+  });
+
+  it("an unknown topic id lands on the browse view", () => {
+    renderHelp({ path: "/help/not-a-real-topic" });
+    expect(
+      screen.getByRole("heading", { name: "Getting Started" }),
+    ).toBeInTheDocument();
+  });
+
+  it("opens on a contextual category when the origin tab rides navigation state", () => {
+    renderHelp({ path: { pathname: "/help", state: { from: "roster" } } });
+    expect(screen.getByRole("heading", { name: "Roster" })).toBeInTheDocument();
+  });
+
+  it("Back falls back home on a deep link", () => {
+    window.history.replaceState({ idx: 0 }, "");
+    renderHelp();
+    // Exact name: the PageShell chip ("Back"), not the mobile pane's
+    // "Back to browse".
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("HOME PAGE")).toBeInTheDocument();
   });
 
   it("hides headOnly topics, tours, and emptied categories from assistants", () => {
@@ -222,23 +253,16 @@ describe("HelpCenter", () => {
     ).toBeInTheDocument();
   });
 
-  it("starting a tour shows only the tour modal, not the help panel", () => {
+  it("starting a tour overlays the tour modal on the page", () => {
     renderHelp();
     fireEvent.click(
       screen.getByRole("button", { name: "Build your first lineup" }),
     );
     expect(screen.getByText("Add your players")).toBeInTheDocument();
     expect(screen.getByText("Step 1 of 5")).toBeInTheDocument();
-    // The tour is itself a dialog now; the HELP dialog specifically is gone.
-    expect(
-      screen.queryByRole("dialog", { name: "Help & Tutorials" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("Search help articles"),
-    ).not.toBeInTheDocument();
   });
 
-  it("completing a tour marks it complete and returns to the help overlay", () => {
+  it("completing a tour marks it complete back on the page", () => {
     renderHelp();
     fireEvent.click(
       screen.getByRole("button", { name: "Build your first lineup" }),
@@ -248,7 +272,7 @@ describe("HelpCenter", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: /done/i }));
     expect(getCompletedTours()).toContain("first-lineup");
-    // Back on the help overlay, with the tour marked done in the rail.
+    // Back on the page, with the tour marked done in the rail.
     expect(screen.getByLabelText("Search help articles")).toBeInTheDocument();
     const tourButton = screen.getByRole("button", {
       name: /Build your first lineup/,
@@ -256,7 +280,7 @@ describe("HelpCenter", () => {
     expect(within(tourButton).getByText("Completed")).toBeInTheDocument();
   });
 
-  it("skipping a tour returns to help without marking it complete", () => {
+  it("skipping a tour returns to the page without marking it complete", () => {
     renderHelp();
     fireEvent.click(screen.getByRole("button", { name: "Run a tryout" }));
     fireEvent.click(screen.getByRole("button", { name: "Skip Tour" }));

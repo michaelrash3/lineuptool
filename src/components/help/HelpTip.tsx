@@ -1,9 +1,9 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Icons } from "../../icons";
-import { useUI } from "../../contexts";
 
-// Inline "?" button that deep-links the Help Center to one topic. Drop it
-// next to a heading — it renders inline with no wrapper of its own.
+// Inline "?" button that deep-links to one Help article (/help/:topicId).
+// Drop it next to a heading — it renders inline with no wrapper of its own.
 export const HelpTip = ({
   topicId,
   label,
@@ -11,11 +11,11 @@ export const HelpTip = ({
   topicId: string;
   label?: string;
 }) => {
-  const { openHelp } = useUI();
+  const navigate = useNavigate();
   return (
     <button
       type="button"
-      onClick={() => openHelp(topicId)}
+      onClick={() => navigate(`/help/${topicId}`)}
       className="text-ink-3 hover:text-ink transition-colors"
       aria-label={label || "Help"}
     >

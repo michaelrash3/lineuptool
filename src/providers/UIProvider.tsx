@@ -113,20 +113,8 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAddingPlayer, setIsAddingPlayer] = useState(false);
   const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
 
-  // Help center state. `helpTopicId` preselects an article when set; null
-  // opens Help on the browse view (HelpCenter derives a context-aware
-  // category from activeTab). Owned here — not in MainShell — so screens,
-  // the nav drawer, and the command palette can all deep-link into Help.
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpTopicId, setHelpTopicId] = useState<string | null>(null);
-  const openHelp = useCallback((topicId?: string) => {
-    setHelpTopicId(topicId || null);
-    setHelpOpen(true);
-  }, []);
-  const closeHelp = useCallback(() => {
-    setHelpOpen(false);
-    setHelpTopicId(null);
-  }, []);
+  // Help lives at /help and /help/:topicId (routed pages) — deep links go
+  // through navigate, not provider state.
 
   // Coach state
   const [isAddingCoach, setIsAddingCoach] = useState(false);
@@ -507,10 +495,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       viewingPlayerId,
       setViewingPlayerId,
       openPlayerProfile,
-      helpOpen,
-      helpTopicId,
-      openHelp,
-      closeHelp,
       isAddingCoach,
       setIsAddingCoach,
       newCoachForm,
@@ -553,10 +537,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       isAddingPlayer,
       viewingPlayerId,
       openPlayerProfile,
-      helpOpen,
-      helpTopicId,
-      openHelp,
-      closeHelp,
       isAddingCoach,
       newCoachForm,
       teamEvalGrades,
