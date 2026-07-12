@@ -1,7 +1,8 @@
 import React from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { TryoutsTab, computeRosterProjection } from "./TryoutsTab";
+import { TryoutAddPage } from "./tryouts/TryoutAddPage";
 import { renderWithProviders } from "../test-utils";
 
 const grade = (n: number, suggestedPositions: string[] = []) => ({
@@ -98,12 +99,15 @@ describe("TryoutsTab", () => {
     expect(screen.getByText(/Tryout setup — dates, link/)).toBeInTheDocument();
   });
 
-  it("coach-adds a walk-up with an auto-assigned tryout number", async () => {
+  it("coach-adds a walk-up on /tryouts/add with an auto-assigned number", async () => {
     const { fireEvent } = await import("@testing-library/react");
     const appendTryoutSignup = jest.fn();
     renderWithProviders(
-      <MemoryRouter>
-        <TryoutsTab />
+      <MemoryRouter initialEntries={["/tryouts"]}>
+        <Routes>
+          <Route path="/tryouts" element={<TryoutsTab />} />
+          <Route path="/tryouts/add" element={<TryoutAddPage />} />
+        </Routes>
       </MemoryRouter>,
       {
         team: {
@@ -134,7 +138,10 @@ describe("TryoutsTab", () => {
         },
       },
     );
+    // The tab's button routes to the walk-up page…
     fireEvent.click(screen.getByRole("button", { name: /\+ Add Player/i }));
+    expect(screen.getByText("Add tryout player")).toBeInTheDocument();
+    // …where the form submits and returns to the tab.
     fireEvent.change(screen.getByLabelText("First name"), {
       target: { value: "Walk" },
     });
@@ -154,6 +161,7 @@ describe("TryoutsTab", () => {
         present: true,
       }),
     );
+    expect(screen.getByText(/Tryout setup — dates, link/)).toBeInTheDocument();
   });
 
   it("records a showcase measurement from the expanded card (shared, definitive)", async () => {

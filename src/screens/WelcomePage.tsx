@@ -2,26 +2,26 @@ import React, { useState } from "react";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
+import { useConfirm } from "../contexts";
 import {
-  A11yDialog,
   Button,
   Eyebrow,
   FORM_INPUT_CLASS,
   FORM_INPUT_RING_STYLE,
-} from "./shared";
+} from "../components/shared";
 
-// First-run modal shown when a signed-in user has no teams yet.
-// Replaces the previous "auto-create My Team" bootstrap so a coach who
-// meant to join via a 6-char code can do so without first cleaning up
-// an unwanted default team.
+// /welcome — first-run page shown when a signed-in user has no teams yet
+// (converted from the WelcomeChooser overlay per the app-wide modals→pages
+// rule). Replaces the previous "auto-create My Team" bootstrap so a coach who
+// meant to join via a 6-char code can do so without first cleaning up an
+// unwanted default team.
 //
-// Single combined form with two clearly-separated sections. The user
-// picks whichever flow they meant — Create or Join — and only that
-// section's button is wired. The modal is intentionally NOT dismissible
-// (no X, no backdrop, no Esc): a signed-in user with zero teams has
-// nothing to fall back to.
-interface WelcomeChooserProps {
-  open: boolean;
+// Single combined form with two clearly-separated sections. The user picks
+// whichever flow they meant — Create or Join — and only that section's
+// button is wired. The page is intentionally inescapable: MainShell redirects
+// every path here while the user has zero teams (nothing else to fall back
+// to), and redirects away once a team exists.
+interface WelcomePageProps {
   onCreate?: (
     name: string,
     leagueRuleSet?: "NKB" | "USSSA",
@@ -29,25 +29,26 @@ interface WelcomeChooserProps {
   onJoin?: (code: string) => Promise<any> | any;
 }
 
-export const WelcomeChooser = ({
-  open,
-  onCreate,
-  onJoin,
-}: WelcomeChooserProps) => {
+export const WelcomePage = ({ onCreate, onJoin }: WelcomePageProps) => {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState<"create" | "join" | null>(null);
   const [teamType, setTeamType] = useState<"NKB" | "USSSA" | null>(null);
   const [error, setError] = useState("");
-  // In-app sign-out confirmation. Replaces window.confirm so first-run
-  // users don't get a 1995-looking dialog over the polished modal.
-  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  // Sign-out runs through the app-wide confirm dialog (useConfirm) — the one
+  // overlay system destructive confirms are consolidated on.
+  const { confirm } = useConfirm();
 
-  if (!open) return null;
-
-  const performSignOut = async () => {
+  const requestSignOut = async () => {
     if (signingOut) return;
+    const ok = await confirm({
+      title: "Sign out?",
+      message:
+        "You'll need to sign in again to access your team. Any in-progress data is already saved.",
+      confirmLabel: "Sign Out",
+    });
+    if (!ok) return;
     setSigningOut(true);
     try {
       if (typeof window !== "undefined") {
@@ -62,7 +63,6 @@ export const WelcomeChooser = ({
     } catch {
       // best-effort: if signOut fails we just let the user re-try.
       setSigningOut(false);
-      setSignOutConfirmOpen(false);
     }
   };
 
@@ -113,13 +113,11 @@ export const WelcomeChooser = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[160] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
-      {/* Non-dismissible by design (no onClose) — the user must join or
-          create a team. */}
-      <A11yDialog
-        label="Welcome — join or create a team"
-        className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden"
-      >
+    <main
+      aria-label="Welcome — join or create a team"
+      className="min-h-screen w-full flex items-center justify-center p-4"
+    >
+      <div className="bg-surface max-w-lg w-full rounded-2xl shadow-2xl border border-line overflow-hidden">
         <div
           className="h-1.5 w-full"
           style={{ backgroundColor: "var(--team-primary)" }}
@@ -318,68 +316,16 @@ export const WelcomeChooser = ({
             Signed in. Choose one to continue, or{" "}
             <button
               type="button"
-              onClick={() => setSignOutConfirmOpen(true)}
-              className="underline hover:text-ink-2"
+              disabled={signingOut}
+              onClick={requestSignOut}
+              className="underline hover:text-ink-2 disabled:opacity-60"
             >
-              sign out
+              {signingOut ? "signing out…" : "sign out"}
             </button>
             .
           </p>
         </div>
-      </A11yDialog>
-
-      {signOutConfirmOpen && (
-        <div
-          className="fixed inset-0 z-[170] flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4"
-          onClick={() => !signingOut && setSignOutConfirmOpen(false)}
-        >
-          <A11yDialog
-            label="Sign out?"
-            onClose={() => !signingOut && setSignOutConfirmOpen(false)}
-            className="bg-surface max-w-sm w-full rounded-2xl shadow-2xl overflow-hidden"
-          >
-            <div
-              className="h-1.5 w-full"
-              style={{ backgroundColor: "var(--team-primary)" }}
-            />
-            <div className="p-6">
-              <h3 className="text-lg font-extrabold tracking-tight text-ink mb-1">
-                Sign out?
-              </h3>
-              <p className="text-sm text-ink-2 font-medium mb-5">
-                You'll need to sign in again to access your team. Any
-                in-progress data is already saved.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  disabled={signingOut}
-                  onClick={() => setSignOutConfirmOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={signingOut}
-                  onClick={performSignOut}
-                  className="btn-premium px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-colors disabled:opacity-60 flex items-center gap-2"
-                  style={{ color: "var(--team-on-primary)" }}
-                >
-                  {signingOut ? (
-                    <>
-                      <Icons.Refresh className="w-4 h-4 animate-spin" />
-                      Signing out…
-                    </>
-                  ) : (
-                    "Sign Out"
-                  )}
-                </button>
-              </div>
-            </div>
-          </A11yDialog>
-        </div>
-      )}
-    </div>
+      </div>
+    </main>
   );
 };

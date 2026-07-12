@@ -679,7 +679,7 @@ export const Button = ({
 // with bespoke layouts that don't fit <Modal>). Renders the panel div with
 // dialog semantics + useModalA11y behaviors; the caller keeps its own scrim
 // and layout classes. `label` feeds aria-label; pass onClose to enable
-// Escape (omit it for non-dismissible flows like WelcomeChooser).
+// Escape (omit it for non-dismissible flows).
 export const A11yDialog = ({
   onClose,
   label,

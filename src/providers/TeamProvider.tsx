@@ -205,7 +205,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // query for, so an empty team list doesn't re-fire it on every snapshot.
   const teamsRecoveryAttemptedRef = useRef<Set<string>>(new Set());
   // True when the team-list subscription errored out (not "user has no
-  // teams"). Gates the WelcomeChooser: forcing a coach with a real team
+  // teams"). Gates the /welcome page: forcing a coach with a real team
   // through the create/join "orientation" because a READ failed is exactly
   // the path that used to orphan their data.
   const [teamsLoadFailed, setTeamsLoadFailed] = useState(false);
@@ -335,7 +335,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       setTeamsLoadFailed(false);
       let data = snap.exists() ? snap.data() : null;
       if (!data || !data.teams || data.teams.length === 0) {
-        // No teams yet for this user. The MainShell renders <WelcomeChooser>
+        // No teams yet for this user. The MainShell renders the /welcome page
         // off the empty `teams` list so the coach explicitly picks Join vs
         // Create. We no longer force-create "My Team" here — that produced a
         // throwaway team for anyone whose actual intent was to join via the
@@ -346,7 +346,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // SAFETY NET: an empty list can also mean the settings doc was
         // clobbered (the "all my players were deleted" report) or a fresh
         // device raced the doc. Before funneling the coach into the
-        // WelcomeChooser, look for team docs that already list this user as
+        // welcome page, look for team docs that already list this user as
         // a member and restore the pointers — the team doc itself survives a
         // settings clobber, so this recovers the roster in place.
         if (!teamsRecoveryAttemptedRef.current.has(user.uid)) {
@@ -400,7 +400,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
 
     // A fresh sign-in can race rules propagation and get a transient
     // permission-denied. Retry once before surfacing — and either way mark
-    // the load as FAILED rather than "no teams", so the WelcomeChooser never
+    // the load as FAILED rather than "no teams", so the welcome page never
     // walks a coach with a real team through team creation off a read error.
     const handleErr = (err: FirestoreError) => {
       if (cancelled) return;
@@ -1600,7 +1600,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           "teams",
         );
         // Merge with the server's CURRENT team list, never just local state:
-        // if this create was reached through a wrongly-shown WelcomeChooser
+        // if this create was reached through a wrongly-shown welcome page
         // (teams state transiently empty), `[...teams, new]` would overwrite
         // the settings doc and orphan every existing team.
         let serverTeams: { id: string; name: string }[] | null = null;
@@ -2777,7 +2777,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   }, [teamGames, teamPitchingFormat]);
 
   // True when a signed-in user has no teams yet AND there's no pending
-  // ?join= flow in progress — that's the gate for showing the WelcomeChooser.
+  // ?join= flow in progress — that's the gate for showing the /welcome page.
   const hasPendingJoinFlow =
     typeof window !== "undefined" &&
     Boolean(

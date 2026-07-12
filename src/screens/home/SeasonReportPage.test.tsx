@@ -1,7 +1,8 @@
 import React from "react";
-import { screen } from "@testing-library/react";
-import { SeasonReportModal } from "./SeasonReportModal";
-import { renderWithProviders } from "../test-utils";
+import { fireEvent, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SeasonReportPage } from "./SeasonReportPage";
+import { renderWithProviders } from "../../test-utils";
 
 const team = {
   name: "Hawks",
@@ -51,16 +52,32 @@ const team = {
   ],
 };
 
-describe("SeasonReportModal", () => {
+const renderPage = () =>
+  renderWithProviders(
+    <MemoryRouter initialEntries={["/season-report"]}>
+      <Routes>
+        <Route path="/" element={<div>HOME</div>} />
+        <Route path="/season-report" element={<SeasonReportPage />} />
+      </Routes>
+    </MemoryRouter>,
+    { team: { team } as any },
+  );
+
+describe("SeasonReportPage", () => {
   it("renders record, top performers, and most improved", () => {
-    renderWithProviders(
-      <SeasonReportModal open onClose={() => {}} team={team} />,
-    );
+    renderPage();
     expect(screen.getByText("Top Performers")).toBeInTheDocument();
     // Ava leads OPS/HR/RBI.
     expect(screen.getAllByText("Ava Rivera").length).toBeGreaterThan(0);
     // 2-0 record after two wins.
     expect(screen.getByText("2-0")).toBeInTheDocument();
     expect(screen.getByText("Most Improved (Eval)")).toBeInTheDocument();
+  });
+
+  it("Back falls back to the dashboard on a deep link", () => {
+    window.history.replaceState({ idx: 0 }, "");
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("HOME")).toBeInTheDocument();
   });
 });

@@ -90,7 +90,7 @@ import {
   Navigate,
 } from "react-router-dom";
 import { CommandPalette } from "./components/CommandPalette";
-import { WelcomeChooser } from "./components/WelcomeChooser";
+import { WelcomePage } from "./screens/WelcomePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
@@ -321,6 +321,21 @@ const LogoColorPage = lazy(() =>
     default: m.LogoColorPage,
   })),
 );
+const SeasonReportPage = lazy(() =>
+  import("./screens/home/SeasonReportPage").then((m) => ({
+    default: m.SeasonReportPage,
+  })),
+);
+const AwardsPage = lazy(() =>
+  import("./screens/home/AwardsPage").then((m) => ({
+    default: m.AwardsPage,
+  })),
+);
+const TryoutAddPage = lazy(() =>
+  import("./screens/tryouts/TryoutAddPage").then((m) => ({
+    default: m.TryoutAddPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -467,8 +482,8 @@ const MainShell = () => {
   }, [user]);
 
   // Only auto-open the onboarding tour once the user actually has a team to
-  // see — otherwise the WelcomeChooser (which is non-dismissible) and the
-  // tutorial scrim end up stacked on top of each other on first sign-in.
+  // see — otherwise the tutorial scrim would open on top of the /welcome
+  // page (which is inescapable until a team exists) on first sign-in.
   useEffect(() => {
     if (
       authReady &&
@@ -740,6 +755,17 @@ const MainShell = () => {
     );
   }
 
+  // First-run: a signed-in user with zero teams lives on the full-screen
+  // /welcome page — every other path redirects there until they join or
+  // create a team, and the wildcard route bounces /welcome home once a team
+  // exists (needsWelcomeChooser flips false).
+  if (needsWelcomeChooser) {
+    if (location.pathname !== "/welcome") {
+      return <Navigate to="/welcome" replace />;
+    }
+    return <WelcomePage onCreate={createTeam} onJoin={joinTeamByCode} />;
+  }
+
   const tryoutsButton = {
     id: "tryouts",
     icon: Icons.Users,
@@ -846,6 +872,8 @@ const MainShell = () => {
             <FadeSlideIn key={location.pathname}>
               <Routes>
                 <Route path="/" element={<HomeTab />} />
+                <Route path="/season-report" element={<SeasonReportPage />} />
+                <Route path="/awards" element={<AwardsPage />} />
                 <Route
                   path="/stats"
                   element={
@@ -986,6 +1014,16 @@ const MainShell = () => {
                   }
                 />
                 <Route
+                  path="/tryouts/add"
+                  element={
+                    featureOff("tryouts") ? (
+                      <Navigate to="/" replace />
+                    ) : (
+                      <TryoutAddPage />
+                    )
+                  }
+                />
+                <Route
                   path="/interest"
                   element={
                     isAssistant || featureOff("interest") ? (
@@ -1082,11 +1120,6 @@ const MainShell = () => {
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
-      />
-      <WelcomeChooser
-        open={needsWelcomeChooser}
-        onCreate={createTeam}
-        onJoin={joinTeamByCode}
       />
       <CommandPalette
         open={paletteOpen}

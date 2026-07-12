@@ -1,13 +1,16 @@
 import React, { memo, useMemo, useState } from "react";
-import { Modal } from "./shared";
-import { Icons } from "../icons";
-import { useTeam } from "../contexts";
-import { getEvalCategoriesForTeam } from "../constants/ui";
-import { currentEvaluationScore100 } from "../utils/evaluationScore";
+import { Icons } from "../../icons";
+import { useTeam } from "../../contexts";
+import { PageShell } from "../../components/PageShell";
+import { useBackOrFallback } from "../../hooks/usePageNav";
+import { getEvalCategoriesForTeam } from "../../constants/ui";
+import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 
-// Auto season awards / superlatives. Each award nominates a winner straight
-// from the team's data; the coach can override per award (persisted on the team
-// as seasonAwards: { [awardId]: playerId | "__none__" }) and print certificates.
+// /awards — auto season awards / superlatives. Each award nominates a winner
+// straight from the team's data; the coach can override per award (persisted
+// on the team as seasonAwards: { [awardId]: playerId | "__none__" }) and
+// print certificates (an in-page view mode, toggled by the footer buttons).
+// Converted from AwardsModal per the app-wide modals→pages rule.
 
 type Kind = "int" | "dec2" | "dec3" | "pct";
 
@@ -39,8 +42,9 @@ const attIsAbsent = (v: any) => v === false || v === "absent";
 
 const NONE = "__none__";
 
-export const AwardsModal = memo(({ open, onClose, team }: any) => {
-  const { updateTeam } = useTeam();
+export const AwardsPage = memo(() => {
+  const { team, updateTeam } = useTeam();
+  const back = useBackOrFallback("/");
   const players: any[] = useMemo(() => team?.players || [], [team?.players]);
   const games: any[] = useMemo(() => team?.games || [], [team?.games]);
   const practices: any[] = useMemo(
@@ -216,14 +220,12 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
   const winners = resolved.filter((r) => r.winnerId);
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
+    <PageShell
       eyebrow={showCerts ? "Certificates" : "Season Awards"}
       title={`${team?.currentSeason || "Season"} Awards`}
-      size="lg"
-      footer={
-        <div className="flex items-center justify-end gap-2">
+      onBack={back}
+      actions={
+        <div className="flex items-center gap-2">
           {showCerts ? (
             <>
               <button
@@ -231,7 +233,7 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
                 onClick={() => setShowCerts(false)}
                 className="px-4 py-2 text-xs font-black uppercase tracking-widest border border-line rounded-lg text-ink hover:bg-surface-2 transition-colors"
               >
-                Back
+                Award List
               </button>
               <button
                 type="button"
@@ -256,88 +258,90 @@ export const AwardsModal = memo(({ open, onClose, team }: any) => {
         </div>
       }
     >
-      {showCerts ? (
-        <div className="space-y-3">
-          {winners.length === 0 ? (
-            <p className="t-body text-ink-3 italic">No award winners yet.</p>
-          ) : (
-            winners.map((w) => (
-              <div
-                key={w.id}
-                className="border-2 rounded-xl p-5 text-center"
-                style={{ borderColor: "var(--team-primary)" }}
-              >
-                <div className="t-eyebrow text-ink-3">
-                  Certificate of Achievement
-                </div>
+      <div className="cc-card p-5">
+        {showCerts ? (
+          <div className="space-y-3">
+            {winners.length === 0 ? (
+              <p className="t-body text-ink-3 italic">No award winners yet.</p>
+            ) : (
+              winners.map((w) => (
                 <div
-                  className="text-lg font-extrabold tracking-tight mt-1"
-                  style={{ color: "var(--team-ink)" }}
+                  key={w.id}
+                  className="border-2 rounded-xl p-5 text-center"
+                  style={{ borderColor: "var(--team-primary)" }}
                 >
-                  {w.label}
+                  <div className="t-eyebrow text-ink-3">
+                    Certificate of Achievement
+                  </div>
+                  <div
+                    className="text-lg font-extrabold tracking-tight mt-1"
+                    style={{ color: "var(--team-ink)" }}
+                  >
+                    {w.label}
+                  </div>
+                  <div className="text-2xl font-black text-ink mt-2">
+                    {nameById[w.winnerId as string] || "—"}
+                  </div>
+                  <div className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mt-2">
+                    {team?.name || "Team"} · {team?.currentSeason || ""}
+                  </div>
                 </div>
-                <div className="text-2xl font-black text-ink mt-2">
-                  {nameById[w.winnerId as string] || "—"}
-                </div>
-                <div className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mt-2">
-                  {team?.name || "Team"} · {team?.currentSeason || ""}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <p className="t-meta text-ink-3 mb-1">
-            Winners are auto-picked from your season data. Override any award
-            with the dropdown — your picks are saved.
-          </p>
-          {resolved.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center gap-2 bg-surface-2 border border-line rounded-lg px-3 py-2"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
-                  {a.label}
-                  {a.auto?.value ? (
-                    <span className="ml-1 text-ink-3 normal-case tracking-normal">
-                      · {a.auto.value}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="text-sm font-bold text-ink truncate">
-                  {a.winnerId ? nameById[a.winnerId] || "—" : "No winner"}
-                  {a.isOverridden && (
-                    <span className="ml-1.5 text-[9px] font-black uppercase tracking-widest text-ink-3">
-                      (override)
-                    </span>
-                  )}
-                </div>
-              </div>
-              <select
-                value={overrides[a.id] ?? ""}
-                onChange={(e) => setOverride(a.id, e.target.value)}
-                className="shrink-0 text-xs font-bold bg-surface border border-line rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-[var(--team-primary)] max-w-[45%]"
-                aria-label={`Winner for ${a.label}`}
+              ))
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="t-meta text-ink-3 mb-1">
+              Winners are auto-picked from your season data. Override any award
+              with the dropdown — your picks are saved.
+            </p>
+            {resolved.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center gap-2 bg-surface-2 border border-line rounded-lg px-3 py-2"
               >
-                <option value="">
-                  Auto
-                  {a.auto
-                    ? ` (${nameById[a.auto.playerId] || "—"})`
-                    : " (none)"}
-                </option>
-                {players.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+                    {a.label}
+                    {a.auto?.value ? (
+                      <span className="ml-1 text-ink-3 normal-case tracking-normal">
+                        · {a.auto.value}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-sm font-bold text-ink truncate">
+                    {a.winnerId ? nameById[a.winnerId] || "—" : "No winner"}
+                    {a.isOverridden && (
+                      <span className="ml-1.5 text-[9px] font-black uppercase tracking-widest text-ink-3">
+                        (override)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <select
+                  value={overrides[a.id] ?? ""}
+                  onChange={(e) => setOverride(a.id, e.target.value)}
+                  className="shrink-0 text-xs font-bold bg-surface border border-line rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-[var(--team-primary)] max-w-[45%]"
+                  aria-label={`Winner for ${a.label}`}
+                >
+                  <option value="">
+                    Auto
+                    {a.auto
+                      ? ` (${nameById[a.auto.playerId] || "—"})`
+                      : " (none)"}
                   </option>
-                ))}
-                <option value={NONE}>No winner</option>
-              </select>
-            </div>
-          ))}
-        </div>
-      )}
-    </Modal>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                  <option value={NONE}>No winner</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </PageShell>
   );
 });

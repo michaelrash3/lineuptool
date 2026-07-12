@@ -1,14 +1,16 @@
 import React, { memo, useMemo } from "react";
-import { Modal } from "./shared";
-import { Icons } from "../icons";
-import { useToast } from "../contexts";
-import { buildSeasonSummary } from "../utils/helpers";
-import { getEvalCategoriesForTeam } from "../constants/ui";
-import { currentEvaluationScore100 } from "../utils/evaluationScore";
+import { Icons } from "../../icons";
+import { useTeam, useToast } from "../../contexts";
+import { PageShell } from "../../components/PageShell";
+import { useBackOrFallback } from "../../hooks/usePageNav";
+import { buildSeasonSummary } from "../../utils/helpers";
+import { getEvalCategoriesForTeam } from "../../constants/ui";
+import { currentEvaluationScore100 } from "../../utils/evaluationScore";
 
-// End-of-Season team report: record + run diff + streak, top performers,
-// attendance leaders, and biggest eval improvers. Read-only; shareable via
-// Copy and printable. Built entirely from data already on the team.
+// /season-report — End-of-Season team report: record + run diff + streak, top
+// performers, attendance leaders, and biggest eval improvers. Read-only;
+// shareable via Copy and printable. Built entirely from data already on the
+// team. Converted from SeasonReportModal per the app-wide modals→pages rule.
 
 type Kind = "int" | "dec2" | "dec3" | "pct" | "ip";
 
@@ -50,8 +52,10 @@ interface LeaderDef {
 const attIsPresent = (v: any) => v === true || v === "present";
 const attIsAbsent = (v: any) => v === false || v === "absent";
 
-export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
+export const SeasonReportPage = memo(() => {
+  const { team } = useTeam();
   const toast = useToast();
+  const back = useBackOrFallback("/");
   const players = useMemo(() => team?.players || [], [team?.players]);
   const games = useMemo(() => team?.games || [], [team?.games]);
   const practices = useMemo(() => team?.practices || [], [team?.practices]);
@@ -233,14 +237,12 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={onClose}
+    <PageShell
       eyebrow="Season Report"
       title={`${team?.currentSeason || "Season"} — ${team?.name || "Team"}`}
-      size="lg"
-      footer={
-        <div className="flex items-center justify-end gap-2">
+      onBack={back}
+      actions={
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => window.print()}
@@ -259,7 +261,7 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className="cc-card p-5 space-y-4">
         {/* Record / run diff / streak */}
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-surface-2 border border-line rounded-lg p-3 text-center">
@@ -366,6 +368,6 @@ export const SeasonReportModal = memo(({ open, onClose, team }: any) => {
           </div>
         )}
       </div>
-    </Modal>
+    </PageShell>
   );
 });
