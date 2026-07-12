@@ -616,3 +616,46 @@ export const recentGameLines = (
       line: g.playerStats[playerId],
     }));
 };
+
+// --- Stat display readers (shared by the season report + awards pages) ---
+
+// How a leaderboard/award value renders: whole number, 2- or 3-decimal
+// (batting-average style, leading zero stripped), percentage (accepts both
+// 0-1 rates and already-scaled numbers), or innings-pitched (one decimal).
+export type StatDisplayKind = "int" | "dec2" | "dec3" | "pct" | "ip";
+
+// A finite number or nothing — imported stats can carry nulls/strings.
+export const finiteStat = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? v : undefined;
+
+// First finite value among alternate key spellings (e.g. "fFpct", "fpct").
+export const readStat = (
+  stats: unknown,
+  ...keys: string[]
+): number | undefined => {
+  for (const k of keys) {
+    const n = finiteStat((stats as Record<string, unknown> | undefined)?.[k]);
+    if (n !== undefined) return n;
+  }
+  return undefined;
+};
+
+export const formatStatDisplay = (
+  n: number | undefined,
+  kind: StatDisplayKind,
+  empty = "",
+): string => {
+  if (n === undefined) return empty;
+  switch (kind) {
+    case "int":
+      return Math.round(n).toString();
+    case "dec2":
+      return n.toFixed(2);
+    case "dec3":
+      return n > 0 && n < 1 ? n.toFixed(3).replace(/^0/, "") : n.toFixed(3);
+    case "pct":
+      return `${(n <= 1 ? n * 100 : n).toFixed(1)}%`;
+    case "ip":
+      return n.toFixed(1);
+  }
+};

@@ -8,6 +8,7 @@ import { EVAL_CATEGORIES, getEvalCategoriesForTeam } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
 import { focusAreaDeltas } from "../utils/developmentPlan";
 import { currentEvaluationScore100 } from "../utils/evaluationScore";
+import { attIsPresent, attIsAbsent } from "../utils/attendance";
 import {
   buildSeasonPositionVariety,
   countsTowardStats,
@@ -180,9 +181,6 @@ const useEvalTrend = (
       series,
     };
   }, [evaluationEvents, player, playerId, categories, teamAge]);
-
-const attIsPresent = (v: any) => v === true || v === "present";
-const attIsAbsent = (v: any) => v === false || v === "absent";
 
 export const PlayerDevelopmentReport = memo(
   ({

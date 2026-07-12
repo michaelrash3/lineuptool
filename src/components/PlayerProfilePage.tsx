@@ -20,6 +20,7 @@ import { AGE_TIERS, isKidPitchFormat } from "../constants/ui";
 import { getCombinedGrades, suggestPrimaryPosition } from "../lineupEngine";
 import { useNavigate, useParams } from "react-router-dom";
 import { useTeam, useUI, useToast } from "../contexts";
+import { useBackOrFallback } from "../hooks/usePageNav";
 import { PlayerAvatar } from "./shared";
 
 // Shell for the player profile page at /roster/:playerId. The profile is a
@@ -307,6 +308,7 @@ const PastSeasonForm = memo(
 // links all behave like any other page.
 const PlayerProfile = memo(() => {
   const navigate = useNavigate();
+  const goBack = useBackOrFallback("/roster");
   const {
     team,
     updateFinances,
@@ -569,11 +571,8 @@ const PlayerProfile = memo(() => {
     // Real page semantics: go BACK to wherever the coach came from (roster,
     // stats, a pitching panel…) instead of pushing a fresh /roster entry —
     // pushing would leave the profile one Back-press away after closing,
-    // which is modal behavior. A deep link / fresh tab has no in-app history
-    // (react-router stamps state.idx = 0 on the first entry), so fall back
-    // to the roster.
-    if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
-    else navigate("/roster", { replace: true });
+    // which is modal behavior. useBackOrFallback owns the mechanics.
+    goBack();
   };
 
   return (

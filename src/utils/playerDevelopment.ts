@@ -9,6 +9,7 @@ import { countsTowardStats } from "./gameStatus";
 import { buildSeasonPositionVariety, POSITION_INNINGS_FIELDS } from "./season";
 import { currentEvaluationScore100 } from "./evaluationScore";
 import { isDepartedPlayer } from "./availability";
+import { attIsPresent, attIsAbsent } from "./attendance";
 import type {
   EvaluationEvent,
   Game,
@@ -299,11 +300,6 @@ export const computeDevelopmentTrends = (args: {
         a.name.localeCompare(b.name),
     );
 };
-
-// Attendance predicates mirror PlayerDevelopmentReport: legacy booleans plus
-// the practice string union; "excused" counts neither for nor against.
-const attIsPresent = (v: unknown): boolean => v === true || v === "present";
-const attIsAbsent = (v: unknown): boolean => v === false || v === "absent";
 
 // Compact per-player development summary for Advance Season — the game-level
 // inputs (game lines, attendance maps, eval rounds) are cleared at rollover,

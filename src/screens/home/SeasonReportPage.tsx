@@ -6,51 +6,31 @@ import { useBackOrFallback } from "../../hooks/usePageNav";
 import { buildSeasonSummary } from "../../utils/helpers";
 import { getEvalCategoriesForTeam } from "../../constants/ui";
 import { currentEvaluationScore100 } from "../../utils/evaluationScore";
+import { attIsPresent, attIsAbsent } from "../../utils/attendance";
+import {
+  readStat,
+  formatStatDisplay,
+  type StatDisplayKind,
+} from "../../utils/stats";
 
 // /season-report — End-of-Season team report: record + run diff + streak, top
 // performers, attendance leaders, and biggest eval improvers. Read-only;
 // shareable via Copy and printable. Built entirely from data already on the
 // team. A routed page per the app-wide modals→pages rule.
 
-type Kind = "int" | "dec2" | "dec3" | "pct" | "ip";
-
-const num = (v: any): number | undefined =>
-  typeof v === "number" && Number.isFinite(v) ? v : undefined;
-
-const read = (stats: any, ...keys: string[]): number | undefined => {
-  for (const k of keys) {
-    const n = num(stats?.[k]);
-    if (n !== undefined) return n;
-  }
-  return undefined;
-};
-
-const fmt = (n: number | undefined, kind: Kind): string => {
-  if (n === undefined) return "—";
-  switch (kind) {
-    case "int":
-      return Math.round(n).toString();
-    case "dec2":
-      return n.toFixed(2);
-    case "dec3":
-      return n > 0 && n < 1 ? n.toFixed(3).replace(/^0/, "") : n.toFixed(3);
-    case "pct":
-      return `${(n <= 1 ? n * 100 : n).toFixed(1)}%`;
-    case "ip":
-      return n.toFixed(1);
-  }
-};
+// Stat display readers are shared with the awards page — this report
+// renders missing values as an em dash.
+const read = readStat;
+const fmt = (n: number | undefined, kind: StatDisplayKind): string =>
+  formatStatDisplay(n, kind, "—");
 
 interface LeaderDef {
   label: string;
-  kind: Kind;
+  kind: StatDisplayKind;
   hi: boolean;
   needsIp?: boolean;
   get: (s: any) => number | undefined;
 }
-
-const attIsPresent = (v: any) => v === true || v === "present";
-const attIsAbsent = (v: any) => v === false || v === "absent";
 
 export const SeasonReportPage = memo(() => {
   const { team } = useTeam();

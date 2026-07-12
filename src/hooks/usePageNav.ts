@@ -6,7 +6,8 @@ import { useNavigate } from "react-router-dom";
 // returns to wherever they came from, and fall back to the section root on a
 // deep link / fresh tab. react-router stamps history.state.idx — 0 means this
 // entry started the session, so there is nothing sensible behind it. Mirrors
-// the PlayerProfile close() that established the pattern.
+// PlayerProfilePage's close() established the pattern and now uses this
+// hook like every other page.
 export const useBackOrFallback = (fallbackPath: string): (() => void) => {
   const navigate = useNavigate();
   return useCallback(() => {
