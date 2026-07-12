@@ -13,14 +13,9 @@ import {
 } from "../utils/helpers";
 import { shareLineupCard, downloadLineupPdf } from "../lineup/lineupCard";
 import { getPositionsForInning } from "../lineupEngine";
-import { useTeam, useUI, useToast } from "../contexts";
-import {
-  A11yDialog,
-  RecordBadge,
-  EmptyState,
-  Modal,
-} from "../components/shared";
-import { GameChangerImportModal } from "../components/GameChangerImportModal";
+import { useNavigate } from "react-router-dom";
+import { useTeam, useUI, useToast, useConfirm } from "../contexts";
+import { RecordBadge, EmptyState } from "../components/shared";
 import { StartingPitcherPicker } from "../components/StartingPitcherPicker";
 import { TournamentsSection } from "../components/tournament/TournamentsSection";
 import { featureEnabled } from "../constants/features";
@@ -193,7 +188,6 @@ export const ScheduleTab = memo(() => {
     activeTeamId,
     addGame,
     updateGame,
-    updateTeam,
     updateTeamArrays,
     finalizeGame,
     postponeGame,
@@ -261,19 +255,10 @@ export const ScheduleTab = memo(() => {
 
   const toast = useToast();
 
-  // In-app replacements for window.prompt (save template name) and
-  // window.confirm (delete template). Modal handles the save flow with
-  // an editable default name; the delete flow shows an inline confirm
-  // banner anchored under the templates dropdown.
-  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
-  const [saveTemplateName, setSaveTemplateName] = useState("");
-  const [pendingDeleteTemplateId, setPendingDeleteTemplateId] = useState<
-    string | null
-  >(null);
-  const [gcImportOpen, setGcImportOpen] = useState(false);
-  // Single "Import Schedule" entry point — a chooser offering either the
-  // GameChanger link sync or a plain CSV upload.
-  const [scheduleImportOpen, setScheduleImportOpen] = useState(false);
+  // Template save/delete ride the app-wide confirm/prompt system (the one
+  // approved overlay pattern); schedule import lives at /schedule/import.
+  const { confirm, promptText } = useConfirm();
+  const navigate = useNavigate();
   // Desktop master-detail: tracks which game is previewed in the right rail.
   // Separate from selectedGameId (which opens the full-screen editor).
   const [desktopPreviewId, setDesktopPreviewId] = useState<string | null>(null);
@@ -500,14 +485,20 @@ export const ScheduleTab = memo(() => {
                   )}
                   {lineup && (
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const defaultName = currentGame?.opponent
                           ? `vs ${currentGame.opponent} · ${
                               currentGame.date || "—"
                             }`
                           : "Lineup Template";
-                        setSaveTemplateName(defaultName);
-                        setSaveTemplateOpen(true);
+                        const name = await promptText({
+                          title: "Save Lineup Template",
+                          message:
+                            "Reusable batting order + defensive plan. Apply it to any future game.",
+                          defaultValue: defaultName,
+                          confirmLabel: "Save Template",
+                        });
+                        if (name) saveLineupTemplate?.(name);
                       }}
                       title="Save the current lineup + batting order as a reusable template"
                       className="shrink-0 py-3 px-4 flex items-center justify-center gap-2 font-black uppercase tracking-widest transition-colors rounded-xl shadow-sm text-xs bg-surface border border-line hover:bg-surface-2 text-ink"
@@ -526,7 +517,19 @@ export const ScheduleTab = memo(() => {
                           if (val.startsWith("apply:")) {
                             applyLineupTemplate?.(val.slice(6));
                           } else if (val.startsWith("delete:")) {
-                            setPendingDeleteTemplateId(val.slice(7));
+                            const id = val.slice(7);
+                            const tpl = (team.lineupTemplates || []).find(
+                              (t: any) => t.id === id,
+                            );
+                            void (async () => {
+                              const ok = await confirm({
+                                title: "Delete Template?",
+                                message: `"${tpl?.name || "This template"}" will be removed from your saved templates. Games using this template aren't affected.`,
+                                confirmLabel: "Delete",
+                                danger: true,
+                              });
+                              if (ok) deleteLineupTemplate?.(id);
+                            })();
                           }
                         }}
                         title="Apply or delete a saved lineup template"
@@ -1462,7 +1465,7 @@ export const ScheduleTab = memo(() => {
           )}
           {canEdit && (
             <button
-              onClick={() => setScheduleImportOpen(true)}
+              onClick={() => navigate("/schedule/import")}
               className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
             >
               <Icons.Upload className="w-4 h-4" /> Import Schedule
@@ -1479,66 +1482,6 @@ export const ScheduleTab = memo(() => {
           )}
         </div>
       </div>
-      <GameChangerImportModal
-        open={gcImportOpen}
-        onClose={() => setGcImportOpen(false)}
-        team={team}
-        updateTeam={updateTeam}
-        updateTeamArrays={updateTeamArrays}
-        toast={toast}
-      />
-      <Modal
-        open={scheduleImportOpen}
-        onClose={() => setScheduleImportOpen(false)}
-        eyebrow="Schedule"
-        title="Import Schedule"
-        size="sm"
-      >
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={() => {
-              setScheduleImportOpen(false);
-              setGcImportOpen(true);
-            }}
-            className="w-full flex items-center gap-3 p-4 text-left rounded-xl border border-line-strong bg-surface hover:bg-surface-2 transition-colors"
-          >
-            <Icons.Calendar className="w-5 h-5 text-team-primary shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-sm font-black uppercase tracking-wider text-ink">
-                From GameChanger
-              </span>
-              <span className="block text-xs text-ink-3 mt-0.5">
-                Sync games from your team's GameChanger schedule link.
-              </span>
-            </span>
-          </button>
-          <label
-            htmlFor="schedule-import-csv"
-            className="w-full flex items-center gap-3 p-4 text-left rounded-xl border border-line-strong bg-surface hover:bg-surface-2 transition-colors cursor-pointer"
-          >
-            <Icons.Upload className="w-5 h-5 text-team-primary shrink-0" />
-            <span className="min-w-0">
-              <span className="block text-sm font-black uppercase tracking-wider text-ink">
-                Upload CSV
-              </span>
-              <span className="block text-xs text-ink-3 mt-0.5">
-                Schedule CSV (date, opponent, location).
-              </span>
-            </span>
-            <input
-              id="schedule-import-csv"
-              type="file"
-              className="sr-only"
-              accept=".csv,text/csv,application/csv,application/vnd.ms-excel,text/plain"
-              onChange={(e) => {
-                setScheduleImportOpen(false);
-                uploadScheduleCsv(e);
-              }}
-            />
-          </label>
-        </div>
-      </Modal>
       {isAddingGame && (
         <div className="p-5 bg-surface border-b border-white/30 flex flex-col sm:flex-row gap-3">
           <input
@@ -2385,120 +2328,6 @@ export const ScheduleTab = memo(() => {
           );
         })()}
       </div>
-
-      {saveTemplateOpen && (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setSaveTemplateOpen(false)}
-        >
-          <A11yDialog
-            label="Save lineup template"
-            onClose={() => setSaveTemplateOpen(false)}
-            className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-          >
-            <div className="p-1.5" style={{ backgroundColor: primaryColor }} />
-            <div className="p-5 sm:p-6">
-              <h3 className="t-h3 mb-1">Save Lineup Template</h3>
-              <p className="text-xs text-ink-3 font-medium mb-4">
-                Reusable batting order + defensive plan. Apply it to any future
-                game.
-              </p>
-              <label className="block text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-1.5">
-                Name
-              </label>
-              <input
-                type="text"
-                autoFocus
-                value={saveTemplateName}
-                onChange={(e) => setSaveTemplateName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && saveTemplateName.trim()) {
-                    saveLineupTemplate?.(saveTemplateName.trim());
-                    setSaveTemplateOpen(false);
-                  }
-                  if (e.key === "Escape") setSaveTemplateOpen(false);
-                }}
-                className="w-full px-3 py-2.5 bg-surface border border-line text-sm font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
-              />
-              <div className="flex justify-end gap-2 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setSaveTemplateOpen(false)}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!saveTemplateName.trim()}
-                  onClick={() => {
-                    saveLineupTemplate?.(saveTemplateName.trim());
-                    setSaveTemplateOpen(false);
-                  }}
-                  className="px-4 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl shadow-md transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                  style={{
-                    backgroundColor: primaryColor,
-                    color: tertiaryColor,
-                  }}
-                >
-                  Save Template
-                </button>
-              </div>
-            </div>
-          </A11yDialog>
-        </div>
-      )}
-
-      {pendingDeleteTemplateId &&
-        (() => {
-          const tpl = (team.lineupTemplates || []).find(
-            (t: any) => t.id === pendingDeleteTemplateId,
-          );
-          const name = tpl?.name || "this template";
-          return (
-            <div
-              className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-              onClick={() => setPendingDeleteTemplateId(null)}
-            >
-              <A11yDialog
-                label="Delete template?"
-                onClose={() => setPendingDeleteTemplateId(null)}
-                className="bg-surface rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-              >
-                <div
-                  className="p-1.5"
-                  style={{ backgroundColor: "var(--loss)" }}
-                />
-                <div className="p-5 sm:p-6">
-                  <h3 className="t-h3 mb-1">Delete Template?</h3>
-                  <p className="text-sm text-ink font-medium mb-5">
-                    "{name}" will be removed from your saved templates. Games
-                    using this template aren't affected.
-                  </p>
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPendingDeleteTemplateId(null)}
-                      className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-surface-2 hover:bg-line text-ink rounded-xl transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        deleteLineupTemplate?.(pendingDeleteTemplateId);
-                        setPendingDeleteTemplateId(null);
-                      }}
-                      className="px-4 py-2.5 text-xs font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </A11yDialog>
-            </div>
-          );
-        })()}
     </div>
   );
 });

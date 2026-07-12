@@ -230,6 +230,16 @@ const HelpCenter = lazy(() =>
     default: m.HelpCenter,
   })),
 );
+const ScheduleImportPage = lazy(() =>
+  import("./screens/schedule/ScheduleImportPage").then((m) => ({
+    default: m.ScheduleImportPage,
+  })),
+);
+const GameChangerImportPage = lazy(() =>
+  import("./screens/schedule/GameChangerImportPage").then((m) => ({
+    default: m.GameChangerImportPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -782,6 +792,15 @@ const MainShell = () => {
                   }
                 />
                 <Route path="/schedule" element={<ScheduleTab />} />
+                {/* Converted sub-pages rank above the /schedule/* catch-all. */}
+                <Route
+                  path="/schedule/import"
+                  element={<ScheduleImportPage />}
+                />
+                <Route
+                  path="/schedule/import/gamechanger"
+                  element={<GameChangerImportPage />}
+                />
                 <Route
                   path="/practices"
                   element={
