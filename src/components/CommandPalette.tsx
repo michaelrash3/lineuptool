@@ -25,7 +25,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     setActiveTab,
     openPlayerProfile,
     setSelectedGameId,
-    setIsAddingPlayer,
+    openAddPlayer,
     setAssistantEvalOpen,
   } = useUI();
   const navigate = useNavigate();
@@ -162,10 +162,8 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
           label: "Add Player",
           sublabel: "Create a new roster entry",
           searchKey: "add player new roster",
-          action: () => {
-            setActiveTab("roster");
-            setIsAddingPlayer(true);
-          },
+          // Navigating to /roster/new also lands on the roster tab.
+          action: () => openAddPlayer(),
         },
       );
     } else {
@@ -201,7 +199,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     openPlayerProfile,
     setActiveTab,
     setSelectedGameId,
-    setIsAddingPlayer,
+    openAddPlayer,
     setAssistantEvalOpen,
     navigate,
   ]);

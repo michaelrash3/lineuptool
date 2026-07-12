@@ -94,11 +94,7 @@ import { WelcomeChooser } from "./components/WelcomeChooser";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LoginScreen, AppHeader, OfflineBanner } from "./components/Chrome";
 import { AppLoadingScreen, ScreenLoader } from "./components/LoadingScreens";
-import {
-  PlayerProfilePage,
-  AddPlayerModal,
-  PastSeasonImportModal,
-} from "./components/modals";
+import { PlayerProfilePage, PastSeasonImportModal } from "./components/modals";
 import {
   slimGame,
   scrubUndefined,
@@ -250,6 +246,11 @@ const TournamentDetailPage = lazy(() =>
     default: m.TournamentDetailPage,
   })),
 );
+const AddPlayerPage = lazy(() =>
+  import("./screens/roster/AddPlayerPage").then((m) => ({
+    default: m.AddPlayerPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -308,7 +309,7 @@ const TournamentDetailPage = lazy(() =>
 
 /* ============================================================================
    SECTION 15 · PlayerProfilePage — see ./components/modals.tsx
-   SECTION 16 · AddPlayerModal     — see ./components/modals.jsx
+   SECTION 16 · AddPlayerPage     — see ./screens/roster/AddPlayerPage.tsx
 ============================================================================ */
 
 /* ============================================================================
@@ -786,6 +787,7 @@ const MainShell = () => {
                   }
                 />
                 <Route path="/roster" element={<RosterTab />} />
+                <Route path="/roster/new" element={<AddPlayerPage />} />
                 <Route
                   path="/roster/:playerId"
                   element={<PlayerProfilePage />}
@@ -915,7 +917,6 @@ const MainShell = () => {
         </Suspense>
       </main>
       <SharedModals />
-      <AddPlayerModal />
       <PastSeasonImportModal />
       <Suspense fallback={null}>
         <InGameView />

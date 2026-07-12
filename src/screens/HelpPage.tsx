@@ -45,7 +45,7 @@ export const HelpPage = ({
   onOpenTutorial: () => void;
 }) => {
   const { team, currentRole } = useTeam();
-  const { setActiveTab, setIsAddingPlayer, setIsAddingGame } = useUI();
+  const { setActiveTab, openAddPlayer, setIsAddingGame } = useUI();
   const { topicId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,10 +115,10 @@ export const HelpPage = ({
           g.date === today && g.status !== "final" && g.status !== "postponed",
       ),
       setActiveTab,
-      setIsAddingPlayer: isAssistant ? () => {} : setIsAddingPlayer,
+      openAddPlayer: isAssistant ? () => {} : openAddPlayer,
       setIsAddingGame: isAssistant ? () => {} : setIsAddingGame,
     };
-  }, [team, currentRole, setActiveTab, setIsAddingPlayer, setIsAddingGame]);
+  }, [team, currentRole, setActiveTab, openAddPlayer, setIsAddingGame]);
 
   const tourSteps = useMemo(
     () => (activeTour ? attachStepNumbers(activeTour.buildSteps(tourCtx)) : []),
@@ -152,10 +152,10 @@ export const HelpPage = ({
     // setActiveTab routes to the tab (useMainShellRouting mirrors it), so
     // the CTA is itself the navigation away from Help.
     setActiveTab(cta.tab);
-    // Add-flows are head-coach actions (AddPlayerModal / ScheduleTab both
-    // role-gate their editors); for assistants the CTA just navigates.
+    // Add-flows are head-coach actions (/roster/new and the ScheduleTab
+    // editor both role-gate); for assistants the CTA just navigates.
     if (currentRole !== "assistant") {
-      if (cta.uiAction === "addPlayer") setIsAddingPlayer(true);
+      if (cta.uiAction === "addPlayer") openAddPlayer();
       if (cta.uiAction === "addGame") setIsAddingGame(true);
     }
   };

@@ -13,7 +13,8 @@ export interface TourCtaCtx {
   hasGames: boolean;
   hasGameToday: boolean;
   setActiveTab: (tab: string) => void;
-  setIsAddingPlayer: (v: boolean) => void;
+  // Routes to the /roster/new page (which also lands on the roster tab).
+  openAddPlayer: () => void;
   setIsAddingGame?: (v: boolean) => void;
 }
 

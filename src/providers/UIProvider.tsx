@@ -109,8 +109,8 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [newTeamName, setNewTeamName] = useState("");
   const [assistantEvalOpen, setAssistantEvalOpen] = useState(false);
 
-  // Roster/profile state
-  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
+  // Roster/profile state. Adding a player is a routed page (/roster/new) —
+  // see openAddPlayer below.
   const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
 
   // Help lives at /help and /help/:topicId (routed pages) — deep links go
@@ -372,6 +372,14 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     [navigateToRoute],
   );
 
+  // Adding a player is the /roster/new page. A provider-level shortcut (like
+  // openPlayerProfile) so Home, the palette, tours, and help CTAs can all
+  // open it without each pulling in useNavigate.
+  const openAddPlayer = useCallback(
+    () => navigateToRoute("/roster/new"),
+    [navigateToRoute],
+  );
+
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
   // owned by TeamProvider; mutating it during render would be a
   // setState-like side effect. Defer to an effect that runs after commit
@@ -490,8 +498,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setNewTeamName,
       assistantEvalOpen,
       setAssistantEvalOpen,
-      isAddingPlayer,
-      setIsAddingPlayer,
+      openAddPlayer,
       viewingPlayerId,
       setViewingPlayerId,
       openPlayerProfile,
@@ -534,7 +541,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       isAddingTeam,
       newTeamName,
       assistantEvalOpen,
-      isAddingPlayer,
+      openAddPlayer,
       viewingPlayerId,
       openPlayerProfile,
       isAddingCoach,

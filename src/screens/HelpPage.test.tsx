@@ -32,7 +32,6 @@ const renderHelp = ({
     </MemoryRouter>,
     {
       ui: {
-        setIsAddingPlayer: jest.fn(),
         setIsAddingGame: jest.fn(),
         ...ui,
       },
@@ -136,7 +135,7 @@ describe("HelpPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Adding players/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add a player" }));
     expect(uiValue.setActiveTab).toHaveBeenCalledWith("roster");
-    expect(uiValue.setIsAddingPlayer).toHaveBeenCalledWith(true);
+    expect(uiValue.openAddPlayer).toHaveBeenCalledTimes(1);
   });
 
   it("assistant CTAs navigate but never flip head-only editor flags", () => {
@@ -145,7 +144,7 @@ describe("HelpPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Adding players/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add a player" }));
     expect(uiValue.setActiveTab).toHaveBeenCalledWith("roster");
-    expect(uiValue.setIsAddingPlayer).not.toHaveBeenCalled();
+    expect(uiValue.openAddPlayer).not.toHaveBeenCalled();
   });
 
   it("search ranks a title match above a body-only match", () => {

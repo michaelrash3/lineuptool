@@ -36,7 +36,8 @@ interface OrientationCtx {
   isAssistant: boolean;
   featureOn: (id: string) => boolean;
   setActiveTab: (tab: string) => void;
-  setIsAddingPlayer: (v: boolean) => void;
+  // Routes to the /roster/new page (which also lands on the roster tab).
+  openAddPlayer: () => void;
   setIsAddingGame?: (v: boolean) => void;
 }
 
@@ -51,7 +52,7 @@ const buildSteps = (ctx: OrientationCtx): TourStep[] => {
     isAssistant,
     featureOn,
     setActiveTab,
-    setIsAddingPlayer,
+    openAddPlayer,
     setIsAddingGame,
   } = ctx;
   const steps: Array<TourStep | null> = [
@@ -95,10 +96,7 @@ const buildSteps = (ctx: OrientationCtx): TourStep[] => {
             {
               label: "Add a player",
               primary: true,
-              run: () => {
-                setActiveTab("roster");
-                setIsAddingPlayer(true);
-              },
+              run: () => openAddPlayer(),
             },
             {
               label: "Import a CSV",
@@ -321,7 +319,7 @@ export const OnboardingTutorial = ({
         setActiveTab: ui.setActiveTab,
         // Add-flows are head-coach actions (their editors are role-gated at
         // the destination); assistant CTAs navigate without the editor flag.
-        setIsAddingPlayer: isAssistant ? () => {} : ui.setIsAddingPlayer,
+        openAddPlayer: isAssistant ? () => {} : ui.openAddPlayer,
         setIsAddingGame: isAssistant ? () => {} : ui.setIsAddingGame,
       }),
     );

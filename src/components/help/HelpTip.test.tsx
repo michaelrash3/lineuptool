@@ -45,7 +45,7 @@ const makeCtx = (overrides: Partial<TourCtaCtx> = {}): TourCtaCtx => ({
   hasGames: false,
   hasGameToday: false,
   setActiveTab: jest.fn(),
-  setIsAddingPlayer: jest.fn(),
+  openAddPlayer: jest.fn(),
   setIsAddingGame: jest.fn(),
   ...overrides,
 });
@@ -73,7 +73,7 @@ describe("TOURS", () => {
     }
   });
 
-  it("first-lineup's add-player CTA navigates to Roster and opens the modal", () => {
+  it("first-lineup's add-player CTA routes to the add-player page", () => {
     const ctx = makeCtx();
     const tour = TOURS.find((t) => t.id === "first-lineup");
     const cta = tour!
@@ -82,8 +82,8 @@ describe("TOURS", () => {
       .find((c) => c.label === "Add a player");
     expect(cta).toBeDefined();
     cta!.run();
-    expect(ctx.setActiveTab).toHaveBeenCalledWith("roster");
-    expect(ctx.setIsAddingPlayer).toHaveBeenCalledWith(true);
+    // /roster/new is a routed page — navigating there also lands on Roster.
+    expect(ctx.openAddPlayer).toHaveBeenCalledTimes(1);
   });
 });
 

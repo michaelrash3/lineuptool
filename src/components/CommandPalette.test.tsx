@@ -33,7 +33,7 @@ const renderPalette = ({
     {
       team: { team: fixtureTeam, ...team },
       ui: {
-        setIsAddingPlayer: jest.fn(),
+        openAddPlayer: jest.fn(),
         setAssistantEvalOpen: jest.fn(),
         ...ui,
       },
