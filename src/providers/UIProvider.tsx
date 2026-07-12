@@ -62,7 +62,7 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   } | null>(null); // first tap of a swap pair
   const [inGameUndoStack, setInGameUndoStack] = useState<unknown[]>([]); // last swap undo data
   const [activeTab, setActiveTab] = useState("home");
-  // The past-season import review lives at /roster/import/past-season; the
+  // The past-season import review lives at /settings/import/past-season; the
   // parsed rows travel via navigation state, not provider state.
   const [currentGameAttendance, setCurrentGameAttendance] = useState<
     Record<string, boolean>

@@ -10,9 +10,12 @@ import {
   type OfferLetterKind,
 } from "../constants/offerLetters";
 
-// Routed offer-letter drafts — one page per audience, converted from the
-// offer-letter modal overlays per the app-wide modals→pages rule. All three
-// are head-coach surfaces (they quote money and family contact info).
+// Routed recruiting-letter drafts — one page per audience, converted from
+// the offer-letter modal overlays per the app-wide modals→pages rule. All
+// three are head-coach surfaces (they quote money and family contact info).
+// The URL segment is "letter", not "offer": the same pages also render
+// rejection and not-returning letters, and .../offer/rejection read as a
+// contradiction in the address bar.
 
 // URL slug → letter kind. Slugs stay kebab-case in the address bar.
 const KIND_SLUGS: Record<string, OfferLetterKind> = {
@@ -40,9 +43,9 @@ const Shell = ({
   </PageShell>
 );
 
-// /roster/:playerId/offer/:kind — returning / not-returning letters for a
+// /roster/:playerId/letter/:kind — returning / not-returning letters for a
 // roster player, opened from the profile's Family Contact section.
-export const RosterOfferPage = memo(() => {
+export const RosterLetterPage = memo(() => {
   const { playerId, kind: kindSlug } = useParams();
   const { team, user, updateFinances, currentRole } = useTeam();
   const back = useBackOrFallback(playerId ? `/roster/${playerId}` : "/roster");
@@ -71,9 +74,10 @@ export const RosterOfferPage = memo(() => {
   );
 });
 
-// /tryouts/offer/:signupId/:kind — new-player offer or rejection letter for a
-// tryout signup; copying/opening the draft marks the signup offered/declined.
-export const TryoutOfferPage = memo(() => {
+// /tryouts/letter/:signupId/:kind — new-player offer or rejection letter for
+// a tryout signup; copying/opening the draft marks the signup
+// offered/declined.
+export const TryoutLetterPage = memo(() => {
   const { signupId, kind: kindSlug } = useParams();
   const { team, user, updateFinances, updateTryoutSignup, currentRole } =
     useTeam();
@@ -107,9 +111,9 @@ export const TryoutOfferPage = memo(() => {
   );
 });
 
-// /interest/offer/:leadId — tryout-invite draft for a year-round interest
+// /interest/letter/:leadId — tryout-invite draft for a year-round interest
 // lead.
-export const InterestOfferPage = memo(() => {
+export const InterestLetterPage = memo(() => {
   const { leadId } = useParams();
   const { team, user, currentRole } = useTeam();
   const back = useBackOrFallback("/interest");

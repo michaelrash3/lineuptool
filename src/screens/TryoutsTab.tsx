@@ -1234,7 +1234,7 @@ export const TryoutsTab = memo(() => {
   };
 
   // Recruiting letters are COPYABLE drafts (Gmail send is unreliable here), so
-  // "Make an Offer" / "Decline" route to /tryouts/offer/:signupId/:kind — the
+  // "Make an Offer" / "Decline" route to /tryouts/letter/:signupId/:kind — the
   // page flips the signup status once the coach actually delivers the draft.
   // Accept-time routing choice: accepts default to NEXT season (held in
   // Tryouts, promoted on Advance Season); the coach can opt a kid onto the
@@ -1658,7 +1658,7 @@ export const TryoutsTab = memo(() => {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  navigate(`/tryouts/offer/${s.id}/new-player`)
+                                  navigate(`/tryouts/letter/${s.id}/new-player`)
                                 }
                                 className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
                               >
@@ -1671,7 +1671,9 @@ export const TryoutsTab = memo(() => {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    navigate(`/tryouts/offer/${s.id}/rejection`)
+                                    navigate(
+                                      `/tryouts/letter/${s.id}/rejection`,
+                                    )
                                   }
                                   className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
                                 >

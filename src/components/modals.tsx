@@ -161,7 +161,7 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
   );
 });
 
-// PastSeasonImportModal became the /roster/import/past-season page —
+// PastSeasonImportModal became the /settings/import/past-season page —
 // see screens/roster/PastSeasonImportPage.
 
 /* PastSeasonForm — used inline for Add and Edit of a single past-season entry. */
@@ -374,7 +374,7 @@ const PlayerProfile = memo(() => {
   }, []);
 
   const [editingContact, setEditingContact] = useState(false);
-  // Offer letters live at /roster/:playerId/offer/:kind (routed pages).
+  // Letter drafts live at /roster/:playerId/letter/:kind (routed pages).
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
@@ -1624,7 +1624,7 @@ const PlayerProfile = memo(() => {
                 <button
                   type="button"
                   onClick={() =>
-                    navigate(`/roster/${player.id}/offer/returning`)
+                    navigate(`/roster/${player.id}/letter/returning`)
                   }
                   className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
@@ -1633,7 +1633,7 @@ const PlayerProfile = memo(() => {
                 <button
                   type="button"
                   onClick={() =>
-                    navigate(`/roster/${player.id}/offer/not-returning`)
+                    navigate(`/roster/${player.id}/letter/not-returning`)
                   }
                   className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >

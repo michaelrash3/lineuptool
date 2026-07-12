@@ -610,7 +610,7 @@ export const SettingsTab = memo(() => {
   ];
 
   // Past-season CSV import: parse the file, then hand the rows to the
-  // /roster/import/past-season review page via navigation state (a file's
+  // /settings/import/past-season review page via navigation state (a file's
   // worth of rows never rides the URL; a refresh there bounces back here).
   const startPastSeasonImport = useCallback(
     (e: any) => {
@@ -639,7 +639,7 @@ export const SettingsTab = memo(() => {
           assignments[row.csvName] =
             suggestPlayerMatch(row.csvName, players) || "skip";
         }
-        navigate("/roster/import/past-season", {
+        navigate("/settings/import/past-season", {
           state: {
             rows: result.rows,
             season: "",
