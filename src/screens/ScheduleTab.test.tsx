@@ -58,8 +58,13 @@ const players = [
   { id: "p9", name: "Right Field" },
 ];
 
-const renderGameEditor = (leagueRuleSet: string) => {
+const renderGameEditor = (
+  leagueRuleSet: string,
+  over: { teamAge?: string; players?: any[]; battingLineup?: any[] } = {},
+) => {
   const handleCellClick = jest.fn();
+  const roster = over.players ?? players;
+  const batting = over.battingLineup ?? players;
   return renderWithProviders(
     <MemoryRouter>
       <ScheduleTab />
@@ -69,7 +74,8 @@ const renderGameEditor = (leagueRuleSet: string) => {
         team: {
           ...baseTeam,
           leagueRuleSet,
-          players,
+          teamAge: over.teamAge ?? baseTeam.teamAge,
+          players: roster,
           games: [
             {
               id: "g1",
@@ -81,7 +87,7 @@ const renderGameEditor = (leagueRuleSet: string) => {
               defenseSize: 9,
               battingSize: 9,
               lineup,
-              battingLineup: players,
+              battingLineup: batting,
             },
           ],
         },
@@ -98,7 +104,7 @@ const renderGameEditor = (leagueRuleSet: string) => {
         firstInningLineup: {},
         setFirstInningLineup: jest.fn(),
         lineup,
-        battingLineup: players,
+        battingLineup: batting,
         swapSelection: null,
         handleCellClick,
         addInning: jest.fn(),
@@ -289,5 +295,75 @@ describe("ScheduleTab", () => {
     renderGameEditor("NKB");
 
     expect(screen.getByText("Active Lineup Grid")).toBeInTheDocument();
+  });
+});
+
+describe("ScheduleTab — 9U+ pitching format is fixed to Kid Pitch", () => {
+  it("shows a read-only Kid Pitch pill instead of a dropdown at 10U", () => {
+    renderGameEditor("USSSA");
+    // The one legal format is stated as a fact…
+    expect(screen.getByText("Kid Pitch")).toBeInTheDocument();
+    // …and the other formats are gone from the editor entirely.
+    expect(screen.queryByText("Machine Pitch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Coach Pitch")).not.toBeInTheDocument();
+  });
+
+  it("keeps the Kid/Coach dropdown for an 8U USSSA team", () => {
+    renderGameEditor("USSSA", { teamAge: "8U" });
+    expect(
+      screen.getByRole("option", { name: "Coach Pitch" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Machine Pitch" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("ScheduleTab — batting order rows", () => {
+  const { within } = require("@testing-library/react");
+  const batterRow = (name: string) => {
+    // Attendance chips expose buttons with the same accessible name — the
+    // batting row's name button is the font-black one.
+    const nameButton = screen
+      .getAllByRole("button", { name })
+      .find((b) => b.className.includes("font-black"));
+    return nameButton!.closest("div.bg-surface.border") as HTMLElement;
+  };
+
+  it("paints the order number with the contrast-adjusted team ink", () => {
+    renderGameEditor("USSSA");
+    const row = batterRow("Pitcher");
+    const badge = within(row).getByText("1");
+    // Raw team hex is invisible on the dark surface when the team color is
+    // dark; the badge must use the theme-adjusted token.
+    expect(badge).toHaveStyle({ color: "var(--team-ink)" });
+  });
+
+  it("joins slim batting entries to roster players for the stat line", () => {
+    // battingLineup entries stay slim ({id, name}); the stats live only on
+    // the roster player — the row must read them through the roster join.
+    const roster = players.map((pl) =>
+      pl.id === "p1"
+        ? { ...pl, stats: { ab: 20, h: 9, avg: 0.45, ops: 1.1 } }
+        : pl,
+    );
+    renderGameEditor("USSSA", { players: roster });
+    const row = batterRow("Pitcher");
+    expect(within(row).getByText("9/20")).toBeInTheDocument();
+    expect(within(row).getByText(".450")).toBeInTheDocument();
+    expect(within(row).getByText("1.100")).toBeInTheDocument();
+    // A batter with no stats shows no chip.
+    expect(
+      within(batterRow("Catcher")).queryByText(/AVG:/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders a departed batter (not on the roster) without stats or crash", () => {
+    renderGameEditor("USSSA", {
+      battingLineup: [...players, { id: "gone", name: "Left Team" }],
+    });
+    const row = batterRow("Left Team");
+    expect(row).toBeInTheDocument();
+    expect(within(row).queryByText(/AVG:/)).not.toBeInTheDocument();
   });
 });

@@ -21,9 +21,9 @@ import { TournamentsSection } from "../components/tournament/TournamentsSection"
 import { GameStakesPanel } from "../components/tournament/GameStakesPanel";
 import { featureEnabled } from "../constants/features";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
-import type { Game } from "../types";
+import type { Game, Player } from "../types";
 import { isoInstantToLocalTime } from "../utils/icsParse";
-import { leagueRuleSetLabel } from "../constants/ui";
+import { allowedPitchingFormats, leagueRuleSetLabel } from "../constants/ui";
 import { LineupGrid } from "./LineupGrid";
 
 export const ScoreEditor = memo(
@@ -345,6 +345,14 @@ export const ScheduleTab = memo(() => {
     [games],
   );
 
+  // Lineups store SlimPlayer entries ({id, name, number} — no stats), so the
+  // batting-order rows join back to the roster player for their stat line.
+  const rosterById = useMemo(
+    () =>
+      new Map<string, Player>((players || []).map((pl: Player) => [pl.id, pl])),
+    [players],
+  );
+
   // Tournament label per game id for the row chip. Auto-detected weekend
   // clusters (pool + bracket games on the same weekend) provide the fallback
   // label; a stored tournament's NAME wins for its games. When the tournaments
@@ -604,18 +612,10 @@ export const ScheduleTab = memo(() => {
                 value={gameLeague}
                 onChange={(e) => {
                   const newLeague = e.target.value;
-                  let newFormat = gamePitching;
-                  if (
-                    newLeague === "NKB" &&
-                    ["6U", "7U", "8U"].includes(teamAge)
-                  )
-                    newFormat = "Machine Pitch";
-                  if (
-                    newLeague === "USSSA" &&
-                    teamAge === "8U" &&
-                    newFormat === "Machine Pitch"
-                  )
-                    newFormat = "Kid Pitch";
+                  const allowed = allowedPitchingFormats(newLeague, teamAge);
+                  const newFormat = allowed.includes(gamePitching)
+                    ? gamePitching
+                    : allowed[0];
                   // Pool/Bracket is a subset of Tournament. Rec games are
                   // always League; switching to Tournament defaults to Pool
                   // play (keeps an existing Bracket pick), and back to Rec
@@ -663,31 +663,38 @@ export const ScheduleTab = memo(() => {
               <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                 Pitching
               </label>
-              <select
-                value={gamePitching}
-                onChange={(e) =>
-                  updateGame(selectedGameId, {
-                    pitchingFormat: e.target.value,
-                  })
+              {(() => {
+                const allowedFormats = allowedPitchingFormats(
+                  gameLeague,
+                  teamAge,
+                );
+                // One legal format for this league + age (9U+ is always kid
+                // pitch) — no dropdown, just the fact.
+                if (allowedFormats.length === 1) {
+                  return (
+                    <div className="w-full p-2.5 bg-surface border border-line text-xs font-bold text-ink-2 rounded-lg shadow-sm">
+                      {allowedFormats[0]}
+                    </div>
+                  );
                 }
-                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                {gameLeague === "NKB" &&
-                ["6U", "7U", "8U"].includes(teamAge) ? (
-                  <option value="Machine Pitch">Machine Pitch</option>
-                ) : gameLeague === "USSSA" && teamAge === "8U" ? (
-                  <>
-                    <option value="Kid Pitch">Kid Pitch</option>
-                    <option value="Coach Pitch">Coach Pitch</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="Kid Pitch">Kid Pitch</option>
-                    <option value="Coach Pitch">Coach Pitch</option>
-                    <option value="Machine Pitch">Machine Pitch</option>
-                  </>
-                )}
-              </select>
+                return (
+                  <select
+                    value={gamePitching}
+                    onChange={(e) =>
+                      updateGame(selectedGameId, {
+                        pitchingFormat: e.target.value,
+                      })
+                    }
+                    className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+                  >
+                    {allowedFormats.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
             </div>
             <div className="w-full">
               <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
@@ -1368,76 +1375,87 @@ export const ScheduleTab = memo(() => {
                   <h3 className="t-h3">Batting Order</h3>
                 </div>
                 <div className="flex flex-col gap-3 max-w-2xl">
-                  {battingLineup.map((p: any, idx: any) => (
-                    <div
-                      key={p?.id ?? `batter_${idx}`}
-                      className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="flex flex-col items-center gap-1 text-ink-3 border-r border-line/50 pr-3 mr-1">
-                          <button
-                            onClick={() => moveBatter(idx, -1)}
-                            disabled={idx === 0}
-                            className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
-                          >
-                            <Icons.ChevronUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => moveBatter(idx, 1)}
-                            disabled={idx === battingLineup.length - 1}
-                            className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
-                          >
-                            <Icons.ChevronDown className="w-4 h-4" />
-                          </button>
-                        </div>
+                  {battingLineup.map((p: any, idx: any) => {
+                    // Slim lineup entry → roster player for the stat line
+                    // (departed players simply have no stats to show).
+                    const stats = p ? rosterById.get(p.id)?.stats : undefined;
+                    const hasBattingStats =
+                      !!stats &&
+                      ((stats.ab ?? 0) > 0 ||
+                        (stats.ops ?? 0) > 0 ||
+                        (stats.avg ?? 0) > 0 ||
+                        (stats.contact ?? 0) > 0);
+                    return (
+                      <div
+                        key={p?.id ?? `batter_${idx}`}
+                        className="bg-surface border border-line p-2.5 shadow-sm rounded-xl transition-all hover:shadow-md hover:bg-surface-2"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex flex-col items-center gap-1 text-ink-3 border-r border-line/50 pr-3 mr-1">
+                            <button
+                              onClick={() => moveBatter(idx, -1)}
+                              disabled={idx === 0}
+                              className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
+                            >
+                              <Icons.ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => moveBatter(idx, 1)}
+                              disabled={idx === battingLineup.length - 1}
+                              className="p-1 hover:bg-surface-2 hover:text-team-primary rounded disabled:opacity-30 transition-colors"
+                            >
+                              <Icons.ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
 
-                        <div
-                          className="w-10 h-10 shrink-0 flex items-center justify-center font-black text-sm rounded-lg shadow-inner"
-                          style={{
-                            backgroundColor: `${primaryColor}15`,
-                            color: primaryColor,
-                          }}
-                        >
-                          {idx + 1}
-                        </div>
-                        <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pl-1 pr-3">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openPlayerProfile && openPlayerProfile(p.id)
-                            }
-                            className="flex-1 text-sm font-black text-ink text-left hover:text-team-primary transition-colors cursor-pointer truncate"
+                          <div
+                            className="w-10 h-10 shrink-0 flex items-center justify-center font-black text-sm rounded-lg shadow-inner"
+                            style={{
+                              backgroundColor: `${primaryColor}15`,
+                              // Contrast-adjusted team ink — the raw team hex
+                              // vanishes on the dark surface when the team
+                              // color is dark.
+                              color: "var(--team-ink)",
+                            }}
                           >
-                            {p.name}
-                          </button>
-                          {(p.stats?.ab > 0 ||
-                            p.stats?.ops > 0 ||
-                            p.stats?.avg > 0 ||
-                            p.stats?.contact > 0) && (
-                            <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex items-center gap-3 bg-surface px-3 py-1.5 border border-line rounded-lg">
-                              <span>
-                                {p.stats.h || 0}/{p.stats.ab || 0}
-                              </span>
-                              <span className="text-ink-3">|</span>
-                              <span>
-                                AVG:{" "}
-                                <span className="text-ink">
-                                  {formatStat(p.stats.avg)}
+                            {idx + 1}
+                          </div>
+                          <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pl-1 pr-3">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                openPlayerProfile && openPlayerProfile(p.id)
+                              }
+                              className="flex-1 text-sm font-black text-ink text-left hover:text-team-primary transition-colors cursor-pointer truncate"
+                            >
+                              {p.name}
+                            </button>
+                            {hasBattingStats && (
+                              <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest flex items-center gap-3 bg-surface px-3 py-1.5 border border-line rounded-lg">
+                                <span>
+                                  {stats?.h || 0}/{stats?.ab || 0}
                                 </span>
-                              </span>
-                              <span className="text-ink-3">|</span>
-                              <span>
-                                OPS:{" "}
-                                <span className="text-ink">
-                                  {formatStat(p.stats.ops)}
+                                <span className="text-ink-3">|</span>
+                                <span>
+                                  AVG:{" "}
+                                  <span className="text-ink">
+                                    {formatStat(stats?.avg)}
+                                  </span>
                                 </span>
-                              </span>
-                            </div>
-                          )}
+                                <span className="text-ink-3">|</span>
+                                <span>
+                                  OPS:{" "}
+                                  <span className="text-ink">
+                                    {formatStat(stats?.ops)}
+                                  </span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -1511,19 +1529,13 @@ export const ScheduleTab = memo(() => {
             value={newGameForm.leagueRuleSet}
             onChange={(e) => {
               const newLeague = e.target.value;
-              let newFormat = newGameForm.pitchingFormat;
-              if (newLeague === "NKB" && ["6U", "7U", "8U"].includes(teamAge))
-                newFormat = "Machine Pitch";
-              if (
-                newLeague === "USSSA" &&
-                teamAge === "8U" &&
-                newFormat === "Machine Pitch"
-              )
-                newFormat = "Kid Pitch";
+              const allowed = allowedPitchingFormats(newLeague, teamAge);
               setNewGameForm({
                 ...newGameForm,
                 leagueRuleSet: newLeague,
-                pitchingFormat: newFormat,
+                pitchingFormat: allowed.includes(newGameForm.pitchingFormat)
+                  ? newGameForm.pitchingFormat
+                  : allowed[0],
               });
             }}
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
@@ -1531,29 +1543,39 @@ export const ScheduleTab = memo(() => {
             <option value="USSSA">Tournament</option>
             <option value="NKB">Rec</option>
           </select>
-          <select
-            value={newGameForm.pitchingFormat}
-            onChange={(e) =>
-              setNewGameForm({ ...newGameForm, pitchingFormat: e.target.value })
+          {(() => {
+            const allowedFormats = allowedPitchingFormats(
+              newGameForm.leagueRuleSet,
+              teamAge,
+            );
+            // One legal format for this league + age (9U+ is always kid
+            // pitch) — no dropdown, just the fact.
+            if (allowedFormats.length === 1) {
+              return (
+                <div className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold text-ink-2 shadow-sm">
+                  {allowedFormats[0]}
+                </div>
+              );
             }
-            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-          >
-            {newGameForm.leagueRuleSet === "NKB" &&
-            ["6U", "7U", "8U"].includes(teamAge) ? (
-              <option value="Machine Pitch">Machine Pitch</option>
-            ) : newGameForm.leagueRuleSet === "USSSA" && teamAge === "8U" ? (
-              <>
-                <option value="Kid Pitch">Kid Pitch</option>
-                <option value="Coach Pitch">Coach Pitch</option>
-              </>
-            ) : (
-              <>
-                <option value="Kid Pitch">Kid Pitch</option>
-                <option value="Coach Pitch">Coach Pitch</option>
-                <option value="Machine Pitch">Machine Pitch</option>
-              </>
-            )}
-          </select>
+            return (
+              <select
+                value={newGameForm.pitchingFormat}
+                onChange={(e) =>
+                  setNewGameForm({
+                    ...newGameForm,
+                    pitchingFormat: e.target.value,
+                  })
+                }
+                className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                {allowedFormats.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            );
+          })()}
           <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink whitespace-nowrap px-1">
             <input
               type="checkbox"

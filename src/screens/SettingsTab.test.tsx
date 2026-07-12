@@ -170,3 +170,43 @@ describe("SettingsTab", () => {
     });
   });
 });
+
+describe("SettingsTab — 9U+ pitching format is fixed to Kid Pitch", () => {
+  const renderSettings = (over: Record<string, unknown> = {}) =>
+    renderWithProviders(
+      <MemoryRouter>
+        <SettingsTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: { ...teamData, ...over },
+          currentRole: "head",
+          realRole: "head",
+          updateTeam: jest.fn(),
+        },
+        ui: {
+          isAddingCoach: false,
+          setIsAddingCoach: jest.fn(),
+          newCoachForm: {},
+          setNewCoachForm: jest.fn(),
+        },
+      },
+    );
+
+  it("shows a read-only Kid Pitch pill at 10U — no Machine/Coach anywhere", () => {
+    renderSettings();
+    expect(screen.getByText("Kid Pitch")).toBeInTheDocument();
+    expect(screen.queryByText("Machine Pitch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Coach Pitch")).not.toBeInTheDocument();
+  });
+
+  it("keeps the Kid/Coach dropdown for an 8U USSSA team", () => {
+    renderSettings({ teamAge: "8U" });
+    expect(
+      screen.getByRole("option", { name: "Coach Pitch" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Machine Pitch" }),
+    ).not.toBeInTheDocument();
+  });
+});

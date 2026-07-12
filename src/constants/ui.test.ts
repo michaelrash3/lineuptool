@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  allowedPitchingFormats,
   getEvalCategoriesForPlayer,
   handGradedCategoriesForPlayer,
   handGradedCategoriesForTeam,
@@ -212,5 +213,55 @@ describe("TRYOUT_GRADE_CATEGORIES — the tryout card's hand grades", () => {
     for (const c of TRYOUT_GRADE_CATEGORIES) {
       expect(catalogIds.has(c.id)).toBe(true);
     }
+  });
+});
+
+describe("allowedPitchingFormats — 9U+ is always kid pitch", () => {
+  it("returns Kid Pitch only for 9U and older, in either league", () => {
+    for (const league of ["USSSA", "NKB"]) {
+      expect(allowedPitchingFormats(league, "9U")).toEqual(["Kid Pitch"]);
+      expect(allowedPitchingFormats(league, "10U")).toEqual(["Kid Pitch"]);
+    }
+  });
+
+  it("handles the range tiers, which string equality cannot", () => {
+    // Regression: "11U to 12U" etc. previously fell through to the
+    // all-formats branch because nothing parsed the label.
+    for (const tier of ["11U to 12U", "13U to 14U", "15U to 18U"]) {
+      expect(allowedPitchingFormats("USSSA", tier)).toEqual(["Kid Pitch"]);
+    }
+  });
+
+  it("keeps NKB 6-8U machine-pitch only", () => {
+    for (const tier of ["6U", "7U", "8U"]) {
+      expect(allowedPitchingFormats("NKB", tier)).toEqual(["Machine Pitch"]);
+    }
+  });
+
+  it("keeps USSSA 8U on Kid/Coach", () => {
+    expect(allowedPitchingFormats("USSSA", "8U")).toEqual([
+      "Kid Pitch",
+      "Coach Pitch",
+    ]);
+  });
+
+  it("offers everything below the special cases, and when age is unknown", () => {
+    expect(allowedPitchingFormats("USSSA", "7U")).toEqual([
+      "Kid Pitch",
+      "Coach Pitch",
+      "Machine Pitch",
+    ]);
+    // Missing age must NOT force Kid-only (ageFromTeamAge defaults to 10).
+    expect(allowedPitchingFormats(undefined, undefined)).toEqual([
+      "Kid Pitch",
+      "Coach Pitch",
+      "Machine Pitch",
+    ]);
+  });
+
+  it("puts the fallback format first", () => {
+    // Callers heal a disallowed stored value to allowed[0].
+    expect(allowedPitchingFormats("USSSA", "9U")[0]).toBe("Kid Pitch");
+    expect(allowedPitchingFormats("NKB", "7U")[0]).toBe("Machine Pitch");
   });
 });

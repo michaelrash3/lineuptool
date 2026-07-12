@@ -7,7 +7,7 @@ import {
   suggestPlayerMatch,
   buildScheduleIcs,
 } from "../utils/helpers";
-import { leagueRuleSetLabel } from "../constants/ui";
+import { allowedPitchingFormats, leagueRuleSetLabel } from "../constants/ui";
 import {
   TOGGLEABLE_FEATURES,
   featureEnabled,
@@ -754,31 +754,36 @@ export const SettingsTab = memo(() => {
                         <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
                           Pitching Format
                         </label>
-                        <select
-                          value={pitchingFormat}
-                          onChange={(e) =>
-                            updateTeam({ pitchingFormat: e.target.value })
+                        {(() => {
+                          const allowedFormats = allowedPitchingFormats(
+                            leagueRuleSet,
+                            teamAge,
+                          );
+                          // One legal format for this league + age (e.g. 9U+
+                          // is always kid pitch) — no dropdown, just the fact.
+                          if (allowedFormats.length === 1) {
+                            return (
+                              <div className="w-full p-3 bg-surface border border-line text-sm font-bold text-ink-2 rounded-xl shadow-sm">
+                                {allowedFormats[0]}
+                              </div>
+                            );
                           }
-                          className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
-                        >
-                          {leagueRuleSet === "NKB" &&
-                          ["6U", "7U", "8U"].includes(teamAge) ? (
-                            <option value="Machine Pitch">Machine Pitch</option>
-                          ) : leagueRuleSet === "USSSA" && teamAge === "8U" ? (
-                            <>
-                              <option value="Kid Pitch">Kid Pitch</option>
-                              <option value="Coach Pitch">Coach Pitch</option>
-                            </>
-                          ) : (
-                            <>
-                              <option value="Kid Pitch">Kid Pitch</option>
-                              <option value="Coach Pitch">Coach Pitch</option>
-                              <option value="Machine Pitch">
-                                Machine Pitch
-                              </option>
-                            </>
-                          )}
-                        </select>
+                          return (
+                            <select
+                              value={pitchingFormat}
+                              onChange={(e) =>
+                                updateTeam({ pitchingFormat: e.target.value })
+                              }
+                              className="w-full p-3 bg-surface border border-line text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer rounded-xl shadow-sm transition-all hover:bg-surface-2"
+                            >
+                              {allowedFormats.map((f) => (
+                                <option key={f} value={f}>
+                                  {f}
+                                </option>
+                              ))}
+                            </select>
+                          );
+                        })()}
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-5">

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { normalizeDateToIso, genId } from "../utils/helpers";
+import { allowedPitchingFormats } from "../constants/ui";
 import { celebrateWin } from "../utils/celebrate";
 import type {
   ConfirmContextValue,
@@ -41,12 +42,22 @@ export const useGameCrud = ({
         });
         return;
       }
+      // Write-time clamp: the add form's pill can display the only legal
+      // format while the form STATE still holds an older pick (e.g. 9U+ is
+      // always Kid Pitch; NKB 6-8U is always Machine Pitch) — never persist
+      // a format this league + age can't play.
+      const allowedFormats = allowedPitchingFormats(
+        form.leagueRuleSet,
+        teamData.teamAge,
+      );
       const newGame: Game = {
         id: genId("g"),
         date: form.date,
         opponent: form.opponent.trim(),
         leagueRuleSet: form.leagueRuleSet,
-        pitchingFormat: form.pitchingFormat,
+        pitchingFormat: allowedFormats.includes(form.pitchingFormat)
+          ? form.pitchingFormat
+          : allowedFormats[0],
         // Pool/Bracket is a Tournament-only subset; Rec games are always League.
         // New Tournament games default to Pool play (coach can switch to Bracket).
         gameType: form.leagueRuleSet === "USSSA" ? "pool" : "league",
