@@ -53,11 +53,11 @@ import {
 } from "./utils/helpers";
 
 // Shape of the per-player batting order annotation the engine attaches.
+// Only `role` + `note` are consumed (the printable lineup card renders them);
+// earlier `effective`/`blendNote` fields were never read by any UI and were removed.
 type BattingReason = {
   role: string;
   note: string;
-  effective?: Record<string, number>;
-  blendNote?: string;
 };
 
 // Local alias: a Player with a pre-computed profile bag attached by the engine.
@@ -2443,22 +2443,15 @@ function generateBattingOrder(
     }
   }
 
-  // Attach structured reasons to the placed players. The UI looks for
-  // `battingReason` with shape { role, note, effective: {ops, avg, hard} }.
+  // Attach structured reasons to the placed players. The printable lineup
+  // card renders `battingReason` as an italic "role — note" sub-line.
   for (let i = 0; i < count; i++) {
     const player = order[i];
     if (!player) continue;
     const reason = reasons[i] || { role: "", note: "" };
-    const stats = player.stats || {};
     player.battingReason = {
       role: reason.role,
       note: reason.note,
-      effective: {
-        ops: +stats.ops || 0,
-        avg: +stats.avg || 0,
-        obp: +stats.obp || 0,
-        hard: +stats.hard || 0,
-      },
     };
   }
   return order.filter(Boolean);
@@ -2501,28 +2494,6 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
     leagueRuleSet,
     teamAge,
     seed,
-  });
-
-  // Mirror the effective stats decoration that generateLineup applies, so
-  // the UI sees the same structured `battingReason` shape regardless of
-  // which entry point produced the order.
-  battingLineup.forEach((player) => {
-    if (!player || !player.battingReason) return;
-    const eff = getEffectiveStats(player);
-    const bw = eff.__blended ? eff.__blendWeights : undefined;
-    if (bw && bw.current < 0.95) {
-      player.battingReason.blendNote = `Stats blended (current ${Math.round(
-        bw.current * 100,
-      )}% / past ${Math.round((bw.past1 + bw.past2) * 100)}%)`;
-    }
-    player.battingReason.effective = {
-      ops: +(eff.ops ?? 0),
-      avg: +(eff.avg ?? 0),
-      obp: +(eff.obp ?? 0),
-      ld: +(eff.ld ?? 0),
-      hard: +(eff.hard ?? 0),
-      qab: +(eff.qab ?? 0),
-    };
   });
 
   return { battingLineup };
@@ -3308,31 +3279,6 @@ export function generateLineup(input: EngineInput): EngineResult {
     seed,
   });
 
-  // generateBattingOrder now sets `battingReason` on each player directly,
-  // including role/note appropriate for the chosen strategy (capped vs Tango).
-  // We only need to add the recency blend note here, since that depends on
-  // info computed in profiles, not in the order builder.
-  battingLineup.forEach((player) => {
-    if (!player || !player.battingReason) return;
-    const eff = getEffectiveStats(player);
-    const bw = eff.__blended ? eff.__blendWeights : undefined;
-    if (bw && bw.current < 0.95) {
-      player.battingReason.blendNote = `Stats blended (current ${Math.round(
-        bw.current * 100,
-      )}% / past ${Math.round((bw.past1 + bw.past2) * 100)}%)`;
-    }
-    // Also enrich effective stats from the player's blended profile (the
-    // engine's batting math used these blended numbers; the UI should show
-    // the same numbers for transparency).
-    player.battingReason.effective = {
-      ops: +(eff.ops ?? 0),
-      avg: +(eff.avg ?? 0),
-      obp: +(eff.obp ?? 0),
-      ld: +(eff.ld ?? 0),
-      hard: +(eff.hard ?? 0),
-      qab: +(eff.qab ?? 0),
-    };
-  });
   const isStarter = new Set<string>();
   if (battingSize === "roster") {
     for (const p of profiled) isStarter.add(p.id);
