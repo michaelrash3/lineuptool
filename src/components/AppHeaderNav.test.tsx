@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { AppHeader } from "./Chrome";
 import { Icons } from "../icons";
 import { TeamContext, UIContext, ToastContext } from "../contexts";
@@ -45,13 +46,18 @@ const uiCtx: any = {
 
 const renderHeader = () =>
   render(
-    <ToastContext.Provider value={{ push: () => {}, dismiss: () => {} } as any}>
-      <TeamContext.Provider value={teamCtx}>
-        <UIContext.Provider value={uiCtx}>
-          <AppHeader navButtons={NAV} />
-        </UIContext.Provider>
-      </TeamContext.Provider>
-    </ToastContext.Provider>,
+    // The header's Help entry navigates to /help, so it needs a router.
+    <MemoryRouter>
+      <ToastContext.Provider
+        value={{ push: () => {}, dismiss: () => {} } as any}
+      >
+        <TeamContext.Provider value={teamCtx}>
+          <UIContext.Provider value={uiCtx}>
+            <AppHeader navButtons={NAV} />
+          </UIContext.Provider>
+        </TeamContext.Provider>
+      </ToastContext.Provider>
+    </MemoryRouter>,
   );
 
 describe("AppHeader → NavDrawer integration", () => {

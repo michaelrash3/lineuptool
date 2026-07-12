@@ -70,14 +70,8 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   } | null>(null); // first tap of a swap pair
   const [inGameUndoStack, setInGameUndoStack] = useState<unknown[]>([]); // last swap undo data
   const [activeTab, setActiveTab] = useState("home");
-  // null when closed; the in-progress past-season import wizard state when open.
-  const [pastSeasonImport, setPastSeasonImport] = useState<{
-    rows: unknown[];
-    season: string;
-    ageGroup: string;
-    pitchingFormat: string;
-    assignments: Record<string, string>;
-  } | null>(null);
+  // The past-season import review lives at /roster/import/past-season; the
+  // parsed rows travel via navigation state, not provider state.
   const [currentGameAttendance, setCurrentGameAttendance] = useState<
     Record<string, boolean>
   >({});
@@ -109,24 +103,12 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [newTeamName, setNewTeamName] = useState("");
   const [assistantEvalOpen, setAssistantEvalOpen] = useState(false);
 
-  // Roster/profile state
-  const [isAddingPlayer, setIsAddingPlayer] = useState(false);
+  // Roster/profile state. Adding a player is a routed page (/roster/new) —
+  // see openAddPlayer below.
   const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
 
-  // Help center state. `helpTopicId` preselects an article when set; null
-  // opens Help on the browse view (HelpCenter derives a context-aware
-  // category from activeTab). Owned here — not in MainShell — so screens,
-  // the nav drawer, and the command palette can all deep-link into Help.
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpTopicId, setHelpTopicId] = useState<string | null>(null);
-  const openHelp = useCallback((topicId?: string) => {
-    setHelpTopicId(topicId || null);
-    setHelpOpen(true);
-  }, []);
-  const closeHelp = useCallback(() => {
-    setHelpOpen(false);
-    setHelpTopicId(null);
-  }, []);
+  // Help lives at /help and /help/:topicId (routed pages) — deep links go
+  // through navigate, not provider state.
 
   // Coach state
   const [isAddingCoach, setIsAddingCoach] = useState(false);
@@ -384,6 +366,14 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
     [navigateToRoute],
   );
 
+  // Adding a player is the /roster/new page. A provider-level shortcut (like
+  // openPlayerProfile) so Home, the palette, tours, and help CTAs can all
+  // open it without each pulling in useNavigate.
+  const openAddPlayer = useCallback(
+    () => navigateToRoute("/roster/new"),
+    [navigateToRoute],
+  );
+
   // Wire the bridge that TeamProvider uses. The ref is a foreign object
   // owned by TeamProvider; mutating it during render would be a
   // setState-like side effect. Defer to an effect that runs after commit
@@ -468,8 +458,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setScoringGameId,
       activeTab,
       setActiveTab,
-      pastSeasonImport,
-      setPastSeasonImport,
       inGameId,
       setInGameId,
       inGameInning,
@@ -502,15 +490,10 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       setNewTeamName,
       assistantEvalOpen,
       setAssistantEvalOpen,
-      isAddingPlayer,
-      setIsAddingPlayer,
+      openAddPlayer,
       viewingPlayerId,
       setViewingPlayerId,
       openPlayerProfile,
-      helpOpen,
-      helpTopicId,
-      openHelp,
-      closeHelp,
       isAddingCoach,
       setIsAddingCoach,
       newCoachForm,
@@ -529,7 +512,6 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       newGameForm,
       scoringGameId,
       activeTab,
-      pastSeasonImport,
       inGameId,
       inGameInning,
       inGameSelection,
@@ -550,13 +532,9 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
       isAddingTeam,
       newTeamName,
       assistantEvalOpen,
-      isAddingPlayer,
+      openAddPlayer,
       viewingPlayerId,
       openPlayerProfile,
-      helpOpen,
-      helpTopicId,
-      openHelp,
-      closeHelp,
       isAddingCoach,
       newCoachForm,
       teamEvalGrades,

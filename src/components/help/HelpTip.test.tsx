@@ -1,19 +1,30 @@
 import React from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { HelpTip } from "./HelpTip";
 import type { TourCtaCtx } from "./TourModal";
 import { TOURS, visibleTours } from "../../help/tours";
 import { renderWithProviders } from "../../test-utils";
 
+const renderTip = (el: React.ReactElement) =>
+  renderWithProviders(
+    <MemoryRouter initialEntries={["/roster"]}>
+      <Routes>
+        <Route path="/roster" element={el} />
+        <Route path="/help/:topicId" element={<div>HELP ARTICLE</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
 describe("HelpTip", () => {
   it("renders an icon-only button with the default aria-label", () => {
-    renderWithProviders(<HelpTip topicId="lineup-generator" />);
+    renderTip(<HelpTip topicId="lineup-generator" />);
     expect(screen.getByRole("button", { name: "Help" })).toBeInTheDocument();
   });
 
   it("uses a custom label when given", () => {
-    renderWithProviders(
+    renderTip(
       <HelpTip topicId="lineup-generator" label="About the generator" />,
     );
     expect(
@@ -21,15 +32,11 @@ describe("HelpTip", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the Help Center at its topic on click", async () => {
+  it("navigates to the topic's help page on click", async () => {
     const user = userEvent.setup();
-    const openHelp = jest.fn();
-    renderWithProviders(<HelpTip topicId="bench-equity-variety" />, {
-      ui: { openHelp },
-    });
+    renderTip(<HelpTip topicId="bench-equity-variety" />);
     await user.click(screen.getByRole("button", { name: "Help" }));
-    expect(openHelp).toHaveBeenCalledTimes(1);
-    expect(openHelp).toHaveBeenCalledWith("bench-equity-variety");
+    expect(screen.getByText("HELP ARTICLE")).toBeInTheDocument();
   });
 });
 
@@ -38,7 +45,7 @@ const makeCtx = (overrides: Partial<TourCtaCtx> = {}): TourCtaCtx => ({
   hasGames: false,
   hasGameToday: false,
   setActiveTab: jest.fn(),
-  setIsAddingPlayer: jest.fn(),
+  openAddPlayer: jest.fn(),
   setIsAddingGame: jest.fn(),
   ...overrides,
 });
@@ -66,7 +73,7 @@ describe("TOURS", () => {
     }
   });
 
-  it("first-lineup's add-player CTA navigates to Roster and opens the modal", () => {
+  it("first-lineup's add-player CTA routes to the add-player page", () => {
     const ctx = makeCtx();
     const tour = TOURS.find((t) => t.id === "first-lineup");
     const cta = tour!
@@ -75,8 +82,8 @@ describe("TOURS", () => {
       .find((c) => c.label === "Add a player");
     expect(cta).toBeDefined();
     cta!.run();
-    expect(ctx.setActiveTab).toHaveBeenCalledWith("roster");
-    expect(ctx.setIsAddingPlayer).toHaveBeenCalledWith(true);
+    // /roster/new is a routed page — navigating there also lands on Roster.
+    expect(ctx.openAddPlayer).toHaveBeenCalledTimes(1);
   });
 });
 

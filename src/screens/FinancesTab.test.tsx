@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { renderWithProviders } from "../test-utils";
 import { FinancesTab } from "./FinancesTab";
@@ -47,7 +48,12 @@ const appliedFinances = (teamValue: any, callIdx = 0): any => {
 
 describe("FinancesTab", () => {
   it("renders the P&L tiles from the finance summary, sponsorships included", () => {
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     // fees 100 + income 60 − spent 80 = 80; Ben still owes the full 100 fee.
     expect(screen.getByText("Balance now")).toBeInTheDocument();
     expect(screen.getByText("Sponsorships & income")).toBeInTheDocument();
@@ -57,9 +63,14 @@ describe("FinancesTab", () => {
   });
 
   it("shows quantity budget items as count × unit and steps the count through an updateFinances op", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     expect(screen.getByText("× $100")).toBeInTheDocument(); // 4 × $100 row
     fireEvent.click(screen.getByLabelText("More Tournaments"));
     const patch = { finances: appliedFinances(teamValue) };
@@ -86,9 +97,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: oneLeft },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: oneLeft },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Fewer Tournaments"));
     const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.budgetItems[0]).toMatchObject({
@@ -98,9 +114,14 @@ describe("FinancesTab", () => {
   });
 
   it("preset chip prefills a quantity-mode item and Add writes count × unit (taxable default carried)", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     // "Tournament entry" is a per-tournament, taxable catalog preset — clicking
     // it opens quantity mode AND seeds the +tax default.
     fireEvent.click(screen.getByRole("button", { name: "+ Tournament entry" }));
@@ -127,9 +148,14 @@ describe("FinancesTab", () => {
   });
 
   it("a flat (non-unit) catalog preset adds without quantity mode", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     // "Team insurance" has no unitNoun → flat amount, no Count field.
     fireEvent.click(screen.getByRole("button", { name: "+ Team insurance" }));
     expect(screen.queryByLabelText("Count")).not.toBeInTheDocument();
@@ -146,7 +172,12 @@ describe("FinancesTab", () => {
   });
 
   it("offers ledger autocomplete and one-tap deposit amounts from the catalog", () => {
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     // Expense datalist (money-out is the default ledger direction) carries the
     // spend catalog; a deposit quick-pick sets the next-season deposit.
     const expenseOpts = document
@@ -160,9 +191,14 @@ describe("FinancesTab", () => {
   });
 
   it("a deposit quick-pick chip stores the next-season deposit", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Set next season deposit to $100"));
     expect(appliedFinances(teamValue)).toEqual(
       expect.objectContaining({ nextDepositAmount: 100 }),
@@ -170,9 +206,14 @@ describe("FinancesTab", () => {
   });
 
   it("stores the chosen spending category on a new budget item (PR2)", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Budget item"), {
       target: { value: "Extra nets" },
     });
@@ -217,7 +258,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: categorized } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: categorized } },
+    );
     // The rollup panel renders with its caption and the linked spend against
     // the plan ($120 of $300 facilities). Scope the money lookup to the panel —
     // $120 also shows in the ledger row.
@@ -238,9 +284,14 @@ describe("FinancesTab", () => {
         sponsorships: [{ id: "s1", sponsor: "Smith Hardware", amount: 200 }],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: sponsored },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: sponsored },
+      },
+    );
     // (budget 500 − sponsorships 200) / 2 paying players = 150. This year's
     // ledger (payments/income/expenses in the fixture) must not change it.
     fireEvent.click(
@@ -255,9 +306,14 @@ describe("FinancesTab", () => {
   });
 
   it("adds a named sponsorship to the budget planner and removes it", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Sponsor name"), {
       target: { value: "Smith Hardware" },
     });
@@ -278,9 +334,14 @@ describe("FinancesTab", () => {
         sponsorships: patch.finances.sponsorships,
       },
     };
-    const second = renderWithProviders(<FinancesTab />, {
-      team: { team: withSponsor },
-    });
+    const second = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: withSponsor },
+      },
+    );
     fireEvent.click(
       screen.getByLabelText("Remove sponsorship from Smith Hardware"),
     );
@@ -291,9 +352,14 @@ describe("FinancesTab", () => {
   it("each sponsor carries its own 'reduces team fees' switch — add off, flip per row", () => {
     // Add a NEXT-season pledge with the switch UNCHECKED: it must be stored
     // as reducesFees: false (planned as club income, no fee offset).
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Sponsor name"), {
       target: { value: "Iron Rig Fitness" },
     });
@@ -318,9 +384,14 @@ describe("FinancesTab", () => {
         sponsorships: patch.finances.sponsorships,
       },
     };
-    const second = renderWithProviders(<FinancesTab />, {
-      team: { team: withPledge },
-    });
+    const second = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: withPledge },
+      },
+    );
     fireEvent.click(
       second.getByRole("button", {
         name: /Iron Rig Fitness: held as club income/,
@@ -349,9 +420,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: withSponsor },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: withSponsor },
+      },
+    );
     // Tapping its chip drops the fundraising flag: the money stays in the
     // ledger as plain club income and no longer credits team fees.
     fireEvent.click(
@@ -367,9 +443,14 @@ describe("FinancesTab", () => {
   });
 
   it("adds a current-season sponsor as fundraising income reducing this year's fees", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     // Switch the sponsor toggle to the current season.
     fireEvent.click(screen.getByLabelText("Sponsor applies to this season"));
     fireEvent.change(screen.getByLabelText("Sponsor name"), {
@@ -399,9 +480,14 @@ describe("FinancesTab", () => {
         incomes: patch.finances.incomes,
       },
     };
-    const second = renderWithProviders(<FinancesTab />, {
-      team: { team: withSponsor },
-    });
+    const second = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: withSponsor },
+      },
+    );
     fireEvent.click(
       screen.getByLabelText("Remove this-season sponsor Smith Hardware"),
     );
@@ -416,9 +502,14 @@ describe("FinancesTab", () => {
   });
 
   it("waives a player's fee and shows the waived state", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Waive fee for Ben"));
     expect(appliedFinances(teamValue)).toEqual(
       expect.objectContaining({ feeExemptIds: ["kid2"] }),
@@ -430,7 +521,12 @@ describe("FinancesTab", () => {
       ...baseTeam,
       finances: { ...baseTeam.finances, feeExemptIds: ["kid2"] },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: waivedTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: waivedTeam } },
+    );
     expect(screen.getByText("Fee waived")).toBeInTheDocument();
     expect(
       screen.queryByLabelText("Payment amount for Ben"),
@@ -441,9 +537,14 @@ describe("FinancesTab", () => {
   });
 
   it("buffer chips write the fee round-up increment", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Fee buffer $25"));
     expect(appliedFinances(teamValue)).toEqual(
       expect.objectContaining({ feeBufferIncrement: 25 }),
@@ -459,9 +560,14 @@ describe("FinancesTab", () => {
         sponsorships: [{ id: "s1", sponsor: "Smith Hardware", amount: 180 }],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: buffered },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: buffered },
+      },
+    );
     // Raw (500 − 180) / 2 = 160 → next $25 = 175.
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
@@ -472,9 +578,14 @@ describe("FinancesTab", () => {
   });
 
   it("sales tax: percent commits on blur and the +tax toggle flags an item", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     const taxField = screen.getByLabelText("Sales tax percent");
     fireEvent.change(taxField, { target: { value: "8.25" } });
     fireEvent.blur(taxField);
@@ -507,9 +618,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: taxed },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: taxed },
+      },
+    );
     // Budget 440 + 100 = 540 → 540 / 2 = 270.
     fireEvent.click(
       screen.getByRole("button", { name: /Set as next season's fee/i }),
@@ -520,9 +636,14 @@ describe("FinancesTab", () => {
   });
 
   it("edits an expense ledger entry in place", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Edit entry Baseballs"));
     fireEvent.change(screen.getByLabelText("Edit amount for Baseballs"), {
       target: { value: "95" },
@@ -541,9 +662,14 @@ describe("FinancesTab", () => {
   });
 
   it("edits the date AND amount on a team-fee payment row (typo fix)", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Edit entry Team fee — Ava"));
     // A typo'd payment can be corrected in place — amount is now editable.
     fireEvent.change(screen.getByLabelText("Edit date for Team fee — Ava"), {
@@ -562,18 +688,28 @@ describe("FinancesTab", () => {
   });
 
   it("deletes a team-fee payment row", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Delete entry Team fee — Ava"));
     const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.payments.some((p: any) => p.id === "p1")).toBe(false);
   });
 
   it("money-out entries can be linked to a budget category", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Budget category"), {
       target: { value: "b1" },
     });
@@ -610,7 +746,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: linked } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: linked } },
+    );
     // 450 spent of the 400 planned → over budget flag.
     expect(screen.getByText(/spent \$450 of \$400/)).toBeInTheDocument();
     expect(screen.getByText(/over budget/)).toBeInTheDocument();
@@ -622,7 +763,12 @@ describe("FinancesTab", () => {
       value: { writeText },
       configurable: true,
     });
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     fireEvent.click(screen.getByLabelText("Copy team-fees reminder"));
     await screen.findByLabelText("Copy team-fees reminder"); // flush the async click
     expect(writeText).toHaveBeenCalledTimes(1);
@@ -643,7 +789,12 @@ describe("FinancesTab", () => {
       value: revokeObjectURL,
       configurable: true,
     });
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     fireEvent.click(screen.getByLabelText("Export ledger CSV"));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
@@ -665,7 +816,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: withHistory } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: withHistory } },
+    );
     expect(
       screen.getByRole("img", { name: "Year over year money in and out" }),
     ).toBeInTheDocument();
@@ -688,16 +844,26 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: withHistory } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: withHistory } },
+    );
     expect(screen.getByText("Past years")).toBeInTheDocument();
     expect(screen.getByText("through Spring 2026")).toBeInTheDocument();
     expect(screen.getByText(/ended/)).toBeInTheDocument();
   });
 
   it("marks settled players Paid full and records a partial payment", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     expect(screen.getByText(/Paid full ✓/)).toBeInTheDocument(); // Ava
     expect(screen.getByText("$100 owed")).toBeInTheDocument(); // Ben
     fireEvent.change(screen.getByLabelText("Payment amount for Ben"), {
@@ -713,9 +879,14 @@ describe("FinancesTab", () => {
   });
 
   it("'Paid full' records the exact remaining balance", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Mark Ben paid in full"));
     const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.payments[1]).toMatchObject({
@@ -725,7 +896,12 @@ describe("FinancesTab", () => {
   });
 
   it("shows one ledger of money in and out with a running balance", () => {
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     // 02-01 +60 sponsorship, 03-01 +100 Ava's fee, 03-05 −80 balls → 80.
     expect(screen.getByText("Hardware sponsorship")).toBeInTheDocument();
     expect(screen.getByText("Team fee — Ava")).toBeInTheDocument();
@@ -743,9 +919,14 @@ describe("FinancesTab", () => {
   });
 
   it("records money in as an income entry", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Money in" }));
     fireEvent.change(screen.getByLabelText("Transaction description"), {
       target: { value: "Car wash fundraiser" },
@@ -780,7 +961,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: fundraised } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: fundraised } },
+    );
     // $60 fundraising / 2 payers = $30 credit → everyone owes $70; Ben has
     // paid nothing, Ava's $100 payment already covers her reduced fee.
     expect(screen.getByText("$70 owed")).toBeInTheDocument();
@@ -789,9 +975,14 @@ describe("FinancesTab", () => {
   });
 
   it("flags a money-in entry as fundraising from the ledger form", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Money in" }));
     fireEvent.click(
       screen.getByLabelText("Fundraising — reduces player team fees"),
@@ -812,9 +1003,14 @@ describe("FinancesTab", () => {
   });
 
   it("tags a money-in entry with a revenue source; the picker resets after add", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Money in" }));
     fireEvent.change(screen.getByLabelText("Revenue source"), {
       target: { value: "grant" },
@@ -850,7 +1046,12 @@ describe("FinancesTab", () => {
   });
 
   it("cash flow rolls up money in by source — dues plus inferred income", () => {
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     // Ava's $100 team fee posts to dues; the untagged "Hardware sponsorship"
     // income infers its source from the label.
     const heading = screen.getByText("Money in by source");
@@ -863,9 +1064,14 @@ describe("FinancesTab", () => {
   });
 
   it("anticipated player count drives the suggested-fee split", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     const input = screen.getByLabelText("Anticipated players next season");
     fireEvent.change(input, { target: { value: "10" } });
     fireEvent.blur(input);
@@ -877,9 +1083,14 @@ describe("FinancesTab", () => {
       ...baseTeam,
       finances: { ...baseTeam.finances, plannedPlayerCount: 10 },
     };
-    const second = renderWithProviders(<FinancesTab />, {
-      team: { team: planned },
-    });
+    const second = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: planned },
+      },
+    );
     // Both renders stay mounted — the second tree's button is last.
     const setFeeButtons = screen.getAllByRole("button", {
       name: /Set as next season's fee/i,
@@ -892,9 +1103,14 @@ describe("FinancesTab", () => {
   });
 
   it("edits a budget item in place, keeping quantity mode in sync", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Edit Tournaments"));
     fireEvent.change(screen.getByLabelText("Edit count for Tournaments"), {
       target: { value: "6" },
@@ -928,9 +1144,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: fresh },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: fresh },
+      },
+    );
     // $80 unplanned spend rounds up to a clean $100 starting point.
     fireEvent.click(screen.getByLabelText("Seed budget from this season"));
     const patch = { finances: appliedFinances(teamValue) };
@@ -942,7 +1163,12 @@ describe("FinancesTab", () => {
   });
 
   it("sorts the ledger by a tapped header and back", () => {
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     const rowsByLabel = () =>
       screen
         .getAllByRole("row")
@@ -970,9 +1196,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: carried },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: carried },
+      },
+    );
     // $240 across 2 paying families ≈ $120 off each.
     expect(screen.getByText(/\$120 off per/)).toBeInTheDocument();
     // Two-tap confirm: Yes swaps to a confirm message, no write yet.
@@ -1003,9 +1234,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: carried },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: carried },
+      },
+    );
     // First No swaps to the confirm message without writing.
     fireEvent.click(screen.getByLabelText("Skip carryover discount"));
     expect(teamValue.updateFinances).not.toHaveBeenCalled();
@@ -1035,7 +1271,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: dismissed } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: dismissed } },
+    );
     expect(
       screen.queryByLabelText("Apply carryover as team-fee discount"),
     ).not.toBeInTheDocument();
@@ -1067,7 +1308,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: applied } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: applied } },
+    );
     expect(
       screen.queryByLabelText("Apply carryover as team-fee discount"),
     ).not.toBeInTheDocument();
@@ -1096,9 +1342,14 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: applied },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: applied },
+      },
+    );
     fireEvent.click(
       screen.getByLabelText("Reverse carryover team-fee discount"),
     );
@@ -1112,9 +1363,14 @@ describe("FinancesTab", () => {
   });
 
   it("refuses to save a ledger edit with a cleared date (keep editing until valid)", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Edit entry Baseballs"));
     fireEvent.change(screen.getByLabelText("Edit date for Baseballs"), {
       target: { value: "" },
@@ -1147,7 +1403,12 @@ describe("FinancesTab", () => {
         ],
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: withOutstanding } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: withOutstanding } },
+    );
     expect(
       screen.getByText(/Closed with \$140 unpaid \(2 families\)/),
     ).toBeInTheDocument();
@@ -1156,9 +1417,14 @@ describe("FinancesTab", () => {
   });
 
   it("stamps new money records with recordedBy/recordedAt when a user is present", () => {
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam, user: { uid: "coach-1" } },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam, user: { uid: "coach-1" } },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Payment amount for Ben"), {
       target: { value: "40" },
     });
@@ -1185,7 +1451,12 @@ describe("FinancesTab", () => {
         })),
       },
     };
-    renderWithProviders(<FinancesTab />, { team: { team: many } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: many } },
+    );
     expect(screen.getAllByText(/Bulk expense/)).toHaveLength(100);
     fireEvent.click(
       screen.getByRole("button", { name: /Show all 120 entries/ }),
@@ -1199,9 +1470,14 @@ describe("FinancesTab", () => {
   it("records a refund for a settled family via the prompt (capped at paid)", async () => {
     // No ConfirmProvider in tests — useConfirm falls back to window.prompt.
     const prompt = jest.spyOn(window, "prompt").mockReturnValue("40");
-    const { teamValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     // Ava is settled (paid 100) — her row offers Refund.
     fireEvent.click(screen.getByLabelText("Refund Ava"));
     await waitFor(() => expect(teamValue.updateFinances).toHaveBeenCalled());
@@ -1213,9 +1489,14 @@ describe("FinancesTab", () => {
 
   it("rejects a refund larger than what the family has paid", async () => {
     const prompt = jest.spyOn(window, "prompt").mockReturnValue("150");
-    const { teamValue, toastValue } = renderWithProviders(<FinancesTab />, {
-      team: { team: baseTeam },
-    });
+    const { teamValue, toastValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: baseTeam },
+      },
+    );
     fireEvent.click(screen.getByLabelText("Refund Ava"));
     await waitFor(() =>
       expect(toastValue.push).toHaveBeenCalledWith(
@@ -1227,15 +1508,25 @@ describe("FinancesTab", () => {
   });
 
   it("does not offer Refund to a family that has paid nothing", () => {
-    renderWithProviders(<FinancesTab />, { team: { team: baseTeam } });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
     // Ben has paid $0 — no refund control on his row.
     expect(screen.queryByLabelText("Refund Ben")).not.toBeInTheDocument();
   });
 
   it("renders the empty state without a finances object at all", () => {
-    renderWithProviders(<FinancesTab />, {
-      team: { team: { players: [], games: [] } },
-    });
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      {
+        team: { team: { players: [], games: [] } },
+      },
+    );
     expect(
       screen.getByText(/Add players on the Roster tab/i),
     ).toBeInTheDocument();

@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, screen, act } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { InGameView } from "./InGameView";
 import { renderWithProviders } from "../test-utils";
 import { DEFAULT_TEAM_DATA } from "../constants/ui";
@@ -62,28 +63,33 @@ const renderInGame = ({
   const finalizeGame = vi.fn();
   const removePlayerMidGame = vi.fn();
   const setPlayerHealth = vi.fn();
-  const utils = renderWithProviders(<InGameView />, {
-    team: {
-      team: { ...DEFAULT_TEAM_DATA, players, games: [game], ...teamOver },
-      currentRole: role,
-      realRole: role,
-      updateGame,
-      finalizeGame,
-      removePlayerMidGame,
-      setPlayerHealth,
+  const utils = renderWithProviders(
+    <MemoryRouter>
+      <InGameView />
+    </MemoryRouter>,
+    {
+      team: {
+        team: { ...DEFAULT_TEAM_DATA, players, games: [game], ...teamOver },
+        currentRole: role,
+        realRole: role,
+        updateGame,
+        finalizeGame,
+        removePlayerMidGame,
+        setPlayerHealth,
+      },
+      ui: {
+        inGameId: game.id,
+        setInGameId: vi.fn(),
+        inGameInning: 0,
+        setInGameInning: vi.fn(),
+        inGameSelection: null,
+        setInGameSelection: vi.fn(),
+        inGameUndoStack: [],
+        setInGameUndoStack: vi.fn(),
+        ...ui,
+      },
     },
-    ui: {
-      inGameId: game.id,
-      setInGameId: vi.fn(),
-      inGameInning: 0,
-      setInGameInning: vi.fn(),
-      inGameSelection: null,
-      setInGameSelection: vi.fn(),
-      inGameUndoStack: [],
-      setInGameUndoStack: vi.fn(),
-      ...ui,
-    },
-  });
+  );
   return {
     ...utils,
     updateGame,

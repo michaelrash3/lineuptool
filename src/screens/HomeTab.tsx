@@ -1878,12 +1878,8 @@ export const UpNextPanel = memo(
 
 export const HomeTab = memo(() => {
   const { team, teams, activeTeamId, record, user, currentRole } = useTeam();
-  const {
-    openPlayerProfile,
-    setActiveTab,
-    setIsAddingGame,
-    setIsAddingPlayer,
-  } = useUI();
+  const { openPlayerProfile, setActiveTab, setIsAddingGame, openAddPlayer } =
+    useUI();
   const isHead = currentRole !== "assistant";
   const [showSeasonReport, setShowSeasonReport] = useState(false);
   const [showAwards, setShowAwards] = useState(false);
@@ -2265,10 +2261,7 @@ export const HomeTab = memo(() => {
               <Icons.UserPlus className="w-4 h-4" /> Add Your First Player
             </>
           }
-          onAction={() => {
-            setActiveTab("roster");
-            setIsAddingPlayer(true);
-          }}
+          onAction={() => openAddPlayer()}
         />
       ) : (
         <LeaderboardsSection

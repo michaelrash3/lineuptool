@@ -1,4 +1,5 @@
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { TryoutsTab, computeRosterProjection } from "./TryoutsTab";
 import { renderWithProviders } from "../test-utils";
@@ -47,77 +48,92 @@ const baseTeam = (overrides: any = {}) => ({
 
 describe("TryoutsTab", () => {
   it("renders the tryouts dashboard for an empty signup list", () => {
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
+          team: {
+            tryoutSignups: [],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
       },
-    });
+    );
     expect(screen.getByText("Tryouts")).toBeInTheDocument();
   });
 
   it("surfaces the in-tab tryout setup controls for the head (moved out of Settings)", () => {
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
-          tryoutDates: [],
+          team: {
+            tryoutSignups: [],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+            tryoutDates: [],
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
       },
-    });
+    );
     expect(screen.getByText(/Tryout setup — dates, link/)).toBeInTheDocument();
   });
 
   it("coach-adds a walk-up with an auto-assigned tryout number", async () => {
     const { fireEvent } = await import("@testing-library/react");
     const appendTryoutSignup = jest.fn();
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          // #1 taken on this date → the walk-up gets #2.
-          tryoutSignups: [
-            {
-              id: "s1",
-              firstName: "A",
-              lastName: "B",
-              submittedAt: "2026-07-01T00:00:00.000Z",
-              tryoutDate: "2026-08-01",
-              tryoutNumber: "1",
-            },
-          ],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
-          tryoutDates: ["2026-08-01"],
+          team: {
+            // #1 taken on this date → the walk-up gets #2.
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "A",
+                lastName: "B",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+                tryoutDate: "2026-08-01",
+                tryoutNumber: "1",
+              },
+            ],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+            tryoutDates: ["2026-08-01"],
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          appendTryoutSignup,
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        appendTryoutSignup,
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
       },
-    });
+    );
     fireEvent.click(screen.getByRole("button", { name: /\+ Add Player/i }));
     fireEvent.change(screen.getByLabelText("First name"), {
       target: { value: "Walk" },
@@ -143,32 +159,37 @@ describe("TryoutsTab", () => {
   it("records a showcase measurement from the expanded card (shared, definitive)", async () => {
     const { fireEvent } = await import("@testing-library/react");
     const saveTryoutMeasurements = jest.fn();
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [
-            {
-              id: "s1",
-              firstName: "Ava",
-              lastName: "Best",
-              submittedAt: "2026-07-01T00:00:00.000Z",
-              tryoutDate: "2026-08-01",
-            },
-          ],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
-          teamAge: "10U",
+          team: {
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "Ava",
+                lastName: "Best",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+                tryoutDate: "2026-08-01",
+              },
+            ],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+            teamAge: "10U",
+          },
+          user: { uid: "u1" },
+          currentRole: "assistant", // any coach records measured data
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
+          saveTryoutMeasurements,
         },
-        user: { uid: "u1" },
-        currentRole: "assistant", // any coach records measured data
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
-        saveTryoutMeasurements,
       },
-    });
+    );
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     // 10U basepath context shows on the showcase header.
     expect(screen.getByText(/over 65 ft basepaths/)).toBeInTheDocument();
@@ -182,31 +203,36 @@ describe("TryoutsTab", () => {
 
   it("hand-grades hitting ONLY — no duplicate rows for tools the showcase measures", async () => {
     const { fireEvent } = await import("@testing-library/react");
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [
-            {
-              id: "s1",
-              firstName: "Ava",
-              lastName: "Best",
-              submittedAt: "2026-07-01T00:00:00.000Z",
-              tryoutDate: "2026-08-01",
-            },
-          ],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
-          teamAge: "10U",
+          team: {
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "Ava",
+                lastName: "Best",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+                tryoutDate: "2026-08-01",
+              },
+            ],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+            teamAge: "10U",
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
       },
-    });
+    );
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     // The single eye-test judgment.
     expect(
@@ -234,31 +260,36 @@ describe("TryoutsTab", () => {
   it("saves ONLY what the coach recorded — an untouched card saves nothing", async () => {
     const { fireEvent } = await import("@testing-library/react");
     const saveTryoutEvaluation = jest.fn();
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [
-            {
-              id: "s1",
-              firstName: "Ava",
-              lastName: "Best",
-              submittedAt: "2026-07-01T00:00:00.000Z",
-              tryoutDate: "2026-08-01",
-            },
-          ],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
-          teamAge: "10U",
+          team: {
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "Ava",
+                lastName: "Best",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+                tryoutDate: "2026-08-01",
+              },
+            ],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+            teamAge: "10U",
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation,
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation,
       },
-    });
+    );
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     // Nothing recorded → Save writes nothing (a station coach can never
     // stamp phantom average grades onto a kid they didn't watch).
@@ -279,52 +310,57 @@ describe("TryoutsTab", () => {
 
   it("shows every coach's saved eval on the card — station reads transfer to the whole staff", async () => {
     const { fireEvent } = await import("@testing-library/react");
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [
-            {
-              id: "s1",
-              firstName: "Ava",
-              lastName: "Best",
-              submittedAt: "2026-07-01T00:00:00.000Z",
-              tryoutDate: "2026-08-01",
-            },
-          ],
-          tryoutSessions: [
-            {
-              id: "tryout-2026-08-01",
-              date: "2026-08-01",
-              updatedAt: 2,
-              gradesByEvaluator: {
-                hc: {
-                  coachRole: "Head",
-                  evaluatorId: "hc",
-                  evaluatorName: "Rash",
-                  grades: { s1: { approach: 4, notes: "Barrels it" } },
-                },
-                ac: {
-                  coachRole: "Assistant",
-                  evaluatorId: "ac",
-                  evaluatorName: "Lee",
-                  grades: { s1: { approach: 2 } },
+          team: {
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "Ava",
+                lastName: "Best",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+                tryoutDate: "2026-08-01",
+              },
+            ],
+            tryoutSessions: [
+              {
+                id: "tryout-2026-08-01",
+                date: "2026-08-01",
+                updatedAt: 2,
+                gradesByEvaluator: {
+                  hc: {
+                    coachRole: "Head",
+                    evaluatorId: "hc",
+                    evaluatorName: "Rash",
+                    grades: { s1: { approach: 4, notes: "Barrels it" } },
+                  },
+                  ac: {
+                    coachRole: "Assistant",
+                    evaluatorId: "ac",
+                    evaluatorName: "Lee",
+                    grades: { s1: { approach: 2 } },
+                  },
                 },
               },
-            },
-          ],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
-          teamAge: "10U",
+            ],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+            teamAge: "10U",
+          },
+          user: { uid: "ac" }, // the assistant sees the head's read too
+          currentRole: "assistant",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
         },
-        user: { uid: "ac" }, // the assistant sees the head's read too
-        currentRole: "assistant",
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
       },
-    });
+    );
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
     expect(
       screen.getByText("Coach evals — shared across the staff"),
@@ -337,22 +373,27 @@ describe("TryoutsTab", () => {
   });
 
   it("hides the setup controls from assistants", () => {
-    renderWithProviders(<TryoutsTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
         team: {
-          tryoutSignups: [],
-          evaluationEvents: [],
-          defenseSize: 9,
-          pitchingFormat: "Kid Pitch",
+          team: {
+            tryoutSignups: [],
+            evaluationEvents: [],
+            defenseSize: 9,
+            pitchingFormat: "Kid Pitch",
+          },
+          user: { uid: "u1" },
+          currentRole: "assistant",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "assistant",
-        updateTryoutSignup: jest.fn(),
-        deleteTryoutSignup: jest.fn(),
-        acceptTryout: jest.fn(),
-        saveTryoutEvaluation: jest.fn(),
       },
-    });
+    );
     expect(
       screen.queryByText(/Tryout setup — dates, link/),
     ).not.toBeInTheDocument();

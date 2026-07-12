@@ -43,7 +43,7 @@ describe("HomeTab", () => {
       },
       ui: {
         setIsAddingGame: jest.fn(),
-        setIsAddingPlayer: jest.fn(),
+        openAddPlayer: jest.fn(),
       },
     });
     // With an empty roster the dashboard shows a "get a roster in place"
@@ -69,7 +69,7 @@ describe("HomeTab", () => {
         user: { uid: "u1" },
         currentRole: "head",
       },
-      ui: { setIsAddingGame: jest.fn(), setIsAddingPlayer: jest.fn() },
+      ui: { setIsAddingGame: jest.fn(), openAddPlayer: jest.fn() },
     });
     expect(screen.getByText(/Kid Pitch 3–1/)).toBeInTheDocument();
     expect(screen.getByText(/Machine\/Coach 2–2/)).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe("HomeTab", () => {
       },
       ui: {
         setIsAddingGame: jest.fn(),
-        setIsAddingPlayer: jest.fn(),
+        openAddPlayer: jest.fn(),
         openPlayerProfile: jest.fn(),
         setActiveTab: jest.fn(),
       },
@@ -176,7 +176,7 @@ describe("HomeTab", () => {
         },
         ui: {
           setIsAddingGame: jest.fn(),
-          setIsAddingPlayer: jest.fn(),
+          openAddPlayer: jest.fn(),
           openPlayerProfile: jest.fn(),
           setActiveTab: jest.fn(),
         },
@@ -213,7 +213,7 @@ describe("HomeTab", () => {
         user: { uid: "u1" },
         currentRole: "head",
       },
-      ui: { setIsAddingGame: jest.fn(), setIsAddingPlayer: jest.fn() },
+      ui: { setIsAddingGame: jest.fn(), openAddPlayer: jest.fn() },
     });
     expect(screen.queryByText(/Machine\/Coach/)).toBeNull();
   });
@@ -256,7 +256,7 @@ describe("HomeTab", () => {
       },
       ui: {
         setIsAddingGame: jest.fn(),
-        setIsAddingPlayer: jest.fn(),
+        openAddPlayer: jest.fn(),
       },
     });
     // One active player is out — not three. The badge renders "<n> Out" as two

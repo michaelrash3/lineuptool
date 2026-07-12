@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { signOut } from "firebase/auth";
 import { Icons } from "../icons";
 import { auth } from "../firebase";
@@ -176,8 +177,8 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
     setNewTeamName,
     activeTab,
     setActiveTab,
-    openHelp,
   } = useUI();
+  const navigate = useNavigate();
   const [isJoiningTeam, setIsJoiningTeam] = React.useState(false);
   const [joinCodeInput, setJoinCodeInput] = React.useState("");
   // New teams must explicitly pick a type (Rec vs Tournament) — no default.
@@ -246,7 +247,7 @@ export const AppHeader = memo(({ navButtons = [] }: any) => {
             subtitle={subtitle}
             showSettings={currentRole !== "assistant"}
             onSettings={() => setActiveTab?.("settings")}
-            onHelp={() => openHelp?.()}
+            onHelp={() => navigate("/help", { state: { from: activeTab } })}
             themeToggle={<ThemeToggle />}
             onSignOut={() => setSignOutOpen(true)}
           />

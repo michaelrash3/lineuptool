@@ -1,9 +1,8 @@
 import React, { memo, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { useTeam } from "../contexts";
 import { calculateBaseballAge } from "../utils/helpers";
-import { OfferLetterModal } from "../components/OfferLetterModal";
-import { makeOfferLetterContext } from "../utils/offerContext";
 import { EmptyState } from "../components/shared";
 import { PortalShareCard } from "../components/PortalShareCard";
 
@@ -13,6 +12,7 @@ import { PortalShareCard } from "../components/PortalShareCard";
 // "Move to tryouts" promotes a lead into team.tryoutSignups for the
 // active tryout cycle. Schema: see InterestSignup in types.ts.
 export const InterestTab = memo(() => {
+  const navigate = useNavigate();
   const {
     team,
     user,
@@ -22,7 +22,7 @@ export const InterestTab = memo(() => {
   } = useTeam();
   const isHead = currentRole !== "assistant";
   // Copyable "interest / tryout invite" draft for a selected lead.
-  const [msgLead, setMsgLead] = useState<any | null>(null);
+  // Invite drafts live at /interest/offer/:leadId (routed page).
   const leads = useMemo(() => {
     return [...(team?.interestSignups || [])].sort(
       (a: any, b: any) =>
@@ -194,7 +194,7 @@ export const InterestTab = memo(() => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setMsgLead(lead)}
+                        onClick={() => navigate(`/interest/offer/${lead.id}`)}
                         className="px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-ink border border-line bg-surface rounded-md hover:bg-surface-2 transition-colors whitespace-nowrap inline-flex items-center justify-center gap-1"
                         title="Copy a tryout-invite message for this lead"
                       >
@@ -238,19 +238,6 @@ export const InterestTab = memo(() => {
           )}
         </div>
       </div>
-      {msgLead && (
-        <OfferLetterModal
-          open
-          onClose={() => setMsgLead(null)}
-          kind="interest"
-          recipientEmail={msgLead.email}
-          ctx={makeOfferLetterContext(
-            team,
-            user,
-            [msgLead.firstName, msgLead.lastName].filter(Boolean).join(" "),
-          )}
-        />
-      )}
     </div>
   );
 });

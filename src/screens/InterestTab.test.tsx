@@ -1,4 +1,5 @@
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InterestTab } from "./InterestTab";
@@ -17,16 +18,21 @@ const lead = (over: any = {}) => ({
 const setup = (over: any = {}, teamCtx: any = {}) => {
   const deleteInterestSignup = jest.fn();
   const convertInterestToTryout = jest.fn();
-  const utils = renderWithProviders(<InterestTab />, {
-    team: {
-      currentRole: "head",
-      user: { uid: "u1" },
-      deleteInterestSignup,
-      convertInterestToTryout,
-      team: { currentSeason: "2026", interestSignups: [], ...over },
-      ...teamCtx,
+  const utils = renderWithProviders(
+    <MemoryRouter>
+      <InterestTab />
+    </MemoryRouter>,
+    {
+      team: {
+        currentRole: "head",
+        user: { uid: "u1" },
+        deleteInterestSignup,
+        convertInterestToTryout,
+        team: { currentSeason: "2026", interestSignups: [], ...over },
+        ...teamCtx,
+      },
     },
-  });
+  );
   return { deleteInterestSignup, convertInterestToTryout, ...utils };
 };
 

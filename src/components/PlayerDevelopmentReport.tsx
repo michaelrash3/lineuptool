@@ -1,7 +1,9 @@
 import React, { memo, Suspense, useMemo } from "react";
-import { Modal } from "./shared";
+import { Navigate, useParams } from "react-router-dom";
 import { Icons } from "../icons";
-import { useToast } from "../contexts";
+import { PageShell } from "./PageShell";
+import { useBackOrFallback } from "../hooks/usePageNav";
+import { useTeam, useToast } from "../contexts";
 import { EVAL_CATEGORIES, getEvalCategoriesForTeam } from "../constants/ui";
 import { featureEnabled } from "../constants/features";
 import { focusAreaDeltas } from "../utils/developmentPlan";
@@ -34,6 +36,8 @@ const PositionInningsStrip = React.lazy(() =>
 // (latest grade per category + within-season trend), season-over-season stat
 // growth (from archived pastSeasons), attendance, and coach notes. Read-only;
 // shareable via Copy and printable. Doubles as the banquet per-kid card.
+// Lives at /roster/:playerId/report (see PlayerReportPage below) — converted
+// from a Modal overlay per the app-wide modals→pages rule.
 
 type Kind = "int" | "dec2" | "dec3" | "pct" | "ip";
 
@@ -182,8 +186,7 @@ const attIsAbsent = (v: any) => v === false || v === "absent";
 
 export const PlayerDevelopmentReport = memo(
   ({
-    open,
-    onClose,
+    onBack,
     player,
     team,
     evaluationEvents = [],
@@ -369,14 +372,12 @@ export const PlayerDevelopmentReport = memo(
     };
 
     return (
-      <Modal
-        open={open}
-        onClose={onClose}
+      <PageShell
         eyebrow="Development Report"
         title={player.name}
-        size="lg"
-        footer={
-          <div className="flex items-center justify-end gap-2">
+        onBack={onBack}
+        actions={
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => window.print()}
@@ -395,7 +396,7 @@ export const PlayerDevelopmentReport = memo(
           </div>
         }
       >
-        <div className="space-y-4">
+        <div className="cc-card p-5 space-y-4">
           {/* Header meta */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-ink-3">
             {player.number ? (
@@ -730,7 +731,27 @@ export const PlayerDevelopmentReport = memo(
             </div>
           )}
         </div>
-      </Modal>
+      </PageShell>
     );
   },
 );
+
+// /roster/:playerId/report — the routed page. Assembles the report's inputs
+// from the team context; an unknown player id lands back on the roster.
+export const PlayerReportPage = memo(() => {
+  const { playerId } = useParams();
+  const { team } = useTeam();
+  const back = useBackOrFallback(playerId ? `/roster/${playerId}` : "/roster");
+  const player = (team.players || []).find((p: any) => p.id === playerId);
+  if (!player) return <Navigate to="/roster" replace />;
+  return (
+    <PlayerDevelopmentReport
+      onBack={back}
+      player={player}
+      team={team}
+      evaluationEvents={team.evaluationEvents || []}
+      games={team.games || []}
+      practices={team.practices || []}
+    />
+  );
+});

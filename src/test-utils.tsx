@@ -68,6 +68,7 @@ const makeUI = (overrides: Partial<UIContextValue> = {}): UIContextValue =>
     selectedGameId: null,
     setSelectedGameId: jest.fn(),
     openPlayerProfile: jest.fn(),
+    openAddPlayer: jest.fn(),
     ...overrides,
   }) as UIContextValue;
 

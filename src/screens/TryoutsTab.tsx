@@ -1,4 +1,5 @@
 import React, { memo, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
 import { useTeam, useToast } from "../contexts";
@@ -32,9 +33,6 @@ import {
 import type { TryoutMeasurements } from "../types";
 import { A11yDialog, EmptyState } from "../components/shared";
 import { TryoutControlsPanel } from "../components/TryoutControlsPanel";
-import { OfferLetterModal } from "../components/OfferLetterModal";
-import { makeOfferLetterContext } from "../utils/offerContext";
-import type { OfferLetterKind } from "../constants/offerLetters";
 import type { EvalCategory } from "../constants/ui";
 import type {
   Player,
@@ -956,6 +954,7 @@ const BUCKET_BADGES = {
 };
 
 export const TryoutsTab = memo(() => {
+  const navigate = useNavigate();
   const {
     team,
     user,
@@ -1256,12 +1255,8 @@ export const TryoutsTab = memo(() => {
   };
 
   // Recruiting letters are COPYABLE drafts (Gmail send is unreliable here), so
-  // "Make an Offer" / "Decline" just open a pre-filled draft the coach hands to
-  // the family. We only flip the signup status once they actually deliver it.
-  const [offerDraft, setOfferDraft] = useState<{
-    signup: TryoutSignup;
-    kind: OfferLetterKind;
-  } | null>(null);
+  // "Make an Offer" / "Decline" route to /tryouts/offer/:signupId/:kind — the
+  // page flips the signup status once the coach actually delivers the draft.
   // Accept-time routing choice: accepts default to NEXT season (held in
   // Tryouts, promoted on Advance Season); the coach can opt a kid onto the
   // CURRENT roster instead.
@@ -1684,10 +1679,7 @@ export const TryoutsTab = memo(() => {
                               <button
                                 type="button"
                                 onClick={() =>
-                                  setOfferDraft({
-                                    signup: s,
-                                    kind: "newPlayer",
-                                  })
+                                  navigate(`/tryouts/offer/${s.id}/new-player`)
                                 }
                                 className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-warn-bg text-warnfg border border-line rounded-lg hover:opacity-90 transition-opacity"
                               >
@@ -1700,10 +1692,7 @@ export const TryoutsTab = memo(() => {
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    setOfferDraft({
-                                      signup: s,
-                                      kind: "rejection",
-                                    })
+                                    navigate(`/tryouts/offer/${s.id}/rejection`)
                                   }
                                   className="px-4 py-2 text-xs font-black uppercase tracking-widest bg-surface-2 text-ink border border-line rounded-lg hover:opacity-90 transition-opacity"
                                 >
@@ -1936,30 +1925,6 @@ export const TryoutsTab = memo(() => {
             </div>
           </A11yDialog>
         </div>
-      )}
-
-      {offerDraft && (
-        <OfferLetterModal
-          open
-          onClose={() => setOfferDraft(null)}
-          kind={offerDraft.kind}
-          recipientEmail={offerDraft.signup.email}
-          ctx={makeOfferLetterContext(
-            team,
-            user,
-            [offerDraft.signup.firstName, offerDraft.signup.lastName]
-              .filter(Boolean)
-              .join(" "),
-          )}
-          onSaveNextSeasonMoney={(patch) =>
-            updateFinances({ op: "set", fields: patch })
-          }
-          onDelivered={() =>
-            updateTryoutSignup?.(offerDraft.signup.id, {
-              status: offerDraft.kind === "rejection" ? "declined" : "offered",
-            })
-          }
-        />
       )}
 
       {acceptChoice && (

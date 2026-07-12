@@ -36,18 +36,11 @@ import {
   STAT_META,
   formatStatValue,
 } from "./modals/statTrend";
-import { PlayerDevelopmentReport } from "./PlayerDevelopmentReport";
 import { DevelopmentPlanCard } from "./DevelopmentPlanCard";
-import { OfferLetterModal } from "./OfferLetterModal";
-import { makeOfferLetterContext } from "../utils/offerContext";
 
 // The chart-bearing components load lazily from ./modals/statTrendViz so this
-// eager module doesn't drag the recharts chunk into the startup bundle.
-const StatTrendModal = React.lazy(() =>
-  import("./modals/statTrendViz").then((mod) => ({
-    default: mod.StatTrendModal,
-  })),
-);
+// eager module doesn't drag the recharts chunk into the startup bundle. The
+// per-stat trend itself is a routed page (/roster/:playerId/trend/:statKey).
 const RecentMovementPanel = React.lazy(() =>
   import("./modals/statTrendViz").then((mod) => ({
     default: mod.RecentMovementPanel,
@@ -168,243 +161,8 @@ const ScheduledAbsencesCard = memo(({ player, updatePlayer }: any) => {
   );
 });
 
-export const PastSeasonImportModal = memo(() => {
-  const { team, bulkAddPastSeasons } = useTeam();
-  const { pastSeasonImport, setPastSeasonImport } = useUI();
-  const toast = useToast();
-
-  if (!pastSeasonImport) return null;
-  const { rows, season, ageGroup, pitchingFormat, assignments } =
-    pastSeasonImport;
-  const { players, primaryColor, tertiaryColor } = team;
-
-  const setField = (patch: any) =>
-    setPastSeasonImport({ ...pastSeasonImport, ...patch });
-  const setAssignment = (csvName: any, value: any) =>
-    setField({ assignments: { ...assignments, [csvName]: value } });
-
-  const close = () => setPastSeasonImport(null);
-
-  // Players already assigned, so we can de-duplicate dropdowns
-  const usedPlayerIds = new Set();
-  for (const v of Object.values(assignments)) {
-    if (v && v !== "skip" && v !== "new") usedPlayerIds.add(v);
-  }
-
-  // Counts
-  const assignedCount = Object.values(assignments).filter(
-    (v) => v && v !== "skip",
-  ).length;
-  const skipCount = Object.values(assignments).filter(
-    (v) => v === "skip",
-  ).length;
-
-  const canCommit =
-    season.trim() && ageGroup && pitchingFormat && assignedCount > 0;
-
-  const commit = () => {
-    if (!canCommit) return;
-    const toAdd = [];
-    for (const row of rows) {
-      const a = assignments[row.csvName];
-      if (!a || a === "skip") continue;
-      let playerId = a;
-      if (a === "new") {
-        // Add as a new player first (simple shape — user can edit later)
-        // We can't directly call addPlayer here without making team the source of truth synchronously.
-        // Skip "new" for now and surface a warning. (See note below.)
-        toast.push({
-          kind: "warn",
-          title: `Skipped "${row.csvName}"`,
-          message: "Add the player first via the Roster tab, then re-import.",
-        });
-        continue;
-      }
-      toAdd.push({
-        playerId,
-        season: season.trim(),
-        ageGroup,
-        pitchingFormat,
-        stats: row.stats,
-      });
-    }
-    if (toAdd.length === 0) {
-      toast.push({
-        kind: "warn",
-        title: "Nothing to import",
-        message: "No rows are matched to a player.",
-      });
-      return;
-    }
-    bulkAddPastSeasons(toAdd);
-    toast.push({
-      kind: "success",
-      title: `Past season imported`,
-      message: `${toAdd.length} player${
-        toAdd.length === 1 ? "" : "s"
-      } updated for ${season}.`,
-    });
-    close();
-  };
-
-  return (
-    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-slate-900/60 p-0 sm:p-4 backdrop-blur-sm">
-      <A11yDialog
-        label="Import past season stats"
-        onClose={close}
-        className="bg-surface rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
-      >
-        <div
-          className="p-1.5"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-
-        <div className="p-6 sm:p-7 border-b border-line">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <h3 className="t-card-title">Import Past Season Stats</h3>
-              <p className="text-xs text-ink-3 font-medium mt-1">
-                Review and confirm which player each row belongs to.
-              </p>
-            </div>
-            <button
-              onClick={close}
-              className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
-            >
-              <Icons.X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Season *
-              </label>
-              <input
-                type="text"
-                value={season}
-                onChange={(e) => setField({ season: e.target.value })}
-                placeholder="e.g., Spring 2025"
-                className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Age Group *
-              </label>
-              <select
-                value={ageGroup}
-                onChange={(e) => setField({ ageGroup: e.target.value })}
-                className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="">Select…</option>
-                {AGE_TIERS.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Pitching Format *
-              </label>
-              <select
-                value={pitchingFormat}
-                onChange={(e) => setField({ pitchingFormat: e.target.value })}
-                className="w-full p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-              >
-                <option value="Kid Pitch">Kid Pitch</option>
-                <option value="Coach/Machine">Coach / Machine</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-y-auto custom-scrollbar flex-1 bg-app/50">
-          <div className="p-4 sm:p-6 space-y-2">
-            <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 grid grid-cols-12 gap-3 px-3 pb-2">
-              <div className="col-span-5">From CSV</div>
-              <div className="col-span-7">Assign To</div>
-            </div>
-            {rows.map((row: any) => {
-              const value = assignments[row.csvName] || "skip";
-              const isSkip = value === "skip";
-              return (
-                <div
-                  key={row.csvName}
-                  className={`grid grid-cols-12 gap-3 items-center bg-surface border rounded-xl p-3 shadow-sm ${
-                    isSkip ? "opacity-60" : "border-line"
-                  }`}
-                >
-                  <div className="col-span-5">
-                    <div className="text-sm font-black text-ink truncate">
-                      {row.csvName}
-                    </div>
-                    {row.number && (
-                      <div className="text-[10px] font-bold text-ink-3 uppercase tracking-widest">
-                        #{row.number}
-                      </div>
-                    )}
-                  </div>
-                  <div className="col-span-7">
-                    <select
-                      value={value}
-                      onChange={(e) =>
-                        setAssignment(row.csvName, e.target.value)
-                      }
-                      className="w-full p-2 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
-                    >
-                      <option value="skip">Skip this row</option>
-                      <optgroup label="Match to existing player">
-                        {players.map((p: any) => {
-                          // Allow the current selection plus any unassigned player
-                          const taken =
-                            usedPlayerIds.has(p.id) && p.id !== value;
-                          return (
-                            <option key={p.id} value={p.id} disabled={taken}>
-                              {p.name}
-                              {p.number ? ` (#${p.number})` : ""}
-                              {taken ? " (already matched)" : ""}
-                            </option>
-                          );
-                        })}
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-[11px] font-bold text-ink-3 uppercase tracking-widest">
-            {assignedCount} matched · {skipCount} skipped
-          </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={close}
-              className="text-[11px] font-black uppercase tracking-widest px-5 py-2.5 bg-surface border border-line text-ink rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={!canCommit}
-              onClick={commit}
-              className="text-[11px] font-black uppercase tracking-widest px-5 py-2.5 rounded-xl shadow-md transition-transform hover:-translate-y-0.5 disabled:opacity-50 disabled:transform-none"
-              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-            >
-              Import
-            </button>
-          </div>
-        </div>
-      </A11yDialog>
-    </div>
-  );
-});
+// PastSeasonImportModal became the /roster/import/past-season page —
+// see screens/roster/PastSeasonImportPage.
 
 /* PastSeasonForm — used inline for Add and Edit of a single past-season entry. */
 const PastSeasonForm = memo(
@@ -560,8 +318,8 @@ const PlayerProfile = memo(() => {
     currentRole,
     user,
   } = useTeam();
-  // Per-player development report (printable / shareable one-pager).
-  const [showReport, setShowReport] = useState(false);
+  // The development report and per-stat trends are routed sub-pages
+  // (/roster/:playerId/report and /roster/:playerId/trend/:statKey).
   // Assistants only see this profile in view-only mode: edits, position
   // restrictions, and private contact info are head-only.
   const canEdit = currentRole !== "assistant";
@@ -616,12 +374,10 @@ const PlayerProfile = memo(() => {
   }, []);
 
   const [editingContact, setEditingContact] = useState(false);
-  const [showReturningOffer, setShowReturningOffer] = useState(false);
-  const [showNotReturning, setShowNotReturning] = useState(false);
+  // Offer letters live at /roster/:playerId/offer/:kind (routed pages).
   const [editingPlayerName, setEditingPlayerName] = useState(false);
   const [tempPlayerName, setTempPlayerName] = useState("");
   const [showTimeline, setShowTimeline] = useState(false);
-  const [trendStatKey, setTrendStatKey] = useState<string | null>(null); // key of stat whose year-over-year chart is open
   const [addingPastSeason, setAddingPastSeason] = useState(false);
   const [editingPastSeasonId, setEditingPastSeasonId] = useState<string | null>(
     null,
@@ -809,9 +565,6 @@ const PlayerProfile = memo(() => {
     setActiveSection("general");
     setEditingContact(false);
     setEditingPlayerName(false);
-    setTrendStatKey(null);
-    setShowReturningOffer(false);
-    setShowNotReturning(false);
     // Real page semantics: go BACK to wherever the coach came from (roster,
     // stats, a pitching panel…) instead of pushing a fresh /roster entry —
     // pushing would leave the profile one Back-press away after closing,
@@ -1702,7 +1455,9 @@ const PlayerProfile = memo(() => {
                             <button
                               key={key}
                               type="button"
-                              onClick={() => setTrendStatKey(key)}
+                              onClick={() =>
+                                navigate(`/roster/${player.id}/trend/${key}`)
+                              }
                               className="group bg-app hover:bg-surface-2 border border-transparent rounded-lg p-2 text-center transition-colors cursor-pointer"
                             >
                               <div className="text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-0.5">
@@ -1868,14 +1623,18 @@ const PlayerProfile = memo(() => {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowReturningOffer(true)}
+                  onClick={() =>
+                    navigate(`/roster/${player.id}/offer/returning`)
+                  }
                   className="text-[10px] font-black uppercase tracking-widest bg-surface border border-line hover:bg-surface-2 text-ink px-3 py-1.5 rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Returning Offer
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowNotReturning(true)}
+                  onClick={() =>
+                    navigate(`/roster/${player.id}/offer/not-returning`)
+                  }
                   className="text-[10px] font-black uppercase tracking-widest bg-loss-bg border border-line hover:opacity-90 text-loss px-3 py-1.5 rounded-lg shadow-sm transition-opacity inline-flex items-center gap-1.5"
                 >
                   <Icons.FileText className="w-3.5 h-3.5" /> Not Returning
@@ -1927,7 +1686,7 @@ const PlayerProfile = memo(() => {
 
         <div className="bg-surface border-t border-line p-4 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
           <button
-            onClick={() => setShowReport(true)}
+            onClick={() => navigate(`/roster/${player.id}/report`)}
             className="text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-xl transition-opacity shadow-sm border border-line bg-surface hover:bg-surface-2 text-ink flex items-center gap-2"
           >
             <Icons.FileText className="w-3.5 h-3.5" /> Report
@@ -1951,52 +1710,6 @@ const PlayerProfile = memo(() => {
           </div>
         </div>
       </ProfileShell>
-      {showReturningOffer && (
-        <OfferLetterModal
-          open
-          onClose={() => setShowReturningOffer(false)}
-          kind="returning"
-          recipientEmail={player.email}
-          ctx={makeOfferLetterContext(team, user, player.name)}
-          onSaveNextSeasonMoney={(patch) =>
-            updateFinances?.({ op: "set", fields: patch })
-          }
-        />
-      )}
-      {showNotReturning && (
-        <OfferLetterModal
-          open
-          onClose={() => setShowNotReturning(false)}
-          kind="notReturning"
-          recipientEmail={player.email}
-          ctx={makeOfferLetterContext(team, user, player.name)}
-        />
-      )}
-      {showReport && (
-        <PlayerDevelopmentReport
-          open
-          onClose={() => setShowReport(false)}
-          player={player}
-          team={team}
-          evaluationEvents={evaluationEvents}
-          games={games}
-          practices={team.practices || []}
-        />
-      )}
-      {trendStatKey && (
-        <React.Suspense fallback={null}>
-          <StatTrendModal
-            statKey={trendStatKey}
-            player={player}
-            currentSeason={currentSeason}
-            currentPitchingFormat={pitchingFormat}
-            primaryColor={primaryColor}
-            tertiaryColor={tertiaryColor}
-            teamAverages={teamAverages}
-            onClose={() => setTrendStatKey(null)}
-          />
-        </React.Suspense>
-      )}
     </>
   );
 });
@@ -2018,141 +1731,4 @@ export const PlayerProfilePage = memo(() => {
   );
 });
 
-export const AddPlayerModal = memo(() => {
-  const { team, addPlayer } = useTeam();
-  const { isAddingPlayer, setIsAddingPlayer } = useUI();
-  const { primaryColor, tertiaryColor } = team;
-  const [form, setForm] = useState({
-    name: "",
-    number: "",
-    bats: "R",
-    throws: "R",
-    primaryPosition: "",
-  });
-
-  if (!isAddingPlayer) return null;
-
-  const close = () => {
-    setIsAddingPlayer(false);
-    setForm({
-      name: "",
-      number: "",
-      bats: "R",
-      throws: "R",
-      primaryPosition: "",
-    });
-  };
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    addPlayer(form);
-    close();
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-      onClick={close}
-    >
-      <A11yDialog
-        label="Add player"
-        onClose={close}
-        className="bg-surface rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-line"
-      >
-        <div
-          className="p-1.5"
-          style={{ backgroundColor: "var(--team-primary)" }}
-        />
-        <form onSubmit={submit} className="p-6 sm:p-7 space-y-4">
-          <h3 className="t-card-title mb-2">Add Player</h3>
-          <div className="flex items-center gap-4">
-            <PlayerAvatar
-              player={{
-                name: form.name,
-                number: form.number,
-                primaryPosition: form.primaryPosition,
-              }}
-              size={64}
-              showNumber
-              showPosition
-            />
-            <p className="flex-1 text-xs font-medium text-ink-3 leading-snug">
-              Players show your team logo. Set a number and primary position to
-              tell them apart at a glance.
-            </p>
-          </div>
-          <div>
-            <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-              Name *
-            </label>
-            <input
-              autoFocus
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Number
-              </label>
-              <input
-                type="text"
-                value={form.number}
-                onChange={(e) => setForm({ ...form, number: e.target.value })}
-                className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-inner"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Bats
-              </label>
-              <select
-                value={form.bats}
-                onChange={(e) => setForm({ ...form, bats: e.target.value })}
-                className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
-              >
-                <option>R</option>
-                <option>L</option>
-                <option>S</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Throws
-              </label>
-              <select
-                value={form.throws}
-                onChange={(e) => setForm({ ...form, throws: e.target.value })}
-                className="w-full p-3 bg-surface border border-line rounded-xl outline-none focus:ring-2 focus:ring-[var(--team-primary)] text-sm font-bold shadow-sm"
-              >
-                <option>R</option>
-                <option>L</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-3 pt-3 justify-end">
-            <button
-              type="button"
-              onClick={close}
-              className="px-5 py-2.5 bg-surface border border-line text-ink-2 font-black text-xs uppercase tracking-widest rounded-xl hover:bg-surface-2 transition-colors shadow-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2.5 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:-translate-y-0.5 transition-transform shadow-md"
-              style={{ backgroundColor: primaryColor, color: tertiaryColor }}
-            >
-              Add Player
-            </button>
-          </div>
-        </form>
-      </A11yDialog>
-    </div>
-  );
-});
+// AddPlayerModal became the /roster/new page — see screens/roster/AddPlayerPage.

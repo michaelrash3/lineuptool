@@ -1,5 +1,6 @@
 import React from "react";
 import { screen, fireEvent, within } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { CommandPalette } from "./CommandPalette";
 import { renderWithProviders } from "../test-utils";
 import type { TeamContextValue, UIContextValue } from "../types";
@@ -22,15 +23,22 @@ const renderPalette = ({
   ui?: Partial<UIContextValue>;
 } = {}) => {
   const onClose = jest.fn();
-  const utils = renderWithProviders(<CommandPalette open onClose={onClose} />, {
-    team: { team: fixtureTeam, ...team },
-    ui: {
-      openHelp: jest.fn(),
-      setIsAddingPlayer: jest.fn(),
-      setAssistantEvalOpen: jest.fn(),
-      ...ui,
+  const utils = renderWithProviders(
+    <MemoryRouter>
+      <Routes>
+        <Route path="/" element={<CommandPalette open onClose={onClose} />} />
+        <Route path="/help/:topicId" element={<div>HELP ARTICLE PAGE</div>} />
+      </Routes>
+    </MemoryRouter>,
+    {
+      team: { team: fixtureTeam, ...team },
+      ui: {
+        openAddPlayer: jest.fn(),
+        setAssistantEvalOpen: jest.fn(),
+        ...ui,
+      },
     },
-  });
+  );
   return { onClose, ...utils };
 };
 
@@ -53,8 +61,8 @@ describe("CommandPalette", () => {
     expect(screen.queryByText("Help")).not.toBeInTheDocument();
   });
 
-  it("surfaces a help topic on query and opens the Help Center at it", () => {
-    const { onClose, uiValue } = renderPalette();
+  it("surfaces a help topic on query and routes to its help page", () => {
+    const { onClose } = renderPalette();
     fireEvent.change(searchInput(), { target: { value: "lineup generator" } });
 
     const row = rowFor("How the lineup generator works");
@@ -62,8 +70,7 @@ describe("CommandPalette", () => {
     expect(within(row).getByText("Help")).toBeInTheDocument();
 
     fireEvent.click(row);
-    expect(uiValue.openHelp).toHaveBeenCalledTimes(1);
-    expect(uiValue.openHelp).toHaveBeenCalledWith("lineup-generator");
+    expect(screen.getByText("HELP ARTICLE PAGE")).toBeInTheDocument();
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

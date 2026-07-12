@@ -23,7 +23,7 @@ const renderTutorial = ({
     {
       team,
       ui: {
-        setIsAddingPlayer: jest.fn(),
+        openAddPlayer: jest.fn(),
         setIsAddingGame: jest.fn(),
         ...ui,
       },

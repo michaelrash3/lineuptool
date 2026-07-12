@@ -5,6 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { useTeam, useUI } from "../contexts";
 import { isGameFinalized, isDepartedPlayer } from "../utils/helpers";
@@ -24,10 +25,10 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     setActiveTab,
     openPlayerProfile,
     setSelectedGameId,
-    setIsAddingPlayer,
+    openAddPlayer,
     setAssistantEvalOpen,
-    openHelp,
   } = useUI();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -161,10 +162,8 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
           label: "Add Player",
           sublabel: "Create a new roster entry",
           searchKey: "add player new roster",
-          action: () => {
-            setActiveTab("roster");
-            setIsAddingPlayer(true);
-          },
+          // Navigating to /roster/new also lands on the roster tab.
+          action: () => openAddPlayer(),
         },
       );
     } else {
@@ -188,7 +187,7 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
         label: t.title,
         sublabel: t.summary,
         searchKey: `${t.title} ${t.keywords}`,
-        action: () => openHelp(t.id),
+        action: () => navigate(`/help/${t.id}`),
       });
     }
 
@@ -200,9 +199,9 @@ export const CommandPalette = ({ open, onClose }: CommandPaletteProps) => {
     openPlayerProfile,
     setActiveTab,
     setSelectedGameId,
-    setIsAddingPlayer,
+    openAddPlayer,
     setAssistantEvalOpen,
-    openHelp,
+    navigate,
   ]);
 
   const results = useMemo(() => {

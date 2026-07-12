@@ -1,4 +1,5 @@
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
 import { vi } from "vitest";
 import { EvaluationTab } from "./EvaluationTab";
@@ -16,58 +17,68 @@ vi.mock("../evaluation/evalRoundPdf", () => ({
 
 describe("EvaluationTab", () => {
   it("renders the head-coach evaluation dashboard for an empty team", () => {
-    renderWithProviders(<EvaluationTab />, {
-      team: {
-        team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
+        },
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: null,
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: null,
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     expect(screen.getByText("Player Evaluation")).toBeInTheDocument();
   });
 
   it("shows each assistant's grades + notes inline under a player", () => {
-    renderWithProviders(<EvaluationTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
         team: {
-          players: [{ id: "p1", name: "Sammy", number: "5" }],
-          primaryColor: "#1d4ed8",
-          pitchingFormat: "Coach Pitch",
-          evaluationEvents: [
-            {
-              id: "a1",
-              date: "2026-02-01",
-              coachRole: "Assistant",
-              evaluatorId: "asst1",
-              evaluatorName: "Jones",
-              grades: { p1: { contact: 5, notes: "Great swing" } },
-            },
-          ],
+          team: {
+            players: [{ id: "p1", name: "Sammy", number: "5" }],
+            primaryColor: "#1d4ed8",
+            pitchingFormat: "Coach Pitch",
+            evaluationEvents: [
+              {
+                id: "a1",
+                date: "2026-02-01",
+                coachRole: "Assistant",
+                evaluatorId: "asst1",
+                evaluatorName: "Jones",
+                grades: { p1: { contact: 5, notes: "Great swing" } },
+              },
+            ],
+          },
+          user: { uid: "head1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
         },
-        user: { uid: "head1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: null,
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: null,
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     // Expand the player's grading card (the only collapsible toggle).
     fireEvent.click(screen.getByRole("button", { expanded: false }));
     // "Assistant Evaluations (n)" header + curly-quoted notes are unique to the
@@ -81,23 +92,28 @@ describe("EvaluationTab", () => {
 
   it("labels the save button 'Save as New Round' when creating a new round", () => {
     // No saved rounds → nothing to update → creating new.
-    renderWithProviders(<EvaluationTab />, {
-      team: {
-        team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
+        },
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: null,
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: null,
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     expect(
       screen.getByRole("button", { name: /Save as New Round/ }),
     ).toBeInTheDocument();
@@ -105,36 +121,41 @@ describe("EvaluationTab", () => {
 
   it("requires a two-tap confirm to overwrite an existing round", () => {
     const saveTeamEvaluation = jest.fn(() => "r1");
-    renderWithProviders(<EvaluationTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
         team: {
-          players: [],
-          primaryColor: "#1d4ed8",
-          evaluationEvents: [
-            {
-              id: "r1",
-              date: "2026-02-01",
-              coachRole: "Head",
-              evaluatorId: "u1",
-              evaluatorName: "Coach",
-              grades: {},
-            },
-          ],
+          team: {
+            players: [],
+            primaryColor: "#1d4ed8",
+            evaluationEvents: [
+              {
+                id: "r1",
+                date: "2026-02-01",
+                coachRole: "Head",
+                evaluatorId: "u1",
+                evaluatorName: "Coach",
+                grades: {},
+              },
+            ],
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation,
+          deleteEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation,
-        deleteEvaluation: jest.fn(),
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: "r1", // editing the saved round
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: "r1", // editing the saved round
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     const btn = screen.getByRole("button", { name: /Update This Round/ });
     // First tap arms the confirm — does NOT save.
     fireEvent.click(btn);
@@ -157,37 +178,42 @@ describe("EvaluationTab", () => {
       createObjectURL;
     (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL =
       revokeObjectURL;
-    renderWithProviders(<EvaluationTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
         team: {
-          name: "Hawks",
-          players: [{ id: "p1", name: "Sammy", number: "5" }],
-          primaryColor: "#1d4ed8",
-          evaluationEvents: [
-            {
-              id: "r1",
-              date: "2026-02-01",
-              coachRole: "Head",
-              evaluatorId: "u1",
-              evaluatorName: "Coach",
-              grades: { p1: { contact: 5, notes: "sharp" } },
-            },
-          ],
+          team: {
+            name: "Hawks",
+            players: [{ id: "p1", name: "Sammy", number: "5" }],
+            primaryColor: "#1d4ed8",
+            evaluationEvents: [
+              {
+                id: "r1",
+                date: "2026-02-01",
+                coachRole: "Head",
+                evaluatorId: "u1",
+                evaluatorName: "Coach",
+                grades: { p1: { contact: 5, notes: "sharp" } },
+              },
+            ],
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: "r1",
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: "r1",
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     const btn = screen.getByRole("button", { name: /Export CSV/ });
     expect(btn).toBeInTheDocument();
     fireEvent.click(btn);
@@ -197,23 +223,28 @@ describe("EvaluationTab", () => {
 
   it("hides the Export CSV button when composing a brand-new round", () => {
     // No round selected → nothing saved to export yet.
-    renderWithProviders(<EvaluationTab />, {
-      team: {
-        team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: { players: [], primaryColor: "#1d4ed8", evaluationEvents: [] },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
+        },
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: null,
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: null,
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     expect(
       screen.queryByRole("button", { name: /Export CSV/ }),
     ).not.toBeInTheDocument();
@@ -221,37 +252,42 @@ describe("EvaluationTab", () => {
 
   it("exports the selected round as a PDF through the lazy jspdf renderer", () => {
     downloadEvalRoundPdfMock.mockClear();
-    renderWithProviders(<EvaluationTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
         team: {
-          name: "Hawks",
-          players: [{ id: "p1", name: "Sammy", number: "5" }],
-          primaryColor: "#1d4ed8",
-          evaluationEvents: [
-            {
-              id: "r1",
-              date: "2026-02-01",
-              coachRole: "Head",
-              evaluatorId: "u1",
-              evaluatorName: "Coach",
-              grades: { p1: { contact: 5, notes: "sharp" } },
-            },
-          ],
+          team: {
+            name: "Hawks",
+            players: [{ id: "p1", name: "Sammy", number: "5" }],
+            primaryColor: "#1d4ed8",
+            evaluationEvents: [
+              {
+                id: "r1",
+                date: "2026-02-01",
+                coachRole: "Head",
+                evaluatorId: "u1",
+                evaluatorName: "Coach",
+                grades: { p1: { contact: 5, notes: "sharp" } },
+              },
+            ],
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: "r1",
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: "r1",
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     fireEvent.click(screen.getByRole("button", { name: /Export PDF/ }));
     expect(downloadEvalRoundPdfMock).toHaveBeenCalledTimes(1);
     const arg = downloadEvalRoundPdfMock.mock.calls[0][0];
@@ -261,36 +297,41 @@ describe("EvaluationTab", () => {
   });
 
   it("always offers starting a new round while editing one (no cadence gate)", () => {
-    renderWithProviders(<EvaluationTab />, {
-      team: {
+    renderWithProviders(
+      <MemoryRouter>
+        <EvaluationTab />
+      </MemoryRouter>,
+      {
         team: {
-          players: [],
-          primaryColor: "#1d4ed8",
-          evaluationEvents: [
-            {
-              id: "r1",
-              date: "2026-02-01",
-              coachRole: "Head",
-              evaluatorId: "u1",
-              evaluatorName: "Coach",
-              grades: {},
-            },
-          ],
+          team: {
+            players: [],
+            primaryColor: "#1d4ed8",
+            evaluationEvents: [
+              {
+                id: "r1",
+                date: "2026-02-01",
+                coachRole: "Head",
+                evaluatorId: "u1",
+                evaluatorName: "Coach",
+                grades: {},
+              },
+            ],
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          saveTeamEvaluation: jest.fn(),
+          deleteEvaluation: jest.fn(),
         },
-        user: { uid: "u1" },
-        currentRole: "head",
-        saveTeamEvaluation: jest.fn(),
-        deleteEvaluation: jest.fn(),
+        ui: {
+          teamEvalGrades: {},
+          setTeamEvalGrades: jest.fn(),
+          selectedRoundId: "r1",
+          setSelectedRoundId: jest.fn(),
+          evalTrendPlayerId: null,
+          setEvalTrendPlayerId: jest.fn(),
+        },
       },
-      ui: {
-        teamEvalGrades: {},
-        setTeamEvalGrades: jest.fn(),
-        selectedRoundId: "r1",
-        setSelectedRoundId: jest.fn(),
-        evalTrendPlayerId: null,
-        setEvalTrendPlayerId: jest.fn(),
-      },
-    });
+    );
     // Both the standalone button and the dropdown option exist regardless of
     // whether a cadence window happens to be open today.
     expect(

@@ -40,10 +40,9 @@ export const TOURS: Tour[] = [
           {
             label: "Add a player",
             primary: true,
-            run: () => {
-              ctx.setActiveTab("roster");
-              ctx.setIsAddingPlayer(true);
-            },
+            // /roster/new is a routed page; navigating there also lands on
+            // the roster tab.
+            run: () => ctx.openAddPlayer(),
           },
         ],
       },

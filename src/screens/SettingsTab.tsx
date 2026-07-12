@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
 import { QRCodeImg } from "../components/QRCodeImg";
 import {
@@ -582,13 +583,9 @@ export const SettingsTab = memo(() => {
     viewAsRole,
     setViewAsRole,
   } = useTeam();
-  const {
-    isAddingCoach,
-    setIsAddingCoach,
-    newCoachForm,
-    setNewCoachForm,
-    setPastSeasonImport,
-  } = useUI();
+  const { isAddingCoach, setIsAddingCoach, newCoachForm, setNewCoachForm } =
+    useUI();
+  const navigate = useNavigate();
   const toast = useToast();
   const {
     leagueRuleSet,
@@ -664,7 +661,9 @@ export const SettingsTab = memo(() => {
     { id: "advanced", label: "Advanced", icon: Icons.Cloud },
   ];
 
-  // Past-season CSV import: parse the file, open the review modal.
+  // Past-season CSV import: parse the file, then hand the rows to the
+  // /roster/import/past-season review page via navigation state (a file's
+  // worth of rows never rides the URL; a refresh there bounces back here).
   const startPastSeasonImport = useCallback(
     (e: any) => {
       const file = e.target.files?.[0];
@@ -692,12 +691,14 @@ export const SettingsTab = memo(() => {
           assignments[row.csvName] =
             suggestPlayerMatch(row.csvName, players) || "skip";
         }
-        setPastSeasonImport({
-          rows: result.rows,
-          season: "",
-          ageGroup: "",
-          pitchingFormat: "Kid Pitch",
-          assignments,
+        navigate("/roster/import/past-season", {
+          state: {
+            rows: result.rows,
+            season: "",
+            ageGroup: "",
+            pitchingFormat: "Kid Pitch",
+            assignments,
+          },
         });
       };
       reader.onerror = () =>
@@ -705,7 +706,7 @@ export const SettingsTab = memo(() => {
       reader.readAsText(file);
       e.target.value = "";
     },
-    [players, setPastSeasonImport, toast],
+    [players, navigate, toast],
   );
 
   return (

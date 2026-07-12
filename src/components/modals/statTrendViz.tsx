@@ -1,7 +1,9 @@
 // Chart-bearing pieces of the stat-trend cluster, split from ./statTrend so
 // the recharts dependency stays out of the eagerly-loaded modals graph —
-// modals.tsx pulls these in with React.lazy.
-import React, { memo } from "react";
+// modals.tsx pulls these in with React.lazy, and the per-stat trend page
+// (/roster/:playerId/trend/:statKey) lazy-loads from App.tsx.
+import React, { memo, useMemo } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import {
   ComposedChart,
   Area,
@@ -19,8 +21,13 @@ import {
   useChartId,
 } from "../charts/primitives";
 import { Sparkline } from "../charts/Sparkline";
-import { seasonSeriesFromGameLines } from "../../utils/helpers";
-import { A11yDialog } from "../shared";
+import {
+  seasonSeriesFromGameLines,
+  teamStatAverages,
+} from "../../utils/helpers";
+import { useTeam } from "../../contexts";
+import { PageShell } from "../PageShell";
+import { useBackOrFallback } from "../../hooks/usePageNav";
 import { STAT_META, formatStatValue } from "./statTrend";
 
 // X-axis tick: abbreviated season on the first line, age group beneath, with
@@ -59,16 +66,18 @@ const SeasonTick = ({ x, y, index, payload, series, primaryColor }: any) => {
   );
 };
 
-export const StatTrendModal = memo(
+// The year-over-year view for ONE stat of ONE player. Rendered by
+// StatTrendPage below; converted from an A11yDialog overlay per the
+// app-wide modals→pages rule.
+export const StatTrendView = memo(
   ({
     statKey,
     player,
     currentSeason,
     currentPitchingFormat,
     primaryColor,
-    tertiaryColor,
     teamAverages,
-    onClose,
+    onBack,
   }: any) => {
     const chartId = useChartId();
     if (!statKey) return null;
@@ -178,244 +187,241 @@ export const StatTrendModal = memo(
     }
 
     return (
-      <div
-        className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-        onClick={(e) => {
-          e.stopPropagation();
-          onClose();
-        }}
-      >
-        <A11yDialog
-          label="Stat trend"
-          onClose={onClose}
-          className="bg-surface rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
-        >
+      <PageShell eyebrow={player.name} title={meta.label} onBack={onBack}>
+        {trend && (
           <div
-            className="p-1.5"
-            style={{ backgroundColor: "var(--team-primary)" }}
-          />
-          <div className="p-5 sm:p-6 border-b border-line flex items-start justify-between gap-4">
-            <div>
-              <div className="t-eyebrow mb-1">{player.name}</div>
-              <h3 className="t-card-title">{meta.label}</h3>
-              {trend && (
-                <div
-                  className={`mt-2 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border tabular-nums ${
-                    trend.isImproving
-                      ? "bg-green-50 text-green-800 border-green-200"
-                      : "bg-red-50 text-red-800 border-red-200"
-                  }`}
-                >
-                  {trend.direction === "up" ? "↑" : "↓"}
-                  {meta.kind === "decimal" || meta.kind === "ip"
-                    ? Math.abs(trend.change).toFixed(3)
-                    : meta.kind === "percent"
-                      ? `${Math.abs(
-                          trend.change <= 1 ? trend.change * 100 : trend.change,
-                        ).toFixed(1)}%`
-                      : Math.abs(Math.round(trend.change))}
-                  {trend.isImproving ? "Improving" : "Declining"}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-surface-2 text-ink-3 hover:text-ink rounded-xl transition-colors -mt-1 -mr-2"
-            >
-              <Icons.X className="w-5 h-5" />
-            </button>
+            className={`-mt-3 mb-4 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border tabular-nums ${
+              trend.isImproving
+                ? "bg-green-50 text-green-800 border-green-200"
+                : "bg-red-50 text-red-800 border-red-200"
+            }`}
+          >
+            {trend.direction === "up" ? "↑" : "↓"}
+            {meta.kind === "decimal" || meta.kind === "ip"
+              ? Math.abs(trend.change).toFixed(3)
+              : meta.kind === "percent"
+                ? `${Math.abs(
+                    trend.change <= 1 ? trend.change * 100 : trend.change,
+                  ).toFixed(1)}%`
+                : Math.abs(Math.round(trend.change))}
+            {trend.isImproving ? "Improving" : "Declining"}
           </div>
+        )}
 
-          <div className="p-5 sm:p-7 overflow-y-auto custom-scrollbar flex-1">
-            {series.length === 0 ? (
-              <div className="bg-app border border-line rounded-xl p-12 text-center">
-                <Icons.Bat className="w-10 h-10 text-ink-3 mx-auto mb-3" />
-                <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
-                  No Data Available
-                </p>
-                <p className="text-xs text-ink-3 font-medium">
-                  {meta.category === "pitching"
-                    ? "No Kid Pitch seasons with this stat on file."
-                    : "No seasons have data for this stat yet."}
-                </p>
+        <div>
+          {series.length === 0 ? (
+            <div className="bg-app border border-line rounded-xl p-12 text-center">
+              <Icons.Bat className="w-10 h-10 text-ink-3 mx-auto mb-3" />
+              <p className="text-sm font-black uppercase tracking-widest text-ink-3 mb-1">
+                No Data Available
+              </p>
+              <p className="text-xs text-ink-3 font-medium">
+                {meta.category === "pitching"
+                  ? "No Kid Pitch seasons with this stat on file."
+                  : "No seasons have data for this stat yet."}
+              </p>
+            </div>
+          ) : series.length === 1 ? (
+            <div className="bg-app border border-line rounded-xl p-8 text-center">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
+                {series[0].season}
+                {series[0].ageGroup ? ` · ${series[0].ageGroup}` : ""}
               </div>
-            ) : series.length === 1 ? (
-              <div className="bg-app border border-line rounded-xl p-8 text-center">
-                <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 mb-2">
-                  {series[0].season}
-                  {series[0].ageGroup ? ` · ${series[0].ageGroup}` : ""}
-                </div>
-                <div className="text-5xl font-black tabular-nums text-ink mb-2">
-                  {formatStatValue(statKey, series[0].value)}
-                </div>
-                <p className="text-xs text-ink-3 font-medium">
-                  Add past seasons to see year-over-year trends.
-                </p>
+              <div className="text-5xl font-black tabular-nums text-ink mb-2">
+                {formatStatValue(statKey, series[0].value)}
               </div>
-            ) : (
-              <>
-                <div className="bg-app border border-line rounded-xl p-4 mb-4">
-                  <ChartFrame label={`${meta.label} by season`} height={300}>
-                    <ComposedChart
-                      data={series}
-                      margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
-                    >
-                      <defs>
-                        <FadeGradient
-                          id={chartId}
-                          color={primaryColor}
-                          from={0.35}
-                          to={0.02}
+              <p className="text-xs text-ink-3 font-medium">
+                Add past seasons to see year-over-year trends.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-app border border-line rounded-xl p-4 mb-4">
+                <ChartFrame label={`${meta.label} by season`} height={300}>
+                  <ComposedChart
+                    data={series}
+                    margin={{ top: 12, right: 16, bottom: 0, left: 0 }}
+                  >
+                    <defs>
+                      <FadeGradient
+                        id={chartId}
+                        color={primaryColor}
+                        from={0.35}
+                        to={0.02}
+                      />
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="var(--line)"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="season"
+                      interval={0}
+                      height={42}
+                      tickLine={false}
+                      axisLine={{ stroke: "var(--line)" }}
+                      tick={
+                        <SeasonTick
+                          series={series}
+                          primaryColor={primaryColor}
                         />
-                      </defs>
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="var(--line)"
-                        vertical={false}
-                      />
-                      <XAxis
-                        dataKey="season"
-                        interval={0}
-                        height={42}
-                        tickLine={false}
-                        axisLine={{ stroke: "var(--line)" }}
-                        tick={
-                          <SeasonTick
-                            series={series}
-                            primaryColor={primaryColor}
-                          />
-                        }
-                      />
-                      <YAxis
-                        domain={[yMin, yMax]}
-                        width={56}
-                        tickLine={false}
-                        axisLine={false}
-                        tickFormatter={(v: number) =>
-                          formatStatValue(statKey, v)
-                        }
-                        tick={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          fill: "var(--ink-3)",
-                          fontFamily: "ui-monospace, monospace",
-                        }}
-                      />
-                      <Tooltip
-                        content={
-                          <ChartTooltip
-                            formatter={(v) => formatStatValue(statKey, v)}
-                            labelFormatter={(label) => {
-                              const s = series.find((r) => r.season === label);
-                              return s?.ageGroup
-                                ? `${label} · ${s.ageGroup}`
-                                : String(label);
-                            }}
-                          />
-                        }
-                        cursor={{
-                          stroke: "var(--line-strong)",
-                          strokeDasharray: "3 3",
-                        }}
-                      />
-                      {baseline != null && (
-                        <ReferenceLine
-                          y={baseline}
-                          stroke="var(--ink-3)"
-                          strokeDasharray="4 4"
-                          strokeWidth={1.5}
-                          ifOverflow="extendDomain"
-                          label={{
-                            value: `Team avg ${formatStatValue(
-                              statKey,
-                              baseline,
-                            )}`,
-                            position: "insideTopRight",
-                            fontSize: 10,
-                            fontWeight: 700,
-                            fill: "var(--ink-3)",
+                      }
+                    />
+                    <YAxis
+                      domain={[yMin, yMax]}
+                      width={56}
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={(v: number) => formatStatValue(statKey, v)}
+                      tick={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        fill: "var(--ink-3)",
+                        fontFamily: "ui-monospace, monospace",
+                      }}
+                    />
+                    <Tooltip
+                      content={
+                        <ChartTooltip
+                          formatter={(v) => formatStatValue(statKey, v)}
+                          labelFormatter={(label) => {
+                            const s = series.find((r) => r.season === label);
+                            return s?.ageGroup
+                              ? `${label} · ${s.ageGroup}`
+                              : String(label);
                           }}
                         />
-                      )}
-                      <Area
-                        dataKey="value"
-                        name={meta.label}
-                        type="monotone"
-                        stroke={primaryColor}
-                        strokeWidth={3}
-                        fill={`url(#${chartId})`}
-                        animationDuration={600}
-                        style={{
-                          filter:
-                            "drop-shadow(0 2px 6px var(--team-primary-15))",
-                        }}
-                        dot={(props: any) => (
-                          <circle
-                            key={props.index}
-                            cx={props.cx}
-                            cy={props.cy}
-                            r={props.payload?.isCurrent ? 7 : 5}
-                            fill={
-                              props.payload?.isCurrent
-                                ? primaryColor
-                                : "var(--surface)"
-                            }
-                            stroke={primaryColor}
-                            strokeWidth={2.5}
-                          />
-                        )}
-                        activeDot={{
-                          r: 8,
-                          stroke: primaryColor,
-                          strokeWidth: 2.5,
-                          fill: "var(--surface)",
+                      }
+                      cursor={{
+                        stroke: "var(--line-strong)",
+                        strokeDasharray: "3 3",
+                      }}
+                    />
+                    {baseline != null && (
+                      <ReferenceLine
+                        y={baseline}
+                        stroke="var(--ink-3)"
+                        strokeDasharray="4 4"
+                        strokeWidth={1.5}
+                        ifOverflow="extendDomain"
+                        label={{
+                          value: `Team avg ${formatStatValue(
+                            statKey,
+                            baseline,
+                          )}`,
+                          position: "insideTopRight",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fill: "var(--ink-3)",
                         }}
                       />
-                    </ComposedChart>
-                  </ChartFrame>
-                </div>
+                    )}
+                    <Area
+                      dataKey="value"
+                      name={meta.label}
+                      type="monotone"
+                      stroke={primaryColor}
+                      strokeWidth={3}
+                      fill={`url(#${chartId})`}
+                      animationDuration={600}
+                      style={{
+                        filter: "drop-shadow(0 2px 6px var(--team-primary-15))",
+                      }}
+                      dot={(props: any) => (
+                        <circle
+                          key={props.index}
+                          cx={props.cx}
+                          cy={props.cy}
+                          r={props.payload?.isCurrent ? 7 : 5}
+                          fill={
+                            props.payload?.isCurrent
+                              ? primaryColor
+                              : "var(--surface)"
+                          }
+                          stroke={primaryColor}
+                          strokeWidth={2.5}
+                        />
+                      )}
+                      activeDot={{
+                        r: 8,
+                        stroke: primaryColor,
+                        strokeWidth: 2.5,
+                        fill: "var(--surface)",
+                      }}
+                    />
+                  </ComposedChart>
+                </ChartFrame>
+              </div>
 
-                {/* Season-by-season breakdown table */}
-                <div className="cc-card overflow-hidden">
-                  <div className="grid grid-cols-3 px-4 py-2 bg-app border-b border-line">
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-                      Season
+              {/* Season-by-season breakdown table */}
+              <div className="cc-card overflow-hidden">
+                <div className="grid grid-cols-3 px-4 py-2 bg-app border-b border-line">
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
+                    Season
+                  </div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
+                    Age
+                  </div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 text-right">
+                    {meta.label}
+                  </div>
+                </div>
+                {series.map((s, i) => (
+                  <div
+                    key={i}
+                    className={`grid grid-cols-3 px-4 py-2 ${
+                      i < series.length - 1 ? "border-b border-line" : ""
+                    } ${s.isCurrent ? "bg-blue-50/30" : ""}`}
+                  >
+                    <div className="text-xs font-black text-ink uppercase">
+                      {s.season}
+                      {s.isCurrent ? " ·" : ""}
                     </div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
-                      Age
+                    <div className="text-xs font-bold text-ink-2">
+                      {s.ageGroup || "—"}
                     </div>
-                    <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3 text-right">
-                      {meta.label}
+                    <div className="text-xs font-black tabular-nums text-ink text-right">
+                      {formatStatValue(statKey, s.value)}
                     </div>
                   </div>
-                  {series.map((s, i) => (
-                    <div
-                      key={i}
-                      className={`grid grid-cols-3 px-4 py-2 ${
-                        i < series.length - 1 ? "border-b border-line" : ""
-                      } ${s.isCurrent ? "bg-blue-50/30" : ""}`}
-                    >
-                      <div className="text-xs font-black text-ink uppercase">
-                        {s.season}
-                        {s.isCurrent ? " ·" : ""}
-                      </div>
-                      <div className="text-xs font-bold text-ink-2">
-                        {s.ageGroup || "—"}
-                      </div>
-                      <div className="text-xs font-black tabular-nums text-ink text-right">
-                        {formatStatValue(statKey, s.value)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </A11yDialog>
-      </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </PageShell>
     );
   },
 );
+
+// /roster/:playerId/trend/:statKey — the routed page. Assembles the view's
+// inputs from the team context; an unknown player or stat lands back where
+// it makes sense.
+export const StatTrendPage = memo(() => {
+  const { playerId, statKey } = useParams();
+  const { team } = useTeam();
+  const back = useBackOrFallback(playerId ? `/roster/${playerId}` : "/roster");
+  const players = useMemo(() => team.players || [], [team.players]);
+  const player = players.find((p: any) => p.id === playerId);
+  // Team-wide averages drive the dashed "Team avg" baseline.
+  const teamAverages = useMemo(() => teamStatAverages(players), [players]);
+  if (!player) return <Navigate to="/roster" replace />;
+  if (!statKey || !STAT_META[statKey]) {
+    return <Navigate to={`/roster/${player.id}`} replace />;
+  }
+  return (
+    <StatTrendView
+      statKey={statKey}
+      player={player}
+      currentSeason={team.currentSeason}
+      currentPitchingFormat={team.pitchingFormat}
+      primaryColor={team.primaryColor}
+      teamAverages={teamAverages}
+      onBack={back}
+    />
+  );
+});
 
 /* EvalTrendModal — see ./screens/EvaluationTab */
 

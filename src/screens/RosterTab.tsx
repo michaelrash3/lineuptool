@@ -458,7 +458,7 @@ export const RosterTab = memo(() => {
   // entry, so the browser back button returns here in a single press. (An old
   // hack double-pushed the URL with a raw history.pushState, which made the
   // first back press a no-op — the profile read as a modal wearing a URL.)
-  const { setIsAddingPlayer, openPlayerProfile } = useUI();
+  const { openAddPlayer, openPlayerProfile } = useUI();
   const { players, logoUrl, currentSeason } = team;
   const stripped = (team as any).statDisplay === "stripped";
   // Health badges + the Injured filter belong to the Development module.
@@ -569,7 +569,7 @@ export const RosterTab = memo(() => {
                 />
                 <button
                   type="button"
-                  onClick={() => setIsAddingPlayer(true)}
+                  onClick={() => openAddPlayer()}
                   className="btn-premium flex-1 sm:flex-none py-2.5 px-5 flex items-center justify-center gap-2 t-button rounded-xl hover:-translate-y-0.5 transition-transform"
                   style={{ color: "var(--team-on-primary)" }}
                 >
@@ -660,7 +660,7 @@ export const RosterTab = memo(() => {
                 {...(canEdit
                   ? {
                       action: "Add Player",
-                      onAction: () => setIsAddingPlayer(true),
+                      onAction: () => openAddPlayer(),
                     }
                   : {})}
               />
