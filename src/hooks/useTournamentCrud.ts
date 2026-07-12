@@ -33,7 +33,11 @@ export const useTournamentCrud = ({
   confirm,
 }: UseTournamentCrudArgs) => {
   const addTournament = useCallback(
-    (form: { name?: string; gameIds?: string[]; seedKey?: string }) => {
+    (form: {
+      name?: string;
+      gameIds?: string[];
+      seedKey?: string;
+    }): string | null => {
       const name = String(form.name ?? "")
         .trim()
         .slice(0, NAME_MAX);
@@ -44,7 +48,7 @@ export const useTournamentCrud = ({
           title: "Missing info",
           message: "A tournament needs a name and at least one game.",
         });
-        return;
+        return null;
       }
       const entry: Tournament = {
         id: genId("trn"),
@@ -58,6 +62,9 @@ export const useTournamentCrud = ({
         key: "tournaments",
         entries: [entry],
       });
+      // The id lets the creation page navigate straight to the new
+      // tournament's detail page.
+      return entry.id;
     },
     [updateTeamArrays, toast],
   );
@@ -112,8 +119,10 @@ export const useTournamentCrud = ({
     [updateTeamArrays],
   );
 
+  // Resolves true only when the delete actually happened, so a page hosting
+  // the tournament knows whether to navigate away.
   const removeTournament = useCallback(
-    async (tournamentId: string) => {
+    async (tournamentId: string): Promise<boolean> => {
       const ok = await confirm({
         title: "Delete this tournament?",
         message:
@@ -121,7 +130,7 @@ export const useTournamentCrud = ({
         confirmLabel: "Delete",
         danger: true,
       });
-      if (!ok) return;
+      if (!ok) return false;
       const prev: Tournament[] = teamData.tournaments || [];
       const removed = prev.find((t) => t.id === tournamentId);
       updateTeamArrays({
@@ -148,6 +157,7 @@ export const useTournamentCrud = ({
             }),
         },
       } as any);
+      return true;
     },
     [teamData.tournaments, updateTeamArrays, toast, confirm],
   );

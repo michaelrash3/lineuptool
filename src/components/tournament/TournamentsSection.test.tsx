@@ -1,6 +1,6 @@
 import React from "react";
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { TournamentsSection } from "./TournamentsSection";
 import { renderWithProviders } from "../../test-utils";
 
@@ -20,121 +20,77 @@ const baseTeam = (over: any = {}) => ({
   ...over,
 });
 
+const renderSection = (teamValue: any) =>
+  renderWithProviders(
+    <MemoryRouter>
+      <TournamentsSection />
+    </MemoryRouter>,
+    { team: teamValue },
+  );
+
 describe("TournamentsSection", () => {
-  it("offers an unclaimed weekend cluster as a suggestion and creates from it", async () => {
-    const addTournament = jest.fn();
-    renderWithProviders(<TournamentsSection />, {
-      team: { team: baseTeam(), currentRole: "head", addTournament },
-    });
-    const chip = screen.getByText(/Name this tournament/);
-    await userEvent.click(chip);
-    await userEvent.type(screen.getByLabelText("Name"), "June Bash");
-    await userEvent.click(screen.getByText("Save"));
-    expect(addTournament).toHaveBeenCalledWith({
-      name: "June Bash",
-      gameIds: ["g1", "g2"],
-      seedKey: "tour-2099-06-05",
-    });
+  it("offers an unclaimed weekend cluster as a link into the creation page", () => {
+    renderSection({ team: baseTeam(), currentRole: "head" });
+    const chip = screen.getByRole("link", { name: /Name this tournament/ });
+    expect(chip).toHaveAttribute(
+      "href",
+      "/schedule/tournaments/new?seed=tour-2099-06-05",
+    );
   });
 
-  it("renders a stored tournament as a card and suppresses its claimed suggestion", () => {
-    renderWithProviders(<TournamentsSection />, {
-      team: {
-        team: baseTeam({
-          tournaments: [
-            { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
-          ],
-        }),
-        currentRole: "head",
-        removeTournament: jest.fn(),
-      },
+  it("renders a stored tournament as a link to its detail page and suppresses its claimed suggestion", () => {
+    renderSection({
+      team: baseTeam({
+        tournaments: [
+          { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
+        ],
+      }),
+      currentRole: "head",
     });
-    expect(screen.getByText("Memorial Bash")).toBeInTheDocument();
-    expect(screen.queryByText(/Name this tournament/)).not.toBeInTheDocument();
-  });
-
-  it("expanding a card lists its games chronologically", async () => {
-    renderWithProviders(<TournamentsSection />, {
-      team: {
-        team: baseTeam({
-          tournaments: [
-            { id: "t1", name: "Memorial Bash", gameIds: ["g2", "g1"] },
-          ],
-        }),
-        currentRole: "head",
-        removeTournament: jest.fn(),
-      },
-    });
-    await userEvent.click(screen.getByText("Memorial Bash"));
-    // Both the game list and the pitch-plan panel name each game.
-    expect(screen.getAllByText(/vs Rays/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/vs Cubs/).length).toBeGreaterThan(0);
-  });
-
-  it("assistants get no suggestion chips and no edit/delete controls", () => {
-    renderWithProviders(<TournamentsSection />, {
-      team: {
-        team: baseTeam({
-          tournaments: [
-            { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
-          ],
-        }),
-        currentRole: "assistant",
-      },
-    });
-    expect(screen.queryByText(/Name this tournament/)).not.toBeInTheDocument();
+    const row = screen.getByRole("link", { name: /Memorial Bash/ });
+    expect(row).toHaveAttribute("href", "/schedule/tournaments/t1");
+    // Date range + game count summary on the row.
+    expect(row).toHaveTextContent(/2 games/);
     expect(
-      screen.queryByLabelText("Delete Memorial Bash"),
+      screen.queryByRole("link", { name: /Name this tournament/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("assistants see tournament rows but no suggestion links", () => {
+    renderSection({
+      team: baseTeam({
+        tournaments: [
+          { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
+        ],
+      }),
+      currentRole: "assistant",
+    });
     expect(
-      screen.queryByLabelText("Edit Memorial Bash"),
+      screen.getByRole("link", { name: /Memorial Bash/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Name this tournament/ }),
     ).not.toBeInTheDocument();
   });
 
   it("renders nothing when the tournaments module is toggled off", () => {
-    const { container } = renderWithProviders(<TournamentsSection />, {
-      team: {
-        team: baseTeam({
-          disabledFeatures: ["tournaments"],
-          tournaments: [
-            { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
-          ],
-        }),
-        currentRole: "head",
-      },
+    const { container } = renderSection({
+      team: baseTeam({
+        disabledFeatures: ["tournaments"],
+        tournaments: [
+          { id: "t1", name: "Memorial Bash", gameIds: ["g1", "g2"] },
+        ],
+      }),
+      currentRole: "head",
     });
     expect(container).toBeEmptyDOMElement();
   });
 
   it("renders nothing when there are no tournaments and no clusters", () => {
-    const { container } = renderWithProviders(<TournamentsSection />, {
-      team: {
-        team: baseTeam({ games: [{ id: "solo", date: "2099-06-05" }] }),
-        currentRole: "head",
-      },
+    const { container } = renderSection({
+      team: baseTeam({ games: [{ id: "solo", date: "2099-06-05" }] }),
+      currentRole: "head",
     });
     expect(container).toBeEmptyDOMElement();
-  });
-
-  it("editing a card re-opens the picker and saves via updateTournament", async () => {
-    const updateTournament = jest.fn();
-    renderWithProviders(<TournamentsSection />, {
-      team: {
-        team: baseTeam({
-          tournaments: [{ id: "t1", name: "Memorial Bash", gameIds: ["g1"] }],
-        }),
-        currentRole: "head",
-        updateTournament,
-        removeTournament: jest.fn(),
-      },
-    });
-    await userEvent.click(screen.getByLabelText("Edit Memorial Bash"));
-    // Link the second game too.
-    await userEvent.click(screen.getByText("vs Cubs"));
-    await userEvent.click(screen.getByText("Save"));
-    expect(updateTournament).toHaveBeenCalledWith("t1", {
-      name: "Memorial Bash",
-      gameIds: expect.arrayContaining(["g1", "g2"]),
-    });
   });
 });

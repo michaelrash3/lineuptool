@@ -240,6 +240,16 @@ const GameChangerImportPage = lazy(() =>
     default: m.GameChangerImportPage,
   })),
 );
+const TournamentCreatePage = lazy(() =>
+  import("./screens/schedule/TournamentCreatePage").then((m) => ({
+    default: m.TournamentCreatePage,
+  })),
+);
+const TournamentDetailPage = lazy(() =>
+  import("./screens/schedule/TournamentDetailPage").then((m) => ({
+    default: m.TournamentDetailPage,
+  })),
+);
 
 // Screen labels used to build the dynamic browser-tab title
 // ("<Team> · <Screen>"). "home" reads as "Dashboard" to match its nav label.
@@ -800,6 +810,14 @@ const MainShell = () => {
                 <Route
                   path="/schedule/import/gamechanger"
                   element={<GameChangerImportPage />}
+                />
+                <Route
+                  path="/schedule/tournaments/new"
+                  element={<TournamentCreatePage />}
+                />
+                <Route
+                  path="/schedule/tournaments/:tournamentId"
+                  element={<TournamentDetailPage />}
                 />
                 <Route
                   path="/practices"

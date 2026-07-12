@@ -21,13 +21,14 @@ const setup = (teamOver: any = {}) => {
 describe("useTournamentCrud", () => {
   it("addTournament emits an append with a trimmed, clamped name and seedKey", () => {
     const { result, updateTeamArrays } = setup();
-    act(() =>
-      result.current.addTournament({
+    let id: string | null = null;
+    act(() => {
+      id = result.current.addTournament({
         name: `  ${"x".repeat(80)}  `,
         gameIds: ["g1", "g2"],
         seedKey: "tour-2026-06-06",
-      }),
-    );
+      });
+    });
     const op = updateTeamArrays.mock.calls[0][0];
     expect(op).toMatchObject({ op: "append", key: "tournaments" });
     expect(op.entries).toHaveLength(1);
@@ -35,12 +36,22 @@ describe("useTournamentCrud", () => {
     expect(op.entries[0].gameIds).toEqual(["g1", "g2"]);
     expect(op.entries[0].seedKey).toBe("tour-2026-06-06");
     expect(op.entries[0].id).toMatch(/^trn/);
+    // The returned id lets the creation page navigate to the detail page.
+    expect(id).toBe(op.entries[0].id);
   });
 
   it("addTournament warns and does not persist without a name or games", () => {
     const { result, updateTeamArrays, toast } = setup();
-    act(() => result.current.addTournament({ name: "  ", gameIds: ["g1"] }));
-    act(() => result.current.addTournament({ name: "Bash", gameIds: [] }));
+    let first: string | null = "x";
+    let second: string | null = "x";
+    act(() => {
+      first = result.current.addTournament({ name: "  ", gameIds: ["g1"] });
+    });
+    act(() => {
+      second = result.current.addTournament({ name: "Bash", gameIds: [] });
+    });
+    expect(first).toBeNull();
+    expect(second).toBeNull();
     expect(updateTeamArrays).not.toHaveBeenCalled();
     expect(toast.push).toHaveBeenCalledTimes(2);
     expect(toast.push).toHaveBeenCalledWith(
@@ -110,7 +121,7 @@ describe("useTournamentCrud", () => {
     const tournaments = [{ id: "t1", name: "Bash", gameIds: ["g1"] }];
     const { result, updateTeamArrays, toast } = setup({ tournaments });
     await act(async () => {
-      await result.current.removeTournament("t1");
+      await expect(result.current.removeTournament("t1")).resolves.toBe(true);
     });
     expect(updateTeamArrays).toHaveBeenCalledWith({
       op: "removeById",
@@ -134,7 +145,7 @@ describe("useTournamentCrud", () => {
     });
     (confirm as jest.Mock).mockResolvedValueOnce(false);
     await act(async () => {
-      await result.current.removeTournament("t1");
+      await expect(result.current.removeTournament("t1")).resolves.toBe(false);
     });
     expect(updateTeamArrays).not.toHaveBeenCalled();
   });
