@@ -97,7 +97,7 @@ interface DirectoryArgs {
   toast?: Toast;
 }
 
-export const renderRosterDirectoryPdf = async ({
+const renderRosterDirectoryPdf = async ({
   team,
   players,
 }: DirectoryArgs): Promise<Blob | null> => {

@@ -7,7 +7,6 @@ import type { DrillDefinition } from "../types";
 // source of truth for the TSX/title spots so the next rebrand is one edit;
 // index.html and public/manifest.json carry the literal string separately.
 export const APP_NAME = "The Bench Coach";
-export const APP_SHORT_NAME = "Bench Coach";
 
 // League rule sets keep their stored values ("NKB" / "USSSA") so all rules
 // logic and existing data are unchanged, but they're SHOWN to coaches as
@@ -201,7 +200,7 @@ export interface VeloBenchmark {
   avgHigh: number;
   elite: number;
 }
-export const AGE_VELOCITY_BENCHMARKS: Record<number, VeloBenchmark> = {
+const AGE_VELOCITY_BENCHMARKS: Record<number, VeloBenchmark> = {
   7: { avgLow: 30, avgHigh: 45, elite: 50 },
   8: { avgLow: 30, avgHigh: 45, elite: 50 },
   9: { avgLow: 35, avgHigh: 48, elite: 55 },
@@ -219,7 +218,7 @@ export const ageFromTeamAge = (teamAge?: string): number => {
   const n = m ? parseInt(m[m.length - 1], 10) : 10;
   return Math.min(15, Math.max(7, n));
 };
-export const velocityBenchmarkForAge = (teamAge?: string): VeloBenchmark =>
+const velocityBenchmarkForAge = (teamAge?: string): VeloBenchmark =>
   AGE_VELOCITY_BENCHMARKS[ageFromTeamAge(teamAge)];
 
 // Grading-UI tab groups. "Fielding" is deliberately absent: every Fielding

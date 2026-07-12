@@ -2549,7 +2549,7 @@ describe("season fairness: orphan ids + non-'final' games still count", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Pitch limits + eligibility (shared by InGameView, PitcherRankingPanel, card)
+// Pitch limits + eligibility (shared by InGameView and the lineup card)
 // ---------------------------------------------------------------------------
 describe("maxPitchesForAge", () => {
   it("returns the configured limit per age tier", () => {

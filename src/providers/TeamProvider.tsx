@@ -2125,7 +2125,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     exportRosterCsv,
     exportPlayerInfoCsv,
     exportNewPlayersCsv,
-    setPlayerStatus,
     setPlayerReturning,
     importBackup,
   } = useImportExportFlows({
@@ -2911,7 +2910,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       exportRosterCsv,
       exportPlayerInfoCsv,
       exportNewPlayersCsv,
-      setPlayerStatus,
       setPlayerReturning,
       importBackup,
       deleteTeamCmd,
@@ -3021,7 +3019,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       exportRosterCsv,
       exportPlayerInfoCsv,
       exportNewPlayersCsv,
-      setPlayerStatus,
       setPlayerReturning,
       importBackup,
       deleteTeamCmd,

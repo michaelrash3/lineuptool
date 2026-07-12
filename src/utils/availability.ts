@@ -25,7 +25,7 @@ const minutesFromTime = (value: unknown): number | null => {
   return h * 60 + min;
 };
 
-export const availabilityBlockOverlapsEvent = (
+const availabilityBlockOverlapsEvent = (
   block:
     | { date?: string; startTime?: string; endTime?: string }
     | null

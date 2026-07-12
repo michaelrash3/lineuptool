@@ -51,7 +51,6 @@ export const AdvanceSeasonPage = memo(() => {
     currentRole,
     advanceSeason,
     updateFinances,
-    setPlayerStatus, // legacy; kept as the fallback writer
     setPlayerReturning,
   } = useTeam();
   const navigate = useNavigate();
@@ -143,26 +142,17 @@ export const AdvanceSeasonPage = memo(() => {
     return <Navigate to="/" replace />;
   }
 
-  // Bulk-set the Returning Y/N answer. Writes the explicit boolean
-  // via setPlayerReturning when available; falls back to the legacy
-  // setPlayerStatus("returning"/"released") string-writer otherwise.
+  // Bulk-set the Returning Y/N answer via the explicit boolean writer;
+  // isReturning() handles legacy playerStatus reads at read-time.
   const setAll = (status: string) => {
     for (const p of togglablePlayers) {
       if (effectiveStatus(p) !== status) {
-        if (setPlayerReturning) {
-          setPlayerReturning(p.id, status === STATUS_RETURNING);
-        } else {
-          setPlayerStatus?.(p.id, status);
-        }
+        setPlayerReturning(p.id, status === STATUS_RETURNING);
       }
     }
   };
   const setOne = (id: string, status: string) => {
-    if (setPlayerReturning) {
-      setPlayerReturning(id, status === STATUS_RETURNING);
-    } else {
-      setPlayerStatus?.(id, status);
-    }
+    setPlayerReturning(id, status === STATUS_RETURNING);
   };
 
   const toggleSignup = (id: string) => {
