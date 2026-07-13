@@ -1,10 +1,4 @@
-import React, {
-  ComponentType,
-  CSSProperties,
-  memo,
-  useMemo,
-  useState,
-} from "react";
+import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
 import { useTeam, useUI, useToast, useConfirm } from "../contexts";
@@ -44,7 +38,6 @@ import {
   financeSummary,
   transactionLedger,
   dateToIsoLocal,
-  genId,
   isValidIsoDate,
   parseMoneyInput,
   round2,
@@ -68,105 +61,22 @@ import {
   type FinanceCategoryId,
   type RevenueCategoryId,
 } from "../constants/financeCategories";
+import { SectionCard } from "./finances/SectionCard";
+import { SortHeader } from "./finances/SortHeader";
+import {
+  newId,
+  parseAmount,
+  monthLabel,
+  parseCount,
+  LEDGER_RENDER_CAP,
+} from "./finances/financeHelpers";
+import type { LedgerSortKey, BudgetSortKey } from "./finances/financeHelpers";
 
 // Finances — head-coach-only money tracker for the club: what the season will
 // cost (Budget Planner with per-tournament / per-session quantity planning),
 // what each family owes and has paid (Collections, with partial payments),
 // and one dated ledger of everything received (fees, sponsorships) and spent.
 // Everything lives under `team.finances` on the one team doc.
-
-const newId = (prefix: string) => genId(prefix);
-
-// Same section chrome the Stats tab uses, kept local to the screen.
-const SectionCard = ({
-  icon: Icon,
-  title,
-  subtitle,
-  children,
-}: {
-  icon: ComponentType<{ className?: string; style?: CSSProperties }>;
-  title: React.ReactNode;
-  subtitle?: string;
-  children?: React.ReactNode;
-}) => (
-  <section>
-    <div className="pb-3 mb-1 border-b border-line-strong flex items-center gap-3">
-      <Icon className="w-5 h-5 shrink-0" style={{ color: "var(--team-ink)" }} />
-      <div className="min-w-0">
-        <h2 className="t-h2">{title}</h2>
-        {subtitle && <p className="t-eyebrow text-ink-3 mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-    {children}
-  </section>
-);
-
-// Parse a dollars input; null when not a usable positive amount. Comma
-// handling, the sanity cap, and cent rounding live in parseMoneyInput
-// (utils/finances.ts, unit-tested).
-const parseAmount = (raw: string): number | null => parseMoneyInput(raw);
-
-// "2026-03" → "March 2026" for the ledger month group headers.
-const MONTH_FULL = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const monthLabel = (key: string): string => {
-  const mi = parseInt(key.slice(5, 7), 10) - 1;
-  return mi >= 0 && mi <= 11 ? `${MONTH_FULL[mi]} ${key.slice(0, 4)}` : key;
-};
-
-// Parse a whole-number count; null when not a usable positive integer.
-const parseCount = (raw: string): number | null => {
-  const n = Math.round(Number(String(raw).replace(/[,\s]/g, "")));
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-};
-
-// Clickable column header for the sortable tables (ledger, budget planner).
-// Click toggles asc/desc; the active column shows its direction.
-const SortHeader = ({
-  label,
-  active,
-  asc,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  asc: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    aria-label={`Sort by ${label}`}
-    className={`t-eyebrow inline-flex items-center gap-1 hover:text-ink transition-colors ${
-      active ? "text-ink" : ""
-    }`}
-  >
-    {label}
-    <span aria-hidden className="text-[9px] w-2">
-      {active ? (asc ? "▲" : "▼") : ""}
-    </span>
-  </button>
-);
-
-// Ledger rows rendered before the "Show all" toggle kicks in — the math and
-// CSV always use the full ledger; only the table render is bounded.
-const LEDGER_RENDER_CAP = 100;
-
-type LedgerSortKey = "date" | "label" | "in" | "out" | "balance";
-type BudgetSortKey = "label" | "qty" | "planned" | "spent";
 
 export const FinancesTab = memo(() => {
   const { team: teamRaw, updateFinances, user } = useTeam();
