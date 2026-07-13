@@ -6,6 +6,7 @@
 
 import type {
   BudgetItem,
+  FinanceAttribution,
   FinancePastSeason,
   Player,
   Team,
@@ -38,6 +39,15 @@ const money = (v: unknown): number => {
 // settled family unpaid by a fraction of a cent. On clean 2-decimal inputs
 // every call is an identity.
 export const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+// A money record is "voided" (soft-deleted) once it carries a voidedAt stamp.
+// Voided rows stay VISIBLE in the ledger as an audit trail but count for $0 in
+// every aggregation — so this single predicate gates the skip at each reader
+// and the exclusion can never drift between the P&L, the cash-flow chart, and
+// the CSV export. Legacy rows (no voidedAt) are never voided.
+export const isVoided = (
+  e: { voidedAt?: string } | null | undefined,
+): boolean => !!e?.voidedAt;
 
 // Sanity cap on typed dollar amounts — a youth team's ledger has no business
 // holding a seven-figure entry; beyond this it's a typo.
@@ -130,7 +140,10 @@ export const incomeTotal = (
   finances: TeamFinances | null | undefined,
 ): number =>
   round2(
-    (finances?.incomes || []).reduce((sum, i) => sum + money(i?.amount), 0),
+    (finances?.incomes || []).reduce(
+      (sum, i) => sum + (isVoided(i) ? 0 : money(i?.amount)),
+      0,
+    ),
   );
 
 // THIS season's ledger income flagged as fundraising — the slice of income
@@ -145,7 +158,7 @@ const fundraisingBreakdown = (
   const byPlayer: Record<string, number> = {};
   let unattributed = 0;
   for (const i of finances?.incomes || []) {
-    if (!i?.fundraising) continue;
+    if (!i?.fundraising || isVoided(i)) continue;
     const amt = money(i?.amount);
     const pid = String(i?.playerId || "");
     if (pid) byPlayer[pid] = (byPlayer[pid] || 0) + amt;
@@ -332,6 +345,7 @@ export const financeSummary = (
   const paidByPlayer: Record<string, number> = {};
   let collected = 0;
   for (const pay of finances?.payments || []) {
+    if (isVoided(pay)) continue;
     // Refunds carry a positive amount but count NEGATIVE: the family's paid
     // total shrinks and their owed balance grows back.
     const amt = pay?.refund ? -money(pay?.amount) : money(pay?.amount);
@@ -345,7 +359,10 @@ export const financeSummary = (
   }
   const otherIncome = incomeTotal(finances);
   let spent = 0;
-  for (const e of finances?.expenses || []) spent += money(e?.amount);
+  for (const e of finances?.expenses || []) {
+    if (isVoided(e)) continue;
+    spent += money(e?.amount);
+  }
   spent = round2(spent);
   // Fee-exempt players (fall pickups, scholarships) never owe the club fee.
   const exempt = new Set(finances?.feeExemptIds || []);
@@ -480,6 +497,19 @@ export interface LedgerRow {
   // predating the attribution stamps.
   recordedBy?: string;
   recordedAt?: string;
+  // Most recent in-place edit (absent if never edited).
+  lastEditedBy?: string;
+  lastEditedAt?: string;
+  // Soft-delete: a voided row stays in the ledger (struck through) as an audit
+  // trail but contributes $0 to every balance/total. Money views (cash-flow,
+  // CSV) drop it entirely; only the on-screen ledger shows it.
+  voided?: boolean;
+  voidedBy?: string;
+  voidedAt?: string;
+  voidReason?: string;
+  // The payment/income named a player who is no longer on the roster (deleted
+  // mid-season) — surfaced with a "removed" marker beside the fallback name.
+  removedRef?: boolean;
 }
 
 // One dated ledger of EVERYTHING received (club-fee payments, sponsorships,
@@ -498,26 +528,31 @@ export const transactionLedger = (
     const p = byId.get(pid);
     return p?.name ? String(p.name) : "Player";
   };
-  const attribution = (e: {
-    recordedBy?: string;
-    recordedAt?: string;
-  }): Partial<LedgerRow> => ({
+  const attribution = (e: FinanceAttribution): Partial<LedgerRow> => ({
     ...(e.recordedBy ? { recordedBy: e.recordedBy } : {}),
     ...(e.recordedAt ? { recordedAt: e.recordedAt } : {}),
+    ...(e.lastEditedBy ? { lastEditedBy: e.lastEditedBy } : {}),
+    ...(e.lastEditedAt ? { lastEditedAt: e.lastEditedAt } : {}),
+    ...(e.voidedAt ? { voided: true, voidedAt: e.voidedAt } : {}),
+    ...(e.voidedBy ? { voidedBy: e.voidedBy } : {}),
+    ...(e.voidReason ? { voidReason: e.voidReason } : {}),
   });
   const rows: Array<Omit<LedgerRow, "balanceAfter">> = [];
   for (const pay of finances?.payments || []) {
     if (!pay) continue;
+    const pid = String(pay.playerId || "");
     rows.push({
       id: pay.id,
       date: String(pay.date || ""),
       label: pay.refund
-        ? `Refund — ${nameOf(String(pay.playerId || ""))}`
-        : `Team fee — ${nameOf(String(pay.playerId || ""))}`,
+        ? `Refund — ${nameOf(pid)}`
+        : `Team fee — ${nameOf(pid)}`,
       amount: money(pay.amount),
       // A refund is money OUT of the club back to the family.
       direction: pay.refund ? "out" : "in",
       source: "payment",
+      // Names a player who has since left the roster (deleted mid-season).
+      ...(pid && !byId.has(pid) ? { removedRef: true } : {}),
       ...attribution(pay),
     });
   }
@@ -533,6 +568,9 @@ export const transactionLedger = (
       ...(inc.fundraising ? { fundraising: true } : {}),
       ...(inc.fundraising && inc.playerId
         ? { creditedTo: nameOf(String(inc.playerId)) }
+        : {}),
+      ...(inc.fundraising && inc.playerId && !byId.has(String(inc.playerId))
+        ? { removedRef: true }
         : {}),
       ...attribution(inc),
     });
@@ -562,6 +600,9 @@ export const transactionLedger = (
     .map((x) => x.r);
   let running = 0;
   return sorted.map((r) => {
+    // Voided rows stay in the list (audit trail) but don't move the running
+    // balance — they show the balance as it stood without them.
+    if (r.voided) return { ...r, balanceAfter: running };
     // Cent-rounded at every step so the displayed balances and the CSV's
     // toFixed(2) column always agree exactly.
     running = round2(running + (r.direction === "in" ? r.amount : -r.amount));
@@ -592,12 +633,54 @@ export const budgetActuals = (
   const byItem: Record<string, number> = {};
   let unplanned = 0;
   for (const e of finances?.expenses || []) {
+    if (isVoided(e)) continue;
     const amt = money(e?.amount);
     const link = e?.budgetItemId;
     if (link && ids.has(link)) byItem[link] = (byItem[link] || 0) + amt;
     else unplanned += amt;
   }
   return { byItem, unplanned };
+};
+
+export interface FinanceIntegrity {
+  // Non-voided payments / fundraising incomes naming a player no longer on the
+  // roster (they fall back to "Player" in the ledger).
+  orphanPlayerRefs: number;
+  // Non-voided expenses linked to a budget item that no longer exists (they
+  // silently fall back to "unplanned" in budgetActuals).
+  orphanExpenseLinks: number;
+}
+
+// Non-blocking data-health check behind the reconcile nudge: how many finance
+// rows point at something that was since deleted. The money math is unaffected
+// (orphaned money still counts in balances) — this only surfaces rows a coach
+// may want to re-attribute. Mirrors the per-row `removedRef` flag on the
+// ledger.
+export const financeIntegrity = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): FinanceIntegrity => {
+  const roster = new Set((players || []).filter((p) => p?.id).map((p) => p.id));
+  const budgetIds = new Set((finances?.budgetItems || []).map((b) => b.id));
+  let orphanPlayerRefs = 0;
+  for (const pay of finances?.payments || []) {
+    if (isVoided(pay)) continue;
+    const pid = String(pay?.playerId || "");
+    if (pid && !roster.has(pid)) orphanPlayerRefs += 1;
+  }
+  for (const inc of finances?.incomes || []) {
+    if (isVoided(inc) || !inc?.fundraising) continue;
+    const pid = String(inc?.playerId || "");
+    if (pid && !roster.has(pid)) orphanPlayerRefs += 1;
+  }
+  let orphanExpenseLinks = 0;
+  for (const e of finances?.expenses || []) {
+    if (isVoided(e)) continue;
+    if (e?.budgetItemId && !budgetIds.has(e.budgetItemId)) {
+      orphanExpenseLinks += 1;
+    }
+  }
+  return { orphanPlayerRefs, orphanExpenseLinks };
 };
 
 // ---- By-category reporting (docs/finance-categories.md PR2) -----------------
@@ -648,7 +731,7 @@ export const budgetByCategory = (
       (planned[cat] || 0) + budgetItemAmount(b, finances?.salesTaxPct);
   }
   for (const e of finances?.expenses || []) {
-    if (!e) continue;
+    if (!e || isVoided(e)) continue;
     const item = e.budgetItemId ? byId.get(e.budgetItemId) : undefined;
     const cat = item ? budgetItemCategory(item) : inferCategory(e.label);
     spent[cat] = (spent[cat] || 0) + money(e.amount);
@@ -692,11 +775,12 @@ export const incomeByCategory = (
   const totals: Partial<Record<RevenueCategoryId, number>> = {};
   // Every family payment is dues revenue; refunds net out.
   for (const pay of finances?.payments || []) {
+    if (isVoided(pay)) continue;
     const amt = pay?.refund ? -money(pay?.amount) : money(pay?.amount);
     totals.dues = (totals.dues || 0) + amt;
   }
   for (const inc of finances?.incomes || []) {
-    if (!inc) continue;
+    if (!inc || isVoided(inc)) continue;
     const cat = incomeCategory(inc);
     totals[cat] = (totals[cat] || 0) + money(inc.amount);
   }
@@ -769,8 +853,12 @@ export const monthlyCashflow = (
   finances: TeamFinances | null | undefined,
   players?: Array<{ id: string; name?: string }> | null,
 ): CashflowMonth[] => {
-  const rows = transactionLedger(finances, players).filter((r) =>
-    /^\d{4}-\d{2}/.test(r.date),
+  // Voided rows are excluded from the money picture entirely (they show only
+  // in the on-screen ledger). Without this they'd leak into the monthly
+  // in/out sums even though transactionLedger already keeps them out of the
+  // running balance.
+  const rows = transactionLedger(finances, players).filter(
+    (r) => /^\d{4}-\d{2}/.test(r.date) && !r.voided,
   );
   if (rows.length === 0) return [];
   const byMonth = new Map<string, CashflowMonth>();
@@ -860,15 +948,19 @@ export const ledgerCsv = (
     const str = String(val ?? "");
     return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
   };
-  const rows = transactionLedger(finances, players).map((r) =>
-    [
-      esc(r.date),
-      esc(r.label),
-      r.direction === "in" ? r.amount.toFixed(2) : "",
-      r.direction === "out" ? r.amount.toFixed(2) : "",
-      r.balanceAfter.toFixed(2),
-    ].join(","),
-  );
+  // Voided rows are omitted from the treasurer handoff — the CSV is a
+  // money-of-record view, and the running balance already skips them.
+  const rows = transactionLedger(finances, players)
+    .filter((r) => !r.voided)
+    .map((r) =>
+      [
+        esc(r.date),
+        esc(r.label),
+        r.direction === "in" ? r.amount.toFixed(2) : "",
+        r.direction === "out" ? r.amount.toFixed(2) : "",
+        r.balanceAfter.toFixed(2),
+      ].join(","),
+    );
   return ["Date,Entry,In,Out,Balance", ...rows].join("\n");
 };
 
