@@ -1579,4 +1579,44 @@ describe("FinancesTab", () => {
     expect(headers[0]).toHaveAttribute("aria-sort", "ascending");
     expect(headers[2]).toHaveAttribute("aria-sort", "none");
   });
+
+  it("voids a ledger row via a mapEntries op that stamps voidedAt", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    // The Baseballs expense is in the ledger; Void soft-deletes it (keeps the
+    // audit row, drops it from every total).
+    fireEvent.click(screen.getByLabelText("Void entry Baseballs"));
+    const op = (teamValue.updateFinances as jest.Mock).mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "expenses" });
+    const next = appliedFinances(teamValue);
+    expect(
+      (next.expenses || []).find((e: any) => e.id === "e1")?.voidedAt,
+    ).toBeTruthy();
+  });
+
+  it("shows a reconcile nudge when a transaction references a removed player", () => {
+    const orphaned = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        // p1 credits a player who isn't on the roster.
+        payments: [
+          { id: "p1", playerId: "GONE", date: "2026-03-01", amount: 50 },
+        ],
+      },
+    };
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: orphaned } },
+    );
+    expect(
+      screen.getByText(/removed player or budget item/i),
+    ).toBeInTheDocument();
+  });
 });

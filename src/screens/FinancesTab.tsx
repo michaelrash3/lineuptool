@@ -18,6 +18,7 @@ import {
   budgetByCategory,
   incomeByCategory,
   financeSummary,
+  financeIntegrity,
   transactionLedger,
   dateToIsoLocal,
   isValidIsoDate,
@@ -83,6 +84,13 @@ export const FinancesTab = memo(() => {
     recordedAt: new Date().toISOString(),
   });
 
+  // Edit stamp for an in-place ledger edit — the creation stamps are preserved,
+  // this records who last touched the row (audit finding 3.7).
+  const editStamp = () => ({
+    lastEditedBy: user?.uid as string | undefined,
+    lastEditedAt: new Date().toISOString(),
+  });
+
   const summary = useMemo(
     () => financeSummary(finances, players),
     [finances, players],
@@ -100,6 +108,13 @@ export const FinancesTab = memo(() => {
     () => yearComparison(finances, players),
     [finances, players],
   );
+  // Data-health check for the reconcile nudge: finance rows pointing at a
+  // deleted player or budget item. Non-blocking; the money math is unaffected.
+  const integrity = useMemo(
+    () => financeIntegrity(finances, players),
+    [finances, players],
+  );
+  const orphanCount = integrity.orphanPlayerRefs + integrity.orphanExpenseLinks;
   const toast = useToast();
   const { promptText } = useConfirm();
   const budget = budgetTotal(finances);
@@ -238,9 +253,19 @@ export const FinancesTab = memo(() => {
       cur?.key === key ? { key, asc: !cur.asc } : { key, asc: key === "label" },
     );
 
+  // Whether voided (soft-deleted) rows are shown in the ledger. Hidden by
+  // default to declutter; a toggle reveals them (struck through) for review.
+  const [showVoided, setShowVoided] = useState(false);
+  const voidedCount = useMemo(
+    () => ledger.reduce((n, r) => n + (r.voided ? 1 : 0), 0),
+    [ledger],
+  );
+
   const sortedLedger = useMemo(() => {
+    // Voided rows only appear when the coach opts to show them.
+    const base = showVoided ? ledger : ledger.filter((r) => !r.voided);
     const { key, asc } = ledgerSort;
-    if (key === "date" && asc) return ledger; // already date-asc, stable ties
+    if (key === "date" && asc) return base; // already date-asc, stable ties
     const dir = asc ? 1 : -1;
     const val = (r: LedgerRow): string | number => {
       if (key === "date") return r.date;
@@ -250,12 +275,12 @@ export const FinancesTab = memo(() => {
       if (key === "out") return r.direction === "out" ? r.amount : -1;
       return r.balanceAfter;
     };
-    return [...ledger].sort((a, b) => {
+    return [...base].sort((a, b) => {
       const av = val(a);
       const bv = val(b);
       return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
     });
-  }, [ledger, ledgerSort]);
+  }, [ledger, ledgerSort, showVoided]);
 
   // Render cap (audit finding 3.8): the full ledger stays the source for all
   // math and the CSV; only the RENDERED rows are bounded. On the default
@@ -751,6 +776,50 @@ export const FinancesTab = memo(() => {
     updateFinances({ op: "removeById", key, id });
   };
 
+  // Soft-delete / restore a ledger row. Voiding keeps the row as an audit trail
+  // but counts it for $0 everywhere (isVoided in utils/finances.ts); hard
+  // delete (removeLedgerRow) stays available for a genuine mistake. mapEntries
+  // is used per key so a concurrent edit to a DIFFERENT row is preserved.
+  const voidLedgerRow = (
+    source: "income" | "expense" | "payment",
+    id: string,
+  ) => {
+    const apply = <T extends { id: string }>(items: T[]): T[] =>
+      items.map((x) =>
+        x.id === id
+          ? { ...x, voidedBy: user?.uid, voidedAt: new Date().toISOString() }
+          : x,
+      );
+    if (source === "income")
+      updateFinances({ op: "mapEntries", key: "incomes", map: apply });
+    else if (source === "expense")
+      updateFinances({ op: "mapEntries", key: "expenses", map: apply });
+    else updateFinances({ op: "mapEntries", key: "payments", map: apply });
+  };
+  const unvoidLedgerRow = (
+    source: "income" | "expense" | "payment",
+    id: string,
+  ) => {
+    // undefined clears the stamps — scrubbed from the write, so isVoided reads
+    // false again and the row rejoins every total.
+    const apply = <T extends { id: string }>(items: T[]): T[] =>
+      items.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              voidedBy: undefined,
+              voidedAt: undefined,
+              voidReason: undefined,
+            }
+          : x,
+      );
+    if (source === "income")
+      updateFinances({ op: "mapEntries", key: "incomes", map: apply });
+    else if (source === "expense")
+      updateFinances({ op: "mapEntries", key: "expenses", map: apply });
+    else updateFinances({ op: "mapEntries", key: "payments", map: apply });
+  };
+
   // ---- Inline ledger editing. Income/expense rows edit date+label+amount;
   // payment (team-fee) rows edit date + amount so a typo'd payment can be
   // corrected in place (the label is the player's name, which stays fixed).
@@ -806,7 +875,9 @@ export const FinancesTab = memo(() => {
         key: "payments",
         map: (items) =>
           items.map((p) =>
-            p.id === id ? { ...p, date, amount: round2(amount) } : p,
+            p.id === id
+              ? { ...p, date, amount: round2(amount), ...editStamp() }
+              : p,
           ),
       });
     } else {
@@ -824,6 +895,7 @@ export const FinancesTab = memo(() => {
                 ? {
                     ...x,
                     ...patch,
+                    ...editStamp(),
                     fundraising: editDraft.fundraising,
                     // Credit only applies to fundraising entries; clear otherwise.
                     playerId:
@@ -844,6 +916,7 @@ export const FinancesTab = memo(() => {
                 ? {
                     ...x,
                     ...patch,
+                    ...editStamp(),
                     budgetItemId: editDraft.budgetItemId || undefined,
                   }
                 : x,
@@ -888,6 +961,25 @@ export const FinancesTab = memo(() => {
         balanceOnceAllPaid={summary.balanceOnceAllPaid}
         months={months}
       />
+
+      {/* Reconcile nudge: finance rows pointing at something since deleted.
+          Non-blocking — the money still counts; this only flags rows to review. */}
+      {orphanCount > 0 && (
+        <div
+          role="status"
+          className="cc-card flex items-start gap-2.5 p-3 border border-warnfg/30"
+          style={{
+            background: "color-mix(in srgb, var(--warn-fg) 8%, transparent)",
+          }}
+        >
+          <Icons.Alert className="w-4 h-4 shrink-0 mt-0.5 text-warnfg" />
+          <p className="t-meta text-ink-2">
+            {orphanCount} transaction{orphanCount === 1 ? "" : "s"} reference a
+            removed player or budget item. They still count toward the balance —
+            open the Ledger to re-attribute or void them.
+          </p>
+        </div>
+      )}
 
       {/* Desktop control-panel: two-column layout.
           Left (7/12): Collections + Ledger — the operational data.
@@ -948,6 +1040,11 @@ export const FinancesTab = memo(() => {
             setShowAllLedger={setShowAllLedger}
             addTransaction={addTransaction}
             removeLedgerRow={removeLedgerRow}
+            voidLedgerRow={voidLedgerRow}
+            unvoidLedgerRow={unvoidLedgerRow}
+            showVoided={showVoided}
+            setShowVoided={setShowVoided}
+            voidedCount={voidedCount}
             startLedgerEdit={startLedgerEdit}
             saveLedgerEdit={saveLedgerEdit}
             editRow={editRow}
