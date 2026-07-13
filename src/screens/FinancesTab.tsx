@@ -21,6 +21,7 @@ import {
   financeIntegrity,
   seasonOutlook,
   reimbursementsSummary,
+  reconciliationStatus,
   transactionLedger,
   dateToIsoLocal,
   isValidIsoDate,
@@ -42,6 +43,7 @@ import { SponsorshipSection } from "./finances/SponsorshipSection";
 import { FeeCollectionSection } from "./finances/FeeCollectionSection";
 import { FeeAdjustmentsCard } from "./finances/FeeAdjustmentsCard";
 import { ReimbursementQueueSection } from "./finances/ReimbursementQueueSection";
+import { ReconciliationSection } from "./finances/ReconciliationSection";
 import { LedgerSection } from "./finances/LedgerSection";
 import { PlannedRosterCard } from "./finances/budget/PlannedRosterCard";
 import { BudgetPresetsCard } from "./finances/budget/BudgetPresetsCard";
@@ -51,6 +53,7 @@ import {
   newId,
   parseAmount,
   parseCount,
+  monthLabel,
   LEDGER_RENDER_CAP,
 } from "./finances/financeHelpers";
 import type {
@@ -1055,6 +1058,46 @@ export const FinancesTab = memo(() => {
   const removeReimbursement = (id: string) =>
     updateFinances({ op: "removeById", key: "reimbursements", id });
 
+  // ---- Month-end reconciliation against the real bank balance.
+  const reconRows = useMemo(
+    () => reconciliationStatus(finances, players),
+    [finances, players],
+  );
+  const reconcileMonth = async (month: string, ledgerBalanceNow: number) => {
+    const raw = await promptText({
+      title: `Reconcile ${monthLabel(month)}`,
+      message: `Enter the real bank/cash balance at the end of ${monthLabel(
+        month,
+      )}. The ledger shows ${formatCurrency(ledgerBalanceNow)}.`,
+      label: "Bank balance",
+      placeholder: String(ledgerBalanceNow),
+      confirmLabel: "Save",
+    });
+    if (raw == null) return;
+    // A bank balance can legitimately be negative (overdrawn), so parse
+    // directly rather than through the positive-only money parser.
+    const bank = Number(String(raw).replace(/[$,\s]/g, ""));
+    if (!Number.isFinite(bank)) {
+      toast.push({ kind: "error", title: "Enter a valid bank balance" });
+      return;
+    }
+    updateFinances({
+      op: "mapEntries",
+      key: "reconciliations",
+      // Dedupe by month: replace any existing entry for this month.
+      map: (items) => [
+        ...items.filter((r) => r.month !== month),
+        {
+          id: newId("rec"),
+          month,
+          bankBalance: round2(bank),
+          ledgerBalanceAtReconcile: ledgerBalanceNow,
+          ...recordedStamp(),
+        },
+      ],
+    });
+  };
+
   return (
     <div className="max-w-5xl mx-auto lg:max-w-none space-y-6">
       {/* Club balance hero — full width */}
@@ -1208,6 +1251,12 @@ export const FinancesTab = memo(() => {
             setTxnFundraising={setTxnFundraising}
             txnCreditPlayerId={txnCreditPlayerId}
             setTxnCreditPlayerId={setTxnCreditPlayerId}
+          />
+
+          {/* Month-end reconciliation against the real bank balance */}
+          <ReconciliationSection
+            rows={reconRows}
+            reconcileMonth={reconcileMonth}
           />
         </div>
         {/* end left col */}

@@ -26,6 +26,7 @@ import {
   seasonOutlook,
   feeAdjustmentAmount,
   reimbursementsSummary,
+  reconciliationStatus,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -1044,5 +1045,78 @@ describe("volunteer reimbursements", () => {
     )!;
     expect(rolled.reimbursements).toHaveLength(1);
     expect(rolled.reimbursements?.[0].id).toBe("r1");
+  });
+});
+
+describe("reconciliationStatus — month-end bank reconcile", () => {
+  const players = [{ id: "p1" }];
+  const book = (rec: any[]): TeamFinances => ({
+    payments: [{ id: "p", playerId: "p1", date: "2026-03-05", amount: 100 }],
+    reconciliations: rec,
+  });
+
+  it("returns a row per dated month, unreconciled by default", () => {
+    const rows = reconciliationStatus(book([]), players);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      month: "2026-03",
+      reconciled: false,
+      ledgerBalanceNow: 100,
+      variance: null,
+    });
+  });
+
+  it("computes variance = bank − ledger for a reconciled month", () => {
+    const rows = reconciliationStatus(
+      book([
+        {
+          id: "r",
+          month: "2026-03",
+          bankBalance: 120,
+          ledgerBalanceAtReconcile: 100,
+        },
+      ]),
+      players,
+    );
+    expect(rows[0]).toMatchObject({
+      reconciled: true,
+      bankBalance: 120,
+      variance: 20,
+      drifted: false,
+    });
+  });
+
+  it("flags drift when the ledger changed after the month was reconciled", () => {
+    const rows = reconciliationStatus(
+      book([
+        {
+          id: "r",
+          month: "2026-03",
+          bankBalance: 100,
+          ledgerBalanceAtReconcile: 90,
+        },
+      ]),
+      players,
+    );
+    expect(rows[0]).toMatchObject({ variance: 0, drifted: true });
+  });
+
+  it("drops reconciliations on the season roll", () => {
+    const rolled = rollFinancesForNewSeason(
+      {
+        ...activeFinances(),
+        reconciliations: [
+          {
+            id: "r",
+            month: "2026-03",
+            bankBalance: 100,
+            ledgerBalanceAtReconcile: 100,
+          },
+        ],
+      },
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.reconciliations).toBeUndefined();
   });
 });

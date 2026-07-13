@@ -28,6 +28,7 @@ import type {
   FeeAdjustment,
   IncomeEntry,
   PaymentEntry,
+  Reconciliation,
   Reimbursement,
   SponsorshipEntry,
   TeamFinances,
@@ -49,6 +50,7 @@ export interface FinanceArrayTypes {
   budgetItems: BudgetItem;
   feeAdjustments: FeeAdjustment;
   reimbursements: Reimbursement;
+  reconciliations: Reconciliation;
 }
 
 export type FinanceArrayKey = keyof FinanceArrayTypes;

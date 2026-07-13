@@ -121,4 +121,28 @@ describe("buildTreasurerReportData", () => {
       owed: 60,
     });
   });
+
+  it("includes the reimbursement liability and reconciled months", () => {
+    const withExtras: TeamFinances = {
+      ...finances,
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 45, status: "unpaid" },
+        { id: "r2", to: "Parent", amount: 20, status: "paid" },
+      ],
+      reconciliations: [
+        {
+          id: "rec1",
+          month: "2026-03",
+          bankBalance: 150,
+          ledgerBalanceAtReconcile: 135,
+        },
+      ],
+    };
+    const d = buildTreasurerReportData(withExtras, players)!;
+    expect(d.reimbursementsOutstanding).toBe(45); // only the unpaid one
+    expect(d.reconciliations).toHaveLength(1);
+    expect(d.reconciliations[0].label).toContain("2026");
+    expect(d.reconciliations[0].bankBalance).toBe(150);
+    expect(typeof d.reconciliations[0].variance).toBe("number");
+  });
 });

@@ -590,6 +590,56 @@ export const reimbursementsSummary = (
   };
 };
 
+export interface ReconciliationRow {
+  month: string; // "2026-03"
+  label: string; // "Mar"
+  reconciled: boolean;
+  bankBalance: number | null;
+  ledgerBalanceNow: number; // month-end ledger balance as it stands now
+  variance: number | null; // bankBalance − ledgerBalanceNow (0 = matches)
+  drifted: boolean; // reconciled, but the ledger changed since
+}
+
+// Month-by-month reconciliation view, built on the dated cash-flow months. Each
+// month carries its end-of-month ledger balance and, if reconciled, the bank
+// figure + variance, plus a `drifted` flag when the ledger moved AFTER the
+// month was reconciled (a sign to re-check). (monthlyCashflow is defined below;
+// it's only referenced at call time, so the forward reference is fine.)
+export const reconciliationStatus = (
+  finances: TeamFinances | null | undefined,
+  players?: Array<{ id: string; name?: string }> | null,
+): ReconciliationRow[] => {
+  const byMonth = new Map(
+    (finances?.reconciliations || []).map((r) => [String(r?.month || ""), r]),
+  );
+  return monthlyCashflow(finances, players).map((m) => {
+    const rec = byMonth.get(m.month);
+    const ledgerBalanceNow = m.balanceEnd;
+    if (!rec) {
+      return {
+        month: m.month,
+        label: m.label,
+        reconciled: false,
+        bankBalance: null,
+        ledgerBalanceNow,
+        variance: null,
+        drifted: false,
+      };
+    }
+    const bankBalance = round2(money(rec.bankBalance));
+    return {
+      month: m.month,
+      label: m.label,
+      reconciled: true,
+      bankBalance,
+      ledgerBalanceNow,
+      variance: round2(bankBalance - ledgerBalanceNow),
+      drifted:
+        round2(ledgerBalanceNow - money(rec.ledgerBalanceAtReconcile)) !== 0,
+    };
+  });
+};
+
 export interface LedgerRow {
   id: string;
   date: string;
@@ -1149,6 +1199,7 @@ export const rollFinancesForNewSeason = (
       feeAdjustments: _clearedAdj,
       sponsorships: _converted,
       reimbursements: _allReimb,
+      reconciliations: _clearedRec,
       ...rest
     } = finances;
     return {
@@ -1221,6 +1272,7 @@ export const rollFinancesForNewSeason = (
     feeAdjustments: _clearedAdj,
     sponsorships: _rolled,
     reimbursements: _allReimb,
+    reconciliations: _clearedRec,
     ...rest
   } = finances;
   return {

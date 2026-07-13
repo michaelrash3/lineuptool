@@ -908,6 +908,19 @@ export interface Reimbursement extends FinanceAttribution {
   linkedExpenseId?: string; // the ExpenseEntry created on mark-paid
 }
 
+// A month-end reconciliation: the real bank/cash balance the coach entered for
+// a month, snapshotted against the ledger balance at that moment. Variance
+// (bank − ledger) is derived at read time; the ledger snapshot lets the app
+// flag DRIFT when the ledger changes after a month was reconciled. One per
+// month (deduped). Coach-internal.
+export interface Reconciliation extends FinanceAttribution {
+  id: string;
+  month: string; // "2026-03"
+  bankBalance: number;
+  ledgerBalanceAtReconcile: number;
+  note?: string;
+}
+
 // Compact per-season money summary kept when the season is advanced — the
 // row-level ledger resets each season (the closing balance carries over as an
 // opening entry), but the season's totals stay reviewable.
@@ -975,6 +988,9 @@ export interface TeamFinances {
   // liability (not in the balance); paid ones post an expense. Unpaid entries
   // carry across the season roll (real debt); paid ones are dropped.
   reimbursements?: Reimbursement[];
+  // Month-end reconciliations against the real bank balance (one per month).
+  // Dropped on the season roll — a new year starts unreconciled.
+  reconciliations?: Reconciliation[];
   pastSeasons?: FinancePastSeason[];
 }
 
