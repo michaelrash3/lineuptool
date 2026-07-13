@@ -68,6 +68,14 @@ interface LedgerSectionProps {
     source: "income" | "expense" | "payment",
     id: string,
   ) => void;
+  voidLedgerRow: (source: "income" | "expense" | "payment", id: string) => void;
+  unvoidLedgerRow: (
+    source: "income" | "expense" | "payment",
+    id: string,
+  ) => void;
+  showVoided: boolean;
+  setShowVoided: Dispatch<SetStateAction<boolean>>;
+  voidedCount: number;
   startLedgerEdit: (row: {
     source: "payment" | "income" | "expense";
     id: string;
@@ -118,6 +126,11 @@ export const LedgerSection = ({
   setShowAllLedger,
   addTransaction,
   removeLedgerRow,
+  voidLedgerRow,
+  unvoidLedgerRow,
+  showVoided,
+  setShowVoided,
+  voidedCount,
   startLedgerEdit,
   saveLedgerEdit,
   editRow,
@@ -166,7 +179,7 @@ export const LedgerSection = ({
               className={`px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
                 txnDir === opt.v
                   ? opt.v === "in"
-                    ? "bg-win/15 text-win"
+                    ? "bg-win/15 text-win-ink"
                     : "bg-loss/15 text-loss"
                   : "bg-surface-2 text-ink-3 hover:bg-line"
               }`}
@@ -296,44 +309,58 @@ export const LedgerSection = ({
         </Button>
       </form>
       {ledger.length > 0 && (
-        <div className="flex justify-end gap-4">
-          <button
-            type="button"
-            aria-label="Download treasurer report PDF"
-            onClick={() =>
-              void downloadTreasurerReportPdf({
-                team,
-                finances,
-                players,
-                toast,
-              })
-            }
-            className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
-          >
-            Treasurer report
-          </button>
-          <button
-            type="button"
-            aria-label="Export ledger CSV"
-            onClick={() => {
-              const blob = new Blob([ledgerCsv(finances, players)], {
-                type: "text/csv;charset=utf-8",
-              });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "club-ledger.csv";
-              a.click();
-              URL.revokeObjectURL(url);
-              toast.push({
-                kind: "success",
-                title: "Ledger CSV downloaded",
-              });
-            }}
-            className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
-          >
-            Export CSV
-          </button>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            {voidedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowVoided((v) => !v)}
+                aria-pressed={showVoided}
+                className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+              >
+                {showVoided ? "Hide" : "Show"} {voidedCount} voided
+              </button>
+            )}
+          </div>
+          <div className="flex gap-4">
+            <button
+              type="button"
+              aria-label="Download treasurer report PDF"
+              onClick={() =>
+                void downloadTreasurerReportPdf({
+                  team,
+                  finances,
+                  players,
+                  toast,
+                })
+              }
+              className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+            >
+              Treasurer report
+            </button>
+            <button
+              type="button"
+              aria-label="Export ledger CSV"
+              onClick={() => {
+                const blob = new Blob([ledgerCsv(finances, players)], {
+                  type: "text/csv;charset=utf-8",
+                });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "club-ledger.csv";
+                a.click();
+                URL.revokeObjectURL(url);
+                toast.push({
+                  kind: "success",
+                  title: "Ledger CSV downloaded",
+                });
+              }}
+              className="text-xs font-black uppercase tracking-widest text-ink-3 hover:text-ink underline"
+            >
+              Export CSV
+            </button>
+          </div>
         </div>
       )}
       {ledger.length === 0 ? (
@@ -362,6 +389,13 @@ export const LedgerSection = ({
                   <th
                     key={col.key}
                     className={`p-2.5 ${col.right ? "text-right" : "text-left"}`}
+                    aria-sort={
+                      ledgerSort.key === col.key
+                        ? ledgerSort.asc
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
                   >
                     <SortHeader
                       label={col.label}
@@ -552,24 +586,34 @@ export const LedgerSection = ({
                     </React.Fragment>
                   );
                 }
+                const attrLine = (
+                  verb: string,
+                  by?: string,
+                  at?: string,
+                ): string | null =>
+                  by || at
+                    ? `${verb}${at ? ` ${String(at).slice(0, 10)}` : ""} by ${
+                        by === user?.uid ? "you" : "another coach"
+                      }`
+                    : null;
+                const titleText =
+                  [
+                    attrLine("Recorded", row.recordedBy, row.recordedAt),
+                    row.lastEditedAt
+                      ? attrLine("Edited", row.lastEditedBy, row.lastEditedAt)
+                      : null,
+                    row.voided
+                      ? attrLine("Voided", row.voidedBy, row.voidedAt)
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || undefined;
                 return (
                   <React.Fragment key={`${row.source}-${row.id}`}>
                     {monthHeader}
                     <tr
-                      className="hover:bg-surface-2"
-                      title={
-                        row.recordedBy || row.recordedAt
-                          ? `Recorded${
-                              row.recordedAt
-                                ? ` ${String(row.recordedAt).slice(0, 10)}`
-                                : ""
-                            } by ${
-                              row.recordedBy === user?.uid
-                                ? "you"
-                                : "another coach"
-                            }`
-                          : undefined
-                      }
+                      className={`hover:bg-surface-2 ${row.voided ? "opacity-60" : ""}`}
+                      title={titleText}
                     >
                       <td className="p-2 tabular-nums font-bold text-ink-2">
                         {isValidIsoDate(row.date) ? row.date : "No date"}
@@ -578,16 +622,26 @@ export const LedgerSection = ({
                         <span
                           className={`inline-flex items-center justify-center w-4 h-4 rounded-full mr-1.5 text-[9px] font-black ${
                             row.direction === "in"
-                              ? "bg-win/10 text-win"
+                              ? "bg-win/10 text-win-ink"
                               : "bg-loss/10 text-loss"
                           }`}
                         >
                           {row.direction === "in" ? "↑" : "↓"}
                         </span>
-                        {row.label}
+                        <span className={row.voided ? "line-through" : ""}>
+                          {row.label}
+                        </span>
+                        {row.removedRef && (
+                          <span
+                            className="ml-1.5 t-meta font-bold text-warnfg"
+                            title="Names a player who has left the roster"
+                          >
+                            (removed)
+                          </span>
+                        )}
                         {row.fundraising && (
                           <span
-                            className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win align-middle"
+                            className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win-ink align-middle"
                             title={
                               row.creditedTo
                                 ? `Credited to ${row.creditedTo}'s team fees`
@@ -599,13 +653,28 @@ export const LedgerSection = ({
                               : "team-fee credit"}
                           </span>
                         )}
+                        {row.voided && (
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-surface-2 text-ink-3 align-middle">
+                            voided
+                          </span>
+                        )}
                       </td>
-                      <td className="p-2 text-right tabular-nums font-bold text-win">
+                      <td
+                        className={`p-2 text-right tabular-nums font-bold ${
+                          row.voided
+                            ? "text-ink-3 line-through"
+                            : "text-win-ink"
+                        }`}
+                      >
                         {row.direction === "in"
                           ? formatCurrency(row.amount)
                           : ""}
                       </td>
-                      <td className="p-2 text-right tabular-nums font-bold text-loss">
+                      <td
+                        className={`p-2 text-right tabular-nums font-bold ${
+                          row.voided ? "text-ink-3 line-through" : "text-loss"
+                        }`}
+                      >
                         {row.direction === "out"
                           ? formatCurrency(row.amount)
                           : ""}
@@ -618,19 +687,41 @@ export const LedgerSection = ({
                         {formatCurrency(row.balanceAfter)}
                       </td>
                       <td className="p-2 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          aria-label={`Edit entry ${row.label}`}
-                          onClick={() => startLedgerEdit(row)}
-                          className="text-ink-3 hover:text-ink transition-colors mr-2"
-                        >
-                          <Icons.Edit className="w-4 h-4" />
-                        </button>
+                        {row.voided ? (
+                          <button
+                            type="button"
+                            aria-label={`Restore entry ${row.label}`}
+                            onClick={() => unvoidLedgerRow(row.source, row.id)}
+                            className="text-ink-3 hover:text-ink text-[11px] font-bold underline mr-1"
+                          >
+                            Unvoid
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              aria-label={`Edit entry ${row.label}`}
+                              onClick={() => startLedgerEdit(row)}
+                              className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors mr-1"
+                            >
+                              <Icons.Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Void entry ${row.label}`}
+                              onClick={() => voidLedgerRow(row.source, row.id)}
+                              title="Void keeps the row as an audit trail but removes it from every total"
+                              className="text-ink-3 hover:text-warnfg text-[11px] font-bold underline mr-1"
+                            >
+                              Void
+                            </button>
+                          </>
+                        )}
                         <button
                           type="button"
                           aria-label={`Delete entry ${row.label}`}
                           onClick={() => removeLedgerRow(row.source, row.id)}
-                          className="text-ink-3 hover:text-loss transition-colors"
+                          className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                         >
                           <Icons.X className="w-4 h-4" />
                         </button>

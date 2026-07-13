@@ -22,6 +22,7 @@ module.exports = {
         line: "var(--line)",
         "line-strong": "var(--line-strong)",
         win: "var(--win)",
+        "win-ink": "var(--win-ink)",
         "win-bg": "var(--win-bg)",
         loss: "var(--loss)",
         "loss-bg": "var(--loss-bg)",

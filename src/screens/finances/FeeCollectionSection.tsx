@@ -124,6 +124,7 @@ export const FeeCollectionSection = ({
             value={summary.collected}
             max={totalEffectiveFees}
             className="flex-1 max-w-xs"
+            ariaLabel="Team fees collected"
           />
           <span className="t-meta text-ink-3 tabular-nums">
             {formatCurrency(summary.collected)} of{" "}
@@ -193,7 +194,7 @@ export const FeeCollectionSection = ({
         {summary.duesCreditPerPlayer > 0 && (
           <span className="t-meta text-ink-3 tabular-nums">
             − {formatCurrency(summary.duesCreditPerPlayer)} fundraising credit →{" "}
-            <span className="font-black text-win">
+            <span className="font-black text-win-ink">
               {formatCurrency(effectiveFee)} each
             </span>
           </span>
@@ -298,6 +299,7 @@ export const FeeCollectionSection = ({
                     value={paid}
                     max={playerFee}
                     className="mt-1 max-w-[10rem]"
+                    ariaLabel={`${p.name}: fees paid`}
                   />
                 )}
               </button>
@@ -320,7 +322,7 @@ export const FeeCollectionSection = ({
                 </>
               ) : settled ? (
                 <>
-                  <span className="text-xs font-black uppercase tracking-widest text-win">
+                  <span className="text-xs font-black uppercase tracking-widest text-win-ink">
                     Paid full ✓
                   </span>
                   <button

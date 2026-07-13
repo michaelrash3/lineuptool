@@ -95,3 +95,30 @@ describe("computeTeamInkVars", () => {
     expect(v.onSecondary).toBeTruthy();
   });
 });
+
+// Finance UI theme tokens (src/styles.css) must clear WCAG AA (4.5:1) for the
+// small meta/eyebrow (--ink-3) and win-colored (--win-ink) TEXT they drive, on
+// both surface tokens in each theme. Pins the a11y contrast fix so a future
+// token nudge can't silently regress below AA.
+describe("finance text tokens clear WCAG AA on their surfaces", () => {
+  const AA = 4.5;
+  const light = { surface: "#ffffff", surface2: "#f3f6fb" };
+  const dark = { surface: "#0e1421", surface2: "#151d2c" };
+
+  it("light --ink-3 (#5b6577) reads on both light surfaces", () => {
+    expect(contrastRatio("#5b6577", light.surface)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio("#5b6577", light.surface2)).toBeGreaterThanOrEqual(AA);
+  });
+  it("light --win-ink (#157a3a) reads on both light surfaces", () => {
+    expect(contrastRatio("#157a3a", light.surface)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio("#157a3a", light.surface2)).toBeGreaterThanOrEqual(AA);
+  });
+  it("dark --ink-3 (#7c889b) reads on both dark surfaces", () => {
+    expect(contrastRatio("#7c889b", dark.surface)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio("#7c889b", dark.surface2)).toBeGreaterThanOrEqual(AA);
+  });
+  it("dark --win-ink (#34d399) reads on both dark surfaces", () => {
+    expect(contrastRatio("#34d399", dark.surface)).toBeGreaterThanOrEqual(AA);
+    expect(contrastRatio("#34d399", dark.surface2)).toBeGreaterThanOrEqual(AA);
+  });
+});

@@ -40,7 +40,7 @@ export const CarryoverDiscountCard = ({
                 {formatCurrency(carryoverPendingTotal)}
               </span>{" "}
               in the bank. Apply it as a team-fee discount — about{" "}
-              <span className="font-black text-win tabular-nums">
+              <span className="font-black text-win-ink tabular-nums">
                 {formatCurrency(carryoverPendingTotal / payerCount)} off per
                 family
               </span>

@@ -289,7 +289,7 @@ export const BudgetItemsCard = ({
                     onClick={() => toggleItemTax(item.id)}
                     className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
                       item.taxable
-                        ? "text-win bg-win/10"
+                        ? "text-win-ink bg-win/10"
                         : "text-ink-3 bg-surface-2 hover:bg-line"
                     }`}
                   >
@@ -302,7 +302,7 @@ export const BudgetItemsCard = ({
                     type="button"
                     aria-label={`Edit ${item.label}`}
                     onClick={() => startItemEdit(item)}
-                    className="text-ink-3 hover:text-ink transition-colors"
+                    className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors"
                   >
                     <Icons.Edit className="w-4 h-4" />
                   </button>
@@ -310,7 +310,7 @@ export const BudgetItemsCard = ({
                     type="button"
                     aria-label={`Remove ${item.label}`}
                     onClick={() => removeBudgetItem(item.id)}
-                    className="text-ink-3 hover:text-loss transition-colors"
+                    className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                   >
                     <Icons.X className="w-4 h-4" />
                   </button>
@@ -322,6 +322,7 @@ export const BudgetItemsCard = ({
                       value={spentSoFar}
                       max={planned}
                       className="flex-1"
+                      ariaLabel={`${item.label}: spent of planned`}
                     />
                     <span
                       className={`t-meta tabular-nums whitespace-nowrap ${
@@ -379,7 +380,13 @@ export const BudgetItemsCard = ({
                   )}
                 </span>
               </div>
-              {r.planned > 0 && <MoneyMeter value={r.spent} max={r.planned} />}
+              {r.planned > 0 && (
+                <MoneyMeter
+                  value={r.spent}
+                  max={r.planned}
+                  ariaLabel={`${r.label}: spent of planned`}
+                />
+              )}
             </li>
           ))}
         </ul>

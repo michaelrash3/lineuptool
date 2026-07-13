@@ -34,22 +34,36 @@ export const MoneyMeter = ({
   value,
   max,
   className = "",
+  ariaLabel,
+  ariaLabelledby,
 }: {
   value: number;
   max: number;
   className?: string;
+  ariaLabel?: string;
+  ariaLabelledby?: string;
 }) => {
   const pct = max > 0 ? (value / max) * 100 : value > 0 ? 100 : 0;
   const width = Math.max(0, Math.min(100, pct));
   const color =
     pct > 100 ? "var(--loss)" : pct > 80 ? "var(--warn-fg)" : "var(--win)";
+  // Screen-reader value: "$1,200 of $1,500 — 80%" (or just the amount when
+  // there's no target). aria-valuenow is clamped to [0,100] so it never
+  // exceeds aria-valuemax — an over-budget meter (>100%) was invalid ARIA.
+  const valuetext =
+    max > 0
+      ? `${currency(value)} of ${currency(max)} — ${Math.round(pct)}%`
+      : currency(value);
   return (
     <div
       className={`h-1.5 w-full rounded-full bg-surface-2 overflow-hidden ${className}`}
       role="progressbar"
-      aria-valuenow={Math.round(pct)}
+      aria-valuenow={Math.min(100, Math.max(0, Math.round(pct)))}
       aria-valuemin={0}
       aria-valuemax={100}
+      aria-valuetext={valuetext}
+      aria-label={ariaLabelledby ? undefined : (ariaLabel ?? valuetext)}
+      aria-labelledby={ariaLabelledby}
     >
       <div
         className="h-full rounded-full transition-all duration-500 ease-out"

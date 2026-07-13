@@ -14,8 +14,14 @@ export const SortHeader = ({
   <button
     type="button"
     onClick={onClick}
-    aria-label={`Sort by ${label}`}
-    className={`t-eyebrow inline-flex items-center gap-1 hover:text-ink transition-colors ${
+    // Encode the sort state in the accessible name too: the budget planner
+    // uses a div layout (no columnheader role), where aria-sort is invalid —
+    // this keeps the direction announced there. The ledger <th> also sets
+    // aria-sort for table semantics.
+    aria-label={`Sort by ${label}${
+      active ? `, sorted ${asc ? "ascending" : "descending"}` : ""
+    }`}
+    className={`t-eyebrow inline-flex items-center gap-1 min-h-[24px] hover:text-ink transition-colors ${
       active ? "text-ink" : ""
     }`}
   >
