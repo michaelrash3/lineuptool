@@ -166,7 +166,7 @@ export const LedgerSection = ({
               className={`px-3 py-2 text-xs font-black uppercase tracking-widest transition-colors ${
                 txnDir === opt.v
                   ? opt.v === "in"
-                    ? "bg-win/15 text-win"
+                    ? "bg-win/15 text-win-ink"
                     : "bg-loss/15 text-loss"
                   : "bg-surface-2 text-ink-3 hover:bg-line"
               }`}
@@ -578,7 +578,7 @@ export const LedgerSection = ({
                         <span
                           className={`inline-flex items-center justify-center w-4 h-4 rounded-full mr-1.5 text-[9px] font-black ${
                             row.direction === "in"
-                              ? "bg-win/10 text-win"
+                              ? "bg-win/10 text-win-ink"
                               : "bg-loss/10 text-loss"
                           }`}
                         >
@@ -587,7 +587,7 @@ export const LedgerSection = ({
                         {row.label}
                         {row.fundraising && (
                           <span
-                            className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win align-middle"
+                            className="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-win/10 text-win-ink align-middle"
                             title={
                               row.creditedTo
                                 ? `Credited to ${row.creditedTo}'s team fees`
@@ -600,7 +600,7 @@ export const LedgerSection = ({
                           </span>
                         )}
                       </td>
-                      <td className="p-2 text-right tabular-nums font-bold text-win">
+                      <td className="p-2 text-right tabular-nums font-bold text-win-ink">
                         {row.direction === "in"
                           ? formatCurrency(row.amount)
                           : ""}

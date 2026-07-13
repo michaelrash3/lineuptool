@@ -194,7 +194,7 @@ export const FeeCollectionSection = ({
         {summary.duesCreditPerPlayer > 0 && (
           <span className="t-meta text-ink-3 tabular-nums">
             − {formatCurrency(summary.duesCreditPerPlayer)} fundraising credit →{" "}
-            <span className="font-black text-win">
+            <span className="font-black text-win-ink">
               {formatCurrency(effectiveFee)} each
             </span>
           </span>
@@ -322,7 +322,7 @@ export const FeeCollectionSection = ({
                 </>
               ) : settled ? (
                 <>
-                  <span className="text-xs font-black uppercase tracking-widest text-win">
+                  <span className="text-xs font-black uppercase tracking-widest text-win-ink">
                     Paid full ✓
                   </span>
                   <button

@@ -289,7 +289,7 @@ export const BudgetItemsCard = ({
                     onClick={() => toggleItemTax(item.id)}
                     className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
                       item.taxable
-                        ? "text-win bg-win/10"
+                        ? "text-win-ink bg-win/10"
                         : "text-ink-3 bg-surface-2 hover:bg-line"
                     }`}
                   >

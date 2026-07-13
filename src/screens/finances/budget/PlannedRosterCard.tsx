@@ -90,7 +90,7 @@ export const PlannedRosterCard = ({
             onClick={() => setFinanceFields({ feeBufferIncrement: opt.inc })}
             className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
               bufferInc === opt.inc
-                ? "text-win bg-win/10"
+                ? "text-win-ink bg-win/10"
                 : "text-ink-3 bg-surface-2 hover:bg-line"
             }`}
           >
@@ -170,7 +170,7 @@ export const PlannedRosterCard = ({
               }}
               className={`px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums transition-colors ${
                 finances.nextDepositAmount === amt
-                  ? "bg-win/10 text-win"
+                  ? "bg-win/10 text-win-ink"
                   : "bg-surface-2 hover:bg-line text-ink-3"
               }`}
             >

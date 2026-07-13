@@ -93,7 +93,7 @@ export const SponsorshipSection = ({
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
           <span className="t-eyebrow text-ink-3">This season</span>
-          <span className="t-eyebrow tabular-nums text-win">
+          <span className="t-eyebrow tabular-nums text-win-ink">
             {formatCurrency(currentSponsorTotal)} total
           </span>
         </div>
@@ -115,13 +115,13 @@ export const SponsorshipSection = ({
                 onClick={() => toggleCurrentSponsorReduces(sp.id)}
                 className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-colors ${
                   sp.fundraising
-                    ? "bg-win/10 text-win"
+                    ? "bg-win/10 text-win-ink"
                     : "bg-surface-2 text-ink-3 hover:text-ink"
                 }`}
               >
                 {sp.fundraising ? "reduces fees" : "club income"}
               </button>
-              <span className="tabular-nums font-black text-win">
+              <span className="tabular-nums font-black text-win-ink">
                 {formatCurrency(sp.amount)}
               </span>
               <button
@@ -141,7 +141,7 @@ export const SponsorshipSection = ({
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-2">
           <span className="t-eyebrow text-ink-3">Next season</span>
-          <span className="t-eyebrow tabular-nums text-win">
+          <span className="t-eyebrow tabular-nums text-win-ink">
             {formatCurrency(sponsored)} total
           </span>
         </div>
@@ -163,13 +163,13 @@ export const SponsorshipSection = ({
                 onClick={() => togglePledgeReduces(sp.id)}
                 className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-colors ${
                   sp.reducesFees !== false
-                    ? "bg-win/10 text-win"
+                    ? "bg-win/10 text-win-ink"
                     : "bg-surface-2 text-ink-3 hover:text-ink"
                 }`}
               >
                 {sp.reducesFees !== false ? "reduces fees" : "club income"}
               </button>
-              <span className="tabular-nums font-black text-win">
+              <span className="tabular-nums font-black text-win-ink">
                 {formatCurrency(sp.amount)}
               </span>
               <button

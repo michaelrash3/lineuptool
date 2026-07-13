@@ -48,11 +48,17 @@
   --surface-2: #f3f6fb;
   --ink: #0b1220;
   --ink-2: #46546e;
-  --ink-3: #8290a6;
+  /* Darkened from #8290a6 (~3.24:1, failed WCAG AA) to clear 4.5:1 on both
+     --surface and --surface-2 for the small meta/eyebrow text it drives. */
+  --ink-3: #5b6577;
   --line: #e4e9f1;
   --line-strong: #d2dae6;
 
   --win: #15a34a;
+  /* Text-only win color: the bright --win is a fill (meters, badges) that
+     fails AA as small text; --win-ink is the legible green for win-colored
+     TEXT (money-in amounts, credit badges). ~5.4:1 on white. */
+  --win-ink: #157a3a;
   --win-bg: #e7f7ee;
   --loss: #dc2626;
   --loss-bg: #fdeaea;
@@ -162,11 +168,16 @@
   --surface-2: #151d2c;
   --ink: #eef2f9;
   --ink-2: #a4b1c6;
-  --ink-3: #6a7689;
+  /* Lightened from #6a7689 (~4.0:1, under AA on the dark surfaces) to clear
+     4.5:1 on both --surface and --surface-2. */
+  --ink-3: #7c889b;
   --line: #1e2738;
   --line-strong: #2b3850;
 
   --win: #34d399;
+  /* On dark surfaces the bright --win already reads well as text, so --win-ink
+     reuses it (keeps win-colored text and fills in step). */
+  --win-ink: #34d399;
   --win-bg: #0f2a20;
   --loss: #f87171;
   --loss-bg: #2a1416;
