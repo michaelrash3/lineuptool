@@ -877,6 +877,21 @@ export interface PaymentEntry extends FinanceAttribution {
   refund?: boolean;
 }
 
+// A per-player fee adjustment beyond the all-or-nothing feeExemptIds waiver:
+// a partial scholarship, a sibling/multi-child discount, or a custom override.
+// Unlike an exemption (which removes the player from the split divisor), an
+// adjusted player is STILL a payer — they just owe a reduced fee. Exactly one
+// of `amount` (fixed dollars off) or `pct` (percent off the base fee) is set.
+// Coach-internal; extends FinanceAttribution for the audit trail.
+export interface FeeAdjustment extends FinanceAttribution {
+  id: string;
+  playerId: PlayerId;
+  kind: "scholarship" | "sibling" | "override";
+  amount?: number;
+  pct?: number;
+  note?: string;
+}
+
 // Compact per-season money summary kept when the season is advanced — the
 // row-level ledger resets each season (the closing balance carries over as an
 // opening entry), but the season's totals stay reviewable.
@@ -916,9 +931,13 @@ export interface TeamFinances {
   // depositDueDate when the season advances.
   nextDepositAmount?: number;
   nextDepositDueDate?: string;
-  // Players exempt from the club fee (fall-only pickups, scholarships).
+  // Players exempt from the club fee (fall-only pickups, full scholarships).
   // They never count toward "still owed" or the suggested-fee split.
   feeExemptIds?: PlayerId[];
+  // Per-player partial fee adjustments (scholarships / sibling discounts /
+  // custom overrides). Unlike feeExemptIds these players still count as payers;
+  // their effective fee is just reduced. Cleared on the season roll.
+  feeAdjustments?: FeeAdjustment[];
   // Sales tax % (e.g. 8.25) applied to budget items flagged `taxable` in all
   // planner math, so pre-tax quotes project as real costs.
   salesTaxPct?: number;

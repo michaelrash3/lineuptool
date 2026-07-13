@@ -39,6 +39,7 @@ import { SectionCard } from "./finances/SectionCard";
 import { CashFlowSection } from "./finances/CashFlowSection";
 import { SponsorshipSection } from "./finances/SponsorshipSection";
 import { FeeCollectionSection } from "./finances/FeeCollectionSection";
+import { FeeAdjustmentsCard } from "./finances/FeeAdjustmentsCard";
 import { LedgerSection } from "./finances/LedgerSection";
 import { PlannedRosterCard } from "./finances/budget/PlannedRosterCard";
 import { BudgetPresetsCard } from "./finances/budget/BudgetPresetsCard";
@@ -956,6 +957,44 @@ export const FinancesTab = memo(() => {
     setNextDepositInput(null);
   };
 
+  // ---- Per-player fee adjustments (scholarships / sibling discounts).
+  const [adjPlayerId, setAdjPlayerId] = useState("");
+  const [adjKind, setAdjKind] = useState<
+    "scholarship" | "sibling" | "override"
+  >("scholarship");
+  const [adjMode, setAdjMode] = useState<"amount" | "pct">("amount");
+  const [adjValue, setAdjValue] = useState("");
+  const [adjNote, setAdjNote] = useState("");
+  const addFeeAdjustment = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!adjPlayerId) return;
+    const num = Number(String(adjValue).replace(/[$%,\s]/g, ""));
+    if (!Number.isFinite(num) || num <= 0) return;
+    if (adjMode === "pct" && num > 100) return;
+    const entry = {
+      id: newId("adj"),
+      playerId: adjPlayerId,
+      kind: adjKind,
+      ...(adjMode === "pct" ? { pct: round2(num) } : { amount: round2(num) }),
+      ...(adjNote.trim() ? { note: adjNote.trim() } : {}),
+      ...recordedStamp(),
+    };
+    // One active adjustment per player: replace any existing for them.
+    updateFinances({
+      op: "mapEntries",
+      key: "feeAdjustments",
+      map: (items) => [
+        ...items.filter((a) => a.playerId !== adjPlayerId),
+        entry,
+      ],
+    });
+    setAdjPlayerId("");
+    setAdjValue("");
+    setAdjNote("");
+  };
+  const removeFeeAdjustment = (id: string) =>
+    updateFinances({ op: "removeById", key: "feeAdjustments", id });
+
   return (
     <div className="max-w-5xl mx-auto lg:max-w-none space-y-6">
       {/* Club balance hero — full width */}
@@ -1028,6 +1067,26 @@ export const FinancesTab = memo(() => {
             dismissCarryoverDiscount={dismissCarryoverDiscount}
             carryoverAppliedTotal={carryoverAppliedTotal}
             reverseCarryoverDiscount={reverseCarryoverDiscount}
+          />
+
+          {/* Per-player scholarships / sibling discounts */}
+          <FeeAdjustmentsCard
+            players={players}
+            adjustments={finances.feeAdjustments || []}
+            clubFee={clubFee}
+            effectiveFeeByPlayer={summary.effectiveFeeByPlayer}
+            addFeeAdjustment={addFeeAdjustment}
+            removeFeeAdjustment={removeFeeAdjustment}
+            adjPlayerId={adjPlayerId}
+            setAdjPlayerId={setAdjPlayerId}
+            adjKind={adjKind}
+            setAdjKind={setAdjKind}
+            adjMode={adjMode}
+            setAdjMode={setAdjMode}
+            adjValue={adjValue}
+            setAdjValue={setAdjValue}
+            adjNote={adjNote}
+            setAdjNote={setAdjNote}
           />
 
           {/* Ledger — money in & money out */}

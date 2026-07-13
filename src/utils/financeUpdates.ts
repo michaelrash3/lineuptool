@@ -25,6 +25,7 @@
 import type {
   BudgetItem,
   ExpenseEntry,
+  FeeAdjustment,
   IncomeEntry,
   PaymentEntry,
   SponsorshipEntry,
@@ -45,6 +46,7 @@ export interface FinanceArrayTypes {
   expenses: ExpenseEntry;
   sponsorships: SponsorshipEntry;
   budgetItems: BudgetItem;
+  feeAdjustments: FeeAdjustment;
 }
 
 export type FinanceArrayKey = keyof FinanceArrayTypes;

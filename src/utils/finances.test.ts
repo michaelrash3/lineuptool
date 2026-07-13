@@ -24,6 +24,7 @@ import {
   financeIntegrity,
   monthlyCashflow,
   seasonOutlook,
+  feeAdjustmentAmount,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -906,5 +907,93 @@ describe("seasonOutlook — forward projection", () => {
     expect(o.feeUsed).toBe(100); // ceil(800 / 8)
     expect(o.breakEvenFee).toBe(100);
     expect(o.projectedEndBalance).toBe(0); // exactly break-even
+  });
+});
+
+describe("fee adjustments — scholarships & discounts", () => {
+  const players = [{ id: "p1" }, { id: "p2" }];
+
+  it("feeAdjustmentAmount resolves pct against the base fee and floors amounts", () => {
+    expect(feeAdjustmentAmount({ pct: 25 }, 200)).toBe(50);
+    expect(feeAdjustmentAmount({ pct: 100 }, 200)).toBe(200);
+    expect(feeAdjustmentAmount({ amount: 30 }, 200)).toBe(30);
+    expect(feeAdjustmentAmount({ amount: -5 }, 200)).toBe(0);
+    expect(feeAdjustmentAmount(undefined, 200)).toBe(0);
+  });
+
+  it("reduces a player's effective fee (amount and pct)", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      feeAdjustments: [
+        { id: "a1", playerId: "p1", kind: "scholarship", amount: 40 },
+        { id: "a2", playerId: "p2", kind: "sibling", pct: 50 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    expect(s.effectiveFeeByPlayer.p1).toBe(60); // 100 - 40
+    expect(s.effectiveFeeByPlayer.p2).toBe(50); // 100 - 50%
+    expect(s.stillOwed).toBe(110); // nobody's paid: 60 + 50
+  });
+
+  it("stacks the adjustment after the fundraising credit, floored at 0", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      incomes: [
+        {
+          id: "i",
+          date: "2026-01-01",
+          label: "Car wash",
+          amount: 40,
+          fundraising: true,
+        },
+      ],
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", amount: 80 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    // even-split credit = 40 / 2 = 20 each; p1: 100 - 20 - 80 = 0 (floored).
+    expect(s.effectiveFeeByPlayer.p1).toBe(0);
+    expect(s.effectiveFeeByPlayer.p2).toBe(80); // 100 - 20, no adjustment
+  });
+
+  it("a 100% scholarship zeroes the fee but keeps the player a payer", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", pct: 100 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    expect(s.effectiveFeeByPlayer.p1).toBe(0);
+    expect(s.effectiveFeeByPlayer.p2).toBe(100);
+  });
+
+  it("ignores adjustments for fee-exempt (non-payer) players", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      feeExemptIds: ["p1"],
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", amount: 50 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    expect(s.effectiveFeeByPlayer.p1).toBeUndefined(); // exempt → not a payer
+    expect(s.stillOwed).toBe(100); // only p2 owes the full fee
+  });
+
+  it("clears feeAdjustments on the season roll", () => {
+    const finances: TeamFinances = {
+      ...activeFinances(),
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", amount: 40 },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.feeAdjustments).toBeUndefined();
   });
 });

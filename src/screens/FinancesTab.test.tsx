@@ -720,7 +720,9 @@ describe("FinancesTab", () => {
       target: { value: "450" },
     });
     // Ledger now precedes the planner — its Add button is first.
-    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    fireEvent.submit(
+      screen.getByLabelText("Transaction description").closest("form")!,
+    );
     const patch = { finances: appliedFinances(teamValue) };
     const exp = patch.finances.expenses[patch.finances.expenses.length - 1];
     expect(exp).toMatchObject({
@@ -935,7 +937,9 @@ describe("FinancesTab", () => {
       target: { value: "250" },
     });
     // Ledger now precedes the planner — its Add button is first.
-    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    fireEvent.submit(
+      screen.getByLabelText("Transaction description").closest("form")!,
+    );
     const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes).toHaveLength(2);
     expect(patch.finances.incomes[1]).toMatchObject({
@@ -993,7 +997,9 @@ describe("FinancesTab", () => {
     fireEvent.change(screen.getByLabelText("Transaction amount"), {
       target: { value: "120" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    fireEvent.submit(
+      screen.getByLabelText("Transaction description").closest("form")!,
+    );
     const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes[1]).toMatchObject({
       label: "Raffle night",
@@ -1021,7 +1027,9 @@ describe("FinancesTab", () => {
     fireEvent.change(screen.getByLabelText("Transaction amount"), {
       target: { value: "500" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    fireEvent.submit(
+      screen.getByLabelText("Transaction description").closest("form")!,
+    );
     const patch = { finances: appliedFinances(teamValue) };
     expect(patch.finances.incomes[1]).toMatchObject({
       label: "County rec grant",
@@ -1039,7 +1047,9 @@ describe("FinancesTab", () => {
     fireEvent.change(screen.getByLabelText("Transaction amount"), {
       target: { value: "10" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: /Add$/ })[0]);
+    fireEvent.submit(
+      screen.getByLabelText("Transaction description").closest("form")!,
+    );
     const second = appliedFinances(teamValue, 1);
     expect(second.incomes[1]).toMatchObject({ label: "Mystery money" });
     expect(second.incomes[1].category).toBeUndefined();
@@ -1618,5 +1628,32 @@ describe("FinancesTab", () => {
     expect(
       screen.getByText(/removed player or budget item/i),
     ).toBeInTheDocument();
+  });
+
+  it("adds a per-player fee adjustment via a feeAdjustments op", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    fireEvent.change(screen.getByLabelText("Player to adjust"), {
+      target: { value: "kid1" },
+    });
+    fireEvent.change(screen.getByLabelText("Adjustment amount"), {
+      target: { value: "40" },
+    });
+    fireEvent.submit(
+      screen.getByLabelText("Player to adjust").closest("form")!,
+    );
+    const op = (teamValue.updateFinances as jest.Mock).mock.calls[0][0];
+    expect(op).toMatchObject({ op: "mapEntries", key: "feeAdjustments" });
+    const next = appliedFinances(teamValue);
+    expect(next.feeAdjustments).toHaveLength(1);
+    expect(next.feeAdjustments[0]).toMatchObject({
+      playerId: "kid1",
+      kind: "scholarship",
+      amount: 40,
+    });
   });
 });

@@ -49,6 +49,22 @@ export const isVoided = (
   e: { voidedAt?: string; voidedBy?: string } | null | undefined,
 ): boolean => !!e?.voidedAt;
 
+// Resolve a per-player fee adjustment (scholarship / sibling discount /
+// override) to a dollar amount OFF the base fee. A `pct` is a percentage of the
+// base (sticker) fee, clamped to 0–100; an `amount` is a flat dollar reduction.
+// Floored at 0 so an adjustment never adds to the fee.
+export const feeAdjustmentAmount = (
+  adj: { amount?: number; pct?: number } | null | undefined,
+  baseFee: number,
+): number => {
+  if (!adj) return 0;
+  if (adj.pct != null) {
+    const pct = Math.max(0, Math.min(100, money(adj.pct)));
+    return round2((Math.max(0, baseFee) * pct) / 100);
+  }
+  return Math.max(0, money(adj.amount));
+};
+
 // Sanity cap on typed dollar amounts — a youth team's ledger has no business
 // holding a seven-figure entry; beyond this it's a typo.
 export const MAX_MONEY_INPUT = 1_000_000;
@@ -389,13 +405,25 @@ export const financeSummary = (
   const duesCreditPerPlayer =
     payers.length > 0 ? round2(evenPool / payers.length) : 0;
   const effectiveFeePerPlayer = Math.max(0, fee - duesCreditPerPlayer);
+  // Per-player fee adjustments (scholarships / sibling discounts) stack AFTER
+  // the fundraising credit and are floored at 0; a pct resolves against the
+  // base fee. Adjustments only apply to actual payers (an exempt or off-roster
+  // player has no fee to reduce).
+  const adjByPlayer: Record<string, number> = {};
+  for (const adj of finances?.feeAdjustments || []) {
+    const pid = String(adj?.playerId || "");
+    if (!pid || !payerIds.has(pid)) continue;
+    adjByPlayer[pid] = round2(
+      (adjByPlayer[pid] || 0) + feeAdjustmentAmount(adj, fee),
+    );
+  }
   const creditByPlayer: Record<string, number> = {};
   const effectiveFeeByPlayer: Record<string, number> = {};
   let stillOwed = 0;
   for (const p of payers) {
     const credit = (attributedCredit[p.id] || 0) + duesCreditPerPlayer;
     creditByPlayer[p.id] = round2(credit);
-    const eff = round2(Math.max(0, fee - credit));
+    const eff = round2(Math.max(0, fee - credit - (adjByPlayer[p.id] || 0)));
     effectiveFeeByPlayer[p.id] = eff;
     stillOwed += Math.max(0, round2(eff - (paidByPlayer[p.id] || 0)));
   }
@@ -1085,6 +1113,7 @@ export const rollFinancesForNewSeason = (
       nextDepositAmount: promotedDeposit,
       nextDepositDueDate: promotedDepositDueDate,
       feeExemptIds: _cleared,
+      feeAdjustments: _clearedAdj,
       sponsorships: _converted,
       ...rest
     } = finances;
@@ -1152,6 +1181,7 @@ export const rollFinancesForNewSeason = (
     nextDepositAmount: _promotedDeposit,
     nextDepositDueDate: _promotedDepositDueDate,
     feeExemptIds: _cleared,
+    feeAdjustments: _clearedAdj,
     sponsorships: _rolled,
     ...rest
   } = finances;
