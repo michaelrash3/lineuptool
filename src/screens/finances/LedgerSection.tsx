@@ -362,6 +362,13 @@ export const LedgerSection = ({
                   <th
                     key={col.key}
                     className={`p-2.5 ${col.right ? "text-right" : "text-left"}`}
+                    aria-sort={
+                      ledgerSort.key === col.key
+                        ? ledgerSort.asc
+                          ? "ascending"
+                          : "descending"
+                        : "none"
+                    }
                   >
                     <SortHeader
                       label={col.label}
@@ -622,7 +629,7 @@ export const LedgerSection = ({
                           type="button"
                           aria-label={`Edit entry ${row.label}`}
                           onClick={() => startLedgerEdit(row)}
-                          className="text-ink-3 hover:text-ink transition-colors mr-2"
+                          className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-ink transition-colors mr-1"
                         >
                           <Icons.Edit className="w-4 h-4" />
                         </button>
@@ -630,7 +637,7 @@ export const LedgerSection = ({
                           type="button"
                           aria-label={`Delete entry ${row.label}`}
                           onClick={() => removeLedgerRow(row.source, row.id)}
-                          className="text-ink-3 hover:text-loss transition-colors"
+                          className="inline-flex items-center justify-center min-w-[24px] min-h-[24px] text-ink-3 hover:text-loss transition-colors"
                         >
                           <Icons.X className="w-4 h-4" />
                         </button>

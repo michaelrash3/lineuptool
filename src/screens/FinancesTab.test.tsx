@@ -1565,4 +1565,18 @@ describe("FinancesTab", () => {
       true,
     );
   });
+
+  it("marks the sorted ledger column header with aria-sort", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    // Columns: Date, Entry, In, Out, Balance, (actions). The ledger defaults to
+    // date-ascending, so only the Date header announces a sort direction.
+    const headers = screen.getAllByRole("columnheader");
+    expect(headers[0]).toHaveAttribute("aria-sort", "ascending");
+    expect(headers[2]).toHaveAttribute("aria-sort", "none");
+  });
 });
