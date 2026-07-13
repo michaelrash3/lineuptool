@@ -23,6 +23,7 @@ import {
   isVoided,
   financeIntegrity,
   monthlyCashflow,
+  seasonOutlook,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -863,5 +864,47 @@ describe("financeIntegrity — orphaned references (reconcile nudge)", () => {
       orphanPlayerRefs: 0,
       orphanExpenseLinks: 0,
     });
+  });
+});
+
+describe("seasonOutlook — forward projection", () => {
+  it("returns null when there's nothing to project", () => {
+    expect(seasonOutlook({}, [])).toBeNull(); // no budget
+    // budget but no payers (empty roster, no planned count):
+    expect(
+      seasonOutlook(
+        { budgetItems: [{ id: "b", label: "x", amount: 500 }] },
+        [],
+      ),
+    ).toBeNull();
+  });
+
+  it("projects break-even, cushion, and end balance at the set fee", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b", label: "Season", amount: 1000 }],
+      sponsorships: [{ id: "s", sponsor: "Pizza", amount: 200 }],
+      nextClubFee: 120,
+      plannedPlayerCount: 10,
+    };
+    const o = seasonOutlook(finances, [])!;
+    expect(o.feeSource).toBe("set");
+    expect(o.feeUsed).toBe(120);
+    expect(o.plannedPayers).toBe(10);
+    expect(o.breakEvenFee).toBe(80); // (1000 - 200) / 10
+    expect(o.bufferPerPlayer).toBe(40); // 120 - 80
+    expect(o.projectedEndBalance).toBe(400); // 120*10 + 200 - 1000
+    expect(o.bufferTotal).toBe(o.projectedEndBalance); // identity
+  });
+
+  it("falls back to the suggested fee when none is set", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b", label: "Season", amount: 800 }],
+      plannedPlayerCount: 8,
+    };
+    const o = seasonOutlook(finances, [])!;
+    expect(o.feeSource).toBe("suggested");
+    expect(o.feeUsed).toBe(100); // ceil(800 / 8)
+    expect(o.breakEvenFee).toBe(100);
+    expect(o.projectedEndBalance).toBe(0); // exactly break-even
   });
 });

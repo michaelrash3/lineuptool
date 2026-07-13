@@ -19,6 +19,7 @@ import {
   incomeByCategory,
   financeSummary,
   financeIntegrity,
+  seasonOutlook,
   transactionLedger,
   dateToIsoLocal,
   isValidIsoDate,
@@ -42,6 +43,7 @@ import { LedgerSection } from "./finances/LedgerSection";
 import { PlannedRosterCard } from "./finances/budget/PlannedRosterCard";
 import { BudgetPresetsCard } from "./finances/budget/BudgetPresetsCard";
 import { BudgetItemsCard } from "./finances/budget/BudgetItemsCard";
+import { SeasonOutlookCard } from "./finances/budget/SeasonOutlookCard";
 import {
   newId,
   parseAmount,
@@ -115,6 +117,11 @@ export const FinancesTab = memo(() => {
     [finances, players],
   );
   const orphanCount = integrity.orphanPlayerRefs + integrity.orphanExpenseLinks;
+  // Forward-looking projection for the Budget Planner (pure-derived, no writes).
+  const outlook = useMemo(
+    () => seasonOutlook(finances, players),
+    [finances, players],
+  );
   const toast = useToast();
   const { promptText } = useConfirm();
   const budget = budgetTotal(finances);
@@ -1168,6 +1175,8 @@ export const FinancesTab = memo(() => {
             setNextDepositInput={setNextDepositInput}
             commitNextDeposit={commitNextDeposit}
           />
+          {/* Forward-looking projection built from the plan above. */}
+          <SeasonOutlookCard outlook={outlook} />
         </div>
       </SectionCard>
     </div>

@@ -476,6 +476,65 @@ export const teamFeesStatus = (
   };
 };
 
+// Forward-looking Season Outlook for the Budget Planner — 100% derived from the
+// plan (planned roster size, pledged sponsorships, budget items) plus the set /
+// suggested fee. Answers "are we going to be short?" before the season starts.
+// Nothing is persisted.
+export interface SeasonOutlook {
+  plannedPayers: number; // divisor: anticipated roster or this year's payers
+  budget: number; // total planned cost
+  sponsorOffset: number; // pledges whose switch offsets the fee
+  feeUsed: number; // the fee the projection assumes (set or suggested)
+  feeSource: "set" | "suggested";
+  breakEvenFee: number; // per-player fee that exactly covers the net budget
+  projectedEndBalance: number; // surplus/shortfall if every payer pays feeUsed
+  bufferPerPlayer: number; // feeUsed − breakEvenFee (the per-family cushion)
+  bufferTotal: number; // cushion × payers (equals projectedEndBalance)
+  carryover: number; // this year's closing balance rolling in
+  projectedWithCarryover: number; // carryover + projectedEndBalance
+}
+
+// null when there's nothing to project (no budget, no payers, or no fee yet) —
+// mirrors suggestedFeePerPlayer's null semantics.
+export const seasonOutlook = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): SeasonOutlook | null => {
+  const budget = budgetTotal(finances);
+  if (budget <= 0) return null;
+  const plannedPayers = plannedPayerCount(finances, players);
+  if (plannedPayers <= 0) return null;
+  const setFee = money(finances?.nextClubFee);
+  const suggested = suggestedFeePerPlayer(finances, players);
+  const feeUsed = setFee > 0 ? setFee : suggested;
+  if (feeUsed == null || feeUsed <= 0) return null;
+  const feeSource: "set" | "suggested" = setFee > 0 ? "set" : "suggested";
+  const sponsorOffset = feeOffsetSponsorshipTotal(finances);
+  const breakEvenFee = round2(
+    Math.max(0, budget - sponsorOffset) / plannedPayers,
+  );
+  const projectedEndBalance = round2(
+    feeUsed * plannedPayers + sponsorOffset - budget,
+  );
+  const bufferPerPlayer = round2(feeUsed - breakEvenFee);
+  const bufferTotal = round2(bufferPerPlayer * plannedPayers);
+  const carryover = financeSummary(finances, players).balanceNow;
+  const projectedWithCarryover = round2(carryover + projectedEndBalance);
+  return {
+    plannedPayers,
+    budget,
+    sponsorOffset,
+    feeUsed,
+    feeSource,
+    breakEvenFee,
+    projectedEndBalance,
+    bufferPerPlayer,
+    bufferTotal,
+    carryover,
+    projectedWithCarryover,
+  };
+};
+
 export interface LedgerRow {
   id: string;
   date: string;
