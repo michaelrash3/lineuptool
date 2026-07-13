@@ -102,6 +102,7 @@ import {
   type TeamArrayUpdate,
 } from "../utils/teamArrayUpdates";
 import { useTeamMembership } from "../hooks/useTeamMembership";
+import { useViewAsRole } from "../hooks/useViewAsRole";
 import { useInviteFlows } from "../hooks/useInviteFlows";
 import { useImportExportFlows } from "../hooks/useImportExportFlows";
 import { useGameCrud } from "../hooks/useGameCrud";
@@ -2268,79 +2269,8 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // view. Stored in sessionStorage so refreshes keep the preview but it
   // never persists to Firestore or other tabs. Reset to null on a fresh
   // browser session by design.
-  const [viewAsRole, setViewAsRoleState] = useState(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const v = window.sessionStorage.getItem("lineuptool.viewAsRole");
-      return v === "assistant" ? "assistant" : null;
-    } catch {
-      return null;
-    }
-  });
-  const setViewAsRole = useCallback((next: string | null) => {
-    setViewAsRoleState(next);
-    try {
-      if (next) window.sessionStorage.setItem("lineuptool.viewAsRole", next);
-      else window.sessionStorage.removeItem("lineuptool.viewAsRole");
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  // Derive the current user's REAL role on the active team — separate from
-  // currentRole so the override toggle UI can render even when the visible
-  // role has been flipped to "assistant".
-  //
-  // Rules:
-  //   - ownerId === user.uid  → head (definitive)
-  //   - coachRoles[uid] === "head" → head
-  //   - coachRoles[uid] === "assistant" → assistant
-  //   - missing ownerId AND user is the sole member → head (legacy unclaimed
-  //     team that this user is migrating)
-  //   - everything else → assistant
-  //
-  // The old "missing ownerId → head" fallback was unconditionally generous
-  // and let a second user who joined a legacy team see themselves as head
-  // until their auto-claim raced ahead of the original head's. The sole-
-  // member gate below closes that hole — once anyone else is in members[],
-  // role resolution must come from ownerId or coachRoles, not a hopeful
-  // default.
-  const realRole = useMemo<"head" | "assistant">(() => {
-    if (!user) return "head";
-    if (user.uid === teamData.ownerId) return "head";
-    const explicit = teamData.coachRoles?.[user.uid];
-    if (explicit === "head") return "head";
-    if (explicit === "assistant") return "assistant";
-    if (!teamData.ownerId) {
-      const members = Array.isArray(teamData.members) ? teamData.members : [];
-      const others = members.filter((uid: string) => uid && uid !== user?.uid);
-      if (others.length === 0) return "head";
-    }
-    return "assistant";
-  }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
-
-  // True only when teamData carries enough signal for realRole to be
-  // trustworthy. During the window between login and the first team
-  // snapshot, teamData is the empty DEFAULT_TEAM_DATA and realRole
-  // falls through to "head" via the legacy sole-member claim path —
-  // that's the source of the "assistant briefly sees Head Coach
-  // Dashboard then transfers" report. Gating role-sensitive routes
-  // on this flag keeps the eval route in a loader until role lands.
-  const roleResolved = useMemo(() => {
-    if (!user) return false;
-    return Boolean(
-      teamData.ownerId ||
-      (teamData.coachRoles && Object.keys(teamData.coachRoles).length > 0) ||
-      (Array.isArray(teamData.members) && teamData.members.length > 0),
-    );
-  }, [user, teamData.ownerId, teamData.coachRoles, teamData.members]);
-
-  // Visible role for the rest of the app. Only the head coach can flip
-  // themselves to assistant; assistants can never escalate.
-  const currentRole = useMemo<"head" | "assistant">(() => {
-    if (realRole === "head" && viewAsRole === "assistant") return "assistant";
-    return realRole;
-  }, [realRole, viewAsRole]);
+  const { viewAsRole, setViewAsRole, realRole, roleResolved, currentRole } =
+    useViewAsRole({ teamData, user });
 
   // The eval-rounds read path (finding-3.1, docs/eval-authz-design.md): a
   // SECOND, role-scoped subscription to the per-author evalRounds
