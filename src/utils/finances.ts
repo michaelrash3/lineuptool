@@ -563,6 +563,33 @@ export const seasonOutlook = (
   };
 };
 
+export interface ReimbursementsSummary {
+  unpaid: number; // liability still owed to volunteers
+  paid: number; // already reimbursed this season
+  outstanding: number; // = unpaid (money the club still owes back)
+}
+
+// Volunteer-reimbursements rollup. An UNPAID reimbursement is a liability that
+// does NOT touch balanceNow or the ledger (the cash is still in the bank); it
+// hits cash only when marked paid, posted as a normal expense. `outstanding`
+// drives the coach-only "free cash = balanceNow − outstanding" view.
+export const reimbursementsSummary = (
+  finances: TeamFinances | null | undefined,
+): ReimbursementsSummary => {
+  let unpaid = 0;
+  let paid = 0;
+  for (const r of finances?.reimbursements || []) {
+    const amt = money(r?.amount);
+    if (r?.status === "paid") paid += amt;
+    else unpaid += amt;
+  }
+  return {
+    unpaid: round2(unpaid),
+    paid: round2(paid),
+    outstanding: round2(unpaid),
+  };
+};
+
 export interface LedgerRow {
   id: string;
   date: string;
@@ -1104,6 +1131,12 @@ export const rollFinancesForNewSeason = (
       label: `Sponsorship — ${sp.sponsor || "Sponsor"}`,
       amount: money(sp.amount),
     }));
+  // Unpaid reimbursements are real debt — carry them into the new year; paid
+  // ones (their expense already reset with the ledger) are dropped to bound
+  // growth.
+  const keptReimbursements = (finances.reimbursements || []).filter(
+    (r) => r?.status !== "paid",
+  );
   if (!hadActivity) {
     // Plan-only roll: the coach set next season's fee before recording any
     // money. Promote it so Fall Collections opens on the planned fee; there
@@ -1115,6 +1148,7 @@ export const rollFinancesForNewSeason = (
       feeExemptIds: _cleared,
       feeAdjustments: _clearedAdj,
       sponsorships: _converted,
+      reimbursements: _allReimb,
       ...rest
     } = finances;
     return {
@@ -1126,6 +1160,9 @@ export const rollFinancesForNewSeason = (
       payments: [],
       incomes: pledgedIncomes,
       expenses: [],
+      ...(keptReimbursements.length
+        ? { reimbursements: keptReimbursements }
+        : {}),
     };
   }
   // Label the archived year by its closing season ("through Spring 2027").
@@ -1183,6 +1220,7 @@ export const rollFinancesForNewSeason = (
     feeExemptIds: _cleared,
     feeAdjustments: _clearedAdj,
     sponsorships: _rolled,
+    reimbursements: _allReimb,
     ...rest
   } = finances;
   return {
@@ -1197,6 +1235,9 @@ export const rollFinancesForNewSeason = (
     payments: [],
     incomes,
     expenses,
+    ...(keptReimbursements.length
+      ? { reimbursements: keptReimbursements }
+      : {}),
     pastSeasons: [
       ...(finances.pastSeasons || []),
       {

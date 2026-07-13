@@ -25,6 +25,7 @@ import {
   monthlyCashflow,
   seasonOutlook,
   feeAdjustmentAmount,
+  reimbursementsSummary,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -995,5 +996,53 @@ describe("fee adjustments — scholarships & discounts", () => {
       "2027-08-15",
     )!;
     expect(rolled.feeAdjustments).toBeUndefined();
+  });
+});
+
+describe("volunteer reimbursements", () => {
+  it("reimbursementsSummary splits unpaid vs paid; outstanding = unpaid", () => {
+    const finances: TeamFinances = {
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 50, status: "unpaid" },
+        { id: "r2", to: "Parent", amount: 30, status: "unpaid" },
+        { id: "r3", to: "Coach", amount: 20, status: "paid" },
+      ],
+    };
+    const s = reimbursementsSummary(finances);
+    expect(s.unpaid).toBe(80);
+    expect(s.paid).toBe(20);
+    expect(s.outstanding).toBe(80);
+  });
+
+  it("an unpaid reimbursement does NOT touch balanceNow", () => {
+    const base = financeSummary(activeFinances(), []).balanceNow;
+    const withReimb: TeamFinances = {
+      ...activeFinances(),
+      reimbursements: [{ id: "r", to: "Coach", amount: 500, status: "unpaid" }],
+    };
+    expect(financeSummary(withReimb, []).balanceNow).toBe(base);
+  });
+
+  it("the season roll keeps unpaid reimbursements and drops paid ones", () => {
+    const finances: TeamFinances = {
+      ...activeFinances(),
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 50, status: "unpaid" },
+        {
+          id: "r2",
+          to: "Parent",
+          amount: 20,
+          status: "paid",
+          linkedExpenseId: "e",
+        },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.reimbursements).toHaveLength(1);
+    expect(rolled.reimbursements?.[0].id).toBe("r1");
   });
 });

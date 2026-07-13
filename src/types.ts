@@ -892,6 +892,22 @@ export interface FeeAdjustment extends FinanceAttribution {
   note?: string;
 }
 
+// Money owed back to a coach/parent who fronted a team expense (bought
+// equipment, paid an entry fee). An UNPAID reimbursement is a liability that
+// does NOT touch the club balance; on mark-paid it posts a single ExpenseEntry
+// (linkedExpenseId) so the cash leaves exactly once. `to` is a free-text name
+// (same PII class as a sponsor name — no user/player link). Coach-internal.
+export interface Reimbursement extends FinanceAttribution {
+  id: string;
+  to: string;
+  amount: number;
+  note?: string;
+  status: "unpaid" | "paid";
+  date?: string; // ISO yyyy-mm-dd, when logged
+  paidDate?: string; // ISO yyyy-mm-dd, when reimbursed
+  linkedExpenseId?: string; // the ExpenseEntry created on mark-paid
+}
+
 // Compact per-season money summary kept when the season is advanced — the
 // row-level ledger resets each season (the closing balance carries over as an
 // opening entry), but the season's totals stay reviewable.
@@ -955,6 +971,10 @@ export interface TeamFinances {
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];
   payments?: PaymentEntry[];
+  // Money owed back to volunteers who fronted expenses. Unpaid entries are a
+  // liability (not in the balance); paid ones post an expense. Unpaid entries
+  // carry across the season roll (real debt); paid ones are dropped.
+  reimbursements?: Reimbursement[];
   pastSeasons?: FinancePastSeason[];
 }
 

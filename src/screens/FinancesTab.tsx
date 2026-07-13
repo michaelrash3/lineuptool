@@ -20,6 +20,7 @@ import {
   financeSummary,
   financeIntegrity,
   seasonOutlook,
+  reimbursementsSummary,
   transactionLedger,
   dateToIsoLocal,
   isValidIsoDate,
@@ -40,6 +41,7 @@ import { CashFlowSection } from "./finances/CashFlowSection";
 import { SponsorshipSection } from "./finances/SponsorshipSection";
 import { FeeCollectionSection } from "./finances/FeeCollectionSection";
 import { FeeAdjustmentsCard } from "./finances/FeeAdjustmentsCard";
+import { ReimbursementQueueSection } from "./finances/ReimbursementQueueSection";
 import { LedgerSection } from "./finances/LedgerSection";
 import { PlannedRosterCard } from "./finances/budget/PlannedRosterCard";
 import { BudgetPresetsCard } from "./finances/budget/BudgetPresetsCard";
@@ -995,6 +997,64 @@ export const FinancesTab = memo(() => {
   const removeFeeAdjustment = (id: string) =>
     updateFinances({ op: "removeById", key: "feeAdjustments", id });
 
+  // ---- Volunteer reimbursements (money owed back to coaches/parents).
+  const reimb = useMemo(() => reimbursementsSummary(finances), [finances]);
+  const [reimbTo, setReimbTo] = useState("");
+  const [reimbAmount, setReimbAmount] = useState("");
+  const [reimbNote, setReimbNote] = useState("");
+  const addReimbursement = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const amount = parseAmount(reimbAmount);
+    const to = reimbTo.trim();
+    if (!to || amount == null) return;
+    updateFinances({
+      op: "append",
+      key: "reimbursements",
+      entry: {
+        id: newId("reimb"),
+        to,
+        amount,
+        status: "unpaid",
+        date: dateToIsoLocal(new Date()),
+        ...(reimbNote.trim() ? { note: reimbNote.trim() } : {}),
+        ...recordedStamp(),
+      },
+    });
+    setReimbTo("");
+    setReimbAmount("");
+    setReimbNote("");
+  };
+  const markReimbursementPaid = (id: string) => {
+    const r = (finances.reimbursements || []).find((x) => x.id === id);
+    if (!r || r.status === "paid") return;
+    const expenseId = newId("exp");
+    const paidDate = dateToIsoLocal(new Date());
+    // One cash event: post the expense ONCE, then flip the row to paid.
+    updateFinances({
+      op: "append",
+      key: "expenses",
+      entry: {
+        id: expenseId,
+        date: paidDate,
+        label: `Reimbursement — ${r.to}`,
+        amount: round2(Number(r.amount) || 0),
+        ...recordedStamp(),
+      },
+    });
+    updateFinances({
+      op: "mapEntries",
+      key: "reimbursements",
+      map: (items) =>
+        items.map((x) =>
+          x.id === id
+            ? { ...x, status: "paid", paidDate, linkedExpenseId: expenseId }
+            : x,
+        ),
+    });
+  };
+  const removeReimbursement = (id: string) =>
+    updateFinances({ op: "removeById", key: "reimbursements", id });
+
   return (
     <div className="max-w-5xl mx-auto lg:max-w-none space-y-6">
       {/* Club balance hero — full width */}
@@ -1087,6 +1147,21 @@ export const FinancesTab = memo(() => {
             setAdjValue={setAdjValue}
             adjNote={adjNote}
             setAdjNote={setAdjNote}
+          />
+
+          {/* Money owed back to volunteers who fronted expenses */}
+          <ReimbursementQueueSection
+            reimbursements={finances.reimbursements || []}
+            outstanding={reimb.outstanding}
+            addReimbursement={addReimbursement}
+            markReimbursementPaid={markReimbursementPaid}
+            removeReimbursement={removeReimbursement}
+            reimbTo={reimbTo}
+            setReimbTo={setReimbTo}
+            reimbAmount={reimbAmount}
+            setReimbAmount={setReimbAmount}
+            reimbNote={reimbNote}
+            setReimbNote={setReimbNote}
           />
 
           {/* Ledger — money in & money out */}

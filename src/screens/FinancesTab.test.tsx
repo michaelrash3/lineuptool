@@ -1656,4 +1656,58 @@ describe("FinancesTab", () => {
       amount: 40,
     });
   });
+
+  it("adds a reimbursement as an unpaid liability", () => {
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    fireEvent.change(screen.getByLabelText("Reimburse to"), {
+      target: { value: "Parent A" },
+    });
+    fireEvent.change(screen.getByLabelText("Reimbursement amount"), {
+      target: { value: "60" },
+    });
+    fireEvent.submit(screen.getByLabelText("Reimburse to").closest("form")!);
+    const op = (teamValue.updateFinances as jest.Mock).mock.calls[0][0];
+    expect(op).toMatchObject({ op: "append", key: "reimbursements" });
+    expect(op.entry).toMatchObject({
+      to: "Parent A",
+      amount: 60,
+      status: "unpaid",
+    });
+  });
+
+  it("marks a reimbursement paid by posting one expense and flipping status", () => {
+    const withReimb: any = {
+      ...baseTeam,
+      finances: {
+        ...baseTeam.finances,
+        reimbursements: [
+          { id: "r1", to: "Coach Bo", amount: 45, status: "unpaid" },
+        ],
+      },
+    };
+    const { teamValue } = renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: withReimb } },
+    );
+    fireEvent.click(screen.getByLabelText("Mark Coach Bo reimbursed"));
+    const calls = (teamValue.updateFinances as jest.Mock).mock.calls;
+    // One expense posted…
+    expect(calls[0][0]).toMatchObject({ op: "append", key: "expenses" });
+    expect(calls[0][0].entry).toMatchObject({
+      label: "Reimbursement — Coach Bo",
+      amount: 45,
+    });
+    // …then the reimbursement flips to paid.
+    expect(calls[1][0]).toMatchObject({
+      op: "mapEntries",
+      key: "reimbursements",
+    });
+  });
 });
