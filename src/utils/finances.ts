@@ -46,7 +46,7 @@ export const round2 = (n: number): number => Math.round(n * 100) / 100;
 // and the exclusion can never drift between the P&L, the cash-flow chart, and
 // the CSV export. Legacy rows (no voidedAt) are never voided.
 export const isVoided = (
-  e: { voidedAt?: string } | null | undefined,
+  e: { voidedAt?: string; voidedBy?: string } | null | undefined,
 ): boolean => !!e?.voidedAt;
 
 // Sanity cap on typed dollar amounts — a youth team's ledger has no business

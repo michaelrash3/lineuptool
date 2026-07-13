@@ -802,6 +802,29 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [activeTeamId, toast]);
 
+  // Storage-headroom guard shared by persistTeam and updateFinances: the whole
+  // team is one Firestore doc (~1 MiB cap). Estimate the post-write size and
+  // warn ONCE when nearing the limit so a coach can archive old seasons before
+  // a write silently fails. Non-blocking — the write still proceeds.
+  const warnDocSizeOnce = useCallback(
+    (estimatedDoc: Record<string, unknown>) => {
+      if (docSizeWarnedRef.current) return;
+      const estimated = estimateDocSizeBytes(estimatedDoc);
+      if (estimated > FIRESTORE_DOC_LIMIT_BYTES * DOC_SIZE_WARN_RATIO) {
+        docSizeWarnedRef.current = true;
+        toast.push({
+          kind: "warn",
+          title: "Team data is getting large",
+          message: `Using ${Math.round(
+            estimated / 1024,
+          )} KB of the ~1 MB limit. Consider archiving old seasons (Advance Season) to free space.`,
+          duration: 0,
+        });
+      }
+    },
+    [toast],
+  );
+
   // Helper: write a partial update to the active team document. Resolves to
   // `true` on success and `false` on failure so optimistic callers (updateTeam)
   // can roll back. Pass `{ silent: true }` to suppress the built-in failure
@@ -891,22 +914,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
           : Array.isArray(prev.games)
             ? prev.games.map(slimGame)
             : [];
-        const estimated = estimateDocSizeBytes({
-          ...prev,
-          ...toPersist,
-          games: mergedGames,
-        });
-        if (estimated > FIRESTORE_DOC_LIMIT_BYTES * DOC_SIZE_WARN_RATIO) {
-          docSizeWarnedRef.current = true;
-          toast.push({
-            kind: "warn",
-            title: "Team data is getting large",
-            message: `Using ${Math.round(
-              estimated / 1024,
-            )} KB of the ~1 MB limit. Consider archiving old seasons (Advance Season) to free space.`,
-            duration: 0,
-          });
-        }
+        warnDocSizeOnce({ ...prev, ...toPersist, games: mergedGames });
       }
 
       setSyncStatus("Saving");
@@ -943,7 +951,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
     },
-    [activeTeamId, toast],
+    [activeTeamId, toast, warnDocSizeOnce],
   );
 
   // Expose persistTeam to the onSnapshot above so the eval schema migration
@@ -1126,6 +1134,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       const prevFinances = (teamDataRef.current?.finances ||
         {}) as import("../types").TeamFinances;
       const nextFinances = applyFinanceUpdate(prevFinances, update);
+      // Storage-headroom guard: finance appends (payments/incomes/expenses/
+      // budgetItems) are the app's only unbounded-growth arrays, and this write
+      // path bypassed the size check persistTeam runs. Warn once near the cap.
+      warnDocSizeOnce({
+        ...(teamDataRef.current || {}),
+        finances: nextFinances,
+      });
       setTeamData((p: any) => ({ ...p, finances: nextFinances })); // optimistic
       const payload = buildFinancePayload(prevFinances, update, {
         arrayUnion,
@@ -1181,7 +1196,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         },
       );
     },
-    [activeTeamId, toast],
+    [activeTeamId, toast, warnDocSizeOnce],
   );
 
   // Concurrency-safe mutations for the top-level team arrays (players / games
