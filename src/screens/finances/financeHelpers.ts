@@ -1,4 +1,5 @@
 import { genId, parseMoneyInput } from "../../utils/helpers";
+import type { FinanceCategoryId } from "../../constants/financeCategories";
 
 export const newId = (prefix: string) => genId(prefix);
 
@@ -40,3 +41,16 @@ export const LEDGER_RENDER_CAP = 100;
 
 export type LedgerSortKey = "date" | "label" | "in" | "out" | "balance";
 export type BudgetSortKey = "label" | "qty" | "planned" | "spent";
+
+// In-flight inline edit of a budget item (label + cost, keeping its qty/flat
+// mode). Shared by FinancesTab's edit state and BudgetItemsCard's props so the
+// two never drift.
+export interface BudgetItemEdit {
+  id: string;
+  mode: "qty" | "flat";
+  label: string;
+  qty: string;
+  unitAmount: string;
+  amount: string;
+  category: FinanceCategoryId | "";
+}

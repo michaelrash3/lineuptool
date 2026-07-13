@@ -1532,4 +1532,37 @@ describe("FinancesTab", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Nothing logged yet/i)).toBeInTheDocument();
   });
+
+  it("composes the Budget Planner from flat sibling sub-cards (Fragment discipline)", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <FinancesTab />
+      </MemoryRouter>,
+      { team: { team: baseTeam } },
+    );
+    // The planner card body holds every sub-card's blocks as DIRECT children:
+    // each extracted sub-card (BudgetItemsCard / BudgetPresetsCard /
+    // SponsorshipSection / PlannedRosterCard) returns a Fragment, so a stray
+    // wrapper <div> would nest these and change the space-y-3 spacing even
+    // though the text-based tests would still pass.
+    const section = screen
+      .getByText("Budget Planner — next season")
+      .closest("section")!;
+    const body = section.querySelector(".space-y-3");
+    expect(body).toBeTruthy();
+    const kids = Array.from(body!.children);
+    // BudgetPresetsCard: the add-item <form> is a direct child.
+    const addForm = (
+      screen.getByLabelText("Budget item") as HTMLElement
+    ).closest("form");
+    expect(addForm && kids.includes(addForm)).toBe(true);
+    // BudgetItemsCard: the by-category rollup block is a direct child.
+    expect(kids.some((el) => el.textContent?.includes("By category"))).toBe(
+      true,
+    );
+    // PlannedRosterCard: the budget-total block is a direct child.
+    expect(kids.some((el) => el.textContent?.includes("Budget total:"))).toBe(
+      true,
+    );
+  });
 });
