@@ -1485,28 +1485,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   } = usePastSeasonCrud({ updateTeamArrays, confirm });
 
   // ----- Coach actions -----
-  const addCoach = useCallback(
-    (form: { name: string; role: string }) => {
-      if (!form.name.trim()) return;
-      const newCoach = {
-        id: genId("c"),
-        name: form.name.trim(),
-        role: form.role,
-      };
-      updateTeam({ coaches: [...teamData.coaches, newCoach] });
-    },
-    [teamData.coaches, updateTeam],
-  );
-
-  const removeCoach = useCallback(
-    (id: string) => {
-      updateTeam({
-        coaches: teamData.coaches.filter((c: { id: string }) => c.id !== id),
-      });
-    },
-    [teamData.coaches, updateTeam],
-  );
-
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
     useGameCrud({ teamData, updateTeamArrays, toast, confirm });
@@ -2271,7 +2249,11 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     activeTeamId,
   });
 
-  const { setCoachRole } = useTeamMembership({ teamData, updateTeam, user });
+  const { setCoachRole, addCoach, removeCoach } = useTeamMembership({
+    teamData,
+    updateTeam,
+    user,
+  });
   const { regenerateJoinCode, joinTeamByCode } = useInviteFlows({
     user,
     teams,
