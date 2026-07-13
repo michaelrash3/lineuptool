@@ -877,6 +877,50 @@ export interface PaymentEntry extends FinanceAttribution {
   refund?: boolean;
 }
 
+// A per-player fee adjustment beyond the all-or-nothing feeExemptIds waiver:
+// a partial scholarship, a sibling/multi-child discount, or a custom override.
+// Unlike an exemption (which removes the player from the split divisor), an
+// adjusted player is STILL a payer — they just owe a reduced fee. Exactly one
+// of `amount` (fixed dollars off) or `pct` (percent off the base fee) is set.
+// Coach-internal; extends FinanceAttribution for the audit trail.
+export interface FeeAdjustment extends FinanceAttribution {
+  id: string;
+  playerId: PlayerId;
+  kind: "scholarship" | "sibling" | "override";
+  amount?: number;
+  pct?: number;
+  note?: string;
+}
+
+// Money owed back to a coach/parent who fronted a team expense (bought
+// equipment, paid an entry fee). An UNPAID reimbursement is a liability that
+// does NOT touch the club balance; on mark-paid it posts a single ExpenseEntry
+// (linkedExpenseId) so the cash leaves exactly once. `to` is a free-text name
+// (same PII class as a sponsor name — no user/player link). Coach-internal.
+export interface Reimbursement extends FinanceAttribution {
+  id: string;
+  to: string;
+  amount: number;
+  note?: string;
+  status: "unpaid" | "paid";
+  date?: string; // ISO yyyy-mm-dd, when logged
+  paidDate?: string; // ISO yyyy-mm-dd, when reimbursed
+  linkedExpenseId?: string; // the ExpenseEntry created on mark-paid
+}
+
+// A month-end reconciliation: the real bank/cash balance the coach entered for
+// a month, snapshotted against the ledger balance at that moment. Variance
+// (bank − ledger) is derived at read time; the ledger snapshot lets the app
+// flag DRIFT when the ledger changes after a month was reconciled. One per
+// month (deduped). Coach-internal.
+export interface Reconciliation extends FinanceAttribution {
+  id: string;
+  month: string; // "2026-03"
+  bankBalance: number;
+  ledgerBalanceAtReconcile: number;
+  note?: string;
+}
+
 // Compact per-season money summary kept when the season is advanced — the
 // row-level ledger resets each season (the closing balance carries over as an
 // opening entry), but the season's totals stay reviewable.
@@ -916,9 +960,13 @@ export interface TeamFinances {
   // depositDueDate when the season advances.
   nextDepositAmount?: number;
   nextDepositDueDate?: string;
-  // Players exempt from the club fee (fall-only pickups, scholarships).
+  // Players exempt from the club fee (fall-only pickups, full scholarships).
   // They never count toward "still owed" or the suggested-fee split.
   feeExemptIds?: PlayerId[];
+  // Per-player partial fee adjustments (scholarships / sibling discounts /
+  // custom overrides). Unlike feeExemptIds these players still count as payers;
+  // their effective fee is just reduced. Cleared on the season roll.
+  feeAdjustments?: FeeAdjustment[];
   // Sales tax % (e.g. 8.25) applied to budget items flagged `taxable` in all
   // planner math, so pre-tax quotes project as real costs.
   salesTaxPct?: number;
@@ -936,6 +984,13 @@ export interface TeamFinances {
   expenses?: ExpenseEntry[];
   incomes?: IncomeEntry[];
   payments?: PaymentEntry[];
+  // Money owed back to volunteers who fronted expenses. Unpaid entries are a
+  // liability (not in the balance); paid ones post an expense. Unpaid entries
+  // carry across the season roll (real debt); paid ones are dropped.
+  reimbursements?: Reimbursement[];
+  // Month-end reconciliations against the real bank balance (one per month).
+  // Dropped on the season roll — a new year starts unreconciled.
+  reconciliations?: Reconciliation[];
   pastSeasons?: FinancePastSeason[];
 }
 

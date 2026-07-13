@@ -23,6 +23,10 @@ import {
   isVoided,
   financeIntegrity,
   monthlyCashflow,
+  seasonOutlook,
+  feeAdjustmentAmount,
+  reimbursementsSummary,
+  reconciliationStatus,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -863,5 +867,256 @@ describe("financeIntegrity — orphaned references (reconcile nudge)", () => {
       orphanPlayerRefs: 0,
       orphanExpenseLinks: 0,
     });
+  });
+});
+
+describe("seasonOutlook — forward projection", () => {
+  it("returns null when there's nothing to project", () => {
+    expect(seasonOutlook({}, [])).toBeNull(); // no budget
+    // budget but no payers (empty roster, no planned count):
+    expect(
+      seasonOutlook(
+        { budgetItems: [{ id: "b", label: "x", amount: 500 }] },
+        [],
+      ),
+    ).toBeNull();
+  });
+
+  it("projects break-even, cushion, and end balance at the set fee", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b", label: "Season", amount: 1000 }],
+      sponsorships: [{ id: "s", sponsor: "Pizza", amount: 200 }],
+      nextClubFee: 120,
+      plannedPlayerCount: 10,
+    };
+    const o = seasonOutlook(finances, [])!;
+    expect(o.feeSource).toBe("set");
+    expect(o.feeUsed).toBe(120);
+    expect(o.plannedPayers).toBe(10);
+    expect(o.breakEvenFee).toBe(80); // (1000 - 200) / 10
+    expect(o.bufferPerPlayer).toBe(40); // 120 - 80
+    expect(o.projectedEndBalance).toBe(400); // 120*10 + 200 - 1000
+    expect(o.bufferTotal).toBe(o.projectedEndBalance); // identity
+  });
+
+  it("falls back to the suggested fee when none is set", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b", label: "Season", amount: 800 }],
+      plannedPlayerCount: 8,
+    };
+    const o = seasonOutlook(finances, [])!;
+    expect(o.feeSource).toBe("suggested");
+    expect(o.feeUsed).toBe(100); // ceil(800 / 8)
+    expect(o.breakEvenFee).toBe(100);
+    expect(o.projectedEndBalance).toBe(0); // exactly break-even
+  });
+});
+
+describe("fee adjustments — scholarships & discounts", () => {
+  const players = [{ id: "p1" }, { id: "p2" }];
+
+  it("feeAdjustmentAmount resolves pct against the base fee and floors amounts", () => {
+    expect(feeAdjustmentAmount({ pct: 25 }, 200)).toBe(50);
+    expect(feeAdjustmentAmount({ pct: 100 }, 200)).toBe(200);
+    expect(feeAdjustmentAmount({ amount: 30 }, 200)).toBe(30);
+    expect(feeAdjustmentAmount({ amount: -5 }, 200)).toBe(0);
+    expect(feeAdjustmentAmount(undefined, 200)).toBe(0);
+  });
+
+  it("reduces a player's effective fee (amount and pct)", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      feeAdjustments: [
+        { id: "a1", playerId: "p1", kind: "scholarship", amount: 40 },
+        { id: "a2", playerId: "p2", kind: "sibling", pct: 50 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    expect(s.effectiveFeeByPlayer.p1).toBe(60); // 100 - 40
+    expect(s.effectiveFeeByPlayer.p2).toBe(50); // 100 - 50%
+    expect(s.stillOwed).toBe(110); // nobody's paid: 60 + 50
+  });
+
+  it("stacks the adjustment after the fundraising credit, floored at 0", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      incomes: [
+        {
+          id: "i",
+          date: "2026-01-01",
+          label: "Car wash",
+          amount: 40,
+          fundraising: true,
+        },
+      ],
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", amount: 80 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    // even-split credit = 40 / 2 = 20 each; p1: 100 - 20 - 80 = 0 (floored).
+    expect(s.effectiveFeeByPlayer.p1).toBe(0);
+    expect(s.effectiveFeeByPlayer.p2).toBe(80); // 100 - 20, no adjustment
+  });
+
+  it("a 100% scholarship zeroes the fee but keeps the player a payer", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", pct: 100 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    expect(s.effectiveFeeByPlayer.p1).toBe(0);
+    expect(s.effectiveFeeByPlayer.p2).toBe(100);
+  });
+
+  it("ignores adjustments for fee-exempt (non-payer) players", () => {
+    const finances: TeamFinances = {
+      clubFee: 100,
+      feeExemptIds: ["p1"],
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", amount: 50 },
+      ],
+    };
+    const s = financeSummary(finances, players);
+    expect(s.effectiveFeeByPlayer.p1).toBeUndefined(); // exempt → not a payer
+    expect(s.stillOwed).toBe(100); // only p2 owes the full fee
+  });
+
+  it("clears feeAdjustments on the season roll", () => {
+    const finances: TeamFinances = {
+      ...activeFinances(),
+      feeAdjustments: [
+        { id: "a", playerId: "p1", kind: "scholarship", amount: 40 },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.feeAdjustments).toBeUndefined();
+  });
+});
+
+describe("volunteer reimbursements", () => {
+  it("reimbursementsSummary splits unpaid vs paid; outstanding = unpaid", () => {
+    const finances: TeamFinances = {
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 50, status: "unpaid" },
+        { id: "r2", to: "Parent", amount: 30, status: "unpaid" },
+        { id: "r3", to: "Coach", amount: 20, status: "paid" },
+      ],
+    };
+    const s = reimbursementsSummary(finances);
+    expect(s.unpaid).toBe(80);
+    expect(s.paid).toBe(20);
+    expect(s.outstanding).toBe(80);
+  });
+
+  it("an unpaid reimbursement does NOT touch balanceNow", () => {
+    const base = financeSummary(activeFinances(), []).balanceNow;
+    const withReimb: TeamFinances = {
+      ...activeFinances(),
+      reimbursements: [{ id: "r", to: "Coach", amount: 500, status: "unpaid" }],
+    };
+    expect(financeSummary(withReimb, []).balanceNow).toBe(base);
+  });
+
+  it("the season roll keeps unpaid reimbursements and drops paid ones", () => {
+    const finances: TeamFinances = {
+      ...activeFinances(),
+      reimbursements: [
+        { id: "r1", to: "Coach", amount: 50, status: "unpaid" },
+        {
+          id: "r2",
+          to: "Parent",
+          amount: 20,
+          status: "paid",
+          linkedExpenseId: "e",
+        },
+      ],
+    };
+    const rolled = rollFinancesForNewSeason(
+      finances,
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.reimbursements).toHaveLength(1);
+    expect(rolled.reimbursements?.[0].id).toBe("r1");
+  });
+});
+
+describe("reconciliationStatus — month-end bank reconcile", () => {
+  const players = [{ id: "p1" }];
+  const book = (rec: any[]): TeamFinances => ({
+    payments: [{ id: "p", playerId: "p1", date: "2026-03-05", amount: 100 }],
+    reconciliations: rec,
+  });
+
+  it("returns a row per dated month, unreconciled by default", () => {
+    const rows = reconciliationStatus(book([]), players);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      month: "2026-03",
+      reconciled: false,
+      ledgerBalanceNow: 100,
+      variance: null,
+    });
+  });
+
+  it("computes variance = bank − ledger for a reconciled month", () => {
+    const rows = reconciliationStatus(
+      book([
+        {
+          id: "r",
+          month: "2026-03",
+          bankBalance: 120,
+          ledgerBalanceAtReconcile: 100,
+        },
+      ]),
+      players,
+    );
+    expect(rows[0]).toMatchObject({
+      reconciled: true,
+      bankBalance: 120,
+      variance: 20,
+      drifted: false,
+    });
+  });
+
+  it("flags drift when the ledger changed after the month was reconciled", () => {
+    const rows = reconciliationStatus(
+      book([
+        {
+          id: "r",
+          month: "2026-03",
+          bankBalance: 100,
+          ledgerBalanceAtReconcile: 90,
+        },
+      ]),
+      players,
+    );
+    expect(rows[0]).toMatchObject({ variance: 0, drifted: true });
+  });
+
+  it("drops reconciliations on the season roll", () => {
+    const rolled = rollFinancesForNewSeason(
+      {
+        ...activeFinances(),
+        reconciliations: [
+          {
+            id: "r",
+            month: "2026-03",
+            bankBalance: 100,
+            ledgerBalanceAtReconcile: 100,
+          },
+        ],
+      },
+      "Spring 2027",
+      "2027-08-15",
+    )!;
+    expect(rolled.reconciliations).toBeUndefined();
   });
 });

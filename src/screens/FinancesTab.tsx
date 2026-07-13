@@ -19,6 +19,9 @@ import {
   incomeByCategory,
   financeSummary,
   financeIntegrity,
+  seasonOutlook,
+  reimbursementsSummary,
+  reconciliationStatus,
   transactionLedger,
   dateToIsoLocal,
   isValidIsoDate,
@@ -38,14 +41,19 @@ import { SectionCard } from "./finances/SectionCard";
 import { CashFlowSection } from "./finances/CashFlowSection";
 import { SponsorshipSection } from "./finances/SponsorshipSection";
 import { FeeCollectionSection } from "./finances/FeeCollectionSection";
+import { FeeAdjustmentsCard } from "./finances/FeeAdjustmentsCard";
+import { ReimbursementQueueSection } from "./finances/ReimbursementQueueSection";
+import { ReconciliationSection } from "./finances/ReconciliationSection";
 import { LedgerSection } from "./finances/LedgerSection";
 import { PlannedRosterCard } from "./finances/budget/PlannedRosterCard";
 import { BudgetPresetsCard } from "./finances/budget/BudgetPresetsCard";
 import { BudgetItemsCard } from "./finances/budget/BudgetItemsCard";
+import { SeasonOutlookCard } from "./finances/budget/SeasonOutlookCard";
 import {
   newId,
   parseAmount,
   parseCount,
+  monthLabel,
   LEDGER_RENDER_CAP,
 } from "./finances/financeHelpers";
 import type {
@@ -115,6 +123,11 @@ export const FinancesTab = memo(() => {
     [finances, players],
   );
   const orphanCount = integrity.orphanPlayerRefs + integrity.orphanExpenseLinks;
+  // Forward-looking projection for the Budget Planner (pure-derived, no writes).
+  const outlook = useMemo(
+    () => seasonOutlook(finances, players),
+    [finances, players],
+  );
   const toast = useToast();
   const { promptText } = useConfirm();
   const budget = budgetTotal(finances);
@@ -949,6 +962,142 @@ export const FinancesTab = memo(() => {
     setNextDepositInput(null);
   };
 
+  // ---- Per-player fee adjustments (scholarships / sibling discounts).
+  const [adjPlayerId, setAdjPlayerId] = useState("");
+  const [adjKind, setAdjKind] = useState<
+    "scholarship" | "sibling" | "override"
+  >("scholarship");
+  const [adjMode, setAdjMode] = useState<"amount" | "pct">("amount");
+  const [adjValue, setAdjValue] = useState("");
+  const [adjNote, setAdjNote] = useState("");
+  const addFeeAdjustment = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!adjPlayerId) return;
+    const num = Number(String(adjValue).replace(/[$%,\s]/g, ""));
+    if (!Number.isFinite(num) || num <= 0) return;
+    if (adjMode === "pct" && num > 100) return;
+    const entry = {
+      id: newId("adj"),
+      playerId: adjPlayerId,
+      kind: adjKind,
+      ...(adjMode === "pct" ? { pct: round2(num) } : { amount: round2(num) }),
+      ...(adjNote.trim() ? { note: adjNote.trim() } : {}),
+      ...recordedStamp(),
+    };
+    // One active adjustment per player: replace any existing for them.
+    updateFinances({
+      op: "mapEntries",
+      key: "feeAdjustments",
+      map: (items) => [
+        ...items.filter((a) => a.playerId !== adjPlayerId),
+        entry,
+      ],
+    });
+    setAdjPlayerId("");
+    setAdjValue("");
+    setAdjNote("");
+  };
+  const removeFeeAdjustment = (id: string) =>
+    updateFinances({ op: "removeById", key: "feeAdjustments", id });
+
+  // ---- Volunteer reimbursements (money owed back to coaches/parents).
+  const reimb = useMemo(() => reimbursementsSummary(finances), [finances]);
+  const [reimbTo, setReimbTo] = useState("");
+  const [reimbAmount, setReimbAmount] = useState("");
+  const [reimbNote, setReimbNote] = useState("");
+  const addReimbursement = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const amount = parseAmount(reimbAmount);
+    const to = reimbTo.trim();
+    if (!to || amount == null) return;
+    updateFinances({
+      op: "append",
+      key: "reimbursements",
+      entry: {
+        id: newId("reimb"),
+        to,
+        amount,
+        status: "unpaid",
+        date: dateToIsoLocal(new Date()),
+        ...(reimbNote.trim() ? { note: reimbNote.trim() } : {}),
+        ...recordedStamp(),
+      },
+    });
+    setReimbTo("");
+    setReimbAmount("");
+    setReimbNote("");
+  };
+  const markReimbursementPaid = (id: string) => {
+    const r = (finances.reimbursements || []).find((x) => x.id === id);
+    if (!r || r.status === "paid") return;
+    const expenseId = newId("exp");
+    const paidDate = dateToIsoLocal(new Date());
+    // One cash event: post the expense ONCE, then flip the row to paid.
+    updateFinances({
+      op: "append",
+      key: "expenses",
+      entry: {
+        id: expenseId,
+        date: paidDate,
+        label: `Reimbursement — ${r.to}`,
+        amount: round2(Number(r.amount) || 0),
+        ...recordedStamp(),
+      },
+    });
+    updateFinances({
+      op: "mapEntries",
+      key: "reimbursements",
+      map: (items) =>
+        items.map((x) =>
+          x.id === id
+            ? { ...x, status: "paid", paidDate, linkedExpenseId: expenseId }
+            : x,
+        ),
+    });
+  };
+  const removeReimbursement = (id: string) =>
+    updateFinances({ op: "removeById", key: "reimbursements", id });
+
+  // ---- Month-end reconciliation against the real bank balance.
+  const reconRows = useMemo(
+    () => reconciliationStatus(finances, players),
+    [finances, players],
+  );
+  const reconcileMonth = async (month: string, ledgerBalanceNow: number) => {
+    const raw = await promptText({
+      title: `Reconcile ${monthLabel(month)}`,
+      message: `Enter the real bank/cash balance at the end of ${monthLabel(
+        month,
+      )}. The ledger shows ${formatCurrency(ledgerBalanceNow)}.`,
+      label: "Bank balance",
+      placeholder: String(ledgerBalanceNow),
+      confirmLabel: "Save",
+    });
+    if (raw == null) return;
+    // A bank balance can legitimately be negative (overdrawn), so parse
+    // directly rather than through the positive-only money parser.
+    const bank = Number(String(raw).replace(/[$,\s]/g, ""));
+    if (!Number.isFinite(bank)) {
+      toast.push({ kind: "error", title: "Enter a valid bank balance" });
+      return;
+    }
+    updateFinances({
+      op: "mapEntries",
+      key: "reconciliations",
+      // Dedupe by month: replace any existing entry for this month.
+      map: (items) => [
+        ...items.filter((r) => r.month !== month),
+        {
+          id: newId("rec"),
+          month,
+          bankBalance: round2(bank),
+          ledgerBalanceAtReconcile: ledgerBalanceNow,
+          ...recordedStamp(),
+        },
+      ],
+    });
+  };
+
   return (
     <div className="max-w-5xl mx-auto lg:max-w-none space-y-6">
       {/* Club balance hero — full width */}
@@ -1023,6 +1172,41 @@ export const FinancesTab = memo(() => {
             reverseCarryoverDiscount={reverseCarryoverDiscount}
           />
 
+          {/* Per-player scholarships / sibling discounts */}
+          <FeeAdjustmentsCard
+            players={players}
+            adjustments={finances.feeAdjustments || []}
+            clubFee={clubFee}
+            effectiveFeeByPlayer={summary.effectiveFeeByPlayer}
+            addFeeAdjustment={addFeeAdjustment}
+            removeFeeAdjustment={removeFeeAdjustment}
+            adjPlayerId={adjPlayerId}
+            setAdjPlayerId={setAdjPlayerId}
+            adjKind={adjKind}
+            setAdjKind={setAdjKind}
+            adjMode={adjMode}
+            setAdjMode={setAdjMode}
+            adjValue={adjValue}
+            setAdjValue={setAdjValue}
+            adjNote={adjNote}
+            setAdjNote={setAdjNote}
+          />
+
+          {/* Money owed back to volunteers who fronted expenses */}
+          <ReimbursementQueueSection
+            reimbursements={finances.reimbursements || []}
+            outstanding={reimb.outstanding}
+            addReimbursement={addReimbursement}
+            markReimbursementPaid={markReimbursementPaid}
+            removeReimbursement={removeReimbursement}
+            reimbTo={reimbTo}
+            setReimbTo={setReimbTo}
+            reimbAmount={reimbAmount}
+            setReimbAmount={setReimbAmount}
+            reimbNote={reimbNote}
+            setReimbNote={setReimbNote}
+          />
+
           {/* Ledger — money in & money out */}
           <LedgerSection
             finances={finances}
@@ -1067,6 +1251,12 @@ export const FinancesTab = memo(() => {
             setTxnFundraising={setTxnFundraising}
             txnCreditPlayerId={txnCreditPlayerId}
             setTxnCreditPlayerId={setTxnCreditPlayerId}
+          />
+
+          {/* Month-end reconciliation against the real bank balance */}
+          <ReconciliationSection
+            rows={reconRows}
+            reconcileMonth={reconcileMonth}
           />
         </div>
         {/* end left col */}
@@ -1168,6 +1358,8 @@ export const FinancesTab = memo(() => {
             setNextDepositInput={setNextDepositInput}
             commitNextDeposit={commitNextDeposit}
           />
+          {/* Forward-looking projection built from the plan above. */}
+          <SeasonOutlookCard outlook={outlook} />
         </div>
       </SectionCard>
     </div>

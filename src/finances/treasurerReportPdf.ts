@@ -11,6 +11,8 @@ import {
   budgetItemAmount,
   financeSummary,
   formatCurrency,
+  reimbursementsSummary,
+  reconciliationStatus,
   round2,
 } from "../utils/helpers";
 import {
@@ -46,6 +48,15 @@ export interface TreasurerReportData {
     paid: number;
     owed: number;
     waived: boolean;
+  }>;
+  // Unpaid reimbursements owed back to volunteers (a liability).
+  reimbursementsOutstanding: number;
+  // Reconciled months: real bank figure vs the ledger, with drift flags.
+  reconciliations: Array<{
+    label: string;
+    bankBalance: number;
+    variance: number;
+    drifted: boolean;
   }>;
   pastSeasons: FinancePastSeason[];
 }
@@ -106,6 +117,16 @@ export const buildTreasurerReportData = (
       };
     });
 
+  const reimbursementsOutstanding = reimbursementsSummary(finances).outstanding;
+  const reconciliations = reconciliationStatus(finances, players)
+    .filter((r) => r.reconciled && r.bankBalance != null && r.variance != null)
+    .map((r) => ({
+      label: `${r.label} ${r.month.slice(0, 4)}`,
+      bankBalance: r.bankBalance as number,
+      variance: r.variance as number,
+      drifted: r.drifted,
+    }));
+
   return {
     collected: s.collected,
     otherIncome: s.otherIncome,
@@ -122,6 +143,8 @@ export const buildTreasurerReportData = (
     budgetRows,
     unplanned: round2(actuals.unplanned),
     collections,
+    reimbursementsOutstanding,
+    reconciliations,
     pastSeasons: finances.pastSeasons || [],
   };
 };
@@ -362,6 +385,47 @@ const renderTreasurerReportPdf = async ({
       [{ text: formatCurrency(data.stillOwed), x: owedX }],
       { bold: true },
     );
+    y += 14;
+  }
+
+  // ---- Reconciliation & liabilities ----
+  if (data.reimbursementsOutstanding > 0 || data.reconciliations.length > 0) {
+    sectionTitle("Reconciliation & liabilities");
+    if (data.reimbursementsOutstanding > 0) {
+      moneyRow(
+        "Owed to volunteers (unpaid reimbursements)",
+        [
+          {
+            text: formatCurrency(data.reimbursementsOutstanding),
+            x: right - 8,
+          },
+        ],
+        { bold: true },
+      );
+    }
+    if (data.reconciliations.length > 0) {
+      const bankX = right - 150;
+      const varX = right - 8;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(8);
+      pdf.setTextColor(SLATE_400[0], SLATE_400[1], SLATE_400[2]);
+      pdf.text("BANK", bankX, y - 4, { align: "right" });
+      pdf.text("VARIANCE", varX, y - 4, { align: "right" });
+      y += 6;
+      data.reconciliations.forEach((r, i) => {
+        moneyRow(
+          r.drifted ? `${r.label} (drifted since)` : r.label,
+          [
+            { text: formatCurrency(r.bankBalance), x: bankX },
+            {
+              text: r.variance === 0 ? "✓" : formatCurrency(r.variance),
+              x: varX,
+            },
+          ],
+          { zebra: i % 2 === 0 },
+        );
+      });
+    }
     y += 14;
   }
 

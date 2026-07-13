@@ -49,6 +49,22 @@ export const isVoided = (
   e: { voidedAt?: string; voidedBy?: string } | null | undefined,
 ): boolean => !!e?.voidedAt;
 
+// Resolve a per-player fee adjustment (scholarship / sibling discount /
+// override) to a dollar amount OFF the base fee. A `pct` is a percentage of the
+// base (sticker) fee, clamped to 0–100; an `amount` is a flat dollar reduction.
+// Floored at 0 so an adjustment never adds to the fee.
+export const feeAdjustmentAmount = (
+  adj: { amount?: number; pct?: number } | null | undefined,
+  baseFee: number,
+): number => {
+  if (!adj) return 0;
+  if (adj.pct != null) {
+    const pct = Math.max(0, Math.min(100, money(adj.pct)));
+    return round2((Math.max(0, baseFee) * pct) / 100);
+  }
+  return Math.max(0, money(adj.amount));
+};
+
 // Sanity cap on typed dollar amounts — a youth team's ledger has no business
 // holding a seven-figure entry; beyond this it's a typo.
 export const MAX_MONEY_INPUT = 1_000_000;
@@ -389,13 +405,25 @@ export const financeSummary = (
   const duesCreditPerPlayer =
     payers.length > 0 ? round2(evenPool / payers.length) : 0;
   const effectiveFeePerPlayer = Math.max(0, fee - duesCreditPerPlayer);
+  // Per-player fee adjustments (scholarships / sibling discounts) stack AFTER
+  // the fundraising credit and are floored at 0; a pct resolves against the
+  // base fee. Adjustments only apply to actual payers (an exempt or off-roster
+  // player has no fee to reduce).
+  const adjByPlayer: Record<string, number> = {};
+  for (const adj of finances?.feeAdjustments || []) {
+    const pid = String(adj?.playerId || "");
+    if (!pid || !payerIds.has(pid)) continue;
+    adjByPlayer[pid] = round2(
+      (adjByPlayer[pid] || 0) + feeAdjustmentAmount(adj, fee),
+    );
+  }
   const creditByPlayer: Record<string, number> = {};
   const effectiveFeeByPlayer: Record<string, number> = {};
   let stillOwed = 0;
   for (const p of payers) {
     const credit = (attributedCredit[p.id] || 0) + duesCreditPerPlayer;
     creditByPlayer[p.id] = round2(credit);
-    const eff = round2(Math.max(0, fee - credit));
+    const eff = round2(Math.max(0, fee - credit - (adjByPlayer[p.id] || 0)));
     effectiveFeeByPlayer[p.id] = eff;
     stillOwed += Math.max(0, round2(eff - (paidByPlayer[p.id] || 0)));
   }
@@ -474,6 +502,142 @@ export const teamFeesStatus = (
     depositDueDate: finances?.depositDueDate || null,
     feeDueDate: finances?.feeDueDate || null,
   };
+};
+
+// Forward-looking Season Outlook for the Budget Planner — 100% derived from the
+// plan (planned roster size, pledged sponsorships, budget items) plus the set /
+// suggested fee. Answers "are we going to be short?" before the season starts.
+// Nothing is persisted.
+export interface SeasonOutlook {
+  plannedPayers: number; // divisor: anticipated roster or this year's payers
+  budget: number; // total planned cost
+  sponsorOffset: number; // pledges whose switch offsets the fee
+  feeUsed: number; // the fee the projection assumes (set or suggested)
+  feeSource: "set" | "suggested";
+  breakEvenFee: number; // per-player fee that exactly covers the net budget
+  projectedEndBalance: number; // surplus/shortfall if every payer pays feeUsed
+  bufferPerPlayer: number; // feeUsed − breakEvenFee (the per-family cushion)
+  bufferTotal: number; // cushion × payers (equals projectedEndBalance)
+  carryover: number; // this year's closing balance rolling in
+  projectedWithCarryover: number; // carryover + projectedEndBalance
+}
+
+// null when there's nothing to project (no budget, no payers, or no fee yet) —
+// mirrors suggestedFeePerPlayer's null semantics.
+export const seasonOutlook = (
+  finances: TeamFinances | null | undefined,
+  players: Array<{ id: string }> | null | undefined,
+): SeasonOutlook | null => {
+  const budget = budgetTotal(finances);
+  if (budget <= 0) return null;
+  const plannedPayers = plannedPayerCount(finances, players);
+  if (plannedPayers <= 0) return null;
+  const setFee = money(finances?.nextClubFee);
+  const suggested = suggestedFeePerPlayer(finances, players);
+  const feeUsed = setFee > 0 ? setFee : suggested;
+  if (feeUsed == null || feeUsed <= 0) return null;
+  const feeSource: "set" | "suggested" = setFee > 0 ? "set" : "suggested";
+  const sponsorOffset = feeOffsetSponsorshipTotal(finances);
+  const breakEvenFee = round2(
+    Math.max(0, budget - sponsorOffset) / plannedPayers,
+  );
+  const projectedEndBalance = round2(
+    feeUsed * plannedPayers + sponsorOffset - budget,
+  );
+  const bufferPerPlayer = round2(feeUsed - breakEvenFee);
+  const bufferTotal = round2(bufferPerPlayer * plannedPayers);
+  const carryover = financeSummary(finances, players).balanceNow;
+  const projectedWithCarryover = round2(carryover + projectedEndBalance);
+  return {
+    plannedPayers,
+    budget,
+    sponsorOffset,
+    feeUsed,
+    feeSource,
+    breakEvenFee,
+    projectedEndBalance,
+    bufferPerPlayer,
+    bufferTotal,
+    carryover,
+    projectedWithCarryover,
+  };
+};
+
+export interface ReimbursementsSummary {
+  unpaid: number; // liability still owed to volunteers
+  paid: number; // already reimbursed this season
+  outstanding: number; // = unpaid (money the club still owes back)
+}
+
+// Volunteer-reimbursements rollup. An UNPAID reimbursement is a liability that
+// does NOT touch balanceNow or the ledger (the cash is still in the bank); it
+// hits cash only when marked paid, posted as a normal expense. `outstanding`
+// drives the coach-only "free cash = balanceNow − outstanding" view.
+export const reimbursementsSummary = (
+  finances: TeamFinances | null | undefined,
+): ReimbursementsSummary => {
+  let unpaid = 0;
+  let paid = 0;
+  for (const r of finances?.reimbursements || []) {
+    const amt = money(r?.amount);
+    if (r?.status === "paid") paid += amt;
+    else unpaid += amt;
+  }
+  return {
+    unpaid: round2(unpaid),
+    paid: round2(paid),
+    outstanding: round2(unpaid),
+  };
+};
+
+export interface ReconciliationRow {
+  month: string; // "2026-03"
+  label: string; // "Mar"
+  reconciled: boolean;
+  bankBalance: number | null;
+  ledgerBalanceNow: number; // month-end ledger balance as it stands now
+  variance: number | null; // bankBalance − ledgerBalanceNow (0 = matches)
+  drifted: boolean; // reconciled, but the ledger changed since
+}
+
+// Month-by-month reconciliation view, built on the dated cash-flow months. Each
+// month carries its end-of-month ledger balance and, if reconciled, the bank
+// figure + variance, plus a `drifted` flag when the ledger moved AFTER the
+// month was reconciled (a sign to re-check). (monthlyCashflow is defined below;
+// it's only referenced at call time, so the forward reference is fine.)
+export const reconciliationStatus = (
+  finances: TeamFinances | null | undefined,
+  players?: Array<{ id: string; name?: string }> | null,
+): ReconciliationRow[] => {
+  const byMonth = new Map(
+    (finances?.reconciliations || []).map((r) => [String(r?.month || ""), r]),
+  );
+  return monthlyCashflow(finances, players).map((m) => {
+    const rec = byMonth.get(m.month);
+    const ledgerBalanceNow = m.balanceEnd;
+    if (!rec) {
+      return {
+        month: m.month,
+        label: m.label,
+        reconciled: false,
+        bankBalance: null,
+        ledgerBalanceNow,
+        variance: null,
+        drifted: false,
+      };
+    }
+    const bankBalance = round2(money(rec.bankBalance));
+    return {
+      month: m.month,
+      label: m.label,
+      reconciled: true,
+      bankBalance,
+      ledgerBalanceNow,
+      variance: round2(bankBalance - ledgerBalanceNow),
+      drifted:
+        round2(ledgerBalanceNow - money(rec.ledgerBalanceAtReconcile)) !== 0,
+    };
+  });
 };
 
 export interface LedgerRow {
@@ -1017,6 +1181,12 @@ export const rollFinancesForNewSeason = (
       label: `Sponsorship — ${sp.sponsor || "Sponsor"}`,
       amount: money(sp.amount),
     }));
+  // Unpaid reimbursements are real debt — carry them into the new year; paid
+  // ones (their expense already reset with the ledger) are dropped to bound
+  // growth.
+  const keptReimbursements = (finances.reimbursements || []).filter(
+    (r) => r?.status !== "paid",
+  );
   if (!hadActivity) {
     // Plan-only roll: the coach set next season's fee before recording any
     // money. Promote it so Fall Collections opens on the planned fee; there
@@ -1026,7 +1196,10 @@ export const rollFinancesForNewSeason = (
       nextDepositAmount: promotedDeposit,
       nextDepositDueDate: promotedDepositDueDate,
       feeExemptIds: _cleared,
+      feeAdjustments: _clearedAdj,
       sponsorships: _converted,
+      reimbursements: _allReimb,
+      reconciliations: _clearedRec,
       ...rest
     } = finances;
     return {
@@ -1038,6 +1211,9 @@ export const rollFinancesForNewSeason = (
       payments: [],
       incomes: pledgedIncomes,
       expenses: [],
+      ...(keptReimbursements.length
+        ? { reimbursements: keptReimbursements }
+        : {}),
     };
   }
   // Label the archived year by its closing season ("through Spring 2027").
@@ -1093,7 +1269,10 @@ export const rollFinancesForNewSeason = (
     nextDepositAmount: _promotedDeposit,
     nextDepositDueDate: _promotedDepositDueDate,
     feeExemptIds: _cleared,
+    feeAdjustments: _clearedAdj,
     sponsorships: _rolled,
+    reimbursements: _allReimb,
+    reconciliations: _clearedRec,
     ...rest
   } = finances;
   return {
@@ -1108,6 +1287,9 @@ export const rollFinancesForNewSeason = (
     payments: [],
     incomes,
     expenses,
+    ...(keptReimbursements.length
+      ? { reimbursements: keptReimbursements }
+      : {}),
     pastSeasons: [
       ...(finances.pastSeasons || []),
       {
