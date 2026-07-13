@@ -1,7 +1,14 @@
 import { useCallback } from "react";
+import { genId } from "../utils/helpers";
 
 interface AuthUser {
   uid: string;
+}
+
+interface Coach {
+  id: string;
+  name?: string;
+  role?: string;
 }
 
 interface UseTeamMembershipArgs {
@@ -9,6 +16,7 @@ interface UseTeamMembershipArgs {
     ownerId?: string;
     coachRoles?: Record<string, string>;
     members?: string[];
+    coaches: Coach[];
   } & Record<string, unknown>;
   updateTeam: (patch: Record<string, unknown>) => void;
   user: AuthUser | null | undefined;
@@ -38,5 +46,32 @@ export const useTeamMembership = ({
     updateTeam({ members: nextMembers });
   }, [user, teamData.members, updateTeam]);
 
-  return { setCoachRole, addCurrentUserToMembers };
+  const addCoach = useCallback(
+    (form: { name: string; role: string }) => {
+      if (!form.name.trim()) return;
+      const newCoach = {
+        id: genId("c"),
+        name: form.name.trim(),
+        role: form.role,
+      };
+      updateTeam({ coaches: [...teamData.coaches, newCoach] });
+    },
+    [teamData.coaches, updateTeam],
+  );
+
+  const removeCoach = useCallback(
+    (id: string) => {
+      updateTeam({
+        coaches: teamData.coaches.filter((c: Coach) => c.id !== id),
+      });
+    },
+    [teamData.coaches, updateTeam],
+  );
+
+  return {
+    setCoachRole,
+    addCurrentUserToMembers,
+    addCoach,
+    removeCoach,
+  };
 };
