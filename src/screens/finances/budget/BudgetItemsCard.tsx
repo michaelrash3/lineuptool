@@ -322,6 +322,7 @@ export const BudgetItemsCard = ({
                       value={spentSoFar}
                       max={planned}
                       className="flex-1"
+                      ariaLabel={`${item.label}: spent of planned`}
                     />
                     <span
                       className={`t-meta tabular-nums whitespace-nowrap ${
@@ -379,7 +380,13 @@ export const BudgetItemsCard = ({
                   )}
                 </span>
               </div>
-              {r.planned > 0 && <MoneyMeter value={r.spent} max={r.planned} />}
+              {r.planned > 0 && (
+                <MoneyMeter
+                  value={r.spent}
+                  max={r.planned}
+                  ariaLabel={`${r.label}: spent of planned`}
+                />
+              )}
             </li>
           ))}
         </ul>

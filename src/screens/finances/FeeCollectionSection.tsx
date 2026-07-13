@@ -124,6 +124,7 @@ export const FeeCollectionSection = ({
             value={summary.collected}
             max={totalEffectiveFees}
             className="flex-1 max-w-xs"
+            ariaLabel="Team fees collected"
           />
           <span className="t-meta text-ink-3 tabular-nums">
             {formatCurrency(summary.collected)} of{" "}
@@ -298,6 +299,7 @@ export const FeeCollectionSection = ({
                     value={paid}
                     max={playerFee}
                     className="mt-1 max-w-[10rem]"
+                    ariaLabel={`${p.name}: fees paid`}
                   />
                 )}
               </button>
