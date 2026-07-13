@@ -1,12 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useUI, useToast, useConfirm } from "../contexts";
-import {
-  Button,
-  FORM_INPUT_CLASS,
-  FORM_INPUT_RING_STYLE,
-} from "../components/shared";
-import { FinanceHero, MoneyMeter } from "../components/financeViz";
+import { FinanceHero } from "../components/financeViz";
 import {
   formatCurrency,
   budgetTotal,
@@ -20,7 +15,6 @@ import {
   plannedPayerCount,
   buildPlayerFeeBreakdown,
   estimateBudgetFromSeason,
-  budgetItemCategory,
   budgetByCategory,
   incomeByCategory,
   financeSummary,
@@ -31,33 +25,33 @@ import {
   round2,
 } from "../utils/helpers";
 import type { LedgerRow } from "../utils/helpers";
-import { downloadPlayerFeeSheetPdf } from "../finances/feeSheetPdf";
 import type { BudgetItem, Player, Team, TeamFinances } from "../types";
 import type { FinanceSetFields } from "../utils/financeUpdates";
 import {
-  BUDGET_PRESETS,
-  BUDGET_PRESET_GROUPS,
-  DEPOSIT_QUICK_PICKS,
-  FINANCE_CATEGORIES,
   groupToCategory,
-  categoryLabel,
   type BudgetPreset,
   type FinanceCategoryId,
   type RevenueCategoryId,
 } from "../constants/financeCategories";
 import { SectionCard } from "./finances/SectionCard";
-import { SortHeader } from "./finances/SortHeader";
 import { CashFlowSection } from "./finances/CashFlowSection";
 import { SponsorshipSection } from "./finances/SponsorshipSection";
 import { FeeCollectionSection } from "./finances/FeeCollectionSection";
 import { LedgerSection } from "./finances/LedgerSection";
+import { PlannedRosterCard } from "./finances/budget/PlannedRosterCard";
+import { BudgetPresetsCard } from "./finances/budget/BudgetPresetsCard";
+import { BudgetItemsCard } from "./finances/budget/BudgetItemsCard";
 import {
   newId,
   parseAmount,
   parseCount,
   LEDGER_RENDER_CAP,
 } from "./finances/financeHelpers";
-import type { LedgerSortKey, BudgetSortKey } from "./finances/financeHelpers";
+import type {
+  LedgerSortKey,
+  BudgetSortKey,
+  BudgetItemEdit,
+} from "./finances/financeHelpers";
 
 // Finances — head-coach-only money tracker for the club: what the season will
 // cost (Budget Planner with per-tournament / per-session quantity planning),
@@ -307,15 +301,7 @@ export const FinancesTab = memo(() => {
   const revenueRows = useMemo(() => incomeByCategory(finances), [finances]);
 
   // ---- Inline budget-item editing (label + cost, keeping the item's mode).
-  const [itemEdit, setItemEdit] = useState<{
-    id: string;
-    mode: "qty" | "flat";
-    label: string;
-    qty: string;
-    unitAmount: string;
-    amount: string;
-    category: FinanceCategoryId | "";
-  } | null>(null);
+  const [itemEdit, setItemEdit] = useState<BudgetItemEdit | null>(null);
   const startItemEdit = (item: BudgetItem) =>
     setItemEdit({
       id: item.id,
@@ -526,6 +512,18 @@ export const FinancesTab = memo(() => {
 
   const removeBudgetItem = (id: string) =>
     updateFinances({ op: "removeById", key: "budgetItems", id });
+
+  // One-tap seed of the whole planner from this season's spending (rendered
+  // only when the planner is empty and an estimate exists). Hoisted out of the
+  // JSX so BudgetItemsCard stays presentational and never sees updateFinances.
+  const seedBudgetFromEstimate = () => {
+    if (!budgetEstimate) return;
+    updateFinances({
+      op: "mapEntries",
+      key: "budgetItems",
+      map: () => budgetEstimate.items,
+    });
+  };
 
   const addSponsorship = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -990,470 +988,44 @@ export const FinancesTab = memo(() => {
       {/* Budget Planner */}
       <SectionCard icon={Icons.Clipboard} title="Budget Planner — next season">
         <div className="p-4 sm:p-5 space-y-3">
-          {/* Rough estimate learned from this season's money. Empty planner →
-              one-tap seed; otherwise a reference line beside the plan. */}
-          {(finances.budgetItems || []).length === 0 && budgetEstimate ? (
-            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-surface-2 p-3">
-              <p className="t-body text-ink-2 flex-1 min-w-[14rem]">
-                Based on this season&apos;s money, a rough starting budget is{" "}
-                <span className="font-black text-ink tabular-nums">
-                  {formatCurrency(budgetEstimate.total)}
-                </span>
-                . Seed the planner with it and tune from there.
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Seed budget from this season"
-                onClick={() =>
-                  updateFinances({
-                    op: "mapEntries",
-                    key: "budgetItems",
-                    map: () => budgetEstimate.items,
-                  })
-                }
-              >
-                <Icons.Plus className="w-4 h-4" /> Seed from this season
-              </Button>
-            </div>
-          ) : summary.spent > 0 ? (
-            <p className="t-meta text-ink-3">
-              For reference, this season&apos;s actual spend so far is{" "}
-              <span className="font-black tabular-nums">
-                {formatCurrency(summary.spent)}
-              </span>
-              .
-            </p>
-          ) : null}
-          {budgetRows.length > 0 && (
-            <>
-              <div className="flex items-center gap-3 pb-1 border-b border-line">
-                <span className="flex-1">
-                  <SortHeader
-                    label="Item"
-                    active={budgetSort?.key === "label"}
-                    asc={budgetSort?.asc ?? true}
-                    onClick={() => toggleBudgetSort("label")}
-                  />
-                </span>
-                <SortHeader
-                  label="Count"
-                  active={budgetSort?.key === "qty"}
-                  asc={budgetSort?.asc ?? true}
-                  onClick={() => toggleBudgetSort("qty")}
-                />
-                <SortHeader
-                  label="Spent"
-                  active={budgetSort?.key === "spent"}
-                  asc={budgetSort?.asc ?? true}
-                  onClick={() => toggleBudgetSort("spent")}
-                />
-                <SortHeader
-                  label="Planned"
-                  active={budgetSort?.key === "planned"}
-                  asc={budgetSort?.asc ?? true}
-                  onClick={() => toggleBudgetSort("planned")}
-                />
-              </div>
-              <ul className="divide-y divide-line">
-                {budgetRows.map(({ item, planned, spent: spentSoFar }) => {
-                  const isQty = item.qty != null && item.unitAmount != null;
-                  if (itemEdit?.id === item.id) {
-                    return (
-                      <li key={item.id} className="py-2">
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <input
-                            type="text"
-                            value={itemEdit.label}
-                            onChange={(e) =>
-                              setItemEdit((d) =>
-                                d ? { ...d, label: e.target.value } : d,
-                              )
-                            }
-                            aria-label={`Edit label for ${item.label}`}
-                            className={`${FORM_INPUT_CLASS} flex-1 !py-1.5`}
-                            style={FORM_INPUT_RING_STYLE}
-                          />
-                          {itemEdit.mode === "qty" ? (
-                            <>
-                              <input
-                                type="text"
-                                inputMode="numeric"
-                                value={itemEdit.qty}
-                                onChange={(e) =>
-                                  setItemEdit((d) =>
-                                    d ? { ...d, qty: e.target.value } : d,
-                                  )
-                                }
-                                aria-label={`Edit count for ${item.label}`}
-                                className={`${FORM_INPUT_CLASS} sm:w-24 tabular-nums !py-1.5`}
-                                style={FORM_INPUT_RING_STYLE}
-                              />
-                              <span className="self-center text-ink-3 font-black hidden sm:block">
-                                ×
-                              </span>
-                              <input
-                                type="text"
-                                inputMode="decimal"
-                                value={itemEdit.unitAmount}
-                                onChange={(e) =>
-                                  setItemEdit((d) =>
-                                    d
-                                      ? { ...d, unitAmount: e.target.value }
-                                      : d,
-                                  )
-                                }
-                                aria-label={`Edit cost per unit for ${item.label}`}
-                                className={`${FORM_INPUT_CLASS} sm:w-32 tabular-nums !py-1.5`}
-                                style={FORM_INPUT_RING_STYLE}
-                              />
-                            </>
-                          ) : (
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={itemEdit.amount}
-                              onChange={(e) =>
-                                setItemEdit((d) =>
-                                  d ? { ...d, amount: e.target.value } : d,
-                                )
-                              }
-                              aria-label={`Edit amount for ${item.label}`}
-                              className={`${FORM_INPUT_CLASS} sm:w-32 tabular-nums !py-1.5`}
-                              style={FORM_INPUT_RING_STYLE}
-                            />
-                          )}
-                          <select
-                            value={itemEdit.category}
-                            onChange={(e) =>
-                              setItemEdit((d) =>
-                                d
-                                  ? {
-                                      ...d,
-                                      category: e.target.value as
-                                        | FinanceCategoryId
-                                        | "",
-                                    }
-                                  : d,
-                              )
-                            }
-                            aria-label={`Edit category for ${item.label}`}
-                            className={`${FORM_INPUT_CLASS} sm:w-40 !py-1.5`}
-                            style={FORM_INPUT_RING_STYLE}
-                          >
-                            <option value="">Category: auto</option>
-                            {FINANCE_CATEGORIES.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.label}
-                              </option>
-                            ))}
-                          </select>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            aria-label={`Save ${item.label}`}
-                            onClick={saveItemEdit}
-                          >
-                            <Icons.Check className="w-3.5 h-3.5" /> Save
-                          </Button>
-                          <button
-                            type="button"
-                            aria-label="Cancel item edit"
-                            onClick={() => setItemEdit(null)}
-                            className="text-ink-3 hover:text-ink text-xs font-bold underline"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  }
-                  return (
-                    <li key={item.id} className="py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="t-body-bold text-ink truncate">
-                            {item.label}
-                          </div>
-                          <div className="t-meta text-ink-3">
-                            {categoryLabel(budgetItemCategory(item))}
-                          </div>
-                        </div>
-                        {isQty && (
-                          <span className="flex items-center gap-1.5 tabular-nums text-sm font-bold text-ink-2">
-                            <button
-                              type="button"
-                              aria-label={`Fewer ${item.label}`}
-                              onClick={() => stepBudgetQty(item.id, -1)}
-                              className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
-                            >
-                              <Icons.Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="min-w-[1.5rem] text-center font-black text-ink">
-                              {item.qty}
-                            </span>
-                            <button
-                              type="button"
-                              aria-label={`More ${item.label}`}
-                              onClick={() => stepBudgetQty(item.id, 1)}
-                              className="p-1 rounded-lg bg-surface-2 hover:bg-line text-ink transition-colors"
-                            >
-                              <Icons.Plus className="w-3.5 h-3.5" />
-                            </button>
-                            <span>× {formatCurrency(item.unitAmount)}</span>
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          aria-label={`Toggle sales tax on ${item.label}`}
-                          onClick={() => toggleItemTax(item.id)}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                            item.taxable
-                              ? "text-win bg-win/10"
-                              : "text-ink-3 bg-surface-2 hover:bg-line"
-                          }`}
-                        >
-                          +tax
-                        </button>
-                        <span className="tabular-nums font-black text-ink">
-                          {formatCurrency(planned)}
-                        </span>
-                        <button
-                          type="button"
-                          aria-label={`Edit ${item.label}`}
-                          onClick={() => startItemEdit(item)}
-                          className="text-ink-3 hover:text-ink transition-colors"
-                        >
-                          <Icons.Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`Remove ${item.label}`}
-                          onClick={() => removeBudgetItem(item.id)}
-                          className="text-ink-3 hover:text-loss transition-colors"
-                        >
-                          <Icons.X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {/* Budget vs actual: linked spending against the plan */}
-                      {spentSoFar > 0 && (
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <MoneyMeter
-                            value={spentSoFar}
-                            max={planned}
-                            className="flex-1"
-                          />
-                          <span
-                            className={`t-meta tabular-nums whitespace-nowrap ${
-                              spentSoFar > planned ? "text-loss" : "text-ink-3"
-                            }`}
-                          >
-                            spent {formatCurrency(spentSoFar)} of{" "}
-                            {formatCurrency(planned)}
-                            {spentSoFar > planned && " — over budget"}
-                          </span>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-          {/* By-category rollup: planned vs actual spend per spending area, so
-              the coach sees where the money goes without scanning every line.
-              Legacy/untagged items are folded in by their inferred category. */}
-          {categoryRows.length > 0 && (
-            <div className="rounded-xl border border-line bg-surface-2/40 p-3 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="t-eyebrow text-ink-3">By category</div>
-                <div className="t-meta text-ink-3">spent / planned</div>
-              </div>
-              <ul className="space-y-2">
-                {categoryRows.map((r) => (
-                  <li key={r.category} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="font-bold text-ink truncate">
-                        {r.label}
-                      </span>
-                      <span className="tabular-nums whitespace-nowrap text-ink-3">
-                        {r.planned > 0 ? (
-                          <>
-                            <span
-                              className={
-                                r.spent > r.planned
-                                  ? "text-loss font-black"
-                                  : "text-ink-2 font-bold"
-                              }
-                            >
-                              {formatCurrency(r.spent)}
-                            </span>
-                            {" / "}
-                            <span>{formatCurrency(r.planned)}</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-ink-2 font-bold">
-                              {formatCurrency(r.spent)}
-                            </span>
-                            {" unplanned"}
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    {r.planned > 0 && (
-                      <MoneyMeter value={r.spent} max={r.planned} />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {/* Parent-facing handout: one player's fee spread across the
-              expected expenses, as a printable/shareable PDF. */}
-          {feeSheetReady && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface-2 p-3">
-              <p className="t-meta text-ink-3 flex-1 min-w-[14rem]">
-                Hand families a one-page PDF showing where a player&apos;s fee
-                goes.
-              </p>
-              <Button
-                variant="secondary"
-                size="sm"
-                aria-label="Download player fee breakdown PDF"
-                onClick={() =>
-                  downloadPlayerFeeSheetPdf({ team, finances, players, toast })
-                }
-              >
-                <Icons.Printer className="w-4 h-4" /> Player fee sheet
-              </Button>
-            </div>
-          )}
-          {/* Quick-add catalog: tap a common youth-baseball line item to
-              prefill the add form. Grouped by spending area and scrollable so
-              the full catalog never dominates the tab. */}
-          <div className="space-y-2 max-h-56 overflow-y-auto rounded-xl border border-line bg-surface-2/40 p-3">
-            {BUDGET_PRESET_GROUPS.map((group) => (
-              <div key={group} className="space-y-1.5">
-                <div className="t-eyebrow text-ink-3">{group}</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {BUDGET_PRESETS.filter((p) => p.group === group).map(
-                    (preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => applyPreset(preset)}
-                        className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-surface-2 hover:bg-line text-ink-2 transition-colors"
-                      >
-                        + {preset.label}
-                      </button>
-                    ),
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Mode toggles for a manual add: quantity planning + a taxable
-              default (seeded by the preset, editable here before adding). */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              aria-label="Toggle count mode"
-              aria-pressed={qtyMode}
-              onClick={() => setQtyMode((v) => !v)}
-              className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
-                qtyMode
-                  ? "bg-team-primary/15 text-team-primary"
-                  : "bg-surface-2 hover:bg-line text-ink-3"
-              }`}
-              style={
-                qtyMode
-                  ? {
-                      backgroundColor: "var(--team-primary-15)",
-                      color: "var(--team-ink)",
-                    }
-                  : undefined
-              }
-            >
-              × count
-            </button>
-            <button
-              type="button"
-              aria-label="Toggle sales tax on the new item"
-              aria-pressed={budgetTaxable}
-              title="Add this item's cost pre-tax; sales tax is applied in the planner totals."
-              onClick={() => setBudgetTaxable((v) => !v)}
-              className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-widest transition-colors ${
-                budgetTaxable
-                  ? "bg-win/10 text-win"
-                  : "bg-surface-2 hover:bg-line text-ink-3"
-              }`}
-            >
-              +tax
-            </button>
-          </div>
-          <form
-            onSubmit={addBudgetItem}
-            className="flex flex-col sm:flex-row gap-2"
-          >
-            <input
-              type="text"
-              value={budgetLabel}
-              onChange={(e) => setBudgetLabel(e.target.value)}
-              placeholder="Tournaments, uniforms, field rental…"
-              aria-label="Budget item"
-              className={`${FORM_INPUT_CLASS} flex-1`}
-              style={FORM_INPUT_RING_STYLE}
-            />
-            {qtyMode && (
-              <>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={budgetQty}
-                  onChange={(e) => setBudgetQty(e.target.value)}
-                  placeholder="How many?"
-                  aria-label="Count"
-                  className={`${FORM_INPUT_CLASS} sm:w-28 tabular-nums`}
-                  style={FORM_INPUT_RING_STYLE}
-                />
-                <span className="self-center text-ink-3 font-black hidden sm:block">
-                  ×
-                </span>
-              </>
-            )}
-            <input
-              type="text"
-              inputMode="decimal"
-              value={budgetAmount}
-              onChange={(e) => setBudgetAmount(e.target.value)}
-              placeholder={qtyMode ? `$ ${unitNoun}` : "$ amount"}
-              aria-label={qtyMode ? "Cost per unit" : "Budget amount"}
-              className={`${FORM_INPUT_CLASS} sm:w-40 tabular-nums`}
-              style={FORM_INPUT_RING_STYLE}
-            />
-            {/* Spending area for by-category reporting. "Auto" leaves it to be
-                inferred from the name; a preset preselects its own area. */}
-            <select
-              value={budgetCategory}
-              onChange={(e) =>
-                setBudgetCategory(e.target.value as FinanceCategoryId | "")
-              }
-              aria-label="New item category"
-              className={`${FORM_INPUT_CLASS} sm:w-44`}
-              style={FORM_INPUT_RING_STYLE}
-            >
-              <option value="">Category: auto</option>
-              {FINANCE_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <Button type="submit" variant="secondary" size="md">
-              <Icons.Plus className="w-4 h-4" /> Add
-            </Button>
-          </form>
+          <BudgetItemsCard
+            finances={finances}
+            players={players}
+            team={team}
+            summary={summary}
+            feeSheetReady={feeSheetReady}
+            budgetEstimate={budgetEstimate}
+            budgetRows={budgetRows}
+            categoryRows={categoryRows}
+            budgetSort={budgetSort}
+            toggleBudgetSort={toggleBudgetSort}
+            itemEdit={itemEdit}
+            setItemEdit={setItemEdit}
+            startItemEdit={startItemEdit}
+            saveItemEdit={saveItemEdit}
+            stepBudgetQty={stepBudgetQty}
+            toggleItemTax={toggleItemTax}
+            removeBudgetItem={removeBudgetItem}
+            seedBudgetFromEstimate={seedBudgetFromEstimate}
+            toast={toast}
+          />
+          <BudgetPresetsCard
+            applyPreset={applyPreset}
+            addBudgetItem={addBudgetItem}
+            qtyMode={qtyMode}
+            setQtyMode={setQtyMode}
+            budgetTaxable={budgetTaxable}
+            setBudgetTaxable={setBudgetTaxable}
+            budgetLabel={budgetLabel}
+            setBudgetLabel={setBudgetLabel}
+            budgetQty={budgetQty}
+            setBudgetQty={setBudgetQty}
+            budgetAmount={budgetAmount}
+            setBudgetAmount={setBudgetAmount}
+            unitNoun={unitNoun}
+            budgetCategory={budgetCategory}
+            setBudgetCategory={setBudgetCategory}
+          />
           {/* Sponsorships reduce fees. "This season" entries post as
               fundraising income (lowering current dues); "next season" entries
               offset the planned fee and convert to income when the season
@@ -1477,215 +1049,28 @@ export const FinancesTab = memo(() => {
             sponsorReduces={sponsorReduces}
             setSponsorReduces={setSponsorReduces}
           />
-          {/* Planner settings: sales tax on flagged items + fee round-up buffer */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-line">
-            <label className="flex items-center gap-2 t-eyebrow text-ink-3">
-              Sales tax
-              <input
-                type="text"
-                inputMode="decimal"
-                value={taxInput ?? String(finances.salesTaxPct ?? "")}
-                onChange={(e) => setTaxInput(e.target.value)}
-                onBlur={commitSalesTax}
-                onKeyDown={(e) => e.key === "Enter" && commitSalesTax()}
-                placeholder="0"
-                aria-label="Sales tax percent"
-                className={`${FORM_INPUT_CLASS} w-16 tabular-nums !py-1`}
-                style={FORM_INPUT_RING_STYLE}
-              />
-              <span className="normal-case font-bold">% on “+tax” items</span>
-            </label>
-            <div className="flex items-center gap-1.5">
-              <span className="t-eyebrow text-ink-3">Fee buffer</span>
-              {[
-                { inc: 0, label: "None" },
-                { inc: 25, label: "$25" },
-                { inc: 50, label: "$50" },
-              ].map((opt) => (
-                <button
-                  key={opt.inc}
-                  type="button"
-                  aria-label={`Fee buffer ${opt.label}`}
-                  aria-pressed={bufferInc === opt.inc}
-                  onClick={() =>
-                    setFinanceFields({ feeBufferIncrement: opt.inc })
-                  }
-                  className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors ${
-                    bufferInc === opt.inc
-                      ? "text-win bg-win/10"
-                      : "text-ink-3 bg-surface-2 hover:bg-line"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-              <span className="t-meta text-ink-3 hidden sm:inline">
-                rounds the fee up to cover incidentals
-              </span>
-            </div>
-            <label className="flex items-center gap-2 t-eyebrow text-ink-3">
-              Players next season
-              <input
-                type="text"
-                inputMode="numeric"
-                value={
-                  plannedInput ??
-                  (finances.plannedPlayerCount
-                    ? String(finances.plannedPlayerCount)
-                    : "")
-                }
-                onChange={(e) => setPlannedInput(e.target.value)}
-                onBlur={commitPlannedPlayers}
-                onKeyDown={(e) => e.key === "Enter" && commitPlannedPlayers()}
-                placeholder={String(payerCount || "")}
-                aria-label="Anticipated players next season"
-                className={`${FORM_INPUT_CLASS} w-16 tabular-nums !py-1`}
-                style={FORM_INPUT_RING_STYLE}
-              />
-              <span className="normal-case font-bold">
-                splits the fee (blank = current roster)
-              </span>
-            </label>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-xl border border-line bg-surface-2/40 p-3">
-            <div className="flex flex-col gap-1">
-              <span className="t-eyebrow text-ink-3">Next season deposit</span>
-              {nextDepositInput == null ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setNextDepositInput(
-                      String(finances.nextDepositAmount || ""),
-                    )
-                  }
-                  className="text-left font-black tabular-nums text-ink hover:text-team-primary"
-                  aria-label="Edit next season deposit amount"
-                >
-                  {finances.nextDepositAmount
-                    ? formatCurrency(finances.nextDepositAmount)
-                    : "Add amount"}
-                </button>
-              ) : (
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  autoFocus
-                  value={nextDepositInput}
-                  onChange={(e) => setNextDepositInput(e.target.value)}
-                  onBlur={commitNextDeposit}
-                  onKeyDown={(e) => e.key === "Enter" && commitNextDeposit()}
-                  aria-label="Next season deposit"
-                  className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
-                  style={FORM_INPUT_RING_STYLE}
-                />
-              )}
-              {/* One-tap common deposit slices — sets the amount immediately. */}
-              <div className="flex flex-wrap gap-1.5 pt-0.5">
-                {DEPOSIT_QUICK_PICKS.map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    aria-label={`Set next season deposit to ${formatCurrency(amt)}`}
-                    aria-pressed={finances.nextDepositAmount === amt}
-                    onClick={() => {
-                      setNextDepositInput(null);
-                      setFinanceFields({ nextDepositAmount: amt });
-                    }}
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-black tabular-nums transition-colors ${
-                      finances.nextDepositAmount === amt
-                        ? "bg-win/10 text-win"
-                        : "bg-surface-2 hover:bg-line text-ink-3"
-                    }`}
-                  >
-                    {formatCurrency(amt)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label className="flex flex-col gap-1">
-              <span className="t-eyebrow text-ink-3">
-                Next season deposit due
-              </span>
-              <input
-                type="date"
-                value={finances.nextDepositDueDate || ""}
-                onChange={(e) =>
-                  setFinanceFields({ nextDepositDueDate: e.target.value })
-                }
-                aria-label="Next season deposit due date"
-                className={`${FORM_INPUT_CLASS} w-full tabular-nums`}
-                style={FORM_INPUT_RING_STYLE}
-              />
-            </label>
-            <p className="sm:col-span-2 t-meta text-ink-3">
-              Offer letters use these next-season deposit values. They promote
-              into the current collection schedule when you advance seasons.
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-line">
-            <div className="t-body text-ink-2">
-              Budget total:{" "}
-              <span className="font-black text-ink tabular-nums">
-                {formatCurrency(budget)}
-              </span>
-              {sponsoredOffset > 0 && (
-                <> − sponsorships {formatCurrency(sponsoredOffset)}</>
-              )}
-              {suggested != null && (
-                <>
-                  {" "}
-                  → suggested fee{" "}
-                  <span className="font-black text-ink tabular-nums">
-                    {formatCurrency(suggested)}
-                  </span>{" "}
-                  × {plannedCount}{" "}
-                  {Number(finances.plannedPlayerCount) > 0
-                    ? "anticipated"
-                    : "paying"}{" "}
-                  player{plannedCount === 1 ? "" : "s"}
-                  {bufferInc > 0 && (
-                    <span className="t-meta text-ink-3">
-                      {" "}
-                      (rounded up to the next ${bufferInc} as buffer)
-                    </span>
-                  )}
-                </>
-              )}
-              {nextFee != null && (
-                <div className="t-meta text-ink-3 mt-1">
-                  Next season's fee is set to{" "}
-                  <span className="font-black tabular-nums">
-                    {formatCurrency(nextFee)}
-                  </span>{" "}
-                  — it becomes the team fee when the new season starts in the
-                  Fall.
-                </div>
-              )}
-              {finances.nextDepositAmount != null &&
-                finances.nextDepositAmount > 0 && (
-                  <div className="t-meta text-ink-3 mt-1">
-                    Next season's deposit is set to{" "}
-                    <span className="font-black tabular-nums">
-                      {formatCurrency(finances.nextDepositAmount)}
-                    </span>
-                    {finances.nextDepositDueDate && (
-                      <> due {finances.nextDepositDueDate}</>
-                    )}
-                    .
-                  </div>
-                )}
-            </div>
-            {suggested != null && suggested !== nextFee && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setFinanceFields({ nextClubFee: suggested })}
-              >
-                <Icons.Check className="w-4 h-4" /> Set as next season's fee
-              </Button>
-            )}
-          </div>
+          {/* Planner settings, next-season deposit, and the budget-total →
+              suggested-fee summary (extracted; Fragment keeps the DOM identical). */}
+          <PlannedRosterCard
+            finances={finances}
+            setFinanceFields={setFinanceFields}
+            bufferInc={bufferInc}
+            payerCount={payerCount}
+            plannedCount={plannedCount}
+            budget={budget}
+            sponsoredOffset={sponsoredOffset}
+            suggested={suggested}
+            nextFee={nextFee}
+            taxInput={taxInput}
+            setTaxInput={setTaxInput}
+            commitSalesTax={commitSalesTax}
+            plannedInput={plannedInput}
+            setPlannedInput={setPlannedInput}
+            commitPlannedPlayers={commitPlannedPlayers}
+            nextDepositInput={nextDepositInput}
+            setNextDepositInput={setNextDepositInput}
+            commitNextDeposit={commitNextDeposit}
+          />
         </div>
       </SectionCard>
     </div>

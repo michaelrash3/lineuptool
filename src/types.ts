@@ -783,11 +783,22 @@ export interface BudgetItem {
 }
 
 // Who entered a money record and when (audit finding 3.7). Stamped at
-// creation only; edits preserve the original stamps. Absent on rows that
-// predate the feature.
+// creation only; the creation stamps are preserved across edits. Absent on
+// rows that predate the feature.
+//
+// Edit + void stamps (all optional → full back-compat; legacy rows carry
+// none): `lastEditedBy/At` record the most recent in-place edit, and the
+// `voided*` trio implements a soft-delete — a voided row stays visible in the
+// ledger (struck through, with a badge) as an audit trail but is excluded from
+// every money total by the `isVoided` predicate in utils/finances.ts.
 export interface FinanceAttribution {
   recordedBy?: string; // auth uid of the coach who entered it
   recordedAt?: string; // ISO instant of entry
+  lastEditedBy?: string; // auth uid of the coach who last edited it
+  lastEditedAt?: string; // ISO instant of the last edit
+  voidedBy?: string; // auth uid of the coach who voided it
+  voidedAt?: string; // ISO instant of the void (its presence = voided)
+  voidReason?: string; // optional free-text reason for the void
 }
 
 // Money actually spent, shown in the ledger with a running balance.

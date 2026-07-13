@@ -20,6 +20,9 @@ import {
   spendingByCategory,
   incomeCategory,
   incomeByCategory,
+  isVoided,
+  financeIntegrity,
+  monthlyCashflow,
 } from "./finances";
 import type { TeamFinances } from "../types";
 
@@ -677,5 +680,188 @@ describe("by-source income reporting (PR3)", () => {
   it("incomeByCategory is empty for an empty book", () => {
     expect(incomeByCategory({})).toEqual([]);
     expect(incomeByCategory(undefined)).toEqual([]);
+  });
+});
+
+describe("void (soft-delete) drops from every total but stays in the ledger", () => {
+  it("isVoided keys off the voidedAt stamp only", () => {
+    expect(isVoided(undefined)).toBe(false);
+    expect(isVoided({})).toBe(false);
+    expect(isVoided({ voidedBy: "coach" })).toBe(false); // no instant yet
+    expect(isVoided({ voidedAt: "2026-05-01T00:00:00.000Z" })).toBe(true);
+  });
+
+  const bookWithVoids = (): TeamFinances => ({
+    clubFee: 100,
+    payments: [
+      { id: "pay1", playerId: "p1", date: "2026-09-10", amount: 100 },
+      // Voided payment — must count for $0 everywhere.
+      {
+        id: "pay2",
+        playerId: "p2",
+        date: "2026-09-12",
+        amount: 60,
+        voidedBy: "coachA",
+        voidedAt: "2026-09-15T12:00:00.000Z",
+      },
+    ],
+    incomes: [
+      { id: "inc1", date: "2026-09-20", label: "Car wash", amount: 200 },
+      // Voided fundraising income.
+      {
+        id: "inc2",
+        date: "2026-09-21",
+        label: "Raffle",
+        amount: 150,
+        fundraising: true,
+        voidedAt: "2026-09-22T00:00:00.000Z",
+      },
+    ],
+    expenses: [
+      { id: "exp1", date: "2026-10-01", label: "Balls", amount: 80 },
+      // Voided expense.
+      {
+        id: "exp2",
+        date: "2026-10-02",
+        label: "Tournament entry",
+        amount: 250,
+        voidedAt: "2026-10-03T00:00:00.000Z",
+      },
+    ],
+  });
+
+  const players = [{ id: "p1" }, { id: "p2" }];
+
+  it("financeSummary excludes voided payments, incomes, and expenses", () => {
+    const s = financeSummary(bookWithVoids(), players);
+    expect(s.collected).toBe(100); // voided 60 payment dropped
+    expect(s.otherIncome).toBe(200); // voided 150 income dropped
+    expect(s.spent).toBe(80); // voided 250 expense dropped
+    expect(s.balanceNow).toBe(220); // 100 + 200 - 80
+    // p2's voided payment leaves them owing the full effective fee.
+    expect(s.paidByPlayer.p2 ?? 0).toBe(0);
+  });
+
+  it("by-category rollups and CSV drop voided rows", () => {
+    const f = bookWithVoids();
+    // Spending rollup only sees the live $80 expense.
+    expect(budgetByCategory(f).reduce((sum, r) => sum + r.spent, 0)).toBe(80);
+    expect(budgetActuals(f).unplanned).toBe(80);
+    // Dues net of the live payment only; the voided income is gone.
+    const dues = incomeByCategory(f).find((r) => r.category === "dues");
+    expect(dues?.amount).toBe(100);
+    const csv = ledgerCsv(f, players);
+    expect(csv).not.toContain("Tournament entry"); // voided expense omitted
+    expect(csv).not.toContain("Raffle"); // voided income omitted
+    expect(csv).toContain("Balls");
+  });
+
+  it("transactionLedger KEEPS voided rows (tagged) but doesn't move the balance", () => {
+    const rows = transactionLedger(bookWithVoids(), players);
+    const voided = rows.filter((r) => r.voided);
+    // All three voided entries are still present as an audit trail.
+    expect(voided.map((r) => r.id).sort()).toEqual(["exp2", "inc2", "pay2"]);
+    const voidedPay = rows.find((r) => r.id === "pay2");
+    expect(voidedPay?.voided).toBe(true);
+    expect(voidedPay?.voidedBy).toBe("coachA");
+    // The final running balance matches financeSummary.balanceNow (220),
+    // i.e. voided rows contributed nothing to the walk.
+    const live = rows.filter((r) => !r.voided);
+    expect(live[live.length - 1].balanceAfter).toBe(220);
+  });
+
+  it("monthlyCashflow excludes voided money from in/out sums", () => {
+    const months = monthlyCashflow(bookWithVoids(), players);
+    const totalIn = months.reduce((sum, m) => sum + m.in, 0);
+    const totalOut = months.reduce((sum, m) => sum + m.out, 0);
+    expect(totalIn).toBe(300); // 100 payment + 200 income (voids dropped)
+    expect(totalOut).toBe(80); // live expense only
+  });
+
+  it("a book with no voided rows behaves exactly as before (back-compat)", () => {
+    const plain = activeFinances();
+    const s = financeSummary(plain, [{ id: "p1" }, { id: "p2" }]);
+    // Same numbers the pre-void engine produced.
+    expect(s.collected).toBe(160);
+    expect(s.otherIncome).toBe(200);
+    expect(s.spent).toBe(250);
+  });
+});
+
+describe("financeIntegrity — orphaned references (reconcile nudge)", () => {
+  it("counts payments/fundraising credited to off-roster players and expenses linked to missing budget items", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b1", label: "Balls", amount: 100 }],
+      payments: [
+        { id: "pay1", playerId: "p1", date: "2026-09-10", amount: 100 },
+        // p9 was deleted from the roster.
+        { id: "pay2", playerId: "p9", date: "2026-09-12", amount: 60 },
+        // Voided orphan doesn't count.
+        {
+          id: "pay3",
+          playerId: "p8",
+          date: "2026-09-13",
+          amount: 60,
+          voidedAt: "2026-09-14T00:00:00.000Z",
+        },
+      ],
+      incomes: [
+        // Fundraising credited to a removed player is an orphan too.
+        {
+          id: "inc1",
+          date: "2026-09-20",
+          label: "Sponsor a kid",
+          amount: 50,
+          fundraising: true,
+          playerId: "p7",
+        },
+      ],
+      expenses: [
+        {
+          id: "exp1",
+          date: "2026-10-01",
+          label: "Balls",
+          amount: 80,
+          budgetItemId: "b1",
+        },
+        // Links to a budget item that no longer exists.
+        {
+          id: "exp2",
+          date: "2026-10-02",
+          label: "Mystery",
+          amount: 40,
+          budgetItemId: "bGONE",
+        },
+      ],
+    };
+    const integ = financeIntegrity(finances, [{ id: "p1" }]);
+    expect(integ.orphanPlayerRefs).toBe(2); // pay2 (p9) + inc1 (p7); voided pay3 excluded
+    expect(integ.orphanExpenseLinks).toBe(1); // exp2 → bGONE
+  });
+
+  it("is clean when every reference resolves", () => {
+    const finances: TeamFinances = {
+      budgetItems: [{ id: "b1", label: "Balls", amount: 100 }],
+      payments: [
+        { id: "pay1", playerId: "p1", date: "2026-09-10", amount: 100 },
+      ],
+      expenses: [
+        {
+          id: "exp1",
+          date: "2026-10-01",
+          label: "Balls",
+          amount: 80,
+          budgetItemId: "b1",
+        },
+      ],
+    };
+    expect(financeIntegrity(finances, [{ id: "p1" }])).toEqual({
+      orphanPlayerRefs: 0,
+      orphanExpenseLinks: 0,
+    });
+    expect(financeIntegrity(undefined, undefined)).toEqual({
+      orphanPlayerRefs: 0,
+      orphanExpenseLinks: 0,
+    });
   });
 });
