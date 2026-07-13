@@ -70,28 +70,6 @@ import {
 } from "./lineupEngine/eligibility";
 import type { CatcherPolicy } from "./lineupEngine/eligibility";
 import {
-  getCombinedGrades,
-  getEffectiveStats,
-  numOrNull,
-  gloveOf,
-  rangeOf,
-  armStrengthOf,
-  armAccuracyOf,
-  baserunningOf,
-  speedBaseOf,
-  contactOf,
-  powerOf,
-  statArmGrade,
-  statBlockingGrade,
-  statFieldingGrade,
-  statOffSpeedGrade,
-  statStrikesGrade,
-  statThrowingGrade,
-  statVelocityGrade,
-  DEFAULT_GRADES,
-} from "./lineupEngine/grades";
-import type { GradesInput } from "./lineupEngine/grades";
-import {
   buildPitchingPlan,
   checkPitchEligibility,
   DEFAULT_PITCH_RULE_SET,
@@ -117,7 +95,6 @@ import type {
   TryBuildCtx,
 } from "./lineupEngine/types";
 import {
-  buildPlayerProfile,
   buildPositionHistory,
   buildFirstInningBenchHistory,
   buildExtraSitHistory,
@@ -129,6 +106,10 @@ import {
   dualRoleBlocked,
 } from "./lineupEngine/evaluation";
 import { getPitcherPoolSize } from "./lineupEngine/primaryPosition";
+import {
+  buildProfiledPlayers,
+  resolveGameContext,
+} from "./lineupEngine/engineContext";
 
 // Re-export the public surface that lived in this file before the split.
 export {
@@ -430,19 +411,13 @@ export function generateBattingOnly(input: EngineInput): EngineResult {
     return { error: "No active players to build a batting order from." };
   }
 
-  const combinedGrades = getCombinedGrades(
+  const { profiled } = buildProfiledPlayers({
+    activePlayers,
+    allPlayers,
     evaluationEvents,
-    allPlayers || activePlayers,
-    {
-      teamAge,
-      games:
-        (input.games as Array<{ playerStats?: Record<string, any> }>) || [],
-    },
-  );
-  const profiled = activePlayers.map((p) => ({
-    ...p,
-    profile: buildPlayerProfile(p, combinedGrades[p.id]),
-  }));
+    games: input.games,
+    teamAge,
+  });
 
   const battingLineup = generateBattingOrder(profiled, battingSize, {
     leagueRuleSet,
@@ -505,25 +480,28 @@ export function generateTournamentLineup(input: EngineInput): EngineResult {
     };
   }
 
-  const grades = getCombinedGrades(
+  const {
+    combinedGrades: grades,
+    profiled,
+    byId,
+  } = buildProfiledPlayers({
+    activePlayers,
+    allPlayers,
     evaluationEvents,
-    allPlayers || activePlayers,
-    { teamAge, games },
-  );
-  const profiled: ProfiledPlayer[] = activePlayers.map((p) => ({
-    ...p,
-    profile: buildPlayerProfile(p, grades[p.id]),
-  }));
-  const byId = new Map(profiled.map((p) => [p.id, p]));
+    games,
+    teamAge,
+  });
 
   const defSizeNum = parseInt(defenseSize, 10) || 9;
   const positions = getPositionsForInning(
     Math.min(profiled.length, defSizeNum),
     defenseSize,
   );
-  const ruleSet = pitchRuleSet || DEFAULT_PITCH_RULE_SET;
-  const gameDate = currentGame.date || new Date().toISOString().slice(0, 10);
-  const kidPitch = /kid/i.test(String(pitchingFormat || ""));
+  const { ruleSet, gameDate, kidPitch } = resolveGameContext({
+    pitchRuleSet,
+    currentGame,
+    pitchingFormat,
+  });
   const slim = (p: ProfiledPlayer): SlimPlayer => ({
     id: p.id,
     name: p.name,
@@ -1009,7 +987,15 @@ export function generateLineup(input: EngineInput): EngineResult {
     catcherMaxInnings,
     catcherConsecutive,
   } = input;
-  const pitchRules = (pitchRuleSet as PitchRuleSet) || DEFAULT_PITCH_RULE_SET;
+  const {
+    ruleSet: pitchRules,
+    gameDate: targetDateStr,
+    kidPitch: isKidPitchFormat,
+  } = resolveGameContext({
+    pitchRuleSet: pitchRuleSet as PitchRuleSet,
+    currentGame,
+    pitchingFormat,
+  });
   const sameDay = (sameDayRoles as {
     pitched?: Set<string>;
     caught?: Set<string>;
@@ -1037,17 +1023,14 @@ export function generateLineup(input: EngineInput): EngineResult {
   }
 
   const currentGameId = currentGame?.id ?? null;
-  const targetDateStr =
-    currentGame?.date || new Date().toISOString().split("T")[0];
 
-  const combinedGrades = getCombinedGrades(
+  const { combinedGrades, profiled } = buildProfiledPlayers({
+    activePlayers,
+    allPlayers,
     evaluationEvents,
-    allPlayers || activePlayers,
-    {
-      teamAge,
-      games,
-    },
-  );
+    games,
+    teamAge,
+  });
 
   // D4 — pitcher pool. For 9U+ Kid Pitch we rank the staff by
   // `calcPitcherScore` (eval-driven), filter to those eligible to pitch
@@ -1060,7 +1043,6 @@ export function generateLineup(input: EngineInput): EngineResult {
     if (!m) return 99;
     return parseInt(m[m.length - 1], 10);
   })();
-  const isKidPitchFormat = /kid/i.test(String(pitchingFormat || ""));
   const usePitcherPool = isKidPitchFormat && teamAgeNumForPool >= 9;
   let pitcherPoolIds: Set<string> = new Set();
   if (usePitcherPool) {
@@ -1145,11 +1127,6 @@ export function generateLineup(input: EngineInput): EngineResult {
       });
     }
   }
-
-  const profiled = activePlayers.map((p) => ({
-    ...p,
-    profile: buildPlayerProfile(p, combinedGrades[p.id]),
-  }));
 
   // Big Game and Competitive both relax seasonal fairness (Competitive ignores
   // the ledger entirely and uses a per-game floor instead).
