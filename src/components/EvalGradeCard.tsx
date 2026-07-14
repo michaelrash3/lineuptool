@@ -7,7 +7,7 @@ import {
 import { evalStatHint } from "../utils/helpers";
 
 const DEFAULT_GRADE = EVAL_SCALE_DEFAULT;
-// 11 standard positions surfaced as a chip row per player so a coach can
+// 11 youth-baseball positions surfaced as a chip row per player so a coach can
 // flag any spots they think this kid should play. Stored on the eval
 // round as `grades[playerId].suggestedPositions`. Used by both the
 // assistant and head-coach grading flows so the shape stays identical.

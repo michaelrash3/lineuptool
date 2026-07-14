@@ -165,7 +165,7 @@ export const AwardsPage = memo(() => {
       },
       {
         id: "ironGlove",
-        label: "Iron Glove (FPCT)",
+        label: "Golden Glove (FPCT)",
         auto: leaderBy((s) => read(s, "fFpct", "fpct"), true, "dec3"),
       },
       { id: "mostImproved", label: "Most Improved", auto: improver },

@@ -253,7 +253,7 @@ const PastSeasonForm = memo(
           {fields.map((key) => (
             <div key={key}>
               <label className="block text-[9px] font-extrabold text-ink-3 uppercase tracking-widest mb-1">
-                {key.toUpperCase()}
+                {STAT_META[key]?.label ?? key.toUpperCase()}
               </label>
               <input
                 type="number"

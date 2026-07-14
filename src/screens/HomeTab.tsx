@@ -50,7 +50,7 @@ import { checkPitchEligibility, resolvePitchRuleSet } from "../lineupEngine";
 const HITTING_STATS = [
   { title: "Batting Avg", statKey: "avg", formatStr: true, asc: false },
   { title: "On Base Pct", statKey: "obp", formatStr: true, asc: false },
-  { title: "OPS Rating", statKey: "ops", formatStr: true, asc: false },
+  { title: "OPS", statKey: "ops", formatStr: true, asc: false },
   { title: "Hits", statKey: "h", formatStr: false, asc: false },
   { title: "Doubles", statKey: "doubles", formatStr: false, asc: false },
   { title: "Triples", statKey: "triples", formatStr: false, asc: false },
@@ -1218,7 +1218,7 @@ const RunStreakTile = memo(({ games }: RunStreakTileProps) => {
             </div>
           </div>
           <div className="ml-auto text-right">
-            <div className="t-eyebrow text-ink-3">RF / RA</div>
+            <div className="t-eyebrow text-ink-3">RS / RA</div>
             <div className="text-sm font-black tabular-nums text-ink">
               {s.runsFor} / {s.runsAgainst}
             </div>
@@ -2094,7 +2094,7 @@ export const HomeTab = memo(() => {
             {!stripped && seasonHero.form.length > 0 && (
               <div className="flex items-center gap-1.5 mt-5">
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-ink-3 mr-1">
-                  Form
+                  Last 5
                 </span>
                 {seasonHero.form.map((r: string, i: number) => (
                   <span

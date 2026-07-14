@@ -315,7 +315,7 @@ export function analyzePitchingWorkload(
     if (needed > 0 && gap <= needed)
       alerts.push({
         kind: "shortRest",
-        message: `Back on ${gap}d rest after ${prevP} pitches (needs ${needed + 1}d)`,
+        message: `Back on ${gap - 1}d rest after ${prevP} pitches (needs ${needed}d)`,
       });
   }
 
