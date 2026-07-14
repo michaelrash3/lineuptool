@@ -96,7 +96,7 @@ export const pitcherPremium = (
   return pitcherRosterPremium(score, PITCH_WEIGHT_SUM);
 };
 
-// 11 standard positions surfaced as a per-player chip row so the coach
+// 9 standard positions surfaced as a per-player chip row so the coach
 // can flag spots they think this kid should play. Stored on the eval
 // round as `grades[playerId].suggestedPositions`. Same vocabulary as
 // the assistant eval tab so head + assistant inputs share a shape.

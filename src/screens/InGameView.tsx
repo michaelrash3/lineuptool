@@ -1081,7 +1081,7 @@ export const InGameView = memo(() => {
                               {player.name}
                             </span>
                             <span className="text-ink-3 text-[9px] font-medium shrink-0">
-                              (I{firstInning})
+                              (Inn {firstInning})
                             </span>
                           </div>
                         </div>

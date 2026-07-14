@@ -121,7 +121,7 @@ const PITCHING_COLS: Col[] = [
   { key: "hhb", label: "HHB%", kind: "pct", hi: false, get: f("pHardPct") },
   { key: "goao", label: "GO/AO", kind: "dec2", hi: true, get: f("pGoAo") },
   { key: "baa", label: "BAA", kind: "dec3", hi: false, get: f("pBaa") },
-  { key: "top", label: "Top", kind: "dec1", hi: true, get: f("pTopMph") },
+  { key: "top", label: "Top MPH", kind: "dec1", hi: true, get: f("pTopMph") },
   { key: "bf", label: "BF", kind: "int", hi: true, get: f("pBf") },
   { key: "tp", label: "TP", kind: "int", hi: true, get: f("totalPitches") },
 ];

@@ -440,7 +440,7 @@ export const ScheduleTab = memo(() => {
               </div>
               <div className="bg-surface border border-line px-4 py-2.5 rounded-xl shrink-0 hidden sm:block shadow-sm">
                 <span className="block text-[9px] text-ink-3 font-extrabold uppercase tracking-widest leading-none mb-1.5">
-                  Rotation
+                  Position Rotation
                 </span>
                 <span className="block text-sm text-ink font-black uppercase leading-none">
                   {gamePositionLock === "full"
@@ -713,7 +713,7 @@ export const ScheduleTab = memo(() => {
             </div>
             <div className="w-full">
               <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
-                Rotation
+                Position Rotation
               </label>
               <select
                 value={gamePositionLock}

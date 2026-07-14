@@ -27,8 +27,8 @@ const POSITION_LABELS: Record<string, string> = {
   LF: "Left Field",
   CF: "Center Field",
   RF: "Right Field",
-  LCF: "Left-Center",
-  RCF: "Right-Center",
+  LCF: "Left-Center Field",
+  RCF: "Right-Center Field",
 };
 
 // A player only appears in a position's depth chart if that position is in

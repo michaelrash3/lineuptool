@@ -67,7 +67,7 @@ export const SeasonReportPage = memo(() => {
       { label: "Most RBI", kind: "int", hi: true, get: (s) => read(s, "rbi") },
       { label: "Most SB", kind: "int", hi: true, get: (s) => read(s, "sb") },
       {
-        label: "Iron Glove (FPCT)",
+        label: "Golden Glove (FPCT)",
         kind: "dec3",
         hi: true,
         get: (s) => read(s, "fFpct", "fpct"),

@@ -92,7 +92,7 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
   },
   {
     id: "armAccuracy",
-    label: "Accuracy",
+    label: "Arm Accuracy",
     group: "Fielding",
     weight: 1.0,
     dataDriven: true,
@@ -110,7 +110,7 @@ export const EVAL_CATEGORIES: EvalCategory[] = [
   },
   {
     id: "baserunning",
-    label: "Base Running",
+    label: "Baserunning",
     group: "Baserunning",
     weight: 1.5,
     description: "Reads, instincts, and smart aggression on the bases.",
@@ -769,7 +769,7 @@ export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
   },
   {
     id: "seed-leads",
-    name: "Lead-offs & secondary leads",
+    name: "Primary & secondary leads",
     category: "Baserunning",
     defaultMinutes: 10,
     environment: "outdoor",
@@ -853,7 +853,7 @@ export const DEFAULT_DRILL_LIBRARY: DrillDefinition[] = [
   },
   {
     id: "seed-inter-squad",
-    name: "Inter-squad scrimmage",
+    name: "Intrasquad scrimmage",
     category: "Team",
     defaultMinutes: 25,
     environment: "outdoor",

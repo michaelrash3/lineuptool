@@ -99,7 +99,7 @@ export const PitchingPlanPanel = memo(() => {
           />
         </div>
         <div>
-          <h2 className="t-h2">Pitching Rotation</h2>
+          <h2 className="t-h2">Pitching Availability</h2>
           <p className="t-eyebrow text-ink-3 mt-0.5">
             Who's rested for each upcoming game
           </p>
