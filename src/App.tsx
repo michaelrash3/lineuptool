@@ -89,7 +89,6 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-import { CommandPalette } from "./components/CommandPalette";
 import { WelcomePage } from "./screens/WelcomePage";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RouteAlias } from "./components/RouteAlias";
@@ -250,6 +249,11 @@ const TournamentDetailPage = lazy(() =>
 const AddPlayerPage = lazy(() =>
   import("./screens/roster/AddPlayerPage").then((m) => ({
     default: m.AddPlayerPage,
+  })),
+);
+const WhatIfLineupPage = lazy(() =>
+  import("./screens/WhatIfLineupPage").then((m) => ({
+    default: m.WhatIfLineupPage,
   })),
 );
 const PlayerReportPage = lazy(() =>
@@ -466,7 +470,6 @@ const MainShell = () => {
 
   const { promptText } = useConfirm();
   const [tutorialOpen, setTutorialOpen] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   // Counts consecutive "popup-closed-by-user" dismissals so the second one
   // can surface a tip about third-party cookies / in-app browsers. Reset to
@@ -513,14 +516,6 @@ const MainShell = () => {
           target.tagName === "TEXTAREA" ||
           target.tagName === "SELECT" ||
           target.isContentEditable);
-
-      // Cmd+K / Ctrl+K opens the command palette from anywhere — even inside
-      // form fields, since that's the canonical Spotlight-style binding.
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
-        e.preventDefault();
-        setPaletteOpen(true);
-        return;
-      }
 
       // Bail in any form field or contentEditable region.
       if (inField) return;
@@ -887,6 +882,7 @@ const MainShell = () => {
                 />
                 <Route path="/roster" element={<RosterTab />} />
                 <Route path="/roster/new" element={<AddPlayerPage />} />
+                <Route path="/lineup/what-if" element={<WhatIfLineupPage />} />
                 {/* Legacy alias: the import review moved to
                     /settings/import/past-season (the flow starts and ends in
                     Settings → Imports). */}
@@ -1160,10 +1156,6 @@ const MainShell = () => {
       <OnboardingTutorial
         open={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
-      />
-      <CommandPalette
-        open={paletteOpen}
-        onClose={() => setPaletteOpen(false)}
       />
       <m.button
         type="button"
