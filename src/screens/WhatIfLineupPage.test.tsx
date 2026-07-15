@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { WhatIfLineupPage } from "./WhatIfLineupPage";
@@ -84,5 +84,43 @@ describe("WhatIfLineupPage", () => {
     expect(
       screen.getByText(/Baseline — everyone available/),
     ).toBeInTheDocument();
+  });
+
+  it("applies the scenario: writes lineup + attendance and opens the game", async () => {
+    const user = userEvent.setup();
+    const updateGame = jest.fn();
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    const { uiValue } = renderWithProviders(
+      <MemoryRouter>
+        <WhatIfLineupPage />
+      </MemoryRouter>,
+      {
+        team: {
+          team: baseTeam,
+          currentRole: "head",
+          realRole: "head",
+          updateGame,
+        } as any,
+      },
+    );
+    // Mark Player 0 out, then apply the What-If scenario.
+    await user.click(screen.getByRole("button", { name: /#1 Player 0/ }));
+    const applyBtn = screen.getByRole("button", {
+      name: /Apply to this game/,
+    });
+    await user.click(applyBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(updateGame).toHaveBeenCalledTimes(1));
+    const [gid, patch] = updateGame.mock.calls[0];
+    expect(gid).toBe("g1");
+    expect(Array.isArray(patch.lineup)).toBe(true);
+    expect(patch.battingLineup).toBeTruthy();
+    // Attendance mirrors availability: the toggled-out player is absent.
+    expect(patch.attendance.p0).toBe(false);
+    expect(patch.attendance.p1).toBe(true);
+    // The game opens on the Schedule after applying.
+    expect(uiValue.setSelectedGameId).toHaveBeenCalledWith("g1");
+    confirmSpy.mockRestore();
   });
 });

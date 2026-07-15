@@ -1,6 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { useTeam } from "../contexts";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useTeam, useUI, useConfirm, useToast } from "../contexts";
 import { PageShell } from "../components/PageShell";
 import { useBackOrFallback } from "../hooks/usePageNav";
 import { Icons } from "../icons";
@@ -12,16 +12,22 @@ import {
   summarizeScenario,
   buildRationale,
   diffScenarios,
+  buildGameAttendance,
   type ScenarioSummary,
 } from "../utils/lineupWhatIf";
 
-// /lineup/what-if — a non-persisting lineup sandbox. The coach picks an upcoming
-// game, toggles who's available, and the SAME engine the real lineup uses
-// regenerates live. A "Baseline" (everyone available) runs alongside so the two
-// can be compared, and each shows the engine's own rationale. Nothing here is
-// ever saved — it's a scratch pad for "what if?". Head-coach only.
+// /lineup/what-if — a lineup sandbox. The coach picks an upcoming game, toggles
+// who's available, and the SAME engine the real lineup uses regenerates live. A
+// "Baseline" (everyone available) runs alongside so the two can be compared, and
+// each shows the engine's own rationale. Regenerating never touches the game;
+// only the explicit "Apply to this game" button writes the scenario's lineup
+// (and syncs attendance). Head-coach only.
 export const WhatIfLineupPage = memo(() => {
-  const { team, currentRole } = useTeam();
+  const { team, currentRole, updateGame } = useTeam() as any;
+  const { setSelectedGameId, setActiveTab } = useUI();
+  const { confirm } = useConfirm();
+  const toast = useToast();
+  const navigate = useNavigate();
   const back = useBackOrFallback("/roster");
   const {
     players,
@@ -117,12 +123,16 @@ export const WhatIfLineupPage = memo(() => {
     () => (runFor ? summarizeScenario(runFor(roster), roster) : null),
     [runFor, roster],
   );
+  // Keep the raw engine result too — "Apply to game" needs the actual
+  // lineup/battingLineup, not just the summary.
+  const scenarioRaw = useMemo(
+    () => (runFor ? runFor(scenarioPlayers) : null),
+    [runFor, scenarioPlayers],
+  );
   const scenario = useMemo<ScenarioSummary | null>(
     () =>
-      runFor
-        ? summarizeScenario(runFor(scenarioPlayers), scenarioPlayers)
-        : null,
-    [runFor, scenarioPlayers],
+      scenarioRaw ? summarizeScenario(scenarioRaw, scenarioPlayers) : null,
+    [scenarioRaw, scenarioPlayers],
   );
 
   const diff = useMemo(
@@ -142,6 +152,41 @@ export const WhatIfLineupPage = memo(() => {
       return next;
     });
 
+  // Commit the scenario's lineup to the real game and sync attendance (the
+  // toggled-out players are marked absent). Reuses the same updateGame write
+  // the normal generate flow uses; then opens the game on the Schedule.
+  const applyScenario = async () => {
+    if (!game || !scenario?.ok || !scenarioRaw?.lineup) return;
+    const outCount = outIds.size;
+    const ok = await confirm({
+      title: `Apply to ${game.opponent || "this game"}?`,
+      message: `This replaces the saved lineup for this game${
+        outCount > 0
+          ? ` and marks ${outCount} player${outCount === 1 ? "" : "s"} absent`
+          : ""
+      }. You can still regenerate or edit it on the Schedule.`,
+      confirmLabel: "Apply",
+      danger: true,
+    });
+    if (!ok) return;
+    updateGame(game.id, {
+      lineup: scenarioRaw.lineup,
+      battingLineup: scenarioRaw.battingLineup,
+      attendance: buildGameAttendance(roster, outIds),
+    });
+    setSelectedGameId(game.id);
+    setActiveTab?.("schedule");
+    toast.push({
+      kind: "success",
+      title: "Lineup applied",
+      message:
+        outCount > 0
+          ? `Saved and marked ${outCount} absent for ${game.opponent || "the game"}.`
+          : `Saved for ${game.opponent || "the game"}.`,
+    });
+    navigate("/schedule");
+  };
+
   return (
     <PageShell eyebrow="Lineup" title="What-If Sandbox" onBack={back}>
       {upcoming.length === 0 || !game ? (
@@ -151,9 +196,10 @@ export const WhatIfLineupPage = memo(() => {
       ) : (
         <div className="space-y-5 max-w-4xl">
           <p className="text-xs font-medium text-ink-3 leading-snug">
-            Explore lineups without saving anything. Mark players out to see how
-            the fair-play engine reshuffles the defense, and compare against the
-            baseline where everyone's available.
+            Mark players out to see how the fair-play engine reshuffles the
+            defense, compare against the baseline where everyone's available,
+            and apply the one you like to the game (regenerating never saves on
+            its own).
           </p>
 
           {/* Game picker */}
@@ -252,6 +298,7 @@ export const WhatIfLineupPage = memo(() => {
               }
               summary={scenario}
               highlight
+              onApply={applyScenario}
             />
           </div>
         </div>
@@ -265,10 +312,12 @@ const ScenarioColumn = memo(
     title,
     summary,
     highlight,
+    onApply,
   }: {
     title: string;
     summary: ScenarioSummary | null;
     highlight?: boolean;
+    onApply?: () => void;
   }) => {
     if (!summary) return null;
     const rationale = buildRationale(summary);
@@ -309,6 +358,19 @@ const ScenarioColumn = memo(
                 </p>
               ))}
             </div>
+            {onApply && (
+              <button
+                type="button"
+                onClick={onApply}
+                className="mt-3 w-full py-2 rounded-lg text-xs font-black uppercase tracking-widest shadow-md hover:-translate-y-0.5 transition-transform"
+                style={{
+                  backgroundColor: "var(--team-primary)",
+                  color: "var(--team-on-primary)",
+                }}
+              >
+                Apply to this game
+              </button>
+            )}
           </>
         )}
       </div>
