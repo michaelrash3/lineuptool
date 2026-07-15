@@ -153,6 +153,21 @@ export const buildRationale = (summary: ScenarioSummary): string[] => {
   return lines;
 };
 
+// Attendance map for applying a scenario to a real game: every active player
+// is marked present (true) unless the coach toggled them out (false). Mirrors
+// the scenario's availability so a hand-picked "what if X is out" becomes the
+// game's actual attendance.
+export const buildGameAttendance = (
+  activePlayers: { id: string }[],
+  outIds: Set<string>,
+): Record<string, boolean> => {
+  const attendance: Record<string, boolean> = {};
+  for (const p of activePlayers || []) {
+    attendance[p.id] = !outIds.has(p.id);
+  }
+  return attendance;
+};
+
 export interface ScenarioDiff {
   bothOk: boolean;
   penaltyA: number | null;

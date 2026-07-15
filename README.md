@@ -18,7 +18,7 @@ The whole signed-in app is **coach-facing**, split into two roles — **head** a
 **Lineups & game day**
 
 - Fairness-aware lineup engine: inning-by-inning defense, bench rotation with a minimum-play floor, and a strategy-aware batting order; position locks and saved templates
-- Optimal-lineup preview, a **What-If sandbox** (try changes without saving and A/B compare two variants), and plain-English **lineup rationale**
+- Optimal-lineup preview, a **What-If sandbox** (explore availability scenarios and A/B compare two variants, then apply one to the game — syncing attendance), and plain-English **lineup rationale**
 - In-game mode: live position swaps, score tracking, and pitching changes; printable/shareable lineup cards (PDF/PNG)
 - Pitch-count & arm-care management — age-based limits, rest rules, and cross-game tournament pitch plans
 

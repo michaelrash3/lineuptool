@@ -4,6 +4,7 @@ import {
   summarizeScenario,
   buildRationale,
   diffScenarios,
+  buildGameAttendance,
   type EngineLike,
 } from "./lineupWhatIf";
 
@@ -98,6 +99,18 @@ describe("buildRationale", () => {
       players,
     );
     expect(buildRationale(s).some((l) => /penalty 0/.test(l))).toBe(true);
+  });
+});
+
+describe("buildGameAttendance", () => {
+  it("marks toggled-out players absent and everyone else present", () => {
+    const att = buildGameAttendance(players, new Set(["b", "d"]));
+    expect(att).toEqual({ a: true, b: false, c: true, d: false });
+  });
+
+  it("marks all present when nobody is out", () => {
+    const att = buildGameAttendance(players, new Set());
+    expect(Object.values(att).every((v) => v === true)).toBe(true);
   });
 });
 
