@@ -1832,12 +1832,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   ]);
 
   // PR K — Email eval prompts (client-only). When the HC opens the app
-  // and the cadence is active for anyone on the team, fire one batch
-  // of reminder emails via the head's signed-in Gmail. A
-  // `lastEvalEmailedAt` cool-off guard (7 days) inside emailPromptStatus
-  // prevents re-sending on every page load while a cadence stays active.
-  // One-per-session ref keeps the same tab from sending twice while the
-  // Firestore write is in flight.
+  // and the cadence is active for anyone on the team, surface a one-tap
+  // toast that opens a pre-filled mailto: draft to the coaches who haven't
+  // submitted (the head sends it from their own mail app — the Gmail API
+  // send was removed; see below). A `lastEvalEmailedAt` cool-off guard
+  // (7 days) inside emailPromptStatus prevents re-prompting on every page
+  // load while a cadence stays active. One-per-session ref keeps the same
+  // tab from prompting twice while the Firestore write is in flight.
   const emailPromptAttemptedRef = useRef(new Set());
   useEffect(() => {
     if (!authReady || !user || !activeTeamId) return;

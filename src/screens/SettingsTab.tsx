@@ -1041,9 +1041,14 @@ export const SettingsTab = memo(() => {
               )}
               {settingsMenu === "staff" && (
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-4 border-b border-line pb-3 flex items-center gap-2">
-                    <Icons.Users className="w-4 h-4" /> Coaching Staff
+                  <h3 className="text-sm font-black uppercase tracking-widest text-ink-3 mb-2 border-b border-line pb-3 flex items-center gap-2">
+                    <Icons.Users className="w-4 h-4" /> Lineup-Card Coaches
                   </h3>
+                  <p className="text-[11px] text-ink-3 font-medium mb-3">
+                    Names printed on the lineup card and reports. These are
+                    labels only — they don&apos;t grant app access. To manage
+                    who can sign in, use <strong>Coach Roles</strong> below.
+                  </p>
                   <div className="space-y-3 mb-4">
                     {coaches.map((c: any) => (
                       <div
@@ -1060,6 +1065,8 @@ export const SettingsTab = memo(() => {
                         </div>
                         <button
                           onClick={() => removeCoach(c.id)}
+                          title="Remove name"
+                          aria-label={`Remove ${c.name || "coach"}`}
                           className="p-2 text-ink-3 hover:text-loss hover:bg-loss-bg rounded-lg transition-colors"
                         >
                           <Icons.Trash className="w-4 h-4" />
@@ -1143,10 +1150,30 @@ export const SettingsTab = memo(() => {
                     <Icons.Users className="w-4 h-4" /> Coach Roles
                   </h3>
                   <p className="text-[11px] text-ink-3 font-medium mb-3">
-                    Head coaches can edit lineups, evals, and settings.
-                    Assistants submit eval grades and view today&apos;s lineup.
+                    Everyone who can sign in to this team. Head coaches can edit
+                    lineups, evals, and settings; assistants submit eval grades
+                    and view today&apos;s lineup.
                   </p>
                   <div className="space-y-2 mb-2">
+                    {team.ownerId && (
+                      <div className="flex justify-between items-center bg-surface p-3 border border-line rounded-xl shadow-sm gap-3">
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-ink truncate">
+                            {user && team.ownerId === user.uid
+                              ? "You"
+                              : (team.coachContacts || []).find(
+                                  (cc: any) => cc.uid === team.ownerId,
+                                )?.name || team.ownerId.slice(0, 12) + "…"}
+                          </div>
+                          <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
+                            Head Coach · Owner
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 text-ink-3">
+                          Owner
+                        </span>
+                      </div>
+                    )}
                     {(team.members || [])
                       .filter((uid: any) => uid !== team.ownerId)
                       .map((uid: any) => {
@@ -1155,6 +1182,9 @@ export const SettingsTab = memo(() => {
                             ? "head"
                             : "assistant";
                         const isMe = user && uid === user.uid;
+                        const contactName = (team.coachContacts || []).find(
+                          (cc: any) => cc.uid === uid,
+                        )?.name;
                         return (
                           <div
                             key={uid}
@@ -1162,7 +1192,9 @@ export const SettingsTab = memo(() => {
                           >
                             <div className="min-w-0">
                               <div className="text-xs font-black text-ink truncate">
-                                {isMe ? "You" : uid.slice(0, 12) + "…"}
+                                {isMe
+                                  ? "You"
+                                  : contactName || uid.slice(0, 12) + "…"}
                               </div>
                               <div className="text-[10px] font-extrabold text-ink-3 uppercase tracking-widest">
                                 {role === "head"
@@ -1214,18 +1246,19 @@ export const SettingsTab = memo(() => {
                     />
                     <span className="flex-1 min-w-0">
                       <span className="block text-xs font-black uppercase tracking-widest text-ink">
-                        Email eval reminders to coaches
+                        Eval reminder email prompt
                       </span>
                       <span className="block text-[11px] text-ink-3 font-medium mt-0.5">
-                        When an eval round is due, send a single reminder email
-                        from your signed-in Gmail to every coach who hasn&apos;t
-                        submitted. Cool-off of 7 days between batches.
+                        When an eval round is due, show a one-tap prompt that
+                        opens a pre-filled email draft to coaches who
+                        haven&apos;t submitted — you send it from your own mail
+                        app. Cool-off of 7 days between prompts.
                       </span>
                     </span>
                   </label>
                   {team.lastEvalEmailedAt && (
                     <p className="text-[10px] text-ink-3 font-medium mt-2 px-1">
-                      Last reminder batch sent{" "}
+                      Last reminder prompt{" "}
                       {new Date(team.lastEvalEmailedAt).toLocaleDateString()}
                     </p>
                   )}

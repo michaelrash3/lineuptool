@@ -125,6 +125,47 @@ describe("SettingsTab", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("Staff panel resolves member names, shows the owner, and toggles roles", async () => {
+    const user = userEvent.setup();
+    const setCoachRole = jest.fn();
+    renderWithProviders(
+      <MemoryRouter>
+        <SettingsTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...teamData,
+            ownerId: "ownerUID",
+            members: ["ownerUID", "asstUID"],
+            coachRoles: { asstUID: "assistant" },
+            coachContacts: [{ uid: "asstUID", name: "Coach Bob" }],
+          },
+          currentRole: "head",
+          realRole: "head",
+          user: { uid: "ownerUID" },
+          setCoachRole,
+        },
+        ui: {
+          isAddingCoach: false,
+          setIsAddingCoach: jest.fn(),
+          newCoachForm: {},
+          setNewCoachForm: jest.fn(),
+        },
+      },
+    );
+    await user.click(screen.getByRole("button", { name: /^Staff$/ }));
+    // Display-only names block is clearly relabeled.
+    expect(screen.getByText("Lineup-Card Coaches")).toBeInTheDocument();
+    // Real-access block resolves the member's name from coachContacts (not a
+    // truncated UID) and surfaces the owner row.
+    expect(screen.getByText("Coach Bob")).toBeInTheDocument();
+    expect(screen.getByText("Head Coach · Owner")).toBeInTheDocument();
+    // Role toggle drives the real setCoachRole mutation.
+    await user.click(screen.getByRole("button", { name: "Make Head" }));
+    expect(setCoachRole).toHaveBeenCalledWith("asstUID", "head");
+  });
+
   it("turns a feature off and back on from the Features section", async () => {
     const { teamValue } = renderWithProviders(
       <MemoryRouter>

@@ -21,6 +21,7 @@ import type {
   TryoutSignup,
 } from "../types";
 import { errMessage } from "../utils/diagnostics";
+import { downloadTeamBackup } from "../utils/teamBackup";
 import { downscaleImageToDataURL } from "../components/shared";
 import { buildPlayerSeasonSummaries } from "../utils/playerDevelopment";
 import { rolloverDevPlan } from "../utils/developmentPlan";
@@ -283,7 +284,7 @@ export const useTeamLifecycle = ({
           ? ` (age advances ${archivedAge} → ${newAgeGroup})`
           : ` (age stays ${archivedAge})`) +
         `\n\n` +
-        `This cannot be undone.`;
+        `A backup file downloads first so you can restore if needed. This cannot be undone.`;
 
       // The Advance Season page already walked the head through every
       // marking and showed a full summary, so the confirm here is a
@@ -299,6 +300,11 @@ export const useTeamLifecycle = ({
         });
         if (!ok) return;
       }
+
+      // Auto-snapshot before the irreversible wipe (games, practices,
+      // tournaments, tryouts, released players, cleared stats). Runs in both
+      // the wizard (skipConfirm) and direct-caller paths.
+      downloadTeamBackup(teamData, activeTeamId, "snapshot");
 
       const nowIso = new Date().toISOString();
 
@@ -629,11 +635,13 @@ export const useTeamLifecycle = ({
     const ok = await confirm({
       title: "Permanently delete this team?",
       message:
-        "Roster, schedule, stats, and evaluations are all deleted. This cannot be undone.",
+        "Roster, schedule, stats, and evaluations are all deleted. A backup file downloads first so you can restore later. This cannot be undone.",
       confirmLabel: "Delete Team",
       danger: true,
     });
     if (!ok) return;
+    // Auto-snapshot before the team document is deleted.
+    downloadTeamBackup(teamData, activeTeamId, "snapshot");
     try {
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
@@ -661,7 +669,7 @@ export const useTeamLifecycle = ({
         message: errMessage(e),
       });
     }
-  }, [user, teams, activeTeamId, toast, confirm]);
+  }, [user, teams, activeTeamId, teamData, toast, confirm]);
 
   const leaveTeamCmd = useCallback(async () => {
     if (!user || teams.length <= 1) return;

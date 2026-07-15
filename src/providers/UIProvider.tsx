@@ -47,6 +47,9 @@ export const UIProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAddingGame, setIsAddingGame] = useState(false);
   const [newGameForm, setNewGameForm] = useState({
     date: getLocalDateString(),
+    time: "",
+    location: "",
+    isHome: true,
     opponent: "",
     leagueRuleSet: "USSSA",
     pitchingFormat: "Kid Pitch",

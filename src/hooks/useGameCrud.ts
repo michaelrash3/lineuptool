@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { normalizeDateToIso, genId } from "../utils/helpers";
+import { localDateTimeToIso } from "../utils/icsParse";
 import { allowedPitchingFormats } from "../constants/ui";
 import { celebrateWin } from "../utils/celebrate";
 import type {
@@ -65,6 +66,10 @@ export const useGameCrud = ({
         battingSize: teamData.battingSize,
         positionLock: teamData.positionLock,
         isScrimmage: !!form.isScrimmage,
+        // Manual game details (feed-imported games get these from the .ics).
+        location: (form.location || "").trim(),
+        isHome: form.isHome !== false,
+        startUtc: localDateTimeToIso(form.date, form.time),
         lineup: null,
         battingLineup: null,
         attendance: {},

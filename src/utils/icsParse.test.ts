@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseGameChangerIcs, isoInstantToLocalDate } from "./icsParse";
+import {
+  parseGameChangerIcs,
+  isoInstantToLocalDate,
+  isoInstantToLocalTimeInput,
+  localDateTimeToIso,
+} from "./icsParse";
 
 // Real sample taken verbatim from a GameChanger Team Manager feed
 // (api.team-manager.gc.com .ics), trimmed to a few representative events:
@@ -115,5 +120,33 @@ describe("isoInstantToLocalDate", () => {
     expect(isoInstantToLocalDate("2026-06-06T14:00:00.000Z")).toBe(
       "2026-06-06",
     );
+  });
+});
+
+describe("localDateTimeToIso / isoInstantToLocalTimeInput", () => {
+  it("round-trips a local date+time through a UTC instant (zone-independent)", () => {
+    // Whatever the runner's zone, combining a local date+time and reading the
+    // clock time back out must return the same HH:MM.
+    const iso = localDateTimeToIso("2026-05-01", "18:30");
+    expect(iso).not.toBeNull();
+    expect(isoInstantToLocalTimeInput(iso)).toBe("18:30");
+  });
+
+  it("zero-pads a single-digit hour on the way back out", () => {
+    const iso = localDateTimeToIso("2026-05-01", "9:05");
+    expect(isoInstantToLocalTimeInput(iso)).toBe("09:05");
+  });
+
+  it("returns null for a missing or malformed date/time (all-day, no clock)", () => {
+    expect(localDateTimeToIso("2026-05-01", "")).toBeNull();
+    expect(localDateTimeToIso("", "18:30")).toBeNull();
+    expect(localDateTimeToIso("not-a-date", "18:30")).toBeNull();
+    expect(localDateTimeToIso("2026-05-01", "99")).toBeNull();
+  });
+
+  it("renders a missing instant as an empty time-input value", () => {
+    expect(isoInstantToLocalTimeInput(null)).toBe("");
+    expect(isoInstantToLocalTimeInput(undefined)).toBe("");
+    expect(isoInstantToLocalTimeInput("garbage")).toBe("");
   });
 });

@@ -22,7 +22,11 @@ import { GameStakesPanel } from "../components/tournament/GameStakesPanel";
 import { featureEnabled } from "../constants/features";
 import { fetchGcEvents, mergeGcEventsIntoGames } from "../utils/gcSync";
 import type { Game, Player } from "../types";
-import { isoInstantToLocalTime } from "../utils/icsParse";
+import {
+  isoInstantToLocalTime,
+  isoInstantToLocalTimeInput,
+  localDateTimeToIso,
+} from "../utils/icsParse";
 import { allowedPitchingFormats, leagueRuleSetLabel } from "../constants/ui";
 import { LineupGrid } from "./LineupGrid";
 
@@ -598,9 +602,68 @@ export const ScheduleTab = memo(() => {
               <input
                 type="date"
                 value={normalizeDateToIso(currentGame.date) || ""}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  const patch: Record<string, unknown> = { date: newDate };
+                  // Keep the game's clock time when only the date changes by
+                  // recomputing startUtc for the new day.
+                  if (currentGame.startUtc) {
+                    patch.startUtc = localDateTimeToIso(
+                      newDate,
+                      isoInstantToLocalTimeInput(currentGame.startUtc),
+                    );
+                  }
+                  updateGame(selectedGameId, patch);
+                }}
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Time
+              </label>
+              <input
+                type="time"
+                value={isoInstantToLocalTimeInput(currentGame.startUtc)}
                 onChange={(e) =>
-                  updateGame(selectedGameId, { date: e.target.value })
+                  updateGame(selectedGameId, {
+                    startUtc: localDateTimeToIso(
+                      normalizeDateToIso(currentGame.date) || currentGame.date,
+                      e.target.value,
+                    ),
+                  })
                 }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
+              />
+            </div>
+            <div className="w-full">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Home / Away
+              </label>
+              <select
+                value={currentGame.isHome === false ? "away" : "home"}
+                onChange={(e) =>
+                  updateGame(selectedGameId, {
+                    isHome: e.target.value === "home",
+                  })
+                }
+                className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] cursor-pointer shadow-sm"
+              >
+                <option value="home">Home</option>
+                <option value="away">Away</option>
+              </select>
+            </div>
+            <div className="w-full col-span-2">
+              <label className="block text-[10px] font-extrabold text-ink-3 uppercase tracking-widest mb-1.5">
+                Location
+              </label>
+              <input
+                type="text"
+                value={currentGame.location || ""}
+                onChange={(e) =>
+                  updateGame(selectedGameId, { location: e.target.value })
+                }
+                placeholder="Field / Location"
                 className="w-full p-2.5 bg-surface border border-line text-xs font-bold rounded-lg outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-sm"
               />
             </div>
@@ -1517,6 +1580,15 @@ export const ScheduleTab = memo(() => {
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <input
+            type="time"
+            aria-label="Game time"
+            value={newGameForm.time}
+            onChange={(e) =>
+              setNewGameForm({ ...newGameForm, time: e.target.value })
+            }
+            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] shadow-inner"
+          />
+          <input
             type="text"
             value={newGameForm.opponent}
             onChange={(e) =>
@@ -1524,6 +1596,15 @@ export const ScheduleTab = memo(() => {
             }
             placeholder="Opponent Name"
             className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 uppercase shadow-inner"
+          />
+          <input
+            type="text"
+            value={newGameForm.location}
+            onChange={(e) =>
+              setNewGameForm({ ...newGameForm, location: e.target.value })
+            }
+            placeholder="Field / Location"
+            className="p-2.5 bg-surface border border-line rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-[var(--team-primary)] flex-1 shadow-inner"
           />
           <select
             value={newGameForm.leagueRuleSet}
@@ -1576,6 +1657,20 @@ export const ScheduleTab = memo(() => {
               </select>
             );
           })()}
+          <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink whitespace-nowrap px-1">
+            <input
+              type="checkbox"
+              checked={newGameForm.isHome}
+              onChange={(e) =>
+                setNewGameForm({
+                  ...newGameForm,
+                  isHome: e.target.checked,
+                })
+              }
+              className="w-4 h-4 accent-[var(--team-primary)]"
+            />
+            Home
+          </label>
           <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-ink whitespace-nowrap px-1">
             <input
               type="checkbox"

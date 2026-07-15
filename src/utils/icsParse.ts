@@ -193,3 +193,42 @@ export const isoInstantToLocalTime = (
     minute: "2-digit",
   });
 };
+
+// Format a UTC ISO instant as a 24h "HH:MM" local string for an
+// <input type="time"> value. "" when missing/unparseable (all-day / no clock).
+export const isoInstantToLocalTimeInput = (
+  iso: string | null | undefined,
+): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+};
+
+// Combine a local calendar date (YYYY-MM-DD) and a 24h clock time (HH:MM, from
+// an <input type="time">) into a UTC ISO instant, so a hand-entered game's time
+// is stored the same way feed-imported games are (Game.startUtc) and renders
+// through isoInstantToLocalTime. Returns null when either part is missing or
+// malformed — the "all-day, no clock shown" state.
+export const localDateTimeToIso = (
+  date: string | null | undefined,
+  time: string | null | undefined,
+): string | null => {
+  if (!date || !time) return null;
+  const dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+  const tm = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!dm || !tm) return null;
+  const d = new Date(
+    Number(dm[1]),
+    Number(dm[2]) - 1,
+    Number(dm[3]),
+    Number(tm[1]),
+    Number(tm[2]),
+    0,
+    0,
+  );
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+};
