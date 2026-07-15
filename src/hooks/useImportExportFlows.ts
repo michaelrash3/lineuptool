@@ -14,6 +14,7 @@ import {
   dateToIsoLocal,
 } from "../utils/helpers";
 import { sanitizeBackup } from "../utils/backupSanitizer";
+import { downloadTeamBackup } from "../utils/teamBackup";
 import { getLocalDateString } from "../constants/ui";
 import type { ConfirmContextValue, Player, ToastContextValue } from "../types";
 import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
@@ -69,6 +70,13 @@ export const useImportExportFlows = ({
           const oppIdx = headers.findIndex(
             (h) => h.includes("opponent") || h.includes("home/away"),
           );
+          const locationIdx = headers.findIndex(
+            (h) =>
+              h.includes("location") ||
+              h.includes("venue") ||
+              h.includes("field") ||
+              h === "where",
+          );
           if (dateIdx === -1) throw new Error("Could not find a date column.");
           const newGames: any[] = [];
           // Rows that carried a date value we couldn't parse. Blank rows
@@ -86,10 +94,13 @@ export const useImportExportFlows = ({
               continue;
             }
             const opp = oppIdx !== -1 ? cols[oppIdx] : "TBD";
+            const location =
+              locationIdx !== -1 ? (cols[locationIdx] || "").trim() : "";
             newGames.push({
               id: genId("g"),
               date: isoDate,
               opponent: opp || "TBD",
+              location,
               leagueRuleSet: teamData.leagueRuleSet,
               pitchingFormat: teamData.pitchingFormat,
               defenseSize: teamData.defenseSize,
@@ -565,15 +576,7 @@ export const useImportExportFlows = ({
   );
 
   const exportBackup = useCallback(() => {
-    const blob = new Blob([JSON.stringify(teamData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `lineup-backup-${activeTeamId}-${getLocalDateString()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadTeamBackup(teamData, activeTeamId);
   }, [teamData, activeTeamId]);
 
   // Roster CSV — TeamSnap-import-template column order so the file can
@@ -758,7 +761,7 @@ export const useImportExportFlows = ({
       const ok = await confirm({
         title: "Restore backup?",
         message:
-          "Replaces this team's roster, schedule, and settings with the backup file. This cannot be undone.",
+          "Replaces this team's roster, schedule, and settings with the backup file. Your current team downloads as a backup file first, so you can undo this. This cannot be undone otherwise.",
         confirmLabel: "Restore",
         danger: true,
       });
@@ -766,6 +769,9 @@ export const useImportExportFlows = ({
         input.value = "";
         return;
       }
+      // Auto-snapshot the CURRENT team before the full replace, so a wrong or
+      // unwanted restore can be rolled back from the downloaded file.
+      downloadTeamBackup(teamData, activeTeamId, "snapshot");
       const reader = new FileReader();
       reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
@@ -818,7 +824,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       input.value = "";
     },
-    [updateTeam, toast, confirm],
+    [updateTeam, toast, confirm, teamData, activeTeamId],
   );
 
   return {

@@ -41,6 +41,44 @@ describe("useGameCrud", () => {
     });
   });
 
+  it("addGame stores manual location, home/away, and a computed startUtc", () => {
+    const { result, updateTeamArrays } = setup();
+    act(() =>
+      result.current.addGame({
+        date: "2026-05-01",
+        time: "18:30",
+        location: " Miller Field ",
+        isHome: false,
+        opponent: "Rays",
+        leagueRuleSet: "USSSA",
+        pitchingFormat: "Kid Pitch",
+      }),
+    );
+    const game = updateTeamArrays.mock.calls[0][0].entries[0];
+    expect(game.location).toBe("Miller Field");
+    expect(game.isHome).toBe(false);
+    // startUtc is a real instant that reads back as 18:30 local time.
+    expect(
+      new Date(game.startUtc as string).getHours() * 60 +
+        new Date(game.startUtc as string).getMinutes(),
+    ).toBe(18 * 60 + 30);
+  });
+
+  it("addGame leaves startUtc null when no time is entered (all-day)", () => {
+    const { result, updateTeamArrays } = setup();
+    act(() =>
+      result.current.addGame({
+        date: "2026-05-01",
+        opponent: "Rays",
+        leagueRuleSet: "USSSA",
+        pitchingFormat: "Kid Pitch",
+      }),
+    );
+    const game = updateTeamArrays.mock.calls[0][0].entries[0];
+    expect(game.startUtc).toBeNull();
+    expect(game.isHome).toBe(true);
+  });
+
   it("addGame warns and does not persist when date/opponent missing", () => {
     const { result, updateTeamArrays, toast } = setup();
     act(() =>

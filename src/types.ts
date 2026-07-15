@@ -670,6 +670,10 @@ export interface Team {
   tryoutsOpen?: boolean;
   tryoutsPhase?: "open" | "intake_closed" | "completed";
   rosterCap?: number;
+  // Head coach has finalized the roster: the add-player form blocks new adds
+  // until unlocked (absent/false = open). Enforced in the UI, not the mutation,
+  // so season-advance promotions and imports are unaffected.
+  rosterLocked?: boolean;
   tryoutSignups?: TryoutSignup[];
   tryoutSessions?: TryoutSession[];
   // Year-round interest survey leads (PR 2). Lives outside tryoutsOpen

@@ -75,6 +75,21 @@ describe("uploadScheduleCsv", () => {
     );
   });
 
+  it("ingests a Location column when present", async () => {
+    const { run, teamData, updateTeamArrays } = setupScheduleImport();
+    run(
+      "Date,Opponent,Location\n" +
+        "2026-05-01,Rays,Miller Field\n" +
+        "2026-05-08,Cubs,\n", // blank location -> empty string
+    );
+    await waitFor(() => expect(updateTeamArrays).toHaveBeenCalled());
+    const games = applyTeamOps(
+      teamData,
+      updateTeamArrays.mock.calls[0][0],
+    ).games;
+    expect(games.map((g: any) => g.location)).toEqual(["Miller Field", ""]);
+  });
+
   it("omits the skipped message when every dated row parses", async () => {
     const { run, updateTeamArrays, toast } = setupScheduleImport();
     run("Date,Opponent\n2026-05-01,Rays\n");
