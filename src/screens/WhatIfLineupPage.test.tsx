@@ -40,7 +40,10 @@ const baseTeam = {
   currentSeason: "Spring 2099",
 };
 
-const render = (over: Record<string, unknown> = {}, role = "head") =>
+const render = (
+  over: Record<string, unknown> = {},
+  role: "head" | "assistant" = "head",
+) =>
   renderWithProviders(
     <MemoryRouter>
       <WhatIfLineupPage />
