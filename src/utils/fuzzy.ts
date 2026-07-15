@@ -2,8 +2,7 @@
 // the query has zero characters present in the candidate; otherwise lower
 // is better (matched index of the query inside the haystack).
 //
-// Shared by the command palette and the help center search — keep ranking
-// behavior identical across both.
+// Used by the help center search ranking.
 export const fuzzyScore = (haystack: string, needle: string): number => {
   if (!needle) return 0;
   const h = (haystack || "").toLowerCase();

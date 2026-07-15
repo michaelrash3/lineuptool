@@ -1,7 +1,7 @@
 // Single source of truth for the in-app Help Center: category taxonomy,
 // topic articles, search ranking, and role/feature visibility. Pure data +
-// pure functions — no React. The HelpCenter overlay renders from this, the
-// command palette deep-links into it, and content.test.ts enforces the
+// pure functions — no React. The HelpCenter overlay renders from this, and
+// content.test.ts enforces the
 // referential integrity rules (related ids resolve, CTA tabs are real,
 // head-only/feature gates match their CTA targets).
 
@@ -218,17 +218,12 @@ export const HELP_TOPICS: HelpTopic[] = [
     cta: { label: "Open your roster", tab: "roster" },
   },
   {
-    id: "command-palette-help",
+    id: "help-center",
     category: "getting-started",
-    title: "Command palette & this Help Center",
-    summary:
-      "Cmd/Ctrl+K jumps anywhere; ? opens Help. Both search the same way.",
-    keywords: "palette cmd k ctrl k search help center question mark docs",
+    title: "This Help Center",
+    summary: "Press ? anywhere to open Help. Browse by category or search.",
+    keywords: "search help center question mark docs tutorials how-to",
     sections: [
-      {
-        heading: "Command palette",
-        body: "Press Cmd+K (Mac) or Ctrl+K (Windows) anywhere — even inside a form field — to open the command palette. Type a few characters to jump to a tab, a game, or an action.",
-      },
       {
         heading: "Help Center",
         body: "Press ? (Shift+/) to open this Help Center. Browse by category or search; matching your exact words in a title ranks highest. Topics are filtered to what you can actually see — assistant coaches and teams with features switched off won't find articles about tabs they don't have.",
@@ -1049,9 +1044,8 @@ export const HELP_TOPICS: HelpTopic[] = [
     keywords: "keyboard shortcut hotkey keys cmd ctrl k g b escape numbers",
     sections: [
       {
-        body: "Shortcuts work anywhere in the app once you're signed in. Everything except the command palette is ignored while you're typing in a form field.",
+        body: "Shortcuts work anywhere in the app once you're signed in, but are ignored while you're typing in a form field.",
         list: [
-          "Cmd+K / Ctrl+K — open the command palette (works even inside form fields)",
           "1–5 — jump to the first five tabs, in your tab bar's order",
           "? — open this Help Center",
           "G — regenerate the lineup (when a game is open for editing)",
@@ -1060,7 +1054,7 @@ export const HELP_TOPICS: HelpTopic[] = [
         ],
       },
     ],
-    related: ["command-palette-help", "lineup-locks-editing"],
+    related: ["help-center", "lineup-locks-editing"],
   },
 
   // --------------------------------------------------------------- glossary

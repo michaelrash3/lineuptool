@@ -277,7 +277,7 @@ const buildSteps = (ctx: OrientationCtx): TourStep[] => {
       eyebrow: "All Set",
       title: "You're ready",
       icon: Icons.Check,
-      body: "⌘K / Ctrl-K opens the command palette from anywhere. The ? button (or the ? key) opens Help & Tutorials — searchable how-tos for every screen, a glossary, keyboard shortcuts, and guided tours you can run anytime, including this orientation.",
+      body: "The ? button (or the ? key) opens Help & Tutorials — searchable how-tos for every screen, a glossary, keyboard shortcuts, and guided tours you can run anytime, including this orientation.",
     },
   ];
   return steps.filter((s): s is TourStep => s !== null);

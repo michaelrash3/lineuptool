@@ -1560,6 +1560,14 @@ export const ScheduleTab = memo(() => {
           )}
           {canEdit && (
             <button
+              onClick={() => navigate("/lineup/what-if")}
+              className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
+            >
+              <Icons.Bat className="w-4 h-4" /> What-If
+            </button>
+          )}
+          {canEdit && (
+            <button
               onClick={() => setIsAddingGame(true)}
               className="w-full sm:w-auto py-2.5 px-5 flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-md whitespace-nowrap"
               style={{ backgroundColor: primaryColor, color: tertiaryColor }}

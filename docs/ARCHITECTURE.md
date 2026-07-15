@@ -108,7 +108,6 @@ to keep inline bytes small rather than offload them.
    - `shared.tsx` — `Button`, `Chip`, `Eyebrow`, `PlayerAvatar`, `RecordBadge`, `Modal`, `A11yDialog`, plus the image helpers (`downscaleImageToDataURL`, `extractLogoPalette`)
    - `PlayerProfilePage.tsx` — the routed player profile (`/roster/:playerId`); every former modal is a routed page under `src/screens/` per the app-wide modals→pages rule
    - `OnboardingTutorial.tsx` — 7-step CTA tour, gated by `lineuptool.onboardingComplete.v2` in localStorage
-   - `CommandPalette.tsx` — ⌘K
    - `EvalGradeCard.tsx` — eval grading card
    - (first-run Join-vs-Create lives at `src/screens/WelcomePage.tsx`, the routed `/welcome` page)
 
