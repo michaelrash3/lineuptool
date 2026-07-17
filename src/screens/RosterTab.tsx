@@ -9,8 +9,6 @@ import { useTeam, useUI, useToast } from "../contexts";
 import { getPlayerInitials, EmptyState, Modal } from "../components/shared";
 import { QRCodeImg } from "../components/QRCodeImg";
 import { ImportCsvButton } from "../components/ImportCsvButton";
-import { PitchingPlanPanel } from "../components/PitchingPlanPanel";
-import { ArmCarePanel } from "../components/ArmCarePanel";
 import { RosterIntegrityPanel } from "./roster/RosterIntegrityPanel";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
 import { StaggerList, StaggerItem } from "../components/motion";
@@ -529,8 +527,6 @@ export const RosterTab = memo(() => {
 
   return (
     <div className="w-full space-y-6">
-      <PitchingPlanPanel />
-      <ArmCarePanel />
       <RosterIntegrityPanel />
       <div className="space-y-6 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
         <div className="border-b border-line pb-6">

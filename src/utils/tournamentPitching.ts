@@ -266,9 +266,8 @@ export function assessTournamentPlan({
 
 // The not-yet-consumed planned outings that land strictly BEFORE `gameId`
 // within its tournament, per player — ready to feed withPlannedOutings. This
-// is what lets surfaces OUTSIDE the tournament card (PitchingPlanPanel,
-// StartingPitcherPicker) see the weekend plan. Empty map when the game isn't
-// in any stored tournament.
+// is what lets surfaces OUTSIDE the tournament card (StartingPitcherPicker)
+// see the weekend plan. Empty map when the game isn't in any stored tournament.
 export function priorPlannedOutingsForGame(
   tournaments: Tournament[] | null | undefined,
   games: Game[] | null | undefined,
