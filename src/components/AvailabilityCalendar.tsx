@@ -71,47 +71,54 @@ export const AvailabilityCalendar = ({
     });
 
   return (
-    <div className="bg-transparent border border-line rounded-2xl p-4 sm:p-5 lg:p-6 shadow-card overflow-hidden">
-      <div className="flex items-center justify-between mb-5">
+    <div className="bg-transparent border border-line rounded-2xl p-2.5 sm:p-5 lg:p-6 shadow-card overflow-hidden">
+      <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5">
         <button
           type="button"
           onClick={() => step(-1)}
-          className="p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
+          className="shrink-0 p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
           aria-label="Previous month"
         >
           <Icons.ChevronDown className="w-4 h-4 rotate-90" />
         </button>
-        <div className="text-center">
-          <span className="t-h3 block">{monthLabel}</span>
-          <span className="text-[10px] font-black uppercase tracking-widest text-ink-3">
+        <div className="text-center min-w-0">
+          <span className="t-h3 block truncate">{monthLabel}</span>
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-ink-3">
             Availability + schedule
           </span>
         </div>
         <button
           type="button"
           onClick={() => step(1)}
-          className="p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
+          className="shrink-0 p-2 rounded-full text-ink-2 bg-surface-2 border border-line hover:text-ink hover:shadow-sm transition"
           aria-label="Next month"
         >
           <Icons.ChevronDown className="w-4 h-4 -rotate-90" />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-2 mb-2">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-1.5 sm:mb-2">
         {WEEKDAYS.map((d) => (
           <div
             key={d}
-            className="text-center text-[10px] font-black uppercase tracking-widest text-ink-3"
+            className="text-center text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-ink-3"
           >
-            {d}
+            {/* First letter only on the tightest phones; full label from sm up. */}
+            <span className="sm:hidden">{d.charAt(0)}</span>
+            <span className="hidden sm:inline">{d}</span>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {cells.map((iso, i) => {
           if (!iso)
-            return <div key={i} className="min-h-[6.5rem] lg:min-h-[9rem]" />;
+            return (
+              <div
+                key={i}
+                className="min-h-[3.5rem] sm:min-h-[8rem] lg:min-h-[9rem]"
+              />
+            );
           const unavailablePlayers = playersOutOnDate(players, iso);
           const available = countAvailableOnDate(players, iso);
           const unavailable = unavailablePlayers.length;
@@ -127,7 +134,7 @@ export const AvailabilityCalendar = ({
               type="button"
               onClick={() => onSelectDate(iso)}
               aria-label={`${iso}: ${available} of ${activeCount} available, ${unavailable} out${short ? `, short by ${shortBy}` : ""}${dayEvents.length ? `, ${dayEvents.length} scheduled event${dayEvents.length === 1 ? "" : "s"}` : ""}`}
-              className={`min-h-[6.5rem] sm:min-h-[8rem] lg:min-h-[9rem] rounded-2xl p-2 sm:p-3 flex flex-col items-stretch gap-2 border text-left transition-all hover:-translate-y-0.5 hover:shadow-card ${
+              className={`min-h-[3.5rem] sm:min-h-[8rem] lg:min-h-[9rem] rounded-2xl p-1.5 sm:p-3 flex flex-col items-stretch gap-1 sm:gap-2 border text-left overflow-hidden transition-all sm:hover:-translate-y-0.5 hover:shadow-card ${
                 isSelected
                   ? "ring-2 ring-[var(--team-primary)] shadow-card"
                   : ""
@@ -137,16 +144,24 @@ export const AvailabilityCalendar = ({
                   : "bg-transparent border-line text-ink hover:bg-surface-2"
               }`}
             >
-              <span className="flex items-start justify-between gap-1">
-                <span className="text-base sm:text-lg font-black leading-none">
+              {/* Day number over availability. Stacks on phones so a 2-digit
+                  day and the count each get the full column width instead of
+                  colliding; side-by-side from sm up where there's room. */}
+              <span className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-0.5 sm:gap-1">
+                <span className="text-sm sm:text-lg font-black leading-none">
                   {day}
                 </span>
-                <span className="text-[11px] font-black tabular-nums leading-none inline-flex items-center gap-0.5 px-1.5 py-1 rounded-full bg-app border border-line">
+                <span className="shrink-0 self-start text-[10px] sm:text-[11px] font-black tabular-nums leading-none inline-flex items-center gap-0.5 px-1 sm:px-1.5 py-0.5 sm:py-1 rounded-full bg-app border border-line">
                   {short && <Icons.Alert className="w-2.5 h-2.5" />}
-                  {available}/{activeCount}
+                  {/* Just the available count fits a phone column; the full
+                      fraction returns once there's room at sm and up. */}
+                  <span className="sm:hidden">{available}</span>
+                  <span className="hidden sm:inline">
+                    {available}/{activeCount}
+                  </span>
                 </span>
               </span>
-              <span className="grid gap-1 text-[10px] font-bold text-ink-3">
+              <span className="hidden sm:grid gap-1 text-[10px] font-bold text-ink-3">
                 <span>{unavailable} out</span>
                 {short && (
                   <span className="inline-flex items-center gap-1 font-black text-loss">
@@ -154,7 +169,7 @@ export const AvailabilityCalendar = ({
                   </span>
                 )}
                 {unavailablePlayers.length > 0 && (
-                  <span className="hidden sm:block truncate normal-case tracking-normal text-ink-2">
+                  <span className="truncate normal-case tracking-normal text-ink-2">
                     Out:{" "}
                     {unavailablePlayers
                       .slice(0, 2)
@@ -170,16 +185,28 @@ export const AvailabilityCalendar = ({
                   </span>
                 )}
               </span>
-              <span className="space-y-1 mt-auto">
+              <span className="mt-auto flex items-center gap-1 sm:flex-col sm:items-stretch sm:gap-1">
                 {eventTypes.has("game") && (
-                  <span className="block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white bg-[var(--team-primary)]">
-                    Game
-                  </span>
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="sm:hidden w-2 h-2 rounded-full bg-[var(--team-primary)]"
+                    />
+                    <span className="hidden sm:block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-white bg-[var(--team-primary)]">
+                      Game
+                    </span>
+                  </>
                 )}
                 {eventTypes.has("practice") && (
-                  <span className="block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest bg-win-bg text-win border border-win/40">
-                    Practice
-                  </span>
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="sm:hidden w-2 h-2 rounded-full bg-win"
+                    />
+                    <span className="hidden sm:block truncate rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest bg-win-bg text-win border border-win/40">
+                      Practice
+                    </span>
+                  </>
                 )}
               </span>
             </button>
@@ -187,7 +214,7 @@ export const AvailabilityCalendar = ({
         })}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-line text-[10px] font-bold uppercase tracking-widest text-ink-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3 pt-3 border-t border-line text-[10px] font-bold uppercase tracking-widest text-ink-3">
         <span className="inline-flex items-center gap-1.5">
           <span className="w-3 h-3 rounded bg-loss-bg border border-loss" />
           Short-handed (&lt; {minPlayers})
