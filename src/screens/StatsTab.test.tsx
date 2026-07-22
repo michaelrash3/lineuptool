@@ -1,8 +1,19 @@
 import React from "react";
 import { MemoryRouter } from "react-router-dom";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
+import { vi } from "vitest";
 import { StatsTab } from "./StatsTab";
 import { renderWithProviders } from "../test-utils";
+
+// The PDF export lazy-loads jspdf and does real canvas work; mock the whole
+// renderer so the screen test only asserts the button wires through to it. The
+// report shaping is covered by statsReportPdf.test.ts.
+const { downloadStatsReportPdfMock } = vi.hoisted(() => ({
+  downloadStatsReportPdfMock: vi.fn(),
+}));
+vi.mock("../stats/statsReportPdf", () => ({
+  downloadStatsReportPdf: downloadStatsReportPdfMock,
+}));
 
 const team = {
   players: [
@@ -169,6 +180,120 @@ describe("StatsTab", () => {
     );
     // The sparkline is a fixed-size recharts AreaChart, which draws paths.
     expect(container.querySelector("svg .recharts-area-curve")).toBeTruthy();
+  });
+
+  it("shows the export buttons to assistants too (export is read-only)", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      {
+        team: { team, currentRole: "assistant" },
+      },
+    );
+    expect(screen.getByLabelText("Export stats CSV")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Download stats report PDF"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Import Stats")).not.toBeInTheDocument();
+  });
+
+  it("downloads the current table as CSV with a success toast", () => {
+    const createObjectURL = jest.fn(() => "blob:x");
+    const revokeObjectURL = jest.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      value: createObjectURL,
+      configurable: true,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      value: revokeObjectURL,
+      configurable: true,
+    });
+    const { toastValue } = renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
+    fireEvent.click(screen.getByLabelText("Export stats CSV"));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:x");
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success" }),
+    );
+  });
+
+  it("wires the PDF button through to the stats-report builder with scoped rows", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
+    fireEvent.click(screen.getByLabelText("Download stats report PDF"));
+    expect(downloadStatsReportPdfMock).toHaveBeenCalledTimes(1);
+    const arg = downloadStatsReportPdfMock.mock.calls[0][0];
+    // No teamAge on the fixture → age defaults to 10 → stats lock to Kid Pitch.
+    expect(arg.scopeLabel).toBe("Kid Pitch");
+    expect(arg.rows.map((r: { id: string }) => r.id)).toEqual(["a", "b"]);
+  });
+
+  it("marks sortable stat columns with aria-sort and toggles direction", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      { team: { team } },
+    );
+    // Batting defaults to its marquee stat, OPS, descending. (The <th> takes
+    // its accessible name from the button's visible text; the sort state
+    // lives in the button's aria-label.)
+    expect(screen.getByRole("columnheader", { name: "OPS" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Sort by AVG/ }));
+    expect(screen.getByRole("columnheader", { name: "AVG" })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    expect(screen.getByRole("columnheader", { name: "OPS" })).toHaveAttribute(
+      "aria-sort",
+      "none",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Sort by AVG/ }));
+    expect(screen.getByRole("columnheader", { name: "AVG" })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+  });
+
+  it("exposes the pill rows as labelled toggle groups", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <StatsTab />
+      </MemoryRouter>,
+      // 8U team → the pitching-format filter isn't locked, so all three
+      // groups render.
+      { team: { team: { ...team, teamAge: "8U" } } },
+    );
+    expect(
+      screen.getByRole("group", { name: "Stats view" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("group", { name: "Pitching format filter" }),
+    ).toBeInTheDocument();
+    const catGroup = screen.getByRole("group", { name: "Stat category" });
+    expect(
+      within(catGroup).getByRole("button", { name: "Batting" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(catGroup).getByRole("button", { name: "Pitching" }));
+    expect(
+      within(catGroup).getByRole("button", { name: "Batting" }),
+    ).toHaveAttribute("aria-pressed", "false");
+    expect(
+      within(catGroup).getByRole("button", { name: "Pitching" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("surfaces an arm-care banner for an overused Kid-Pitch pitcher", () => {

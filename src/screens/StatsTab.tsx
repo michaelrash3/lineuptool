@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import { Icons } from "../icons";
-import { useTeam, useUI, useConfirm } from "../contexts";
+import { useTeam, useUI, useConfirm, useToast } from "../contexts";
 import type {
   EvaluationEvent,
   Game,
@@ -36,6 +36,16 @@ import {
 import type { BenchImbalanceEntry } from "../utils/helpers";
 import { ageFromTeamAge, isKidPitchFormat } from "../constants/ui";
 import { Sparkline } from "../components/charts/Sparkline";
+import {
+  CATEGORIES,
+  OVERALL_COL,
+  fmt,
+  numOf,
+  type Col,
+  type StatRow,
+} from "../stats/statColumns";
+import { statsCsvFilename, statsTableCsv } from "../stats/statsCsv";
+import { downloadStatsReportPdf } from "../stats/statsReportPdf";
 
 // Stats & Dashboard — one place that pulls together everything already imported
 // (GameChanger batting/pitching/fielding) plus eval data:
@@ -46,146 +56,33 @@ import { Sparkline } from "../components/charts/Sparkline";
 // Read-only and additive — nothing here writes. All numbers come from data the
 // coach already imported, so there's no new manual entry.
 
-type Kind = "int" | "dec1" | "dec3" | "dec2" | "pct" | "ip";
-
-const numOf = (v: unknown): number | undefined =>
-  typeof v === "number" && Number.isFinite(v) ? v : undefined;
-
-// Format a stat the way the rest of the app does: drop the leading 0 on sub-1
-// rate stats (.345), percents from 0–1 fractions, IP as 5.2 = 5⅔.
-const fmt = (n: number | undefined, kind: Kind): string => {
-  if (n === undefined) return "—";
-  switch (kind) {
-    case "int":
-      return Math.round(n).toString();
-    case "dec1":
-      return n.toFixed(1);
-    case "dec3":
-      return n > 0 && n < 1 ? n.toFixed(3).replace(/^0/, "") : n.toFixed(3);
-    case "dec2":
-      return n.toFixed(2);
-    case "pct":
-      return `${(n <= 1 ? n * 100 : n).toFixed(1)}%`;
-    case "ip":
-      return n.toFixed(1);
-  }
-};
-
-interface StatRow {
-  id: string;
-  name: string;
-  number?: string | number;
-  primaryPosition?: string;
-  stats: PlayerStats;
-  total: number; // eval Total Score (0–100)
-}
-
-interface Col {
-  key: string;
-  label: string;
-  kind: Kind;
-  hi: boolean; // higher is better → default descending + green-tints not used, just sort dir
-  get: (r: StatRow) => number | undefined;
-}
-
-// Read a stat field; some columns prefer the section-namespaced advanced field
-// (two-row GameChanger export) and fall back to the basic single-section key.
-const f = (field: string) => (r: StatRow) => numOf(r.stats?.[field]);
-const fb = (adv: string, basic: string) => (r: StatRow) =>
-  numOf(r.stats?.[adv]) ?? numOf(r.stats?.[basic]);
-
-const BATTING_COLS: Col[] = [
-  { key: "ab", label: "AB", kind: "int", hi: true, get: f("ab") },
-  { key: "avg", label: "AVG", kind: "dec3", hi: true, get: f("avg") },
-  { key: "obp", label: "OBP", kind: "dec3", hi: true, get: f("obp") },
-  { key: "ops", label: "OPS", kind: "dec3", hi: true, get: f("ops") },
-  { key: "h", label: "H", kind: "int", hi: true, get: f("h") },
-  { key: "doubles", label: "2B", kind: "int", hi: true, get: f("doubles") },
-  { key: "triples", label: "3B", kind: "int", hi: true, get: f("triples") },
-  { key: "hr", label: "HR", kind: "int", hi: true, get: f("hr") },
-  { key: "rbi", label: "RBI", kind: "int", hi: true, get: f("rbi") },
-  { key: "sb", label: "SB", kind: "int", hi: true, get: f("sb") },
-  { key: "k", label: "K", kind: "int", hi: false, get: f("k") },
-  { key: "qab", label: "QAB%", kind: "pct", hi: true, get: f("qab") },
-];
-
-const PITCHING_COLS: Col[] = [
-  { key: "ip", label: "IP", kind: "ip", hi: true, get: fb("pIp", "ip") },
-  { key: "era", label: "ERA", kind: "dec2", hi: false, get: fb("pEra", "era") },
-  { key: "whip", label: "WHIP", kind: "dec2", hi: false, get: f("pWhip") },
-  { key: "spct", label: "S%", kind: "pct", hi: true, get: f("pStrikePct") },
-  { key: "fps", label: "FPS%", kind: "pct", hi: true, get: f("pFps") },
-  { key: "kbb", label: "K/BB", kind: "dec2", hi: true, get: f("pKbb") },
-  { key: "sm", label: "SM%", kind: "pct", hi: true, get: f("pSwingMiss") },
-  { key: "weak", label: "WEAK%", kind: "pct", hi: true, get: f("pWeak") },
-  { key: "hhb", label: "HHB%", kind: "pct", hi: false, get: f("pHardPct") },
-  { key: "goao", label: "GO/AO", kind: "dec2", hi: true, get: f("pGoAo") },
-  { key: "baa", label: "BAA", kind: "dec3", hi: false, get: f("pBaa") },
-  { key: "top", label: "Top MPH", kind: "dec1", hi: true, get: f("pTopMph") },
-  { key: "bf", label: "BF", kind: "int", hi: true, get: f("pBf") },
-  { key: "tp", label: "TP", kind: "int", hi: true, get: f("totalPitches") },
-];
-
-const FIELDING_COLS: Col[] = [
-  {
-    key: "fpct",
-    label: "FPCT",
-    kind: "dec3",
-    hi: true,
-    get: fb("fFpct", "fpct"),
-  },
-  { key: "tc", label: "TC", kind: "int", hi: true, get: fb("fTc", "tc") },
-  { key: "po", label: "PO", kind: "int", hi: true, get: fb("fPutouts", "po") },
-  { key: "a", label: "A", kind: "int", hi: true, get: fb("fAssists", "a") },
-  { key: "e", label: "E", kind: "int", hi: false, get: f("fErrors") },
-  { key: "cspct", label: "CS%", kind: "pct", hi: true, get: f("fCsPct") },
-  { key: "pb", label: "PB", kind: "int", hi: false, get: f("fPb") },
-];
-
-// The eval Total Score column, shared across all three category views.
-const OVERALL_COL: Col = {
-  key: "total",
-  label: "Overall",
-  kind: "int",
-  hi: true,
-  get: (r) => r.total,
-};
-
-const CATEGORIES = [
-  { id: "batting", label: "Batting", cols: BATTING_COLS, defaultKey: "ops" },
-  { id: "pitching", label: "Pitching", cols: PITCHING_COLS, defaultKey: "era" },
-  {
-    id: "fielding",
-    label: "Fielding",
-    cols: FIELDING_COLS,
-    defaultKey: "fpct",
-  },
-] as const;
-
 // Tiny eval-trend sparkline: a player's average grade across their eval rounds,
 // drawn on a fixed 1–5 scale so rows are comparable. Trends up → team color,
 // down → red, flat → neutral gray. Renders nothing with fewer than two rounds
 // of data.
-const EvalSparkline = memo(({ values }: { values?: number[] }) => {
-  if (!Array.isArray(values) || values.length < 2) return null;
-  const first = values[0];
-  const last = values[values.length - 1];
-  const color =
-    last > first
-      ? "var(--team-primary)"
-      : last < first
-        ? "var(--loss)"
-        : "var(--ink-3)";
-  return (
-    <Sparkline
-      values={values.map((v: number) => Math.max(1, Math.min(5, v)))}
-      domain={[1, 5]}
-      stroke={color}
-      strokeWidth={1.5}
-      fill={color}
-    />
-  );
-});
+const EvalSparkline = memo(
+  ({ values, label }: { values?: number[]; label?: string }) => {
+    if (!Array.isArray(values) || values.length < 2) return null;
+    const first = values[0];
+    const last = values[values.length - 1];
+    const color =
+      last > first
+        ? "var(--team-primary)"
+        : last < first
+          ? "var(--loss)"
+          : "var(--ink-3)";
+    return (
+      <Sparkline
+        values={values.map((v: number) => Math.max(1, Math.min(5, v)))}
+        domain={[1, 5]}
+        stroke={color}
+        strokeWidth={1.5}
+        fill={color}
+        label={label}
+      />
+    );
+  },
+);
 
 // Sortable per-player stats table for one category. Remounted (via key) when the
 // category changes so the sort resets to that category's marquee stat.
@@ -246,7 +143,13 @@ const StatsTable = memo(
               {allCols.map((col) => {
                 const active = col.key === sortKey;
                 return (
-                  <th key={col.key} className="px-3 py-2.5 text-center">
+                  <th
+                    key={col.key}
+                    className="px-3 py-2.5 text-center"
+                    aria-sort={
+                      active ? (asc ? "ascending" : "descending") : "none"
+                    }
+                  >
                     <button
                       type="button"
                       onClick={() => clickHeader(col)}
@@ -254,13 +157,26 @@ const StatsTable = memo(
                         active ? "text-ink" : "text-ink-3"
                       }`}
                       title={`Sort by ${col.label}`}
+                      // Sort state in the accessible name too, matching the
+                      // finances SortHeader convention.
+                      aria-label={`Sort by ${col.label}${
+                        active
+                          ? `, sorted ${asc ? "ascending" : "descending"}`
+                          : ""
+                      }`}
                     >
                       {col.label}
                       {active &&
                         (asc ? (
-                          <Icons.ChevronUp className="w-3.5 h-3.5" />
+                          <Icons.ChevronUp
+                            className="w-3.5 h-3.5"
+                            aria-hidden
+                          />
                         ) : (
-                          <Icons.ChevronDown className="w-3.5 h-3.5" />
+                          <Icons.ChevronDown
+                            className="w-3.5 h-3.5"
+                            aria-hidden
+                          />
                         ))}
                     </button>
                   </th>
@@ -289,7 +205,10 @@ const StatsTable = memo(
                       className="block mt-0.5"
                       title="Eval grade trend across rounds"
                     >
-                      <EvalSparkline values={seriesById.get(r.id)} />
+                      <EvalSparkline
+                        values={seriesById.get(r.id)}
+                        label={`${r.name} eval grade trend`}
+                      />
                     </span>
                   )}
                 </td>
@@ -406,12 +325,17 @@ const SectionCard = ({
       <div
         className="p-2 rounded-full shrink-0"
         style={{ backgroundColor: "var(--team-primary-15)" }}
+        aria-hidden
       >
         <Icon className="w-5 h-5" style={{ color: "var(--team-ink)" }} />
       </div>
       <div className="min-w-0 flex-1">
         <h2 className="t-h2">{title}</h2>
-        {subtitle && <p className="t-eyebrow text-ink-3 mt-0.5">{subtitle}</p>}
+        {subtitle && (
+          <p className="t-eyebrow text-ink-3 mt-0.5" aria-live="polite">
+            {subtitle}
+          </p>
+        )}
       </div>
       {action && (
         <div className="flex flex-wrap items-center justify-end gap-3 w-full sm:w-auto">
@@ -432,6 +356,7 @@ export const StatsTab = memo(() => {
   } = useTeam();
   const { confirm } = useConfirm();
   const { openPlayerProfile } = useUI();
+  const toast = useToast();
   const canEdit = currentRole !== "assistant";
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
@@ -624,6 +549,48 @@ export const StatsTab = memo(() => {
     ]);
   }, [confirm, updateTeamArrays]);
 
+  // Exports — available to assistants too (read-only, unlike import/delete).
+  // CSV mirrors the on-screen table for the active category; the PDF is the
+  // full season report across all three categories.
+  const hasExportableStats = useMemo(
+    () =>
+      rows.some(
+        (r) =>
+          r.total > 0 || activeCat.cols.some((c) => c.get(r) !== undefined),
+      ),
+    [rows, activeCat],
+  );
+
+  const handleExportCsv = useCallback(() => {
+    if (!hasExportableStats) {
+      toast.push({
+        kind: "error",
+        title: "Nothing to export yet",
+        message: "Import a GameChanger stats CSV first.",
+      });
+      return;
+    }
+    const blob = new Blob([statsTableCsv(rows, activeCat)], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = statsCsvFilename(team.name, activeCat.label, statScopeLabel);
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.push({ kind: "success", title: "Stats CSV downloaded" });
+  }, [hasExportableStats, rows, activeCat, team, statScopeLabel, toast]);
+
+  const handleExportPdf = useCallback(() => {
+    void downloadStatsReportPdf({
+      team,
+      rows,
+      scopeLabel: statScopeLabel,
+      toast,
+    });
+  }, [team, rows, statScopeLabel, toast]);
+
   // Arm-care overuse flags (Kid-Pitch head coaches only), surfaced as a banner.
   const armAlerts = useMemo(() => {
     if (!(currentRole === "head" && isKidPitchFormat(team.pitchingFormat)))
@@ -645,7 +612,7 @@ export const StatsTab = memo(() => {
   if (players.length === 0) {
     return (
       <div className="space-y-6">
-        <div className="py-8 text-center text-ink-3 font-medium">
+        <div className="py-8 text-center text-ink-3 font-medium" role="status">
           {team.logoUrl ? (
             <img
               src={team.logoUrl}
@@ -669,7 +636,10 @@ export const StatsTab = memo(() => {
       {armAlerts.length > 0 && (
         <div className="border-l-4 border-l-warnfg">
           <div className="p-4 sm:p-5 bg-warn-bg flex items-start gap-3">
-            <Icons.Alert className="w-5 h-5 text-warnfg shrink-0 mt-0.5" />
+            <Icons.Alert
+              className="w-5 h-5 text-warnfg shrink-0 mt-0.5"
+              aria-hidden
+            />
             <div className="min-w-0">
               <h2 className="text-sm font-black uppercase tracking-widest text-warnfg">
                 Arm Care — {armAlerts.length} pitcher
@@ -699,7 +669,11 @@ export const StatsTab = memo(() => {
 
       {/* Sub-view switcher: Overview (classic tables) | Season Trends |
           Development. Styled like the category pills below. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div
+        className="flex flex-wrap items-center gap-2"
+        role="group"
+        aria-label="Stats view"
+      >
         {(
           [
             ["overview", "Overview"],
@@ -881,27 +855,51 @@ export const StatsTab = memo(() => {
             title="Player Stats"
             subtitle={`Showing ${statScopeLabel} stats${effectiveStatFormat === "all" ? "" : " from per-game imports"}`}
             action={
-              canEdit && (
-                <>
-                  <button
-                    type="button"
-                    onClick={clearAllStats}
-                    className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
-                  >
-                    Delete All Stats
-                  </button>
-                  <ImportCsvButton
-                    id="stats-import-csv"
-                    label="Import Stats"
-                    onChange={uploadStatsCsv}
-                    hint="GameChanger season stats CSV"
-                  />
-                </>
-              )
+              <>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  aria-label="Export stats CSV"
+                  className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                >
+                  <Icons.FileText className="w-4 h-4" aria-hidden />
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  aria-label="Download stats report PDF"
+                  className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
+                >
+                  <Icons.Download className="w-4 h-4" aria-hidden />
+                  Export PDF
+                </button>
+                {canEdit && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={clearAllStats}
+                      className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:border-loss hover:text-loss transition-colors"
+                    >
+                      Delete All Stats
+                    </button>
+                    <ImportCsvButton
+                      id="stats-import-csv"
+                      label="Import Stats"
+                      onChange={uploadStatsCsv}
+                      hint="GameChanger season stats CSV"
+                    />
+                  </>
+                )}
+              </>
             }
           >
             <div className="px-1 py-3 border-b border-line flex flex-wrap gap-2 items-center justify-between">
-              <div className="flex flex-wrap gap-2">
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Stat category"
+              >
                 {CATEGORIES.map((c) => {
                   const on = c.id === category;
                   return (
@@ -909,6 +907,7 @@ export const StatsTab = memo(() => {
                       key={c.id}
                       type="button"
                       onClick={() => setCategory(c.id)}
+                      aria-pressed={on}
                       className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border transition-colors"
                       style={
                         on
@@ -926,7 +925,11 @@ export const StatsTab = memo(() => {
                 })}
               </div>
               {!statsFormatLockedToKidPitch && (
-                <div className="flex flex-wrap gap-2">
+                <div
+                  className="flex flex-wrap gap-2"
+                  role="group"
+                  aria-label="Pitching format filter"
+                >
                   {[
                     ["all", "All Formats"],
                     ["machine", "Machine/Coach"],
@@ -940,6 +943,7 @@ export const StatsTab = memo(() => {
                         onClick={() =>
                           setStatFormat(id as "all" | "machine" | "kid")
                         }
+                        aria-pressed={on}
                         className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border transition-colors ${
                           on
                             ? "border-team-primary text-team-primary"
