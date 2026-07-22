@@ -25,7 +25,6 @@ import {
   playerIsPitcher,
   playerIsCatcher,
   pitcherRosterPremium,
-  leftHandedPitcherRosterPremium,
   isKidPitchFormat,
   EVAL_SCALE_LABELS,
   EVAL_SCALE_MAX,

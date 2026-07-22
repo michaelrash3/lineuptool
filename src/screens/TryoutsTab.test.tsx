@@ -2,6 +2,7 @@ import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { screen } from "@testing-library/react";
 import { TryoutsTab, computeRosterProjection } from "./TryoutsTab";
+import { LEFT_HANDED_PITCHER_ROSTER_PREMIUM } from "../constants/ui";
 import { TryoutAddPage } from "./tryouts/TryoutAddPage";
 import { renderWithProviders } from "../test-utils";
 
@@ -541,7 +542,11 @@ describe("computeRosterProjection", () => {
     );
 
     expect(projection.recommended[0].fitReasons).toEqual(["fills P"]);
-    expect(projection.recommended[0].fitBonus).toBe(8);
+    // Lefty scarcity premium + the "fills P" bonus (4); SS earns nothing
+    // because lefties don't get middle-infield fit credit.
+    expect(projection.recommended[0].fitBonus).toBe(
+      LEFT_HANDED_PITCHER_ROSTER_PREMIUM + 4,
+    );
   });
 
   it("surfaces ungraded candidates as needing evaluation", () => {
