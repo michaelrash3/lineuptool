@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RosterTab } from "./RosterTab";
 import { renderWithProviders } from "../test-utils";
@@ -205,5 +205,97 @@ describe("RosterTab", () => {
     expect(
       screen.queryByRole("button", { name: "Injured" }),
     ).not.toBeInTheDocument();
+  });
+
+  describe("Player Info Form card", () => {
+    const teamWithShare = {
+      name: "Hawks",
+      tryoutShareId: "abc123",
+      players: [
+        { id: "p1", name: "Ava Rivera", email: "ava.parent@example.com" },
+        { id: "p2", name: "Mia Stone", parent2Email: "mia.parent@example.com" },
+      ],
+      games: [],
+    };
+
+    afterEach(() => {
+      delete (navigator as any).clipboard;
+    });
+
+    it("opens with the player-info portal link and the parent-contact tools", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<RosterTab />, {
+        team: { team: teamWithShare, currentRole: "head" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: /player info form/i }),
+      );
+      // Scope to the modal — the page body has its own Player Info CSV button.
+      const dialog = within(screen.getByRole("dialog"));
+      // This portal's URL — not another portal's.
+      expect(
+        dialog.getByText(/player-info-portal\/abc123/),
+      ).toBeInTheDocument();
+      // The parent-contact tools ride along in the card's children slot.
+      expect(
+        dialog.getByRole("button", { name: /player info csv/i }),
+      ).toBeInTheDocument();
+      expect(
+        dialog.getByRole("button", { name: /directory pdf/i }),
+      ).toBeInTheDocument();
+      expect(
+        dialog.getByRole("button", { name: /email all parents/i }),
+      ).toBeInTheDocument();
+      expect(
+        dialog.getByRole("button", { name: /copy emails/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("copies all parent emails with a success toast", async () => {
+      const user = userEvent.setup();
+      const writeText = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+      const { toastValue } = renderWithProviders(<RosterTab />, {
+        team: { team: teamWithShare, currentRole: "head" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: /player info form/i }),
+      );
+      await user.click(screen.getByRole("button", { name: /copy emails/i }));
+      await waitFor(() =>
+        expect(toastValue.push).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: "success",
+            title: "Copied 2 parent emails",
+          }),
+        ),
+      );
+      expect(writeText).toHaveBeenCalledWith(
+        "ava.parent@example.com, mia.parent@example.com",
+      );
+    });
+
+    it("toasts an error when the emails can't be copied", async () => {
+      const user = userEvent.setup();
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText: jest.fn().mockRejectedValue(new Error("denied")) },
+        configurable: true,
+      });
+      const { toastValue } = renderWithProviders(<RosterTab />, {
+        team: { team: teamWithShare, currentRole: "head" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: /player info form/i }),
+      );
+      await user.click(screen.getByRole("button", { name: /copy emails/i }));
+      await waitFor(() =>
+        expect(toastValue.push).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "error", title: "Couldn't copy" }),
+        ),
+      );
+    });
   });
 });

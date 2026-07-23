@@ -79,7 +79,7 @@ describe("PlayerInfoTab", () => {
 
   it("requires a second tap to confirm a delete", async () => {
     const user = userEvent.setup();
-    const { deletePlayerInfoSubmission } = setup({
+    const { deletePlayerInfoSubmission, toastValue } = setup({
       players: [{ id: "p1", name: "Ava Rivera" }],
       playerInfoSubmissions: [submission()],
     });
@@ -87,8 +87,20 @@ describe("PlayerInfoTab", () => {
       screen.getByRole("button", { name: /delete submission/i }),
     );
     expect(deletePlayerInfoSubmission).not.toHaveBeenCalled();
+    expect(toastValue.push).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: /confirm delete/i }));
     expect(deletePlayerInfoSubmission).toHaveBeenCalledWith("sub1");
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success", title: "Submission deleted" }),
+    );
+  });
+
+  it("surfaces the Player Info Form share link in the header", async () => {
+    const user = userEvent.setup();
+    setup({ tryoutShareId: "abc123" });
+    await user.click(screen.getByRole("button", { name: /player info form/i }));
+    // The modal shows this portal's URL — not another portal's.
+    expect(screen.getByText(/player-info-portal\/abc123/)).toBeInTheDocument();
   });
 
   it("tracks form completion across active players", () => {

@@ -1,7 +1,7 @@
 import React from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { PortalShareCard } from "./PortalShareCard";
+import { PortalShareCard, ShareLinkBlock } from "./PortalShareCard";
 import { renderWithProviders } from "../test-utils";
 
 const team = { name: "Hawks", tryoutShareId: "abc123" };
@@ -90,5 +90,42 @@ describe("PortalShareCard", () => {
     expect(
       screen.getByRole("button", { name: /email all parents/i }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps children visible when no share link exists yet", async () => {
+    // The Roster card's parent-contact tools must not disappear for teams
+    // that haven't generated a link.
+    const user = userEvent.setup();
+    renderCard({
+      team: { name: "Hawks" },
+      children: <button type="button">Email All Parents</button>,
+    });
+    await user.click(screen.getByRole("button", { name: /interest form/i }));
+    expect(
+      screen.getByRole("button", { name: /email all parents/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("ShareLinkBlock", () => {
+  it("renders the link and slots extra actions beside Copy", () => {
+    const onRegenerate = jest.fn();
+    renderWithProviders(
+      <ShareLinkBlock
+        url="https://example.com/tryouts-portal/abc123"
+        filename="hawks-qr"
+        hint="Always opens the survey."
+        actions={
+          <button type="button" onClick={onRegenerate}>
+            Regenerate
+          </button>
+        }
+      />,
+    );
+    expect(screen.getByText(/tryouts-portal\/abc123/)).toBeInTheDocument();
+    expect(screen.getByText(/always opens the survey/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^copy$/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /regenerate/i }));
+    expect(onRegenerate).toHaveBeenCalledTimes(1);
   });
 });

@@ -69,15 +69,21 @@ describe("InterestTab", () => {
 
   it("requires a second tap to confirm a delete", async () => {
     const user = userEvent.setup();
-    const { deleteInterestSignup } = setup({ interestSignups: [lead()] });
+    const { deleteInterestSignup, toastValue } = setup({
+      interestSignups: [lead()],
+    });
     const del = screen.getByRole("button", { name: /delete lead/i });
-    // First tap arms — no delete yet.
+    // First tap arms — no delete yet, and no toast either.
     await user.click(del);
     expect(deleteInterestSignup).not.toHaveBeenCalled();
+    expect(toastValue.push).not.toHaveBeenCalled();
     // Now armed: the confirm affordance appears and a second tap fires.
     const confirm = screen.getByRole("button", { name: /confirm delete/i });
     await user.click(confirm);
     expect(deleteInterestSignup).toHaveBeenCalledWith("i1");
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success", title: "Lead deleted" }),
+    );
   });
 
   it("filters leads by the search box", async () => {

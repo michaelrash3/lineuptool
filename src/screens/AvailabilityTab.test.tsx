@@ -76,7 +76,7 @@ describe("AvailabilityTab", () => {
 
   it("requires a second tap to confirm deleting a submission", async () => {
     const user = userEvent.setup();
-    const { deleteAvailabilitySubmission } = setup({
+    const { deleteAvailabilitySubmission, toastValue } = setup({
       players: [{ id: "p1", name: "Ava Rivera" }],
       availabilitySubmissions: [submission()],
     });
@@ -86,8 +86,22 @@ describe("AvailabilityTab", () => {
     const del = screen.getByRole("button", { name: /^delete$/i });
     await user.click(del);
     expect(deleteAvailabilitySubmission).not.toHaveBeenCalled();
+    expect(toastValue.push).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: /confirm/i }));
     expect(deleteAvailabilitySubmission).toHaveBeenCalledWith("sub1");
+    expect(toastValue.push).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success", title: "Submission deleted" }),
+    );
+  });
+
+  it("surfaces the Availability Form share link in the header", async () => {
+    const user = userEvent.setup();
+    setup({ tryoutShareId: "abc123" });
+    await user.click(
+      screen.getByRole("button", { name: /availability form/i }),
+    );
+    // The modal shows this portal's URL — not another portal's.
+    expect(screen.getByText(/availability-portal\/abc123/)).toBeInTheDocument();
   });
 
   it("tracks form completion across active players", () => {
