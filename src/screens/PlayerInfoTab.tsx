@@ -1,7 +1,8 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
-import { useTeam } from "../contexts";
+import { useTeam, useToast } from "../contexts";
 import { EmptyState } from "../components/shared";
+import { PortalShareCard } from "../components/PortalShareCard";
 import {
   isDepartedPlayer,
   formatDateDisplay,
@@ -20,6 +21,7 @@ export const PlayerInfoTab = memo(() => {
     applyPlayerInfoToPlayer,
     deletePlayerInfoSubmission,
   } = useTeam();
+  const toast = useToast();
   const isHead = currentRole !== "assistant";
 
   const players = useMemo(
@@ -114,15 +116,28 @@ export const PlayerInfoTab = memo(() => {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <div className="border-b border-line pb-5">
-          <h1 className="t-h2 flex items-center gap-3">
-            <Icons.Users className="w-6 h-6" /> Player Info
-          </h1>
-          <p className="text-xs text-ink-2 font-medium mt-1.5">
-            Uniform/equipment sizing and logistics parents submitted on your
-            team's Player Info form. Match each one to a roster player and tap
-            Apply to save the sizing onto that player.
-          </p>
+        <div className="border-b border-line pb-5 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="t-h2 flex items-center gap-3">
+              <Icons.Users className="w-6 h-6" /> Player Info
+            </h1>
+            <p className="text-xs text-ink-2 font-medium mt-1.5">
+              Uniform/equipment sizing and logistics parents submitted on your
+              team's Player Info form. Match each one to a roster player and tap
+              Apply to save the sizing onto that player.
+            </p>
+          </div>
+          <PortalShareCard
+            team={team}
+            path="player-info-portal"
+            eyebrow="Player Info"
+            title="Player Info Form"
+            buttonLabel="Player Info Form"
+            icon={Icons.Users}
+            description="Collect uniform sizing, school & two parent/guardian contacts."
+            filenameSuffix="player-info"
+            hint="Submissions land right here, where you match each one to a roster player."
+          />
         </div>
         <div className="pt-5 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
@@ -147,7 +162,7 @@ export const PlayerInfoTab = memo(() => {
             <EmptyState
               glyph="🧢"
               title="No player info submitted yet"
-              body="Share your team's Player Info link or QR code (found on the Roster page). Submissions will appear here as parents fill it out."
+              body="Share your team's Player Info link or QR code above. Submissions will appear here as parents fill it out."
             />
           ) : visible.length === 0 ? (
             <div className="text-sm font-bold text-ink-3 italic text-center py-8">
@@ -261,6 +276,10 @@ export const PlayerInfoTab = memo(() => {
                           if (armed) {
                             deletePlayerInfoSubmission?.(sub.id);
                             setPendingDeleteId(null);
+                            toast.push({
+                              kind: "success",
+                              title: "Submission deleted",
+                            });
                           } else {
                             setPendingDeleteId(sub.id);
                           }

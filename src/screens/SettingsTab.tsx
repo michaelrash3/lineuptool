@@ -393,6 +393,7 @@ const JoinCodePanel = memo(({ team, regenerateJoinCode, toast }: any) => {
 // for the active team alongside the current Auth UID so account /
 // data-linkage problems are visible without DevTools.
 const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
+  const toast = useToast();
   const [open, setOpen] = React.useState(false);
   const uid = user?.uid || "(not signed in)";
   const ownerId = team?.ownerId || "(none)";
@@ -462,12 +463,13 @@ const DiagnosticsPanel = memo(({ team, user, activeTeamId }: any) => {
                   }
                 } catch (err: any) {
                   // Surface but don't crash — user can hard-refresh if needed.
-                  // eslint-disable-next-line no-alert
-                  alert(
-                    "Sign-out failed: " +
-                      (err?.message || "unknown error") +
-                      ". Try reloading the page.",
-                  );
+                  toast.push({
+                    kind: "error",
+                    title: "Sign-out failed",
+                    message:
+                      (err?.message || "Unknown error") +
+                      " — try reloading the page.",
+                  });
                 }
               }}
               className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-md bg-surface border border-line-strong text-ink hover:bg-surface-2"

@@ -1,7 +1,7 @@
 import React, { memo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
-import { QRCodeImg } from "./QRCodeImg";
+import { ShareLinkBlock } from "./PortalShareCard";
 
 // Tryout operations, IN the Tryouts tab (moved out of Settings so running a
 // tryout never detours through configuration): the public share link, tryout
@@ -186,44 +186,20 @@ export const TryoutControlsPanel = memo(() => {
               <div className="text-[10px] font-extrabold uppercase tracking-widest text-ink-3">
                 Player Interest &amp; Tryout Link
               </div>
-              <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
-                {shareUrl}
-              </code>
-              <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg
-                  value={shareUrl || ""}
-                  size={120}
-                  downloadable
-                  filename={`${team.name || "team"}-player-interest-qr`}
-                />
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (navigator.clipboard && shareUrl) {
-                          navigator.clipboard.writeText(shareUrl);
-                          toast.push({ kind: "success", title: "Link copied" });
-                        }
-                      }}
-                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => generateTryoutShareId?.()}
-                      className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                    >
-                      Regenerate
-                    </button>
-                  </div>
-                  <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    Always opens the year-round Interest Survey — works whether
-                    tryouts are open or not.
-                  </p>
-                </div>
-              </div>
+              <ShareLinkBlock
+                url={shareUrl || ""}
+                filename={`${team.name || "team"}-player-interest-qr`}
+                hint="Always opens the year-round Interest Survey — works whether tryouts are open or not."
+                actions={
+                  <button
+                    type="button"
+                    onClick={() => generateTryoutShareId?.()}
+                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
+                  >
+                    Regenerate
+                  </button>
+                }
+              />
             </div>
           ) : (
             <button

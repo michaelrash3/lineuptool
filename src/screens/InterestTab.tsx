@@ -1,7 +1,7 @@
 import React, { memo, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icons } from "../icons";
-import { useTeam } from "../contexts";
+import { useTeam, useToast } from "../contexts";
 import { calculateBaseballAge } from "../utils/helpers";
 import { EmptyState } from "../components/shared";
 import { PortalShareCard } from "../components/PortalShareCard";
@@ -20,6 +20,7 @@ export const InterestTab = memo(() => {
     deleteInterestSignup,
     convertInterestToTryout,
   } = useTeam();
+  const toast = useToast();
   const isHead = currentRole !== "assistant";
   // Copyable "interest / tryout invite" draft for a selected lead.
   // Invite drafts live at /interest/letter/:leadId (routed page).
@@ -206,6 +207,10 @@ export const InterestTab = memo(() => {
                           if (armed) {
                             deleteInterestSignup?.(lead.id);
                             setPendingDeleteId(null);
+                            toast.push({
+                              kind: "success",
+                              title: "Lead deleted",
+                            });
                           } else {
                             setPendingDeleteId(lead.id);
                           }

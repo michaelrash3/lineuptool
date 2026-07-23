@@ -1,8 +1,7 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { useTeam, useToast } from "../contexts";
-import { QRCodeImg } from "../components/QRCodeImg";
-import { Modal } from "../components/shared";
+import { PortalShareCard } from "../components/PortalShareCard";
 import {
   AvailabilityCalendar,
   type AvailabilityCalendarEvent,
@@ -27,83 +26,6 @@ const formatShort = (iso: string): string => {
   });
 };
 
-// Collapsible share card for the public Availability form. Reuses the team's
-// standing share id on the /availability-portal/ path. Stays an overlay Modal
-// per the approved share-link/QR popover exception to the app-wide
-// modals→pages rule.
-const ShareCard = memo(({ team }: any) => {
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const shareId = team?.tryoutShareId;
-  const url =
-    shareId && typeof window !== "undefined"
-      ? `${window.location.origin}/availability-portal/${shareId}`
-      : null;
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full sm:w-auto py-2.5 px-5 inline-flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
-      >
-        <Icons.Calendar className="w-4 h-4" /> Availability Form
-      </button>
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        eyebrow="Availability"
-        title="Availability Form"
-        size="md"
-      >
-        <p className="t-meta text-ink-3 mb-4">
-          Send to parents to collect the dates their kid is unavailable.
-        </p>
-        <div className="space-y-3">
-          {url ? (
-            <>
-              <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
-                {url}
-              </code>
-              <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg
-                  value={url}
-                  size={120}
-                  downloadable
-                  filename={`${team?.name || "team"}-availability-qr`}
-                />
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (navigator.clipboard) {
-                        navigator.clipboard.writeText(url);
-                        toast.push({ kind: "success", title: "Link copied" });
-                      }
-                    }}
-                    className="self-start px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                  >
-                    Copy
-                  </button>
-                  <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    A unique name + birthdate match auto-fills that player's
-                    absences; anything unclear waits in the match queue below.
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <p className="text-[11px] text-ink-3 font-medium leading-snug">
-              Generate your team's share link first in{" "}
-              <strong className="text-ink">Settings → Tryouts</strong>. The
-              Availability form reuses that same link.
-            </p>
-          )}
-        </div>
-      </Modal>
-    </>
-  );
-});
-
 export const AvailabilityTab = memo(() => {
   const {
     team,
@@ -112,6 +34,7 @@ export const AvailabilityTab = memo(() => {
     deleteAvailabilitySubmission,
     autoApplyAvailability,
   } = useTeam();
+  const toast = useToast();
   const isHead = currentRole !== "assistant";
 
   const players = useMemo(
@@ -282,7 +205,17 @@ export const AvailabilityTab = memo(() => {
         </p>
       </div>
 
-      <ShareCard team={team} />
+      <PortalShareCard
+        team={team}
+        path="availability-portal"
+        eyebrow="Availability"
+        title="Availability Form"
+        buttonLabel="Availability Form"
+        icon={Icons.Calendar}
+        description="Send to parents to collect the dates their kid is unavailable."
+        filenameSuffix="availability"
+        hint="A unique name + birthdate match auto-fills that player's absences; anything unclear waits in the match queue below."
+      />
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-6 lg:items-start space-y-6 lg:space-y-0">
         <div className="min-w-0 space-y-4">
@@ -585,6 +518,10 @@ export const AvailabilityTab = memo(() => {
                       if (armed) {
                         deleteAvailabilitySubmission?.(sub.id);
                         setPendingDeleteId(null);
+                        toast.push({
+                          kind: "success",
+                          title: "Submission deleted",
+                        });
                       } else {
                         setPendingDeleteId(sub.id);
                       }

@@ -6,8 +6,9 @@ import {
   formatDateDisplay,
 } from "../utils/helpers";
 import { useTeam, useUI, useToast } from "../contexts";
-import { getPlayerInitials, EmptyState, Modal } from "../components/shared";
-import { QRCodeImg } from "../components/QRCodeImg";
+import { getPlayerInitials, EmptyState } from "../components/shared";
+import { PortalShareCard } from "../components/PortalShareCard";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { ImportCsvButton } from "../components/ImportCsvButton";
 import { RosterIntegrityPanel } from "./roster/RosterIntegrityPanel";
 import { RosterStatsPanel } from "../components/RosterStatsPanel";
@@ -304,22 +305,15 @@ const PlayerRow = memo(
   },
 );
 
-// Collapsible share card for the public Player Info form. Lives on the Roster
-// page (head-only) because it's about outfitting kids already on the roster.
-// Stays an overlay Modal per the approved share-link/QR popover exception to
-// the app-wide modals→pages rule.
-// Reuses the team's standing share id on the /player-info-portal/ path — the
-// same id the Tryouts/Interest link uses, so there's nothing extra to generate.
+// Share card for the public Player Info form — the shared PortalShareCard on
+// the /player-info-portal/ path, plus the Roster page's parent-contact tools
+// (CSV, directory PDF, email/copy-all) slotted in below the link. Lives on
+// the Roster page (head-only) because it's about outfitting kids already on
+// the roster; the Player Info tab surfaces the same card beside its inbox.
 
 const PlayerInfoLinkCard = memo(({ team }: any) => {
   const toast = useToast();
   const { exportPlayerInfoCsv } = useTeam();
-  const [open, setOpen] = useState(false);
-  const shareId = team?.tryoutShareId;
-  const url =
-    shareId && typeof window !== "undefined"
-      ? `${window.location.origin}/player-info-portal/${shareId}`
-      : null;
 
   const emailAllParents = () => {
     const emails = collectParentEmails(team);
@@ -330,119 +324,76 @@ const PlayerInfoLinkCard = memo(({ team }: any) => {
     window.location.href = `mailto:?bcc=${encodeURIComponent(emails.join(","))}`;
   };
 
-  const copyAllParentEmails = () => {
+  const copyAllParentEmails = async () => {
     const emails = collectParentEmails(team);
     if (emails.length === 0) {
       toast.push({ kind: "error", title: "No parent emails on file yet" });
       return;
     }
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(emails.join(", "));
-      toast.push({
-        kind: "success",
-        title: `Copied ${emails.length} parent email${emails.length === 1 ? "" : "s"}`,
-      });
-    }
+    const ok = await copyTextToClipboard(emails.join(", "));
+    toast.push(
+      ok
+        ? {
+            kind: "success",
+            title: `Copied ${emails.length} parent email${emails.length === 1 ? "" : "s"}`,
+          }
+        : {
+            kind: "error",
+            title: "Couldn't copy",
+            message: "Try the Email All Parents button instead.",
+          },
+    );
   };
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="w-full sm:w-auto py-2.5 px-5 inline-flex items-center justify-center gap-2 text-xs font-black uppercase tracking-wider transition-transform hover:-translate-y-0.5 rounded-xl shadow-sm whitespace-nowrap bg-surface border border-line-strong text-ink hover:bg-surface-2"
-      >
-        <Icons.Users className="w-4 h-4" /> Player Info Form
-      </button>
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        eyebrow="Roster"
-        title="Player Info Form"
-        size="md"
-      >
-        <p className="t-meta text-ink-3 mb-4">
-          Collect uniform sizing, school &amp; two parent/guardian contacts.
-        </p>
-        <div className="space-y-3">
-          {url ? (
-            <>
-              <code className="block text-[11px] text-ink break-all font-mono bg-app border border-line rounded-md p-2">
-                {url}
-              </code>
-              <div className="flex items-start gap-3 flex-wrap">
-                <QRCodeImg
-                  value={url}
-                  size={120}
-                  downloadable
-                  filename={`${team?.name || "team"}-player-info-qr`}
-                />
-                <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (navigator.clipboard) {
-                        navigator.clipboard.writeText(url);
-                        toast.push({ kind: "success", title: "Link copied" });
-                      }
-                    }}
-                    className="self-start px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2"
-                  >
-                    Copy
-                  </button>
-                  <p className="text-[10px] font-medium text-ink-3 leading-snug">
-                    Submissions land in the Player Info tab, where you match
-                    each one to a roster player.
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <p className="text-[11px] text-ink-3 font-medium leading-snug">
-              Generate your team's share link first in{" "}
-              <strong className="text-ink">Settings → Tryouts</strong>. The
-              Player Info form reuses that same link.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-2 pt-1">
-            <button
-              type="button"
-              onClick={exportPlayerInfoCsv}
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
-            >
-              <Icons.Download className="w-3.5 h-3.5" /> Player Info CSV
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                downloadRosterDirectoryPdf({
-                  team,
-                  players: team?.players,
-                  toast,
-                })
-              }
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
-            >
-              <Icons.FileText className="w-3.5 h-3.5" /> Directory PDF
-            </button>
-            <button
-              type="button"
-              onClick={emailAllParents}
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
-            >
-              <Icons.Forward className="w-3.5 h-3.5" /> Email All Parents
-            </button>
-            <button
-              type="button"
-              onClick={copyAllParentEmails}
-              className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
-            >
-              <Icons.Clipboard className="w-3.5 h-3.5" /> Copy Emails
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </>
+    <PortalShareCard
+      team={team}
+      path="player-info-portal"
+      eyebrow="Roster"
+      title="Player Info Form"
+      buttonLabel="Player Info Form"
+      icon={Icons.Users}
+      description="Collect uniform sizing, school & two parent/guardian contacts."
+      filenameSuffix="player-info"
+      hint="Submissions land in the Player Info tab, where you match each one to a roster player."
+    >
+      <div className="flex flex-wrap gap-2 pt-1">
+        <button
+          type="button"
+          onClick={exportPlayerInfoCsv}
+          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+        >
+          <Icons.Download className="w-3.5 h-3.5" /> Player Info CSV
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            downloadRosterDirectoryPdf({
+              team,
+              players: team?.players,
+              toast,
+            })
+          }
+          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+        >
+          <Icons.FileText className="w-3.5 h-3.5" /> Directory PDF
+        </button>
+        <button
+          type="button"
+          onClick={emailAllParents}
+          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+        >
+          <Icons.Forward className="w-3.5 h-3.5" /> Email All Parents
+        </button>
+        <button
+          type="button"
+          onClick={copyAllParentEmails}
+          className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-md hover:bg-surface-2 inline-flex items-center gap-1.5"
+        >
+          <Icons.Clipboard className="w-3.5 h-3.5" /> Copy Emails
+        </button>
+      </div>
+    </PortalShareCard>
   );
 });
 
