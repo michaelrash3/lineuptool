@@ -8,27 +8,27 @@ The app uses Firebase Auth (Google + email-link) and three Firestore namespaces 
 
 ### `artifacts/{appId}/public/data/teams/{teamId}`
 
-The canonical team document. Every screen reads and writes through this single document — there are **no subcollections**. The full shape is defined by `DEFAULT_TEAM_DATA` in `src/constants/ui.ts`.
+The canonical team document. Nearly every screen reads and writes through this single document; the one exception is eval rounds, which live in the per-author `evalRounds` subcollection (see "Where things are NOT" below). The full shape is defined by `DEFAULT_TEAM_DATA` in `src/constants/ui.ts`.
 
 Key fields:
 
-| Field                                                            | Type                               | Purpose                                                                                                                                                                                  |
-| ---------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`                                                           | string                             | Display name                                                                                                                                                                             |
-| `ownerId`                                                        | string (uid)                       | Head coach who created the team                                                                                                                                                          |
-| `members`                                                        | string[]                           | Sign-in uids permitted to read/write                                                                                                                                                     |
-| `coachRoles`                                                     | `{ [uid]: "head" \| "assistant" }` | Role assignments                                                                                                                                                                         |
-| `joinCode`                                                       | string (6 chars, `[A-HJ-NP-Z2-9]`) | Self-join code                                                                                                                                                                           |
-| `primaryColor` / `secondaryColor` / `tertiaryColor`              | `#rrggbb`                          | User-customizable team palette (Settings → Team Colors). The active team's triplet is pushed to CSS custom properties at runtime, so every `--team-primary` consumer updates reactively. |
-| `logoUrl`                                                        | string                             | Team logo, stored inline as a downscaled/compressed data URL (see Images below). Old teams may still hold a legacy Cloud Storage URL, which keeps rendering.                             |
-| `teamAge`, `leagueRuleSet`, `defenseSize`, `pitchingFormat`      | enums                              | Engine inputs                                                                                                                                                                            |
-| `players`                                                        | object[]                           | Roster — each entry carries `stats`, `pitching`, `comfortablePositions`, `restrictions`, `playerStatus` (no photo; see Images below)                                                     |
-| `games`                                                          | object[]                           | Schedule + lineups + final box scores. Slimmed before persistence (see `slimGame` in `src/utils/helpers.ts`) so embedded player objects don't push the doc near the 1 MB cap.            |
-| `evaluationEvents`                                               | object[]                           | Eval rounds, schema-versioned (see migration ladder below)                                                                                                                               |
-| `evalSchemaVersion`                                              | number                             | Bumped when the schema changes; clients migrate on read                                                                                                                                  |
-| `tryoutsOpen`, `tryoutsPhase`, `tryoutSignups`, `tryoutShareIds` | tryouts state                      | Drive the public portal                                                                                                                                                                  |
-| `pastSeasons`                                                    | object[]                           | Stat history surviving `advanceSeason`                                                                                                                                                   |
-| `lineupTemplates`                                                | object[]                           | Saved presets                                                                                                                                                                            |
+| Field                                                            | Type                               | Purpose                                                                                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                                                           | string                             | Display name                                                                                                                                                                                                                                                                                                       |
+| `ownerId`                                                        | string (uid)                       | Head coach who created the team                                                                                                                                                                                                                                                                                    |
+| `members`                                                        | string[]                           | Sign-in uids permitted to read/write                                                                                                                                                                                                                                                                               |
+| `coachRoles`                                                     | `{ [uid]: "head" \| "assistant" }` | Role assignments                                                                                                                                                                                                                                                                                                   |
+| `joinCode`                                                       | string (6 chars, `[A-HJ-NP-Z2-9]`) | Self-join code                                                                                                                                                                                                                                                                                                     |
+| `primaryColor` / `secondaryColor` / `tertiaryColor`              | `#rrggbb`                          | User-customizable team palette (Settings → Team Colors). The active team's triplet is pushed to CSS custom properties at runtime, so every `--team-primary` consumer updates reactively.                                                                                                                           |
+| `logoUrl`                                                        | string                             | Team logo, stored inline as a downscaled/compressed data URL (see Images below). Old teams may still hold a legacy Cloud Storage URL, which keeps rendering.                                                                                                                                                       |
+| `teamAge`, `leagueRuleSet`, `defenseSize`, `pitchingFormat`      | enums                              | Engine inputs                                                                                                                                                                                                                                                                                                      |
+| `players`                                                        | object[]                           | Roster — each entry carries `stats`, `pitching`, `comfortablePositions`, `restrictions`, `playerStatus` (no photo; see Images below)                                                                                                                                                                               |
+| `games`                                                          | object[]                           | Schedule + lineups + final box scores. Slimmed before persistence (see `slimGame` in `src/utils/helpers.ts`) so embedded player objects don't push the doc near the 1 MB cap.                                                                                                                                      |
+| `evaluationEvents`                                               | object[]                           | **Dropped legacy field.** Eval rounds now live per-author in the `evalRounds` subcollection and are assembled client-side into `teamData.evaluationEvents` by a role-scoped subscription in `TeamProvider`; the rules ratchet the array so it can be removed but never recreated (see `docs/eval-authz-design.md`) |
+| `evalSchemaVersion`                                              | number                             | Bumped when the schema changes; clients migrate on read                                                                                                                                                                                                                                                            |
+| `tryoutsOpen`, `tryoutsPhase`, `tryoutSignups`, `tryoutShareIds` | tryouts state                      | Drive the public portal                                                                                                                                                                                                                                                                                            |
+| `pastSeasons`                                                    | object[]                           | Stat history surviving `advanceSeason`                                                                                                                                                                                                                                                                             |
+| `lineupTemplates`                                                | object[]                           | Saved presets                                                                                                                                                                                                                                                                                                      |
 
 ### `artifacts/{appId}/users/{uid}/settings/teams`
 
@@ -51,7 +51,8 @@ tryout config. The projection (the allowlist) is `buildPublicMirror` in
 `tryoutDates`. It **never** contains roster, schedule, evaluations, signups,
 members, ownerId, coachRoles, or joinCode.
 
-The mirror is upserted by an effect in `TeamProvider` (`App.tsx`) whenever a
+The mirror is upserted by an effect in `TeamProvider`
+(`src/providers/TeamProvider.tsx`) whenever a
 member's active team changes a mirrored field; a JSON guard skips no-op writes,
 and the first snapshot backfills the doc for teams created before the mirror
 existed. Signups still write to the real team doc by id — those updates don't
@@ -66,7 +67,7 @@ the Firebase Spark plan and avoids a separate rules rollout — so the strategy 
 to keep inline bytes small rather than offload them.
 
 - **Team logo** — the only image the app stores. On upload (`uploadLogo` in
-  `App.tsx`) it runs through `downscaleImageToDataURL` in
+  `src/hooks/useTeamLifecycle.ts`) it runs through `downscaleImageToDataURL` in
   `src/components/shared.tsx`: an image already within `maxDim` (512) and under
   `targetBytes` (~200 KB) passes through untouched, otherwise it's scaled down
   and re-encoded — preferring WebP (transparency + good compression; PNG
@@ -75,7 +76,8 @@ to keep inline bytes small rather than offload them.
   (`HARD_LIMIT`) warns rather than letting a near-cap doc fail its write.
 - **Player photos** — **not stored.** Earlier releases kept inline base64
   `photoUrl` per player, which was the single biggest contributor to doc size;
-  the field was removed. The persistence gate in `App.tsx` strips `photoUrl`
+  the field was removed. The persistence gate (`persistTeam` in
+  `src/providers/TeamProvider.tsx`) strips `photoUrl`
   from every players write, and a one-time per-team reclaim pass drops any
   legacy bytes still on a roster so the next save frees the space. Rosters now
   render initials via `PlayerAvatar` (`getPlayerInitials`).
@@ -84,13 +86,13 @@ to keep inline bytes small rather than offload them.
 
 ## Client layout
 
-`src/App.tsx` is intentionally a monolith — about 4,000 lines containing all top-level state, every team mutation, and the auth/Firestore subscriptions. Three patterns make it readable:
+The top level is deliberately concentrated rather than scattered: `src/App.tsx` (~1,200 lines) owns routing, the shell, and role/feature gating, while `src/providers/TeamProvider.tsx` (~2,400 lines) owns top-level state, every team mutation, and the auth/Firestore subscriptions. Three patterns make them readable:
 
 1. **Context providers wrap the shell.**
    - `ToastProvider` — at the very top so tryouts portal can post toasts without a team
    - `TeamProvider` — owns team state, Firebase subscriptions, every mutation action
    - `UIProvider` — local UI state (selected game, in-game session, attendance toggles), bridged to `TeamProvider` via a `uiBridge` ref so generate/save actions can read selections without putting them in Firestore
-   - All three live in `App.tsx`; consumer hooks (`useTeam`, `useUI`, `useToast`) live in `src/contexts.ts` so screens import only the hook.
+   - All three live in `src/providers/` (`TeamProvider.tsx`, `UIProvider.tsx`, `ToastProvider.tsx`) and are composed in `App.tsx`; consumer hooks (`useTeam`, `useUI`, `useToast`) live in `src/contexts.ts` so screens import only the hook.
 
 2. **Screen components live in `src/screens/`** and consume `useTeam()` / `useUI()`. Each tab is a single file:
    - `HomeTab.tsx`, `RosterTab.tsx`, `ScheduleTab.tsx`, `LineupGrid.tsx`, `EvaluationTab.tsx`, `SettingsTab.tsx`, `TryoutsTab.tsx`, `AssistantEvalTab.tsx`
@@ -155,8 +157,8 @@ pattern for the next tab.
 ## State flow
 
 ```
-Firestore                      App.tsx                Context           Screens
-─────────                      ───────                ───────           ───────
+Firestore                      TeamProvider           Context           Screens
+─────────                      ────────────           ───────           ───────
 teams collection  ─onSnapshot→ teamData state ─────→  TeamContext ────→ useTeam().team
 users/.../teams   ─onSnapshot→ teams state ──────────→ TeamContext ────→ useTeam().teams
 
@@ -166,12 +168,12 @@ Screen action     ←useTeam()── action callback ─────→ persistT
 
 - **Reads** stream in via two `onSnapshot` subscriptions in `TeamProvider`: one for the user's team list, one for the active team document.
 - **Writes** go through `persistTeam(updates)` (or `updateTeam` for optimistic UI). It slims `games` first, scrubs `undefined`, sets `syncStatus: "Saving"`, and commits with `{ merge: true }`.
-- **Array writes are concurrency-safe.** Mutations to the high-traffic team arrays — `players`, `games`, `evaluationEvents`, `practices`, and the tryout-season arrays (`tryoutSignups`, `interestSignups`, `playerInfoSubmissions`, `availabilitySubmissions`, `tryoutSessions`) — go through `updateTeamArrays` (op-based: append → `arrayUnion`, removeById → `arrayRemove`, mapEntries → one-array replace from the latest committed state; see `src/utils/teamArrayUpdates.ts`), and finance mutations through the analogous `updateFinances` (`src/utils/financeUpdates.ts`). Two coaches editing near-simultaneously can no longer erase each other's changes — nor can a coach edit erase an anonymous portal submission appending to the same tryout array. A multi-op list becomes one merged `updateDoc`, which keeps cascades like remove-player or convert-interest atomic. Both paths preserve `persistTeam`'s gates (game slimming, `photoUrl` strip, roster-wipe guard) and its optimistic apply + guarded revert.
+- **Array writes are concurrency-safe.** Mutations to the high-traffic team arrays — `players`, `games`, `practices`, `tournaments`, and the tryout-season arrays (`tryoutSignups`, `interestSignups`, `playerInfoSubmissions`, `availabilitySubmissions`, `tryoutSessions`) — go through `updateTeamArrays` (op-based: append → `arrayUnion`, removeById → `arrayRemove`, mapEntries → one-array replace from the latest committed state; see `src/utils/teamArrayUpdates.ts`), and finance mutations through the analogous `updateFinances` (`src/utils/financeUpdates.ts`). Two coaches editing near-simultaneously can no longer erase each other's changes — nor can a coach edit erase an anonymous portal submission appending to the same tryout array. A multi-op list becomes one merged `updateDoc`, which keeps cascades like remove-player or convert-interest atomic. Both paths preserve `persistTeam`'s gates (game slimming, `photoUrl` strip, roster-wipe guard) and its optimistic apply + guarded revert. Eval rounds are no longer a team array at all — each round is its own doc in the `evalRounds` subcollection, written per-doc via `saveEvalRound` / `deleteEvalRound` (`src/utils/evalRounds.ts`, used by `src/hooks/useEvaluationCrud.ts`), which is inherently concurrency-safe.
 - **The active-team subscription retries once** on `permission-denied` — that catches the race where a fresh `members` write hasn't propagated to the rules engine yet.
 
 ## Firestore rules → flows
 
-`firestore.rules` (~280 lines) encodes four overlapping permission lanes on the team doc:
+`firestore.rules` (~370 lines) encodes four overlapping permission lanes on the team doc:
 
 1. **Owner/member**: full read/write (`allow read, write: if isMember(resource.data)`)
 2. **Bootstrap**: `allow create` when `ownerId` matches the caller — used by `createTeam` and the `bootstrapDefaultTeam` fallback
@@ -199,7 +201,7 @@ A brand-new signed-in user has no team yet. Instead of auto-creating "My Team" (
 
 ## Where things are NOT
 
-- **No subcollections.** Roster, schedule, eval history all live on the single team document. Adding a subcollection has been considered for `tryoutSignups` (write-heavy on portal opens) but isn't done.
+- **One subcollection: `evalRounds`.** Roster and schedule live on the single team document, but eval rounds live per-author at `teams/{teamId}/evalRounds/{roundId}` — authorization-scoped in `firestore.rules` (an assistant reads/edits only their own rounds; a head manages all) and assembled client-side into `teamData.evaluationEvents` by a role-scoped subscription in `TeamProvider` (see `docs/eval-authz-design.md`). Adding a subcollection has been considered for `tryoutSignups` (write-heavy on portal opens) but isn't done.
 - **Service worker / PWA.** `vite-plugin-pwa` (`registerType: "autoUpdate"`) registers a Workbox service worker that pre-caches the JS/CSS bundle and app shell. Firestore still needs network for live data — the SW covers the app shell only, not data offline. `manifest.json` also enables Add to Home Screen.
 - **No Cloud Functions.** Everything is client + rules.
 - **No state management library.** Two React contexts and `useReducer`-free `useState`/`useCallback` patterns carry it.

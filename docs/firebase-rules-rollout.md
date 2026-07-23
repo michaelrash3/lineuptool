@@ -2,7 +2,7 @@
 
 This guide makes `firestore.rules` reproducible from the repo and safe to roll out.
 
-> **No Cloud Storage.** The app runs on the Firebase Spark plan and does not use Cloud Storage. Player photos are persisted inline as 256×256 JPEG data URLs on the team document — see `cropImageTo256DataURL` in `src/components/shared.tsx`.
+> **No Cloud Storage.** The app runs on the Firebase Spark plan and does not use Cloud Storage. The team logo is the only image the app stores — persisted inline on the team document as a downscaled/compressed data URL (see `downscaleImageToDataURL` in `src/components/shared.tsx`). Player photos are not stored at all: `photoUrl` is stripped from every players write (see the sanitizer in `src/utils/teamArrayUpdates.ts` and the Images section of `docs/ARCHITECTURE.md`).
 
 ## What this covers
 

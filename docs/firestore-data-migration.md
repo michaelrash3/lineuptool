@@ -56,7 +56,7 @@ explicit rather than accidental:
 | ------------------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `players`                                              | `usePlayerCrud`, `acceptTryout`, `advanceSeason`        | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance). |
 | `games`                                                | `useGameCrud`, lineup/finalize flows                    | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                               |
-| `evaluationEvents`                                     | `useEvaluationCrud`, `saveTryoutEvaluation`             | Upsert-by-key semantics over the whole list; concurrency is one evaluator at a time per round.                |
+| `evaluationEvents`                                     | _(since moved)_                                         | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).      |
 | `coachRoles` (head-initiated `setCoachRole`)           | `useTeamMembership`                                     | Owner-only; the **self-join** path already uses the atomic dotted write.                                      |
 | `tryoutSignups` / `interestSignups` (coach-side edits) | `useTryoutFlows` (delete, bulk-delete, convert, accept) | Coach-side mutations; the **public append** path is `arrayUnion` and is the high-frequency, untrusted one.    |
 
@@ -93,15 +93,22 @@ artifacts/{appId}/public/data/teams/{teamId}/interestSignups/{leadId}
   `team.interestSignups` and present the union; a one-time per-team migration
   can copy legacy array entries into the subcollection and then clear the array.
 
-### Phase 2 — evaluations → subcollection
+### Phase 2 — evaluations → subcollection (SHIPPED)
 
 ```
-artifacts/{appId}/public/data/teams/{teamId}/evaluationEvents/{eventId}
+artifacts/{appId}/public/data/teams/{teamId}/evalRounds/{roundId}
 ```
 
-Keyed by the existing upsert id; resolves the multi-evaluator concurrency note
-above. Tryout grades (those carrying `tryoutSignupId`) move alongside roster
-rounds.
+Shipped, with a different final shape than originally sketched here
+(`evaluationEvents/{eventId}`): per-author round docs, authorization-scoped in
+`firestore.rules` (an assistant reads/writes only their own rounds) and
+assembled client-side by a role-scoped subscription in `TeamProvider`, with
+the legacy `evaluationEvents` array dropped from the team doc and ratcheted by
+the rules. See `docs/eval-authz-design.md` (status COMPLETE) and
+`src/utils/evalRounds.ts`. This resolves the multi-evaluator concurrency note
+above. Tryout grades (those carrying `tryoutSignupId`) did not move alongside
+roster rounds — the v11 `migrateLegacyTryoutGrades` step folded them into
+`tryoutSessions` instead.
 
 ### Phase 3 — games, then players → subcollections
 
