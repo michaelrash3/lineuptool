@@ -91,7 +91,7 @@ category sets (categories are fixed by pitching format).
 | 4   | Low        | Maintainability | `EvaluationTab.tsx` is a ~2,920-line file with 7 inline sub-components + 8 module-level helpers                                               |
 | 5   | Low        | Test coverage   | 5 of the 8 eval components are untested (RosterDecisions, Insights, RoundComparison, AssistantSubmissions, EvalTrendPage)                     |
 
-### 3.1 `evaluationEvents` is not authorization-scoped — Medium
+### 3.1 `evaluationEvents` is not authorization-scoped — Medium (fixed)
 
 The UI presents assistant visibility as "you only see your own rounds"
 (`AssistantEvalTab` filters on `coachRole === "Assistant" && evaluatorId ===
@@ -116,7 +116,13 @@ move assistant submissions to a per-uid subcollection the head reconciles
 model. **Recommend (c) + a rules test that pins current behavior**, and revisit
 if eval access ever widens.
 
-### 3.2 Legacy tryout-grade dual storage — Low
+**Resolved:** option (b) shipped, taken further than sketched — ALL rounds
+(head and assistant) moved off the shared doc into the per-author `evalRounds`
+subcollection, with reads and writes authorization-scoped in `firestore.rules`
+and the legacy `evaluationEvents` array dropped and ratcheted so it can never
+come back. Design + rollout: `docs/eval-authz-design.md` (status COMPLETE).
+
+### 3.2 Legacy tryout-grade dual storage — Low (fixed)
 
 `normalizeTryoutSessions` (`tryouts.ts:199`) folds every `evaluationEvents`
 entry carrying a `tryoutSignupId` into the session map on **every read**, but
@@ -126,6 +132,12 @@ two places forever, re-normalized on each render and re-counted toward the 1 MB
 doc cap. **Fix direction:** a one-time migration (mirror `restampEvalDueDates`)
 that moves `tryoutSignupId` events into `tryoutSessions` and drops them from
 `evaluationEvents`, guarded by a schema-version bump.
+
+**Resolved:** exactly that migration shipped as the v11 schema step —
+`migrateLegacyTryoutGrades` (`src/utils/tryouts.ts`) folds `tryoutSignupId`
+events into `tryoutSessions` once and drops them from the events list, guarded
+by the `EVAL_SCHEMA_VERSION` bump to 11 (see the migration ladder in
+`docs/ARCHITECTURE.md`; unit-tested in `src/utils/tryouts.test.ts`).
 
 ### 3.3 Compounding rounding in tryout blending — Low
 
@@ -232,20 +244,26 @@ staff/board handout (lazy `jspdf`, mirroring `feeSheetPdf`).
 
 ## 5. Roadmap
 
-Recommended order (each an independent PR):
+Recommended order (each an independent PR); all four have since shipped:
 
 1. **Test the eval sub-components** — cover `RosterDecisionsPanel` scoring,
    `RoundComparisonView`, `EvalTrendPage`, plus `AvailabilityTab` and
    `components/PlayerProfilePage.tsx` (the last untested surfaces). Do this **before** the
-   split so the refactor is guarded.
+   split so the refactor is guarded. **Done** — see 3.5's resolved note;
+   `AvailabilityTab.test.tsx` and `PlayerProfilePage.test.tsx` landed too.
 2. **Split `EvaluationTab.tsx`** (finding 3.4) — extract the 7 sub-components
    into `src/screens/evaluation/` and the scoring helpers into
-   `src/utils/evalScoring.ts`. Pure refactor, no behavior change.
+   `src/utils/evalScoring.ts`. Pure refactor, no behavior change. **Done** —
+   both live at those paths.
 3. **Rules test pinning `evaluationEvents` behavior** (finding 3.1) — assert
    the current member-write reality and the assistant-append path, so any
-   future tightening is a deliberate, tested change.
+   future tightening is a deliberate, tested change. **Done, then overtaken**
+   — the tightening itself shipped (the `evalRounds` subcollection, see 3.1's
+   resolved note), and `firestore-tests/rules.test.ts` now pins the fixed
+   behavior: the per-author scoping plus the legacy-array ratchet.
 4. **Legacy tryout-grade migration** (finding 3.2) — schema-versioned one-time
-   move off `evaluationEvents`.
+   move off `evaluationEvents`. **Done** — the v11 `migrateLegacyTryoutGrades`
+   step (see 3.2's resolved note).
 
 Opportunistic (bundle when touching the code): single-pass tryout blend (3.3) —
 **done**, rounds once at the final blend.

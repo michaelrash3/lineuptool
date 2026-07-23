@@ -86,7 +86,7 @@ The Tryouts Portal is mounted on `/tryouts-portal/:slug` and renders **outside**
 ```
 parent opens /tryouts-portal/<slug>
   ├─ signInAnonymously (if not already signed in)
-  ├─ read team doc by joinCode/shareId → render themed signup form
+  ├─ read sanitized teamPublic mirror by tryoutShareId → render themed signup form
   ├─ submit:
   │    setDoc teams/{id} { tryoutSignups: [...existing, newRow] } merge=true
   │    └─ Firestore rule allows the update only because:
@@ -107,14 +107,15 @@ EvaluationTab → New Round
   ├─ pick category set (hitting / fielding / pitching)
   ├─ for each player, set 1–5 grade per dimension + optional notes
   └─ Save Round
-       ├─ saveTeamEvaluation in App.tsx
-       │    ├─ push event to teamData.evaluationEvents
-       │    └─ persistTeam({ evaluationEvents: [...], evalSchemaVersion: 4 })
-       └─ EvaluationTab leaderboards + sparklines recompute from the
-          updated events list
+       ├─ saveTeamEvaluation in src/hooks/useEvaluationCrud.ts
+       │    ├─ build the round (id, date, grades, evaluator stamp)
+       │    └─ saveEvalRound → setDoc teams/{id}/evalRounds/{roundId}
+       └─ the role-scoped evalRounds subscription in TeamProvider streams
+          the new doc into teamData.evaluationEvents, and the EvaluationTab
+          leaderboards + sparklines recompute from it
 ```
 
-Assistant coaches use `AssistantEvalTab.tsx` instead — same shape, but the head reviews and finalizes before the event is committed to the canonical events array.
+Assistant coaches use `AssistantEvalTab.tsx` instead — same shape, but each assistant's round lands in their own `evalRounds` doc (readable only by its author and the head), and the head sees assistant submissions inline on the dashboard.
 
 ---
 

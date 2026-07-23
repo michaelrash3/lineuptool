@@ -227,20 +227,32 @@ them should export the CSV into real accounting software.
 
 ## 5. Roadmap
 
-Approved work, in recommended order (each item is an independent PR):
+Approved work, in recommended order (each item is an independent PR). All
+four have since shipped:
 
 1. **Rules guard for `finances`** — highest severity, smallest diff
    (`firestore.rules` + `firestore-tests/`). Do first; everything else builds
-   on a trustworthy ledger.
+   on a trustworthy ledger. **Shipped** — the head-gate in `firestore.rules`
+   (the `untouched('finances') || isHeadCoach()` clause), with emulator tests
+   and a validation-matrix entry in `docs/firebase-rules-rollout.md`.
 2. **Concurrency-safe finance writes** — rework `writeFinances`'s
    read-modify-write for the append paths (payments/incomes/expenses).
+   **Shipped** — `updateFinances` in `src/utils/financeUpdates.ts`.
 3. **Refunds** — entry type + math + UI + tests; fixes finding 3.5's gap.
+   **Shipped** — the `refund` payment flag flows through the ledger, summary,
+   CSV, and charts in `src/utils/finances.ts`.
 4. **Year-end treasurer report PDF** — includes the outstanding-balances
-   snapshot that softens finding 3.6.
+   snapshot that softens finding 3.6. **Shipped** —
+   `src/finances/treasurerReportPdf.ts`.
 
 Opportunistic (bundle into whichever PR touches the code first): cent
 rounding at aggregation boundaries (3.3), require valid dates on ledger edits
-(3.4), comma-decimal parse hardening (3.5), `recordedBy` stamps (3.7).
+(3.4), comma-decimal parse hardening (3.5), `recordedBy` stamps (3.7). All
+shipped — `round2` at the summary/running-balance boundaries and
+`parseMoneyInput`'s comma-decimal handling (`src/utils/finances.ts`), the
+`isValidIsoDate` gate on ledger edits (`src/screens/FinancesTab.tsx`), and
+`recordedBy`/`recordedAt` stamps on money entries (`src/types.ts`). Finding
+3.8's mitigations landed too (`LEDGER_RENDER_CAP` + a Map-based name lookup).
 
 Everything in "Considered, not planned" stays out of scope until explicitly
 reopened.

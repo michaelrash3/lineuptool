@@ -19,7 +19,7 @@ npm test               # one-shot test run (vitest run)
 npm run build          # production Vite build into ./dist
 ```
 
-CI runs the typecheck (`tsc --noEmit`), lint (`npm run lint`), the format check (`npm run format:check`), the test suite (`npm test`), and the production build (`npm run build`) on every push. Run them locally before pushing.
+CI runs the security audit (`npm audit --audit-level=high --omit=dev`), the typecheck (`tsc --noEmit`), lint (`npm run lint`), the format check (`npm run format:check`), the test suite (`npm test`), and the production build (`npm run build`) on every push, plus a parallel `rules-test` job that runs the Firestore-emulator rules suite (`npm run test:rules`). Run them locally before pushing.
 
 Formatting is pinned to **Prettier** (config in `.prettierrc.json`). Run `npm run format` to format the tree and `npm run format:check` to verify — CI fails on any unformatted file, so let Prettier own style instead of hand-matching it.
 
@@ -27,7 +27,7 @@ Formatting is pinned to **Prettier** (config in `.prettierrc.json`). Run `npm ru
 
 - Pure logic in `src/lineupEngine.ts` and `src/utils/helpers.ts` has unit tests. New pure helpers should land with tests in `*.test.ts` next to the source.
 - React Testing Library is wired up (`@testing-library/react` + `jest-dom`, auto-loaded via `src/setupTests.ts`). Component and hook tests live in `*.test.tsx` next to the source. Use `renderWithProviders` from `src/test-utils.tsx` to render anything that consumes the Toast/Team/UI contexts; mock Firebase with `jest.mock` (see `src/hooks/useInviteFlows.test.tsx`). Screenshot before/after for visual changes the DOM assertions don't cover.
-- When you touch a Firestore-rule-sensitive path, also walk the validation matrix in `docs/firebase-rules-rollout.md` against the emulator before merging.
+- CI runs the Firestore rules suite (`npm run test:rules`) automatically in its `rules-test` job, but when you touch a Firestore-rule-sensitive path, still walk the validation matrix in `docs/firebase-rules-rollout.md` against the emulator before merging.
 
 ## When to update which doc
 
@@ -58,7 +58,7 @@ Never edit rules in the Console without mirroring the change back into the repo 
 - **Comments explain _why_, not _what_.** Identifiers should already tell the reader what. Add a comment for a hidden constraint, a surprise, or a workaround for a known bug.
 - **Don't over-abstract.** Three similar lines is better than a premature helper. Helpers earn their keep when there are 5+ call sites or the logic is non-obvious.
 - **Reuse before inventing.** The primitives in `src/components/shared.tsx` (Button, Chip, GlassCard, Eyebrow, StatTile, PlayerAvatar) and the semantic type classes in `src/styles.css` (`.t-h1`, `.t-eyebrow`, `.t-body`, etc.) cover the vast majority of UI cases.
-- **Persistence goes through `persistTeam` / `updateTeam`** — never call `setDoc` from a screen. Mutations to the team arrays (`players` / `games` / `evaluationEvents` / `practices`, plus the tryout-season arrays `tryoutSignups` / `interestSignups` / `playerInfoSubmissions` / `availabilitySubmissions` / `tryoutSessions`) go through `updateTeamArrays`, and finance mutations through `updateFinances` — narrow per-op writes so concurrent edits can't clobber each other (see `src/utils/teamArrayUpdates.ts` and `src/utils/financeUpdates.ts`). This matters doubly for the tryout arrays: the anonymous portals append to them concurrently. `mapEntries` maps must be pure and deterministic (mint ids with `genId()` outside the map) because they re-run against the latest committed state.
+- **Persistence goes through `persistTeam` / `updateTeam`** — never call `setDoc` from a screen. Mutations to the team arrays (`players` / `games` / `practices` / `tournaments`, plus the tryout-season arrays `tryoutSignups` / `interestSignups` / `playerInfoSubmissions` / `availabilitySubmissions` / `tryoutSessions`) go through `updateTeamArrays`, and finance mutations through `updateFinances` — narrow per-op writes so concurrent edits can't clobber each other (see `src/utils/teamArrayUpdates.ts` and `src/utils/financeUpdates.ts`). This matters doubly for the tryout arrays: the anonymous portals append to them concurrently. `mapEntries` maps must be pure and deterministic (mint ids with `genId()` outside the map) because they re-run against the latest committed state. Eval rounds are not a team array — they persist per-doc to the `evalRounds` subcollection via `saveEvalRound` / `deleteEvalRound` (`src/utils/evalRounds.ts`).
 - **CSS color tokens** (`var(--team-primary)`, `var(--slate-700)`, etc.) over Tailwind defaults whenever the value belongs to the design system. Hardcoded hex codes belong only in `src/styles.css`.
 
 ## Hooks and side effects
