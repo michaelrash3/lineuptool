@@ -20,14 +20,16 @@ const NAME_MAX = 60;
 interface UseTournamentCrudArgs {
   // teamData carries more fields at runtime than the strict Team interface
   // models; typed permissively to mirror the App.tsx provider.
-  teamData: any;
+  // Ref to the freshest team (see TeamProvider.teamDataRef): callbacks
+  // read it at call time so their identities survive Firestore snapshots.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
 
 export const useTournamentCrud = ({
-  teamData,
+  teamDataRef,
   updateTeamArrays,
   toast,
   confirm,
@@ -131,7 +133,7 @@ export const useTournamentCrud = ({
         danger: true,
       });
       if (!ok) return false;
-      const prev: Tournament[] = teamData.tournaments || [];
+      const prev: Tournament[] = teamDataRef.current.tournaments || [];
       const removed = prev.find((t) => t.id === tournamentId);
       updateTeamArrays({
         op: "removeById",
@@ -159,7 +161,7 @@ export const useTournamentCrud = ({
       } as any);
       return true;
     },
-    [teamData.tournaments, updateTeamArrays, toast, confirm],
+    [teamDataRef, updateTeamArrays, toast, confirm],
   );
 
   return {

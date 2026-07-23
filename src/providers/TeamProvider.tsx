@@ -30,7 +30,12 @@ import {
   FirestoreError,
 } from "firebase/firestore";
 import { auth, db, appId } from "../firebase";
-import { TeamContext, useToast, useConfirm } from "../contexts";
+import {
+  TeamContext,
+  TeamActionsContext,
+  useToast,
+  useConfirm,
+} from "../contexts";
 import { errCode, errMessage, authDiag } from "../utils/diagnostics";
 import {
   clearRedirectPending,
@@ -97,6 +102,7 @@ import { useEvaluationCrud } from "../hooks/useEvaluationCrud";
 import { useLineupActions } from "../hooks/useLineupActions";
 import type {
   Team,
+  TeamContextValue,
   Game,
   Inning,
   SlimPlayer,
@@ -1464,7 +1470,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Player CRUD ----- (extracted to src/hooks/usePlayerCrud.ts)
   const { addPlayer, updatePlayer, updatePlayerNested, removePlayer } =
     usePlayerCrud({
-      teamData,
+      teamDataRef,
       updateTeamArrays,
       toast,
       confirm,
@@ -1484,7 +1490,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Coach actions -----
   // ----- Game actions ----- (extracted to src/hooks/useGameCrud.ts)
   const { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame } =
-    useGameCrud({ teamData, updateTeamArrays, toast, confirm });
+    useGameCrud({ teamDataRef, updateTeamArrays, toast, confirm });
 
   // ----- Tournament CRUD ----- (src/hooks/useTournamentCrud.ts)
   const {
@@ -1492,7 +1498,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     updateTournament,
     setPlannedOutings,
     removeTournament,
-  } = useTournamentCrud({ teamData, updateTeamArrays, toast, confirm });
+  } = useTournamentCrud({ teamDataRef, updateTeamArrays, toast, confirm });
 
   // ----- Development plan / health CRUD ----- (src/hooks/useDevelopmentCrud.ts)
   const {
@@ -1503,7 +1509,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     removeGoal,
     addCheckIn,
     toggleAssignedDrill,
-  } = useDevelopmentCrud({ teamData, updateTeamArrays, toast });
+  } = useDevelopmentCrud({ teamDataRef, updateTeamArrays, toast });
 
   // ----- Practice CRUD ----- (src/hooks/usePracticeCrud.ts)
   const {
@@ -1515,7 +1521,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     updateDrillInLibrary,
     removeDrillFromLibrary,
   } = usePracticeCrud({
-    teamData,
+    teamDataRef,
     updateTeam,
     updateTeamArrays,
     toast,
@@ -1536,7 +1542,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     deleteLineupTemplate,
     removePlayerMidGame,
   } = useLineupActions({
-    teamData,
+    teamDataRef,
     updateTeam,
     updateGame,
     persistTeam,
@@ -1559,7 +1565,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     activeTeamId,
     setActiveTeamId,
     setSyncStatus,
-    teamData,
+    teamDataRef,
     updateTeam,
     toast,
     confirm,
@@ -1576,7 +1582,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     setPlayerReturning,
     importBackup,
   } = useImportExportFlows({
-    teamData,
+    teamDataRef,
     updateTeam,
     updateTeamArrays,
     activeTeamId,
@@ -1587,7 +1593,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // ----- Evaluation CRUD ----- (extracted to src/hooks/useEvaluationCrud.ts)
   const { saveTeamEvaluation, saveAssistantEvaluation, deleteEvaluation } =
     useEvaluationCrud({
-      teamData,
+      teamDataRef,
       toast,
       user,
       uiBridge,
@@ -1624,7 +1630,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     saveTryoutEvaluations,
     acceptTryout,
   } = useTryoutFlows({
-    teamData,
+    teamDataRef,
     updateTeam,
     updateTeamArrays,
     toast,
@@ -1633,7 +1639,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   const { setCoachRole, addCoach, removeCoach } = useTeamMembership({
-    teamData,
+    teamDataRef,
     updateTeam,
     user,
   });
@@ -1641,7 +1647,7 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     user,
     teams,
     activeTeamId,
-    teamData,
+    teamDataRef,
     updateTeam,
     switchTeam,
     toast,
@@ -2128,7 +2134,12 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     !hasPendingJoinFlow;
 
   // Memoized context value — only changes when actual data does
-  const value = useMemo(
+  // Split into two context values (see contexts.ts): the data half changes on
+  // every Firestore snapshot; the actions half is ~90 stable callbacks whose
+  // identities survive snapshots (they read the freshest team via
+  // teamDataRef), so command-only consumers subscribed through
+  // useTeamActions() never re-render on data changes.
+  const dataValue = useMemo(
     () => ({
       team: teamData,
       teams,
@@ -2150,7 +2161,31 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       // public mirror sync status + manual repair (Settings → Tryouts)
       mirrorStale,
       resyncPublicMirror,
-      // actions
+    }),
+    [
+      teamData,
+      teams,
+      activeTeamId,
+      user,
+      authReady,
+      syncStatus,
+      loadingTeams,
+      loadingActive,
+      needsWelcomeChooser,
+      genError,
+      record,
+      currentRole,
+      roleResolved,
+      realRole,
+      viewAsRole,
+      setViewAsRole,
+      mirrorStale,
+      resyncPublicMirror,
+    ],
+  );
+
+  const actionsValue = useMemo(
+    () => ({
       updateTeam,
       updateFinances,
       updateTeamArrays,
@@ -2242,24 +2277,6 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       joinTeamByCode,
     }),
     [
-      teamData,
-      teams,
-      activeTeamId,
-      user,
-      authReady,
-      syncStatus,
-      loadingTeams,
-      loadingActive,
-      needsWelcomeChooser,
-      genError,
-      record,
-      currentRole,
-      roleResolved,
-      realRole,
-      viewAsRole,
-      setViewAsRole,
-      mirrorStale,
-      resyncPublicMirror,
       updateTeam,
       updateFinances,
       updateTeamArrays,
@@ -2352,5 +2369,13 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     ],
   );
 
-  return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
+  return (
+    <TeamContext.Provider value={dataValue as unknown as TeamContextValue}>
+      <TeamActionsContext.Provider
+        value={actionsValue as unknown as TeamContextValue}
+      >
+        {children}
+      </TeamActionsContext.Provider>
+    </TeamContext.Provider>
+  );
 };

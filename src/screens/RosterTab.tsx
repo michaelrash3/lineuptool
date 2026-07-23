@@ -5,7 +5,7 @@ import {
   calculateBaseballAge,
   formatDateDisplay,
 } from "../utils/helpers";
-import { useTeam, useUI, useToast } from "../contexts";
+import { useTeam, useTeamActions, useUI, useToast } from "../contexts";
 import { getPlayerInitials, EmptyState } from "../components/shared";
 import { PortalShareCard } from "../components/PortalShareCard";
 import { copyTextToClipboard } from "../utils/clipboard";
@@ -313,7 +313,9 @@ const PlayerRow = memo(
 
 const PlayerInfoLinkCard = memo(({ team }: any) => {
   const toast = useToast();
-  const { exportPlayerInfoCsv } = useTeam();
+  // Command-only consumer: subscribe to the stable actions half so this
+  // memo'd card isn't context-invalidated on every Firestore snapshot.
+  const { exportPlayerInfoCsv } = useTeamActions();
 
   const emailAllParents = () => {
     const emails = collectParentEmails(team);

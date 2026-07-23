@@ -11,7 +11,11 @@ const setup = (
 ) => {
   const updateTeam = jest.fn();
   const { result } = renderHook(() =>
-    useTeamMembership({ teamData: teamData as any, updateTeam, user }),
+    useTeamMembership({
+      teamDataRef: { current: teamData as any },
+      updateTeam,
+      user,
+    }),
   );
   return { updateTeam, result };
 };

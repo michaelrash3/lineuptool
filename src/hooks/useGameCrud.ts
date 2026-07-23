@@ -21,14 +21,16 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 interface UseGameCrudArgs {
   // teamData carries more fields at runtime than the strict Team interface
   // models; typed permissively to mirror the App.tsx provider.
-  teamData: any;
+  // Ref to the freshest team (see TeamProvider.teamDataRef): callbacks
+  // read it at call time so their identities survive Firestore snapshots.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
 
 export const useGameCrud = ({
-  teamData,
+  teamDataRef,
   updateTeamArrays,
   toast,
   confirm,
@@ -49,7 +51,7 @@ export const useGameCrud = ({
       // a format this league + age can't play.
       const allowedFormats = allowedPitchingFormats(
         form.leagueRuleSet,
-        teamData.teamAge,
+        teamDataRef.current.teamAge,
       );
       const newGame: Game = {
         id: genId("g"),
@@ -62,9 +64,9 @@ export const useGameCrud = ({
         // Pool/Bracket is a Tournament-only subset; Rec games are always League.
         // New Tournament games default to Pool play (coach can switch to Bracket).
         gameType: form.leagueRuleSet === "USSSA" ? "pool" : "league",
-        defenseSize: teamData.defenseSize,
-        battingSize: teamData.battingSize,
-        positionLock: teamData.positionLock,
+        defenseSize: teamDataRef.current.defenseSize,
+        battingSize: teamDataRef.current.battingSize,
+        positionLock: teamDataRef.current.positionLock,
         isScrimmage: !!form.isScrimmage,
         // Manual game details (feed-imported games get these from the .ics).
         location: (form.location || "").trim(),
@@ -79,7 +81,7 @@ export const useGameCrud = ({
       };
       updateTeamArrays({ op: "append", key: "games", entries: [newGame] });
     },
-    [teamData, updateTeamArrays, toast],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   const updateGame = useCallback(
@@ -122,7 +124,7 @@ export const useGameCrud = ({
   // Postpone a game: set status to "postponed" and clear scores.
   const postponeGame = useCallback(
     (gameId: any) => {
-      const game = teamData.games.find((g: any) => g.id === gameId);
+      const game = teamDataRef.current.games.find((g: any) => g.id === gameId);
       if (!game) return;
       updateTeamArrays({
         op: "mapEntries",
@@ -140,7 +142,7 @@ export const useGameCrud = ({
           ),
       });
     },
-    [teamData.games, updateTeamArrays],
+    [teamDataRef, updateTeamArrays],
   );
 
   // Finalize a game: set score, mark final, and trim/restore the lineup to
@@ -155,7 +157,7 @@ export const useGameCrud = ({
   //  - If `inningsPlayed` matches current length, no lineup change is made.
   const finalizeGame = useCallback(
     (gameId: any, teamScore: any, opponentScore: any, inningsPlayed: any) => {
-      const game = teamData.games.find((g: any) => g.id === gameId);
+      const game = teamDataRef.current.games.find((g: any) => g.id === gameId);
       if (!game) return;
       const gameUpdates: Record<string, any> = {
         teamScore,
@@ -196,16 +198,14 @@ export const useGameCrud = ({
       // finalize paths (InGameView and the schedule's finalize dialog).
       if (Number(teamScore) > Number(opponentScore)) {
         void celebrateWin(
-          [teamData.primaryColor, teamData.secondaryColor].filter(Boolean),
+          [
+            teamDataRef.current.primaryColor,
+            teamDataRef.current.secondaryColor,
+          ].filter(Boolean),
         );
       }
     },
-    [
-      teamData.games,
-      teamData.primaryColor,
-      teamData.secondaryColor,
-      updateGame,
-    ],
+    [teamDataRef, updateGame],
   );
 
   const deleteSavedGame = useCallback(
@@ -217,12 +217,13 @@ export const useGameCrud = ({
         danger: true,
       });
       if (!ok) return;
-      const prevGames = teamData.games;
+      const prevGames = teamDataRef.current.games;
       const removed = prevGames.find((g: any) => g.id === gameId);
       // A deleted game must also leave any tournament that references it —
       // both its membership and its planned pitching outings — in the SAME
       // atomic write, so a mid-flight refresh can't observe a dangling link.
-      const prevTournaments: Tournament[] = teamData.tournaments || [];
+      const prevTournaments: Tournament[] =
+        teamDataRef.current.tournaments || [];
       const touchesTournaments = prevTournaments.some(
         (t) => t.gameIds?.includes(gameId) || t.pitchPlan?.[gameId],
       );
@@ -288,7 +289,7 @@ export const useGameCrud = ({
         },
       } as any);
     },
-    [teamData.games, teamData.tournaments, updateTeamArrays, toast, confirm],
+    [teamDataRef, updateTeamArrays, toast, confirm],
   );
 
   return { addGame, updateGame, postponeGame, finalizeGame, deleteSavedGame };

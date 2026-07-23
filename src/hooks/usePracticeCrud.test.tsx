@@ -14,7 +14,13 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    usePracticeCrud({ teamData, updateTeam, updateTeamArrays, toast, confirm }),
+    usePracticeCrud({
+      teamDataRef: { current: teamData },
+      updateTeam,
+      updateTeamArrays,
+      toast,
+      confirm,
+    }),
   );
   return { result, teamData, updateTeam, updateTeamArrays, toast, confirm };
 };

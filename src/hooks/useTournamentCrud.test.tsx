@@ -13,7 +13,12 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useTournamentCrud({ teamData, updateTeamArrays, toast, confirm }),
+    useTournamentCrud({
+      teamDataRef: { current: teamData },
+      updateTeamArrays,
+      toast,
+      confirm,
+    }),
   );
   return { result, teamData, updateTeamArrays, toast, confirm };
 };

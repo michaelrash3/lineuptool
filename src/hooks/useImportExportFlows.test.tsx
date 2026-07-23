@@ -34,7 +34,7 @@ const setupScheduleImport = () => {
   };
   const { result } = renderHook(() =>
     useImportExportFlows({
-      teamData,
+      teamDataRef: { current: teamData },
       updateTeamArrays,
       activeTeamId: "t1",
       toast,
@@ -131,7 +131,7 @@ describe("uploadGameStatsCsv (per-game import)", () => {
     };
     const { result } = renderHook(() =>
       useImportExportFlows({
-        teamData,
+        teamDataRef: { current: teamData },
         updateTeamArrays,
         activeTeamId: "t1",
         toast,
@@ -234,7 +234,7 @@ describe("importBackup (restore)", () => {
     const teamData = { players: [], games: [] };
     const { result } = renderHook(() =>
       useImportExportFlows({
-        teamData,
+        teamDataRef: { current: teamData },
         updateTeam,
         activeTeamId: "t1",
         toast,

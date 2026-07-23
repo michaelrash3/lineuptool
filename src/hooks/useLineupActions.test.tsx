@@ -41,7 +41,7 @@ const setup = (over: any = {}, inputs: any = null, prevSnap: any = null) => {
   const teamData = { players: [], games: [], lineupTemplates: [], ...over };
   const { result } = renderHook(() =>
     useLineupActions({
-      teamData,
+      teamDataRef: { current: teamData },
       updateTeam,
       updateGame,
       persistTeam,

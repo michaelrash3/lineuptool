@@ -34,7 +34,7 @@ const setup = (over: Partial<Parameters<typeof useInviteFlows>[0]> = {}) => {
     user: { uid: "u1" },
     teams: [],
     activeTeamId: "team-1",
-    teamData: { name: "My Team", joinCode: "" },
+    teamDataRef: { current: { name: "My Team", joinCode: "" } },
     updateTeam,
     switchTeam,
     toast,
@@ -68,7 +68,7 @@ describe("regenerateJoinCode", () => {
   it("writes a sanitized invite doc and invalidates the previous code", async () => {
     const { result } = setup({
       activeTeamId: "team-1",
-      teamData: { name: "Hawks", joinCode: "OLD222" },
+      teamDataRef: { current: { name: "Hawks", joinCode: "OLD222" } },
     });
     let code = "";
     await act(async () => {

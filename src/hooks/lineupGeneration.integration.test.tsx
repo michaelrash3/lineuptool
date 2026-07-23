@@ -90,7 +90,7 @@ const setup = () => {
   const previousLineupRef = { current: null };
   const { result } = renderHook(() =>
     useLineupActions({
-      teamData,
+      teamDataRef: { current: teamData },
       updateTeam,
       updateGame,
       persistTeam,

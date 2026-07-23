@@ -15,7 +15,12 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useGameCrud({ teamData, updateTeamArrays, toast, confirm }),
+    useGameCrud({
+      teamDataRef: { current: teamData },
+      updateTeamArrays,
+      toast,
+      confirm,
+    }),
   );
   return { result, teamData, updateTeamArrays, toast, confirm };
 };

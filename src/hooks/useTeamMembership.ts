@@ -12,39 +12,46 @@ interface Coach {
 }
 
 interface UseTeamMembershipArgs {
-  teamData: {
-    ownerId?: string;
-    coachRoles?: Record<string, string>;
-    members?: string[];
-    coaches: Coach[];
-  } & Record<string, unknown>;
+  // Ref to the live team doc — callbacks read teamDataRef.current at call time
+  // so they keep a stable identity across Firestore snapshots (same pattern as
+  // updateTeam in TeamProvider).
+  teamDataRef: React.MutableRefObject<
+    {
+      ownerId?: string;
+      coachRoles?: Record<string, string>;
+      members?: string[];
+      coaches: Coach[];
+    } & Record<string, unknown>
+  >;
   updateTeam: (patch: Record<string, unknown>) => void;
   user: AuthUser | null | undefined;
 }
 
 export const useTeamMembership = ({
-  teamData,
+  teamDataRef,
   updateTeam,
   user,
 }: UseTeamMembershipArgs) => {
   const setCoachRole = useCallback(
     (uid: string, role: string) => {
+      const teamData = teamDataRef.current;
       if (!uid || uid === teamData.ownerId) return;
       if (role !== "head" && role !== "assistant") return;
       const next = { ...(teamData.coachRoles || {}), [uid]: role };
       updateTeam({ coachRoles: next });
     },
-    [teamData.coachRoles, teamData.ownerId, updateTeam],
+    [teamDataRef, updateTeam],
   );
 
   const addCurrentUserToMembers = useCallback(() => {
     if (!user) return;
+    const teamData = teamDataRef.current;
     const members = Array.isArray(teamData.members) ? teamData.members : [];
     const nextMembers = members.includes(user.uid)
       ? members
       : [...members, user.uid];
     updateTeam({ members: nextMembers });
-  }, [user, teamData.members, updateTeam]);
+  }, [user, teamDataRef, updateTeam]);
 
   const addCoach = useCallback(
     (form: { name: string; role: string }) => {
@@ -54,18 +61,18 @@ export const useTeamMembership = ({
         name: form.name.trim(),
         role: form.role,
       };
-      updateTeam({ coaches: [...teamData.coaches, newCoach] });
+      updateTeam({ coaches: [...teamDataRef.current.coaches, newCoach] });
     },
-    [teamData.coaches, updateTeam],
+    [teamDataRef, updateTeam],
   );
 
   const removeCoach = useCallback(
     (id: string) => {
       updateTeam({
-        coaches: teamData.coaches.filter((c: Coach) => c.id !== id),
+        coaches: teamDataRef.current.coaches.filter((c: Coach) => c.id !== id),
       });
     },
-    [teamData.coaches, updateTeam],
+    [teamDataRef, updateTeam],
   );
 
   return {

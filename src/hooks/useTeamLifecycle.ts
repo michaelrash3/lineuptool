@@ -57,9 +57,12 @@ interface UseTeamLifecycleArgs {
   activeTeamId: string | null;
   setActiveTeamId: (id: string | null) => void;
   setSyncStatus: (status: string) => void;
-  // teamData carries more fields at runtime than the strict Team interface
-  // models; typed permissively (any) to mirror the TeamProvider surface.
-  teamData: any;
+  // Ref to the live team doc — callbacks read teamDataRef.current at call time
+  // so they keep a stable identity across Firestore snapshots (same pattern as
+  // updateTeam in TeamProvider). The team carries more fields at runtime than
+  // the strict Team interface models; typed permissively (any) to mirror the
+  // TeamProvider surface.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeam: (
     patch: Record<string, unknown>,
     opts?: { allowEmptyPlayers?: boolean },
@@ -74,7 +77,7 @@ export const useTeamLifecycle = ({
   activeTeamId,
   setActiveTeamId,
   setSyncStatus,
-  teamData,
+  teamDataRef,
   updateTeam,
   toast,
   confirm,
@@ -184,6 +187,7 @@ export const useTeamLifecycle = ({
         tryoutDepositPayments?: Record<string, string>;
       } = {},
     ) => {
+      const teamData = teamDataRef.current;
       const { skipConfirm = false, tryoutsToPromote = [] } = opts;
       const computed = computeNextSeason(teamData.currentSeason);
       if (!computed) {
@@ -577,11 +581,12 @@ export const useTeamLifecycle = ({
             : ""),
       });
     },
-    [teamData, updateTeam, toast, confirm, user, activeTeamId],
+    [teamDataRef, updateTeam, toast, confirm, user, activeTeamId],
   );
 
   const uploadLogo = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      const teamData = teamDataRef.current;
       const file = e.target.files?.[0];
       if (!file) return;
       // Instead of rejecting an oversized logo, auto-shrink it: downscale to a
@@ -627,7 +632,7 @@ export const useTeamLifecycle = ({
           }),
         );
     },
-    [teamData, updateTeam, toast],
+    [teamDataRef, updateTeam, toast],
   );
 
   const deleteTeamCmd = useCallback(async () => {
@@ -641,7 +646,7 @@ export const useTeamLifecycle = ({
     });
     if (!ok) return;
     // Auto-snapshot before the team document is deleted.
-    downloadTeamBackup(teamData, activeTeamId, "snapshot");
+    downloadTeamBackup(teamDataRef.current, activeTeamId, "snapshot");
     try {
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
@@ -669,7 +674,7 @@ export const useTeamLifecycle = ({
         message: errMessage(e),
       });
     }
-  }, [user, teams, activeTeamId, teamData, toast, confirm]);
+  }, [user, teams, activeTeamId, teamDataRef, toast, confirm]);
 
   const leaveTeamCmd = useCallback(async () => {
     if (!user || teams.length <= 1) return;
