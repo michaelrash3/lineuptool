@@ -16,7 +16,7 @@ const setup = (teamOver: any = {}, user: any = { uid: "u1" }) => {
   };
   const { result } = renderHook(() =>
     useTryoutFlows({
-      teamData,
+      teamDataRef: { current: teamData },
       updateTeam,
       updateTeamArrays,
       toast,

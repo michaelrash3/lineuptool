@@ -18,7 +18,9 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 // concurrent edits by two coaches can't clobber each other), mirroring
 // useGameCrud.
 interface UsePlayerCrudArgs {
-  teamData: any;
+  // Ref to the freshest team (see TeamProvider.teamDataRef): callbacks
+  // read it at call time so their identities survive Firestore snapshots.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
@@ -31,7 +33,7 @@ interface UsePlayerCrudArgs {
 }
 
 export const usePlayerCrud = ({
-  teamData,
+  teamDataRef,
   updateTeamArrays,
   toast,
   confirm,
@@ -109,10 +111,11 @@ export const usePlayerCrud = ({
       // through games / batting orders / attendance / pitch counts / eval
       // grades — a partial restore (just the roster row) would still leave
       // the player absent from the rest, so Undo has to revert all of them.
-      const prevPlayers = teamData.players;
-      const prevGames = teamData.games || [];
-      const prevEvents = teamData.evaluationEvents || [];
-      const prevTournaments: Tournament[] = teamData.tournaments || [];
+      const prevPlayers = teamDataRef.current.players;
+      const prevGames = teamDataRef.current.games || [];
+      const prevEvents = teamDataRef.current.evaluationEvents || [];
+      const prevTournaments: Tournament[] =
+        teamDataRef.current.tournaments || [];
       const removedPlayer = prevPlayers.find((p: any) => p.id === id);
       // Tournament pitch plans reference players by id — a removed player
       // must leave every plan too, or the entry lingers invisibly (the plan
@@ -186,7 +189,7 @@ export const usePlayerCrud = ({
       // One op list → one merged updateDoc, so the roster row and every
       // reference to it disappear atomically. Eval grades live per-doc in the
       // evalRounds subcollection — never in this shared-doc write (writing
-      // teamData.evaluationEvents back would resurrect scoped rounds onto the
+      // teamDataRef.current.evaluationEvents back would resurrect scoped rounds onto the
       // team doc and recreate the dropped legacy field, which the rules now
       // reject).
       updateTeamArrays([
@@ -267,18 +270,7 @@ export const usePlayerCrud = ({
         },
       } as any);
     },
-    [
-      teamData.players,
-      teamData.games,
-      teamData.evaluationEvents,
-      teamData.tournaments,
-      updateTeamArrays,
-      toast,
-      confirm,
-      db,
-      appId,
-      teamId,
-    ],
+    [teamDataRef, updateTeamArrays, toast, confirm, db, appId, teamId],
   );
 
   return { addPlayer, updatePlayer, updatePlayerNested, removePlayer };

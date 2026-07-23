@@ -7,7 +7,12 @@
 
 import React, { ReactElement, ReactNode } from "react";
 import { render, RenderOptions } from "@testing-library/react";
-import { ToastContext, TeamContext, UIContext } from "./contexts";
+import {
+  ToastContext,
+  TeamContext,
+  TeamActionsContext,
+  UIContext,
+} from "./contexts";
 import type {
   ToastContextValue,
   TeamContextValue,
@@ -85,10 +90,15 @@ export const renderWithProviders = (
   const toastValue = makeToast(toast);
   const teamValue = makeTeam(team);
   const uiValue = makeUI(uiOverrides);
+  // The same mock object backs both team contexts: production splits
+  // data/actions, but a test's makeTeam value carries everything, so
+  // useTeam() and useTeamActions() both resolve against it.
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <ToastContext.Provider value={toastValue}>
       <TeamContext.Provider value={teamValue}>
-        <UIContext.Provider value={uiValue}>{children}</UIContext.Provider>
+        <TeamActionsContext.Provider value={teamValue}>
+          <UIContext.Provider value={uiValue}>{children}</UIContext.Provider>
+        </TeamActionsContext.Provider>
       </TeamContext.Provider>
     </ToastContext.Provider>
   );

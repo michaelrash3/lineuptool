@@ -14,7 +14,9 @@ import type { ToastContextValue } from "../types";
 // ref for undo, so the hook takes those refs alongside persistence deps.
 // Bodies are moved verbatim; behavior is unchanged.
 interface UseLineupActionsArgs {
-  teamData: any;
+  // Ref to the freshest team (see TeamProvider.teamDataRef): callbacks
+  // read it at call time so their identities survive Firestore snapshots.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeam: (patch: Record<string, unknown>) => void;
   updateGame: (gameId: any, updates: any) => void;
   persistTeam: (updates: any) => void;
@@ -24,7 +26,7 @@ interface UseLineupActionsArgs {
 }
 
 export const useLineupActions = ({
-  teamData,
+  teamDataRef,
   updateTeam,
   updateGame,
   persistTeam,
@@ -65,7 +67,7 @@ export const useLineupActions = ({
         ...(options.firstInningOverrides || {}),
       };
 
-      const presentPlayers = teamData.players.filter(
+      const presentPlayers = teamDataRef.current.players.filter(
         // Roster-inactive kids never play, even if a stale attendance map
         // still has them marked present from before they went inactive.
         (p: any) =>
@@ -83,42 +85,52 @@ export const useLineupActions = ({
       // Tournament (USSSA) games build the scripted starters/subs plan via the
       // parallel tournament pipeline; Rec keeps the fairness engine untouched.
       const isTournamentGame =
-        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA";
+        (currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet) ===
+        "USSSA";
       const engineFn = isTournamentGame
         ? engineGenerateTournamentLineup
         : engineGenerateLineup;
       const result = engineFn({
         activePlayers: presentPlayers,
-        allPlayers: teamData.players,
-        games: teamData.games,
-        evaluationEvents: teamData.evaluationEvents,
+        allPlayers: teamDataRef.current.players,
+        games: teamDataRef.current.games,
+        evaluationEvents: teamDataRef.current.evaluationEvents,
         currentGame,
         firstInningOverridesById,
         totalInnings:
-          parseInt(currentGame.inningsCount || teamData.inningsCount, 10) || 6,
-        leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+          parseInt(
+            currentGame.inningsCount || teamDataRef.current.inningsCount,
+            10,
+          ) || 6,
+        leagueRuleSet:
+          currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet,
         competitive:
-          (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
-        depthChart: teamData.depthChart,
+          (currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet) ===
+          "USSSA",
+        depthChart: teamDataRef.current.depthChart,
         pitchRuleSet: resolvePitchRuleSet({
-          pitchRuleSet: teamData.pitchRuleSet,
-          customPitchLimit: teamData.customPitchLimit,
-          customRestTiers: teamData.customRestTiers,
+          pitchRuleSet: teamDataRef.current.pitchRuleSet,
+          customPitchLimit: teamDataRef.current.customPitchLimit,
+          customRestTiers: teamDataRef.current.customRestTiers,
         }),
         sameDayRoles: sameDayRoleSets(
-          teamData.players,
+          teamDataRef.current.players,
           currentGame.date,
           currentGame.id,
         ),
-        teamAge: teamData.teamAge,
-        defenseSize: currentGame.defenseSize || teamData.defenseSize,
-        positionLock: currentGame.positionLock || teamData.positionLock,
-        battingSize: currentGame.battingSize || teamData.battingSize,
-        pitchingFormat: currentGame.pitchingFormat || teamData.pitchingFormat,
+        teamAge: teamDataRef.current.teamAge,
+        defenseSize: currentGame.defenseSize || teamDataRef.current.defenseSize,
+        positionLock:
+          currentGame.positionLock || teamDataRef.current.positionLock,
+        battingSize: currentGame.battingSize || teamDataRef.current.battingSize,
+        pitchingFormat:
+          currentGame.pitchingFormat || teamDataRef.current.pitchingFormat,
         catcherMaxInnings:
-          currentGame.catcherMaxInnings || teamData.catcherMaxInnings,
+          currentGame.catcherMaxInnings ||
+          teamDataRef.current.catcherMaxInnings,
         catcherConsecutive:
-          currentGame.catcherConsecutive ?? teamData.catcherConsecutive,
+          currentGame.catcherConsecutive ??
+          teamDataRef.current.catcherConsecutive,
         seed,
         relaxFairness,
         isBigGame: currentGame.isBigGame === true,
@@ -211,27 +223,7 @@ export const useLineupActions = ({
           : undefined,
       });
     },
-    [
-      teamData.players,
-      teamData.games,
-      teamData.evaluationEvents,
-      teamData.inningsCount,
-      teamData.leagueRuleSet,
-      teamData.teamAge,
-      teamData.defenseSize,
-      teamData.positionLock,
-      teamData.battingSize,
-      teamData.pitchingFormat,
-      teamData.catcherMaxInnings,
-      teamData.catcherConsecutive,
-      teamData.depthChart,
-      teamData.pitchRuleSet,
-      teamData.customPitchLimit,
-      teamData.customRestTiers,
-      toast,
-      uiBridge,
-      previousLineupRef,
-    ],
+    [teamDataRef, toast, uiBridge, previousLineupRef],
   );
 
   const generateLineup = useCallback(
@@ -269,7 +261,7 @@ export const useLineupActions = ({
       });
       return;
     }
-    const presentPlayers = teamData.players.filter(
+    const presentPlayers = teamDataRef.current.players.filter(
       (p: any) => p.present !== false && currentGameAttendance[p.id] !== false,
     );
     if (presentPlayers.length < 7) {
@@ -283,35 +275,42 @@ export const useLineupActions = ({
 
     const result = engineGenerateLineup({
       activePlayers: presentPlayers,
-      allPlayers: teamData.players,
-      games: teamData.games,
-      evaluationEvents: teamData.evaluationEvents,
+      allPlayers: teamDataRef.current.players,
+      games: teamDataRef.current.games,
+      evaluationEvents: teamDataRef.current.evaluationEvents,
       currentGame,
       firstInningOverridesById: firstInningLineup,
       totalInnings:
-        parseInt(currentGame.inningsCount || teamData.inningsCount, 10) || 6,
-      leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+        parseInt(
+          currentGame.inningsCount || teamDataRef.current.inningsCount,
+          10,
+        ) || 6,
+      leagueRuleSet:
+        currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet,
       competitive:
-        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
-      depthChart: teamData.depthChart,
+        (currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet) ===
+        "USSSA",
+      depthChart: teamDataRef.current.depthChart,
       pitchRuleSet: resolvePitchRuleSet({
-        pitchRuleSet: teamData.pitchRuleSet,
-        customPitchLimit: teamData.customPitchLimit,
-        customRestTiers: teamData.customRestTiers,
+        pitchRuleSet: teamDataRef.current.pitchRuleSet,
+        customPitchLimit: teamDataRef.current.customPitchLimit,
+        customRestTiers: teamDataRef.current.customRestTiers,
       }),
       sameDayRoles: sameDayRoleSets(
-        teamData.players,
+        teamDataRef.current.players,
         currentGame.date,
         currentGame.id,
       ),
-      teamAge: teamData.teamAge,
-      defenseSize: currentGame.defenseSize || teamData.defenseSize,
-      positionLock: currentGame.positionLock || teamData.positionLock,
-      battingSize: currentGame.battingSize || teamData.battingSize,
+      teamAge: teamDataRef.current.teamAge,
+      defenseSize: currentGame.defenseSize || teamDataRef.current.defenseSize,
+      positionLock:
+        currentGame.positionLock || teamDataRef.current.positionLock,
+      battingSize: currentGame.battingSize || teamDataRef.current.battingSize,
       catcherMaxInnings:
-        currentGame.catcherMaxInnings || teamData.catcherMaxInnings,
+        currentGame.catcherMaxInnings || teamDataRef.current.catcherMaxInnings,
       catcherConsecutive:
-        currentGame.catcherConsecutive ?? teamData.catcherConsecutive,
+        currentGame.catcherConsecutive ??
+        teamDataRef.current.catcherConsecutive,
       seed: Date.now() + Math.floor(Math.random() * 1e6),
       relaxFairness: currentGame.applySeasonalFairness === false,
       isBigGame: currentGame.isBigGame === true,
@@ -352,26 +351,7 @@ export const useLineupActions = ({
           }
         : undefined,
     });
-  }, [
-    teamData.players,
-    teamData.games,
-    teamData.evaluationEvents,
-    teamData.inningsCount,
-    teamData.leagueRuleSet,
-    teamData.teamAge,
-    teamData.defenseSize,
-    teamData.positionLock,
-    teamData.battingSize,
-    teamData.catcherMaxInnings,
-    teamData.catcherConsecutive,
-    teamData.depthChart,
-    teamData.pitchRuleSet,
-    teamData.customPitchLimit,
-    teamData.customRestTiers,
-    toast,
-    uiBridge,
-    previousLineupRef,
-  ]);
+  }, [teamDataRef, toast, uiBridge, previousLineupRef]);
 
   // Re-roll JUST the batting order. Defensive lineup, attendance, and
   // first-inning overrides are all left alone. Useful when the defense
@@ -394,7 +374,7 @@ export const useLineupActions = ({
       });
       return;
     }
-    const presentPlayers = teamData.players.filter(
+    const presentPlayers = teamDataRef.current.players.filter(
       (p: any) => p.present !== false && currentGameAttendance[p.id] !== false,
     );
     if (presentPlayers.length < 1) {
@@ -404,13 +384,15 @@ export const useLineupActions = ({
 
     const result = engineGenerateBattingOnly({
       activePlayers: presentPlayers,
-      allPlayers: teamData.players,
-      evaluationEvents: teamData.evaluationEvents,
-      leagueRuleSet: currentGame.leagueRuleSet || teamData.leagueRuleSet,
+      allPlayers: teamDataRef.current.players,
+      evaluationEvents: teamDataRef.current.evaluationEvents,
+      leagueRuleSet:
+        currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet,
       competitive:
-        (currentGame.leagueRuleSet || teamData.leagueRuleSet) === "USSSA",
-      teamAge: teamData.teamAge,
-      battingSize: currentGame.battingSize || teamData.battingSize,
+        (currentGame.leagueRuleSet || teamDataRef.current.leagueRuleSet) ===
+        "USSSA",
+      teamAge: teamDataRef.current.teamAge,
+      battingSize: currentGame.battingSize || teamDataRef.current.battingSize,
       seed: Date.now() + Math.floor(Math.random() * 1e6),
     });
 
@@ -448,16 +430,7 @@ export const useLineupActions = ({
           }
         : undefined,
     });
-  }, [
-    teamData.players,
-    teamData.evaluationEvents,
-    teamData.leagueRuleSet,
-    teamData.teamAge,
-    teamData.battingSize,
-    toast,
-    uiBridge,
-    previousLineupRef,
-  ]);
+  }, [teamDataRef, toast, uiBridge, previousLineupRef]);
 
   const undoLineup = useCallback(() => {
     const snap = previousLineupRef.current;
@@ -515,7 +488,7 @@ export const useLineupActions = ({
     const absent = Object.values(currentGameAttendance || {}).filter(
       (v) => v === false,
     ).length;
-    const presentCount = (teamData.players || []).filter(
+    const presentCount = (teamDataRef.current.players || []).filter(
       (p: any) =>
         p &&
         p.present !== false &&
@@ -525,7 +498,8 @@ export const useLineupActions = ({
     // picker), and THAT selection rolls the projected lineup — so don't
     // auto-build here. Other formats have no pitcher step, so once attendance
     // is set we roll the projected lineup straight away for confirmation.
-    const fmt = currentGame.pitchingFormat || teamData.pitchingFormat || "";
+    const fmt =
+      currentGame.pitchingFormat || teamDataRef.current.pitchingFormat || "";
     const isKidPitch = /kid/i.test(fmt);
     const enough = !lineup && presentCount >= 7;
     const autoBuild = enough && !isKidPitch;
@@ -545,14 +519,7 @@ export const useLineupActions = ({
       // present players.
       setTimeout(() => generateLineup(), 0);
     }
-  }, [
-    updateGame,
-    toast,
-    uiBridge,
-    teamData.players,
-    teamData.pitchingFormat,
-    generateLineup,
-  ]);
+  }, [updateGame, toast, uiBridge, teamDataRef, generateLineup]);
 
   // ----- Lineup templates -----
   // Save the current lineup + batting order as a named template the coach
@@ -575,8 +542,8 @@ export const useLineupActions = ({
         battingLineup,
         createdAt: new Date().toISOString(),
       };
-      const existing = Array.isArray(teamData.lineupTemplates)
-        ? teamData.lineupTemplates
+      const existing = Array.isArray(teamDataRef.current.lineupTemplates)
+        ? teamDataRef.current.lineupTemplates
         : [];
       const next = [...existing, tpl].slice(-10);
       updateTeam({ lineupTemplates: next });
@@ -586,7 +553,7 @@ export const useLineupActions = ({
         message: `"${trimmed}" is now available to apply to other games.`,
       });
     },
-    [teamData.lineupTemplates, updateTeam, toast, uiBridge],
+    [teamDataRef, updateTeam, toast, uiBridge],
   );
 
   // Apply a template to the currently-selected game's in-flight editor.
@@ -594,7 +561,7 @@ export const useLineupActions = ({
   // the editor flag any roster-gone players visually.
   const applyLineupTemplate = useCallback(
     (templateId: any) => {
-      const tpl = (teamData.lineupTemplates || []).find(
+      const tpl = (teamDataRef.current.lineupTemplates || []).find(
         (t: any) => t.id === templateId,
       );
       if (!tpl) return;
@@ -605,17 +572,17 @@ export const useLineupActions = ({
         message: `Loaded "${tpl.name}". Tweak and save to keep the changes.`,
       });
     },
-    [teamData.lineupTemplates, toast, uiBridge],
+    [teamDataRef, toast, uiBridge],
   );
 
   const deleteLineupTemplate = useCallback(
     (templateId: any) => {
-      const next = (teamData.lineupTemplates || []).filter(
+      const next = (teamDataRef.current.lineupTemplates || []).filter(
         (t: any) => t.id !== templateId,
       );
       updateTeam({ lineupTemplates: next });
     },
-    [teamData.lineupTemplates, updateTeam],
+    [teamDataRef, updateTeam],
   );
 
   // Mid-game player removal: rebuild the defensive lineup from the current
@@ -629,8 +596,8 @@ export const useLineupActions = ({
       const inputs = uiBridge.current.getInputs?.() || {};
       const game =
         inputs.currentGame ||
-        (teamData.games || []).find(
-          (g: any) => g.id === (opts.gameId || teamData?.inGameId),
+        (teamDataRef.current.games || []).find(
+          (g: any) => g.id === (opts.gameId || teamDataRef.current?.inGameId),
         );
       const gameId = game?.id || opts.gameId;
       if (!gameId) {
@@ -639,7 +606,7 @@ export const useLineupActions = ({
       }
       // Re-read the game from teamData to make sure we have the latest
       // persisted lineup (InGameView passes its pendingLineup via opts).
-      const persistedGame = (teamData.games || []).find(
+      const persistedGame = (teamDataRef.current.games || []).find(
         (g: any) => g.id === gameId,
       );
       const existingLineup = opts.currentLineup || persistedGame?.lineup || [];
@@ -658,13 +625,15 @@ export const useLineupActions = ({
       // for this game: present (or no attendance flag) AND not previously
       // removed AND not the player we're removing now.
       const attendance = persistedGame?.attendance || {};
-      const activePlayers = (teamData.players || []).filter((p: any) => {
-        if (!p?.id) return false;
-        if (p.id === playerId) return false;
-        if (existingRemovals[p.id]) return false;
-        if (attendance[p.id] === false) return false;
-        return true;
-      });
+      const activePlayers = (teamDataRef.current.players || []).filter(
+        (p: any) => {
+          if (!p?.id) return false;
+          if (p.id === playerId) return false;
+          if (existingRemovals[p.id]) return false;
+          if (attendance[p.id] === false) return false;
+          return true;
+        },
+      );
 
       const fromInn = Math.min(
         Math.max(0, fromInning),
@@ -677,36 +646,43 @@ export const useLineupActions = ({
       // either way; the min-play floor is approximate across the replayed
       // innings, same in kind as the relaxed rec rebuild.
       const isTournament =
-        (persistedGame?.leagueRuleSet || teamData.leagueRuleSet) === "USSSA";
+        (persistedGame?.leagueRuleSet || teamDataRef.current.leagueRuleSet) ===
+        "USSSA";
 
       const result = engineGenerateLineup({
         activePlayers,
-        allPlayers: teamData.players || [],
-        games: teamData.games || [],
-        evaluationEvents: teamData.evaluationEvents || [],
+        allPlayers: teamDataRef.current.players || [],
+        games: teamDataRef.current.games || [],
+        evaluationEvents: teamDataRef.current.evaluationEvents || [],
         currentGame: persistedGame,
         totalInnings: existingLineup.length,
-        leagueRuleSet: persistedGame?.leagueRuleSet || teamData.leagueRuleSet,
-        teamAge: persistedGame?.teamAge || teamData.teamAge,
-        defenseSize: persistedGame?.defenseSize || teamData.defenseSize,
-        positionLock: persistedGame?.positionLock || teamData.positionLock,
-        battingSize: persistedGame?.battingSize || teamData.battingSize,
+        leagueRuleSet:
+          persistedGame?.leagueRuleSet || teamDataRef.current.leagueRuleSet,
+        teamAge: persistedGame?.teamAge || teamDataRef.current.teamAge,
+        defenseSize:
+          persistedGame?.defenseSize || teamDataRef.current.defenseSize,
+        positionLock:
+          persistedGame?.positionLock || teamDataRef.current.positionLock,
+        battingSize:
+          persistedGame?.battingSize || teamDataRef.current.battingSize,
         pitchingFormat:
-          persistedGame?.pitchingFormat || teamData.pitchingFormat,
+          persistedGame?.pitchingFormat || teamDataRef.current.pitchingFormat,
         catcherMaxInnings:
-          persistedGame?.catcherMaxInnings || teamData.catcherMaxInnings,
+          persistedGame?.catcherMaxInnings ||
+          teamDataRef.current.catcherMaxInnings,
         catcherConsecutive:
-          persistedGame?.catcherConsecutive ?? teamData.catcherConsecutive,
+          persistedGame?.catcherConsecutive ??
+          teamDataRef.current.catcherConsecutive,
         isBigGame: persistedGame?.isBigGame === true,
         competitive: isTournament,
-        depthChart: teamData.depthChart,
+        depthChart: teamDataRef.current.depthChart,
         pitchRuleSet: resolvePitchRuleSet({
-          pitchRuleSet: teamData.pitchRuleSet,
-          customPitchLimit: teamData.customPitchLimit,
-          customRestTiers: teamData.customRestTiers,
+          pitchRuleSet: teamDataRef.current.pitchRuleSet,
+          customPitchLimit: teamDataRef.current.customPitchLimit,
+          customRestTiers: teamDataRef.current.customRestTiers,
         }),
         sameDayRoles: sameDayRoleSets(
-          teamData.players,
+          teamDataRef.current.players,
           persistedGame?.date,
           gameId,
         ),
@@ -746,7 +722,7 @@ export const useLineupActions = ({
         ...(isTournament ? { tournamentPlan: null } : {}),
       });
 
-      const removedPlayer = (teamData.players || []).find(
+      const removedPlayer = (teamDataRef.current.players || []).find(
         (p: any) => p.id === playerId,
       );
       toast.push({
@@ -762,7 +738,7 @@ export const useLineupActions = ({
         duration: 6000,
       });
     },
-    [teamData, updateGame, toast, uiBridge],
+    [teamDataRef, updateGame, toast, uiBridge],
   );
 
   return {

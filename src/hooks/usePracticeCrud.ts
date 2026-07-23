@@ -17,7 +17,9 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 interface UsePracticeCrudArgs {
   // teamData carries more fields at runtime than the strict Team interface
   // models; typed permissively to mirror the App.tsx provider.
-  teamData: any;
+  // Ref to the freshest team (see TeamProvider.teamDataRef): callbacks
+  // read it at call time so their identities survive Firestore snapshots.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeam: (patch: Record<string, unknown>) => void;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
@@ -32,7 +34,7 @@ const libraryOf = (data: any): DrillDefinition[] =>
     : DEFAULT_DRILL_LIBRARY;
 
 export const usePracticeCrud = ({
-  teamData,
+  teamDataRef,
   updateTeam,
   updateTeamArrays,
   toast,
@@ -107,7 +109,7 @@ export const usePracticeCrud = ({
         danger: true,
       });
       if (!ok) return;
-      const prev = teamData.practices || [];
+      const prev = teamDataRef.current.practices || [];
       updateTeamArrays({ op: "removeById", key: "practices", id });
       toast.push({
         kind: "success",
@@ -127,7 +129,7 @@ export const usePracticeCrud = ({
         },
       } as any);
     },
-    [teamData.practices, updateTeamArrays, toast, confirm],
+    [teamDataRef, updateTeamArrays, toast, confirm],
   );
 
   const savePracticeAttendance = useCallback(
@@ -161,28 +163,28 @@ export const usePracticeCrud = ({
         name,
         id: genId("drill"),
       };
-      updateTeam({ drillLibrary: [...libraryOf(teamData), entry] });
+      updateTeam({ drillLibrary: [...libraryOf(teamDataRef.current), entry] });
     },
-    [teamData, updateTeam, toast],
+    [teamDataRef, updateTeam, toast],
   );
 
   const updateDrillInLibrary = useCallback(
     (id: string, patch: Partial<DrillDefinition>) => {
-      const next = libraryOf(teamData).map((d) =>
+      const next = libraryOf(teamDataRef.current).map((d) =>
         d.id === id ? { ...d, ...patch } : d,
       );
       updateTeam({ drillLibrary: next });
     },
-    [teamData, updateTeam],
+    [teamDataRef, updateTeam],
   );
 
   const removeDrillFromLibrary = useCallback(
     (id: string) => {
       updateTeam({
-        drillLibrary: libraryOf(teamData).filter((d) => d.id !== id),
+        drillLibrary: libraryOf(teamDataRef.current).filter((d) => d.id !== id),
       });
     },
-    [teamData, updateTeam],
+    [teamDataRef, updateTeam],
   );
 
   return {

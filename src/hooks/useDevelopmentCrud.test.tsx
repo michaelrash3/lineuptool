@@ -11,7 +11,11 @@ const setup = (teamOver: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    useDevelopmentCrud({ teamData, updateTeamArrays, toast }),
+    useDevelopmentCrud({
+      teamDataRef: { current: teamData },
+      updateTeamArrays,
+      toast,
+    }),
   );
   const apply = () => applyTeamOps(teamData, updateTeamArrays.mock.calls[0][0]);
   return { result, teamData, updateTeamArrays, toast, apply };

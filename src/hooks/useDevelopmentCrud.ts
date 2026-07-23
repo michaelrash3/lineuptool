@@ -25,13 +25,15 @@ const GOAL_TEXT_MAX = 200;
 const CHECKIN_NOTE_MAX = 500;
 
 interface UseDevelopmentCrudArgs {
-  teamData: any;
+  // Ref to the freshest team (see TeamProvider.teamDataRef): callbacks
+  // read it at call time so their identities survive Firestore snapshots.
+  teamDataRef: React.MutableRefObject<any>;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
 }
 
 export const useDevelopmentCrud = ({
-  teamData,
+  teamDataRef,
   updateTeamArrays,
   toast,
 }: UseDevelopmentCrudArgs) => {
@@ -92,9 +94,9 @@ export const useDevelopmentCrud = ({
     (playerId: string, text: string, targetDate?: string) => {
       const clean = clampText(text, GOAL_TEXT_MAX);
       if (!clean) return;
-      const existing: Player | undefined = (teamData.players || []).find(
-        (p: Player) => p.id === playerId,
-      );
+      const existing: Player | undefined = (
+        teamDataRef.current.players || []
+      ).find((p: Player) => p.id === playerId);
       if ((existing?.devPlan?.goals || []).length >= DEV_GOALS_CAP) {
         toast.push({
           kind: "warn",
@@ -119,7 +121,7 @@ export const useDevelopmentCrud = ({
         },
       }));
     },
-    [mapPlayer, teamData.players, toast],
+    [mapPlayer, teamDataRef, toast],
   );
 
   const setGoalStatus = useCallback(

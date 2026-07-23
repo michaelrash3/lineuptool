@@ -25,7 +25,12 @@ interface UseInviteFlowsArgs {
   user: AuthUser | null | undefined;
   teams: TeamEntry[];
   activeTeamId: string | null | undefined;
-  teamData: { name?: string; joinCode?: string } & Record<string, unknown>;
+  // Ref to the live team doc — callbacks read teamDataRef.current at call time
+  // so they keep a stable identity across Firestore snapshots (same pattern as
+  // updateTeam in TeamProvider).
+  teamDataRef: React.MutableRefObject<
+    { name?: string; joinCode?: string } & Record<string, unknown>
+  >;
   updateTeam: (patch: Record<string, unknown>) => void;
   switchTeam: (id: string) => void;
   toast: ToastContextValue;
@@ -48,7 +53,7 @@ export const useInviteFlows = ({
   user,
   teams,
   activeTeamId,
-  teamData = {},
+  teamDataRef,
   updateTeam,
   switchTeam,
   toast,
@@ -57,6 +62,7 @@ export const useInviteFlows = ({
   // previous one. The code is still written onto the team doc (via updateTeam)
   // for backward compatibility and because the self-join rule gates on it.
   const regenerateJoinCode = useCallback(() => {
+    const teamData = teamDataRef.current || {};
     // Crockford-ish alphabet (no I/O/0/1) over a CSPRNG. 6 chars × 31 symbols ≈
     // 887M combinations, so a stale-but-valid code isn't trivially brute-forced.
     const code = randomCode(6, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789");
@@ -98,7 +104,7 @@ export const useInviteFlows = ({
       })();
     }
     return code;
-  }, [activeTeamId, teamData.joinCode, teamData.name, updateTeam, toast]);
+  }, [activeTeamId, teamDataRef, updateTeam, toast]);
 
   const joinTeamByCode = useCallback(
     async (rawCode: string): Promise<JoinResult> => {

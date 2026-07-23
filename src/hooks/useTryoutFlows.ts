@@ -31,7 +31,10 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 // snapshot. Scalar/config writes (share links, open/close, roster cap) stay
 // on updateTeam. No engine or UI-bridge coupling.
 interface UseTryoutFlowsArgs {
-  teamData: any;
+  // Ref to the live team doc — callbacks read teamDataRef.current at call time
+  // so they keep a stable identity across Firestore snapshots (same pattern as
+  // updateTeam in TeamProvider).
+  teamDataRef: React.MutableRefObject<any>;
   updateTeam: (patch: Record<string, unknown>) => void;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
@@ -85,7 +88,7 @@ const submissionBlocks = (sub: any): any[] =>
     : submissionDates(sub).map((date: string) => ({ date }));
 
 export const useTryoutFlows = ({
-  teamData,
+  teamDataRef,
   updateTeam,
   updateTeamArrays,
   toast,
@@ -100,6 +103,7 @@ export const useTryoutFlows = ({
 
   const generateTryoutDateLink = useCallback(
     (rawDate: any) => {
+      const teamData = teamDataRef.current;
       const date = String(rawDate || "").trim();
       if (!date) return null;
       const base = String(activeTeamId || "").replace(/[^a-zA-Z0-9_-]/g, "");
@@ -129,7 +133,7 @@ export const useTryoutFlows = ({
       });
       return slug;
     },
-    [activeTeamId, teamData.tryoutDates, teamData.tryoutDateLinks, updateTeam],
+    [activeTeamId, teamDataRef, updateTeam],
   );
 
   const setTryoutsOpen = useCallback(
@@ -236,13 +240,13 @@ export const useTryoutFlows = ({
   // loop is buggy: each call filters the same closure-captured array and the
   // optimistic merge keeps only the last write — so all-but-one survive. This
   // filters every id out at once. Returns the number actually removed
-  // (estimated from the rendered snapshot; the write itself resolves against
-  // the latest state).
+  // (estimated from the call-time team snapshot via teamDataRef; the write
+  // itself resolves against the latest state).
   const deleteTryoutSignups = useCallback(
     (ids: any[]) => {
       const toRemove = new Set((ids || []).filter(Boolean));
       if (toRemove.size === 0) return 0;
-      const current = teamData.tryoutSignups || [];
+      const current = teamDataRef.current.tryoutSignups || [];
       const removed = current.filter((s: any) => toRemove.has(s.id)).length;
       if (removed > 0) {
         updateTeamArrays({
@@ -254,7 +258,7 @@ export const useTryoutFlows = ({
       }
       return removed;
     },
-    [teamData.tryoutSignups, updateTeamArrays],
+    [teamDataRef, updateTeamArrays],
   );
 
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
@@ -274,7 +278,7 @@ export const useTryoutFlows = ({
   const convertInterestToTryout = useCallback(
     (id: any) => {
       if (!id) return;
-      const lead = (teamData.interestSignups || []).find(
+      const lead = (teamDataRef.current.interestSignups || []).find(
         (s: any) => s.id === id,
       );
       if (!lead) return;
@@ -314,7 +318,7 @@ export const useTryoutFlows = ({
         message: `${lead.firstName} ${lead.lastName}`.trim(),
       });
     },
-    [teamData.interestSignups, updateTeamArrays, toast],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   // Drop a parent-submitted player-info entry. Coach-only; the two-tap
@@ -335,6 +339,7 @@ export const useTryoutFlows = ({
   const applyPlayerInfoToPlayer = useCallback(
     (submissionId: any, playerId: any) => {
       if (!submissionId || !playerId) return;
+      const teamData = teamDataRef.current;
       const sub = (teamData.playerInfoSubmissions || []).find(
         (s: any) => s.id === submissionId,
       );
@@ -410,7 +415,7 @@ export const useTryoutFlows = ({
           `${sub.firstName || ""} ${sub.lastName || ""}`.trim() || player.name,
       });
     },
-    [teamData.playerInfoSubmissions, teamData.players, updateTeamArrays, toast],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   // Drop a parent-submitted availability entry. Coach-only; the two-tap confirm
@@ -436,6 +441,7 @@ export const useTryoutFlows = ({
   const applyAvailabilityToPlayer = useCallback(
     (submissionId: any, playerId: any, opts?: { silent?: boolean }) => {
       if (!submissionId || !playerId) return;
+      const teamData = teamDataRef.current;
       const sub = (teamData.availabilitySubmissions || []).find(
         (s: any) => s.id === submissionId,
       );
@@ -484,21 +490,18 @@ export const useTryoutFlows = ({
         });
       }
     },
-    [
-      teamData.availabilitySubmissions,
-      teamData.players,
-      updateTeamArrays,
-      toast,
-    ],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   // Auto-apply every un-applied availability submission whose name + DOB
   // uniquely identify one non-departed roster player. Ambiguous or unmatched
   // submissions are left for the coach to match by hand. Runs on the coach
   // client (only members can write players) — typically when the Availability
-  // tab mounts. Matching runs on the rendered snapshot; the merges run over
-  // the LATEST arrays in one atomic write. Returns the number applied.
+  // tab mounts. Matching runs on the call-time team snapshot (teamDataRef);
+  // the merges run over the LATEST arrays in one atomic write. Returns the
+  // number applied.
   const autoApplyAvailability = useCallback(() => {
+    const teamData = teamDataRef.current;
     const subs = teamData.availabilitySubmissions || [];
     const players = teamData.players || [];
     const pending = subs.filter((s: any) => !s.appliedToPlayerId);
@@ -581,7 +584,7 @@ export const useTryoutFlows = ({
       },
     ]);
     return appliedSubIds.size;
-  }, [teamData.availabilitySubmissions, teamData.players, updateTeamArrays]);
+  }, [teamDataRef, updateTeamArrays]);
 
   // Tryout grades live in date-grouped tryoutSessions, separate from the
   // roster evaluationEvents collection. Each date has one session; each
@@ -589,11 +592,12 @@ export const useTryoutFlows = ({
   // The upsert runs inside a mapEntries map against the LATEST sessions —
   // two evaluators grading simultaneously each rewrite only this one array,
   // resolved from fresh state. normalizeTryoutSessions still folds in legacy
-  // grades stored on evaluationEvents; those come from the rendered snapshot
-  // (legacy data is static, so a snapshot read is safe).
+  // grades stored on evaluationEvents; those come from the call-time team
+  // snapshot (legacy data is static, so a snapshot read is safe).
   const saveTryoutEvaluation = useCallback(
     (signupId: any, grades: any, coachRole: any, rawDate?: any) => {
       if (!user || !signupId) return;
+      const teamData = teamDataRef.current;
       const uid = user.uid;
       const signup = (teamData.tryoutSignups || []).find(
         (s: any) => s.id === signupId,
@@ -658,12 +662,13 @@ export const useTryoutFlows = ({
         },
       });
     },
-    [user, teamData, updateTeamArrays],
+    [user, teamDataRef, updateTeamArrays],
   );
 
   const saveTryoutEvaluations = useCallback(
     (entries: any[], coachRole: any) => {
       if (!user) return;
+      const teamData = teamDataRef.current;
       const uid = user.uid;
       const legacyAux = {
         evaluationEvents: teamData.evaluationEvents,
@@ -738,7 +743,7 @@ export const useTryoutFlows = ({
         },
       });
     },
-    [user, teamData, updateTeamArrays],
+    [user, teamDataRef, updateTeamArrays],
   );
 
   // Accept-offer flow. Tryout accepts are oriented to the NEXT season by
@@ -748,7 +753,7 @@ export const useTryoutFlows = ({
   // target="current" to pull a kid straight onto the CURRENT roster now.
   const acceptTryout = useCallback(
     (id: any, target: "next" | "current" = "next") => {
-      const signup = (teamData.tryoutSignups || []).find(
+      const signup = (teamDataRef.current.tryoutSignups || []).find(
         (s: any) => s.id === id,
       );
       if (!signup) return;
@@ -808,7 +813,7 @@ export const useTryoutFlows = ({
         message: "Joins the roster automatically when you Advance Season.",
       });
     },
-    [teamData.tryoutSignups, updateTeamArrays, toast],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   return {

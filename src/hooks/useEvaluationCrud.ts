@@ -18,7 +18,10 @@ import type { EvaluationEvent, ToastContextValue } from "../types";
 // per-doc through the error-propagating saveEvalRound/deleteEvalRound, and the
 // role-scoped subscription in TeamProvider owns teamData.evaluationEvents.
 interface UseEvaluationCrudArgs {
-  teamData: any;
+  // Ref to the live team doc — callbacks read teamDataRef.current at call time
+  // so they keep a stable identity across Firestore snapshots (same pattern as
+  // updateTeam in TeamProvider).
+  teamDataRef: { current: any };
   toast: ToastContextValue;
   user:
     | { uid: string; displayName?: string | null; email?: string | null }
@@ -33,7 +36,7 @@ interface UseEvaluationCrudArgs {
 }
 
 export const useEvaluationCrud = ({
-  teamData,
+  teamDataRef,
   toast,
   user,
   uiBridge,
@@ -70,6 +73,7 @@ export const useEvaluationCrud = ({
     [db, appId, teamId, toast],
   );
   const saveTeamEvaluation = useCallback(() => {
+    const teamData = teamDataRef.current;
     const inputs = uiBridge.current.getInputs?.();
     const grades = inputs?.teamEvalGrades || {};
     const selectedRoundId = inputs?.selectedRoundId || null;
@@ -126,7 +130,7 @@ export const useEvaluationCrud = ({
     });
     // Return the created id so callers can lock onto this round for edits.
     return newEvent.id;
-  }, [user, teamData.evaluationEvents, toast, uiBridge, saveRound]);
+  }, [user, teamDataRef, toast, uiBridge, saveRound]);
 
   // Build an Assistant eval round and persist it. Mirrors saveTeamEvaluation's
   // upsert behavior — the round is stamped with the calendar due date it
@@ -134,6 +138,7 @@ export const useEvaluationCrud = ({
   // inside the same window updates the round in place instead of duplicating.
   const saveAssistantEvaluation = useCallback(
     (grades: any) => {
+      const teamData = teamDataRef.current;
       if (!user) return;
       const roundDate = evalRoundDateForSave();
       const existing = (teamData.evaluationEvents || []).find(
@@ -163,7 +168,7 @@ export const useEvaluationCrud = ({
         title: "Submitted to head coach",
       });
     },
-    [user, teamData.evaluationEvents, toast, saveRound],
+    [user, teamDataRef, toast, saveRound],
   );
 
   // Drop an evaluation round (any role). HC-callable so the head coach

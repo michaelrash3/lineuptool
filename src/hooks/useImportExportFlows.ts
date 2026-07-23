@@ -26,11 +26,14 @@ export const csvEscape = (val: unknown): string => {
   return s;
 };
 
-// teamData carries more fields at runtime than the strict Team interface
-// models (coachContacts, lastCsvImportDate, etc.). Typed permissively for now
-// and meant to tighten as the data model is fully modeled in TS.
+// teamDataRef is a ref to the live team doc — callbacks read
+// teamDataRef.current at call time so they keep a stable identity across
+// Firestore snapshots (same pattern as updateTeam in TeamProvider). The team
+// carries more fields at runtime than the strict Team interface models
+// (coachContacts, lastCsvImportDate, etc.). Typed permissively for now and
+// meant to tighten as the data model is fully modeled in TS.
 interface UseImportExportFlowsArgs {
-  teamData: any;
+  teamDataRef: React.MutableRefObject<any>;
   // Multi-key writes that mix arrays with scalars (season-CSV import, backup
   // restore) stay on updateTeam; pure array writes go through the
   // concurrency-safe updateTeamArrays.
@@ -48,7 +51,7 @@ const fileText = (ev: ProgressEvent<FileReader>): string =>
   String(ev.target?.result ?? "");
 
 export const useImportExportFlows = ({
-  teamData,
+  teamDataRef,
   updateTeam,
   updateTeamArrays,
   activeTeamId,
@@ -57,6 +60,7 @@ export const useImportExportFlows = ({
 }: UseImportExportFlowsArgs) => {
   const uploadScheduleCsv = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      const teamData = teamDataRef.current;
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
@@ -142,11 +146,12 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeamArrays, toast],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   const uploadStatsCsv = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      const teamData = teamDataRef.current;
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
@@ -402,7 +407,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeam, toast],
+    [teamDataRef, updateTeam, toast],
   );
 
   // Per-game stat import: the coach exports the SAME GameChanger stats CSV
@@ -417,6 +422,7 @@ export const useImportExportFlows = ({
   // over the derived fields for players who have game lines.
   const uploadGameStatsCsv = useCallback(
     (gameId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+      const teamData = teamDataRef.current;
       const file = e.target.files?.[0];
       if (!file) return;
       const reader = new FileReader();
@@ -572,12 +578,12 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       e.target.value = "";
     },
-    [teamData, updateTeamArrays, toast],
+    [teamDataRef, updateTeamArrays, toast],
   );
 
   const exportBackup = useCallback(() => {
-    downloadTeamBackup(teamData, activeTeamId);
-  }, [teamData, activeTeamId]);
+    downloadTeamBackup(teamDataRef.current, activeTeamId);
+  }, [teamDataRef, activeTeamId]);
 
   // Roster CSV — TeamSnap-import-template column order so the file can
   // be uploaded straight back into LineupTool or into a league portal.
@@ -634,10 +640,10 @@ export const useImportExportFlows = ({
   };
 
   const exportRosterCsv = useCallback(() => {
-    const csv = playersToCsv(teamData.players || []);
+    const csv = playersToCsv(teamDataRef.current.players || []);
     downloadCsv(`roster-${activeTeamId}-${getLocalDateString()}.csv`, csv);
     toast.push({ kind: "success", title: "Roster CSV downloaded" });
-  }, [teamData.players, activeTeamId, toast, playersToCsv]);
+  }, [teamDataRef, activeTeamId, toast, playersToCsv]);
 
   // Player Info CSV — every field collected on the Player Info form, applied
   // onto the roster. Separate from the basic roster CSV so the sizing/contact
@@ -699,13 +705,13 @@ export const useImportExportFlows = ({
   }, []);
 
   const exportPlayerInfoCsv = useCallback(() => {
-    const csv = playerInfoToCsv(teamData.players || []);
+    const csv = playerInfoToCsv(teamDataRef.current.players || []);
     downloadCsv(`player-info-${activeTeamId}-${getLocalDateString()}.csv`, csv);
     toast.push({ kind: "success", title: "Player Info CSV downloaded" });
-  }, [teamData.players, activeTeamId, toast, playerInfoToCsv]);
+  }, [teamDataRef, activeTeamId, toast, playerInfoToCsv]);
 
   const exportNewPlayersCsv = useCallback(() => {
-    const incoming = (teamData.players || []).filter(
+    const incoming = (teamDataRef.current.players || []).filter(
       (p: any) => p.playerStatus === "accepted",
     );
     if (incoming.length === 0) {
@@ -724,7 +730,7 @@ export const useImportExportFlows = ({
         incoming.length === 1 ? "" : "s"
       }`,
     });
-  }, [teamData.players, activeTeamId, toast, playersToCsv]);
+  }, [teamDataRef, activeTeamId, toast, playersToCsv]);
 
   // Explicit Returning Y/N writer used by the Advance Season page. Writes
   // the player.returning boolean directly — isReturning() handles
@@ -771,7 +777,7 @@ export const useImportExportFlows = ({
       }
       // Auto-snapshot the CURRENT team before the full replace, so a wrong or
       // unwanted restore can be rolled back from the downloaded file.
-      downloadTeamBackup(teamData, activeTeamId, "snapshot");
+      downloadTeamBackup(teamDataRef.current, activeTeamId, "snapshot");
       const reader = new FileReader();
       reader.onload = (ev: ProgressEvent<FileReader>) => {
         try {
@@ -824,7 +830,7 @@ export const useImportExportFlows = ({
       reader.readAsText(file);
       input.value = "";
     },
-    [updateTeam, toast, confirm, teamData, activeTeamId],
+    [updateTeam, toast, confirm, teamDataRef, activeTeamId],
   );
 
   return {

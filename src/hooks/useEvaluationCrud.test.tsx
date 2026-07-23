@@ -19,7 +19,7 @@ const setup = (over: any = {}, inputs: any = {}, uid = "u1") => {
   const user = { uid, displayName: "Mike Coach", email: "m@x.com" };
   const { result } = renderHook(() =>
     useEvaluationCrud({
-      teamData,
+      teamDataRef: { current: teamData },
       toast,
       user,
       uiBridge,
@@ -170,7 +170,7 @@ describe("useEvaluationCrud", () => {
     };
     const { result } = renderHook(() =>
       useEvaluationCrud({
-        teamData: { evaluationEvents: [] },
+        teamDataRef: { current: { evaluationEvents: [] } },
         toast,
         user: { uid: "u1" },
         uiBridge,

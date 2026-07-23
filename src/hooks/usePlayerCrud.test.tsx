@@ -22,7 +22,13 @@ const setup = (teamOver: any = {}, handles: any = {}) => {
     ...teamOver,
   };
   const { result } = renderHook(() =>
-    usePlayerCrud({ teamData, updateTeamArrays, toast, confirm, ...handles }),
+    usePlayerCrud({
+      teamDataRef: { current: teamData },
+      updateTeamArrays,
+      toast,
+      confirm,
+      ...handles,
+    }),
   );
   return { result, teamData, updateTeamArrays, toast, confirm };
 };
