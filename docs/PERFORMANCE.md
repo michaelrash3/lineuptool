@@ -27,9 +27,13 @@ dev server and Vitest are unaffected.
 | Each screen chunk       | 4–20 KB | Lazy per route                                     |
 | `jspdf` / `html2canvas` | lazy    | Only on PDF lineup-card export                     |
 
-Guideline: if a build pushes a **new** dependency into the entry/startup graph,
-the treemap will show it — keep one-shot/heavy libs behind dynamic `import()` so
-they stay in their own lazy chunk.
+Keep one-shot/heavy libs behind dynamic `import()` so they stay in their own
+lazy chunk. This is enforced, not just advised: `npm run check:bundle`
+(`scripts/check-bundle.mjs`) reads `dist/index.html` after a build and fails if
+`jspdf`, `recharts` or `qrcode` show up in the eager startup graph — or if that
+graph outgrows its byte ceiling. CI runs it immediately after the production
+build, so a lib that loses its dynamic `import()` turns the run red instead of
+quietly widening the treemap.
 
 ## Fonts
 

@@ -531,8 +531,6 @@ export const SettingsTab = memo(() => {
     completeTryouts,
     setRosterCap,
     regenerateJoinCode,
-    mirrorStale,
-    resyncPublicMirror,
     uploadLogo,
     exportBackup,
     importBackup,

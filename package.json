@@ -57,6 +57,7 @@
     "start": "vite",
     "dev": "vite",
     "build": "vite build",
+    "check:bundle": "node scripts/check-bundle.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
