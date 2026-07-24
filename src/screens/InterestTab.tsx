@@ -13,13 +13,8 @@ import { PortalShareCard } from "../components/PortalShareCard";
 // active tryout cycle. Schema: see InterestSignup in types.ts.
 export const InterestTab = memo(() => {
   const navigate = useNavigate();
-  const {
-    team,
-    user,
-    currentRole,
-    deleteInterestSignup,
-    convertInterestToTryout,
-  } = useTeam();
+  const { team, currentRole, deleteInterestSignup, convertInterestToTryout } =
+    useTeam();
   const toast = useToast();
   const isHead = currentRole !== "assistant";
   // Copyable "interest / tryout invite" draft for a selected lead.

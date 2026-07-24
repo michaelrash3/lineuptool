@@ -13,6 +13,7 @@ import {
   updateDoc,
   arrayRemove,
 } from "firebase/firestore";
+import type { DocumentReference } from "firebase/firestore";
 import { db, appId } from "../firebase";
 import type {
   ConfirmContextValue,
@@ -70,6 +71,27 @@ interface UseTeamLifecycleArgs {
   toast: ToastContextValue;
   confirm: ConfirmContextValue["confirm"];
 }
+
+// The `teams` array on the user-settings doc must be rebuilt from the
+// SERVER's current list on every write — local React state can be transiently
+// empty or stale, and writing it wholesale orphans teams that are only on the
+// server (see createTeam below). Returns null when there's nothing to merge
+// (missing doc) or the read failed, so callers fall back to local state alone.
+const readServerTeamList = async (
+  userRef: DocumentReference,
+): Promise<{ id: string; name: string }[] | null> => {
+  try {
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return null;
+    return (
+      ((snap.data() as Record<string, unknown>)?.teams as
+        | { id: string; name: string }[]
+        | undefined) ?? null
+    );
+  } catch {
+    return null;
+  }
+};
 
 export const useTeamLifecycle = ({
   user,
@@ -142,17 +164,7 @@ export const useTeamLifecycle = ({
         // if this create was reached through a wrongly-shown welcome page
         // (teams state transiently empty), `[...teams, new]` would overwrite
         // the settings doc and orphan every existing team.
-        let serverTeams: { id: string; name: string }[] | null = null;
-        try {
-          const settingsSnap = await getDoc(userRef);
-          serverTeams = settingsSnap.exists()
-            ? (((settingsSnap.data() as Record<string, unknown>)?.teams as
-                | { id: string; name: string }[]
-                | undefined) ?? null)
-            : null;
-        } catch {
-          // Read failed — fall back to merging with local state only.
-        }
+        const serverTeams = await readServerTeamList(userRef);
         await setDoc(
           userRef,
           {
@@ -495,33 +507,6 @@ export const useTeamLifecycle = ({
             }
           : undefined;
 
-      // Season reset of eval rounds, per-doc in the evalRounds subcollection:
-      // the closing season's rounds are deleted (the head may delete any
-      // round) and the preseason seed is written as a fresh subcollection
-      // doc — the legacy array key is omitted from updateTeam entirely so the
-      // advance never recreates the dropped field (the rules reject that).
-      if (activeTeamId) {
-        for (const ev of teamData.evaluationEvents || []) {
-          if (ev?.id) {
-            void deleteEvalRound(db, appId, activeTeamId, ev.id).catch(
-              () => {},
-            );
-          }
-        }
-        if (preseasonRound) {
-          void saveEvalRound(db, appId, activeTeamId, preseasonRound).catch(
-            () => {
-              toast.push({
-                kind: "error",
-                title: "Preseason eval seed didn't save",
-                message:
-                  "The season advanced, but the seeded eval round failed to write. Start a new eval round manually.",
-              });
-            },
-          );
-        }
-      }
-
       // allowEmptyPlayers: a roster where nobody returns (and no tryout
       // promotions) is legitimately empty after an explicitly-confirmed
       // advance — the persistTeam wipe guard must not block it.
@@ -567,6 +552,57 @@ export const useTeamLifecycle = ({
         },
         { allowEmptyPlayers: true },
       );
+
+      // Season reset of eval rounds, per-doc in the evalRounds subcollection:
+      // the closing season's rounds are deleted (the head may delete any
+      // round) and the preseason seed is written as a fresh subcollection
+      // doc — the legacy array key is omitted from updateTeam entirely so the
+      // advance never recreates the dropped field (the rules reject that).
+      //
+      // Deliberately ordered AFTER the season patch is issued so a rejected
+      // team-doc write doesn't find the rounds already destroyed. That is as
+      // far as the client can go, and it is NOT a guarantee: updateTeam is
+      // optimistic and returns void (it persists in the background, reverting
+      // and toasting on failure), and the team doc and this subcollection are
+      // separate writes that only a server-side batch could make atomic. The
+      // window shrinks; it does not close. Failures are surfaced rather than
+      // swallowed so the head knows the reset was partial.
+      if (activeTeamId) {
+        const deletions: Promise<void>[] = [];
+        for (const ev of teamData.evaluationEvents || []) {
+          if (ev?.id) {
+            deletions.push(deleteEvalRound(db, appId, activeTeamId, ev.id));
+          }
+        }
+        const failed = (await Promise.allSettled(deletions)).filter(
+          (r) => r.status === "rejected",
+        ).length;
+        if (failed > 0) {
+          toast.push({
+            kind: "warn",
+            title: "Some old eval rounds are still there",
+            message: `${failed} round${
+              failed === 1 ? "" : "s"
+            } from ${archivedSeason} couldn't be deleted. Delete them from Evaluations.`,
+          });
+        }
+        if (preseasonRound) {
+          try {
+            await saveEvalRound(db, appId, activeTeamId, preseasonRound);
+          } catch {
+            toast.push({
+              kind: "error",
+              title: "Preseason eval seed didn't save",
+              message:
+                "The season advanced, but the seeded eval round failed to write. Start a new eval round manually.",
+            });
+          }
+        }
+      }
+
+      // The local team is already advanced (updateTeam patches optimistically),
+      // but its write is still in flight and rolls back with its own "Save
+      // failed" toast if it doesn't land — so this can't claim a durable save.
       toast.push({
         kind: "success",
         title: `Advanced to ${nextSeason}`,
@@ -578,7 +614,8 @@ export const useTeamLifecycle = ({
             ? ` ${promotedPlayers.length} tryout${
                 promotedPlayers.length === 1 ? "" : "s"
               } promoted to roster.`
-            : ""),
+            : "") +
+          " Still syncing — we'll tell you if the save doesn't go through.",
       });
     },
     [teamDataRef, updateTeam, toast, confirm, user, activeTeamId],
@@ -651,7 +688,6 @@ export const useTeamLifecycle = ({
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
-      const remaining = teams.filter((t) => t.id !== activeTeamId);
       const userRef = doc(
         db,
         "artifacts",
@@ -661,6 +697,14 @@ export const useTeamLifecycle = ({
         "settings",
         "teams",
       );
+      // Rewrite the list from the SERVER's current one minus this team, never
+      // from `teams` alone — createTeam's hazard in reverse: a transiently
+      // empty or stale local list here would drop every OTHER team from the
+      // settings doc instead of just the deleted one.
+      const remaining = mergeTeamEntries(
+        await readServerTeamList(userRef),
+        teams,
+      ).filter((t) => t.id !== activeTeamId);
       await setDoc(
         userRef,
         { teams: remaining, activeTeamId: remaining[0]?.id || null },
@@ -699,7 +743,6 @@ export const useTeamLifecycle = ({
       // read-modify-write of the whole members array, so a concurrent join
       // can't be clobbered. The selfRemoveOnly() rule permits exactly this.
       await updateDoc(teamRef, { members: arrayRemove(user.uid) });
-      const remaining = teams.filter((t) => t.id !== activeTeamId);
       const userRef = doc(
         db,
         "artifacts",
@@ -709,6 +752,12 @@ export const useTeamLifecycle = ({
         "settings",
         "teams",
       );
+      // Same server-merge rule as deleteTeamCmd: leaving one team must never
+      // rewrite the settings list from local state and orphan the others.
+      const remaining = mergeTeamEntries(
+        await readServerTeamList(userRef),
+        teams,
+      ).filter((t) => t.id !== activeTeamId);
       await setDoc(
         userRef,
         { teams: remaining, activeTeamId: remaining[0]?.id || null },

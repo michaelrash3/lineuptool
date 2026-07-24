@@ -281,6 +281,35 @@ describe("deleteTeamCmd", () => {
     });
   });
 
+  it("rebuilds the settings list from the SERVER's list, not from local state", async () => {
+    // createTeam's hazard in reverse: writing `teams.filter(...)` from a
+    // transiently-short local list would drop every team this device hasn't
+    // seen, not just the deleted one.
+    mockGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        teams: [
+          { id: "t1", name: "Hawks" },
+          { id: "t2", name: "Owls" },
+          { id: "t3", name: "Jays" },
+        ],
+      }),
+    });
+    const { result } = setup(); // local state knows only t1 + t2
+    await act(async () => {
+      await result.current.deleteTeamCmd();
+    });
+    expect(mockGetDoc.mock.calls[0][0].path).toBe(SETTINGS_PATH);
+    const [, payload] = mockSetDoc.mock.calls[0];
+    expect(payload).toEqual({
+      teams: [
+        { id: "t2", name: "Owls" },
+        { id: "t3", name: "Jays" },
+      ],
+      activeTeamId: "t2",
+    });
+  });
+
   it("does nothing when declined, and never even asks for the last team", async () => {
     const { result, confirm } = setup();
     confirm.mockResolvedValueOnce(false);
@@ -314,6 +343,50 @@ describe("leaveTeamCmd", () => {
     expect(patch).toEqual({ members: { __arrayRemove: "u1" } });
     const [settingsRef, payload] = mockSetDoc.mock.calls[0];
     expect(settingsRef.path).toBe(SETTINGS_PATH);
+    expect(payload).toEqual({
+      teams: [{ id: "t2", name: "Owls" }],
+      activeTeamId: "t2",
+    });
+    expect(toast.push).toHaveBeenCalledWith({
+      kind: "success",
+      title: "Left team",
+    });
+  });
+
+  it("rebuilds the settings list from the SERVER's list, not from local state", async () => {
+    mockGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        teams: [
+          { id: "t1", name: "Hawks" },
+          { id: "t2", name: "Owls" },
+          { id: "t3", name: "Jays" },
+        ],
+      }),
+    });
+    const { result } = setup();
+    await act(async () => {
+      await result.current.leaveTeamCmd();
+    });
+    expect(mockGetDoc.mock.calls[0][0].path).toBe(SETTINGS_PATH);
+    const [, payload] = mockSetDoc.mock.calls[0];
+    expect(payload).toEqual({
+      teams: [
+        { id: "t2", name: "Owls" },
+        { id: "t3", name: "Jays" },
+      ],
+      activeTeamId: "t2",
+    });
+  });
+
+  it("keeps the local list when the settings read fails", async () => {
+    // A failed read must not wipe the selector — fall back to local state.
+    mockGetDoc.mockRejectedValueOnce(new Error("offline"));
+    const { result, toast } = setup();
+    await act(async () => {
+      await result.current.leaveTeamCmd();
+    });
+    const [, payload] = mockSetDoc.mock.calls[0];
     expect(payload).toEqual({
       teams: [{ id: "t2", name: "Owls" }],
       activeTeamId: "t2",
@@ -421,6 +494,52 @@ describe("advanceSeason", () => {
         title: "Advanced to Spring 2026",
       }),
     );
+  });
+
+  it("destroys the old eval rounds only AFTER the season patch is issued", async () => {
+    // The rounds live in a subcollection, so they can't ride the team-doc
+    // write. Deleting them first meant a rejected season patch left the
+    // coach with the evaluations already gone; the ordering is the only
+    // client-side lever (see the comment at the call site).
+    const { result, updateTeam } = setup();
+    await act(async () => {
+      await result.current.advanceSeason();
+    });
+    expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteRound.mock.invocationCallOrder[0],
+    );
+    expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSaveRound.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("surfaces a failed round delete and a failed seed instead of swallowing them", async () => {
+    mockDeleteRound.mockRejectedValueOnce(new Error("offline"));
+    mockSaveRound.mockRejectedValueOnce(new Error("offline"));
+    const { result, toast } = setup();
+    await act(async () => {
+      await result.current.advanceSeason();
+    });
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "warn",
+        title: "Some old eval rounds are still there",
+      }),
+    );
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "error",
+        title: "Preseason eval seed didn't save",
+      }),
+    );
+    // The season still advanced locally, and the summary toast says the save
+    // is in flight rather than promising it landed — updateTeam persists
+    // optimistically and can still revert itself.
+    const success = (toast.push as jest.Mock).mock.calls
+      .map((c) => c[0])
+      .find((t) => t.kind === "success");
+    expect(success.title).toBe("Advanced to Spring 2026");
+    expect(success.message).toMatch(/still syncing/i);
   });
 
   it("bumps the age tier on Spring → Fall and self-heals a now-illegal pitching format (skipConfirm path)", async () => {

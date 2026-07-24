@@ -74,6 +74,13 @@ jobs:
         env:
           CI: true
 
+      # A green build says nothing about WHAT shipped. jspdf, recharts and
+      # qrcode are all dynamically imported today; this fails the run if one
+      # lands back in the eager startup graph, or if that graph outgrows its
+      # byte ceiling (scripts/check-bundle.mjs documents the number).
+      - name: Bundle budget
+        run: npm run check:bundle
+
   # Firestore security-rule tests (firestore-tests/rules.test.ts) run against
   # the Firestore emulator, so they need a Java runtime + firebase-tools and
   # can't ride inside the pure-jsdom unit suite. A separate job keeps the

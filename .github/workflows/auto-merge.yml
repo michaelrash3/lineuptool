@@ -11,9 +11,18 @@
 #     needed) and squash-merged hands-off. There is no manual "Ready for
 #     review" gate.
 #
+# Triggers: CI completion (workflow_run), PR events, check_suite, status — plus
+# a 15-minute cron. Every trigger runs the same "re-scan all open claude/* PRs"
+# loop, so the cron needs no logic of its own; it exists because GitHub's event
+# delivery is best-effort. On PR #576 the workflow_run CI-completion event was
+# never delivered and a fully green PR sat unmerged until a human intervened.
+# The timer bounds that failure to one sweep interval. (Cron runs the copy of
+# this file on `main`, not the one on a PR branch — fine, since the sweep is
+# repo-wide.)
+#
 # To pause it entirely, disable this workflow in the repo's Actions tab (or
-# delete the file). To hold a specific PR, push it with a failing check or
-# close it until you're ready.
+# delete the file); that stops the cron sweep too. To hold a specific PR, push
+# it with a failing check or close it until you're ready.
 
 name: Auto-merge Claude PRs
 
@@ -31,13 +40,22 @@ on:
   check_suite:
     types: [completed]
   status: {}
+  # Self-healing sweep for events GitHub never delivered (see header). Cheap:
+  # one API-only job, seconds long, and a no-op when nothing is mergeable.
+  schedule:
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: write
   pull-requests: write
 
 concurrency:
-  group: automerge-${{ github.event.pull_request.number || github.event.check_suite.head_sha || github.sha }}
+  # A scheduled run has no PR or check_suite payload, so it would fall through
+  # to github.sha — the default-branch head, shared with every event-driven run
+  # on main. Give the sweep its own fixed key instead: sweeps still serialize
+  # against each other (never two merge loops at once), but a sweep and a
+  # CI-triggered run don't queue behind one another.
+  group: automerge-${{ github.event_name == 'schedule' && 'sweep' || github.event.pull_request.number || github.event.check_suite.head_sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
