@@ -1,7 +1,8 @@
 import React, { memo, useMemo, useState } from "react";
 import { Icons } from "../icons";
 import { HelpTip } from "../components/help/HelpTip";
-import { useTeam, useUI } from "../contexts";
+import { useTeam, useToast, useUI } from "../contexts";
+import { downloadDepthChartPdf } from "../lineup/depthChartPdf";
 import {
   getActivePositionList,
   getCombinedGrades,
@@ -302,6 +303,7 @@ const PositionCard = memo(
 export const DepthChartTab = memo(() => {
   const { team: teamRaw, currentRole, updateTeam } = useTeam();
   const { openPlayerProfile } = useUI();
+  const toast = useToast();
   // TeamContextValue.team is intentionally `any` (see types.ts); narrow it to
   // the known Team shape for this screen.
   const team = teamRaw as Team;
@@ -428,21 +430,36 @@ export const DepthChartTab = memo(() => {
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center md:min-w-[22rem]">
-          <div className="border border-line bg-surface/60 px-3 py-2">
-            <div className="t-stat-num-sm tabular-nums">{players.length}</div>
-            <div className="t-meta">Players</div>
-          </div>
-          <div className="border border-line bg-surface/60 px-3 py-2">
-            <div className="t-stat-num-sm tabular-nums">{board.length}</div>
-            <div className="t-meta">Positions</div>
-          </div>
-          <div className="border border-line bg-surface/60 px-3 py-2">
-            <div className="t-stat-num-sm tabular-nums">
-              {Object.keys(depthChart).length}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="grid grid-cols-3 gap-2 text-center flex-1 md:flex-none md:min-w-[22rem]">
+            <div className="border border-line bg-surface/60 px-3 py-2">
+              <div className="t-stat-num-sm tabular-nums">{players.length}</div>
+              <div className="t-meta">Players</div>
             </div>
-            <div className="t-meta">Custom</div>
+            <div className="border border-line bg-surface/60 px-3 py-2">
+              <div className="t-stat-num-sm tabular-nums">{board.length}</div>
+              <div className="t-meta">Positions</div>
+            </div>
+            <div className="border border-line bg-surface/60 px-3 py-2">
+              <div className="t-stat-num-sm tabular-nums">
+                {Object.keys(depthChart).length}
+              </div>
+              <div className="t-meta">Custom</div>
+            </div>
           </div>
+          {/* Read-only, so assistants get it too — they're the ones holding the
+              clipboard when the head coach is coaching third. */}
+          {players.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void downloadDepthChartPdf({ team, board, toast })}
+              aria-label="Download depth chart PDF"
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest border border-line text-ink-3 hover:text-ink transition-colors inline-flex items-center gap-1.5"
+            >
+              <Icons.Download className="w-4 h-4" aria-hidden />
+              Export PDF
+            </button>
+          )}
         </div>
       </div>
 

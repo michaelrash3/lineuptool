@@ -1,10 +1,22 @@
 import React from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { screen } from "@testing-library/react";
+import { vi } from "vitest";
 import { TryoutsTab, computeRosterProjection } from "./TryoutsTab";
 import { LEFT_HANDED_PITCHER_ROSTER_PREMIUM } from "../constants/ui";
 import { TryoutAddPage } from "./tryouts/TryoutAddPage";
 import { renderWithProviders } from "../test-utils";
+
+// The ranking-sheet export lazy-loads jspdf and does real canvas work; mock the
+// whole renderer so the screen test only asserts the button hands it the same
+// projection the board renders. The sheet shaping is covered by
+// tryoutRankingPdf.test.ts.
+const { downloadTryoutRankingPdfMock } = vi.hoisted(() => ({
+  downloadTryoutRankingPdfMock: vi.fn(),
+}));
+vi.mock("../tryouts/tryoutRankingPdf", () => ({
+  downloadTryoutRankingPdf: downloadTryoutRankingPdfMock,
+}));
 
 const grade = (n: number, suggestedPositions: string[] = []) => ({
   approach: n,
@@ -379,6 +391,86 @@ describe("TryoutsTab", () => {
     expect(screen.getByText(/Hitting 4 · Above Avg/)).toBeInTheDocument();
     expect(screen.getByText(/Hitting 2 · Below Avg/)).toBeInTheDocument();
     expect(screen.getByText(/Barrels it/)).toBeInTheDocument();
+  });
+
+  it("exports the ranked board as a sheet with the projection the panel drew", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    downloadTryoutRankingPdfMock.mockClear();
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam({ rosterCap: 12 }),
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "Ava",
+                lastName: "Best",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+                tryoutDate: "2026-08-01",
+                tryoutNumber: "7",
+                comfortablePositions: ["SS"],
+              },
+            ],
+            tryoutSessions: session("s1", grade(5, ["SS"])),
+            evaluationEvents: [],
+            defenseSize: 9,
+          },
+          user: { uid: "u1" },
+          currentRole: "head",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
+        },
+      },
+    );
+    fireEvent.click(screen.getByLabelText("Download tryout ranking sheet PDF"));
+    expect(downloadTryoutRankingPdfMock).toHaveBeenCalledTimes(1);
+    const arg = downloadTryoutRankingPdfMock.mock.calls[0][0];
+    expect(
+      arg.projection.recommended.map((c: { name: string }) => c.name),
+    ).toEqual(["Ava Best"]);
+    expect(arg.projection.slotsRemaining).toBe(11); // 12 cap − 1 locked returner
+  });
+
+  it("keeps the ranking sheet with the board — head-coach planning, not shown to assistants", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <TryoutsTab />
+      </MemoryRouter>,
+      {
+        team: {
+          team: {
+            ...baseTeam(),
+            tryoutSignups: [
+              {
+                id: "s1",
+                firstName: "Ava",
+                lastName: "Best",
+                submittedAt: "2026-07-01T00:00:00.000Z",
+              },
+            ],
+            evaluationEvents: [],
+            defenseSize: 9,
+          },
+          user: { uid: "u1" },
+          currentRole: "assistant",
+          updateTryoutSignup: jest.fn(),
+          deleteTryoutSignup: jest.fn(),
+          acceptTryout: jest.fn(),
+          saveTryoutEvaluation: jest.fn(),
+        },
+      },
+    );
+    // The projection panel itself is head-only, so its export rides with it.
+    expect(screen.queryByText(/Roster Projection/)).toBeNull();
+    expect(
+      screen.queryByLabelText("Download tryout ranking sheet PDF"),
+    ).toBeNull();
   });
 
   it("hides the setup controls from assistants", () => {

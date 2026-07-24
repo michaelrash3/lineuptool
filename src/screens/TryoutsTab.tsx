@@ -31,6 +31,7 @@ import {
 } from "../constants/showcaseBenchmarks";
 import type { TryoutMeasurements } from "../types";
 import { A11yDialog, EmptyState } from "../components/shared";
+import { downloadTryoutRankingPdf } from "../tryouts/tryoutRankingPdf";
 import { TryoutControlsPanel } from "../components/TryoutControlsPanel";
 import type { EvalCategory } from "../constants/ui";
 import type {
@@ -790,7 +791,13 @@ const ReturningIntentPanel = memo(
 // after the RosterDecisionsPanel on the Evaluation tab. Reads the
 // roster object built by computeRosterBuckets above; render-only,
 // no internal state.
-const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
+interface TeamImpactPanelProps {
+  roster: RosterProjection;
+  team: Team;
+}
+
+const TeamImpactPanel = memo(({ roster, team }: TeamImpactPanelProps) => {
+  const toast = useToast();
   const buckets = [
     {
       key: "make",
@@ -822,6 +829,9 @@ const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
       roster.nextBest.length +
       roster.belowLine.length ===
     0;
+  // Nothing at all to print — not even a name to chase a grade on.
+  const nothingToExport =
+    empty && roster.needsEvaluation.length + roster.tooOld.length === 0;
   return (
     <div className="cc-card p-4 sm:p-5 space-y-3">
       <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -837,6 +847,23 @@ const TeamImpactPanel = memo(({ roster }: { roster: RosterProjection }) => {
             : ""}{" "}
           · {roster.slotsRemaining} open of {roster.rosterCap}
         </span>
+        {!nothingToExport && (
+          <button
+            type="button"
+            onClick={() =>
+              void downloadTryoutRankingPdf({
+                team,
+                projection: roster,
+                toast,
+              })
+            }
+            aria-label="Download tryout ranking sheet PDF"
+            className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-ink bg-surface border border-line rounded-lg hover:bg-surface-2 inline-flex items-center gap-1.5"
+            title="Print the whole ranked board — the post-tryout staff sheet"
+          >
+            <Icons.Download className="w-3.5 h-3.5" aria-hidden /> Ranking Sheet
+          </button>
+        )}
       </div>
       <p className="t-meta text-ink-3">
         One board across every tryout date: a kid graded at multiple tryouts
@@ -1710,7 +1737,7 @@ export const TryoutsTab = memo(() => {
               setPlayerReturning={setPlayerReturning}
             />
             {roster && (tryoutSignups || []).length > 0 && (
-              <TeamImpactPanel roster={roster} />
+              <TeamImpactPanel roster={roster} team={team} />
             )}
           </aside>
         )}
