@@ -14,6 +14,16 @@ import type { CoachRole } from "../types";
 // plan writes the agenda back to the practice — and that an assistant never
 // sees the entry point on the tab.
 
+// The handout export lazy-loads jspdf and does real canvas work; mock the whole
+// renderer so the page test only asserts the button hands it the previewed
+// blocks. The handout shaping is covered by practicePlanPdf.test.ts.
+const { downloadPracticePlanPdfMock } = vi.hoisted(() => ({
+  downloadPracticePlanPdfMock: vi.fn(),
+}));
+vi.mock("../practices/practicePlanPdf", () => ({
+  downloadPracticePlanPdf: downloadPracticePlanPdfMock,
+}));
+
 const round = {
   id: "r1",
   date: "2026-06-01",
@@ -168,6 +178,27 @@ describe("Smart Practice Planner page", () => {
   it("redirects assistants to the practices list", () => {
     renderPlanPage("assistant");
     expect(screen.getByText("PRACTICES LIST")).toBeInTheDocument();
+  });
+
+  it("exports the previewed plan as a handout without applying it", () => {
+    downloadPracticePlanPdfMock.mockClear();
+    const { updatePractice } = renderPlanPage("head");
+    fireEvent.click(screen.getByLabelText("Download practice plan PDF"));
+    expect(downloadPracticePlanPdfMock).toHaveBeenCalledTimes(1);
+    const arg = downloadPracticePlanPdfMock.mock.calls[0][0];
+    expect(arg.blocks.length).toBeGreaterThan(0);
+    expect(arg.blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: expect.any(String),
+          minutes: expect.any(Number),
+        }),
+      ]),
+    );
+    expect(arg.date).toBe("2026-07-05");
+    expect(arg.environment).toBe("outdoor");
+    // Printing is not applying — the practice is untouched.
+    expect(updatePractice).not.toHaveBeenCalled();
   });
 
   it("the tab's Build a plan button routes to the page (heads only)", () => {

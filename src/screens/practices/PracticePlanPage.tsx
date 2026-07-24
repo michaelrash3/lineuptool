@@ -1,13 +1,15 @@
 import React, { memo, useMemo, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import { Icons } from "../../icons";
-import { useTeam } from "../../contexts";
+import { useTeam, useToast } from "../../contexts";
 import { PageShell } from "../../components/PageShell";
 import { useBackOrFallback } from "../../hooks/usePageNav";
 import { DEFAULT_DRILL_LIBRARY } from "../../constants/ui";
 import { featureEnabled } from "../../constants/features";
+import { downloadPracticePlanPdf } from "../../practices/practicePlanPdf";
 import { drillAssignmentIndex } from "../../utils/developmentPlan";
 import { isDepartedPlayer } from "../../utils/helpers";
+import { isoInstantToLocalTimeInput } from "../../utils/icsParse";
 import {
   buildTeamSkillProfile,
   generatePracticePlan,
@@ -25,6 +27,7 @@ const PLAN_LENGTHS = [60, 75, 90, 105, 120];
 export const PracticePlanPage = memo(() => {
   const { practiceId } = useParams();
   const { team, currentRole, updatePractice } = useTeam();
+  const toast = useToast();
   const back = useBackOrFallback("/practices");
   const [minutes, setMinutes] = useState(90);
   // Reshuffle counter — each bump pulls a different drill per category when
@@ -93,6 +96,23 @@ export const PracticePlanPage = memo(() => {
   const apply = () => {
     updatePractice(practice.id, { drills: plan });
     back();
+  };
+
+  // Print the agenda the coach is looking at — no need to apply it first, since
+  // the assistant at the field wants the paper either way. The handout runs on
+  // the practice's own clock time when it has one.
+  const exportPdf = () => {
+    void downloadPracticePlanPdf({
+      team,
+      blocks: plan,
+      library,
+      startTime: isoInstantToLocalTimeInput(practice.startUtc),
+      date: practice.date,
+      location: practice.location,
+      environment: env,
+      emphasis: describeEmphasis(skillProfile),
+      toast,
+    });
   };
 
   return (
@@ -190,6 +210,16 @@ export const PracticePlanPage = memo(() => {
         )}
 
         <div className="mt-5 flex justify-end gap-2">
+          {plan.length > 0 && (
+            <button
+              type="button"
+              onClick={exportPdf}
+              aria-label="Download practice plan PDF"
+              className="px-5 py-2.5 bg-surface border border-line text-ink font-black text-xs uppercase tracking-widest rounded-sm hover:bg-surface-2 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Icons.Download className="w-4 h-4" aria-hidden /> Export PDF
+            </button>
+          )}
           <button
             type="button"
             onClick={back}

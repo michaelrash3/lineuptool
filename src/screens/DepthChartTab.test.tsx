@@ -1,7 +1,18 @@
 import { MemoryRouter } from "react-router-dom";
 import { screen, fireEvent } from "@testing-library/react";
+import { vi } from "vitest";
 import { renderWithProviders } from "../test-utils";
 import { DepthChartTab } from "./DepthChartTab";
+
+// The PDF export lazy-loads jspdf and does real canvas work; mock the whole
+// renderer so the screen test only asserts the button wires through to it with
+// the board the tab ranked. The board shaping is covered by depthChartPdf.test.
+const { downloadDepthChartPdfMock } = vi.hoisted(() => ({
+  downloadDepthChartPdfMock: vi.fn(),
+}));
+vi.mock("../lineup/depthChartPdf", () => ({
+  downloadDepthChartPdf: downloadDepthChartPdfMock,
+}));
 
 // Names are chosen so the BETTER-rated player sorts LATER alphabetically. That
 // way these tests fail if the position score is ignored and ranking silently
@@ -202,5 +213,48 @@ describe("DepthChartTab", () => {
       },
     );
     expect(screen.queryByLabelText(/^Move /)).toBeNull();
+  });
+
+  it("shows the export button to assistants too (export is read-only)", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      {
+        team: { team: pitcherTeam, currentRole: "assistant" },
+      },
+    );
+    expect(
+      screen.getByLabelText("Download depth chart PDF"),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the export button when there's no roster to chart", () => {
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      { team: { team: { players: [], evaluationEvents: [] } } },
+    );
+    expect(screen.queryByLabelText("Download depth chart PDF")).toBeNull();
+  });
+
+  it("wires the export button through to the depth-chart PDF with the ranked board", () => {
+    downloadDepthChartPdfMock.mockClear();
+    renderWithProviders(
+      <MemoryRouter>
+        <DepthChartTab />
+      </MemoryRouter>,
+      { team: { team: pitcherTeam } },
+    );
+    fireEvent.click(screen.getByLabelText("Download depth chart PDF"));
+    expect(downloadDepthChartPdfMock).toHaveBeenCalledTimes(1);
+    const arg = downloadDepthChartPdfMock.mock.calls[0][0];
+    const pitching = arg.board.find((row: { pos: string }) => row.pos === "P");
+    // The board goes out ranked exactly as the cards show it.
+    expect(pitching.ranked.map((p: { id: string }) => p.id)).toEqual([
+      "p1",
+      "p2",
+    ]);
   });
 });
