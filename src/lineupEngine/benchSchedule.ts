@@ -1,6 +1,7 @@
 // lineupEngine/benchSchedule.ts
 // The fairness / bench-rotation core: bipartite position matching, the bench
 // pre-schedule pass, a single-attempt lineup build, and per-position scoring.
+// Every tuning number lives in the documented constant block below, not inline.
 import type { Inning, Player, SlimPlayer } from "../types";
 import { canonicalizeOutfield } from "../utils/helpers";
 import {
@@ -29,6 +30,180 @@ import type {
   BenchScheduleOpts,
   TryBuildCtx,
 } from "./types";
+
+/* ----------------------------------------------------------------------------
+   Tuning levers
+   Every knob that trades FAIRNESS (everyone plays about the same, everywhere)
+   against COMPETITIVENESS (best glove at the biggest spot) is hoisted here, so
+   a coach-facing behavior change is a one-line edit rather than a hunt through
+   the file. Values are the historical inline ones — moving ANY of them changes
+   generated lineups, so re-run the engine suites after a tweak.
+---------------------------------------------------------------------------- */
+
+// Bench-schedule distribution (precomputeBenchSchedule): who sits and how
+// often, decided before a single position is assigned.
+export const BENCH_WEIGHTS = {
+  // Widest allowed gap between the kid who sits most and the kid who sits
+  // least — the coach-visible "max 2 extra sits" promise. It caps both the
+  // per-game target spread and the season-disparity transfer. Lower = stricter
+  // fairness but fewer feasible schedules on restricted rosters; higher = more
+  // room to pay back season debt in a single game.
+  MAX_SIT_GAP: 2,
+  // How far a kid's season defensive innings must diverge from their expected
+  // share, in innings, before the over-played → under-played sit transfer fires
+  // at all. Lower = chases every small imbalance; higher = ignores noise.
+  DISPARITY_INNINGS: 1,
+  // Competitive (tournament) only: the sit cap is totalInnings divided by this,
+  // so everyone still plays at least half. Drop it toward 1 to let the weakest
+  // kids sit more of the game (more competitive); raise it to shrink the
+  // biggest allowed sit (more fair).
+  COMPETITIVE_SIT_DIVISOR: 2,
+  // Catcher pre-pick: only prefer the positionally-less-scarce of two catcher
+  // candidates once their scarcity drain (summed 1/supply) differs by more than
+  // this, so near-equal kids don't churn. Higher = scarcity matters less.
+  CATCHER_SCARCITY_GAP: 0.15,
+  // Season bench ratio assumed for a kid with no history — mid-scale on
+  // purpose, so a new kid sorts between the over- and under-played ends.
+  NEUTRAL_PRIOR_RATIO: 0.5,
+  // Added to a kid's prior-extra-sit count when they're pulled in as OVERFLOW
+  // (they owe no sits, but the inning can't otherwise be filled). Big enough to
+  // sink them below every kid carrying a real bench debt.
+  OVERFLOW_SIT_DISCOURAGE: 100,
+  // Most top-half defenders (by defensive score) allowed on the bench together
+  // in one inning. 1 keeps the field competitive; raising it lets the pure
+  // fairness order decide the bench.
+  TOP_HALF_BENCH_CAP: 1,
+  // …but a top-half kid is only skipped when the next kid in line is within
+  // this much season bench ratio; past that the fairness gap outranks the
+  // pairing preference. Larger = the pairing rule wins more often.
+  TOP_HALF_FAIRNESS_TOLERANCE: 0.05,
+  // Safety bound on the two sit-redistribution loops (anchor freeing,
+  // pathological competitive rosters). Not a fairness lever — it exists so a
+  // degenerate roster can't spin the generator forever.
+  REDISTRIBUTE_GUARD: 1000,
+} as const;
+
+// Whole-attempt penalty (end of tryBuildLineup). The generator scores many
+// attempts and keeps the lowest, so these set the PRIORITY ORDER between
+// fairness violations, not just their size — keep the tiers an order of
+// magnitude apart or a cheap violation starts outbidding an expensive one.
+export const PENALTY_WEIGHTS = {
+  // A non-starter who never took the field at all.
+  BENCHED_ALL_GAME: 5000,
+  // Top tier: when the bench math says everyone must sit at least once, a kid
+  // who sat zero means another kid absorbed their inning.
+  NEVER_SAT: 10000,
+  // Position diversity: innings at the same non-C/non-P spot are free up to
+  // this count, then every further inning costs POSITION_REPEAT_STEP. Raise the
+  // step to spread kids around the diamond harder.
+  POSITION_REPEAT_THRESHOLD: 3,
+  POSITION_REPEAT_STEP: 50,
+  // Per unit of THIS game's bench spread beyond the mathematically unavoidable
+  // one (0 when bench slots divide evenly across the roster, else 1). As heavy
+  // as a hard violation on purpose — a 2-sit gap in one game is what parents
+  // actually notice.
+  EXCESS_SPREAD: 5000,
+  // Per unit of SEASON extra-sit spread. Meaningful, but well under
+  // EXCESS_SPREAD so evening out the season never justifies burying a kid today.
+  SEASON_EXTRA_SIT_SPREAD: 1500,
+} as const;
+
+// Rotation pressure inside pickBestForPosition: how hard a kid is pushed OFF a
+// position they have already played (this game plus season history).
+export const ROTATION_WEIGHTS = {
+  // Per prior inning at this position. Fair mode pushes hard so the roster
+  // cycles; Big Game barely pushes, letting a strong defender hold the spot all
+  // game. Move BIG_GAME toward FAIR to make big games rotate more.
+  FAIR: 8,
+  BIG_GAME: 1.5,
+  // Fair mode only: extra multiplier on that pressure for outfield spots, so a
+  // kid cycling off the bench lands in a DIFFERENT outfield spot instead of
+  // settling back into the same one (SAME_POSITION_BACK_TO_BACK only looks one
+  // inning back, and jitter can outbid the base weight).
+  OUTFIELD_CYCLE_BOOST: 1.75,
+  // Fair mode only: per inning this kid played here in a PAST Big Game — pays
+  // premium-position time back to the rest of the roster over the season.
+  BIG_GAME_HISTORY_PAYBACK: 6,
+  // Soft penalty for repeating the exact position played last inning (outside
+  // lock innings and the P/C carry-over spots). Deliberately soft, not a hard
+  // block: on a tight roster the alternative is failing the whole build.
+  SAME_POSITION_BACK_TO_BACK: 500,
+  // Soft penalty for a third straight outfield inning under the 1-/2-inning
+  // rotation lock. Above SAME_POSITION_BACK_TO_BACK so the engine breaks an OF
+  // streak before it breaks the same-spot rule.
+  OUTFIELD_LOCK_REPEAT: 750,
+} as const;
+
+// The remaining per-candidate terms in pickBestForPosition. Score is a COST:
+// negative terms pull a player toward the slot, positive ones push them away.
+export const SCORE_WEIGHTS = {
+  // Mid-scale POS_DIFFICULTY — both the fallback for a position missing from
+  // the table and the pivot the |difficulty − pivot| base cost measures from,
+  // so the easiest and hardest spots sit equally far off neutral.
+  NEUTRAL_DIFFICULTY: 3,
+  // Random tiebreaker range. Fair mode's is wide enough that similar-skill kids
+  // genuinely shuffle game to game; Big Game stays near-deterministic.
+  JITTER_FAIR: 5,
+  JITTER_BIG_GAME: 2,
+  // SS/3B arm-strength pull: the grade assumed when a kid has none (mid), and
+  // how much of it counts — Big Game the full grade, fair mode half.
+  DEFAULT_ARM_GRADE: 5,
+  ARM_BIAS_BIG_GAME: 1,
+  ARM_BIAS_FAIR: 0.5,
+  // Lefty at first base — the one infield spot a left-hander is an asset at.
+  // (The matching infield penalty is age/rule-set scaled; see LEFTY_PENALTY.)
+  LEFTY_1B_BONUS: 3,
+  // Lock inning: hold a kid at the spot they had last inning. Big enough to
+  // beat every rotation and skill term, well under BIG_GAME_PRIMARY_PIN.
+  LOCK_CARRYOVER_BONUS: 1000,
+  // Big Game: a kid's primaryPosition is effectively pinned — the largest term
+  // in the function, so it outranks rotation, jitter and skill. No fair-mode
+  // equivalent by design (fair mode has no privileged primary position).
+  BIG_GAME_PRIMARY_PIN: 10000,
+  // Fair mode: feather-light nudge to keep kids inside their comfortable list
+  // (already a hard whitelist) without privileging primary inside it.
+  COMFORT_BONUS: 3,
+  // overallScore runs 0..SKILL_SCALE; the Big Game terms below use the clamped
+  // 0..1 ratio so strong and weak kids move in opposite directions.
+  SKILL_SCALE: 100,
+  // Big Game premium ("spine") spots: pull = skill × SLOPE − OFFSET, taken off
+  // the cost, so kids above the OFFSET/SLOPE break-even skill are drawn to the
+  // spine and the weakest are actively pushed off it. Raise SLOPE for a sharper
+  // strong/weak split; raise OFFSET to reserve the spine for a smaller top tier.
+  PREMIUM_PULL_SLOPE: 20,
+  PREMIUM_PULL_OFFSET: 5,
+  // Big Game outfield: the mirror image — push = skill × SLOPE − OFFSET added
+  // to the cost, so kids above its break-even are repelled from the OF and the
+  // weaker ones drift into it.
+  OUTFIELD_PUSH_SLOPE: 12,
+  OUTFIELD_PUSH_OFFSET: 6,
+} as const;
+
+// Catcher inning cap under the "auto" policy, mirrored from
+// resolveCatcherPolicy for the paths that run before/without a finite resolved
+// cap: 10-fielder games run back-to-back pairs, everything else caps at 3.
+export const AUTO_CATCHER_CAP = { TEN_FIELDER: 2, DEFAULT: 3 } as const;
+
+// Age gate for the premium ("spine") position set. 8U and below is machine or
+// coach pitch — no real pitcher, and catcher matters less with no strikes or
+// passed balls — so the spine is the infield; 9U+ puts P and C back on top.
+// Big Game pulls strong kids toward the spine and pushes weak kids to the OF.
+export const MACHINE_PITCH_MAX_AGE = 8;
+// A team with no recorded age scores as the oldest bracket, the safer default:
+// it never strips P/C out of the spine.
+export const UNKNOWN_TEAM_AGE = 99;
+export const PREMIUM_POSITIONS_MACHINE_PITCH = new Set<string>([
+  "1B",
+  "SS",
+  "3B",
+]);
+export const PREMIUM_POSITIONS_KID_PITCH = new Set<string>([
+  "P",
+  "SS",
+  "3B",
+  "C",
+  "1B",
+]);
 
 // ---------- Single attempt builder ----------
 
@@ -197,11 +372,11 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   //
   // Constraints:
   //   Total target sits across all kids = totalBenchSlots (math invariant)
-  //   No kid sits more than (minSits + 2)  the user's "max 2 extras" rule
+  //   No kid sits more than (minSits + MAX_SIT_GAP)  the "max 2 extras" rule
   //   When the schedule is empty (no past games), defaults to even split
   // ============================================================
   const minSits = Math.floor(totalBenchSlots / N);
-  const maxSits = minSits + 2; // Cap: never more than 2 above minimum
+  const maxSits = minSits + BENCH_WEIGHTS.MAX_SIT_GAP;
 
   // Compute each kid's actual vs expected defensive innings across past games.
   // expectedDef is computed per game from games actually attended, so a kid
@@ -259,18 +434,22 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   // an extra sit. For each big negative delta (kid played short), they give
   // up a sit. We pair these one for one to keep the total invariant.
   //
-  // A "big" disparity here means at least 1 inning vs team avg. We transfer
+  // A "big" disparity means at least DISPARITY_INNINGS vs team avg. We transfer
   // up to one full sit per pair, capped by maxSits per kid and floor of 0.
   // Apply seasonal disparity transfer  "rob from over played, give to
   // under played." Skip entirely if there's no meaningful disparity (first
   // game of season, or everyone already balanced).
-  const hasDisparity = playerDeltas.some((x) => Math.abs(x.delta) >= 1);
+  const hasDisparity = playerDeltas.some(
+    (x) => Math.abs(x.delta) >= BENCH_WEIGHTS.DISPARITY_INNINGS,
+  );
   if (hasDisparity) {
     // Identify donors (over played, can take more sits) and recipients
     // (under played, can give up sits).
-    const donors = playerDeltas.filter((x) => x.delta >= 1).slice(); // most over played first
+    const donors = playerDeltas
+      .filter((x) => x.delta >= BENCH_WEIGHTS.DISPARITY_INNINGS)
+      .slice(); // most over played first
     const recipients = playerDeltas
-      .filter((x) => x.delta <= -1)
+      .filter((x) => x.delta <= -BENCH_WEIGHTS.DISPARITY_INNINGS)
       .slice()
       .sort((a, b) => a.delta - b.delta); // most under played first
 
@@ -284,13 +463,16 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       const recipient = recipients[rIdx];
       const donorTarget = targetSits.get(donor.p.id);
       const recipientTarget = targetSits.get(recipient.p.id);
-      // Find the minimum target across all kids  we cap at min + 2 so the
-      // gap between most sit and least sit kid is never more than 2.
+      // Find the minimum target across all kids  we cap at min + MAX_SIT_GAP
+      // so the gap between most sit and least sit kid never exceeds it.
       let minActual = Infinity;
       for (const t of targetSits.values()) {
         if (t < minActual) minActual = t;
       }
-      const dynamicMax = Math.max(maxSits, minActual + 2);
+      const dynamicMax = Math.max(
+        maxSits,
+        minActual + BENCH_WEIGHTS.MAX_SIT_GAP,
+      );
       if (donorTarget >= dynamicMax) {
         dIdx++;
         continue;
@@ -300,7 +482,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         rIdx++;
         continue;
       }
-      // Don't transfer if it would create a gap of more than 2 between
+      // Don't transfer if it would create a gap wider than MAX_SIT_GAP between
       // the new max (donor + 1) and the new min (recipient minus 1, or any
       // existing kid at the bottom).
       const donorAfter = donorTarget + 1;
@@ -313,7 +495,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         if (t < otherMin) otherMin = t;
       }
       const newMin = Math.min(otherMin, recipientAfter);
-      if (donorAfter - newMin > 2) {
+      if (donorAfter - newMin > BENCH_WEIGHTS.MAX_SIT_GAP) {
         dIdx++;
         continue;
       }
@@ -339,7 +521,10 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
   // innings each sits, plus the no-3-in-a-row spreading and all catcher safety,
   // is handled by the shared scheduling pass below — unchanged.)
   if (competitive) {
-    const cap = Math.max(1, Math.floor(totalInnings / 2));
+    const cap = Math.max(
+      1,
+      Math.floor(totalInnings / BENCH_WEIGHTS.COMPETITIVE_SIT_DIVISOR),
+    );
     for (const x of playerDeltas) targetSits.set(x.p.id, 0);
     const weakestFirst = [...playerDeltas].sort(
       (a, b) => a.defScore - b.defScore || a.rand - b.rand,
@@ -354,7 +539,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     // Pathological rosters (huge bench) where everyone hit the cap: spread the
     // remainder round-robin so the totals still reconcile.
     let guard = 0;
-    while (remaining > 0 && guard < 1000) {
+    while (remaining > 0 && guard < BENCH_WEIGHTS.REDISTRIBUTE_GUARD) {
       for (const x of weakestFirst) {
         if (remaining <= 0) break;
         targetSits.set(x.p.id, targetSits.get(x.p.id) + 1);
@@ -385,7 +570,7 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     // benches), so cap re-assignments there.
     const sitCeiling = Math.ceil(totalInnings / 2);
     let guard = 0;
-    while (freed > 0 && guard < 1000) {
+    while (freed > 0 && guard < BENCH_WEIGHTS.REDISTRIBUTE_GUARD) {
       guard++;
       // Lowest current target takes the next sit; competitive prefers the
       // weakest defender among ties, fairness the most over-played.
@@ -471,7 +656,8 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         // Only acts on a meaningful gap so it doesn't churn near-equal kids.
         const da = scarcityDrain(a.p);
         const db = scarcityDrain(b.p);
-        if (Math.abs(da - db) > 0.15) return da - db;
+        if (Math.abs(da - db) > BENCH_WEIGHTS.CATCHER_SCARCITY_GAP)
+          return da - db;
 
         // Prefer kids with LOW target sit (they need to play more)
         const ta = targetSits.get(a.p.id);
@@ -675,9 +861,11 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
       const hist = priorExtraSits.get(p.id);
       const totalPrior = (hist?.benchInn || 0) + (hist?.defInn || 0);
       // Season ratio: lower means under sat across the season.
-      // No history  0.5 (neutral).
+      // No history  NEUTRAL_PRIOR_RATIO.
       const priorRatio =
-        totalPrior > 0 ? (hist?.benchInn || 0) / totalPrior : 0.5;
+        totalPrior > 0
+          ? (hist?.benchInn || 0) / totalPrior
+          : BENCH_WEIGHTS.NEUTRAL_PRIOR_RATIO;
       eligible.push({
         p,
         debt,
@@ -714,13 +902,17 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
         const hist = priorExtraSits.get(p.id);
         const totalPrior = (hist?.benchInn || 0) + (hist?.defInn || 0);
         const priorRatio =
-          totalPrior > 0 ? (hist?.benchInn || 0) / totalPrior : 0.5;
+          totalPrior > 0
+            ? (hist?.benchInn || 0) / totalPrior
+            : BENCH_WEIGHTS.NEUTRAL_PRIOR_RATIO;
         eligible.push({
           p,
           debt: 1,
           priorRatio,
           defInn: hist?.defInn || 0,
-          priorExtra: (priorExtraSits.get(p.id)?.extraSits || 0) + 100, // discourage
+          priorExtra:
+            (priorExtraSits.get(p.id)?.extraSits || 0) +
+            BENCH_WEIGHTS.OVERFLOW_SIT_DISCOURAGE,
           firstHx: firstInningBenchHx.get(p.id) || 0,
           defScore: p.profile.defensiveScore,
           rand: rand(),
@@ -767,16 +959,20 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
     let topHalfCount = 0;
     for (const id of alreadyBenched) if (topHalfIds.has(id)) topHalfCount++;
 
-    // First pass: respect top half cap of 1 per inning, BUT only skip a
-    // top half kid if the next kid in line has similar (within 0.05)
-    // priorRatio. Otherwise the fairness gap is more important.
+    // First pass: respect the TOP_HALF_BENCH_CAP per inning, BUT only skip a
+    // top half kid if the next kid in line has a similar priorRatio (within
+    // TOP_HALF_FAIRNESS_TOLERANCE). Otherwise the fairness gap is more
+    // important.
     for (let i = 0; i < eligible.length; i++) {
       const e = eligible[i];
       if (benchedThisInning >= remainingSlots) break;
       // Re-check at pick time: benching earlier kids this inning can make
       // this one the last available player for a position.
       if (wouldStrand(e.p.id, inn)) continue;
-      if (topHalfIds.has(e.p.id) && topHalfCount >= 1) {
+      if (
+        topHalfIds.has(e.p.id) &&
+        topHalfCount >= BENCH_WEIGHTS.TOP_HALF_BENCH_CAP
+      ) {
         // Only skip if the next un benched kid in line is within fairness
         // tolerance (so we're not punishing an under played kid)
         let nextKidRatio = null;
@@ -785,7 +981,11 @@ export function precomputeBenchSchedule(opts: BenchScheduleOpts): {
           nextKidRatio = eligible[j].priorRatio;
           break;
         }
-        if (nextKidRatio !== null && nextKidRatio - e.priorRatio <= 0.05) {
+        if (
+          nextKidRatio !== null &&
+          nextKidRatio - e.priorRatio <=
+            BENCH_WEIGHTS.TOP_HALF_FAIRNESS_TOLERANCE
+        ) {
           continue; // safe to skip  alternative is similarly fair
         }
         // Otherwise: take the top half kid even though we'd prefer not to,
@@ -923,21 +1123,19 @@ export function tryBuildLineup(ctx: TryBuildCtx):
   } = catcherPolicy ||
   resolveCatcherPolicy(undefined, undefined, defenseSize, profiled.length);
 
-  // Hoist age derived constants used by pickBestForPosition out of the
-  // per call hot path (they don't change inning to inning).
-  // 8U and below = no real pitcher (machine pitch), catcher matters less
-  // since there are no strikes/passed balls  spine is 1B/SS/3B.
-  // 9U+ = pitcher matters a lot, so spine is P/SS/3B/C/1B.
+  // Resolve the age-derived premium set once per build rather than per
+  // pickBestForPosition call (it can't change inning to inning). See the
+  // MACHINE_PITCH_MAX_AGE block for why the spine differs by age.
   const teamAgeNum = (() => {
-    if (!teamAge) return 99;
+    if (!teamAge) return UNKNOWN_TEAM_AGE;
     const m = String(teamAge).match(/(\d+)/g);
-    if (!m) return 99;
+    if (!m) return UNKNOWN_TEAM_AGE;
     return parseInt(m[m.length - 1], 10);
   })();
   const PREMIUM_POSITIONS =
-    teamAgeNum <= 8
-      ? new Set(["1B", "SS", "3B"])
-      : new Set(["P", "SS", "3B", "C", "1B"]);
+    teamAgeNum <= MACHINE_PITCH_MAX_AGE
+      ? PREMIUM_POSITIONS_MACHINE_PITCH
+      : PREMIUM_POSITIONS_KID_PITCH;
 
   // Per-player positional flexibility: how many of THIS game's positions a
   // kid is actually eligible to field (catcher counts only when the kid is
@@ -1277,8 +1475,8 @@ export function tryBuildLineup(ctx: TryBuildCtx):
             const cCap = Number.isFinite(catcherCap)
               ? catcherCap
               : defenseSize === "10"
-                ? 2
-                : 3;
+                ? AUTO_CATCHER_CAP.TEN_FIELDER
+                : AUTO_CATCHER_CAP.DEFAULT;
             if ((state.get(prevPlayer.id)?.positions["C"] || 0) >= cCap)
               continue;
           }
@@ -1517,17 +1715,22 @@ export function tryBuildLineup(ctx: TryBuildCtx):
     const b = st.bench;
     if (b > maxBench) maxBench = b;
     if (b < minBench) minBench = b;
-    if (!isStarter.has(p.id) && b === totalInnings) penalty += 5000;
+    if (!isStarter.has(p.id) && b === totalInnings)
+      penalty += PENALTY_WEIGHTS.BENCHED_ALL_GAME;
 
     // Hard fairness floor: if everyone should sit at least once, any player
     // who didn't is heavily penalized. This dominates other concerns.
-    if (everyoneShouldSit && b === 0) penalty += 10000;
+    if (everyoneShouldSit && b === 0) penalty += PENALTY_WEIGHTS.NEVER_SAT;
 
     // Diversity penalty: over concentration at single non C/non P position
     for (const pos in st.positions) {
       if (pos === "C" || pos === "P") continue;
       const count = st.positions[pos];
-      if (count >= 3) penalty += (count - 2) * 50;
+      if (count >= PENALTY_WEIGHTS.POSITION_REPEAT_THRESHOLD) {
+        penalty +=
+          (count - (PENALTY_WEIGHTS.POSITION_REPEAT_THRESHOLD - 1)) *
+          PENALTY_WEIGHTS.POSITION_REPEAT_STEP;
+      }
     }
   }
 
@@ -1538,14 +1741,14 @@ export function tryBuildLineup(ctx: TryBuildCtx):
   const idealSpread = exactDivision ? 0 : 1;
   const actualSpread = maxBench - minBench;
   const excessSpread = Math.max(0, actualSpread - idealSpread);
-  // 5000 per excess unit of spread. This dominates other concerns when the
-  // engine has been allowing wider distributions than necessary.
-  penalty += excessSpread * 5000;
+  // Dominates other concerns when the engine has been allowing wider
+  // distributions than necessary.
+  penalty += excessSpread * PENALTY_WEIGHTS.EXCESS_SPREAD;
 
   // Cumulative extra sit spread penalty: when some players have taken the
   // "extra sitter" role more than others across the season, that's unfair.
-  // 1500 per unit of spread is meaningful but doesn't override hard constraints.
-  penalty += extraSitSpread * 1500;
+  // Meaningful, but doesn't override hard constraints.
+  penalty += extraSitSpread * PENALTY_WEIGHTS.SEASON_EXTRA_SIT_SPREAD;
 
   return { ok: true, lineup, penalty, lockRelaxedInnings };
 }
@@ -1674,8 +1877,8 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
       const cCap = Number.isFinite(catcherCap)
         ? catcherCap!
         : defenseSize === "10"
-          ? 2
-          : 3;
+          ? AUTO_CATCHER_CAP.TEN_FIELDER
+          : AUTO_CATCHER_CAP.DEFAULT;
       if ((st.positions["C"] || 0) >= cCap) continue;
     }
 
@@ -1690,7 +1893,7 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
     const isCarryOverPos = pos === "C" || (pos === "P" && defenseSize === "9");
     let softPenalty = 0;
     if (!isCarryOverPos && !isLockInning && playedHereLast) {
-      softPenalty += 500;
+      softPenalty += ROTATION_WEIGHTS.SAME_POSITION_BACK_TO_BACK;
     }
     if (
       (positionLock === "1" || positionLock === "2") &&
@@ -1699,32 +1902,38 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
     ) {
       const h = st.history;
       if (OF_POSITIONS.has(h[inn - 1]) && OF_POSITIONS.has(h[inn - 2])) {
-        softPenalty += 750;
+        softPenalty += ROTATION_WEIGHTS.OUTFIELD_LOCK_REPEAT;
       }
     }
 
-    let score = Math.abs((POS_DIFFICULTY[pos] || 3) - 3) + softPenalty;
+    let score =
+      Math.abs(
+        (POS_DIFFICULTY[pos] || SCORE_WEIGHTS.NEUTRAL_DIFFICULTY) -
+          SCORE_WEIGHTS.NEUTRAL_DIFFICULTY,
+      ) + softPenalty;
 
     const histPos = positionHistory.get(p.id);
     const histEntry = histPos?.get(pos) || { total: 0, bigGame: 0 };
     const seasonCount = histEntry.total;
     const bigGameCount = histEntry.bigGame;
-    // Fair mode: aggressive rotation pressure. Each prior inning at this
-    // position adds 8 to score (heavy push to rotate to a different kid).
-    // Big Game: lighter pressure (1.5)  let strong defenders stay at premium
-    // spots even if they've played there a lot, since winning matters more.
-    const rotationWeight = isBigGame ? 1.5 : 8;
-    // FAIR MODE intra-OF cycling: outfield positions get an extra 1.75x
-    // rotation multiplier so a kid who already played RF this game gets
-    // actively pushed to CF/LF on their next OF inning instead of
-    // settling back into RF whenever they cycle off the bench. The
-    // existing back-to-back +500 only catches the immediately-prior
-    // inning, so RF→bench→RF→bench→RF was still possible at default
-    // weight (jitter ±5 sometimes wins over the +8 pressure). Big Game
-    // ignores the boost — strong defenders parking in a premium OF
-    // (typically CF) is desired there.
+    // Fair mode: aggressive rotation pressure (heavy push to rotate to a
+    // different kid). Big Game: lighter pressure  let strong defenders stay
+    // at premium spots even if they've played there a lot, since winning
+    // matters more.
+    const rotationWeight = isBigGame
+      ? ROTATION_WEIGHTS.BIG_GAME
+      : ROTATION_WEIGHTS.FAIR;
+    // FAIR MODE intra-OF cycling: outfield positions get an extra rotation
+    // multiplier so a kid who already played RF this game gets actively
+    // pushed to CF/LF on their next OF inning instead of settling back into
+    // RF whenever they cycle off the bench. The back-to-back penalty only
+    // catches the immediately-prior inning, so RF→bench→RF→bench→RF was
+    // still possible at default weight (jitter sometimes wins over the base
+    // pressure). Big Game ignores the boost — strong defenders parking in a
+    // premium OF (typically CF) is desired there.
     const isOF = OF_POSITIONS.has(pos);
-    const ofRotationBoost = !isBigGame && isOF ? 1.75 : 1;
+    const ofRotationBoost =
+      !isBigGame && isOF ? ROTATION_WEIGHTS.OUTFIELD_CYCLE_BOOST : 1;
     score +=
       (seasonCount + (st.positions[pos] || 0)) *
       rotationWeight *
@@ -1733,26 +1942,34 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
     // Big Games get an additional push away from it in fair mode. Helps
     // share premium positions across the roster over the season.
     if (!isBigGame && bigGameCount > 0) {
-      score += bigGameCount * 6;
+      score += bigGameCount * ROTATION_WEIGHTS.BIG_GAME_HISTORY_PAYBACK;
     }
 
     // Random jitter  more aggressive for fair mode so similar skilled kids
     // genuinely shuffle, less for Big Game where we want consistency.
-    score += rand() * (isBigGame ? 2 : 5);
+    score +=
+      rand() *
+      (isBigGame ? SCORE_WEIGHTS.JITTER_BIG_GAME : SCORE_WEIGHTS.JITTER_FAIR);
 
     if (pos === "SS" || pos === "3B") {
       const headG = headGrades[p.id]?.armStrength;
-      const armBonus = typeof headG === "number" ? headG : 5;
+      const armBonus =
+        typeof headG === "number" ? headG : SCORE_WEIGHTS.DEFAULT_ARM_GRADE;
       // Big Game: full arm strength bias. Fair mode: half.
-      score -= armBonus * (isBigGame ? 1 : 0.5);
+      score -=
+        armBonus *
+        (isBigGame
+          ? SCORE_WEIGHTS.ARM_BIAS_BIG_GAME
+          : SCORE_WEIGHTS.ARM_BIAS_FAIR);
     }
 
     if (p.throws === "L") {
       if (INFIELD_NON_1B.has(pos)) score += leftyPenalty ?? 0;
-      else if (pos === "1B") score -= 3;
+      else if (pos === "1B") score -= SCORE_WEIGHTS.LEFTY_1B_BONUS;
     }
 
-    if (isLockInning && playedHereLast) score -= 1000;
+    if (isLockInning && playedHereLast)
+      score -= SCORE_WEIGHTS.LOCK_CARRYOVER_BONUS;
 
     if (p.primaryPosition === pos) {
       // Big Game: primary kids stick to their position every inning they're
@@ -1765,7 +1982,7 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
       // comfortablePositions bonus below handles "stay within the
       // allowed set" without privileging primary inside that set.
       if (isBigGame) {
-        score -= 10000;
+        score -= SCORE_WEIGHTS.BIG_GAME_PRIMARY_PIN;
       }
     }
 
@@ -1786,7 +2003,7 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
           (c: string) => canonicalizeOutfield(c) === canonicalizeOutfield(pos),
         )
       ) {
-        score -= 3;
+        score -= SCORE_WEIGHTS.COMFORT_BONUS;
       }
     }
 
@@ -1809,16 +2026,23 @@ export function pickBestForPosition(opts: PickBestOpts): ProfiledPlayer | null {
     // and a penalty for OF spots.
     if (isBigGame) {
       const overall = +p.profile?.overallScore || 0;
-      const skill = Math.min(Math.max(overall / 100, 0), 1);
+      const skill = Math.min(
+        Math.max(overall / SCORE_WEIGHTS.SKILL_SCALE, 0),
+        1,
+      );
       if (isPremium) {
-        score -= skill * 20 - 5;
+        score -=
+          skill * SCORE_WEIGHTS.PREMIUM_PULL_SLOPE -
+          SCORE_WEIGHTS.PREMIUM_PULL_OFFSET;
         // Position importance: the spine is Pitcher > Catcher > 1B. An extra
         // skill-scaled pull so the strongest available players are steered to
         // those first (ahead of SS/3B). Skill-scaled, so weak players aren't
         // distorted and feasibility is unaffected.
         score -= skill * (PREMIUM_IMPORTANCE_EXTRA[pos] || 0);
       } else if (OF_POSITIONS.has(pos)) {
-        score += skill * 12 - 6;
+        score +=
+          skill * SCORE_WEIGHTS.OUTFIELD_PUSH_SLOPE -
+          SCORE_WEIGHTS.OUTFIELD_PUSH_OFFSET;
       }
     }
 
