@@ -1,16 +1,21 @@
 import { vi } from "vitest";
-import { setDoc } from "firebase/firestore";
+import { getDocs, setDoc, updateDoc, writeBatch } from "firebase/firestore";
 import {
   assembleSignups,
   allLegacyMigrated,
   backfillSignupDocs,
+  deleteAllSignupDocs,
+  dropLegacySignupArrays,
+  findLegacySignupEntries,
+  removeLegacySignupEntries,
 } from "./tryoutSignupDocs";
 import type { TryoutSignup } from "../types";
 
 // The pure halves of the Phase 1 signup migration (union/precedence/sort and
-// the drop's coverage check) plus the backfill's skip-existing guard.
-// Firestore is mocked; refs encode their path so assertions can tell which
-// doc a write targeted.
+// the drop's coverage check), the backfill's skip-existing guard, and the two
+// destructive writes: the legacy-array cleanup and the irreversible field
+// drop. Firestore is mocked; refs encode their path so assertions can tell
+// which doc a write targeted.
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn((_db: unknown, ...path: string[]) => ({
     path: path.join("/"),
@@ -20,9 +25,21 @@ vi.mock("firebase/firestore", () => ({
   deleteDoc: vi.fn(() => Promise.resolve()),
   updateDoc: vi.fn(() => Promise.resolve()),
   deleteField: vi.fn(() => ({ __deleteField: true })),
+  // Sentinels, not values: assertions compare the payload shape, and the
+  // variadic capture is what proves a bulk remove is ONE write.
+  arrayRemove: vi.fn((...values: unknown[]) => ({ __arrayRemove: values })),
+  getDocs: vi.fn(() => Promise.resolve({ docs: [] })),
+  writeBatch: vi.fn(() => ({
+    delete: vi.fn(),
+    commit: vi.fn(() => Promise.resolve()),
+  })),
 }));
 
 const mockSetDoc = setDoc as unknown as ReturnType<typeof vi.fn>;
+const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
+const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
+const mockWriteBatch = writeBatch as unknown as ReturnType<typeof vi.fn>;
+const TEAM_PATH = "artifacts/app/public/data/teams/team1";
 
 const entry = (
   id: string,
@@ -37,7 +54,9 @@ const entry = (
 });
 
 beforeEach(() => {
-  mockSetDoc.mockClear();
+  vi.clearAllMocks();
+  mockGetDocs.mockResolvedValue({ docs: [] });
+  mockUpdateDoc.mockResolvedValue(undefined);
 });
 
 describe("assembleSignups", () => {
@@ -107,6 +126,15 @@ describe("assembleSignups", () => {
       [entry("a", "2026-03-01T10:00:00.000Z")],
     );
     expect(out.map((s) => s.id)).toEqual(["a", "nostamp"]);
+  });
+
+  it("keeps an id-less legacy entry — nothing can shadow it, and dropping it would lose a signup", () => {
+    const out = assembleSignups(
+      [{ id: "a", data: entry("a", "2026-03-01T10:00:00.000Z") }],
+      [{ submittedAt: "2026-03-02T10:00:00.000Z" } as TryoutSignup],
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0].submittedAt).toBe("2026-03-02T10:00:00.000Z");
   });
 
   it("tolerates null/undefined inputs", () => {
@@ -221,5 +249,174 @@ describe("backfillSignupDocs", () => {
       ),
     ).resolves.toBeUndefined();
     expect(mockSetDoc).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("findLegacySignupEntries", () => {
+  it("returns the EXACT stored objects, not copies — arrayRemove matches by value", () => {
+    const stored = entry("a", "t", { firstName: "PreEdit" });
+    const out = findLegacySignupEntries([stored, entry("b", "t")], ["a"]);
+    expect(out).toHaveLength(1);
+    // Identity, not deep equality: a reconstructed entry would silently fail
+    // to match the element Firestore has stored.
+    expect(out[0]).toBe(stored);
+  });
+
+  it("matches every requested id, ignores unknown ids, and tolerates junk input", () => {
+    const legacy = [entry("a", "t"), entry("b", "t"), entry("c", "t")];
+    expect(
+      findLegacySignupEntries(legacy, ["c", "a", "ghost"]).map((e) => e.id),
+    ).toEqual(["a", "c"]); // array order, not requested order
+    expect(findLegacySignupEntries(legacy, [])).toEqual([]);
+    expect(findLegacySignupEntries(null, ["a"])).toEqual([]);
+    expect(findLegacySignupEntries([{ id: "" } as TryoutSignup], [""])).toEqual(
+      [],
+    );
+  });
+});
+
+describe("removeLegacySignupEntries", () => {
+  it("arrayRemoves the exact entries from the team doc in ONE write", async () => {
+    const a = entry("a", "t", { firstName: "PreEdit" });
+    const b = entry("b", "t");
+    await removeLegacySignupEntries(
+      {} as never,
+      "app",
+      "team1",
+      "tryoutSignups",
+      [a, b],
+    );
+    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    const [ref, payload] = mockUpdateDoc.mock.calls[0];
+    // The TEAM doc, not a subcollection doc — this is the legacy array's home.
+    expect(ref.path).toBe(TEAM_PATH);
+    // Variadic arrayRemove: a bulk delete's legacy cleanup is a single
+    // value-level op, never a whole-array rewrite.
+    expect(payload).toEqual({ tryoutSignups: { __arrayRemove: [a, b] } });
+    expect(payload.tryoutSignups.__arrayRemove[0]).toBe(a);
+  });
+
+  it("writes under the interest key when asked", async () => {
+    const lead = entry("i1", "t");
+    await removeLegacySignupEntries(
+      {} as never,
+      "app",
+      "team1",
+      "interestSignups",
+      [lead],
+    );
+    expect(mockUpdateDoc.mock.calls[0][1]).toEqual({
+      interestSignups: { __arrayRemove: [lead] },
+    });
+  });
+
+  it("is a no-op with NO write when the entry isn't legacy-resident", async () => {
+    await expect(
+      removeLegacySignupEntries(
+        {} as never,
+        "app",
+        "team1",
+        "tryoutSignups",
+        [],
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      removeLegacySignupEntries(
+        {} as never,
+        "app",
+        "team1",
+        "tryoutSignups",
+        null,
+      ),
+    ).resolves.toBeUndefined();
+    expect(mockUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it("propagates a rejection so the caller can toast", async () => {
+    mockUpdateDoc.mockRejectedValueOnce(new Error("permission-denied"));
+    await expect(
+      removeLegacySignupEntries({} as never, "app", "team1", "tryoutSignups", [
+        entry("a", "t"),
+      ]),
+    ).rejects.toThrow("permission-denied");
+  });
+});
+
+describe("dropLegacySignupArrays", () => {
+  // The one IRREVERSIBLE write in the migration — TeamProvider fires it only
+  // once coverage is proven, so its payload and target have to be exact.
+  it("deletes BOTH legacy array fields from the team doc in ONE write", async () => {
+    await dropLegacySignupArrays({} as never, "app", "team1");
+    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    const [ref, payload] = mockUpdateDoc.mock.calls[0];
+    expect(ref.path).toBe(TEAM_PATH);
+    expect(payload).toEqual({
+      tryoutSignups: { __deleteField: true },
+      interestSignups: { __deleteField: true },
+    });
+    // Both keys in the SAME update: one collection being long gone must never
+    // block dropping the other, and two writes could half-apply.
+    expect(Object.keys(payload)).toHaveLength(2);
+  });
+
+  it("REJECTS on failure so the caller can clear its once-guard and retry", async () => {
+    mockUpdateDoc.mockRejectedValueOnce(new Error("permission-denied"));
+    await expect(
+      dropLegacySignupArrays({} as never, "app", "team1"),
+    ).rejects.toThrow("permission-denied");
+  });
+});
+
+describe("deleteAllSignupDocs", () => {
+  const snapshotOf = (...ids: string[]) => ({
+    docs: ids.map((id) => ({
+      ref: { path: `${TEAM_PATH}/tryoutSignups/${id}` },
+    })),
+  });
+
+  it("reads the collection and batch-deletes every doc", async () => {
+    mockGetDocs.mockResolvedValueOnce(snapshotOf("a", "b"));
+    const count = await deleteAllSignupDocs(
+      {} as never,
+      "app",
+      "team1",
+      "tryoutSignups",
+    );
+    expect(count).toBe(2);
+    expect(mockGetDocs.mock.calls[0][0].path).toBe(
+      `${TEAM_PATH}/tryoutSignups`,
+    );
+    const batch = mockWriteBatch.mock.results[0].value;
+    expect(
+      batch.delete.mock.calls.map(([ref]: [{ path: string }]) =>
+        ref.path.split("/").pop(),
+      ),
+    ).toEqual(["a", "b"]);
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("chunks past the 500-op batch ceiling", async () => {
+    const ids = Array.from({ length: 401 }, (_, i) => `s${i}`);
+    mockGetDocs.mockResolvedValueOnce(snapshotOf(...ids));
+    await deleteAllSignupDocs({} as never, "app", "team1", "interestSignups");
+    expect(mockWriteBatch).toHaveBeenCalledTimes(2);
+    const [first, second] = mockWriteBatch.mock.results.map((r) => r.value);
+    expect(first.delete).toHaveBeenCalledTimes(400);
+    expect(second.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes nothing for an empty collection", async () => {
+    mockGetDocs.mockResolvedValueOnce(snapshotOf());
+    await expect(
+      deleteAllSignupDocs({} as never, "app", "team1", "tryoutSignups"),
+    ).resolves.toBe(0);
+    expect(mockWriteBatch).not.toHaveBeenCalled();
+  });
+
+  it("REJECTS so the caller can warn about orphaned family PII", async () => {
+    mockGetDocs.mockRejectedValueOnce(new Error("permission-denied"));
+    await expect(
+      deleteAllSignupDocs({} as never, "app", "team1", "tryoutSignups"),
+    ).rejects.toThrow("permission-denied");
   });
 });

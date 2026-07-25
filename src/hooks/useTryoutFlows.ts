@@ -13,7 +13,9 @@ import {
 import { applyMissingTryoutNumbers } from "../utils/tryouts";
 import {
   deleteSignupDoc,
+  findLegacySignupEntries,
   newSignupId,
+  removeLegacySignupEntries,
   signupDocRef,
   upsertSignupDoc,
 } from "../utils/tryoutSignupDocs";
@@ -41,9 +43,18 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 // teamDataRef.current.<key> is the assembled UNION of subcollection docs and
 // any not-yet-migrated legacy team-doc array entries, and every signup
 // mutation here writes per-doc via utils/tryoutSignupDocs. Deletes must ALSO
-// clear a legacy-resident copy through updateTeamArrays — the union re-admits
-// any legacy entry whose id has no subcollection doc, so removing only the
-// subdoc would resurrect the signup from its stale array twin.
+// clear a legacy-resident copy — the union re-admits any legacy entry whose id
+// has no subcollection doc, so removing only the subdoc would resurrect the
+// signup from its stale array twin.
+//
+// That legacy cleanup deliberately does NOT go through updateTeamArrays. Both
+// of its shapes are wrong for a union-backed key: `removeById` resolves the
+// arrayRemove value from teamData (the union, where a coach-edited SUBDOC wins
+// the id) so it matches nothing once the two copies diverge, and `mapEntries`
+// writes the whole resolved array — i.e. the union — back into the team doc,
+// re-inflating it with subcollection-only entries. Every cleanup here reads
+// the RAW array refs and calls removeLegacySignupEntries, which arrayRemoves
+// the exact stored elements (tryoutSignupDocs.ts has the full reasoning).
 //
 // The remaining array mutations (players, tryoutSessions, submissions) go
 // through the injected updateTeamArrays — those arrays still take concurrent
@@ -311,34 +322,37 @@ export const useTryoutFlows = ({
       // RESURRECT HAZARD: the union re-admits any legacy-array entry whose id
       // has no subcollection doc — so once the subdoc above is gone, a stale
       // legacy copy would bring the signup straight back on the next
-      // assembly. If the id still lives in the legacy array, remove it there
-      // too (removeById → arrayRemove of the exact entry, so a portal signup
-      // that landed after this coach's snapshot survives the delete).
-      if ((rawTryoutSignupsRef.current || []).some((s) => s?.id === id)) {
-        updateTeamArrays({ op: "removeById", key: "tryoutSignups", id });
-      }
+      // assembly, carrying whatever data it held BEFORE the coach's edits.
+      // arrayRemove of the exact stored element, so a portal signup that
+      // landed after this coach's snapshot survives the delete; a
+      // subcollection-only signup finds no legacy twin and writes nothing.
+      removeLegacySignupEntries(
+        db,
+        appId,
+        teamId,
+        "tryoutSignups",
+        findLegacySignupEntries(rawTryoutSignupsRef.current, [id]),
+      ).catch(signupWriteFailed);
     },
-    [
-      db,
-      appId,
-      teamId,
-      rawTryoutSignupsRef,
-      updateTeamArrays,
-      signupWriteFailed,
-    ],
+    [db, appId, teamId, rawTryoutSignupsRef, signupWriteFailed],
   );
 
   // Bulk-remove signups: ONE batch of per-doc deletes (deleting a doc that
   // never existed is a Firestore no-op, so legacy-only ids are safe to
-  // include) plus, when any target still lives in the legacy array, ONE
-  // mapEntries filter clearing every legacy-resident target at once — the
-  // bulk form of deleteTryoutSignup's resurrect guard. Returns the number
-  // removed (estimated from the call-time union via teamDataRef; the legacy
-  // filter itself resolves against the latest state).
+  // include) plus ONE exact-entry arrayRemove clearing every legacy-resident
+  // target at once (arrayRemove is variadic) — the bulk form of
+  // deleteTryoutSignup's resurrect guard. Returns the number removed
+  // (estimated from the call-time union via teamDataRef).
+  //
+  // The legacy side must NOT be a mapEntries filter: that writes the whole
+  // resolved array back, and the array it resolves is teamData's UNION — which
+  // would push subcollection-only signups INTO the legacy team-doc array,
+  // re-inflating the doc this migration exists to shrink and resurrecting them
+  // as legacy entries the moment their subdoc goes away.
   const deleteTryoutSignups = useCallback(
     (ids: any[]) => {
       if (!teamId) return 0;
-      const toRemove = new Set((ids || []).filter(Boolean));
+      const toRemove = new Set<string>((ids || []).filter(Boolean));
       if (toRemove.size === 0) return 0;
       const current = teamDataRef.current.tryoutSignups || [];
       const targets = current.filter((s: any) => toRemove.has(s.id));
@@ -348,29 +362,16 @@ export const useTryoutFlows = ({
         batch.delete(signupDocRef(db, appId, teamId, "tryoutSignups", s.id));
       }
       batch.commit().catch(signupWriteFailed);
-      if (
-        (rawTryoutSignupsRef.current || []).some(
-          (s) => s?.id && toRemove.has(s.id),
-        )
-      ) {
-        updateTeamArrays({
-          op: "mapEntries",
-          key: "tryoutSignups",
-          map: (items: TryoutSignup[]) =>
-            items.filter((s) => !toRemove.has(s.id)),
-        });
-      }
+      removeLegacySignupEntries(
+        db,
+        appId,
+        teamId,
+        "tryoutSignups",
+        findLegacySignupEntries(rawTryoutSignupsRef.current, toRemove),
+      ).catch(signupWriteFailed);
       return targets.length;
     },
-    [
-      db,
-      appId,
-      teamId,
-      teamDataRef,
-      rawTryoutSignupsRef,
-      updateTeamArrays,
-      signupWriteFailed,
-    ],
+    [db, appId, teamId, teamDataRef, rawTryoutSignupsRef, signupWriteFailed],
   );
 
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
@@ -382,18 +383,15 @@ export const useTryoutFlows = ({
       deleteSignupDoc(db, appId, teamId, "interestSignups", id).catch(
         signupWriteFailed,
       );
-      if ((rawInterestSignupsRef.current || []).some((s) => s?.id === id)) {
-        updateTeamArrays({ op: "removeById", key: "interestSignups", id });
-      }
+      removeLegacySignupEntries(
+        db,
+        appId,
+        teamId,
+        "interestSignups",
+        findLegacySignupEntries(rawInterestSignupsRef.current, [id]),
+      ).catch(signupWriteFailed);
     },
-    [
-      db,
-      appId,
-      teamId,
-      rawInterestSignupsRef,
-      updateTeamArrays,
-      signupWriteFailed,
-    ],
+    [db, appId, teamId, rawInterestSignupsRef, signupWriteFailed],
   );
 
   // Promote an interest-survey lead into a real tryout signup. Useful
@@ -444,10 +442,15 @@ export const useTryoutFlows = ({
       batch.commit().catch(signupWriteFailed);
       // A legacy-resident lead needs its array copy cleared too, or the union
       // resurrects the consumed lead once its subdoc is gone (same hazard as
-      // deleteInterestSignup).
-      if ((rawInterestSignupsRef.current || []).some((s) => s?.id === id)) {
-        updateTeamArrays({ op: "removeById", key: "interestSignups", id });
-      }
+      // deleteInterestSignup) — and it comes back as an un-converted lead
+      // alongside the tryout signup this just created.
+      removeLegacySignupEntries(
+        db,
+        appId,
+        teamId,
+        "interestSignups",
+        findLegacySignupEntries(rawInterestSignupsRef.current, [id]),
+      ).catch(signupWriteFailed);
       toast.push({
         kind: "success",
         title: "Moved to tryouts",
@@ -460,7 +463,6 @@ export const useTryoutFlows = ({
       teamId,
       teamDataRef,
       rawInterestSignupsRef,
-      updateTeamArrays,
       toast,
       signupWriteFailed,
     ],
@@ -933,23 +935,31 @@ export const useTryoutFlows = ({
           tryoutSignupId: signup.id,
         };
         // The players append stays on the team-doc array lane (players haven't
-        // migrated); the signup removal is a subcollection delete. Two writes
-        // that only a server-side batch could make atomic — the append is
-        // issued FIRST so the bad interleaving is a duplicate (signup lingers
-        // next to the new player; coach deletes it by hand) rather than a
-        // vanished kid. The window shrinks; it does not close (same caveat as
-        // the advanceSeason eval reset in useTeamLifecycle). A legacy-resident
-        // signup rides its removeById in the same team-doc write as the
-        // append, closing the union-resurrect hazard.
-        updateTeamArrays([
-          ...((rawTryoutSignupsRef.current || []).some((s) => s?.id === id)
-            ? [{ op: "removeById", key: "tryoutSignups", id } as const]
-            : []),
-          { op: "append", key: "players", entries: [player] },
-        ]);
+        // migrated); consuming the signup is a subcollection delete plus, when
+        // a legacy twin exists, an exact-entry arrayRemove on the team doc.
+        // Separate writes that only a server-side batch could make atomic —
+        // the append is issued FIRST so the bad interleaving is a duplicate
+        // (signup lingers next to the new player; coach deletes it by hand)
+        // rather than a vanished kid. The window shrinks; it does not close
+        // (same caveat as the advanceSeason eval reset in useTeamLifecycle).
+        //
+        // The legacy remove no longer rides the append's team-doc write. It
+        // can't: updateTeamArrays would resolve the arrayRemove value from the
+        // assembled union, and this signup has almost certainly been edited in
+        // its subdoc (that's what "accepted" means here), so the remove would
+        // match nothing — leaving the kid on the roster AND still in Tryouts,
+        // the exact outcome this cleanup exists to prevent.
+        updateTeamArrays({ op: "append", key: "players", entries: [player] });
         deleteSignupDoc(db, appId, teamId, "tryoutSignups", id).catch(
           signupWriteFailed,
         );
+        removeLegacySignupEntries(
+          db,
+          appId,
+          teamId,
+          "tryoutSignups",
+          findLegacySignupEntries(rawTryoutSignupsRef.current, [id]),
+        ).catch(signupWriteFailed);
         toast.push({
           kind: "success",
           title: `${name} added to current roster`,

@@ -31,7 +31,10 @@ import {
   appendOpponentArchive,
 } from "../utils/opponentHistory";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
-import { deleteSignupDoc } from "../utils/tryoutSignupDocs";
+import {
+  deleteAllSignupDocs,
+  deleteSignupDoc,
+} from "../utils/tryoutSignupDocs";
 import {
   blankStats,
   buildPreseasonSeedRound,
@@ -92,6 +95,41 @@ const readServerTeamList = async (
   } catch {
     return null;
   }
+};
+
+// How long a subcollection write gets to report a REAL failure before we stop
+// waiting on it. Long enough that a slow-but-online write still reports; short
+// enough that a coach never watches a dead spinner.
+const WRITE_REPORT_WINDOW_MS = 4000;
+
+// Count how many of these writes actually REJECTED, waiting at most one report
+// window for them to settle.
+//
+// Firestore never rejects a write that is merely QUEUED offline — it simply
+// doesn't settle until the device reconnects. So awaiting these subcollection
+// sweeps outright pins whoever called us for as long as the coach is off the
+// network, which at a ballfield is the normal case: AdvanceSeasonPage awaits
+// advanceSeason() behind a busy spinner before it navigates, and deleteTeamCmd
+// blocks the settings flow the same way. The queued writes still land on
+// reconnect (and Firestore preserves their order), so what giving up early
+// costs us is only the ability to REPORT on them: a 0 here means "nothing
+// failed that we could see", never "everything landed".
+//
+// Promise.allSettled attaches a handler to every write up front, so losing the
+// race below can never surface an unhandled rejection.
+const failuresWithinReportWindow = async (
+  writes: Promise<unknown>[],
+): Promise<number> => {
+  if (writes.length === 0) return 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const settled = await Promise.race([
+    Promise.allSettled(writes),
+    new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), WRITE_REPORT_WINDOW_MS);
+    }),
+  ]);
+  if (timer !== undefined) clearTimeout(timer);
+  return settled ? settled.filter((r) => r.status === "rejected").length : 0;
 };
 
 export const useTeamLifecycle = ({
@@ -575,9 +613,7 @@ export const useTeamLifecycle = ({
             deletions.push(deleteEvalRound(db, appId, activeTeamId, ev.id));
           }
         }
-        const failed = (await Promise.allSettled(deletions)).filter(
-          (r) => r.status === "rejected",
-        ).length;
+        const failed = await failuresWithinReportWindow(deletions);
         if (failed > 0) {
           toast.push({
             kind: "warn",
@@ -588,9 +624,10 @@ export const useTeamLifecycle = ({
           });
         }
         if (preseasonRound) {
-          try {
-            await saveEvalRound(db, appId, activeTeamId, preseasonRound);
-          } catch {
+          const seedFailed = await failuresWithinReportWindow([
+            saveEvalRound(db, appId, activeTeamId, preseasonRound),
+          ]);
+          if (seedFailed > 0) {
             toast.push({
               kind: "error",
               title: "Preseason eval seed didn't save",
@@ -612,7 +649,9 @@ export const useTeamLifecycle = ({
         // team-doc write doesn't find the signups already destroyed — the same
         // shrunken-but-open window as the eval-rounds reset above. Failures
         // are surfaced rather than swallowed so the head knows the reset was
-        // partial.
+        // partial, but only within a bounded window: a coach advancing the
+        // season from a dead-zone field would otherwise sit on this await
+        // until they reconnect (failuresWithinReportWindow).
         const signupDeletions: Promise<void>[] = [];
         for (const s of teamData.tryoutSignups || []) {
           if (s?.id) {
@@ -621,9 +660,7 @@ export const useTeamLifecycle = ({
             );
           }
         }
-        const signupsFailed = (
-          await Promise.allSettled(signupDeletions)
-        ).filter((r) => r.status === "rejected").length;
+        const signupsFailed = await failuresWithinReportWindow(signupDeletions);
         if (signupsFailed > 0) {
           toast.push({
             kind: "warn",
@@ -720,6 +757,23 @@ export const useTeamLifecycle = ({
     // Auto-snapshot before the team document is deleted.
     downloadTeamBackup(teamDataRef.current, activeTeamId, "snapshot");
     try {
+      // Deleting the team doc does NOT delete its subcollections — Firestore
+      // has no cascade — so without this sweep every tryout and interest
+      // signup (real family names, emails and phone numbers) would outlive the
+      // team forever. Swept FIRST, while the team doc still exists: the
+      // subcollection delete rule resolves membership by reading that parent
+      // doc, so anything still here after the team doc is gone can never be
+      // deleted by a client again.
+      //
+      // Honest caveat: a client-side sweep is best-effort, not the recursive
+      // delete this wants (that needs the Admin SDK). A failed or partial
+      // sweep leaves orphaned PII behind, and we say so below instead of
+      // reporting a clean delete. We still proceed with the team deletion the
+      // coach asked for — refusing would leave both the team AND the orphans.
+      const sweepFailures = await failuresWithinReportWindow([
+        deleteAllSignupDocs(db, appId, activeTeamId!, "tryoutSignups"),
+        deleteAllSignupDocs(db, appId, activeTeamId!, "interestSignups"),
+      ]);
       await deleteDoc(
         doc(db, "artifacts", appId, "public", "data", "teams", activeTeamId!),
       );
@@ -745,6 +799,14 @@ export const useTeamLifecycle = ({
         { teams: remaining, activeTeamId: remaining[0]?.id || null },
         { merge: true },
       );
+      if (sweepFailures > 0) {
+        toast.push({
+          kind: "warn",
+          title: "Some signup records couldn't be deleted",
+          message:
+            "The team is gone, but some tryout or interest signups stayed behind and can no longer be reached from the app. Contact support if you need them purged.",
+        });
+      }
       toast.push({ kind: "success", title: "Team deleted" });
     } catch (e) {
       toast.push({

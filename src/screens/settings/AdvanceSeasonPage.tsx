@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Icons } from "../../icons";
 import { useTeam } from "../../contexts";
@@ -63,31 +63,65 @@ export const AdvanceSeasonPage = memo(() => {
   // Tryout signups to bring forward. Defaults to the ones already marked
   // "accepted" (the HC accepted them for next season on the Tryouts tab) —
   // they're pre-checked here so the accept decision carries through. Other
-  // signups stay opt-in. Seeded on mount; arriving on the page = opening
-  // the old modal.
-  const [promoteIds, setPromoteIds] = useState<Set<string>>(
-    () =>
-      new Set(
-        (team.tryoutSignups || [])
-          .filter((s: any) => s.status === "accepted")
-          .map((s: any) => String(s.id)),
-      ),
-  );
-  const [depositPaid, setDepositPaid] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      (team.tryoutSignups || [])
-        .filter((s: any) => s.status === "accepted")
-        .map((s: any) => [s.id, s.depositPaid === true]),
-    ),
+  // signups stay opt-in. These three stay LOCAL, latched wizard state on
+  // purpose: a Firestore snapshot landing mid-edit must never yank the
+  // coach's selection out from under them.
+  //
+  // They start EMPTY and are seeded by the effect below rather than from a
+  // useState initializer, because signups now stream in from a subcollection
+  // subscription (Phase 1 of docs/firestore-data-migration.md) instead of
+  // riding in on the team doc. Mounting this page in the first frames after a
+  // load or refresh used to latch an empty list — the coach saw nothing to
+  // tick, and the advance then promoted no tryout players and mis-seeded
+  // deposits, with nothing on screen to say so.
+  const [promoteIds, setPromoteIds] = useState<Set<string>>(() => new Set());
+  const [depositPaid, setDepositPaid] = useState<Record<string, boolean>>(
+    () => ({}),
   );
   const [depositPaidAt, setDepositPaidAt] = useState<Record<string, string>>(
-    () =>
-      Object.fromEntries(
-        (team.tryoutSignups || [])
-          .filter((s: any) => s.status === "accepted" && s.depositPaidAt)
-          .map((s: any) => [s.id, String(s.depositPaidAt).slice(0, 10)]),
-      ),
+    () => ({}),
   );
+
+  // Ids the pre-check rule has already been applied to. Seeding is per-id and
+  // additive precisely so it survives multi-stage arrival: the team doc's
+  // legacy array can paint first and the subcollection union land after it
+  // (they're merged, so the list GROWS), and a straggling portal signup can
+  // show up minutes later. Latching on "the first non-empty list" would miss
+  // everyone in the second batch.
+  //
+  // Each id is seeded exactly once, which is what protects deliberate edits:
+  // once the coach has seen a row, unticking it is final — a later snapshot
+  // carrying the same accepted signup can't re-check it behind their back.
+  // Rows that arrive before the coach can act on them aren't yet visible to
+  // edit, so there's no selection to clobber.
+  const seededIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const fresh = tryoutSignups.filter(
+      (s: any) => !seededIdsRef.current.has(String(s.id)),
+    );
+    if (fresh.length === 0) return;
+    for (const s of fresh) seededIdsRef.current.add(String(s.id));
+    const accepted = fresh.filter((s: any) => s.status === "accepted");
+    if (accepted.length === 0) return;
+    setPromoteIds((prev) => {
+      const next = new Set(prev);
+      for (const s of accepted) next.add(String(s.id));
+      return next;
+    });
+    setDepositPaid((prev) => {
+      const next = { ...prev };
+      for (const s of accepted) next[s.id] = s.depositPaid === true;
+      return next;
+    });
+    setDepositPaidAt((prev) => {
+      const next = { ...prev };
+      for (const s of accepted) {
+        if (s.depositPaidAt) next[s.id] = String(s.depositPaidAt).slice(0, 10);
+      }
+      return next;
+    });
+  }, [tryoutSignups]);
+
   // Returning-player offer letter draft (copyable), opened from a row.
   // Rendered inline (same mounted page) so the checkboxes above survive.
   const [offerPlayer, setOfferPlayer] = useState<any | null>(null);

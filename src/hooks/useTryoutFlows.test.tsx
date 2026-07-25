@@ -6,6 +6,7 @@ import { applyTeamOps, makeToast } from "../test-utils";
 import {
   deleteSignupDoc,
   newSignupId,
+  removeLegacySignupEntries,
   upsertSignupDoc,
 } from "../utils/tryoutSignupDocs";
 
@@ -22,6 +23,18 @@ vi.mock("../utils/tryoutSignupDocs", () => ({
   ),
   upsertSignupDoc: vi.fn(() => Promise.resolve()),
   deleteSignupDoc: vi.fn(() => Promise.resolve()),
+  // Pure, and reimplemented here because the module is fully mocked — the
+  // legacy-cleanup tests below assert the hook hands the arrayRemove write the
+  // EXACT object off the raw team-doc array, so this lookup has to preserve
+  // identity the way the real one does (its own tests live in
+  // utils/tryoutSignupDocs.test.ts).
+  findLegacySignupEntries: vi.fn(
+    (raw: { id?: string }[] | null, ids: Iterable<string>) => {
+      const wanted = new Set(ids);
+      return (raw || []).filter((e) => e && e.id && wanted.has(e.id));
+    },
+  ),
+  removeLegacySignupEntries: vi.fn(() => Promise.resolve()),
 }));
 // Only writeBatch is imported from the SDK here; each call mints a fresh
 // batch recorder so a test can inspect the set/delete/commit sequence.
@@ -36,7 +49,16 @@ vi.mock("firebase/firestore", () => ({
 const mockUpsert = upsertSignupDoc as unknown as ReturnType<typeof vi.fn>;
 const mockDeleteSignup = deleteSignupDoc as unknown as ReturnType<typeof vi.fn>;
 const mockNewSignupId = newSignupId as unknown as ReturnType<typeof vi.fn>;
+const mockRemoveLegacy = removeLegacySignupEntries as unknown as ReturnType<
+  typeof vi.fn
+>;
 const mockWriteBatch = writeBatch as unknown as ReturnType<typeof vi.fn>;
+// The raw legacy entries handed to the arrayRemove write for `key`, or null
+// when the hook decided there was no legacy twin to clear.
+const legacyRemoved = (key: string) => {
+  const call = mockRemoveLegacy.mock.calls.find((c) => c[3] === key);
+  return call ? (call[4] as { id?: string }[]) : null;
+};
 const lastBatch = () =>
   mockWriteBatch.mock.results[mockWriteBatch.mock.results.length - 1]?.value;
 
@@ -315,29 +337,33 @@ describe("useTryoutFlows", () => {
     );
   });
 
-  it("acceptTryout('current') appends the player, deletes the signup doc, and clears a legacy copy", () => {
+  it("acceptTryout('current') appends the player, deletes the signup doc, and arrayRemoves the exact legacy copy", () => {
+    // The stored legacy element predates the coach's curation (the union shows
+    // status 'offered'); resolving the remove against the union would match
+    // nothing and leave the kid on the roster AND still in Tryouts.
+    const storedLegacy = { id: "s1", firstName: "Ava", status: "tryout" };
     const { result, teamData, updateTeamArrays } = setup(
       {
         tryoutSignups: [
-          { id: "s1", firstName: "Ava", lastName: "Rivera", isCatcher: true },
+          {
+            id: "s1",
+            firstName: "Ava",
+            lastName: "Rivera",
+            isCatcher: true,
+            status: "offered",
+          },
         ],
         players: [],
       },
       undefined,
-      // The signup still lives in the LEGACY array: its removeById must ride
-      // the same team-doc write as the players append, or the union would
-      // resurrect the consumed signup once its subdoc is deleted.
-      { tryout: [{ id: "s1" }] },
+      { tryout: [storedLegacy] },
     );
     act(() => result.current.acceptTryout("s1", "current"));
+    // Only the players append rides the team-doc array lane now.
     expect(updateTeamArrays).toHaveBeenCalledTimes(1);
-    const ops = updateTeamArrays.mock.calls[0][0];
-    expect(ops.map((u: any) => [u.op, u.key])).toEqual([
-      ["removeById", "tryoutSignups"],
-      ["append", "players"],
-    ]);
-    const next = applyTeamOps(teamData, ops);
-    expect(next.tryoutSignups).toEqual([]);
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect([op.op, op.key]).toEqual(["append", "players"]);
+    const next = applyTeamOps(teamData, op);
     expect(next.players[0]).toMatchObject({
       name: "Ava Rivera",
       playerStatus: "returning",
@@ -350,16 +376,17 @@ describe("useTryoutFlows", () => {
       "tryoutSignups",
       "s1",
     );
+    expect(legacyRemoved("tryoutSignups")![0]).toBe(storedLegacy);
   });
 
-  it("acceptTryout('current') skips the legacy remove for a subcollection-only signup", () => {
+  it("acceptTryout('current') issues no legacy remove for a subcollection-only signup", () => {
     const { result, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "s1", firstName: "Ava", lastName: "Rivera" }],
       players: [],
     });
     act(() => result.current.acceptTryout("s1", "current"));
-    const ops = updateTeamArrays.mock.calls[0][0];
-    expect(ops.map((u: any) => [u.op, u.key])).toEqual([["append", "players"]]);
+    const op = updateTeamArrays.mock.calls[0][0];
+    expect([op.op, op.key]).toEqual(["append", "players"]);
     expect(mockDeleteSignup).toHaveBeenCalledWith(
       db,
       "test-app",
@@ -367,6 +394,7 @@ describe("useTryoutFlows", () => {
       "tryoutSignups",
       "s1",
     );
+    expect(legacyRemoved("tryoutSignups")).toEqual([]);
   });
 
   it("saveTryoutEvaluation records a date-grouped tryout session", () => {
@@ -495,33 +523,48 @@ describe("useTryoutFlows", () => {
     expect(batch.commit).toHaveBeenCalledTimes(1);
     // The lead lives only in the subcollection — no legacy write needed.
     expect(updateTeamArrays).not.toHaveBeenCalled();
+    expect(legacyRemoved("interestSignups")).toEqual([]);
     expect(toast.push).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "success", title: "Moved to tryouts" }),
     );
   });
 
-  it("convertInterestToTryout also clears a legacy-resident lead from the array", () => {
+  it("convertInterestToTryout arrayRemoves the exact legacy-resident lead", () => {
+    // A consumed lead that survives in the array comes back un-converted next
+    // to the tryout signup this just created.
+    const storedLead = { id: "i1", firstName: "Mia" };
     const { result, updateTeamArrays } = setup(
       { interestSignups: [{ id: "i1", firstName: "Mia", lastName: "Stone" }] },
       undefined,
-      { interest: [{ id: "i1" }] },
+      { interest: [storedLead] },
     );
     act(() => result.current.convertInterestToTryout("i1"));
-    expect(updateTeamArrays).toHaveBeenCalledWith({
-      op: "removeById",
-      key: "interestSignups",
-      id: "i1",
-    });
+    expect(mockRemoveLegacy).toHaveBeenCalledWith(
+      db,
+      "test-app",
+      "team-1",
+      "interestSignups",
+      [storedLead],
+    );
+    expect(legacyRemoved("interestSignups")![0]).toBe(storedLead);
+    expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
-  it("deleteTryoutSignup deletes the subdoc AND the legacy array copy when one exists", () => {
+  it("deleteTryoutSignup deletes the subdoc AND arrayRemoves the EXACT stored legacy entry", () => {
     // The resurrect hazard: the union re-admits any legacy entry whose id has
     // no subcollection doc, so deleting only the subdoc would bring the
     // signup back on the next assembly.
+    //
+    // The stored legacy element here is PRE-EDIT (a portal submission) while
+    // the union shows the coach's edited subdoc — the exact divergence that
+    // made the old updateTeamArrays({op:'removeById'}) path match nothing and
+    // resurrect the family with stale data. The cleanup must resolve against
+    // the RAW array.
+    const storedLegacy = { id: "b", firstName: "Ava", status: "tryout" };
     const { result, updateTeamArrays } = setup(
-      { tryoutSignups: [{ id: "b" }] },
+      { tryoutSignups: [{ id: "b", firstName: "Ava", status: "accepted" }] },
       undefined,
-      { tryout: [{ id: "b" }] },
+      { tryout: [storedLegacy] },
     );
     act(() => result.current.deleteTryoutSignup("b"));
     expect(mockDeleteSignup).toHaveBeenCalledWith(
@@ -531,32 +574,38 @@ describe("useTryoutFlows", () => {
       "tryoutSignups",
       "b",
     );
-    // removeById → arrayRemove of the exact entry, so a portal signup that
-    // landed after this coach's snapshot survives the legacy cleanup.
-    expect(updateTeamArrays).toHaveBeenCalledWith({
-      op: "removeById",
-      key: "tryoutSignups",
-      id: "b",
-    });
+    expect(mockRemoveLegacy).toHaveBeenCalledWith(
+      db,
+      "test-app",
+      "team-1",
+      "tryoutSignups",
+      [storedLegacy],
+    );
+    // Identity, not just shape: only the stored object can match arrayRemove.
+    expect(legacyRemoved("tryoutSignups")![0]).toBe(storedLegacy);
+    // The union-resolving array lane is never used for these keys anymore.
+    expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
-  it("deleteTryoutSignup skips the legacy write for a subcollection-only signup", () => {
+  it("deleteTryoutSignup issues no legacy write for a subcollection-only signup", () => {
     const { result, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "b" }],
     });
     act(() => result.current.deleteTryoutSignup("b"));
     expect(mockDeleteSignup).toHaveBeenCalledTimes(1);
+    expect(legacyRemoved("tryoutSignups")).toEqual([]);
     expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
-  it("deleteTryoutSignups batch-deletes every id and clears legacy residents in ONE filter", () => {
+  it("deleteTryoutSignups batch-deletes every id and clears legacy residents in ONE arrayRemove", () => {
+    const legacyB = { id: "b" };
     const { result, updateTeamArrays } = setup(
       {
         tryoutSignups: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
       },
       undefined,
       // Only b is still legacy-resident; d is subcollection-only.
-      { tryout: [{ id: "b" }] },
+      { tryout: [{ id: "a" }, legacyB] },
     );
     let removed = 0;
     act(() => {
@@ -570,19 +619,36 @@ describe("useTryoutFlows", () => {
       ),
     ).toEqual(["b", "d"]);
     expect(batch.commit).toHaveBeenCalledTimes(1);
-    // ONE mapEntries filter (not N removeByIds) for the legacy residents —
-    // resolve-once against the latest array, so an untargeted portal signup
-    // survives.
-    expect(updateTeamArrays).toHaveBeenCalledTimes(1);
-    const op = updateTeamArrays.mock.calls[0][0];
-    expect(op).toMatchObject({ op: "mapEntries", key: "tryoutSignups" });
-    expect(
-      applyTeamOps({ tryoutSignups: [{ id: "a" }, { id: "b" }] }, op)
-        .tryoutSignups,
-    ).toEqual([{ id: "a" }]);
+    // ONE variadic arrayRemove of the exact stored elements, carrying only the
+    // TARGETED legacy residents: `a` stays in the array, `d` was never there.
+    expect(mockRemoveLegacy).toHaveBeenCalledTimes(1);
+    expect(legacyRemoved("tryoutSignups")).toEqual([legacyB]);
+    expect(legacyRemoved("tryoutSignups")![0]).toBe(legacyB);
   });
 
-  it("deleteTryoutSignups skips the legacy write when no target is legacy-resident", () => {
+  it("deleteTryoutSignups never writes the assembled union back into the team doc", () => {
+    // The re-inflation bug: a mapEntries filter writes the WHOLE resolved
+    // array, and for this key the resolved array is the union — so it pushed
+    // subcollection-only signups INTO the legacy team-doc array, growing the
+    // doc this migration shrinks and resurrecting them as legacy entries.
+    const { result, updateTeamArrays } = setup(
+      {
+        // c and d exist ONLY as subdocs; b is the lone legacy resident.
+        tryoutSignups: [{ id: "b" }, { id: "c" }, { id: "d" }],
+      },
+      undefined,
+      { tryout: [{ id: "b" }] },
+    );
+    act(() => {
+      result.current.deleteTryoutSignups(["b"]);
+    });
+    expect(updateTeamArrays).not.toHaveBeenCalled();
+    const payload = legacyRemoved("tryoutSignups")!;
+    expect(payload.map((s) => s.id)).toEqual(["b"]);
+    expect(payload.some((s) => s.id === "c" || s.id === "d")).toBe(false);
+  });
+
+  it("deleteTryoutSignups issues no legacy write when no target is legacy-resident", () => {
     const { result, updateTeamArrays } = setup({
       tryoutSignups: [{ id: "a" }, { id: "b" }],
     });
@@ -592,6 +658,7 @@ describe("useTryoutFlows", () => {
     });
     expect(removed).toBe(1);
     expect(lastBatch().commit).toHaveBeenCalledTimes(1);
+    expect(legacyRemoved("tryoutSignups")).toEqual([]);
     expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
@@ -605,14 +672,16 @@ describe("useTryoutFlows", () => {
     });
     expect(removed).toBe(0);
     expect(mockWriteBatch).not.toHaveBeenCalled();
+    expect(mockRemoveLegacy).not.toHaveBeenCalled();
     expect(updateTeamArrays).not.toHaveBeenCalled();
   });
 
-  it("deleteInterestSignup deletes the subdoc, plus the legacy copy only when one exists", () => {
+  it("deleteInterestSignup deletes the subdoc, plus the exact legacy copy only when one exists", () => {
+    const storedLead = { id: "i1", firstName: "Mia" };
     const { result, updateTeamArrays } = setup(
-      { interestSignups: [{ id: "i1" }] },
+      { interestSignups: [{ id: "i1", firstName: "Mia", notes: "edited" }] },
       undefined,
-      { interest: [{ id: "i1" }] },
+      { interest: [storedLead] },
     );
     act(() => result.current.deleteInterestSignup("i1"));
     expect(mockDeleteSignup).toHaveBeenCalledWith(
@@ -622,17 +691,16 @@ describe("useTryoutFlows", () => {
       "interestSignups",
       "i1",
     );
-    expect(updateTeamArrays).toHaveBeenCalledWith({
-      op: "removeById",
-      key: "interestSignups",
-      id: "i1",
-    });
+    expect(legacyRemoved("interestSignups")![0]).toBe(storedLead);
+    expect(updateTeamArrays).not.toHaveBeenCalled();
 
-    // Subcollection-only lead: no legacy write.
+    // Subcollection-only lead: nothing to arrayRemove.
+    mockRemoveLegacy.mockClear();
     const { result: r2, updateTeamArrays: u2 } = setup({
       interestSignups: [{ id: "i2" }],
     });
     act(() => r2.current.deleteInterestSignup("i2"));
+    expect(legacyRemoved("interestSignups")).toEqual([]);
     expect(u2).not.toHaveBeenCalled();
   });
 
