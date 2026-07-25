@@ -35,7 +35,9 @@ Two sanitized sibling docs already exist and are **not** affected by this plan:
   `firestore.rules` requires each anonymous write to grow the array by exactly
   one entry **and** preserve every prior entry (`toSet().hasAll(prev)`), so a
   public user can no longer remove, replace, or multi-add signups. Validated by
-  the emulator tests in `firestore-tests/rules.test.ts`.
+  the emulator tests in `firestore-tests/rules.test.ts`. _(These array lanes
+  are now DEPRECATED — new portal clients write per-entry subcollection docs;
+  see Phase 1 below.)_
 - **Join-code privacy.** Join resolution goes through the sanitized
   `teamInvites` doc; the full-team join-code read rule was removed.
 - **Atomic membership writes.** The join flow (`useInviteFlows.joinTeamByCode`)
@@ -52,46 +54,67 @@ roster/schedule/evals in the app), so the lost-update risk is low and the
 churn/risk of converting them is high. Documented here so the trade-off is
 explicit rather than accidental:
 
-| Field                                                  | Writer(s)                                               | Why left as a whole-array write                                                                               |
-| ------------------------------------------------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `players`                                              | `usePlayerCrud`, `acceptTryout`, `advanceSeason`        | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance). |
-| `games`                                                | `useGameCrud`, lineup/finalize flows                    | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                               |
-| `evaluationEvents`                                     | _(since moved)_                                         | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).      |
-| `coachRoles` (head-initiated `setCoachRole`)           | `useTeamMembership`                                     | Owner-only; the **self-join** path already uses the atomic dotted write.                                      |
-| `tryoutSignups` / `interestSignups` (coach-side edits) | `useTryoutFlows` (delete, bulk-delete, convert, accept) | Coach-side mutations; the **public append** path is `arrayUnion` and is the high-frequency, untrusted one.    |
+| Field                                        | Writer(s)                                        | Why left as a whole-array write                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `players`                                    | `usePlayerCrud`, `acceptTryout`, `advanceSeason` | Edited only by signed-in staff; many ops are inherently multi-element (reorder, bulk import, season advance).                                 |
+| `games`                                      | `useGameCrud`, lineup/finalize flows             | Same; games are also slimmed (`slimGame`) on write, which assumes a full array.                                                               |
+| `evaluationEvents`                           | _(since moved)_                                  | **No longer a team array** — eval rounds live per-doc in the `evalRounds` subcollection (Phase 2 below).                                      |
+| `coachRoles` (head-initiated `setCoachRole`) | `useTeamMembership`                              | Owner-only; the **self-join** path already uses the atomic dotted write.                                                                      |
+| `tryoutSignups` / `interestSignups`          | _(since moved)_                                  | **No longer team arrays** — per-entry docs in the signup subcollections (Phase 1 below); legacy arrays union-read + backfilled until dropped. |
 
 If/when these become contended (e.g. multiple assistants entering evals
 simultaneously), prefer per-entry subcollection docs (below) over array
 transactions.
 
-## Deferred: move high-growth data to subcollections
+## Phased move of high-growth data to subcollections
 
-Full subcollection migration was **deliberately not** attempted in this pass: the
+Full subcollection migration was deliberately not attempted in one shot: the
 signup arrays are read across many coach-side surfaces (TryoutsTab, InterestTab,
-tryout evaluations keyed by `tryoutSignupId`, accept-to-roster, CSV export), and
-moving them in one shot is a large, risky rewrite. The safest practical subset
-(rule hardening + atomic appends) shipped instead.
+tryout evaluations keyed by `tryoutSignupId`, accept-to-roster, CSV export), so
+the plan lands one family at a time behind union reads. Phases 1 and 2 have
+shipped; Phase 3 remains deferred.
 
-Suggested phased plan, highest value first:
-
-### Phase 1 — public signups → subcollections (highest growth + public-write)
+### Phase 1 — public signups → subcollections (SHIPPED)
 
 ```
 artifacts/{appId}/public/data/teams/{teamId}/tryoutSignups/{signupId}
 artifacts/{appId}/public/data/teams/{teamId}/interestSignups/{leadId}
 ```
 
-- **Rules:** validate `create` of a single doc (field allowlist + length caps)
-  instead of array diffs; deny public `update`/`delete`. This is simpler and
-  stricter than the array-diff rules and removes the per-doc size pressure
-  entirely.
-- **Portal write:** `setDoc(doc(collection, signupId), payload)` instead of
-  `arrayUnion`.
-- **Coach read:** `onSnapshot(collection(...))` merged with any legacy
-  root-array entries for back-compat (see below).
-- **Back-compat:** keep reading legacy `team.tryoutSignups` /
-  `team.interestSignups` and present the union; a one-time per-team migration
-  can copy legacy array entries into the subcollection and then clear the array.
+Shipped mirroring the evalRounds pattern (Phase 2 below), via the shared
+helpers in `src/utils/tryoutSignupDocs.ts`:
+
+- **Rules:** subcollection READ is member-only (signups are family PII —
+  there is deliberately no public read). CREATE stays open to any signed-in
+  caller (anonymous portal auth counts) under the same team-state gates as
+  the old array lanes — `tryoutsOpen` for tryout signups, `tryoutShareId`
+  for interest leads, checked via a `get()` on the parent team doc — plus a
+  field allowlist and per-field size caps (`SIGNUP_LIMITS` with headroom)
+  the array diff could never express. Public UPDATE/DELETE are denied;
+  members create/update/delete freely (member create is unconstrained so
+  backfill can copy legacy entries verbatim). Emulator-tested in
+  `firestore-tests/rules.test.ts`.
+- **Portal write:** `setDoc` of one per-entry doc (`upsertSignupDoc`), with
+  the id minted by a Firestore auto-id (`newSignupId`) instead of `genId`.
+- **Coach read:** `TeamProvider` subscribes to both subcollections and
+  presents the UNION of subcollection docs + any legacy root-array entries
+  (`assembleSignups`; the subcollection wins id conflicts, doc id
+  authoritative).
+- **Lazy backfill:** on load, legacy array entries whose ids are not yet
+  subcollection docs are copied in (`backfillSignupDocs` — idempotent, and
+  it never overwrites an already-edited subdoc with its stale legacy copy).
+  Once every legacy id is covered (`allLegacyMigrated`, which refuses to
+  fire on an empty legacy array so a failed/empty subscription can never
+  trigger it), the client drops both arrays from the team doc in one
+  `deleteField()` write (`dropLegacySignupArrays`).
+- **Legacy public lanes retained one release:** the array-append rules stay
+  (marked DEPRECATED in `firestore.rules`) for cached portal clients still
+  running the `arrayUnion` code; stragglers are harmless because union +
+  backfill absorbs late array entries. **Explicit follow-up (next
+  release):** remove the two array lanes and ratchet `tryoutSignups` /
+  `interestSignups` like `evaluationEvents`; migrate
+  `playerInfoSubmissions` / `availabilitySubmissions` the same way (their
+  array lanes are not deprecated yet).
 
 ### Phase 2 — evaluations → subcollection (SHIPPED)
 

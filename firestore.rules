@@ -232,6 +232,16 @@ service cloud.firestore {
       // a single new signup — never remove, replace, or multi-add. The empty
       // prev set (first-ever signup) trivially satisfies hasAll, so the first
       // append is allowed.
+      //
+      // DEPRECATED (Phase 1, docs/firestore-data-migration.md): new portal
+      // clients write per-entry docs to the tryoutSignups / interestSignups
+      // SUBCOLLECTIONS below instead of growing these arrays. The two array
+      // lanes stay ONE release for cached portal clients still running the
+      // arrayUnion code — stragglers are harmless because the coach client's
+      // union read + lazy backfill absorbs late array entries into the
+      // subcollection. Next release: remove both lanes and ratchet the arrays
+      // like evaluationEvents. (The playerInfoSubmissions / availability
+      // lanes below are NOT deprecated yet — they migrate in a later phase.)
       allow update: if isSignedIn()
                     && resource.data.tryoutsOpen == true
                     && request.resource.data.diff(resource.data)
@@ -269,6 +279,102 @@ service cloud.firestore {
                          .hasOnly(['availabilitySubmissions'])
                     && appendsExactlyOne('availabilitySubmissions');
 
+      // ----- Shared helpers for the subcollections below (evalRounds,
+      // tryoutSignups, interestSignups). A subcollection rule can't see the
+      // parent team doc as `resource`, so membership is evaluated via a
+      // get() on it (one billed read per request — Firestore caches repeat
+      // get()s of the same doc within a single evaluation).
+      function teamDoc() {
+        return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
+      }
+      function isTeamMember() {
+        return isSignedIn() && (
+          teamDoc().ownerId == request.auth.uid ||
+          (teamDoc().members != null && request.auth.uid in teamDoc().members)
+        );
+      }
+      // Head coach = owner OR a member promoted to 'head' via coachRoles,
+      // matching isHeadCoach() on the team doc.
+      function isTeamHead() {
+        return isSignedIn() && (
+          teamDoc().ownerId == request.auth.uid ||
+          teamDoc().get('coachRoles', {}).get(request.auth.uid, '') == 'head'
+        );
+      }
+
+      // A PUBLIC writer may only create at a Firestore auto-id (20 chars),
+      // and the in-data `id` must match the doc id.
+      //
+      // This is what stops legacy-id shadowing. Legacy array entries carry
+      // genId ids ("ts-xxxxxxxx" / "int-xxxxxxxx", 11-12 chars, Math.random
+      // and explicitly not secret). Without a length floor an anonymous
+      // caller could plant a doc at a KNOWN legacy id; assembleSignups gives
+      // subcollection docs precedence on id conflict, the lazy backfill then
+      // skips that id as "already migrated", and the head-only drop finally
+      // deletes the legacy array — permanently replacing a real family's
+      // signup with attacker content. Members stay unconstrained precisely so
+      // the backfill CAN preserve those short legacy ids.
+      function publicSignupIdOk(docId) {
+        return docId.size() == 20
+          && (!('id' in request.resource.data)
+              || request.resource.data.id == docId);
+      }
+
+      // Per-field caps for the PUBLIC portal create lane on the signup
+      // subcollections. Mirrors SIGNUP_LIMITS in src/utils/helpers.ts with
+      // headroom so a legitimately clamped client payload can never be
+      // edge-rejected by an off-by-one. Every field is optional (the
+      // per-collection hasOnly() allowlist bounds the set) — but a PRESENT
+      // field must be a string within its cap.
+      function signupStrOk(key, max) {
+        return !(key in request.resource.data)
+          || (request.resource.data[key] is string
+              && request.resource.data[key].size() <= max);
+      }
+      // canPitch/canCatch/isCatcher — the portal stamps booleans; tolerate a
+      // short string so an older payload shape ("yes"/"no") still lands.
+      function signupFlagOk(key) {
+        return !(key in request.resource.data)
+          || request.resource.data[key] is bool
+          || (request.resource.data[key] is string
+              && request.resource.data[key].size() <= 60);
+      }
+      function signupCapsOk() {
+        return signupStrOk('id', 60)
+          && signupStrOk('submittedAt', 40)
+          && signupStrOk('firstName', 60)
+          && signupStrOk('lastName', 60)
+          && signupStrOk('dob', 40)
+          && signupStrOk('parentName', 80)
+          && signupStrOk('email', 254)
+          && signupStrOk('phone', 40)
+          && signupStrOk('currentTeam', 80)
+          && signupStrOk('number', 60)
+          && signupStrOk('bats', 60)
+          && signupStrOk('throws', 60)
+          && signupStrOk('primaryPosition', 60)
+          && signupStrOk('secondaryPosition', 60)
+          // The portal derives this list purely from the two declared
+          // positions (TryoutsPortal: Set([primary, secondary]).filter), so
+          // constraining it to that subset bounds the ELEMENTS too — both are
+          // already string-capped above. Without this an element could be a
+          // ~1 MiB string or a nested map, voiding the whole payload envelope
+          // and feeding non-strings to coach code that assumes position codes.
+          && (!('comfortablePositions' in request.resource.data)
+              || (request.resource.data.comfortablePositions is list
+                  && request.resource.data.comfortablePositions.size() <= 12
+                  && request.resource.data.comfortablePositions.toSet().hasOnly([
+                       request.resource.data.get('primaryPosition', ''),
+                       request.resource.data.get('secondaryPosition', '')
+                     ])))
+          && signupFlagOk('canPitch')
+          && signupFlagOk('canCatch')
+          && signupFlagOk('isCatcher')
+          && signupStrOk('tryoutDate', 40)
+          && signupStrOk('notes', 600)
+          && signupStrOk('status', 60);
+      }
+
       // ----- Per-author evaluation rounds (docs/eval-authz-design.md, Option
       // A — the fix for audit finding 3.1). This subcollection is the SOLE
       // home for eval rounds: reads and writes are authorization-scoped — an
@@ -278,23 +384,6 @@ service cloud.firestore {
       // field-scope) has been dropped; the ratchet in the base update rule
       // above keeps it from ever coming back.
       match /evalRounds/{roundId} {
-        function teamDoc() {
-          return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data;
-        }
-        function isTeamMember() {
-          return isSignedIn() && (
-            teamDoc().ownerId == request.auth.uid ||
-            (teamDoc().members != null && request.auth.uid in teamDoc().members)
-          );
-        }
-        // Head coach = owner OR a member promoted to 'head' via coachRoles,
-        // matching isHeadCoach() on the team doc.
-        function isTeamHead() {
-          return isSignedIn() && (
-            teamDoc().ownerId == request.auth.uid ||
-            teamDoc().get('coachRoles', {}).get(request.auth.uid, '') == 'head'
-          );
-        }
         // The signed-in caller authored this existing round.
         function isOwnRound() {
           return isSignedIn() && resource.data.evaluatorId == request.auth.uid;
@@ -314,6 +403,70 @@ service cloud.firestore {
         allow update: if (isTeamHead() || isOwnRound())
                       && request.resource.data.evaluatorId == resource.data.evaluatorId;
         allow delete: if isTeamHead() || isOwnRound();
+      }
+
+      // ----- Per-entry public signups (Phase 1 of
+      // docs/firestore-data-migration.md). New portal submissions land as one
+      // doc per signup here instead of growing the 1 MiB team doc's arrays;
+      // the coach client presents the union of these docs + any legacy array
+      // entries and lazily backfills stragglers (src/utils/tryoutSignupDocs.ts).
+      // READ is member-only — a signup is a family's PII, never public.
+      // CREATE stays open to any signed-in caller (anonymous portal auth
+      // counts) under the same team-state gates as the deprecated array lanes
+      // above, plus a payload allowlist + size caps the array diff could
+      // never express. UPDATE/DELETE are member-only: a visitor can add their
+      // own signup but never touch anyone else's (or revise their own —
+      // coaches curate; a family resubmits instead).
+      match /tryoutSignups/{signupId} {
+        function portalKeysOnly() {
+          return request.resource.data.keys().hasOnly([
+            'id', 'submittedAt', 'firstName', 'lastName', 'dob', 'parentName',
+            'email', 'phone', 'currentTeam', 'number', 'bats', 'throws',
+            'primaryPosition', 'secondaryPosition', 'comfortablePositions',
+            'canPitch', 'canCatch', 'isCatcher', 'tryoutDate', 'notes',
+            'status'
+          ]);
+        }
+        allow read: if isTeamMember();
+        // Member create is deliberately unconstrained: the lazy backfill
+        // copies legacy array entries verbatim (they may predate the portal
+        // payload shape), and coach-added entries don't follow it either.
+        allow create: if isTeamMember()
+                      || (isSignedIn()
+                          && teamDoc().tryoutsOpen == true
+                          && publicSignupIdOk(signupId)
+                          && portalKeysOnly()
+                          && signupCapsOk()
+                          // A public writer may only ever mint a NEW signup.
+                          // Coach curation (offered/accepted/declined) drives
+                          // roster projection and the advance-season deposit
+                          // filters, so it must not be self-declarable.
+                          && (!('status' in request.resource.data)
+                              || request.resource.data.status == 'tryout'));
+        allow update, delete: if isTeamMember();
+      }
+
+      match /interestSignups/{leadId} {
+        // Same allowlist minus `status` — a lead has no tryout status until a
+        // coach converts it.
+        function portalKeysOnly() {
+          return request.resource.data.keys().hasOnly([
+            'id', 'submittedAt', 'firstName', 'lastName', 'dob', 'parentName',
+            'email', 'phone', 'currentTeam', 'number', 'bats', 'throws',
+            'primaryPosition', 'secondaryPosition', 'comfortablePositions',
+            'canPitch', 'canCatch', 'isCatcher', 'tryoutDate', 'notes'
+          ]);
+        }
+        allow read: if isTeamMember();
+        // Interest is collected year-round — gated on the standing share
+        // link existing, matching the deprecated array lane.
+        allow create: if isTeamMember()
+                      || (isSignedIn()
+                          && teamDoc().tryoutShareId != null
+                          && publicSignupIdOk(leadId)
+                          && portalKeysOnly()
+                          && signupCapsOk());
+        allow update, delete: if isTeamMember();
       }
     }
 

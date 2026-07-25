@@ -31,6 +31,7 @@ import {
   appendOpponentArchive,
 } from "../utils/opponentHistory";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
+import { deleteSignupDoc } from "../utils/tryoutSignupDocs";
 import {
   blankStats,
   buildPreseasonSeedRound,
@@ -597,6 +598,40 @@ export const useTeamLifecycle = ({
                 "The season advanced, but the seeded eval round failed to write. Start a new eval round manually.",
             });
           }
+        }
+
+        // Season reset of tryout signups, per-doc in the tryoutSignups
+        // subcollection: `tryoutSignups: []` in the patch above clears any
+        // legacy array stragglers, but migrated signups live one-per-doc and
+        // must be swept individually (ids come from the assembled union on
+        // teamData, which covers both homes). Interest signups are deliberately
+        // untouched — standing leads survive the rollover (see the intake
+        // comment above).
+        //
+        // Deliberately ordered AFTER the season patch is issued so a rejected
+        // team-doc write doesn't find the signups already destroyed — the same
+        // shrunken-but-open window as the eval-rounds reset above. Failures
+        // are surfaced rather than swallowed so the head knows the reset was
+        // partial.
+        const signupDeletions: Promise<void>[] = [];
+        for (const s of teamData.tryoutSignups || []) {
+          if (s?.id) {
+            signupDeletions.push(
+              deleteSignupDoc(db, appId, activeTeamId, "tryoutSignups", s.id),
+            );
+          }
+        }
+        const signupsFailed = (
+          await Promise.allSettled(signupDeletions)
+        ).filter((r) => r.status === "rejected").length;
+        if (signupsFailed > 0) {
+          toast.push({
+            kind: "warn",
+            title: "Some old tryout signups are still there",
+            message: `${signupsFailed} signup${
+              signupsFailed === 1 ? "" : "s"
+            } from ${archivedSeason} couldn't be deleted. Delete them from Tryouts.`,
+          });
         }
       }
 
