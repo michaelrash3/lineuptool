@@ -1,28 +1,36 @@
 import { vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { getDocs, updateDoc } from "firebase/firestore";
+import { getDocs } from "firebase/firestore";
+import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 
 // Stub Firebase so the public portal renders without a real backend. vi.mock is
-// hoisted above the imports, so TryoutsPortal pulls in these stubs.
+// hoisted above the imports, so TryoutsPortal pulls in these stubs. Submits go
+// through the signup-subcollection helpers (Phase 1 of
+// docs/firestore-data-migration.md), mocked as a unit so assertions see the
+// (collection key, payload) pair rather than raw Firestore plumbing.
 vi.mock("../firebase", () => ({ auth: {}, appId: "app", db: {} }));
 vi.mock("firebase/auth", () => ({
   signInAnonymously: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("firebase/firestore", () => ({
   collection: vi.fn(() => ({})),
-  doc: vi.fn(() => ({})),
   getDocs: vi.fn(),
   query: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
-  updateDoc: vi.fn(() => Promise.resolve()),
-  arrayUnion: vi.fn((v) => ({ __arrayUnion: v })),
+}));
+vi.mock("../utils/tryoutSignupDocs", () => ({
+  newSignupId: vi.fn(() => "signup-doc-1"),
+  upsertSignupDoc: vi.fn(() => Promise.resolve()),
 }));
 
 import { TryoutsPortal } from "./TryoutsPortal";
 
 const mockGetDocs = getDocs as unknown as ReturnType<typeof vi.fn>;
-const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
+const mockNewSignupId = newSignupId as unknown as ReturnType<typeof vi.fn>;
+const mockUpsertSignupDoc = upsertSignupDoc as unknown as ReturnType<
+  typeof vi.fn
+>;
 
 // A standing share link → interest survey. First getDocs (shareId query)
 // returns the team mirror; second (dateSlug query) is empty.
@@ -65,7 +73,8 @@ const fill = (label: RegExp, value: string) =>
 
 beforeEach(() => {
   mockGetDocs.mockReset();
-  mockUpdateDoc.mockClear();
+  mockNewSignupId.mockClear();
+  mockUpsertSignupDoc.mockClear();
 });
 
 describe("TryoutsPortal interest header", () => {
@@ -111,7 +120,7 @@ describe("TryoutsPortal submit validation", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/valid parent email/i);
-    expect(mockUpdateDoc).not.toHaveBeenCalled();
+    expect(mockUpsertSignupDoc).not.toHaveBeenCalled();
   });
 
   it("trims/clamps fields and writes the signup once valid", async () => {
@@ -130,8 +139,11 @@ describe("TryoutsPortal submit validation", () => {
     });
     fireEvent.click(screen.getByText("Submit Interest"));
 
-    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
-    const lead = mockUpdateDoc.mock.calls[0][1].interestSignups.__arrayUnion;
+    await waitFor(() => expect(mockUpsertSignupDoc).toHaveBeenCalledTimes(1));
+    const [, , teamId, key, lead] = mockUpsertSignupDoc.mock.calls[0];
+    expect(teamId).toBe("team1");
+    expect(key).toBe("interestSignups");
+    expect(lead.id).toBe("signup-doc-1"); // entry id IS the minted doc id
     expect(lead.firstName).toBe("Ava"); // trimmed
     expect(lead.email).toBe("parent@example.com");
   });
@@ -158,8 +170,9 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     });
     fireEvent.click(screen.getByText("Submit Interest"));
 
-    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
-    const signup = mockUpdateDoc.mock.calls[0][1].tryoutSignups.__arrayUnion;
+    await waitFor(() => expect(mockUpsertSignupDoc).toHaveBeenCalledTimes(1));
+    const [, , , key, signup] = mockUpsertSignupDoc.mock.calls[0];
+    expect(key).toBe("tryoutSignups");
     expect(signup.tryoutDate).toBe("2099-05-22");
     expect(signup.status).toBe("tryout");
     expect(signup.primaryPosition).toBe("P");
@@ -196,8 +209,9 @@ describe("TryoutsPortal tryout dates on interest link", () => {
     });
     fireEvent.click(screen.getByText("Submit Interest"));
 
-    await waitFor(() => expect(mockUpdateDoc).toHaveBeenCalledTimes(1));
-    const lead = mockUpdateDoc.mock.calls[0][1].interestSignups.__arrayUnion;
+    await waitFor(() => expect(mockUpsertSignupDoc).toHaveBeenCalledTimes(1));
+    const [, , , key, lead] = mockUpsertSignupDoc.mock.calls[0];
+    expect(key).toBe("interestSignups");
     expect(lead.tryoutDate).toBe("2099-05-22");
   });
 });

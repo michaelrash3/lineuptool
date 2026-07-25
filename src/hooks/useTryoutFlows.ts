@@ -1,19 +1,29 @@
 import { useCallback } from "react";
+import { writeBatch, type Firestore } from "firebase/firestore";
+import type { DocumentData } from "firebase/firestore";
 import {
   blankStats,
   normalizeTryoutSessions,
   isDepartedPlayer,
   randomCode,
   genId,
+  scrubUndefined,
   coachLastNameOf,
 } from "../utils/helpers";
 import { applyMissingTryoutNumbers } from "../utils/tryouts";
+import {
+  deleteSignupDoc,
+  newSignupId,
+  signupDocRef,
+  upsertSignupDoc,
+} from "../utils/tryoutSignupDocs";
 
 // Lowercase base36 — matches the look of the previous Math.random().toString(36)
 // share tokens, but every character is now uniformly drawn from a CSPRNG and the
 // length is exact (the old slice(2, N) could occasionally come up short).
 const SLUG_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 import type {
+  InterestSignup,
   Player,
   PlayerInfoSubmission,
   ToastContextValue,
@@ -24,17 +34,37 @@ import type { TeamArrayUpdate } from "../utils/teamArrayUpdates";
 
 // Tryout + interest-signup flows extracted from App.tsx's TeamProvider.
 // Share-link generation, open/close state, signup/lead CRUD, tryout
-// evaluations, and accept-to-roster. Array mutations go through the injected
-// updateTeamArrays — the anonymous portals append signups/submissions
-// concurrently via their own rules lanes, so a coach-side whole-array write
-// here would erase any parent submission that landed after the coach's
-// snapshot. Scalar/config writes (share links, open/close, roster cap) stay
-// on updateTeam. No engine or UI-bridge coupling.
+// evaluations, and accept-to-roster.
+//
+// SIGNUPS live per-entry in the tryoutSignups/interestSignups subcollections
+// (Phase 1 of docs/firestore-data-migration.md, mirroring evalRounds):
+// teamDataRef.current.<key> is the assembled UNION of subcollection docs and
+// any not-yet-migrated legacy team-doc array entries, and every signup
+// mutation here writes per-doc via utils/tryoutSignupDocs. Deletes must ALSO
+// clear a legacy-resident copy through updateTeamArrays — the union re-admits
+// any legacy entry whose id has no subcollection doc, so removing only the
+// subdoc would resurrect the signup from its stale array twin.
+//
+// The remaining array mutations (players, tryoutSessions, submissions) go
+// through the injected updateTeamArrays — those arrays still take concurrent
+// appends from their own rules lanes, so a coach-side whole-array write here
+// would erase any parent submission that landed after the coach's snapshot.
+// Scalar/config writes (share links, open/close, roster cap) stay on
+// updateTeam. No engine or UI-bridge coupling.
 interface UseTryoutFlowsArgs {
   // Ref to the live team doc — callbacks read teamDataRef.current at call time
   // so they keep a stable identity across Firestore snapshots (same pattern as
   // updateTeam in TeamProvider).
   teamDataRef: React.MutableRefObject<any>;
+  // The RAW legacy signup arrays straight off the team doc (NOT the assembled
+  // union above) — deletes consult these to decide whether a legacy-array
+  // cleanup write is needed at all (see the resurrect hazard note above).
+  rawTryoutSignupsRef: React.MutableRefObject<
+    TryoutSignup[] | null | undefined
+  >;
+  rawInterestSignupsRef: React.MutableRefObject<
+    InterestSignup[] | null | undefined
+  >;
   updateTeam: (patch: Record<string, unknown>) => void;
   updateTeamArrays: (input: TeamArrayUpdate | TeamArrayUpdate[]) => void;
   toast: ToastContextValue;
@@ -43,6 +73,11 @@ interface UseTryoutFlowsArgs {
     | null
     | undefined;
   activeTeamId: string | null;
+  // Subcollection write handles — mirrors useEvaluationCrud. teamId is the
+  // provider's activeTeamId; nullable because no team may be selected yet.
+  db: Firestore;
+  appId: string;
+  teamId: string | null;
 }
 
 // Union a submission's absence dates + time/reason blocks into a player,
@@ -89,12 +124,29 @@ const submissionBlocks = (sub: any): any[] =>
 
 export const useTryoutFlows = ({
   teamDataRef,
+  rawTryoutSignupsRef,
+  rawInterestSignupsRef,
   updateTeam,
   updateTeamArrays,
   toast,
   user,
   activeTeamId,
+  db,
+  appId,
+  teamId,
 }: UseTryoutFlowsArgs) => {
+  // One error surface for every per-doc signup write (the useEvaluationCrud
+  // pattern): the utils REJECT on failure so we can tell the coach instead of
+  // silently dropping the edit. Offline writes don't reject — they queue in
+  // the SDK's offline buffer — so this fires only on genuine rejections.
+  const signupWriteFailed = useCallback(() => {
+    toast.push({
+      kind: "error",
+      title: "Couldn't save that change",
+      message: "Check your connection and try again.",
+    });
+  }, [toast]);
+
   const generateTryoutShareId = useCallback(() => {
     const id = randomCode(12, SLUG_ALPHABET);
     updateTeam({ tryoutShareId: id, tryoutsOpen: true, tryoutsPhase: "open" });
@@ -161,47 +213,72 @@ export const useTryoutFlows = ({
 
   const appendTryoutSignup = useCallback(
     (signup: any) => {
-      const id = signup.id || genId("ts");
+      if (!teamId) return;
+      // Firestore auto-id (collision-SAFE) instead of genId: the signup id is
+      // now a doc id shared with anonymous portal devices the coach never
+      // sees, so "collision-unlikely" isn't good enough.
+      const id = signup.id || newSignupId(db, appId, teamId, "tryoutSignups");
       const entry = {
         id,
         submittedAt: signup.submittedAt || new Date().toISOString(),
         status: signup.status || "tryout",
         ...signup,
       };
-      updateTeamArrays({
-        op: "append",
-        key: "tryoutSignups",
-        entries: [entry],
-      });
+      upsertSignupDoc(db, appId, teamId, "tryoutSignups", entry).catch(
+        signupWriteFailed,
+      );
       return entry;
     },
-    [updateTeamArrays],
+    [db, appId, teamId, signupWriteFailed],
   );
 
   const updateTryoutSignup = useCallback(
     (id: any, patch: any) => {
-      updateTeamArrays({
-        op: "mapEntries",
-        key: "tryoutSignups",
-        map: (items: TryoutSignup[]) =>
-          items.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-      });
+      if (!teamId) return;
+      // Patch over the union entry, then write the FULL entry as its own doc.
+      // A legacy-only signup gets its subdoc created here — the union dedups
+      // by id with the subcollection winning, so this doubles as a lazy
+      // per-entry migration. Unknown id → silent no-op, matching the old
+      // mapEntries behavior.
+      const current = (teamDataRef.current.tryoutSignups || []).find(
+        (s: TryoutSignup) => s.id === id,
+      );
+      if (!current) return;
+      upsertSignupDoc(db, appId, teamId, "tryoutSignups", {
+        ...current,
+        ...patch,
+      }).catch(signupWriteFailed);
     },
-    [updateTeamArrays],
+    [db, appId, teamId, teamDataRef, signupWriteFailed],
   );
 
   // One-tap "everyone gets a number": fill a tryout number for every signup
-  // that lacks one, per tryout-date pool, in submission order. The assignment
-  // runs INSIDE the map over the LATEST signups (resolve-once contract), so a
-  // parent registration that landed after the coach's snapshot still gets a
-  // number and existing numbers are never reissued.
+  // that lacks one, per tryout-date pool, in submission order. Runs over the
+  // call-time union — a portal registration that lands mid-tap simply stays
+  // unnumbered until the next tap (numbers are only ever ADDED, never
+  // reissued, so re-running is always safe). One batch of full-entry set()s
+  // for just the signups whose number changed. writeBatch, not runTransaction:
+  // transactions fail offline while batches queue in the SDK's offline buffer
+  // (teamArrayUpdates.ts:14-17 has the same reasoning) — and field-side number
+  // assignment is exactly when the coach's connection is flakiest.
   const assignTryoutNumbers = useCallback(() => {
-    updateTeamArrays({
-      op: "mapEntries",
-      key: "tryoutSignups",
-      map: (items: TryoutSignup[]) => applyMissingTryoutNumbers(items),
+    if (!teamId) return;
+    const current: TryoutSignup[] = teamDataRef.current.tryoutSignups || [];
+    const next = applyMissingTryoutNumbers(current);
+    if (next === current) return; // same reference ⇒ nothing was missing
+    const batch = writeBatch(db);
+    next.forEach((s, i) => {
+      // applyMissingTryoutNumbers preserves order and reuses the object
+      // reference for untouched entries, so !== means "number assigned".
+      if (s !== current[i]) {
+        batch.set(
+          signupDocRef(db, appId, teamId, "tryoutSignups", s.id),
+          scrubUndefined(s) as DocumentData,
+        );
+      }
     });
-  }, [updateTeamArrays]);
+    batch.commit().catch(signupWriteFailed);
+  }, [db, appId, teamId, teamDataRef, signupWriteFailed]);
 
   // Record showcase-station measurements on a signup. The measurements live on
   // the SIGNUP (one shared record) — not in any evaluator's grade map — so
@@ -211,44 +288,71 @@ export const useTryoutFlows = ({
   // untouched (the payload sanitizer scrubs undefined before Firestore).
   const saveTryoutMeasurements = useCallback(
     (signupId: any, patch: Record<string, number | undefined>) => {
-      updateTeamArrays({
-        op: "mapEntries",
-        key: "tryoutSignups",
-        map: (items: TryoutSignup[]) =>
-          items.map((s) =>
-            s.id === signupId
-              ? { ...s, measurements: { ...(s.measurements || {}), ...patch } }
-              : s,
-          ),
-      });
+      if (!teamId) return;
+      const current = (teamDataRef.current.tryoutSignups || []).find(
+        (s: TryoutSignup) => s.id === signupId,
+      );
+      if (!current) return;
+      upsertSignupDoc(db, appId, teamId, "tryoutSignups", {
+        ...current,
+        measurements: { ...(current.measurements || {}), ...patch },
+      }).catch(signupWriteFailed);
     },
-    [updateTeamArrays],
+    [db, appId, teamId, teamDataRef, signupWriteFailed],
   );
 
   const deleteTryoutSignup = useCallback(
     (id: any) => {
-      if (!id) return;
+      if (!id || !teamId) return;
       // Two-tap armed confirm lives in TryoutsTab; no native confirm here.
-      // removeById → arrayRemove of the exact entry, so a parent signup that
-      // landed after this coach's snapshot survives the delete.
-      updateTeamArrays({ op: "removeById", key: "tryoutSignups", id });
+      deleteSignupDoc(db, appId, teamId, "tryoutSignups", id).catch(
+        signupWriteFailed,
+      );
+      // RESURRECT HAZARD: the union re-admits any legacy-array entry whose id
+      // has no subcollection doc — so once the subdoc above is gone, a stale
+      // legacy copy would bring the signup straight back on the next
+      // assembly. If the id still lives in the legacy array, remove it there
+      // too (removeById → arrayRemove of the exact entry, so a portal signup
+      // that landed after this coach's snapshot survives the delete).
+      if ((rawTryoutSignupsRef.current || []).some((s) => s?.id === id)) {
+        updateTeamArrays({ op: "removeById", key: "tryoutSignups", id });
+      }
     },
-    [updateTeamArrays],
+    [
+      db,
+      appId,
+      teamId,
+      rawTryoutSignupsRef,
+      updateTeamArrays,
+      signupWriteFailed,
+    ],
   );
 
-  // Bulk-remove signups in a SINGLE write. Calling deleteTryoutSignup() in a
-  // loop is buggy: each call filters the same closure-captured array and the
-  // optimistic merge keeps only the last write — so all-but-one survive. This
-  // filters every id out at once. Returns the number actually removed
-  // (estimated from the call-time team snapshot via teamDataRef; the write
-  // itself resolves against the latest state).
+  // Bulk-remove signups: ONE batch of per-doc deletes (deleting a doc that
+  // never existed is a Firestore no-op, so legacy-only ids are safe to
+  // include) plus, when any target still lives in the legacy array, ONE
+  // mapEntries filter clearing every legacy-resident target at once — the
+  // bulk form of deleteTryoutSignup's resurrect guard. Returns the number
+  // removed (estimated from the call-time union via teamDataRef; the legacy
+  // filter itself resolves against the latest state).
   const deleteTryoutSignups = useCallback(
     (ids: any[]) => {
+      if (!teamId) return 0;
       const toRemove = new Set((ids || []).filter(Boolean));
       if (toRemove.size === 0) return 0;
       const current = teamDataRef.current.tryoutSignups || [];
-      const removed = current.filter((s: any) => toRemove.has(s.id)).length;
-      if (removed > 0) {
+      const targets = current.filter((s: any) => toRemove.has(s.id));
+      if (targets.length === 0) return 0;
+      const batch = writeBatch(db);
+      for (const s of targets) {
+        batch.delete(signupDocRef(db, appId, teamId, "tryoutSignups", s.id));
+      }
+      batch.commit().catch(signupWriteFailed);
+      if (
+        (rawTryoutSignupsRef.current || []).some(
+          (s) => s?.id && toRemove.has(s.id),
+        )
+      ) {
         updateTeamArrays({
           op: "mapEntries",
           key: "tryoutSignups",
@@ -256,34 +360,57 @@ export const useTryoutFlows = ({
             items.filter((s) => !toRemove.has(s.id)),
         });
       }
-      return removed;
+      return targets.length;
     },
-    [teamDataRef, updateTeamArrays],
+    [
+      db,
+      appId,
+      teamId,
+      teamDataRef,
+      rawTryoutSignupsRef,
+      updateTeamArrays,
+      signupWriteFailed,
+    ],
   );
 
   // Drop an interest-survey lead. Coach-only; the two-tap confirm lives
-  // in the InterestTab UI so there's no native confirm prompt here.
+  // in the InterestTab UI so there's no native confirm prompt here. Same
+  // resurrect guard as deleteTryoutSignup, on the interest lane.
   const deleteInterestSignup = useCallback(
     (id: any) => {
-      if (!id) return;
-      updateTeamArrays({ op: "removeById", key: "interestSignups", id });
+      if (!id || !teamId) return;
+      deleteSignupDoc(db, appId, teamId, "interestSignups", id).catch(
+        signupWriteFailed,
+      );
+      if ((rawInterestSignupsRef.current || []).some((s) => s?.id === id)) {
+        updateTeamArrays({ op: "removeById", key: "interestSignups", id });
+      }
     },
-    [updateTeamArrays],
+    [
+      db,
+      appId,
+      teamId,
+      rawInterestSignupsRef,
+      updateTeamArrays,
+      signupWriteFailed,
+    ],
   );
 
   // Promote an interest-survey lead into a real tryout signup. Useful
   // when tryouts open and the HC wants to seed the signup list from
-  // standing interest. Copies fields, marks status:"tryout", removes
-  // the source lead from interestSignups in the same (atomic) write.
+  // standing interest. Copies fields, marks status:"tryout", and removes the
+  // source lead — create + delete ride ONE writeBatch, so the promotion is
+  // atomic (a kid can't end up in both lists or neither) yet still queues in
+  // the SDK's offline buffer, unlike a transaction (teamArrayUpdates.ts:14-17).
   const convertInterestToTryout = useCallback(
     (id: any) => {
-      if (!id) return;
+      if (!id || !teamId) return;
       const lead = (teamDataRef.current.interestSignups || []).find(
         (s: any) => s.id === id,
       );
       if (!lead) return;
       const signup = {
-        id: genId("ts"),
+        id: newSignupId(db, appId, teamId, "tryoutSignups"),
         submittedAt: new Date().toISOString(),
         firstName: lead.firstName,
         lastName: lead.lastName,
@@ -308,17 +435,35 @@ export const useTryoutFlows = ({
         notes: lead.notes || "",
         status: "tryout" as const,
       };
-      updateTeamArrays([
-        { op: "append", key: "tryoutSignups", entries: [signup] },
-        { op: "removeById", key: "interestSignups", id },
-      ]);
+      const batch = writeBatch(db);
+      batch.set(
+        signupDocRef(db, appId, teamId, "tryoutSignups", signup.id),
+        scrubUndefined(signup) as DocumentData,
+      );
+      batch.delete(signupDocRef(db, appId, teamId, "interestSignups", id));
+      batch.commit().catch(signupWriteFailed);
+      // A legacy-resident lead needs its array copy cleared too, or the union
+      // resurrects the consumed lead once its subdoc is gone (same hazard as
+      // deleteInterestSignup).
+      if ((rawInterestSignupsRef.current || []).some((s) => s?.id === id)) {
+        updateTeamArrays({ op: "removeById", key: "interestSignups", id });
+      }
       toast.push({
         kind: "success",
         title: "Moved to tryouts",
         message: `${lead.firstName} ${lead.lastName}`.trim(),
       });
     },
-    [teamDataRef, updateTeamArrays, toast],
+    [
+      db,
+      appId,
+      teamId,
+      teamDataRef,
+      rawInterestSignupsRef,
+      updateTeamArrays,
+      toast,
+      signupWriteFailed,
+    ],
   );
 
   // Drop a parent-submitted player-info entry. Coach-only; the two-tap
@@ -753,6 +898,7 @@ export const useTryoutFlows = ({
   // target="current" to pull a kid straight onto the CURRENT roster now.
   const acceptTryout = useCallback(
     (id: any, target: "next" | "current" = "next") => {
+      if (!teamId) return;
       const signup = (teamDataRef.current.tryoutSignups || []).find(
         (s: any) => s.id === id,
       );
@@ -786,10 +932,24 @@ export const useTryoutFlows = ({
           pitching: { recentPitches: 0, lastPitchDate: null },
           tryoutSignupId: signup.id,
         };
+        // The players append stays on the team-doc array lane (players haven't
+        // migrated); the signup removal is a subcollection delete. Two writes
+        // that only a server-side batch could make atomic — the append is
+        // issued FIRST so the bad interleaving is a duplicate (signup lingers
+        // next to the new player; coach deletes it by hand) rather than a
+        // vanished kid. The window shrinks; it does not close (same caveat as
+        // the advanceSeason eval reset in useTeamLifecycle). A legacy-resident
+        // signup rides its removeById in the same team-doc write as the
+        // append, closing the union-resurrect hazard.
         updateTeamArrays([
-          { op: "removeById", key: "tryoutSignups", id },
+          ...((rawTryoutSignupsRef.current || []).some((s) => s?.id === id)
+            ? [{ op: "removeById", key: "tryoutSignups", id } as const]
+            : []),
           { op: "append", key: "players", entries: [player] },
         ]);
+        deleteSignupDoc(db, appId, teamId, "tryoutSignups", id).catch(
+          signupWriteFailed,
+        );
         toast.push({
           kind: "success",
           title: `${name} added to current roster`,
@@ -798,22 +958,28 @@ export const useTryoutFlows = ({
       }
 
       // Default: accept for NEXT season. Keep them in the Tryouts tab marked
-      // "accepted"; advanceSeason brings them onto the roster.
-      updateTeamArrays({
-        op: "mapEntries",
-        key: "tryoutSignups",
-        map: (items: TryoutSignup[]) =>
-          items.map((s) =>
-            s.id === id ? { ...s, status: "accepted" as const } : s,
-          ),
-      });
+      // "accepted" (full-entry upsert of their own doc); advanceSeason brings
+      // them onto the roster.
+      upsertSignupDoc(db, appId, teamId, "tryoutSignups", {
+        ...signup,
+        status: "accepted" as const,
+      }).catch(signupWriteFailed);
       toast.push({
         kind: "success",
         title: `${name} accepted`,
         message: "Joins the roster automatically when you Advance Season.",
       });
     },
-    [teamDataRef, updateTeamArrays, toast],
+    [
+      db,
+      appId,
+      teamId,
+      teamDataRef,
+      rawTryoutSignupsRef,
+      updateTeamArrays,
+      toast,
+      signupWriteFailed,
+    ],
   );
 
   return {

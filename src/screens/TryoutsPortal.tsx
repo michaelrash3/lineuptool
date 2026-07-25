@@ -1,14 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import {
-  arrayUnion,
-  collection,
-  doc,
-  getDocs,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { signInAnonymously } from "firebase/auth";
 import { auth, appId, db } from "../firebase";
 import { APP_NAME } from "../constants/ui";
@@ -18,8 +10,8 @@ import {
   isValidEmail,
   isSafeCssColor,
   isSafeImageUrl,
-  genId,
 } from "../utils/helpers";
+import { newSignupId, upsertSignupDoc } from "../utils/tryoutSignupDocs";
 import { applyTeamInkVars } from "../utils/contrast";
 import { reportError } from "../utils/errorReporter";
 import { Button, Eyebrow } from "../components/shared";
@@ -128,9 +120,8 @@ export const TryoutsPortal = () => {
   const [teamDocId, setTeamDocId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Guards the submit button — parents on flaky wifi could otherwise
-  // double-tap and the duplicate-signup check would still let one slip
-  // through (the second write fires before the first one's arrayUnion
-  // has rehydrated team.tryoutSignups locally).
+  // double-tap and create two signup docs (each tap mints a fresh doc id,
+  // so nothing downstream would dedupe the twins).
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     firstName: "",
@@ -208,7 +199,7 @@ export const TryoutsPortal = () => {
       try {
         // Read the sanitized public mirror — never the full team doc. The
         // mirror carries only branding + tryout config (see buildPublicMirror);
-        // signups are still written to the real team doc by id below.
+        // signups are written to the team's signup subcollections by id below.
         const mirrorRef = collection(
           db,
           "artifacts",
@@ -325,8 +316,17 @@ export const TryoutsPortal = () => {
             ),
           ),
         );
+        const selectedDate = selectedTryoutDate || "";
+        const isDatedTryoutSignup = selectedDate && team?.tryoutsOpen === true;
+        const destination = isDatedTryoutSignup
+          ? "tryoutSignups"
+          : "interestSignups";
         const lead = {
-          id: genId("int"),
+          // The entry id IS its subcollection doc id (a Firestore auto-id —
+          // collision-safe where genId's timestamp+random stamp was merely
+          // collision-unlikely), so the coach app's assembled union needs no
+          // id remapping.
+          id: newSignupId(db, appId, teamDocId!, destination),
           submittedAt: new Date().toISOString(),
           firstName: cleanForm.firstName,
           lastName: cleanForm.lastName,
@@ -347,23 +347,18 @@ export const TryoutsPortal = () => {
           tryoutDate: selectedTryoutDate || "",
           notes: cleanForm.notes,
         };
-        const selectedDate = selectedTryoutDate || "";
-        const isDatedTryoutSignup = selectedDate && team?.tryoutsOpen === true;
-        const destination = isDatedTryoutSignup
-          ? "tryoutSignups"
-          : "interestSignups";
         const submission = isDatedTryoutSignup
           ? {
               ...lead,
-              id: genId("ts"),
-              status: "tryout",
+              status: "tryout" as const,
               tryoutDate: selectedDate,
             }
           : lead;
-        await updateDoc(
-          doc(db, "artifacts", appId, "public", "data", "teams", teamDocId!),
-          { [destination]: arrayUnion(submission) },
-        );
+        // Per-entry subcollection CREATE (Phase 1 of
+        // docs/firestore-data-migration.md) — replaces the legacy arrayUnion
+        // append onto the 1 MiB team doc. upsertSignupDoc rejects on failure,
+        // so the catch below keeps its retry messaging.
+        await upsertSignupDoc(db, appId, teamDocId!, destination, submission);
       }
       setPhase("sent");
     } catch (err) {

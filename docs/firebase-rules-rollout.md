@@ -93,8 +93,10 @@ denials, owner delete, legacy sole-member auto-claim, sanitized invite read +
 self-join (only the joining user, only `assistant`, only themselves into
 `members`), the finances head-gate (owner/co-head allowed incl. dotted-path
 appends; assistant denied incl. bundled writes), coachRoles escalation denials,
-public append-exactly-one vs remove/replace/multi-add/closed denials, and
-public mirror read/write access.
+public append-exactly-one vs remove/replace/multi-add/closed denials,
+public mirror read/write access, and the Phase 1 signup subcollections
+(member-only read/list/update/delete; public create gated on the parent
+team's tryout state with a payload allowlist + size caps).
 
 ## Local emulator test loop
 
@@ -141,7 +143,7 @@ full team doc just because a code exists (that rule was removed).
 
 ### 4) Public Tryouts Portal
 
-Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit `tryoutSignups` only while tryouts are open — but can NOT read the full team doc.
+Expected: anonymous/signed-in parent can read the sanitized `teamPublic` mirror and submit `tryoutSignups` only while tryouts are open — but can NOT read the full team doc. (The array-append lane exercised here is DEPRECATED — new portal clients write per-entry subcollection docs instead; see Section 9.)
 
 - Open `/tryouts-portal/:slug`.
 - Confirm the page loads branding (name/colors/logo) from the `teamPublic` mirror.
@@ -208,6 +210,61 @@ set `assistant`.
   is head in the UI but passes `isHeadCoach` only after the auto-claim write
   lands (it fires on team load); a finances write racing it recovers via the
   optimistic revert + Retry toast.
+
+### 9) Signup subcollections (Phase 1 of docs/firestore-data-migration.md)
+
+Expected: new portal submissions land as per-entry docs under
+`teams/{teamId}/tryoutSignups` and `teams/{teamId}/interestSignups`. Reads
+are member-only (signups are family PII). The legacy array-append lanes in
+Section 4 still work but are DEPRECATED — retained one release for cached
+portal clients; late array entries surface via the coach client's union read
+and are backfilled into the subcollections.
+
+- As an anonymous portal user, submit a tryout signup while tryouts are open —
+  confirm a new `tryoutSignups/{signupId}` doc is created.
+- Toggle tryouts closed — confirm the subcollection create is DENIED (same
+  gate as the legacy array lane, via `get()` on the parent team doc).
+- Submit an interest lead via the standing share link — confirm the
+  `interestSignups/{leadId}` create succeeds; with `tryoutShareId` cleared,
+  confirm denial.
+- As an anonymous user, attempt a create carrying a field outside the portal
+  allowlist (e.g. `status` on an interest lead) or an oversized `notes` —
+  confirm denial.
+- As an anonymous user, attempt to read or list either subcollection, or to
+  update/delete an existing signup doc — confirm denial (a visitor can add a
+  signup but never see or touch anyone else's).
+- As a team member, read/list both subcollections and update/delete an entry —
+  confirm success. A member create is NOT payload-constrained (the lazy
+  backfill copies legacy array entries verbatim) — confirm an off-allowlist
+  member write succeeds.
+- Confirm the deprecated array-append lane (Section 4) still accepts an
+  `arrayUnion` append, and that the appended entry appears in the coach UI via
+  the union read and is subsequently backfilled into the subcollection.
+- As an anonymous user, attempt a create at a short legacy-style id
+  (`ts-abc123`) — confirm denial. Public creates are pinned to Firestore
+  auto-id length (20) so a portal writer can never plant a doc that shadows a
+  real family's not-yet-migrated legacy entry; a member create at that id must
+  still succeed (that is how the backfill preserves legacy ids).
+- As an anonymous user, attempt a tryout create declaring
+  `status: "accepted"` — confirm denial (curation drives roster projection and
+  the advance-season deposit filters, so it is not self-declarable).
+
+**Accepted residuals (Phase 1).**
+
+- **No collection-size ceiling.** The deprecated array lanes capped growth at
+  `MAX_SIGNUPS()` = 2000 because the whole array was in `request.resource`;
+  rules cannot cheaply count a collection, so the subcollection create lanes
+  have no equivalent. The bound is now per-document (the payload allowlist +
+  per-field caps, with `comfortablePositions` constrained to the two declared
+  positions so its elements can't smuggle bulk). The interest gate is
+  effectively always open, so a determined anonymous writer can create many
+  small docs; App Check is the real answer if that ever becomes a problem.
+- **The deprecated array lanes make the new allowlist advisory for one
+  release.** While Section 4's lanes exist, an anonymous caller can still
+  append an array entry of arbitrary shape, which the backfill then copies
+  verbatim into a subcollection doc (member creates are unconstrained by
+  design). Removing those lanes — plus a ratchet so the arrays can never be
+  recreated, mirroring `evaluationEvents` — is the tracked follow-up.
 
 ## Sequencing the tryout-portal privacy fix
 

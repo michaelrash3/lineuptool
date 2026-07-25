@@ -55,6 +55,34 @@ const evalRoundPath = (teamId: string, roundId: string) =>
     "evalRounds",
     roundId,
   ] as const;
+// Firestore auto-ids are exactly 20 chars; the public create lane requires
+// that length so a portal writer can never plant a doc at a short legacy
+// genId ("ts-xxxxxxxx") and shadow a real family's not-yet-migrated entry.
+const AUTO_ID = "aAbBcCdDeEfFgGhHiIjJ";
+const AUTO_ID_2 = "kKlLmMnNoOpPqQrRsStT";
+
+const tryoutSignupPath = (teamId: string, signupId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "tryoutSignups",
+    signupId,
+  ] as const;
+const interestSignupPath = (teamId: string, leadId: string) =>
+  [
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    teamId,
+    "interestSignups",
+    leadId,
+  ] as const;
 const mirrorPath = (teamId: string) =>
   ["artifacts", APP_ID, "public", "data", "teamPublic", teamId] as const;
 const invitePath = (code: string) =>
@@ -127,6 +155,22 @@ beforeEach(async () => {
       coachRole: "Assistant",
       date: "2026-06-02",
       grades: { p1: { contact: 3 } },
+    });
+    // Per-entry signup docs (Phase 1 of docs/firestore-data-migration.md) —
+    // one in each subcollection so the member/anonymous read + update/delete
+    // scoping tests have an existing doc to target.
+    await setDoc(doc(db, ...tryoutSignupPath("team-1", "ts-doc-1")), {
+      id: "ts-doc-1",
+      submittedAt: "2026-07-01T00:00:00.000Z",
+      firstName: "Sub",
+      lastName: "Collection",
+      status: "tryout",
+    });
+    await setDoc(doc(db, ...interestSignupPath("team-1", "il-doc-1")), {
+      id: "il-doc-1",
+      submittedAt: "2026-07-02T00:00:00.000Z",
+      firstName: "Lead",
+      lastName: "Doc",
     });
     // Legacy unclaimed team (no ownerId, no coachRoles): the sole member's
     // auto-claim write must keep working under the new guards.
@@ -645,6 +689,283 @@ describe("evalRounds subcollection scoping (audit finding 3.1 — Option A)", ()
       getDocs(
         query(roundsCol(ASSISTANT), where("evaluatorId", "==", ASSISTANT)),
       ),
+    );
+  });
+});
+
+// Phase 1 of docs/firestore-data-migration.md — public signups move off the
+// 1 MiB team doc into per-entry subcollection docs, mirroring the evalRounds
+// shape above (get()-based membership). READ/UPDATE/DELETE are member-only;
+// CREATE stays open to any signed-in caller (anonymous portal auth) under the
+// same team-state gates as the array lanes, plus a payload allowlist + size
+// caps. The deprecated array-append lanes stay one release for cached portal
+// clients — their tests above are untouched.
+const signupsCol = (
+  uid: string | undefined,
+  key: "tryoutSignups" | "interestSignups",
+) =>
+  collection(
+    dbFor(uid),
+    "artifacts",
+    APP_ID,
+    "public",
+    "data",
+    "teams",
+    "team-1",
+    key,
+  );
+
+// The exact payload TryoutsPortal submits for an interest lead (booleans for
+// the pitch/catch flags, positions as a short list); a tryout signup is the
+// same plus `status` and a pinned date.
+const portalLead = {
+  id: AUTO_ID_2,
+  submittedAt: "2026-07-20T12:00:00.000Z",
+  firstName: "Nia",
+  lastName: "Vasquez",
+  dob: "2015-04-01",
+  parentName: "Pat Vasquez",
+  email: "pat@example.com",
+  phone: "555-0100",
+  currentTeam: "Rockets",
+  number: "12",
+  bats: "R",
+  throws: "R",
+  primaryPosition: "SS",
+  secondaryPosition: "P",
+  comfortablePositions: ["SS", "P"],
+  canPitch: true,
+  canCatch: false,
+  isCatcher: false,
+  tryoutDate: "",
+  notes: "Excited to try out",
+};
+const portalTryoutSignup = {
+  ...portalLead,
+  id: AUTO_ID,
+  status: "tryout",
+  tryoutDate: "2026-08-01",
+};
+
+describe("signup subcollections (Phase 1 — per-entry docs)", () => {
+  it("lets an anonymous visitor create a valid tryout signup while tryouts are open", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)),
+        portalTryoutSignup,
+      ),
+    );
+  });
+
+  it("denies a tryout signup create once tryouts are closed", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        tryoutsOpen: false,
+      });
+    });
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)),
+        portalTryoutSignup,
+      ),
+    );
+  });
+
+  it("lets an anonymous visitor create a valid interest lead while a share link exists", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...interestSignupPath("team-1", AUTO_ID_2)),
+        portalLead,
+      ),
+    );
+  });
+
+  it("denies an interest lead when no share link exists", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await updateDoc(doc(ctx.firestore(), ...teamPath("team-1")), {
+        tryoutShareId: null,
+      });
+    });
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...interestSignupPath("team-1", AUTO_ID_2)),
+        portalLead,
+      ),
+    );
+  });
+
+  it("denies a public create smuggling an off-allowlist field", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+        ...portalTryoutSignup,
+        coachNotes: "planted",
+      }),
+    );
+    // `status` is coach-assigned on leads (set at conversion) — off-allowlist
+    // for the public interest lane even though the tryout lane accepts it.
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...interestSignupPath("team-1", AUTO_ID_2)), {
+        ...portalLead,
+        status: "tryout",
+      }),
+    );
+  });
+
+  it("denies a public create with an oversized field", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+        ...portalTryoutSignup,
+        notes: "x".repeat(601),
+      }),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+        ...portalTryoutSignup,
+        comfortablePositions: Array.from({ length: 13 }, (_, i) => `P${i}`),
+      }),
+    );
+  });
+
+  it("denies a public create at a short legacy-style id (shadowing guard)", async () => {
+    // The attack this closes: plant a doc at a KNOWN legacy genId, and the
+    // union (subcollection wins), the skip-existing backfill, and the
+    // head-only array drop chain together into permanent replacement of a
+    // real family's signup. Auto-id length is the floor.
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", "ts-abc123")), {
+        ...portalTryoutSignup,
+        id: "ts-abc123",
+      }),
+    );
+    await assertFails(
+      setDoc(
+        doc(dbFor(OUTSIDER), ...interestSignupPath("team-1", "int-abc123")),
+        { ...portalLead, id: "int-abc123" },
+      ),
+    );
+    // A member (the lazy backfill) MUST still be able to write short legacy
+    // ids — that is how existing array entries migrate without re-minting.
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...tryoutSignupPath("team-1", "ts-abc123")), {
+        ...portalTryoutSignup,
+        id: "ts-abc123",
+      }),
+    );
+  });
+
+  it("denies a public create whose in-data id disagrees with the doc id", async () => {
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+        ...portalTryoutSignup,
+        id: "ts-somethingelse",
+      }),
+    );
+  });
+
+  it("denies a public tryout create declaring a curated status", async () => {
+    // status drives roster projection and the advance-season deposit filters,
+    // so it must not be self-declarable.
+    for (const status of ["accepted", "offered", "declined"]) {
+      await assertFails(
+        setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+          ...portalTryoutSignup,
+          status,
+        }),
+      );
+    }
+  });
+
+  it("denies comfortablePositions entries outside the declared positions", async () => {
+    // Elements are otherwise unbounded — a single one could be ~1 MiB or a
+    // nested map, voiding the payload envelope and feeding non-strings to
+    // coach code that assumes position codes.
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+        ...portalTryoutSignup,
+        comfortablePositions: ["SS", "x".repeat(5000)],
+      }),
+    );
+    await assertFails(
+      setDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", AUTO_ID)), {
+        ...portalTryoutSignup,
+        comfortablePositions: [{ nested: "map" }],
+      }),
+    );
+  });
+
+  it("denies an unauthenticated create (the portal signs in anonymously first)", async () => {
+    await assertFails(
+      setDoc(
+        doc(dbFor(), ...tryoutSignupPath("team-1", AUTO_ID)),
+        portalTryoutSignup,
+      ),
+    );
+  });
+
+  it("denies a public visitor updating or deleting an existing signup doc", async () => {
+    await assertFails(
+      updateDoc(
+        doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", "ts-doc-1")),
+        {
+          notes: "defaced",
+        },
+      ),
+    );
+    await assertFails(
+      deleteDoc(
+        doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", "ts-doc-1")),
+      ),
+    );
+    await assertFails(
+      deleteDoc(
+        doc(dbFor(OUTSIDER), ...interestSignupPath("team-1", "il-doc-1")),
+      ),
+    );
+  });
+
+  it("denies anonymous read and list of signups (family PII is member-only)", async () => {
+    await assertFails(
+      getDoc(doc(dbFor(OUTSIDER), ...tryoutSignupPath("team-1", "ts-doc-1"))),
+    );
+    await assertFails(getDocs(query(signupsCol(OUTSIDER, "tryoutSignups"))));
+    await assertFails(getDocs(query(signupsCol(undefined, "interestSignups"))));
+  });
+
+  it("lets a member read and list signups", async () => {
+    await assertSucceeds(
+      getDoc(doc(dbFor(ASSISTANT), ...tryoutSignupPath("team-1", "ts-doc-1"))),
+    );
+    await assertSucceeds(
+      getDocs(query(signupsCol(ASSISTANT, "tryoutSignups"))),
+    );
+    await assertSucceeds(
+      getDocs(query(signupsCol(ASSISTANT, "interestSignups"))),
+    );
+  });
+
+  it("lets a member update and delete a signup (coach curation)", async () => {
+    await assertSucceeds(
+      updateDoc(
+        doc(dbFor(ASSISTANT), ...tryoutSignupPath("team-1", "ts-doc-1")),
+        { status: "accepted" },
+      ),
+    );
+    await assertSucceeds(
+      deleteDoc(
+        doc(dbFor(ASSISTANT), ...interestSignupPath("team-1", "il-doc-1")),
+      ),
+    );
+  });
+
+  it("lets a member create outside the portal shape (backfill copies legacy entries verbatim)", async () => {
+    await assertSucceeds(
+      setDoc(doc(dbFor(OWNER), ...tryoutSignupPath("team-1", "ts-legacy")), {
+        id: "ts-legacy",
+        firstName: "Legacy",
+        // Off-allowlist key a legacy array entry might carry — the member
+        // lane must not be constrained by the portal allowlist.
+        convertedFrom: "il-old",
+      }),
     );
   });
 });

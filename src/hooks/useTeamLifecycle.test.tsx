@@ -3,6 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { setDoc, getDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { downloadTeamBackup } from "../utils/teamBackup";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
+import { deleteSignupDoc } from "../utils/tryoutSignupDocs";
 import { downscaleImageToDataURL } from "../components/shared";
 import { blankStats } from "../utils/helpers";
 import { useTeamLifecycle } from "./useTeamLifecycle";
@@ -30,6 +31,9 @@ vi.mock("../utils/evalRounds", () => ({
   saveEvalRound: vi.fn(() => Promise.resolve()),
   deleteEvalRound: vi.fn(() => Promise.resolve()),
 }));
+vi.mock("../utils/tryoutSignupDocs", () => ({
+  deleteSignupDoc: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("../components/shared", () => ({
   downscaleImageToDataURL: vi.fn(() =>
     Promise.resolve("data:image/webp;base64,tiny"),
@@ -43,6 +47,7 @@ const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
 const mockBackup = downloadTeamBackup as unknown as ReturnType<typeof vi.fn>;
 const mockSaveRound = saveEvalRound as unknown as ReturnType<typeof vi.fn>;
 const mockDeleteRound = deleteEvalRound as unknown as ReturnType<typeof vi.fn>;
+const mockDeleteSignup = deleteSignupDoc as unknown as ReturnType<typeof vi.fn>;
 const mockDownscale = downscaleImageToDataURL as unknown as ReturnType<
   typeof vi.fn
 >;
@@ -540,6 +545,64 @@ describe("advanceSeason", () => {
       .find((t) => t.kind === "success");
     expect(success.title).toBe("Advanced to Spring 2026");
     expect(success.message).toMatch(/still syncing/i);
+  });
+
+  it("sweeps the tryout signup subdocs AFTER the season patch; interest leads survive", async () => {
+    const fixture = makeFixture();
+    // The union the provider assembles — migrated subdocs and any legacy
+    // stragglers alike; every id must be swept per-doc.
+    (fixture as Record<string, unknown>).tryoutSignups = [
+      { id: "ts1", firstName: "Ava" },
+      { id: "ts2", firstName: "Mia" },
+    ];
+    (fixture as Record<string, unknown>).interestSignups = [{ id: "i1" }];
+    const { result, updateTeam } = setup({
+      teamDataRef: { current: fixture },
+    });
+    await act(async () => {
+      await result.current.advanceSeason();
+    });
+    // Legacy stragglers cleared in the season patch itself…
+    expect(updateTeam.mock.calls[0][0].tryoutSignups).toEqual([]);
+    // …and the per-doc signups swept from the subcollection, tryouts only —
+    // interest leads survive the rollover by design.
+    expect(
+      mockDeleteSignup.mock.calls.map((c: unknown[]) => c.slice(1)),
+    ).toEqual([
+      ["test-app", "t1", "tryoutSignups", "ts1"],
+      ["test-app", "t1", "tryoutSignups", "ts2"],
+    ]);
+    // Same ordering contract as the eval-rounds reset: a rejected season
+    // patch must not find the signups already destroyed.
+    expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDeleteSignup.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("warns when part of the signup sweep fails instead of swallowing it", async () => {
+    const fixture = makeFixture();
+    (fixture as Record<string, unknown>).tryoutSignups = [
+      { id: "ts1" },
+      { id: "ts2" },
+    ];
+    mockDeleteSignup.mockRejectedValueOnce(new Error("offline"));
+    const { result, toast } = setup({ teamDataRef: { current: fixture } });
+    await act(async () => {
+      await result.current.advanceSeason();
+    });
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "warn",
+        title: "Some old tryout signups are still there",
+      }),
+    );
+    // The advance itself still completes with its usual summary toast.
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "success",
+        title: "Advanced to Spring 2026",
+      }),
+    );
   });
 
   it("bumps the age tier on Spring → Fall and self-heals a now-illegal pitching format (skipConfirm path)", async () => {

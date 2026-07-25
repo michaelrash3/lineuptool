@@ -495,6 +495,9 @@ export interface TryoutSignup {
   parentName?: string;
   email?: string;
   phone?: string;
+  // Where the kid played last — the portal form collects it on both signup
+  // kinds (TryoutsPortal writes the same lead shape to either destination).
+  currentTeam?: string;
   notes?: string;
   status?: "tryout" | "offered" | "accepted" | "declined";
   tryoutDate?: string;
@@ -529,11 +532,18 @@ export interface InterestSignup {
   phone: string;
   currentTeam?: string;
   tryoutDate?: string;
+  // The portal writes ONE lead shape to either destination, so these ride
+  // along on interest leads too (and convertInterestToTryout carries them
+  // into the real TryoutSignup).
+  number?: string;
+  bats?: string;
+  throws?: string;
   primaryPosition?: string;
   secondaryPosition?: string;
   comfortablePositions?: string[];
   canPitch?: boolean;
   canCatch?: boolean;
+  isCatcher?: boolean;
   notes?: string;
 }
 
