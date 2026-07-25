@@ -3,7 +3,10 @@ import { renderHook, act } from "@testing-library/react";
 import { setDoc, getDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { downloadTeamBackup } from "../utils/teamBackup";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
-import { deleteSignupDoc } from "../utils/tryoutSignupDocs";
+import {
+  deleteAllSignupDocs,
+  deleteSignupDoc,
+} from "../utils/tryoutSignupDocs";
 import { downscaleImageToDataURL } from "../components/shared";
 import { blankStats } from "../utils/helpers";
 import { useTeamLifecycle } from "./useTeamLifecycle";
@@ -33,6 +36,7 @@ vi.mock("../utils/evalRounds", () => ({
 }));
 vi.mock("../utils/tryoutSignupDocs", () => ({
   deleteSignupDoc: vi.fn(() => Promise.resolve()),
+  deleteAllSignupDocs: vi.fn(() => Promise.resolve(0)),
 }));
 vi.mock("../components/shared", () => ({
   downscaleImageToDataURL: vi.fn(() =>
@@ -48,6 +52,9 @@ const mockBackup = downloadTeamBackup as unknown as ReturnType<typeof vi.fn>;
 const mockSaveRound = saveEvalRound as unknown as ReturnType<typeof vi.fn>;
 const mockDeleteRound = deleteEvalRound as unknown as ReturnType<typeof vi.fn>;
 const mockDeleteSignup = deleteSignupDoc as unknown as ReturnType<typeof vi.fn>;
+const mockSweepSignups = deleteAllSignupDocs as unknown as ReturnType<
+  typeof vi.fn
+>;
 const mockDownscale = downscaleImageToDataURL as unknown as ReturnType<
   typeof vi.fn
 >;
@@ -252,6 +259,48 @@ describe("createTeam", () => {
 });
 
 describe("deleteTeamCmd", () => {
+  it("sweeps both signup subcollections BEFORE the team doc is deleted", async () => {
+    // Firestore doesn't cascade: without this the families' signup PII (names,
+    // emails, phones) outlives the team forever. And it has to run first —
+    // the subcollection delete rule reads membership off the parent team doc,
+    // so anything left after that doc is gone is unreachable for good.
+    const { result } = setup();
+    await act(async () => {
+      await result.current.deleteTeamCmd();
+    });
+    expect(
+      mockSweepSignups.mock.calls.map((c: unknown[]) => c.slice(1)),
+    ).toEqual([
+      ["test-app", "t1", "tryoutSignups"],
+      ["test-app", "t1", "interestSignups"],
+    ]);
+    expect(Math.max(...mockSweepSignups.mock.invocationCallOrder)).toBeLessThan(
+      mockDeleteDoc.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("still deletes the team when the sweep fails, and says the records were orphaned", async () => {
+    // A client-side sweep is best-effort (no recursive delete without the
+    // Admin SDK). Refusing to delete would leave the coach with both the team
+    // AND the orphans, so we proceed and report honestly.
+    mockSweepSignups.mockRejectedValueOnce(new Error("permission-denied"));
+    const { result, toast } = setup();
+    await act(async () => {
+      await result.current.deleteTeamCmd();
+    });
+    expect(mockDeleteDoc).toHaveBeenCalled();
+    expect(toast.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "warn",
+        title: "Some signup records couldn't be deleted",
+      }),
+    );
+    expect(toast.push).toHaveBeenCalledWith({
+      kind: "success",
+      title: "Team deleted",
+    });
+  });
+
   it("confirms, downloads a snapshot, deletes the team doc, and repoints settings", async () => {
     const { result, args, confirm, toast } = setup();
     await act(async () => {
@@ -324,6 +373,7 @@ describe("deleteTeamCmd", () => {
     expect(mockBackup).not.toHaveBeenCalled();
     expect(mockDeleteDoc).not.toHaveBeenCalled();
     expect(mockSetDoc).not.toHaveBeenCalled();
+    expect(mockSweepSignups).not.toHaveBeenCalled();
     // Only one team left: guarded before the confirm dialog.
     const single = setup({ teams: [{ id: "t1", name: "Hawks" }] });
     await act(async () => {
@@ -577,6 +627,42 @@ describe("advanceSeason", () => {
     expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
       mockDeleteSignup.mock.invocationCallOrder[0],
     );
+  });
+
+  it("gives up on writes that are only QUEUED offline instead of hanging the page", async () => {
+    // Firestore never REJECTS a write that's merely queued in the offline
+    // buffer — it just doesn't settle until the device reconnects. Awaiting
+    // these sweeps outright pinned AdvanceSeasonPage's busy spinner (it awaits
+    // advanceSeason before navigating) for as long as the coach was off the
+    // network, which on a ballfield is the normal case.
+    vi.useFakeTimers();
+    try {
+      const fixture = makeFixture();
+      (fixture as Record<string, unknown>).tryoutSignups = [{ id: "ts1" }];
+      const queuedForever = () => new Promise<void>(() => {});
+      mockDeleteRound.mockImplementationOnce(queuedForever);
+      mockSaveRound.mockImplementationOnce(queuedForever);
+      mockDeleteSignup.mockImplementationOnce(queuedForever);
+      const { result, toast } = setup({ teamDataRef: { current: fixture } });
+      let settled = false;
+      await act(async () => {
+        const advancing = result.current.advanceSeason().then(() => {
+          settled = true;
+        });
+        // Well past the report window; the writes are still unsettled.
+        await vi.advanceTimersByTimeAsync(30_000);
+        await advancing;
+      });
+      expect(settled).toBe(true);
+      // Nothing actually failed, so nothing is reported failed — the queued
+      // writes still land on reconnect.
+      const kinds = (toast.push as jest.Mock).mock.calls.map((c) => c[0].kind);
+      expect(kinds).not.toContain("warn");
+      expect(kinds).not.toContain("error");
+      expect(kinds).toContain("success");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("warns when part of the signup sweep fails instead of swallowing it", async () => {

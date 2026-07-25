@@ -1,5 +1,6 @@
 import React from "react";
-import { screen, fireEvent } from "@testing-library/react";
+import { vi } from "vitest";
+import { screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import {
   RosterLetterPage,
@@ -7,6 +8,7 @@ import {
   InterestLetterPage,
 } from "./LetterPages";
 import { RouteAlias } from "../components/RouteAlias";
+import { TeamContext, useTeam } from "../contexts";
 import { renderWithProviders } from "../test-utils";
 
 const team = {
@@ -29,42 +31,74 @@ const team = {
   finances: {},
 };
 
-const renderLetter = (path: string, ctxOver: any = {}) => {
+// Stands in for the signup subcollection subscription landing after the page
+// has already mounted: TeamProvider republishes teamData with a new `team`
+// object while the route stays put. renderWithProviders' context value is
+// fixed for the life of a render, so a nested TeamContext provider supplies
+// the data half — useTeam() merges actions-then-data, so this wins.
+const publish = { current: (_rows: any[]) => {} };
+
+const LateSignups = ({
+  field,
+  children,
+}: {
+  field: "tryoutSignups" | "interestSignups";
+  children: React.ReactNode;
+}) => {
+  const base = useTeam();
+  const [rows, setRows] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    publish.current = setRows;
+  }, []);
+  const value = React.useMemo(
+    () => ({ ...base, team: { ...base.team, [field]: rows } }),
+    [base, field, rows],
+  );
+  return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
+};
+
+const letterRoutes = (
+  <Routes>
+    <Route path="/roster" element={<div>ROSTER LIST</div>} />
+    <Route path="/roster/:playerId" element={<div>PROFILE PAGE</div>} />
+    <Route path="/tryouts" element={<div>TRYOUTS TAB</div>} />
+    <Route path="/interest" element={<div>INTEREST TAB</div>} />
+    <Route
+      path="/roster/:playerId/letter/:kind"
+      element={<RosterLetterPage />}
+    />
+    <Route
+      path="/tryouts/letter/:signupId/:kind"
+      element={<TryoutLetterPage />}
+    />
+    <Route path="/interest/letter/:leadId" element={<InterestLetterPage />} />
+    {/* Legacy alias, mirroring App.tsx — old /offer/ bookmarks resolve. */}
+    <Route
+      path="/roster/:playerId/offer/:kind"
+      element={
+        <RouteAlias to={(p) => `/roster/${p.playerId}/letter/${p.kind}`} />
+      }
+    />
+  </Routes>
+);
+
+const renderLetter = (
+  path: string,
+  ctxOver: any = {},
+  wrap: (routes: React.ReactNode) => React.ReactNode = (routes) => routes,
+) => {
   const updateTryoutSignup = jest.fn();
   const updateFinances = jest.fn();
   const utils = renderWithProviders(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/roster" element={<div>ROSTER LIST</div>} />
-        <Route path="/roster/:playerId" element={<div>PROFILE PAGE</div>} />
-        <Route path="/tryouts" element={<div>TRYOUTS TAB</div>} />
-        <Route path="/interest" element={<div>INTEREST TAB</div>} />
-        <Route
-          path="/roster/:playerId/letter/:kind"
-          element={<RosterLetterPage />}
-        />
-        <Route
-          path="/tryouts/letter/:signupId/:kind"
-          element={<TryoutLetterPage />}
-        />
-        <Route
-          path="/interest/letter/:leadId"
-          element={<InterestLetterPage />}
-        />
-        {/* Legacy alias, mirroring App.tsx — old /offer/ bookmarks resolve. */}
-        <Route
-          path="/roster/:playerId/offer/:kind"
-          element={
-            <RouteAlias to={(p) => `/roster/${p.playerId}/letter/${p.kind}`} />
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <MemoryRouter initialEntries={[path]}>{wrap(letterRoutes)}</MemoryRouter>,
     {
       team: {
         team,
         user: { displayName: "Coach", email: "coach@example.com" },
         currentRole: "head",
+        // Most cases exercise data that has already arrived; the in-flight
+        // cases override this to false.
+        signupsReady: true,
         updateTryoutSignup,
         updateFinances,
         ...ctxOver,
@@ -137,6 +171,80 @@ describe("TryoutLetterPage", () => {
     renderLetter("/tryouts/letter/nope/new-player");
     expect(screen.getByText("TRYOUTS TAB")).toBeInTheDocument();
   });
+
+  // Signups arrive from a subcollection subscription now, so an empty list is
+  // the normal first frame after a load/refresh — not proof the id is bogus.
+  it("holds a loading state instead of bouncing while signups are still arriving", () => {
+    renderLetter("/tryouts/letter/s1/new-player", {
+      team: { ...team, tryoutSignups: [] },
+      signupsReady: false,
+    });
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("TRYOUTS TAB")).not.toBeInTheDocument();
+  });
+
+  it("renders the draft when the signup subscription lands after mount", () => {
+    renderLetter(
+      "/tryouts/letter/s9/new-player",
+      // The nested provider below owns tryoutSignups; this half only proves
+      // the outer (mount-time) value is empty, as it is post-array-drop, and
+      // that the subscription has not landed yet.
+      { team: { ...team, tryoutSignups: [] }, signupsReady: false },
+      (routes) => <LateSignups field="tryoutSignups">{routes}</LateSignups>,
+    );
+    expect(screen.getByRole("status")).toBeInTheDocument();
+
+    act(() => {
+      publish.current([
+        { id: "s9", firstName: "Nia", lastName: "Park", status: "tryout" },
+      ]);
+    });
+    expect(screen.getByText("New Player Offer")).toBeInTheDocument();
+    const body = screen.getByLabelText(
+      "Offer letter draft",
+    ) as HTMLTextAreaElement;
+    expect(body.value).toContain("Nia Park");
+  });
+
+  it("waits on an in-flight signup subscription instead of redirecting", () => {
+    renderLetter("/tryouts/letter/nope/new-player", {
+      team: { ...team, tryoutSignups: [] },
+      signupsReady: false,
+    });
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("TRYOUTS TAB")).not.toBeInTheDocument();
+  });
+
+  it("redirects a genuinely unknown id once the subscriptions have landed", () => {
+    renderLetter("/tryouts/letter/nope/new-player", {
+      team: { ...team, tryoutSignups: [] },
+      signupsReady: true,
+    });
+    expect(screen.getByText("TRYOUTS TAB")).toBeInTheDocument();
+  });
+
+  it("does NOT redirect a subdoc-only signup just because the legacy array is non-empty", () => {
+    // The regression this guards: mid-migration the team doc paints the
+    // legacy array on the first frame, so any "is the list non-empty?"
+    // heuristic reads as settled while the subscription is still in flight —
+    // and every signup created after the cutover exists ONLY as a subdoc, so
+    // deep-linking one bounced the coach straight out.
+    renderLetter("/tryouts/letter/s9/new-player", {
+      team: { ...team, tryoutSignups: [{ id: "legacy-1", firstName: "Old" }] },
+      signupsReady: false,
+    });
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("TRYOUTS TAB")).not.toBeInTheDocument();
+  });
+
+  it("redirects an assistant immediately, without waiting on signups", () => {
+    // Role is known from context alone — no reason to sit on a skeleton.
+    renderLetter("/tryouts/letter/s1/new-player", {
+      currentRole: "assistant",
+      team: { ...team, tryoutSignups: [] },
+    });
+    expect(screen.getByText("TRYOUTS TAB")).toBeInTheDocument();
+  });
 });
 
 describe("InterestLetterPage", () => {
@@ -151,6 +259,23 @@ describe("InterestLetterPage", () => {
 
   it("redirects an unknown lead to the interest tab", () => {
     renderLetter("/interest/letter/nope");
+    expect(screen.getByText("INTEREST TAB")).toBeInTheDocument();
+  });
+
+  it("waits on an unlanded interest subscription instead of redirecting", () => {
+    renderLetter("/interest/letter/l1", {
+      team: { ...team, interestSignups: [] },
+      signupsReady: false,
+    });
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByText("INTEREST TAB")).not.toBeInTheDocument();
+  });
+
+  it("redirects an unknown lead once the interest subscription has landed", () => {
+    renderLetter("/interest/letter/nope", {
+      team: { ...team, interestSignups: [] },
+      signupsReady: true,
+    });
     expect(screen.getByText("INTEREST TAB")).toBeInTheDocument();
   });
 

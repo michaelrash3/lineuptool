@@ -8,12 +8,15 @@
 // release while the lazy backfill absorbs their stragglers.
 
 import {
+  arrayRemove,
   collection,
   deleteDoc,
   deleteField,
   doc,
+  getDocs,
   setDoc,
   updateDoc,
+  writeBatch,
   type CollectionReference,
   type DocumentData,
   type DocumentReference,
@@ -44,6 +47,15 @@ export const signupDocRef = (
   id: string,
 ): DocumentReference<DocumentData> =>
   doc(db, "artifacts", appId, "public", "data", "teams", teamId, key, id);
+
+// The parent team doc — the home of the two LEGACY signup arrays this
+// migration is draining.
+const teamDocRef = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+): DocumentReference<DocumentData> =>
+  doc(db, "artifacts", appId, "public", "data", "teams", teamId);
 
 // A fresh Firestore auto-id for a NEW signup — the doc id IS the entry id.
 // Replaces genId on this path: the portal writes from anonymous devices the
@@ -120,6 +132,90 @@ export const deleteSignupDoc = (
   id: string,
 ): Promise<void> => deleteDoc(signupDocRef(db, appId, teamId, key, id));
 
+// Firestore caps a write batch at 500 operations; stay under it with room to
+// spare so a sweep of a big signup list still commits in whole batches.
+const DELETE_BATCH_SIZE = 400;
+
+// Delete EVERY doc in one signup subcollection, in batches. Team deletion is
+// the only caller.
+//
+// Firestore has no cascading delete, and a recursive delete needs the Admin
+// SDK — so this client-side sweep is the only thing standing between a
+// deleted team and its families' PII (names, emails, phone numbers) sitting
+// in the database forever. It is therefore BEST-EFFORT by construction:
+//   - it must run while the team doc still EXISTS, because the subcollection
+//     delete rule resolves membership by reading that parent doc; anything
+//     left behind after the team doc is gone can never be deleted by a client
+//     again;
+//   - a rejected or half-applied sweep leaves exactly those orphans.
+// REJECTS so the caller can tell the coach rather than claim a clean delete.
+// Returns how many docs it deleted.
+export const deleteAllSignupDocs = async (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  key: SignupCollectionKey,
+): Promise<number> => {
+  const snap = await getDocs(signupCollectionRef(db, appId, teamId, key));
+  const refs = snap.docs.map((d) => d.ref);
+  for (let i = 0; i < refs.length; i += DELETE_BATCH_SIZE) {
+    const batch = writeBatch(db);
+    for (const ref of refs.slice(i, i + DELETE_BATCH_SIZE)) batch.delete(ref);
+    await batch.commit();
+  }
+  return refs.length;
+};
+
+// ---- Legacy team-doc array cleanup -----------------------------------------
+
+// Pick the EXACT stored elements for `ids` out of a RAW legacy signup array
+// (the untouched team-doc field, NOT the assembled union). Exactness is the
+// entire point — see removeLegacySignupEntries. Returns [] when nothing
+// matches, which callers read as "no legacy twin, nothing to clean up".
+export const findLegacySignupEntries = <T extends { id?: string }>(
+  rawEntries: T[] | null | undefined,
+  ids: Iterable<string>,
+): T[] => {
+  const wanted = new Set(ids);
+  return (Array.isArray(rawEntries) ? rawEntries : []).filter(
+    (e) => e && e.id && wanted.has(e.id),
+  );
+};
+
+// Remove entries from a legacy team-doc signup array by exact-value
+// arrayRemove. This is the ONLY correct way to clear a legacy twin while the
+// union read is live.
+//
+// Why not updateTeamArrays({op:'removeById'})? That op resolves the value to
+// remove out of the provider's teamData — and for these two keys teamData is
+// the assembled UNION, where the SUBCOLLECTION doc WINS the id. Every coach
+// edit (status stamp, tryout numbers, measurements) is a subdoc-only write, so
+// the moment one lands the union's copy stops byte-matching the element still
+// stored in the array. arrayRemove matches by deep value, so it would then
+// match NOTHING: the subdoc delete lands, the stale legacy twin survives, and
+// the next assembly resurrects the family with their pre-edit data. Handing it
+// the raw element straight off the team-doc snapshot is what makes the match
+// reliable.
+//
+// One updateDoc for the whole set (arrayRemove is variadic), so a bulk delete
+// is a single write. Value-level, never a whole-array rewrite — a portal
+// signup that landed after this coach's snapshot is untouched, and nothing
+// from the union can leak back INTO the array. Nothing to remove is a resolved
+// no-op with no write at all; REJECTS on failure so callers can toast.
+export const removeLegacySignupEntries = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  key: SignupCollectionKey,
+  rawEntries: SignupEntry[] | null | undefined,
+): Promise<void> => {
+  const entries = (Array.isArray(rawEntries) ? rawEntries : []).filter(Boolean);
+  if (entries.length === 0) return Promise.resolve();
+  return updateDoc(teamDocRef(db, appId, teamId), {
+    [key]: arrayRemove(...entries),
+  });
+};
+
 // ---- Migration long tail (docs/firestore-data-migration.md, Phase 1) --------
 // A team not opened since the cutover still carries the legacy arrays on its
 // doc. The helpers below are the self-limiting cleanup: mirror legacy entries
@@ -186,7 +282,7 @@ export const dropLegacySignupArrays = (
   appId: string,
   teamId: string,
 ): Promise<void> =>
-  updateDoc(doc(db, "artifacts", appId, "public", "data", "teams", teamId), {
+  updateDoc(teamDocRef(db, appId, teamId), {
     tryoutSignups: deleteField(),
     interestSignups: deleteField(),
   });

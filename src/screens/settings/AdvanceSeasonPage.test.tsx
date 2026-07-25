@@ -1,7 +1,9 @@
+import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { AdvanceSeasonPage } from "./AdvanceSeasonPage";
+import { TeamContext, useTeam } from "../../contexts";
 import { renderWithProviders } from "../../test-utils";
 
 // The /settings/advance-season wizard page (converted from the modal).
@@ -28,20 +30,44 @@ const tryoutSignups = [
   { id: "s2", firstName: "Max", lastName: "Cruz", status: "offered" },
 ];
 
-const renderPage = (ctxOver: any = {}) => {
+// Stands in for the tryout-signup subcollection subscription landing after
+// the wizard has already mounted: TeamProvider republishes teamData with a new
+// `team` object while the page stays put. renderWithProviders' context value is
+// fixed for the life of a render, so a nested TeamContext provider supplies the
+// data half — useTeam() merges actions-then-data, so this wins.
+const publish = { current: (_rows: any[]) => {} };
+
+const LateSignups = ({ children }: { children: React.ReactNode }) => {
+  const base = useTeam();
+  const [rows, setRows] = React.useState<any[]>([]);
+  React.useEffect(() => {
+    publish.current = setRows;
+  }, []);
+  const value = React.useMemo(
+    () => ({ ...base, team: { ...base.team, tryoutSignups: rows } }),
+    [base, rows],
+  );
+  return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
+};
+
+const pageRoutes = (
+  <Routes>
+    <Route path="/" element={<div>HOME</div>} />
+    <Route path="/settings" element={<div>SETTINGS</div>} />
+    <Route path="/settings/advance-season" element={<AdvanceSeasonPage />} />
+  </Routes>
+);
+
+const renderPage = (
+  ctxOver: any = {},
+  wrap: (routes: React.ReactNode) => React.ReactNode = (routes) => routes,
+) => {
   const advanceSeason = vi.fn().mockResolvedValue(undefined);
   const setPlayerReturning = vi.fn();
   const updateFinances = vi.fn();
   const utils = renderWithProviders(
     <MemoryRouter initialEntries={["/settings/advance-season"]}>
-      <Routes>
-        <Route path="/" element={<div>HOME</div>} />
-        <Route path="/settings" element={<div>SETTINGS</div>} />
-        <Route
-          path="/settings/advance-season"
-          element={<AdvanceSeasonPage />}
-        />
-      </Routes>
+      {wrap(pageRoutes)}
     </MemoryRouter>,
     {
       team: {
@@ -139,6 +165,77 @@ describe("AdvanceSeasonPage", () => {
     // All Yes flips Dee through the boolean writer.
     fireEvent.click(screen.getByRole("button", { name: "All Yes" }));
     expect(setPlayerReturning).toHaveBeenCalledWith("pd", true);
+  });
+
+  // Signups now stream in from a subcollection subscription, so the wizard can
+  // mount before any of them exist. Latching the pre-check set at mount used to
+  // silently commit to promoting NOBODY.
+  it("seeds accepted signups that only arrive after mount", () => {
+    const { advanceSeason } = renderPage(
+      { team: { currentSeason: "Spring 2026", players, tryoutSignups: [] } },
+      (routes) => <LateSignups>{routes}</LateSignups>,
+    );
+    // Nothing has landed yet — no signup section at all.
+    expect(screen.queryByText("Tryout Signups")).not.toBeInTheDocument();
+
+    act(() => {
+      publish.current(tryoutSignups);
+    });
+
+    // The accepted signup is pre-checked exactly as if it had been there at
+    // mount, deposit amount and date included.
+    expect(screen.getByText("1 of 2 selected")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Confirm Advance Season/i }),
+    );
+    expect(advanceSeason).toHaveBeenCalledWith({
+      skipConfirm: true,
+      tryoutsToPromote: ["s1"],
+      tryoutDepositPayments: { s1: "2026-07-01" },
+    });
+  });
+
+  it("seeds a second batch too (legacy array paints, then the union lands)", () => {
+    renderPage(
+      { team: { currentSeason: "Spring 2026", players, tryoutSignups: [] } },
+      (routes) => <LateSignups>{routes}</LateSignups>,
+    );
+    // The team doc's legacy array paints first...
+    act(() => {
+      publish.current([tryoutSignups[0]]);
+    });
+    expect(screen.getByText("1 of 1 selected")).toBeInTheDocument();
+
+    // ...then the subcollection union lands, carrying another accepted signup.
+    // Seeding is additive per id, so the newcomer is pre-checked too.
+    act(() => {
+      publish.current([
+        ...tryoutSignups,
+        { id: "s3", firstName: "Jo", lastName: "Kim", status: "accepted" },
+      ]);
+    });
+    expect(screen.getByText("2 of 3 selected")).toBeInTheDocument();
+  });
+
+  it("never re-checks a signup the coach deliberately unticked", () => {
+    renderPage(
+      { team: { currentSeason: "Spring 2026", players, tryoutSignups: [] } },
+      (routes) => <LateSignups>{routes}</LateSignups>,
+    );
+    act(() => {
+      publish.current(tryoutSignups);
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Promote Rory Lee to next season" }),
+    );
+    expect(screen.getByText("0 of 2 selected")).toBeInTheDocument();
+
+    // A later snapshot re-delivers the same still-"accepted" signup. Seeding is
+    // once per id, so the coach's decision stands.
+    act(() => {
+      publish.current([...tryoutSignups]);
+    });
+    expect(screen.getByText("0 of 2 selected")).toBeInTheDocument();
   });
 
   it("redirects assistants home", () => {
