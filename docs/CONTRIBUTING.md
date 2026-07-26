@@ -9,6 +9,27 @@ Quick reference for working on Lineup Tool. Pair this with `ARCHITECTURE.md` for
 - One reviewable concern per PR when you can — large multi-concern PRs are accepted only when the changes are tightly coupled (e.g., a Firestore rule change that requires a client code change in the same commit to stay deployable).
 - PR description should answer: what changed, why, and how it was tested. Reference issues or earlier PRs that motivated the work.
 
+### Holding an auto-merge
+
+`.github/workflows/auto-merge.yml` squash-merges any `claude/*` PR in this repo as soon as CI and every other check on the head commit are green — promoting it out of draft first, with no human gate. That is deliberate for routine work, but green checks only prove the tests pass; they cannot prove the tests test anything. PRs #582–#585 each merged while review was still in flight, and #582 shipped nine high-severity integrity bugs (a cross-team PII leak among them) behind a fully green run.
+
+To stop that, hold the PR. Either signal works, and either one blocks **both** the un-draft and the merge:
+
+| Signal                                                                                      | Use when                                                            |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| The **`do-not-merge`** label                                                                | Normal case — anyone with write access, visible in the PR list      |
+| A line reading exactly `do-not-merge` in the PR body, optionally as `<!-- do-not-merge -->` | The author can open a PR but can't set labels (most agent sessions) |
+
+The label must already exist on the repo before it can be applied — create it once with `gh label create do-not-merge -c B60205 -d "Auto-merge is held; review still in flight"`.
+
+Set the hold **when you open the PR**, not after CI goes green — a green run can merge within seconds. Opening as draft is not a hold on its own; the workflow un-drafts. The hold is re-read on every trigger immediately before the merge decision, so a label added while CI is still running does take effect.
+
+Use it whenever the diff needs a human or an adversarial-review pass before it lands: data migrations, `firestore.rules` changes, anything touching auth or cross-team reads, deletes, or a PR whose own tests you don't yet trust.
+
+To release, remove the label (or delete the marker line). The next trigger — or the 15-minute sweep — merges it normally; no re-push needed.
+
+If the label API call fails, the PR is treated as held and left alone. A merge that waits costs one sweep interval; a merge that shouldn't have happened costs a production revert. An unlabelled PR is not an API failure, so the default path is unaffected.
+
 ## Local development
 
 ```bash

@@ -222,13 +222,49 @@ export const removeLegacySignupEntries = (
 // into the subcollections, then (head only, coverage proven — see
 // TeamProvider) delete both array fields.
 
+// What one backfill pass actually accomplished. `written` is the count
+// backfillOwnEvalRounds returns; `failed` is the half that function gets from
+// rejecting, folded into the same value so ONE resolved result carries both.
+export type SignupBackfillResult = {
+  /** Entries mirrored into the subcollection by this pass. */
+  written: number;
+  /** Entries this pass tried and the server refused. */
+  failed: number;
+  /**
+   * The ids this pass actually mirrored. A retry unions these into its
+   * existing-id guard, so the "never rewrite an already-mirrored id" promise
+   * below holds on its own rather than depending on the local listener having
+   * delivered a fresh snapshot first.
+   */
+  writtenIds: string[];
+};
+
 // Lazily mirror legacy array entries into the subcollection. Idempotent, and —
 // deliberately unlike backfillOwnEvalRounds — it NEVER rewrites an id that
 // already has a subcollection doc: a coach may have edited that doc since it
 // was mirrored (status, tryout numbers, measurements), and re-running setDoc
 // with the stale legacy copy would clobber the edit. Callers pass the CURRENT
-// subcollection id set as that guard. Per-entry failures are swallowed: the
-// next session's backfill re-attempts.
+// subcollection id set as that guard — and, on a retry, union in the ids
+// earlier passes already wrote (see writtenIds): a retry fires 5s after a
+// partial failure, and resting that promise on the listener having caught up
+// by then is timing, not a guard.
+//
+// REPORTS per-entry failures instead of swallowing them: this used to resolve
+// `void` whether it mirrored forty docs or attempted forty and had every one
+// denied, which made a wholly failed migration indistinguishable from a
+// finished one — and since the caller consumes a once-per-session guard, an
+// undetectable failure was also an unretried one.
+//
+// Resolves with a summary rather than rejecting, which is the one place this
+// diverges from backfillOwnEvalRounds. Rejecting answers only "did something
+// go wrong", and Promise.all surfaces just the FIRST error, discarding how
+// much landed — but the caller's decision is not binary. It has to bound its
+// own retries, and "39 of 40 written, 1 denied" (a per-entry problem that a
+// retry converges on) and "0 of 40 written" (a wall: rules, or the connection
+// gone) deserve different treatment and different diagnostics. A summary also
+// keeps this a total function, so the fire-and-forget call site can never
+// become an unhandled rejection. Every entry is attempted regardless of its
+// siblings' outcomes.
 export const backfillSignupDocs = async (
   db: Firestore,
   appId: string,
@@ -236,22 +272,37 @@ export const backfillSignupDocs = async (
   key: SignupCollectionKey,
   legacyEntries: SignupEntry[] | null | undefined,
   existingSubIds: Set<string>,
-): Promise<void> => {
+): Promise<SignupBackfillResult> => {
   const pending = (Array.isArray(legacyEntries) ? legacyEntries : []).filter(
     (e) => e && e.id && !existingSubIds.has(e.id),
   );
-  await Promise.all(
+  const outcomes: Array<{ id: string; ok: boolean }> = await Promise.all(
+    // The whole per-entry attempt sits inside an async IIFE so a SYNCHRONOUS
+    // throw counts as a failure like any other. Firestore validates eagerly:
+    // signupDocRef throws on a malformed id (an id containing "/" is an
+    // invalid path segment) and setDoc throws on invalid data — neither
+    // rejects. Building the ref outside a catch would let that escape as an
+    // unhandled rejection AND skip the tally, so the caller would consume no
+    // attempt, schedule no retry and log no give-up: a silent single-attempt
+    // stall, which is the exact failure this function was rewritten to end.
     pending.map(async (entry) => {
       try {
         await setDoc(
           signupDocRef(db, appId, teamId, key, entry.id),
           scrubUndefined(entry) as DocumentData,
         );
+        return { id: entry.id as string, ok: true };
       } catch {
-        // Best-effort: re-attempted by the next session's backfill.
+        return { id: entry.id as string, ok: false };
       }
     }),
   );
+  const writtenIds = outcomes.filter((o) => o.ok).map((o) => o.id);
+  return {
+    written: writtenIds.length,
+    failed: outcomes.length - writtenIds.length,
+    writtenIds,
+  };
 };
 
 // Is every legacy array entry present in the subcollection? Pure coverage

@@ -57,6 +57,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetDocs.mockResolvedValue({ docs: [] });
   mockUpdateDoc.mockResolvedValue(undefined);
+  // clearAllMocks wipes recorded calls but NOT implementations: without this a
+  // test that made setDoc reject would leak that into every test after it.
+  mockSetDoc.mockResolvedValue(undefined);
 });
 
 describe("assembleSignups", () => {
@@ -217,7 +220,7 @@ describe("backfillSignupDocs", () => {
   });
 
   it("skips id-less entries and is a no-op for an empty/missing legacy array", async () => {
-    await backfillSignupDocs(
+    const skipped = await backfillSignupDocs(
       {} as never,
       "app",
       "team1",
@@ -225,7 +228,7 @@ describe("backfillSignupDocs", () => {
       [{ id: "" } as TryoutSignup],
       new Set(),
     );
-    await backfillSignupDocs(
+    const missing = await backfillSignupDocs(
       {} as never,
       "app",
       "team1",
@@ -234,9 +237,19 @@ describe("backfillSignupDocs", () => {
       new Set(),
     );
     expect(mockSetDoc).not.toHaveBeenCalled();
+    // Nothing pending is a SUCCESS with no work, not a failure — the caller
+    // reads failed === 0 as "this team is fully mirrored, never run again".
+    expect(skipped).toEqual({ written: 0, failed: 0, writtenIds: [] });
+    expect(missing).toEqual({ written: 0, failed: 0, writtenIds: [] });
   });
 
-  it("resolves despite per-entry write failures (best-effort; next session retries)", async () => {
+  // Contract change (see backfillSignupDocs): this used to resolve `void`
+  // whether every write landed or every write was denied, so the caller could
+  // not tell a finished migration from a wholly failed one — and it consumes a
+  // once-per-session guard on the strength of that answer. It now reports both
+  // halves, still without rejecting, so the fire-and-forget call site stays
+  // safe and a partial failure keeps its progress count.
+  it("reports per-entry write failures instead of swallowing them", async () => {
     mockSetDoc.mockRejectedValueOnce(new Error("denied"));
     await expect(
       backfillSignupDocs(
@@ -247,8 +260,59 @@ describe("backfillSignupDocs", () => {
         [entry("a", "t"), entry("b", "t")],
         new Set(),
       ),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ written: 1, failed: 1, writtenIds: ["b"] });
+    // A rejection on one entry never cancels its siblings.
     expect(mockSetDoc).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a wholly denied pass as written 0 — the case that was invisible", async () => {
+    mockSetDoc.mockRejectedValue(new Error("permission-denied"));
+    await expect(
+      backfillSignupDocs(
+        {} as never,
+        "app",
+        "team1",
+        "interestSignups",
+        [entry("a", "t"), entry("b", "t"), entry("c", "t")],
+        new Set(),
+      ),
+    ).resolves.toEqual({ written: 0, failed: 3, writtenIds: [] });
+  });
+
+  // Firestore validates EAGERLY: an invalid path segment throws out of
+  // signupDocRef, and invalid data throws out of setDoc — neither rejects.
+  // Before this was handled, such a throw escaped the per-entry catch entirely:
+  // an unhandled rejection, no tally, so the caller consumed no attempt,
+  // scheduled no retry and logged no give-up. A silent single-attempt stall —
+  // the exact failure this function was rewritten to end, on a different
+  // trigger.
+  it("counts a SYNCHRONOUS throw as a failure, not an escape", async () => {
+    mockSetDoc.mockImplementationOnce(() => {
+      throw new Error("Function setDoc() called with invalid data");
+    });
+    await expect(
+      backfillSignupDocs(
+        {} as never,
+        "app",
+        "team1",
+        "tryoutSignups",
+        [entry("a", "t"), entry("b", "t")],
+        new Set(),
+      ),
+    ).resolves.toEqual({ written: 1, failed: 1, writtenIds: ["b"] });
+  });
+
+  it("counts a clean pass", async () => {
+    await expect(
+      backfillSignupDocs(
+        {} as never,
+        "app",
+        "team1",
+        "tryoutSignups",
+        [entry("a", "t"), entry("b", "t")],
+        new Set(["a"]),
+      ),
+    ).resolves.toEqual({ written: 1, failed: 0, writtenIds: ["b"] });
   });
 });
 

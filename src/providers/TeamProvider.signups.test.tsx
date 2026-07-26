@@ -1142,3 +1142,205 @@ describe("TeamProvider signup subcollections — subscription teardown", () => {
     expect(written()).toHaveLength(1);
   });
 });
+
+// The backfill's once-per-session guard used to be consumed BEFORE any write
+// went out and released by nothing, on top of a helper that swallowed every
+// rejection inside Promise.all — so a pass in which the server refused all
+// forty writes was indistinguishable from one that mirrored all forty, and the
+// migration stalled for the session with no symptom whatsoever (the union read
+// still paints every family, and the irreversible drop's coverage proof reads
+// the very id set the failed writes never populated, so nothing downstream
+// misfires either). backfillSignupDocs now reports {written, failed} and the
+// guard is released when anything failed — under an explicit per-team budget,
+// because this effect re-runs on subscription milestones and an unbounded
+// release against a denied team is a billed write loop.
+describe("TeamProvider signup backfill — failure, retry and the retry bound", () => {
+  // Mirrors SIGNUP_BACKFILL_RETRY_MS / SIGNUP_BACKFILL_MAX_ATTEMPTS.
+  const BACKFILL_RETRY_MS = 5000;
+  const BACKFILL_MAX_ATTEMPTS = 3;
+
+  // Deny every signup-subcollection mirror write the way lagging rules or a
+  // dropped connection does, while every other setDoc the provider issues
+  // keeps succeeding. Returns the denial count so a test can prove the writes
+  // it is reasoning about actually failed.
+  const failMirrorWrites = () => {
+    const denied: string[] = [];
+    setDocMock.mockImplementation((ref: unknown) => {
+      const path = String((ref as { __path?: string })?.__path || "");
+      if (/\/(tryoutSignups|interestSignups)\//.test(path)) {
+        denied.push(path);
+        return Promise.reject(new Error("permission-denied"));
+      }
+      return Promise.resolve();
+    });
+    return () => denied.length;
+  };
+
+  // Let the backfill's promise chain settle: the pass is fired from an effect
+  // and its {written, failed} handling — guard release, retry scheduling — runs
+  // in microtasks the emit helpers' synchronous act() never reaches.
+  const settle = () => act(async () => {});
+
+  // Everything the backfill needs: one legacy entry with no subcollection
+  // twin, both lanes landed and server-confirmed.
+  const armBackfill = async () => {
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a", playerName: "Alpha" }] }),
+    );
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    await settle();
+  };
+
+  const waitOutRetryDelay = async () => {
+    await act(async () => {
+      vi.advanceTimersByTime(BACKFILL_RETRY_MS);
+    });
+    await settle();
+  };
+
+  const mirrorAttempts = () =>
+    backfillWrites(subPath("t1", "tryoutSignups") + "/legacy-a").length;
+
+  it("retries a wholly denied backfill on a later cycle in the SAME session", async () => {
+    const denials = failMirrorWrites();
+    await armBackfill();
+    expect(mirrorAttempts()).toBe(1);
+    expect(denials()).toBe(1);
+
+    // Nothing else will re-run this effect: its other triggers are
+    // subscription milestones that have already fired for this team. The
+    // release-plus-timer IS the retry.
+    await waitOutRetryDelay();
+    expect(mirrorAttempts()).toBe(2);
+  });
+
+  it("converges when the retry succeeds, and never runs again after it does", async () => {
+    failMirrorWrites();
+    await armBackfill();
+    expect(mirrorAttempts()).toBe(1);
+
+    // The blip clears before the retry fires.
+    setDocMock.mockImplementation(() => Promise.resolve());
+    await waitOutRetryDelay();
+    expect(mirrorAttempts()).toBe(2);
+
+    // A clean pass consumes the guard for good — no third attempt, no timer
+    // left armed.
+    await waitOutRetryDelay();
+    await waitOutRetryDelay();
+    expect(mirrorAttempts()).toBe(2);
+  });
+
+  it("does not re-run a backfill that succeeded, even across a team round trip", async () => {
+    await armBackfill();
+    expect(mirrorAttempts()).toBe(1);
+
+    // A revisit re-lands the doc and both subscriptions — every gate the
+    // backfill reads is satisfied a second time, so only the guard stands
+    // between it and a duplicate mirror of an entry a coach may have edited
+    // since.
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    await act(async () => {
+      await teamApi.switchTeam("t1");
+    });
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a", playerName: "Alpha" }] }),
+    );
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    await settle();
+    await waitOutRetryDelay();
+
+    expect(mirrorAttempts()).toBe(1);
+  });
+
+  it("stops at the attempt cap — a permanently denied team is not a write loop", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const denials = failMirrorWrites();
+    await armBackfill();
+
+    // Far more cycles than the budget allows.
+    for (let i = 0; i < 10; i += 1) await waitOutRetryDelay();
+
+    expect(mirrorAttempts()).toBe(BACKFILL_MAX_ATTEMPTS);
+    expect(denials()).toBe(BACKFILL_MAX_ATTEMPTS);
+    // The only signal a persistent failure gets: a maintainer-visible log, not
+    // a toast. Nothing is broken from the coach's side and there is nothing
+    // they could do about it.
+    const giveUpLogs = errorSpy.mock.calls.filter((c) =>
+      String(c[0]).includes("[signupBackfill]"),
+    );
+    expect(giveUpLogs).toHaveLength(1);
+    expect(giveUpLogs[0]).toContain(BACKFILL_MAX_ATTEMPTS);
+    errorSpy.mockRestore();
+  });
+
+  it("never refunds the budget on a team switch — the cap is per session", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    failMirrorWrites();
+    await armBackfill();
+    for (let i = 0; i < 10; i += 1) await waitOutRetryDelay();
+    expect(mirrorAttempts()).toBe(BACKFILL_MAX_ATTEMPTS);
+
+    // Switching away and back re-arms every other precondition. If the budget
+    // reset with it, bouncing between two teams would restore the unbounded
+    // loop the cap exists to prevent.
+    await act(async () => {
+      await teamApi.switchTeam("t2");
+    });
+    await act(async () => {
+      await teamApi.switchTeam("t1");
+    });
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a", playerName: "Alpha" }] }),
+    );
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    await settle();
+    await waitOutRetryDelay();
+
+    expect(mirrorAttempts()).toBe(BACKFILL_MAX_ATTEMPTS);
+    errorSpy.mockRestore();
+  });
+
+  it("retries ONLY the stragglers — an entry already mirrored is never rewritten", async () => {
+    // One entry mirrors, one is denied: the pass is not clean, so the guard
+    // releases and the next cycle re-attempts the one that never landed.
+    setDocMock.mockImplementation((ref: unknown) => {
+      const path = String((ref as { __path?: string })?.__path || "");
+      return path.endsWith("/legacy-b")
+        ? Promise.reject(new Error("permission-denied"))
+        : Promise.resolve();
+    });
+    await mountProvider();
+    await emitDoc(
+      teamPath("t1"),
+      teamDoc({ tryoutSignups: [{ id: "legacy-a" }, { id: "legacy-b" }] }),
+    );
+    await emitCollection(subPath("t1", "tryoutSignups"), []);
+    await emitCollection(subPath("t1", "interestSignups"), []);
+    await settle();
+
+    const attemptsFor = (id: string) =>
+      backfillWrites(subPath("t1", "tryoutSignups") + "/" + id).length;
+    expect(attemptsFor("legacy-a")).toBe(1);
+    expect(attemptsFor("legacy-b")).toBe(1);
+
+    await waitOutRetryDelay();
+    expect(attemptsFor("legacy-b")).toBe(2);
+    // ...and legacy-a is NOT rewritten. This is the assertion whose absence
+    // hid a real defect: the retry's skip-existing guard is the subcollection
+    // id set, which is only as fresh as the last snapshot. Without unioning in
+    // the ids this session already wrote, a retry 5s after a partial failure
+    // re-sends the STALE legacy copy over a doc the coach may have edited in
+    // between — the exact clobber this function's contract promises to avoid.
+    expect(attemptsFor("legacy-a")).toBe(1);
+  });
+});
