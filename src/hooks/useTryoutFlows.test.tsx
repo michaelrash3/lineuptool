@@ -62,6 +62,40 @@ const legacyRemoved = (key: string) => {
 const lastBatch = () =>
   mockWriteBatch.mock.results[mockWriteBatch.mock.results.length - 1]?.value;
 
+// ---- Write-failure helpers --------------------------------------------------
+// Every per-doc signup write is fire-and-forget with a `.catch(signupWriteFailed)`
+// tail, so a rejection surfaces one microtask AFTER the synchronous call
+// returns. Tests drive a write to failure, drain the microtask queue, then
+// assert the coach actually got told.
+const REJECTION = new Error("permission-denied");
+const flushWrites = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+// The exact payload signupWriteFailed pushes — asserted whole so a silently
+// swallowed rejection (or a second, duplicate toast) fails the test.
+const SAVE_FAILED_TOAST = {
+  kind: "error",
+  title: "Couldn't save that change",
+  message: "Check your connection and try again.",
+};
+const errorToasts = (toast: { push: unknown }) =>
+  (toast.push as ReturnType<typeof vi.fn>).mock.calls
+    .map((args: any[]) => args[0])
+    .filter((t: any) => t?.kind === "error");
+// A writeBatch whose commit REJECTS (the default mock always resolves).
+const rejectNextCommit = () => {
+  const batch = {
+    set: vi.fn(),
+    delete: vi.fn(),
+    commit: vi.fn(() => Promise.reject(REJECTION)),
+  };
+  mockWriteBatch.mockImplementationOnce(() => batch);
+  return batch;
+};
+
 const db = { __db: true };
 
 const setup = (
@@ -803,6 +837,213 @@ describe("useTryoutFlows", () => {
     expect(next.players[0].shirtSize).toBe("YM"); // always-set field applied
     expect(next.playerInfoSubmissions[0]).toMatchObject({
       appliedToPlayerId: "p1",
+    });
+  });
+
+  // Every signup write here is fire-and-forget: nothing awaits it, so the ONLY
+  // thing standing between a rejected write and a coach who believes the edit
+  // saved is the `.catch(signupWriteFailed)` tail. These tests reject one write
+  // at a time and assert the toast, so deleting any single catch turns one of
+  // them red.
+  describe("write failures surface the save-failed toast", () => {
+    // ---- Legacy-array cleanup lane -----------------------------------------
+    // The highest-stakes swallow: the subdoc delete landed but its legacy twin
+    // survived, so the union RESURRECTS the family with pre-edit data on the
+    // next assembly. Only the arrayRemove rejects in these five — the primary
+    // write resolves — so the toast can come from nowhere else.
+
+    it("deleteTryoutSignup toasts when the legacy arrayRemove rejects (subdoc gone, twin survives)", async () => {
+      const storedLegacy = { id: "b", firstName: "Ava", status: "tryout" };
+      const { result, toast } = setup(
+        { tryoutSignups: [{ id: "b", firstName: "Ava", status: "accepted" }] },
+        undefined,
+        { tryout: [storedLegacy] },
+      );
+      mockRemoveLegacy.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.deleteTryoutSignup("b"));
+      await flushWrites();
+      // The subdoc delete succeeded; the family is coming back and the coach
+      // has to know.
+      expect(mockDeleteSignup).toHaveBeenCalledTimes(1);
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("deleteTryoutSignups toasts when the bulk legacy arrayRemove rejects", async () => {
+      const legacyB = { id: "b" };
+      const { result, toast } = setup(
+        { tryoutSignups: [{ id: "b" }, { id: "d" }] },
+        undefined,
+        { tryout: [legacyB] },
+      );
+      mockRemoveLegacy.mockRejectedValueOnce(REJECTION);
+      act(() => {
+        result.current.deleteTryoutSignups(["b", "d"]);
+      });
+      await flushWrites();
+      expect(lastBatch().commit).toHaveBeenCalledTimes(1);
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("deleteInterestSignup toasts when the legacy arrayRemove rejects", async () => {
+      const storedLead = { id: "i1", firstName: "Mia" };
+      const { result, toast } = setup(
+        { interestSignups: [{ id: "i1", firstName: "Mia", notes: "edited" }] },
+        undefined,
+        { interest: [storedLead] },
+      );
+      mockRemoveLegacy.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.deleteInterestSignup("i1"));
+      await flushWrites();
+      expect(mockDeleteSignup).toHaveBeenCalledTimes(1);
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("convertInterestToTryout toasts when the consumed lead's legacy arrayRemove rejects", async () => {
+      // The swallowed case is especially bad here: the lead comes back
+      // UN-CONVERTED alongside the tryout signup the promotion just created.
+      const storedLead = { id: "i1", firstName: "Mia" };
+      const { result, toast } = setup(
+        {
+          interestSignups: [{ id: "i1", firstName: "Mia", lastName: "Stone" }],
+        },
+        undefined,
+        { interest: [storedLead] },
+      );
+      mockRemoveLegacy.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.convertInterestToTryout("i1"));
+      await flushWrites();
+      expect(lastBatch().commit).toHaveBeenCalledTimes(1);
+      // The optimistic "Moved to tryouts" success toast still fires (it is
+      // pushed synchronously); the error toast must land next to it.
+      expect(toast.push).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "success", title: "Moved to tryouts" }),
+      );
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("acceptTryout('current') toasts when the legacy arrayRemove rejects", async () => {
+      const storedLegacy = { id: "s1", firstName: "Ava", status: "tryout" };
+      const { result, toast } = setup(
+        {
+          tryoutSignups: [
+            {
+              id: "s1",
+              firstName: "Ava",
+              lastName: "Rivera",
+              status: "offered",
+            },
+          ],
+          players: [],
+        },
+        undefined,
+        { tryout: [storedLegacy] },
+      );
+      mockRemoveLegacy.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.acceptTryout("s1", "current"));
+      await flushWrites();
+      expect(mockDeleteSignup).toHaveBeenCalledTimes(1);
+      // Kid is on the roster AND still in Tryouts — the duplicate this cleanup
+      // exists to prevent, so the failure cannot be silent.
+      expect(toast.push).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: "success" }),
+      );
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    // ---- Primary per-doc lane ----------------------------------------------
+    // Same hole, one layer up: a rejected subdoc write means the edit never
+    // happened at all.
+
+    it("appendTryoutSignup toasts when the new signup doc write rejects", async () => {
+      const { result, toast } = setup();
+      mockUpsert.mockRejectedValueOnce(REJECTION);
+      act(() => {
+        result.current.appendTryoutSignup({ firstName: "Ava" });
+      });
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("updateTryoutSignup toasts when the patched-entry write rejects", async () => {
+      const { result, toast } = setup({
+        tryoutSignups: [{ id: "s1", firstName: "Ava", status: "tryout" }],
+      });
+      mockUpsert.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.updateTryoutSignup("s1", { status: "offered" }));
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("saveTryoutMeasurements toasts when the station write rejects", async () => {
+      const { result, toast } = setup({
+        tryoutSignups: [{ id: "s1", firstName: "Ava" }],
+      });
+      mockUpsert.mockRejectedValueOnce(REJECTION);
+      act(() =>
+        result.current.saveTryoutMeasurements("s1", { exitVeloMph: 51 }),
+      );
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("assignTryoutNumbers toasts when the number batch rejects", async () => {
+      const { result, toast } = setup({
+        tryoutSignups: [{ id: "s1", tryoutDate: "2026-08-01" }],
+      });
+      const batch = rejectNextCommit();
+      act(() => result.current.assignTryoutNumbers());
+      await flushWrites();
+      expect(batch.set).toHaveBeenCalledTimes(1);
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("deleteTryoutSignup toasts when the subdoc delete itself rejects", async () => {
+      const { result, toast } = setup({ tryoutSignups: [{ id: "b" }] });
+      mockDeleteSignup.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.deleteTryoutSignup("b"));
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("deleteInterestSignup toasts when the subdoc delete itself rejects", async () => {
+      const { result, toast } = setup({ interestSignups: [{ id: "i1" }] });
+      mockDeleteSignup.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.deleteInterestSignup("i1"));
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("deleteTryoutSignups toasts when the delete batch rejects", async () => {
+      const { result, toast } = setup({
+        tryoutSignups: [{ id: "a" }, { id: "b" }],
+      });
+      const batch = rejectNextCommit();
+      act(() => {
+        result.current.deleteTryoutSignups(["a", "b"]);
+      });
+      await flushWrites();
+      expect(batch.delete).toHaveBeenCalledTimes(2);
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("convertInterestToTryout toasts when the promotion batch rejects", async () => {
+      const { result, toast } = setup({
+        interestSignups: [{ id: "i1", firstName: "Mia", lastName: "Stone" }],
+      });
+      rejectNextCommit();
+      act(() => result.current.convertInterestToTryout("i1"));
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
+    });
+
+    it("acceptTryout (default) toasts when the accepted-status write rejects", async () => {
+      const { result, toast } = setup({
+        tryoutSignups: [{ id: "s1", firstName: "Ava", lastName: "Rivera" }],
+      });
+      mockUpsert.mockRejectedValueOnce(REJECTION);
+      act(() => result.current.acceptTryout("s1"));
+      await flushWrites();
+      expect(errorToasts(toast)).toEqual([SAVE_FAILED_TOAST]);
     });
   });
 });

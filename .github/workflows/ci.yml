@@ -47,7 +47,38 @@ jobs:
       # toolchain advisories do not ship in the Vite production bundle, so keep
       # this gate focused on runtime dependencies.
       - name: Security audit
-        run: npm audit --audit-level=high --omit=dev
+        # npm's bulk-advisory endpoint intermittently returns a malformed
+        # (gzip-mangled) body — "invalid json response body ... is not valid
+        # JSON" — and plain `npm audit` exits 1 for that, indistinguishably
+        # from a real advisory. A security gate that goes red on registry
+        # flakiness is one people learn to re-run past, which is exactly how a
+        # genuine advisory gets waved through. So separate the two failures:
+        # retry the transport, fail only on advisories we could actually read,
+        # and warn (without blocking) when the endpoint never answers.
+        run: |
+          for attempt in 1 2 3; do
+            out=""
+            if ! out=$(npm audit --json --omit=dev 2>/tmp/audit.err); then
+              : # non-zero also means "advisories found" — decided by the JSON below
+            fi
+            if printf '%s' "$out" | jq -e 'has("metadata")' >/dev/null 2>&1; then
+              high=$(printf '%s' "$out" | jq '.metadata.vulnerabilities.high // 0')
+              crit=$(printf '%s' "$out" | jq '.metadata.vulnerabilities.critical // 0')
+              if [ "$((high + crit))" -gt 0 ]; then
+                echo "::error::npm audit: $crit critical, $high high production advisories"
+                printf '%s' "$out" | jq -r '.vulnerabilities | to_entries[]
+                  | select(.value.severity == "high" or .value.severity == "critical")
+                  | "  \(.value.severity)\t\(.key)"'
+                exit 1
+              fi
+              echo "Security audit clean: 0 high, 0 critical production advisories."
+              exit 0
+            fi
+            echo "Attempt $attempt: audit endpoint returned an unreadable response."
+            cat /tmp/audit.err || true
+            sleep $((attempt * 5))
+          done
+          echo "::warning::npm audit could not complete after 3 attempts (registry returned an unreadable response). Not failing the build on an infrastructure error — this does NOT mean the audit passed."
 
       - name: Typecheck
         run: npx tsc --noEmit
