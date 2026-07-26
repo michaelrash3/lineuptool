@@ -136,8 +136,10 @@ export const deleteSignupDoc = (
 // spare so a sweep of a big signup list still commits in whole batches.
 const DELETE_BATCH_SIZE = 400;
 
-// Delete EVERY doc in one signup subcollection, in batches. Team deletion is
-// the only caller.
+// Delete EVERY doc in one signup subcollection, in batches. Two callers, both
+// of which mean "this whole collection is over": team deletion (both lanes)
+// and season advance (the tryout lane only — standing interest leads survive
+// the rollover).
 //
 // Firestore has no cascading delete, and a recursive delete needs the Admin
 // SDK — so this client-side sweep is the only thing standing between a
@@ -146,8 +148,13 @@ const DELETE_BATCH_SIZE = 400;
 //   - it must run while the team doc still EXISTS, because the subcollection
 //     delete rule resolves membership by reading that parent doc; anything
 //     left behind after the team doc is gone can never be deleted by a client
-//     again;
+//     again (season advance satisfies this trivially — it never deletes the
+//     team doc);
 //   - a rejected or half-applied sweep leaves exactly those orphans.
+// Queries the collection rather than trusting a caller-supplied id list: the
+// coach's assembled view only holds docs its subscription actually delivered,
+// so a denied/unlanded subscription — or a portal signup that arrived after
+// the last snapshot — would otherwise be swept right past.
 // REJECTS so the caller can tell the coach rather than claim a clean delete.
 // Returns how many docs it deleted.
 export const deleteAllSignupDocs = async (
@@ -337,3 +344,37 @@ export const dropLegacySignupArrays = (
     tryoutSignups: deleteField(),
     interestSignups: deleteField(),
   });
+
+// Delete ONE legacy signup array from the team doc. Same deleteField as the
+// two-key drop above and the same irreversibility, but scoped to the lane the
+// caller is actually clearing — season advance wipes the tryout lane and must
+// leave standing interest leads alone.
+//
+// This is how a "clear every signup" flow clears the legacy home WITHOUT
+// recreating the field: writing `tryoutSignups: []` would leave the key
+// PRESENT on the doc, which is exactly what the migration exists to remove
+// and exactly what a rules ratchet of the evaluationEvents shape
+// (`!(k in request.resource.data) || (k in resource.data)`) rejects.
+// deleteField leaves the key absent from the written document, so it passes
+// that ratchet and is a documented no-op on a team whose array is long gone.
+//
+// Not removeLegacySignupEntries: that clears a SUBSET by exact-value
+// arrayRemove and needs the raw team-doc elements to match against. Clearing
+// the whole lane needs no matching, and the caller (useTeamLifecycle) only
+// holds the assembled union anyway, whose elements may no longer byte-match
+// what is stored.
+//
+// Unconditional, like the two-key drop: a deprecated-array-lane portal append
+// that commits between the caller's snapshot and this write is destroyed.
+// That is not new — the `tryoutSignups: []` overwrite this replaced had the
+// identical race — and the season patch closes `tryoutsOpen`, which is the
+// rules gate that lane is allowed through.
+//
+// REJECTS on failure so the caller can tell the coach the reset was partial.
+export const dropLegacySignupArray = (
+  db: Firestore,
+  appId: string,
+  teamId: string,
+  key: SignupCollectionKey,
+): Promise<void> =>
+  updateDoc(teamDocRef(db, appId, teamId), { [key]: deleteField() });

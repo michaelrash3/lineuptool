@@ -5,7 +5,7 @@ import { downloadTeamBackup } from "../utils/teamBackup";
 import { saveEvalRound, deleteEvalRound } from "../utils/evalRounds";
 import {
   deleteAllSignupDocs,
-  deleteSignupDoc,
+  dropLegacySignupArray,
 } from "../utils/tryoutSignupDocs";
 import { downscaleImageToDataURL } from "../components/shared";
 import { blankStats } from "../utils/helpers";
@@ -35,8 +35,8 @@ vi.mock("../utils/evalRounds", () => ({
   deleteEvalRound: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("../utils/tryoutSignupDocs", () => ({
-  deleteSignupDoc: vi.fn(() => Promise.resolve()),
   deleteAllSignupDocs: vi.fn(() => Promise.resolve(0)),
+  dropLegacySignupArray: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("../components/shared", () => ({
   downscaleImageToDataURL: vi.fn(() =>
@@ -51,8 +51,10 @@ const mockUpdateDoc = updateDoc as unknown as ReturnType<typeof vi.fn>;
 const mockBackup = downloadTeamBackup as unknown as ReturnType<typeof vi.fn>;
 const mockSaveRound = saveEvalRound as unknown as ReturnType<typeof vi.fn>;
 const mockDeleteRound = deleteEvalRound as unknown as ReturnType<typeof vi.fn>;
-const mockDeleteSignup = deleteSignupDoc as unknown as ReturnType<typeof vi.fn>;
 const mockSweepSignups = deleteAllSignupDocs as unknown as ReturnType<
+  typeof vi.fn
+>;
+const mockDropLegacyArray = dropLegacySignupArray as unknown as ReturnType<
   typeof vi.fn
 >;
 const mockDownscale = downscaleImageToDataURL as unknown as ReturnType<
@@ -483,7 +485,6 @@ describe("advanceSeason", () => {
       tournaments: [],
       practices: [],
       tryoutSessions: [],
-      tryoutSignups: [],
       tryoutsOpen: false,
       gcCalendarUrl: "",
     });
@@ -597,10 +598,10 @@ describe("advanceSeason", () => {
     expect(success.message).toMatch(/still syncing/i);
   });
 
-  it("sweeps the tryout signup subdocs AFTER the season patch; interest leads survive", async () => {
+  it("clears tryout signups from BOTH homes AFTER the season patch; interest leads survive", async () => {
     const fixture = makeFixture();
     // The union the provider assembles — migrated subdocs and any legacy
-    // stragglers alike; every id must be swept per-doc.
+    // stragglers alike. Neither home may be trusted to be the only one.
     (fixture as Record<string, unknown>).tryoutSignups = [
       { id: "ts1", firstName: "Ava" },
       { id: "ts2", firstName: "Mia" },
@@ -612,21 +613,49 @@ describe("advanceSeason", () => {
     await act(async () => {
       await result.current.advanceSeason();
     });
-    // Legacy stragglers cleared in the season patch itself…
-    expect(updateTeam.mock.calls[0][0].tryoutSignups).toEqual([]);
-    // …and the per-doc signups swept from the subcollection, tryouts only —
-    // interest leads survive the rollover by design.
+    // Home 1: the subcollection, swept whole (deleteTeamCmd's precedent) —
+    // NOT walked from teamData's ids, which only hold what this client's
+    // subscription happened to deliver. Tryouts only: interest leads survive.
     expect(
-      mockDeleteSignup.mock.calls.map((c: unknown[]) => c.slice(1)),
-    ).toEqual([
-      ["test-app", "t1", "tryoutSignups", "ts1"],
-      ["test-app", "t1", "tryoutSignups", "ts2"],
-    ]);
+      mockSweepSignups.mock.calls.map((c: unknown[]) => c.slice(1)),
+    ).toEqual([["test-app", "t1", "tryoutSignups"]]);
+    // Home 2: the legacy team-doc array, removed with deleteField — again
+    // tryouts only.
+    expect(
+      mockDropLegacyArray.mock.calls.map((c: unknown[]) => c.slice(1)),
+    ).toEqual([["test-app", "t1", "tryoutSignups"]]);
     // Same ordering contract as the eval-rounds reset: a rejected season
     // patch must not find the signups already destroyed.
     expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
-      mockDeleteSignup.mock.invocationCallOrder[0],
+      mockSweepSignups.mock.invocationCallOrder[0],
     );
+    expect(updateTeam.mock.invocationCallOrder[0]).toBeLessThan(
+      mockDropLegacyArray.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("never writes the deprecated tryoutSignups array back onto the team doc", async () => {
+    // The whole point of clearing the legacy home with deleteField: a
+    // `tryoutSignups: []` in this patch would leave the key PRESENT, which is
+    // what Phase 1 exists to remove and what an evaluationEvents-shaped rules
+    // ratchet rejects outright. The advance must not name the key at all.
+    const fixture = makeFixture();
+    (fixture as Record<string, unknown>).tryoutSignups = [{ id: "ts1" }];
+    const { result, updateTeam } = setup({ teamDataRef: { current: fixture } });
+    await act(async () => {
+      await result.current.advanceSeason();
+    });
+    const patch = updateTeam.mock.calls[0][0] as Record<string, unknown>;
+    expect(Object.keys(patch)).not.toContain("tryoutSignups");
+    // Its sibling legacy array is likewise never named (it was already
+    // dropped and IS ratcheted today), and neither is interestSignups, whose
+    // standing leads carry into the new season untouched.
+    expect(Object.keys(patch)).not.toContain("evaluationEvents");
+    expect(Object.keys(patch)).not.toContain("interestSignups");
+    // Closing the tryout window is still part of the same patch — that is the
+    // rules gate the deprecated public array lane writes through, so the lane
+    // shuts in the same write that ends the season.
+    expect(patch.tryoutsOpen).toBe(false);
   });
 
   it("gives up on writes that are only QUEUED offline instead of hanging the page", async () => {
@@ -642,7 +671,8 @@ describe("advanceSeason", () => {
       const queuedForever = () => new Promise<void>(() => {});
       mockDeleteRound.mockImplementationOnce(queuedForever);
       mockSaveRound.mockImplementationOnce(queuedForever);
-      mockDeleteSignup.mockImplementationOnce(queuedForever);
+      mockSweepSignups.mockImplementationOnce(queuedForever);
+      mockDropLegacyArray.mockImplementationOnce(queuedForever);
       const { result, toast } = setup({ teamDataRef: { current: fixture } });
       let settled = false;
       await act(async () => {
@@ -665,30 +695,58 @@ describe("advanceSeason", () => {
     }
   });
 
-  it("warns when part of the signup sweep fails instead of swallowing it", async () => {
+  it.each([
+    ["subcollection sweep", () => mockSweepSignups],
+    ["legacy array drop", () => mockDropLegacyArray],
+  ])(
+    "warns when the %s fails instead of swallowing it",
+    async (_label, pick) => {
+      const fixture = makeFixture();
+      (fixture as Record<string, unknown>).tryoutSignups = [
+        { id: "ts1" },
+        { id: "ts2" },
+      ];
+      // Either half failing leaves signups behind — a surviving legacy array
+      // resurrects them through the provider's union read just as surely as an
+      // unswept subdoc does, so both have to be reported.
+      pick().mockRejectedValueOnce(new Error("offline"));
+      const { result, toast } = setup({ teamDataRef: { current: fixture } });
+      await act(async () => {
+        await result.current.advanceSeason();
+      });
+      expect(toast.push).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "warn",
+          title: "Some old tryout signups are still there",
+        }),
+      );
+      // The advance itself still completes with its usual summary toast.
+      expect(toast.push).toHaveBeenCalledWith(
+        expect.objectContaining({
+          kind: "success",
+          title: "Advanced to Spring 2026",
+        }),
+      );
+    },
+  );
+
+  it("clears both signup homes even when this client's list looks empty", async () => {
+    // teamData's signup array is the provider's UNION, and it reads empty
+    // whenever the subcollection subscription hasn't landed (or was denied) on
+    // a team whose legacy array is already dropped. Gating the reset on that
+    // list would make exactly that client skip the reset and carry last
+    // season's families into the new season, so both writes are unconditional.
     const fixture = makeFixture();
-    (fixture as Record<string, unknown>).tryoutSignups = [
-      { id: "ts1" },
-      { id: "ts2" },
-    ];
-    mockDeleteSignup.mockRejectedValueOnce(new Error("offline"));
+    (fixture as Record<string, unknown>).tryoutSignups = [];
     const { result, toast } = setup({ teamDataRef: { current: fixture } });
     await act(async () => {
       await result.current.advanceSeason();
     });
-    expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: "warn",
-        title: "Some old tryout signups are still there",
-      }),
-    );
-    // The advance itself still completes with its usual summary toast.
-    expect(toast.push).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: "success",
-        title: "Advanced to Spring 2026",
-      }),
-    );
+    expect(mockSweepSignups).toHaveBeenCalledTimes(1);
+    expect(mockDropLegacyArray).toHaveBeenCalledTimes(1);
+    // Nothing failed, so nothing is reported failed.
+    const kinds = (toast.push as jest.Mock).mock.calls.map((c) => c[0].kind);
+    expect(kinds).not.toContain("warn");
   });
 
   it("bumps the age tier on Spring → Fall and self-heals a now-illegal pitching format (skipConfirm path)", async () => {

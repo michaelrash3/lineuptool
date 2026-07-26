@@ -5,6 +5,7 @@ import {
   allLegacyMigrated,
   backfillSignupDocs,
   deleteAllSignupDocs,
+  dropLegacySignupArray,
   dropLegacySignupArrays,
   findLegacySignupEntries,
   removeLegacySignupEntries,
@@ -427,6 +428,36 @@ describe("dropLegacySignupArrays", () => {
     mockUpdateDoc.mockRejectedValueOnce(new Error("permission-denied"));
     await expect(
       dropLegacySignupArrays({} as never, "app", "team1"),
+    ).rejects.toThrow("permission-denied");
+  });
+});
+
+describe("dropLegacySignupArray (single lane)", () => {
+  // Season advance clears the tryout lane and must leave standing interest
+  // leads alone, so the drop it uses is scoped to one key.
+  it("deletes ONLY the named legacy array field, by deleteField", async () => {
+    await dropLegacySignupArray({} as never, "app", "team1", "tryoutSignups");
+    expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    const [ref, payload] = mockUpdateDoc.mock.calls[0];
+    expect(ref.path).toBe(TEAM_PATH);
+    // deleteField, never `[]`: an empty array leaves the key PRESENT on the
+    // doc, which recreates the exact field Phase 1 removes and is what an
+    // evaluationEvents-shaped rules ratchet rejects.
+    expect(payload).toEqual({ tryoutSignups: { __deleteField: true } });
+    expect(Object.keys(payload)).toEqual(["tryoutSignups"]);
+  });
+
+  it("targets the interest lane when asked for it", async () => {
+    await dropLegacySignupArray({} as never, "app", "team1", "interestSignups");
+    expect(mockUpdateDoc.mock.calls[0][1]).toEqual({
+      interestSignups: { __deleteField: true },
+    });
+  });
+
+  it("REJECTS on failure so the caller can report a partial reset", async () => {
+    mockUpdateDoc.mockRejectedValueOnce(new Error("permission-denied"));
+    await expect(
+      dropLegacySignupArray({} as never, "app", "team1", "tryoutSignups"),
     ).rejects.toThrow("permission-denied");
   });
 });

@@ -56,7 +56,7 @@ The whole signed-in app is **coach-facing**, split into two roles — **head** a
 - **Tailwind CSS 3** for styling, with the design tokens centralized in `src/styles.css`
 - **lucide-react** for iconography (see `src/icons.tsx`)
 - **jspdf** for PDF export (lineup cards, fee sheets, treasurer/roster/eval reports); **recharts** + custom SVG charts for analytics; **qrcode** for portal share links
-- **vite-plugin-pwa** — precached app shell + installable manifest (data still needs the network)
+- **vite-plugin-pwa** (`injectManifest`) — builds `src/service-worker.js` with a generated precache manifest; installable app shell (data still needs the network)
 - **Vitest** (jsdom) test runner; **@firebase/rules-unit-testing** for the Firestore rules suite (`firestore-tests/`)
 
 ## Quickstart
@@ -104,6 +104,7 @@ src/
   utils/                   # Pure helpers (dates, stats, availability, finances, backup, rosterIntegrity, …)
   styles.css               # Design tokens (team triplet, slate scale, type, shadows)
   icons.tsx                # Lucide re-exports + a few sport SVGs
+  service-worker.js        # Offline shell worker (built by vite-plugin-pwa)
 firestore.rules            # Firestore security rules (deploy from repo)
 public/manifest.json       # PWA manifest
 docs/                      # See list above

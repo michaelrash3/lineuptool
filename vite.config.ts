@@ -13,25 +13,36 @@ export default defineConfig({
     // offline at the field (Firestore's persistentLocalCache already serves
     // the data offline — this caches the app shell that reads it). The
     // hand-written public/manifest.json stays the source of truth.
+    //
+    // `injectManifest`, not `generateSW`: the plugin's job here is to produce
+    // the precache manifest (which cannot drift from the build output the way a
+    // hand-maintained URL list does), while src/service-worker.js owns the
+    // caching strategy — network-first navigations and the notificationclick
+    // handler that game-day reminders depend on, neither of which generateSW
+    // can express.
+    //
+    // `injectRegister: null` is load-bearing: with "auto" the plugin injected
+    // its own registerSW.js into <head>, which registered a SECOND script at
+    // scope "/" alongside src/index.tsx's registration and re-pointed the
+    // registration on every page load. Registration now happens in exactly one
+    // place, src/utils/serviceWorker.ts.
     VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "service-worker.js",
+      injectRegister: null,
       manifest: false,
+      // Only what globPatterns below cannot match. The icons that used to be
+      // listed here are already covered by `**/*.png`, and listing them twice
+      // put seven duplicate entries in the precache manifest.
       includeAssets: [
-        "favicon-16.png",
-        "favicon-32.png",
-        "apple-touch-icon.png",
-        "icon-192.png",
-        "icon-512.png",
-        "icon-maskable-192.png",
-        "icon-maskable-512.png",
+        // globPatterns carries no .json, so the web-app manifest reaches the
+        // precache only because it is named here — without it an installed
+        // PWA's first offline launch has no manifest.
+        "manifest.json",
       ],
-      workbox: {
+      injectManifest: {
         globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
-        // SPA: unknown routes load the shell. Firebase auth/API endpoints
-        // must never be intercepted by the fallback.
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/__\//],
         // The firebase vendor chunk pushes past workbox's 2MB default.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },

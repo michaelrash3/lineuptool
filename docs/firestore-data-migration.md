@@ -107,6 +107,18 @@ helpers in `src/utils/tryoutSignupDocs.ts`:
   fire on an empty legacy array so a failed/empty subscription can never
   trigger it), the client drops both arrays from the team doc in one
   `deleteField()` write (`dropLegacySignupArrays`).
+- **Season advance clears BOTH homes.** Advancing a season ends the tryout
+  cycle, so `advanceSeason` sweeps the whole `tryoutSignups` subcollection
+  (`deleteAllSignupDocs`, the same best-effort client sweep `deleteTeamCmd`
+  uses — a client cannot recursively delete a collection) and removes the
+  legacy array with a single-key `deleteField` (`dropLegacySignupArray`). It
+  deliberately does NOT write `tryoutSignups: []`: an empty array leaves the
+  key present, recreating the field this phase removes and breaking the
+  ratchet planned below. Interest leads are untouched in both homes — standing
+  leads survive the rollover. Both writes are unconditional (never gated on
+  the client's assembled list, which reads empty when the subscription hasn't
+  landed) and both are issued AFTER the season patch, so a rejected team-doc
+  write doesn't find the signups already destroyed.
 - **Legacy public lanes retained one release:** the array-append rules stay
   (marked DEPRECATED in `firestore.rules`) for cached portal clients still
   running the `arrayUnion` code; stragglers are harmless because union +
