@@ -755,6 +755,20 @@ describe("TeamProvider signup subcollections — migration writes", () => {
 // proof" — these tests are that claim, made checkable. Each one leaves the
 // previous team fully proven, switches, and then asserts the next team has to
 // prove itself from scratch.
+//
+// Only TWO of the four lines are testable, and the reason is worth writing down
+// rather than papering over with a test that would pass either way. Both
+// `subDocs[key] = []` and `subIds[key] = new Set()` are unobservable while
+// `landed[key] = false` is intact: the snapshot callback re-assigns BOTH refs
+// unconditionally as its first two statements, and every reader of either ref
+// is gated on landed — assembledSignups returns the raw legacy array unless
+// landed[key], and the backfill and the drop's coverage proof both require
+// landed on BOTH lanes. So a read of subDocs/subIds can only happen after a
+// callback for the CURRENT team has already overwritten them, and no snapshot
+// this harness can deliver reaches a stale value. Deleting either line and
+// running this file gives 20/20 — verified, not assumed. They are
+// defence-in-depth (each line independently safe rather than leaning on the
+// landed reset), and a test claiming otherwise would be theatre.
 describe("TeamProvider signup subcollections — subscription teardown", () => {
   // landed[key] = false. Nothing else in the provider un-readies the flag, so
   // without this line the very first render after a team switch reports the
