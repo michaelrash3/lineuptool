@@ -132,6 +132,17 @@ import type {
 // costs nothing a coach can perceive.
 const SIGNUP_ARRAY_DROP_SETTLE_MS = 5000;
 
+// How many times ONE team's signup backfill may be attempted in a session
+// before the client stops trying and waits for a reload, and how long it waits
+// between attempts. The budget is the whole reason the backfill can safely
+// release its once-guard on failure: the effect re-runs on snapshots, so an
+// unbounded retry against a team whose writes are denied is a billed write
+// loop. Three is enough to ride out a transient blip (a dropped connection, a
+// rules deploy landing mid-session) and small enough that a permanent denial
+// costs at most three passes over the legacy arrays.
+const SIGNUP_BACKFILL_MAX_ATTEMPTS = 3;
+const SIGNUP_BACKFILL_RETRY_MS = 5000;
+
 export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   const toast = useToast();
   const { confirm, promptText } = useConfirm();
@@ -243,6 +254,22 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // effects gate on — first snapshot landed, then first server-confirmed
   // snapshot — so they re-evaluate at exactly those moments.
   const [signupSubsProgressTick, setSignupSubsProgressTick] = useState(0);
+  // Pending backfill retries, keyed BY TEAM (see the backfill effect).
+  // A single ref would let one team's settling pass cancel another's retry:
+  // team A's pass is still in flight when the user switches to B, B fails and
+  // arms a timer, then A's `.then` clears that timer and installs its own —
+  // which the fire-time team check then no-ops. B silently loses its retry
+  // with its budget unspent, and B is the team on screen. Declared with the
+  // rest of the lanes' team-scoped state; the teardown below cancels them.
+  const signupBackfillRetryTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  // Ids this session already mirrored, keyed `teamId:lane`. Unioned into the
+  // backfill's existing-id guard so a retry cannot rewrite an entry an earlier
+  // pass wrote — otherwise that promise rests on the local listener having
+  // delivered a snapshot within the retry delay, and a coach edit landing in
+  // that window would be clobbered by the stale legacy copy.
+  const signupBackfillMirroredRef = useRef<Map<string, Set<string>>>(new Map());
 
   // Published on the context so id-lookup consumers can tell "not delivered
   // yet" from "genuinely absent". Derived from the same landed flags the tick
@@ -931,6 +958,15 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       rawEvalEventsRef.current = [];
       rawTryoutSignupsRef.current = [];
       rawInterestSignupsRef.current = [];
+      // The lineup UNDO buffer is team-scoped for the same reason: it holds a
+      // snapshot of one team's roster in position/batting slots, and nothing
+      // else ever clears it. The "Undo" action on the generate/re-roll toast
+      // outlives a team switch (ToastProvider sits ABOVE TeamProvider, so its
+      // stack is not unmounted), and it reads this ref at CLICK time — so a
+      // coach who builds a lineup, switches teams and taps Undo pushes team
+      // A's players into team B's editor, and the next Save writes them onto
+      // team B's game. Dropping the snapshot here makes that tap a no-op.
+      previousLineupRef.current = null;
     };
   }, [activeTeamId, toast, assembledSignups]);
 
@@ -1578,7 +1614,14 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
     if (Object.keys(updates).length === 0) return;
-    const sig = `${leagueRuleSet}|${teamAge}|${defenseSize}|${pitchingFormat}`;
+    // Keyed by TEAM as well as by the tuple: the guard's job is to stop one
+    // team's failed write from re-arming its own correction, and two teams
+    // that share a league/age/size/format tuple (a coach running two 8U USSSA
+    // squads) is ordinary. Without the id, correcting team A silently
+    // suppresses the identical correction on team B, leaving B on a defenseSize
+    // its league can't field — the same team-scoped-state-outliving-the-switch
+    // class as the undo buffer above.
+    const sig = `${activeTeamId}|${leagueRuleSet}|${teamAge}|${defenseSize}|${pitchingFormat}`;
     if (lastAutoCorrectRef.current === sig) return; // don't re-fire on revert
     lastAutoCorrectRef.current = sig;
     updateTeam(updates);
@@ -1814,7 +1857,25 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         // Non-fatal: keep the legacy array authoritative until the cutover.
       },
     );
-    return unsub;
+    return () => {
+      unsub();
+      // Team-scoped, same discipline as the signup lanes' cleanup. THIS
+      // subscription — not the team doc — owns evaluationEvents, which is why
+      // the team-doc handler carries the field across snapshots
+      // (`evaluationEvents: prev.evaluationEvents`). That carry is unqualified,
+      // so without an explicit reset the previous team's rounds survive the
+      // switch and render under the next team: per-player grades and notes,
+      // the same cross-team PII exposure #583 closed on the signup lanes. And
+      // it is not a brief window — this subscription's error arm is a
+      // deliberate no-op, so a team whose evalRounds read is denied (rules lag,
+      // assistant mid-promotion) would show the PREVIOUS team's grades for as
+      // long as it stayed open.
+      setTeamData((prev: any) =>
+        (prev?.evaluationEvents || []).length === 0
+          ? prev
+          : { ...prev, evaluationEvents: [] },
+      );
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeamId, user?.uid, roleResolved, realRole]);
 
@@ -1959,6 +2020,18 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
         subDocs[key] = [];
         subIds[key] = new Set();
       }
+      // The retry scheduled by a failed backfill of THE TEAM BEING TORN DOWN
+      // — not any other team's. Each re-checks loadedTeamIdRef before firing,
+      // so leaving it would be harmless, but cancelling keeps the lanes'
+      // teardown complete and spares the next team a stray render.
+      // activeTeamId here is the effect's captured value — the team being torn
+      // down, not the one replacing it.
+      const pendingRetry =
+        signupBackfillRetryTimersRef.current.get(activeTeamId);
+      if (pendingRetry) {
+        clearTimeout(pendingRetry);
+        signupBackfillRetryTimersRef.current.delete(activeTeamId);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTeamId, user?.uid]);
@@ -1974,8 +2047,32 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
   // may have been EDITED by a coach, and re-mirroring its stale legacy copy
   // would clobber the edit. That guard is only meaningful once both
   // subscriptions have reported what exists — hence the landed gate, re-armed
-  // by signupSubsProgressTick. Once per team per session, best-effort.
+  // by signupSubsProgressTick.
+  //
+  // Once per team per session ON SUCCESS, and up to
+  // SIGNUP_BACKFILL_MAX_ATTEMPTS times when the writes are refused. The guard
+  // used to be consumed BEFORE any write was issued and never released, which
+  // — combined with a helper that swallowed every rejection — made a wholly
+  // denied pass indistinguishable from a finished one: the union still painted
+  // every family correctly, so the migration stalled for the session with no
+  // symptom at all. backfillSignupDocs now resolves with {written, failed};
+  // `failed > 0` releases the guard so a later cycle retries.
+  //
+  // The bound is the point. This effect re-runs on subscription milestones, so
+  // an unconditional release would re-fire the whole mirror on every
+  // subsequent snapshot — against a team whose writes are denied that is an
+  // unbounded billed write loop, the same failure mode the drop guard was
+  // fixed for. Three things bound it: a per-team attempt budget that is NEVER
+  // refunded (not on team switch, not on revisit — a Map keyed by team id that
+  // lives as long as the session), an in-flight guard so overlapping snapshots
+  // cannot stack passes, and a delay before the self-scheduled retry so a
+  // transient blip has time to clear instead of being hammered three times in
+  // one tick. Spending the budget consumes the once-guard for good; the
+  // migration then waits for a reload, exactly as it did before this fix.
   const signupsBackfilledTeamsRef = useRef<Set<string>>(new Set());
+  const signupBackfillAttemptsRef = useRef<Map<string, number>>(new Map());
+  const signupBackfillInFlightRef = useRef<Set<string>>(new Set());
+  const [signupBackfillRetryTick, setSignupBackfillRetryTick] = useState(0);
   useEffect(() => {
     if (!activeTeamId || !user || loadedTeamIdRef.current !== activeTeamId) {
       return;
@@ -1995,28 +2092,109 @@ export const TeamProvider = ({ children }: { children: React.ReactNode }) => {
     if (!serverConfirmed.tryoutSignups || !serverConfirmed.interestSignups) {
       return;
     }
+    // Settled: either a clean pass, or the attempt budget is spent.
     if (signupsBackfilledTeamsRef.current.has(activeTeamId)) return;
-    signupsBackfilledTeamsRef.current.add(activeTeamId);
-    const backfill = (key: SignupCollectionKey) =>
-      void backfillSignupDocs(
-        db,
-        appId,
-        activeTeamId,
-        key,
-        key === "tryoutSignups"
-          ? rawTryoutSignupsRef.current
-          : rawInterestSignupsRef.current,
-        signupSubIdsRef.current[key],
-      );
-    backfill("tryoutSignups");
-    backfill("interestSignups");
+    // A pass is already running for this team. Without this, the guard's
+    // release-on-failure would let a snapshot arriving mid-pass start a second
+    // one against the same unmirrored id set — duplicate writes, and two
+    // attempts charged for one round trip.
+    if (signupBackfillInFlightRef.current.has(activeTeamId)) return;
+    const teamId = activeTeamId;
+    const attempt = (signupBackfillAttemptsRef.current.get(teamId) || 0) + 1;
+    signupBackfillAttemptsRef.current.set(teamId, attempt);
+    signupBackfillInFlightRef.current.add(teamId);
+    const backfillKeys: SignupCollectionKey[] = [
+      "tryoutSignups",
+      "interestSignups",
+    ];
+    void Promise.all(
+      backfillKeys.map((key) =>
+        backfillSignupDocs(
+          db,
+          appId,
+          teamId,
+          key,
+          key === "tryoutSignups"
+            ? rawTryoutSignupsRef.current
+            : rawInterestSignupsRef.current,
+          new Set([
+            ...signupSubIdsRef.current[key],
+            ...(signupBackfillMirroredRef.current.get(`${teamId}:${key}`) ||
+              []),
+          ]),
+        ).then((result) => {
+          if (result.writtenIds.length) {
+            const mapKey = `${teamId}:${key}`;
+            const seen =
+              signupBackfillMirroredRef.current.get(mapKey) || new Set();
+            result.writtenIds.forEach((id) => seen.add(id));
+            signupBackfillMirroredRef.current.set(mapKey, seen);
+          }
+          return result;
+        }),
+      ),
+    )
+      .then((results) => {
+        const failed = results.reduce((n, r) => n + r.failed, 0);
+        // Nothing refused — including "nothing was pending", which is what a
+        // team with no legacy arrays left reports. Done for the session.
+        if (failed === 0) {
+          signupsBackfilledTeamsRef.current.add(teamId);
+          return;
+        }
+        if (attempt >= SIGNUP_BACKFILL_MAX_ATTEMPTS) {
+          // Budget spent. Keep the guard so nothing retries this session, and
+          // say so where a maintainer can see it — deliberately NOT a toast.
+          // Nothing is broken from the coach's side (the union read still
+          // shows every family, edits still work) and there is no action they
+          // could take; the irreversible array drop is structurally blocked
+          // from firing on data this never mirrored, because its coverage
+          // proof reads the very id set these writes failed to populate. A
+          // toast for an invisible, self-healing background migration is pure
+          // noise on the surface real signup failures use.
+          signupsBackfilledTeamsRef.current.add(teamId);
+          console.error(
+            "[signupBackfill] gave up after",
+            attempt,
+            "attempts;",
+            failed,
+            "legacy signup entries left unmirrored for team",
+            teamId,
+          );
+          return;
+        }
+        // Guard stays released. Re-arm on a timer rather than immediately: the
+        // effect's own triggers are subscription milestones that may never
+        // come again this session, so the retry has to be self-scheduled, and
+        // an instant one would just replay a transient failure.
+        const priorRetry = signupBackfillRetryTimersRef.current.get(teamId);
+        if (priorRetry) clearTimeout(priorRetry);
+        const retry = setTimeout(() => {
+          signupBackfillRetryTimersRef.current.delete(teamId);
+          // Team-pinned, like the drop's settle timer: a switch during the
+          // delay makes this a no-op instead of a spurious render.
+          if (loadedTeamIdRef.current !== teamId) return;
+          setSignupBackfillRetryTick((t) => t + 1);
+        }, SIGNUP_BACKFILL_RETRY_MS);
+        signupBackfillRetryTimersRef.current.set(teamId, retry);
+      })
+      .finally(() => {
+        signupBackfillInFlightRef.current.delete(teamId);
+      });
     // Trigger on team-load completion (loadingActive) and on the
     // subscriptions' milestones (signupSubsProgressTick — landed, then
     // server-confirmed), NOT on the assembled teamData arrays: depending on
     // those would re-run this on every signup change for no reason, and they
     // can't distinguish "subscription landed" from "legacy array painted".
+    // Plus the retry tick, the only trigger a failed pass can count on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTeamId, user?.uid, loadingActive, signupSubsProgressTick]);
+  }, [
+    activeTeamId,
+    user?.uid,
+    loadingActive,
+    signupSubsProgressTick,
+    signupBackfillRetryTick,
+  ]);
 
   // Does the CURRENT ref state prove the subcollections hold every legacy
   // entry? Reads the refs at CALL time — never a snapshot captured earlier —

@@ -10,6 +10,21 @@
 #   - Drafts are NOT held: a green claude/* PR is promoted out of draft (if
 #     needed) and squash-merged hands-off. There is no manual "Ready for
 #     review" gate.
+#   - EXCEPT when the PR asks to be held (see "Holding a PR" below). Green CI
+#     proves the tests pass; it cannot prove the tests test anything. PRs #582-
+#     #585 each merged while adversarial review was still in flight, and #582
+#     shipped nine high-severity integrity bugs behind a fully green run.
+#
+# Holding a PR:
+#   Add the `do-not-merge` label, or put `do-not-merge` on a line of its own in
+#   the PR body (an HTML comment, `<!-- do-not-merge -->`, works and stays
+#   invisible in the rendered description — for agents that cannot set labels).
+#   Either one blocks BOTH the un-draft and the merge; nothing else about the
+#   workflow changes. Remove the label / delete the line to release, and the
+#   next trigger or the 15-minute sweep merges it normally. If the label API
+#   call fails the PR is treated as held: a merge that waits costs a sweep
+#   interval, a merge that shouldn't have happened costs a revert in prod.
+#   Documented in docs/CONTRIBUTING.md.
 #
 # Triggers: CI completion (workflow_run), PR events, check_suite, status — plus
 # a 15-minute cron. Every trigger runs the same "re-scan all open claude/* PRs"
@@ -21,8 +36,8 @@
 # repo-wide.)
 #
 # To pause it entirely, disable this workflow in the repo's Actions tab (or
-# delete the file); that stops the cron sweep too. To hold a specific PR, push
-# it with a failing check or close it until you're ready.
+# delete the file); that stops the cron sweep too. To hold a specific PR, use
+# the `do-not-merge` hold above.
 
 name: Auto-merge Claude PRs
 
@@ -48,6 +63,11 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # listLabelsOnIssue is an ISSUES endpoint. Declaring a permissions block
+  # sets every unlisted scope to `none`, and the hold below fails safe — so if
+  # that call 403s, EVERY pull request reads as held and auto-merge stops
+  # repo-wide. One line to remove the only plausible path to that outage.
+  issues: read
 
 concurrency:
   # A scheduled run has no PR or check_suite payload, so it would fall through
@@ -70,6 +90,15 @@ jobs:
             const HEAD_PREFIX = "claude/";
             const CI_CHECK = "build-and-test"; // job name in ci.yml
             const SELF_CHECK = "automerge";    // this job — never wait on itself
+            const HOLD_LABEL = "do-not-merge"; // author-set hold; see header
+
+            // The same token on a line of its own in the PR body, for authors
+            // (agents, mostly) that can open a PR but not label it. Anchored to
+            // a whole line so prose that merely mentions the label does not
+            // trip it, and tolerant of an HTML-comment wrapper so the marker
+            // can be invisible in the rendered description. A false positive
+            // here only delays a merge, which is the safe direction.
+            const HOLD_MARKER = /^[ \t]*(?:<!--[ \t]*)?do-not-merge[ \t]*(?:-->)?[ \t]*$/im;
 
             // Re-scan ALL open same-repo claude/* PRs on every trigger rather
             // than trusting the event payload's PR list. The check_suite event
@@ -117,8 +146,45 @@ jobs:
                 continue;
               }
 
-              // No draft hold. GitHub refuses to merge a draft via the API, so
-              // promote it out of draft first (GraphQL markPullRequestReadyForReview),
+              // Author hold. Deliberately evaluated HERE — after the checks are
+              // known green, immediately before the un-draft/merge — and from a
+              // fresh API read rather than the `pulls.get` payload above, so a
+              // label applied while CI was still running is seen by the very run
+              // that would otherwise merge. (Everything upstream of this point is
+              // read-only, so a late hold still costs nothing.)
+              let heldBecause = null;
+              try {
+                const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+                  owner,
+                  repo,
+                  issue_number: number,
+                  per_page: 100,
+                });
+                // An unlabelled PR answers 200 with [] — that is "not held", not
+                // a failure, so the normal path never wedges. Only a thrown error
+                // means we could not determine the hold state.
+                if (labels.some(l => (l.name || "").trim().toLowerCase() === HOLD_LABEL)) {
+                  heldBecause = `the '${HOLD_LABEL}' label`;
+                }
+              } catch (e) {
+                // Fail safe: a merge that waits costs one sweep interval, a merge
+                // that shouldn't have happened costs a revert in production.
+                heldBecause = `a failed label lookup (${e.status || ""} ${e.message}) — treating as held`;
+              }
+              if (!heldBecause && HOLD_MARKER.test(pr.body || "")) {
+                heldBecause = `the '${HOLD_LABEL}' marker in the PR body`;
+              }
+              if (heldBecause) {
+                // warning, not info: a persistent API failure holds every PR
+                // forever, and that is precisely the outage that goes
+                // unnoticed when it is logged at info level with no annotation.
+                core.warning(`${tag}: held by ${heldBecause} — not un-drafting, not merging.`);
+                continue;
+              }
+
+              // No draft hold beyond the one above. GitHub refuses to merge a
+              // draft via the API, so promote it out of draft first (GraphQL
+              // markPullRequestReadyForReview),
               // then squash-merge. A green claude/* PR therefore lands hands-off
               // whether or not a human ever clicked "Ready for review".
               if (pr.draft) {
